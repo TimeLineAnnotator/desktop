@@ -15,14 +15,24 @@ it under a settings store of their own.
 
 Each shortcut is listed with what it does (its command's text) and where to
 find it: its menu path, its timeline kind's toolbar, or "anywhere" when no
-menu or toolbar has it. Shortcuts are grouped by where they apply: Global,
-then one group per timeline kind, in the order of the Timelines → Add menu.
+menu or toolbar has it. Shortcuts are grouped by where they apply: Global, the
+Inspector, then one group per timeline kind, in the order of the
+Timelines → Add menu.
 
-Besides the registered shortcuts, the sheet lists the keys that
-TiliaMainWindow.KEY_COMMANDS and TimelineView.ARROWS catch themselves. What an
-arrow does comes from each timeline kind's ARROW_TEXTS and
-CTRL_ARROW_COMMANDS; an arrow that every kind taking arrows describes the same
-way is listed once, under Global.
+Besides the registered shortcuts, the sheet lists:
+- actions in the main window that hold a key of their own instead of a
+  command's (Play / Pause, on the player toolbar);
+- the keys that TiliaMainWindow.KEY_COMMANDS, TimelineView.ARROWS and
+  Inspect.CLOSE_KEYS catch. What an arrow does comes from each timeline
+  kind's ARROW_TEXTS and CTRL_ARROW_COMMANDS; an arrow that every kind taking
+  arrows describes the same way is listed once, under Global;
+- the score viewer's SvgViewer.COMMANDS and KEY_METHODS, in the score
+  timeline's group. A viewer registers its commands when a score opens, so
+  they are read from those tables.
+
+Left out on purpose: the Enter entries without KeypadModifier, which no key
+press matches (Qt sends the keypad's Enter with that modifier), and Escape in
+the player's time field, which cancels an edit as in any text field.
 """
 
 from __future__ import annotations
@@ -32,12 +42,13 @@ import datetime
 import functools
 import html
 import itertools
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCore import QKeyCombination, Qt
-from PySide6.QtGui import QFont, QFontMetricsF
+from PySide6.QtGui import QAction, QFont, QFontMetricsF, QKeySequence
 from PySide6.QtWidgets import QApplication, QMenu, QMenuBar, QToolBar, QToolButton
 
 import tilia.constants
@@ -49,10 +60,14 @@ from tilia.ui.menus import AddTimelinesMenu, TimelinesMenu
 from tilia.ui.qtui import QtUI, TiliaMainWindow
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.view import TimelineView
+from tilia.ui.windows.inspect import Inspect
+from tilia.ui.windows.svg_viewer import SvgViewer
 
 GLOBAL = "Global"
 ANYWHERE = "anywhere"
 IN_A_TIMELINE = "in a timeline"
+IN_THE_INSPECTOR = "in the inspector"
+SCORE_VIEWER = "Score viewer"
 ARROW = " → "
 MAC_NOTE = "On macOS, Ctrl is ⌘ (Command) and Alt is ⌥ (Option)."
 FILE_NAMES = ("shortcuts.svg", "shortcuts.md")
@@ -92,6 +107,7 @@ def collect(qtui: QtUI) -> list[ShortcutGroup]:
     places = list(menu_paths) + list(toolbars)
 
     global_group = ShortcutGroup(GLOBAL, applies_everywhere=True)
+    inspector_group = ShortcutGroup("Inspector")
     groups = {kind: ShortcutGroup(f"{title} timeline") for kind, title in kind_titles}
 
     def add(group: ShortcutGroup, shortcut: Shortcut) -> None:
@@ -112,7 +128,33 @@ def collect(qtui: QtUI) -> list[ShortcutGroup]:
         for name in names:
             add_command(key, name)
     for combination, name in TiliaMainWindow.KEY_COMMANDS:
-        add_command(commands.normalize_shortcut(combination), name, caught=True)
+        if _can_be_pressed(combination):
+            add_command(commands.normalize_shortcut(combination), name, caught=True)
+
+    for action in qtui.main_window.findChildren(QAction):
+        if isinstance(action, CommandQAction):
+            continue  # its key, if any, is the registered command's
+        text = _clean(action.text())
+        for sequence in action.shortcuts():
+            key = commands.normalize_shortcut(sequence)
+            add(global_group, Shortcut(key, text, _action_location(action), text))
+
+    for combination in Inspect.CLOSE_KEYS:
+        if _can_be_pressed(combination):
+            key = commands.normalize_shortcut(combination)
+            text = Inspect.CLOSE_KEYS_TEXT
+            shortcut = Shortcut(key, text, IN_THE_INSPECTOR, text.lower(), True)
+            add(inspector_group, shortcut)
+
+    for name, method, text, shortcut_text, _ in SvgViewer.COMMANDS:
+        for combination, key_method in SvgViewer.KEY_METHODS.items():
+            if key_method == method and _can_be_pressed(combination):
+                key = commands.normalize_shortcut(combination)
+                shortcut = Shortcut(key, _clean(text), SCORE_VIEWER, name, True)
+                add(groups["score"], shortcut)
+        if shortcut_text:
+            key = commands.normalize_shortcut(shortcut_text)
+            add(groups["score"], Shortcut(key, _clean(text), SCORE_VIEWER, name))
 
     # Which kinds an arrow reaches follows TimelineUIs.on_arrow_press and
     # on_ctrl_arrow_press.
@@ -150,7 +192,7 @@ def collect(qtui: QtUI) -> list[ShortcutGroup]:
             return places.index(shortcut.command)
         return len(places)  # after the others, in the order they were added
 
-    result = [global_group, *groups.values()]
+    result = [global_group, inspector_group, *groups.values()]
     for group in result:
         group.shortcuts.sort(key=place)
     return [group for group in result if group.shortcuts]
@@ -165,9 +207,13 @@ def check_clashes(groups: list[ShortcutGroup]) -> None:
     (merge is E in both the hierarchy and the range timelines). Global
     shortcuts apply everywhere, so they clash with any other command on their
     key. A key that a keyPressEvent catches clashes with a registered shortcut
-    on it in any group: the shortcut takes the key first.
+    on it in any group: the shortcut takes the key first. Keys caught in
+    different places don't clash: the main window only gets a key that the
+    focused widget, such as the inspector or the score viewer, didn't use.
     """
-    everywhere = [s for g in groups if g.applies_everywhere for s in g.shortcuts]
+    everywhere = [
+        s for g in groups if g.applies_everywhere for s in g.shortcuts if not s.caught
+    ]
     registered = [s for g in groups for s in g.shortcuts if not s.caught]
     clashes: list[str] = []
     for group in groups:
@@ -296,11 +342,33 @@ def _toolbar_commands(toolbar_class: type[QToolBar]) -> tuple[str, ...]:
     return tuple(names)
 
 
+def _action_location(action: QAction) -> str:
+    """Returns the toolbar an action is on, as "Player toolbar", or "anywhere"."""
+    for widget in action.associatedObjects():
+        if isinstance(widget, QToolBar) and widget.objectName():
+            return widget.objectName().replace("_", " ").capitalize()
+    return ANYWHERE
+
+
+def _can_be_pressed(combination: QKeyCombination) -> bool:
+    """Whether a key press can match the combination. Qt sends the keypad's
+    Enter, the only Key_Enter, with KeypadModifier (measured on Windows; Qt
+    does the same on macOS and Linux), so Enter without it matches none."""
+    return combination.key() != Qt.Key.Key_Enter or bool(
+        combination.keyboardModifiers() & Qt.KeyboardModifier.KeypadModifier
+    )
+
+
 def _clean(text: str) -> str:
     """Returns a menu text as shown to users: without "&" accelerators, without
-    the key hint setup_shortcuts adds after a tab, and without a trailing "..."."""
+    the key hint setup_shortcuts adds after a tab or one written in brackets
+    ("Add Annotation (Return)"), and without a trailing "..."."""
     text = text.split("\t")[0]
     text = text.replace("&&", "\0").replace("&", "").replace("\0", "&")
+    if (hint := re.fullmatch(r"(.*?)\s*\(([^()]+)\)", text)) and QKeySequence(
+        hint[2]
+    ).toString():
+        text = hint[1]
     return text.strip().removesuffix("...").removesuffix("…").strip()
 
 

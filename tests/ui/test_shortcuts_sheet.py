@@ -7,6 +7,8 @@ import datetime
 import xml.etree.ElementTree as ElementTree
 
 import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
 
 import tilia.settings
 from tests.utils import get_main_window_menu, get_submenu
@@ -105,14 +107,14 @@ class TestCollect:
         }
         assert registered <= on_sheet
 
-    def test_global_comes_first_then_kinds_in_add_timeline_menu_order(self, qtui):
+    def test_global_and_inspector_come_first_then_kinds_in_add_menu_order(self, qtui):
         add_menu = get_submenu(get_main_window_menu(qtui, "Timelines"), "Add")
         kinds = [action.text().replace("&", "") for action in add_menu.actions()]
 
         titles = [group.title for group in shortcuts_sheet.collect(qtui)]
 
-        assert titles[0] == "Global"
-        assert titles[1:] == [
+        assert titles[:2] == ["Global", "Inspector"]
+        assert titles[2:] == [
             f"{kind} timeline" for kind in kinds if f"{kind} timeline" in titles
         ]
 
@@ -138,7 +140,6 @@ class TestCaughtKeys:
         [
             Shortcut("Del", "Delete", "anywhere", "timeline.component.delete", True),
             Shortcut("Return", "Inspect", "anywhere", "timeline.element.inspect", True),
-            Shortcut("Enter", "Inspect", "anywhere", "timeline.element.inspect", True),
         ],
     )
     def test_main_window_key_is_global(self, qtui, shortcut):
@@ -153,8 +154,16 @@ class TestCaughtKeys:
         caught = {
             (commands.normalize_shortcut(combination), name)
             for combination, name in TiliaMainWindow.KEY_COMMANDS
+            if combination.key() != Qt.Key.Key_Enter
         }
         assert caught <= on_sheet
+
+    def test_enter_without_the_keypad_modifier_is_left_out(self, qtui):
+        # A keyboard's keypad Enter comes with KeypadModifier, so the entries
+        # for Enter without it match no key a user can press.
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert "Enter" not in {s.key for group in groups for s in group.shortcuts}
 
     def test_key_both_registered_and_caught_is_listed_once(self, qtui):
         groups = shortcuts_sheet.collect(qtui)
@@ -264,6 +273,77 @@ class TestCaughtKeys:
         groups = shortcuts_sheet.collect(qtui)
 
         assert shortcut in get_group(groups, group).shortcuts
+
+
+class TestOtherKeys:
+    def test_play_pause_is_global(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert (
+            Shortcut("Space", "Play / Pause", "Player toolbar", "Play / Pause")
+            in get_group(groups, "Global").shortcuts
+        )
+
+    def test_every_action_with_a_key_in_the_main_window_is_on_the_sheet(self, qtui):
+        groups = shortcuts_sheet.collect(qtui)
+
+        on_sheet = {s.key for group in groups for s in group.shortcuts}
+        keys = {
+            commands.normalize_shortcut(sequence)
+            for action in qtui.main_window.findChildren(QAction)
+            for sequence in action.shortcuts()
+        }
+        assert keys <= on_sheet
+
+    @pytest.mark.parametrize("key", ["Return", "Esc"])
+    def test_keys_that_close_the_inspector(self, qtui, key):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert (
+            Shortcut(
+                key,
+                "Close the inspector",
+                "in the inspector",
+                "close the inspector",
+                True,
+            )
+            in get_group(groups, "Inspector").shortcuts
+        )
+
+    @pytest.mark.parametrize(
+        "shortcut",
+        [
+            Shortcut(
+                "Return", "Add Annotation", "Score viewer", "timeline.score.add", True
+            ),
+            Shortcut(
+                "Del",
+                "Delete Annotation",
+                "Score viewer",
+                "timeline.score.delete",
+                True,
+            ),
+            Shortcut(
+                "Shift+Return", "Edit Annotation", "Score viewer", "timeline.score.edit"
+            ),
+            Shortcut(
+                "Shift+Down",
+                "Decrease Annotation Font",
+                "Score viewer",
+                "timeline.score.font_dec",
+            ),
+            Shortcut(
+                "Shift+Up",
+                "Increase Annotation Font",
+                "Score viewer",
+                "timeline.score.font_inc",
+            ),
+        ],
+    )
+    def test_score_viewer_key_is_in_the_score_group(self, qtui, shortcut):
+        groups = shortcuts_sheet.collect(qtui)
+
+        assert shortcut in get_group(groups, "Score timeline").shortcuts
 
 
 class TestCheckClashes:
