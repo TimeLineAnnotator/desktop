@@ -166,14 +166,15 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     reason, times = _checked(timeline)
     if reason is not None or not times:
         return None
+    last, gap = _last_gap(times)
     media_length = _media_length(document)
-    if media_length is None or not _ends_by(media_length, times[-1]):
+    if media_length is None or not _ends_by(media_length, last):
         return None
     warning = (
-        f"Timeline {timeline.id}: the last beat ({times[-1]}) is at or after "
+        f"Timeline {timeline.id}: the last beat ({last}) is at or after "
         f"the end of the media ({media_length})"
     )
-    if len(times) > 1:
+    if gap > 0:
         warning += "; the last measure ends one gap after it"
     return warning
 
@@ -301,12 +302,18 @@ def is_folded(rows: Sequence[RowIn]) -> bool:
 def _closing_barline(document: tla.Document, rows: Sequence[RowIn]) -> float:
     # The last beat lasts as long as the gap before it, or until the end of the
     # media if that comes sooner. No beats are added to the last measure.
-    *before, last = [t for row in rows[-2:] for t in row.beat_times][-2:]
-    end = last + (last - before[0] if before else 0.0)
+    last, gap = _last_gap([t for row in rows[-2:] for t in row.beat_times])
+    end = last + gap
     media_length = _media_length(document)
     if media_length is None or _ends_by(media_length, last):
         return end  # past the media, the gap alone; find_time_map warns
     return min(end, media_length)
+
+
+def _last_gap(times: Sequence[float]) -> tuple[float, float]:
+    # The last beat, and the gap before it, which the last measure lasts past
+    # it: none for a single beat. The closing barline and its warning share it.
+    return times[-1], (times[-1] - times[-2] if len(times) > 1 else 0.0)
 
 
 def _media_length(document: tla.Document) -> float | None:
