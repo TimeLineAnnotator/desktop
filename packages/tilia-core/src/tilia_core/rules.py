@@ -150,20 +150,16 @@ Check = Callable[[], "Outcome | None"]
 def _kept(
     attrs: Mapping[str, Any],
     *checks: Check,
-    missing: tuple[str, Exception | None] | None = None,
+    cant_check: CantCheck | None = None,
 ) -> Outcome:
-    """The first rule `checks` find broken, else the color's outcome.
-
-    `missing` is a harmony's or a key's kind, and the error if music21 is installed
-    but won't import, when music21 couldn't be imported to check them.
-    """
+    """The first rule `checks` find broken, else `cant_check` raised, when the
+    rules that need music21 couldn't be checked, else the color's outcome."""
     for check in checks:
         broken = check()
         if broken is not None and not broken:
             return broken
-    if missing is not None:
-        kind, error = missing
-        raise CantCheck(kind, error) from error
+    if cant_check is not None:
+        raise cant_check from cant_check.error
     broken = _color_of(attrs)
     return OK if broken is None else broken
 
@@ -212,7 +208,7 @@ def harmony(
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
-        missing=None if music21 else ("harmony", error),
+        cant_check=None if music21 else CantCheck("harmony", error),
     )
 
 
@@ -228,7 +224,7 @@ def mode(
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
         lambda: _mode_type(music21, attrs) if music21 else None,
         lambda: _one_of(attrs, "level", _LEVELS),
-        missing=None if music21 else ("mode", error),
+        cant_check=None if music21 else CantCheck("mode", error),
     )
 
 
