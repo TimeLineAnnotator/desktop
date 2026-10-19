@@ -6,7 +6,7 @@ The rules are those of desktop#621 (beat units and time signatures): its
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -29,7 +29,7 @@ class _BeatUnit:
     Its units are parsed when it is read, not again for each measure it governs.
     """
 
-    id: str
+    id: str | None  # None for a unit the core supplies at a movement's start
     denominator: int
     unit_values: tuple[Fraction, ...]
     assumed: bool
@@ -43,46 +43,69 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     makes it conflicting. `rows_of` has already left out the units that can't
     be read, so the unit before such a unit carries on.
 
-    Before the first unit, the measures take its denominator and units,
-    assumed; with no unit at all, a measure of N taps is N/4, assumed. Either
-    way measure 1 starts a unit, but none has a `beat_unit_id`, since no unit
-    sits on their beats. Only here does this differ from #621's loop, which
-    never meets such a timeline: #621's loader keeps a unit in the first
-    measure (`_ensure_first_beat_unit`), copied from the first unit or the
-    default.
+    Every movement starts with a unit: the timeline's first measure, and
+    each measure marked `restart`. Where a movement's first measure has none,
+    the core supplies one, assumed, with no `beat_unit_id`, since no unit
+    sits on those beats (`_opening`). A movement's first measure always
+    starts a unit, and no unit reaches back across a restart. Only here does
+    this differ from #621's loop, which never meets such a timeline: #621's
+    loader keeps a unit in the first measure (`_ensure_first_beat_unit`),
+    copied from the first unit or the default, and #621 has no restarts.
     """
-    first = next((_parsed(*unit) for row in rows for unit in row.units), None)
-    if first is None:
-        opening = DEFAULT_DENOMINATOR, tuple(parse_units(DEFAULT_UNITS).units)
-    else:
-        opening = first.denominator, first.unit_values
-
     meters = []
     governing: _BeatUnit | None = None
     for index, row in enumerate(rows):
         beat_count = len(row.beat_ids)
         in_measure = [_parsed(beat_id, unit) for beat_id, unit in row.units]
+        starts_movement = index == 0 or row.restart
         if in_measure:
             governing = in_measure[0]
+        elif starts_movement or governing is None:
+            governing = _opening(rows, index, governing)
 
-        if governing is None:
-            denominator, units = opening[0], list(opening[1])
-        else:
-            denominator, units = governing.denominator, list(governing.unit_values)
+        denominator, units = governing.denominator, list(governing.unit_values)
 
         meters.append(
             MeasureMeter(
                 denominator=denominator,
                 units=tuple(units),
                 beat_values=tuple(fit_units(units, beat_count)),
-                beat_unit_id=governing.id if governing else None,
-                starts_here=bool(in_measure) or index == 0,
+                beat_unit_id=governing.id,
+                starts_here=bool(in_measure) or starts_movement,
                 is_ambiguous=is_fit_ambiguous(units, beat_count),
                 is_conflicting=len(in_measure) > 1,
-                is_assumed=governing is None or governing.assumed,
+                is_assumed=governing.assumed,
             )
         )
     return meters
+
+
+def _opening(rows: Sequence[RowIn], start: int, before: _BeatUnit | None) -> _BeatUnit:
+    """
+    The unit the core supplies at the start of the movement that begins at
+    `start`, whose first measure has none: a copy of the movement's first
+    unit, else of the unit in force `before` it, else the default. Assumed,
+    since nobody set it there, and with no id, since no beat carries it.
+    """
+    first = next((unit for row in _movement(rows, start) for unit in row.units), None)
+    if first is not None:
+        source = _parsed(*first)
+        denominator, values = source.denominator, source.unit_values
+    elif before is not None:
+        denominator, values = before.denominator, before.unit_values
+    else:
+        denominator = DEFAULT_DENOMINATOR
+        values = tuple(parse_units(DEFAULT_UNITS).units)
+    return _BeatUnit(id=None, denominator=denominator, unit_values=values, assumed=True)
+
+
+def _movement(rows: Sequence[RowIn], start: int) -> Iterator[RowIn]:
+    """The rows from `start` up to the next restart."""
+    yield rows[start]
+    for row in rows[start + 1 :]:
+        if row.restart:
+            return
+        yield row
 
 
 def _parsed(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit:
