@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from tilia_core import tla
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.table import (
+    EPS,
     MeasureRow,
     build_rows_from,
     is_folded,
@@ -23,7 +24,6 @@ from tilia_core.timemap.table import (
 )
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
-EPS = 1e-6  # added to the tolerance, so float noise never decides whether a time is on a beat
 
 FOLDED = (
     "the table lists the measures played next (`next`), "
