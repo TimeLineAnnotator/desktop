@@ -172,7 +172,8 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
 def missing_time(timeline: tla.Timeline) -> str | None:
     """The first beat without a usable time, as a reason naming its measure; else None.
 
-    A time is usable when it is a finite number: a missing, NaN or text time isn't.
+    A time is usable when it is a finite number: a missing, NaN or text time
+    isn't, nor a whole number too large for a float.
     """
     if timeline.measures is None:
         return None
@@ -200,12 +201,7 @@ def broken_row(timeline: tla.Timeline) -> str | None:
 
 
 def _has_time(component: tla.Component | None) -> bool:
-    time = component.attrs.get("time") if component is not None else None
-    return (
-        isinstance(time, (int, float))
-        and not isinstance(time, bool)
-        and math.isfinite(time)
-    )
+    return component is not None and _is_number(component.attrs.get("time"))
 
 
 def _is_number(value: object) -> TypeGuard[int | float]:
