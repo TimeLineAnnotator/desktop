@@ -274,3 +274,91 @@ class TestUserStory2:
         assert meter.is_ambiguous == ambiguous
         assert all(isinstance(value, F) for value in meter.beat_values)
         assert isinstance(meter.numerator, F)
+
+
+def piece(*movements):
+    """
+    Beats a second apart, in `movements` of measures `(taps, unit or None)`,
+    each unit on its measure's downbeat. Every movement after the first
+    starts with a restart.
+    """
+    beats = []
+    for movement, measures in enumerate(movements):
+        for measure, (taps, beat_unit) in enumerate(measures):
+            mark = {"restart": True} if movement and measure == 0 else {}
+            for tap in range(taps):
+                downbeat = tap == 0
+                beats.append(
+                    {
+                        "time": float(len(beats)),
+                        "measure": mark if downbeat else None,
+                        "beat_unit": dict(beat_unit)
+                        if downbeat and beat_unit
+                        else None,
+                    }
+                )
+    return beat_timeline(beats)
+
+
+def quarters_before(result, index):
+    return sum(m.quarter_length(v) for m in result[:index] for v in m.beat_values)
+
+
+class TestRestarts:
+    # A restart is a start: each movement starts with a unit, as the
+    # timeline does, and no unit reaches back across a restart.
+
+    def test_a_pickup_without_a_unit_takes_its_movements_first_unit(self):
+        # Movement 1 in 3/4 tapped in three; movement 2 in 6/8 tapped in two,
+        # with a one-tap pickup and the unit set on its bar 1 only.
+        timeline = piece(
+            [(3, unit(4, "1")), (3, None)],
+            [(1, None), (2, unit(8, "3")), (2, None)],
+        )
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [
+            (3, 4),
+            (3, 4),
+            (3, 8),
+            (6, 8),
+            (6, 8),
+        ]
+        assert [m.is_assumed for m in result] == [False, False, True, False, False]
+        assert [m.starts_here for m in result] == [True, False, True, True, False]
+        assert result[2].beat_unit_id is None
+        assert result[3].beat_unit_id == beat_ids(timeline)[7]
+        assert quarters_before(result, 3) == F(15, 2)
+
+    def test_a_movement_without_a_unit_carries_the_one_before_assumed(self):
+        timeline = piece([(2, unit(8, "3")), (2, None)], [(2, None), (2, None)])
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [(6, 8)] * 4
+        assert [m.is_assumed for m in result] == [False, False, True, True]
+        assert [m.starts_here for m in result] == [True, False, True, False]
+        assert [m.beat_unit_id for m in result][2:] == [None, None]
+
+    def test_no_unit_reaches_back_across_a_restart(self):
+        timeline = piece([(2, None), (2, None)], [(2, unit(8, "3"))])
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [(2, 4), (2, 4), (6, 8)]
+        assert [m.is_assumed for m in result] == [True, True, False]
+
+    def test_a_restart_on_the_first_measure_changes_nothing(self):
+        timeline = tapped(8, (2,), {0: None, 6: unit(8, "3")})
+        without = meters(timeline)
+
+        timeline.components[beat_ids(timeline)[0]].attrs["measure"] = {"restart": True}
+        timeline.measures.rows[0].restart = True
+
+        assert meters(timeline) == without
+
+    def test_a_movement_that_starts_with_its_own_unit(self):
+        timeline = piece([(2, unit(4, "1"))], [(2, unit(8, "3")), (2, None)])
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [(2, 4), (6, 8), (6, 8)]
+        assert not any(m.is_assumed for m in result)
+        assert result[1].beat_unit_id == beat_ids(timeline)[2]
