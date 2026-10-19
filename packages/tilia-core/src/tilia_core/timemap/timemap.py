@@ -14,11 +14,13 @@ import math
 from dataclasses import dataclass, field
 
 from tilia_core import tla
+from tilia_core.timemap import lookup
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.table import (
     MeasureRow,
     broken_row,
     build_rows_from,
+    find_rows,
     is_folded,
     missing_time,
 )
@@ -137,6 +139,47 @@ class TimeMap:
             downbeat=self._is_downbeat(start),
             cadenza=row.cadenza,
             movement=row.movement,
+        )
+
+    def find(
+        self,
+        number: int | None = None,
+        *,
+        label: str | None = None,
+        pass_: int | None = None,
+        movement: int | None = None,
+    ) -> list[MeasureRow]:
+        """The measures a bar names, in the timeline's order: by number (every
+        pass, cadenzas left out), by label (cadenzas included), or both;
+        narrowed to one pass, and to one movement, else every movement."""
+        return find_rows(
+            self._rows, number, label=label, pass_=pass_, movement=movement
+        )
+
+    def times_of(
+        self,
+        number: int | None = None,
+        fraction: float = 0.0,
+        *,
+        label: str | None = None,
+        pass_: int | None = None,
+        movement: int | None = None,
+        segment_end: bool = False,
+    ) -> list[float]:
+        """The times of `fraction` (0 to 1, counted in beats) through each
+        measure the bar names, in time order: one per pass, as an import by
+        measure asks for them (`lookup.times_of`). `segment_end` is for the
+        end of a span."""
+        return lookup.times_of(
+            self._rows,
+            self._times,
+            self._first,
+            number,
+            fraction,
+            label=label,
+            pass_=pass_,
+            movement=movement,
+            segment_end=segment_end,
         )
 
     def _snapped(self, t: float | None) -> float | None:
