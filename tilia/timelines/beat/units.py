@@ -4,7 +4,8 @@ Beat units: what one tapped beat is worth in notation.
 A beat unit is a denominator plus a units pattern, the number of
 denominator units each tapped beat in a measure is worth. Units are written
 as a "+"-separated list of whole numbers or fractions: "1", "3", "2+3",
-"1/2", "1/3". The time signature of a measure is calculated from its beat
+"1/2", "1/3". A fraction's denominator, in lowest terms, is at most
+MAX_DENOMINATOR. The time signature of a measure is calculated from its beat
 unit and number of tapped beats, and is never stored.
 """
 
@@ -18,6 +19,7 @@ DEFAULT_DENOMINATOR = 4
 DEFAULT_UNITS = "1"
 # Far above any denominator used in notation. Enforced wherever a beat unit
 # is set, so the dialog and inspector, which can't show more, never meet one.
+# Also the largest denominator of a fraction inside units (see parse_units).
 MAX_DENOMINATOR = 128
 # Far above any unit written in notation, and far below the 4300 digits
 # Python 3.10.7 and later refuse to read as an int (earlier versions have no
@@ -72,6 +74,11 @@ def parse_units(text: str) -> UnitsParseResult:
         try:
             unit = Fraction(item)
         except (ValueError, ZeroDivisionError):
+            return not_a_fraction
+        # The limit keeps the denominator of any sum of units, such as a
+        # running count of quarter notes, a divisor of one fixed number.
+        # Without it, each new one (1/7919, 1/7920...) would make it longer.
+        if unit.denominator > MAX_DENOMINATOR:
             return not_a_fraction
         if unit <= 0:
             return UnitsParseResult([], "Units must be greater than 0.")
