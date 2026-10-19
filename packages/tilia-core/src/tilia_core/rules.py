@@ -524,7 +524,9 @@ def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bo
     other_start, other_end = other.get("start"), other.get("end")
     other_level = other.get("level")
     if not (
-        _is_number(other_start) and _is_number(other_end) and _is_number(other_level)
+        _is_number(other_start)
+        and _is_number(other_end)
+        and (_is_integer(other_level) or _is_number(other_level))
     ):
         return False
     if not (start < other_end and other_start < end):
