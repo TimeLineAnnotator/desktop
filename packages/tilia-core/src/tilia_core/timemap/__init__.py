@@ -59,7 +59,7 @@ def find_time_map(
     """
     beat_timelines = sorted(
         (t for t in document.timelines.values() if t.kind == "beat"),
-        key=lambda t: t.ordinal,
+        key=_by_ordinal,
     )
     if not beat_timelines:
         return TimeMapFound(
@@ -82,6 +82,17 @@ def find_time_map(
         reason=reason,
         warnings=tuple(warnings),
     )
+
+
+def _by_ordinal(timeline: tla.Timeline) -> tuple[int, float]:
+    # An ordinal that isn't a whole number, which the reader doesn't refuse
+    # yet, comes after the others, in the document's order.
+    ordinal: object = timeline.ordinal
+    if isinstance(ordinal, int) and not isinstance(ordinal, bool):
+        return 0, ordinal
+    if isinstance(ordinal, float) and ordinal.is_integer():
+        return 0, ordinal
+    return 1, 0
 
 
 def _claims_the_role(
