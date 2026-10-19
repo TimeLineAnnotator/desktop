@@ -224,6 +224,12 @@ class TestEveryKind:
             f"{value} is not a valid time.",
         )
 
+    def test_an_integer_too_large_for_a_float(self):
+        huge = 10**400
+
+        assert check("marker", time=huge) == (False, f"{huge} is not a valid time.")
+        assert check("hierarchy", end=huge) == (False, f"{huge} is not a valid end.")
+
     def test_a_missing_time(self):
         assert rules.marker(MEDIA, [], {}) == (False, "None is not a valid time.")
 

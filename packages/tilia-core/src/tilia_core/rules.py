@@ -597,10 +597,14 @@ def _media_time(seconds: float) -> str:
 
 
 def _is_number(value: Any) -> bool:
-    """A finite number, as JSON stores one: not a bool, nan or an infinity."""
-    if isinstance(value, bool):
+    """A finite number, as JSON stores one: not a bool, nan, an infinity, or an
+    integer too large for a float."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
-    return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _is_integer(value: Any) -> bool:
