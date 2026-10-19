@@ -86,7 +86,7 @@ def register(
 
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
-        _shortcut_to_commands.setdefault(_normalize_shortcut(shortcut), []).append(name)
+        _shortcut_to_commands.setdefault(normalize_shortcut(shortcut), []).append(name)
 
     if icon:
         if QIcon.hasThemeIcon(icon):
@@ -172,7 +172,7 @@ def _execute_prod(command_name: str, *args, **kwargs):
         return False
 
 
-def _normalize_shortcut(shortcut: str | QKeySequence | QKeyCombination) -> str:
+def normalize_shortcut(shortcut: str | QKeySequence | QKeyCombination) -> str:
     """Reduce any shortcut form to the same canonical PortableText string,
     so dict lookups work regardless of how the caller specified the key."""
     if isinstance(shortcut, QKeySequence):
