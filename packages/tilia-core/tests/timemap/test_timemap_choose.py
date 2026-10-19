@@ -198,6 +198,13 @@ def _same_time(**kwargs) -> tla.Timeline:
     )
 
 
+def _out_of_order(**kwargs) -> tla.Timeline:
+    return beat_timeline(
+        [{"time": 0.0, "measure": {}}, {"time": 2.0, "measure": {}}, {"time": 1.0}],
+        **kwargs,
+    )
+
+
 @pytest.mark.parametrize(
     "make, reason",
     [
@@ -394,10 +401,10 @@ def test_one_beat_past_the_media_is_warned_about_without_a_gap():
     )
 
 
-@pytest.mark.parametrize("make", ["_same_time", "_out_of_order"])
+@pytest.mark.parametrize("make", [_same_time, _out_of_order])
 def test_a_table_out_of_time_order_gets_no_media_warning(make, caplog):
     # It has no rows, so no closing barline.
-    timeline = globals()[make]()
+    timeline = make()
     doc = document(timeline, media_length=0.5)
 
     with caplog.at_level(logging.WARNING):
@@ -476,13 +483,6 @@ def test_a_beat_time_too_large_for_a_float_is_no_time(caplog):
     assert measure_rows(doc, other.id) == []
     assert time_map_for(doc, other.id) is None
     assert find_time_map(document(other)).reason == "a beat without a time (measure 2)"
-
-
-def _out_of_order(**kwargs) -> tla.Timeline:
-    return beat_timeline(
-        [{"time": 0.0, "measure": {}}, {"time": 2.0, "measure": {}}, {"time": 1.0}],
-        **kwargs,
-    )
 
 
 @pytest.mark.parametrize("make", [_same_time, _out_of_order])
