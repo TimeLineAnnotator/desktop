@@ -128,7 +128,9 @@ class CantCheck(Exception):
 
 # The private functions give the first rule they find broken, or None. `_first`
 # checks them in order, each only once the ones before it are kept: an outcome's
-# truth is whether it is kept, so `or` can't chain them.
+# truth is whether it is kept, so `or` can't chain them. A color is checked last:
+# an importer keeps a row whose color isn't one, with the default color, so a bad
+# color mustn't hide another broken rule.
 
 Check = Callable[[], "Outcome | None"]
 
@@ -150,14 +152,20 @@ def marker(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A marker."""
-    return _first(lambda: _point("marker", media_length, others, attrs))
+    return _first(
+        lambda: _point("marker", media_length, others, attrs),
+        lambda: _color_of(attrs),
+    )
 
 
 def beat(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A beat. Its measure mark and beat unit follow the measure table's rules."""
-    return _first(lambda: _point("beat", media_length, others, attrs))
+    return _first(
+        lambda: _point("beat", media_length, others, attrs),
+        lambda: _color_of(attrs),
+    )
 
 
 def pdf_marker(
@@ -171,6 +179,7 @@ def pdf_marker(
     return _first(
         lambda: _point("pdf_marker", media_length, others, attrs),
         lambda: _page(attrs.get("page_number"), page_count),
+        lambda: _color_of(attrs),
     )
 
 
@@ -188,6 +197,7 @@ def harmony(
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
+        lambda: _color_of(attrs),
     )
     return _checked("harmony", broken, music21)
 
@@ -203,6 +213,7 @@ def mode(
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
         lambda: _mode_type(music21, attrs) if music21 else None,
         lambda: _one_of(attrs, "level", _LEVELS),
+        lambda: _color_of(attrs),
     )
     return _checked("mode", broken, music21)
 
@@ -224,6 +235,7 @@ def hierarchy(
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _same_place(start, end, level, hierarchies),
         lambda: _crossed(start, end, level, hierarchies),
+        lambda: _color_of(attrs),
     )
 
 
@@ -248,6 +260,7 @@ def range_(
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _joined(attrs, others, rows),
+        lambda: _color_of(attrs),
     )
 
 
@@ -265,9 +278,10 @@ def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
         name = row.get("name")
         if not isinstance(name, str):
             return _broken(not_valid("row_name", name))
-        outcome = color(row.get("color"))
-        if not outcome.ok:
-            return outcome
+    for row in rows:
+        broken = _color_of(row)
+        if broken is not None:
+            return broken
     return OK
 
 
@@ -326,7 +340,7 @@ def _point(
 
 
 def _every_kind(attrs: Mapping[str, Any], times: Iterable[str]) -> Outcome | None:
-    """Times are finite numbers, texts are text, and a color is one."""
+    """Times are finite numbers and texts are text. The color is checked last."""
     for name in times:
         value = attrs.get(name)
         if value is None and name in _UNSET_TIMES:
@@ -336,9 +350,13 @@ def _every_kind(attrs: Mapping[str, Any], times: Iterable[str]) -> Outcome | Non
     for name in _TEXTS:
         if name in attrs and not isinstance(attrs[name], str):
             return _broken(not_valid(name, attrs[name]))
+    return None
+
+
+def _color_of(attrs: Mapping[str, Any]) -> Outcome | None:
     if "color" in attrs:
         outcome = color(attrs["color"])
-        if not outcome.ok:
+        if not outcome:
             return outcome
     return None
 

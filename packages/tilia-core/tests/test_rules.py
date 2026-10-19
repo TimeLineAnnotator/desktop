@@ -316,10 +316,33 @@ class TestColor:
             "notacolor is not a valid color.",
         )
 
-    def test_tilia_creates_a_component_with_any_color(self):
-        assert tilia_creates_point(1.0, color="notacolor")
-        assert tilia_creates_hierarchy(1.0, 2.0, 1, color="notacolor")
-        assert tilia_creates_range(1.0, 2.0, ROW, color="notacolor")
+    @pytest.mark.parametrize(
+        "kind, attrs, reason",
+        [
+            (
+                "marker",
+                {"time": 61.0},
+                "Time '01:01.0' is bigger than media time '01:00.0'",
+            ),
+            ("hierarchy", {"level": 0}, "Level can't be below 1. Got '0'"),
+            ("range", {"row_id": "Zz99Zz"}, "Invalid row ID."),
+            ("marker", {"label": 3}, "3 is not a valid label."),
+        ],
+    )
+    def test_a_bad_color_doesnt_hide_another_broken_rule(self, kind, attrs, reason):
+        # An importer keeps a row whose color isn't one, so the color is checked last.
+        assert check(kind, color="notacolor", **attrs) == (False, reason)
+
+    def test_a_bad_row_color_doesnt_hide_another_broken_row(self):
+        rows = [
+            {"id": ROW, "name": "Strings", "color": "notacolor"},
+            {"id": ROW, "name": "Winds"},
+        ]
+
+        assert rules.range_rows(rows) == (
+            False,
+            f"There is already a row with the id {ROW}.",
+        )
 
     def test_colors_are_those_qt_reads(self):
         qt = pytest.importorskip("PySide6.QtGui", reason="compares with Qt")
