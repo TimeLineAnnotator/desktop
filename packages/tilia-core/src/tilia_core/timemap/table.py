@@ -3,7 +3,6 @@ start and end, meter and time signature."""
 
 from __future__ import annotations
 
-import logging
 import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -14,8 +13,6 @@ from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.units import MeasureMeter, format_units
-
-logger = logging.getLogger(__name__)
 
 
 class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
@@ -168,7 +165,7 @@ def build_rows_from(
         return []
     folded = is_folded(rows)
     ends = [row.beat_times[0] for row in rows[1:]]
-    ends.append(_closing_barline(document, timeline.id, rows))
+    ends.append(_closing_barline(document, rows))
     passes: dict[int, int] = {}
     movement = 1
     out: list[MeasureRow] = []
@@ -229,26 +226,32 @@ def is_folded(rows: Sequence[RowIn]) -> bool:
     return any(row.next is not None for row in rows)
 
 
-def _closing_barline(
-    document: tla.Document, timeline_id: str, rows: Sequence[RowIn]
-) -> float:
+def _closing_barline(document: tla.Document, rows: Sequence[RowIn]) -> float:
     # The last beat lasts as long as the gap before it, or until the end of the
     # media if that comes sooner. No beats are added to the last measure.
     *before, last = [t for row in rows[-2:] for t in row.beat_times][-2:]
     end = last + (last - before[0] if before else 0.0)
-    media_length = document.media_length
-    if media_length is None or document.time_unit != "seconds":
-        return end  # the media's length is in seconds
-    if media_length <= last:
-        logger.warning(
-            "Timeline %s: the last beat (%s) is at or after the end of the media (%s); "
-            "the last measure ends one gap after it.",
-            timeline_id,
-            last,
-            media_length,
-        )
-        return end
+    media_length = _media_length(document)
+    if media_length is None or media_length <= last:
+        return end  # past the media, the gap alone; find_time_map warns (past_media)
     return min(end, media_length)
+
+
+def past_media(document: tla.Document, last_beat: float) -> str | None:
+    """The warning that the last beat is at or after the end of the media, so
+    that the last measure ends one gap after it; None when it isn't."""
+    media_length = _media_length(document)
+    if media_length is None or media_length > last_beat:
+        return None
+    return (
+        f"the last beat ({last_beat}) is at or after the end of the media "
+        f"({media_length}); the last measure ends one gap after it"
+    )
+
+
+def _media_length(document: tla.Document) -> float | None:
+    # The media's length is in seconds: it doesn't cap a quarters file.
+    return document.media_length if document.time_unit == "seconds" else None
 
 
 def find_rows(

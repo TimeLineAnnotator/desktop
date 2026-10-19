@@ -234,13 +234,13 @@ def test_the_end_of_the_media_caps_the_closing_barline(media_length, end, caplog
 
 @pytest.mark.parametrize("media_length", [19.5, 20.0])
 def test_media_ending_at_or_before_the_last_beat_leaves_the_gap(media_length, caplog):
+    # find_time_map warns about it, once per file; a table built logs nothing (FR-082).
     timeline = pickup_piece()
     with caplog.at_level(logging.WARNING):
         rows = build_rows(document(timeline, media_length=media_length), timeline)
 
     assert rows[-1].end == 21.0
-    assert timeline.id in caplog.text
-    assert "media" in caplog.text
+    assert not caplog.records
 
 
 def test_the_end_of_the_media_doesnt_cap_a_quarters_file(caplog):

@@ -21,6 +21,7 @@ from tilia_core.timemap.table import (
     build_rows_from,
     is_folded,
     missing_time,
+    past_media,
 )
 
 TOLERANCE = 0.1  # in the file's unit: a time this close to a beat is on it
@@ -207,3 +208,9 @@ def build_time_map(
         _times=tuple(times),
     )
     return time_map, None
+
+
+def media_warning(document: tla.Document, time_map: TimeMap) -> str | None:
+    """The warning that the map's last beat is at or after the end of the
+    media, which leaves the closing barline one gap after it; else None."""
+    return past_media(document, time_map._times[-1])
