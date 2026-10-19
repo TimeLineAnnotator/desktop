@@ -137,6 +137,16 @@ def disorder(times: Sequence[float]) -> str | None:
     return None
 
 
+def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
+    """The warning, with the timeline's id, that its last beat is at or after
+    the end of the media; None when it isn't, or when the table has no rows."""
+    times = _usable_times(timeline)
+    if not times:
+        return None
+    warning = past_media(document, times[-1])
+    return None if warning is None else f"Timeline {timeline.id}: {warning}"
+
+
 def missing_time(timeline: tla.Timeline) -> str | None:
     """The first beat without a usable time, as a reason naming its measure; else None.
 
