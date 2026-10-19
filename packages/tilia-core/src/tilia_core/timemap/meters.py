@@ -7,7 +7,7 @@ The rules are those of desktop#621 (beat units and time signatures): its
 from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from fractions import Fraction
 
 from tilia_core import tla
@@ -46,7 +46,7 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     Every movement starts with a unit: the timeline's first measure, and
     each measure marked `restart`. Where a movement's first measure has none,
     the core supplies one, assumed, with no `beat_unit_id`, since no unit
-    sits on those beats (`_opening`). A movement's first measure always
+    sits on those beats (`_supplied`). A movement's first measure always
     starts a unit, and no unit reaches back across a restart. Only here does
     this differ from #621's loop, which never meets such a timeline: #621's
     loader keeps a unit in the first measure (`_ensure_first_beat_unit`),
@@ -54,58 +54,54 @@ def meters_of(rows: Sequence[RowIn]) -> list[MeasureMeter]:
     """
     meters = []
     governing: _BeatUnit | None = None
-    for index, row in enumerate(rows):
-        beat_count = len(row.beat_ids)
-        in_measure = [_parsed(beat_id, unit) for beat_id, unit in row.units]
-        starts_movement = index == 0 or row.restart
-        if in_measure:
-            governing = in_measure[0]
-        elif starts_movement or governing is None:
-            governing = _opening(rows, index, governing)
-
-        denominator, units = governing.denominator, list(governing.unit_values)
-
-        meters.append(
-            MeasureMeter(
-                denominator=denominator,
-                units=tuple(units),
-                beat_values=tuple(fit_units(units, beat_count)),
-                beat_unit_id=governing.id,
-                starts_here=bool(in_measure) or starts_movement,
-                is_ambiguous=is_fit_ambiguous(units, beat_count),
-                is_conflicting=len(in_measure) > 1,
-                is_assumed=governing.assumed,
+    for movement in _movements(rows):
+        units_set = [[_parsed(*unit) for unit in row.units] for row in movement]
+        first = next((unit for in_measure in units_set for unit in in_measure), None)
+        governing = _supplied(first or governing)
+        for index, (row, in_measure) in enumerate(
+            zip(movement, units_set, strict=True)
+        ):
+            if in_measure:
+                governing = in_measure[0]
+            beat_count = len(row.beat_ids)
+            units = list(governing.unit_values)
+            meters.append(
+                MeasureMeter(
+                    denominator=governing.denominator,
+                    units=tuple(units),
+                    beat_values=tuple(fit_units(units, beat_count)),
+                    beat_unit_id=governing.id,
+                    starts_here=bool(in_measure) or index == 0,
+                    is_ambiguous=is_fit_ambiguous(units, beat_count),
+                    is_conflicting=len(in_measure) > 1,
+                    is_assumed=governing.assumed,
+                )
             )
-        )
     return meters
 
 
-def _opening(rows: Sequence[RowIn], start: int, before: _BeatUnit | None) -> _BeatUnit:
-    """
-    The unit the core supplies at the start of the movement that begins at
-    `start`, whose first measure has none: a copy of the movement's first
-    unit, else of the unit in force `before` it, else the default. Assumed,
-    since nobody set it there, and with no id, since no beat carries it.
-    """
-    first = next((unit for row in _movement(rows, start) for unit in row.units), None)
-    if first is not None:
-        source = _parsed(*first)
-        denominator, values = source.denominator, source.unit_values
-    elif before is not None:
-        denominator, values = before.denominator, before.unit_values
-    else:
-        denominator = DEFAULT_DENOMINATOR
-        values = tuple(parse_units(DEFAULT_UNITS).units)
-    return _BeatUnit(id=None, denominator=denominator, unit_values=values, assumed=True)
+def _movements(rows: Sequence[RowIn]) -> Iterator[list[RowIn]]:
+    """The rows by movement: one starts at the first row and at each restart."""
+    movement: list[RowIn] = []
+    for row in rows:
+        if row.restart and movement:
+            yield movement
+            movement = []
+        movement.append(row)
+    if movement:
+        yield movement
 
 
-def _movement(rows: Sequence[RowIn], start: int) -> Iterator[RowIn]:
-    """The rows from `start` up to the next restart."""
-    yield rows[start]
-    for row in rows[start + 1 :]:
-        if row.restart:
-            return
-        yield row
+def _supplied(unit: _BeatUnit | None) -> _BeatUnit:
+    """
+    The unit the core supplies where a movement's first measure has none: a
+    copy of `unit` (the movement's first, else the one in force before it),
+    else the default. Assumed, since nobody set it there, and with no id,
+    since no beat carries it.
+    """
+    if unit is None:
+        return _DEFAULT
+    return replace(unit, id=None, assumed=True)
 
 
 def _parsed(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit:
@@ -115,3 +111,11 @@ def _parsed(beat_id: str, unit: tla.BeatUnit) -> _BeatUnit:
         unit_values=tuple(parse_units(unit.units).units),
         assumed=unit.assumed,
     )
+
+
+_DEFAULT = _BeatUnit(
+    id=None,
+    denominator=DEFAULT_DENOMINATOR,
+    unit_values=tuple(parse_units(DEFAULT_UNITS).units),
+    assumed=True,
+)

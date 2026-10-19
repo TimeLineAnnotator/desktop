@@ -2,9 +2,10 @@ from fractions import Fraction as F
 
 import pytest
 
-from docs import beat_timeline
+from docs import beat_timeline, document
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.meters import meters_of
+from tilia_core.timemap.table import build_rows
 
 # What TiLiA puts on the first beat, and WP3's migration on an old file's.
 DEFAULT = {"denominator": 4, "units": "1", "assumed": True}
@@ -350,7 +351,6 @@ class TestRestarts:
         timeline = tapped(8, (2,), {0: None, 6: unit(8, "3")})
         without = meters(timeline)
 
-        timeline.components[beat_ids(timeline)[0]].attrs["measure"] = {"restart": True}
         timeline.measures.rows[0].restart = True
 
         assert meters(timeline) == without
@@ -362,3 +362,36 @@ class TestRestarts:
         assert [m.time_signature for m in result] == [(2, 4), (6, 8), (6, 8)]
         assert not any(m.is_assumed for m in result)
         assert result[1].beat_unit_id == beat_ids(timeline)[2]
+
+    def test_a_movement_without_a_unit_copies_a_supplied_one(self):
+        timeline = piece([(2, unit(8, "3"))], [(2, None)], [(2, None)])
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [(6, 8)] * 3
+        assert [m.is_assumed for m in result] == [False, True, True]
+        assert [m.starts_here for m in result] == [True, True, True]
+        assert [m.beat_unit_id for m in result][1:] == [None, None]
+
+    def test_the_unit_before_a_movement_is_the_last_one_in_force(self):
+        # Movement 2 starts with a supplied copy, then sets its own unit:
+        # movement 3, without one, carries movement 2's own unit, assumed.
+        timeline = piece(
+            [(4, unit(4, "1"))],
+            [(1, None), (2, unit(8, "3"))],
+            [(2, None)],
+        )
+
+        result = meters(timeline)
+        assert [m.time_signature for m in result] == [(4, 4), (3, 8), (6, 8), (6, 8)]
+        assert [m.is_assumed for m in result] == [False, True, False, True]
+
+    def test_the_table_reads_the_restarts(self):
+        timeline = piece(
+            [(3, unit(4, "1")), (3, None)],
+            [(1, None), (2, unit(8, "3")), (2, None)],
+        )
+
+        rows = build_rows(document(timeline), timeline)
+        assert [r.movement for r in rows] == [1, 1, 2, 2, 2]
+        assert [r.time_signature for r in rows] == ["3/4", "3/4", "3/8", "6/8", "6/8"]
+        assert [r.assumed for r in rows] == [False, False, True, False, False]
