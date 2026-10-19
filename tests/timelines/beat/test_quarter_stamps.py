@@ -1,9 +1,12 @@
+import math
 from fractions import Fraction as F
+from time import perf_counter
 from unittest.mock import patch
 
 import pytest
 
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.beat.units import MAX_DENOMINATOR
 
 
 def add_beats(beat_tl, times):
@@ -155,3 +158,80 @@ class TestCaching:
         beat_tl.set_component_data(beat_tl[3].id, "time", 4)
 
         assert beat_tl.get_quarter_stamp_by_time(4) == pytest.approx(3)
+
+
+def load_two_tap_measures(beat_tl, units: list[str]) -> None:
+    """
+    Loads, as from a file, a measure of two taps for each of `units`, with a
+    beat unit of 4 / that text on its first beat.
+    """
+    beat_tl.set_data("beat_pattern", [2])
+    step = 50 / len(units)  # Within the tests' 100 s of media.
+    components = {}
+    for index, text in enumerate(units):
+        first_beat_id = str(1_000_000 + 2 * index)
+        for tap in range(2):
+            components[str(1_000_000 + 2 * index + tap)] = {
+                "time": (2 * index + tap) * step,
+                "kind": "BEAT",
+            }
+        components[str(2_000_000 + index)] = {
+            "beat_id": first_beat_id,
+            "denominator": 4,
+            "units": text,
+            "assumed": False,
+            "kind": "BEAT_UNIT",
+        }
+    beat_tl.component_manager.deserialize_components(components)
+
+
+class TestLargeDenominators:
+    """
+    A beat's quarter stamp is the exact sum of the lengths before it, so it
+    takes in every denominator the units before it bring. Units such as
+    1/(10**29 + i) in measure i would make that sum's denominator grow by
+    some 30 digits a measure: building the stamps of a few thousand measures
+    would take seconds, and from about 150 measures on a stamp would have
+    more digits than Python writes as text. A unit's denominator is at most
+    MAX_DENOMINATOR, so every stamp's denominator divides a fixed number.
+    """
+
+    MEASURE_COUNT = 1000
+    TIME_LIMIT = 1  # Seconds; building the stamps takes a few milliseconds.
+
+    def build_stamps(self, beat_tl) -> tuple[list[F], float]:
+        start = perf_counter()
+        stamps = beat_tl.quarter_stamps
+        beat_tl.get_quarter_stamp_by_time(0)
+        return stamps, perf_counter() - start
+
+    def test_a_file_with_larger_denominators_loads_without_them(
+        self, beat_tl, tilia_errors
+    ):
+        load_two_tap_measures(
+            beat_tl, [f"1/{10**29 + i}" for i in range(self.MEASURE_COUNT)]
+        )
+
+        stamps, elapsed = self.build_stamps(beat_tl)
+
+        # Only the beat unit TiLiA gives the first beat is left.
+        assert [(u.denominator, u.units, u.assumed) for u in beat_tl.beat_units] == [
+            (4, "1", True)
+        ]
+        assert stamps == list(range(2 * self.MEASURE_COUNT))
+        assert elapsed < self.TIME_LIMIT
+        tilia_errors.assert_in_error_message(f"Invalid units: 1/{10**29}.")
+
+    def test_stamps_stay_small_with_every_denominator_allowed(self, beat_tl):
+        load_two_tap_measures(
+            beat_tl,
+            [f"1/{i % MAX_DENOMINATOR + 1}" for i in range(self.MEASURE_COUNT)],
+        )
+
+        stamps, elapsed = self.build_stamps(beat_tl)
+
+        assert len(beat_tl.beat_units) == self.MEASURE_COUNT
+        every_denominator = math.lcm(*range(1, MAX_DENOMINATOR + 1))
+        assert all(every_denominator % stamp.denominator == 0 for stamp in stamps)
+        assert str(stamps[-1])
+        assert elapsed < self.TIME_LIMIT
