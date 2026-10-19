@@ -118,11 +118,12 @@ def build_rows(document: tla.Document, timeline: tla.Timeline) -> list[MeasureRo
 
 
 def table_problem(timeline: tla.Timeline) -> str | None:
-    """Why the timeline's table can have no rows, as a reason; else None.
+    """Why the timeline's table can't give rows, as a reason; else None.
 
     A beat without a usable time (`missing_time`), a row whose beats don't
     start at its downbeat (`broken_row`), or two beats at the same time or out
-    of time order (`disorder`).
+    of time order (`disorder`). None doesn't promise rows: a timeline without
+    a table, or with an empty one, has none, and no problem either.
     """
     return _checked(timeline)[0]
 
