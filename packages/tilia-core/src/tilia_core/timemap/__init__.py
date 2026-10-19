@@ -40,7 +40,7 @@ class TimeMapFound:
     timeline_id: str | None  # the chosen beat timeline, even when it gives no time map
     guessed: bool  # no timeline had the role time_map: the first beat timeline was taken
     reason: str | None  # why the chosen timeline gives no time map
-    warnings: list[str]  # several claim the role; the last beat past the media
+    warnings: tuple[str, ...]  # several claim the role; the last beat past the media
 
 
 def find_time_map(
@@ -66,7 +66,7 @@ def find_time_map(
     )
     if not beat_timelines:
         return TimeMapFound(
-            time_map=None, timeline_id=None, guessed=False, reason=None, warnings=[]
+            time_map=None, timeline_id=None, guessed=False, reason=None, warnings=()
         )
     claiming = [t for t in beat_timelines if _role(t, roles) == TIME_MAP_ROLE]
     warnings = [TWO_CLAIM] if len(claiming) > 1 else []
@@ -83,7 +83,7 @@ def find_time_map(
         timeline_id=timeline.id,
         guessed=guessed,
         reason=reason,
-        warnings=warnings,
+        warnings=tuple(warnings),
     )
 
 
