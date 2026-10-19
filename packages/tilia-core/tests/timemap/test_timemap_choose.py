@@ -301,6 +301,19 @@ def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
     assert not caplog.records
 
 
+@pytest.mark.parametrize("make", ["_same_time", "_out_of_order"])
+def test_a_table_out_of_time_order_gets_no_media_warning(make, caplog):
+    # It has no rows, so no closing barline.
+    timeline = globals()[make]()
+    doc = document(timeline, media_length=0.5)
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.time_map is None and found.warnings == ()
+    assert not caplog.records
+
+
 def test_a_folded_table_past_the_media_is_warned_about(caplog):
     # It has no time map, but its rows have a closing barline (FR-013).
     folded = _folded()
