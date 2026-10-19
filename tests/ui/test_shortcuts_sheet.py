@@ -9,7 +9,6 @@ import sys
 import xml.etree.ElementTree as ElementTree
 
 import pytest
-from PySide6.QtGui import QKeySequence
 
 from tests.utils import get_main_window_menu, get_submenu
 from tilia.ui import commands, shortcuts_sheet
@@ -34,6 +33,9 @@ def register_with_shortcut():
     registered = []
 
     def _register(name, shortcut):
+        # Teardown can't remove a command, only take its key away, so a real
+        # command's name would leave that command broken.
+        assert name.endswith(".new_command"), "use a name no real command has"
         commands.register(name, lambda: None, text="New command", shortcut=shortcut)
         registered.append(name)
 
@@ -135,9 +137,9 @@ class TestCaughtKeys:
     @pytest.mark.parametrize(
         "shortcut",
         [
-            Shortcut("Del", "Delete", "anywhere", "timeline.component.delete"),
-            Shortcut("Return", "Inspect", "anywhere", "timeline.element.inspect"),
-            Shortcut("Enter", "Inspect", "anywhere", "timeline.element.inspect"),
+            Shortcut("Del", "Delete", "anywhere", "timeline.component.delete", True),
+            Shortcut("Return", "Inspect", "anywhere", "timeline.element.inspect", True),
+            Shortcut("Enter", "Inspect", "anywhere", "timeline.element.inspect", True),
         ],
     )
     def test_main_window_key_is_global(self, qtui, shortcut):
@@ -150,7 +152,7 @@ class TestCaughtKeys:
 
         on_sheet = set().union(*(keys_and_commands(group) for group in groups))
         caught = {
-            (QKeySequence(combination).toString(), name)
+            (commands.normalize_shortcut(combination), name)
             for combination, name in TiliaMainWindow.KEY_COMMANDS
         }
         assert caught <= on_sheet
@@ -169,10 +171,14 @@ class TestCaughtKeys:
         "shortcut",
         [
             Shortcut(
-                "Left", "Select the previous element", "in a timeline", "left arrow"
+                "Left",
+                "Select the previous element",
+                "in a timeline",
+                "left arrow",
+                True,
             ),
             Shortcut(
-                "Right", "Select the next element", "in a timeline", "right arrow"
+                "Right", "Select the next element", "in a timeline", "right arrow", True
             ),
         ],
     )
@@ -203,8 +209,8 @@ class TestCaughtKeys:
         groups = shortcuts_sheet.collect(qtui)
 
         shortcuts = get_group(groups, group).shortcuts
-        assert Shortcut("Up", up, "in a timeline", "up arrow") in shortcuts
-        assert Shortcut("Down", down, "in a timeline", "down arrow") in shortcuts
+        assert Shortcut("Up", up, "in a timeline", "up arrow", True) in shortcuts
+        assert Shortcut("Down", down, "in a timeline", "down arrow", True) in shortcuts
         assert {g.title for g in groups if "Up" in {s.key for s in g.shortcuts}} == {
             "Hierarchy timeline",
             "Range timeline",
@@ -220,6 +226,7 @@ class TestCaughtKeys:
                     "Move up a level",
                     "Hierarchy toolbar",
                     "timeline.hierarchy.increase_level",
+                    True,
                 ),
             ),
             (
@@ -229,6 +236,7 @@ class TestCaughtKeys:
                     "Move down a level",
                     "Hierarchy toolbar",
                     "timeline.hierarchy.decrease_level",
+                    True,
                 ),
             ),
             (
@@ -238,6 +246,7 @@ class TestCaughtKeys:
                     "Move to row above",
                     "in a timeline",
                     "timeline.range.move_to_row_above",
+                    True,
                 ),
             ),
             (
@@ -247,6 +256,7 @@ class TestCaughtKeys:
                     "Move to row below",
                     "in a timeline",
                     "timeline.range.move_to_row_below",
+                    True,
                 ),
             ),
         ],
@@ -267,8 +277,16 @@ class TestCheckClashes:
             ("timeline.marker.new_command", "m", "timeline.marker.add"),
             ("view.new_command", "m", "timeline.marker.add"),
             ("view.new_command", "Ctrl+S", "file.save"),
+            ("timeline.marker.new_command", "Up", "up arrow"),
+            ("view.new_command", "Left", "left arrow"),
         ],
-        ids=["same timeline kind", "global and timeline kind", "both global"],
+        ids=[
+            "same timeline kind",
+            "global and timeline kind",
+            "both global",
+            "registered in one kind, caught in another",
+            "registered and caught, both global",
+        ],
     )
     def test_two_commands_with_one_key_in_one_context_fail(
         self, qtui, register_with_shortcut, name, shortcut, clashes_with
