@@ -1,7 +1,9 @@
 import copy
 import importlib.util
 import itertools
+import math
 import pickle
+import random
 import sys
 from importlib.metadata import metadata
 
@@ -150,23 +152,49 @@ def tilia_creates_range(
     return True
 
 
+# `dev`'s comparisons of hierarchy boundaries since 2ceec157: times less than
+# 1e-9 apart count as the same.
+
+
+def _times_close(a, b):
+    return math.isclose(a, b, abs_tol=1e-9)
+
+
+def _le(a, b):
+    return a < b or _times_close(a, b)
+
+
+def _lt(a, b):
+    return a < b and not _times_close(a, b)
+
+
 def tilia_boundary_conflicts(hierarchies):
     """`HierarchyTLComponentManager.get_boundary_conflicts`, on (start, end, level)s."""
+
+    def starts_or_ends_strictly_inside(outer, inner):
+        return (_lt(outer[0], inner[0]) and _lt(inner[0], outer[1])) or (
+            _lt(outer[0], inner[1]) and _lt(inner[1], outer[1])
+        )
+
     conflicts = []
     for hrc1, hrc2 in itertools.combinations(hierarchies, 2):
         start1, end1, level1 = hrc1
         start2, end2, level2 = hrc2
-        if start1 < start2 < end1 or start1 < end2 < end1:
+        if starts_or_ends_strictly_inside(hrc1, hrc2):
             if level2 >= level1:
                 conflicts.append((hrc1, hrc2))
-            elif not start1 > start2 and end1 < end2:
+            elif not _lt(start2, start1) and _lt(end1, end2):
                 conflicts.append((hrc1, hrc2))
-        if start2 < start1 < end2 or start2 < end1 < end2:
+        if starts_or_ends_strictly_inside(hrc2, hrc1):
             if level1 >= level2:
                 conflicts.append((hrc2, hrc1))
-            elif not start2 > start1 and end2 < end1:
+            elif not _lt(start1, start2) and _lt(end2, end1):
                 conflicts.append((hrc2, hrc1))
-        if start1 == start2 and end1 == end2 and level1 == level2:
+        if (
+            _times_close(start1, start2)
+            and _times_close(end1, end2)
+            and level1 == level2
+        ):
             conflicts.append((hrc1, hrc2))
     return conflicts
 
@@ -957,6 +985,44 @@ class TestHierarchy:
 
             conflicts = tilia_boundary_conflicts([existing, candidate])
             assert outcome.ok is not bool(conflicts), (existing, candidate)
+
+    def test_boundaries_a_few_ulps_apart_meet(self):
+        # As in files TiLiA saved before it rescaled subtrees in one step.
+        others = [hierarchy(0.0, 1.0, 1)]
+
+        assert check("hierarchy", others, start=1.0 - 1e-13, end=2.0, level=1) == OK
+
+    def test_nesting_with_float_noise_is_tilias_boundary_conflicts(self):
+        # Every pair of spans from 1 to 4 s at levels 1 to 3, with each boundary
+        # moved by up to 1e-13.
+        noise = random.Random(2026)
+        spans = [
+            (start, end, level)
+            for start, end in itertools.combinations(range(1, 5), 2)
+            for level in (1, 2, 3)
+        ]
+        for existing, candidate in itertools.product(spans, repeat=2):
+            for _ in range(4):
+                moved = [
+                    (
+                        start + noise.choice((-1e-13, 0, 1e-13)),
+                        end + noise.choice((-1e-13, 0, 1e-13)),
+                        level,
+                    )
+                    for start, end, level in (existing, candidate)
+                ]
+                start, end, level = moved[1]
+
+                outcome = check(
+                    "hierarchy",
+                    [hierarchy(*moved[0])],
+                    start=start,
+                    end=end,
+                    level=level,
+                )
+
+                conflicts = tilia_boundary_conflicts(moved)
+                assert outcome.ok is not bool(conflicts), moved
 
     def test_other_kinds_arent_compared(self):
         others = [component("marker", time=1.0), range_in(ROW, 0.0, 5.0)]
