@@ -288,6 +288,25 @@ class TestEveryKind:
         assert check("marker", time=huge) == (False, f"{huge} is not a valid time.")
         assert check("hierarchy", end=huge) == (False, f"{huge} is not a valid end.")
 
+    def test_an_integer_too_long_to_show(self):
+        if not hasattr(sys, "set_int_max_str_digits"):
+            pytest.skip("this Python shows integers of any length")
+        limit = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(4300)
+        try:
+            huge = 10**5000
+
+            assert check("marker", time=huge) == (
+                False,
+                "an integer too long to show is not a valid time.",
+            )
+            assert check("hierarchy", level=-huge) == (
+                False,
+                "Level can't be below 1. Got 'an integer too long to show'",
+            )
+        finally:
+            sys.set_int_max_str_digits(limit)
+
     def test_a_missing_time(self):
         assert rules.marker(MEDIA, [], {}) == (False, "None is not a valid time.")
 
