@@ -35,7 +35,8 @@ _NO_DURATION = (
 _NOT_APPLICABLE = "'{}' is not valid for timeline kind '{}'."
 _INVALID_BEAT_PATTERN = "Invalid beat pattern '{}': {}"
 # The spec's, where TiLiA has none (FR-052, FR-056), and the one text for a
-# value that isn't one (TimeLineAnnotator/project-management#298).
+# value that isn't one (TimeLineAnnotator/project-management#298 (texts for the
+# rules)), which rules.not_valid will give.
 _HAS_COMPONENTS = (
     "The media length can't change once timelines have components:"
     " rescale the file in TiLiA."
@@ -47,8 +48,8 @@ _NO_LENGTH = (
 _NOT_VALID = "{} is not a valid {}."
 
 # tilia.constants.YOUTUBE_URL_REGEX. A stand-in until WP3 gives its copy
-# (TimeLineAnnotator/project-management#176), which replaces it
-# (TimeLineAnnotator/project-management#317).
+# (TimeLineAnnotator/project-management#176 (media paths)), which replaces it
+# (TimeLineAnnotator/project-management#317 (WP3's YouTube pattern in build)).
 _YOUTUBE_URL = re.compile(
     r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))"
     r"(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
@@ -61,7 +62,8 @@ _KINDS = ("beat", "hierarchy", "marker", "harmony")
 # signatures take (34), which a new one shows. A harmony timeline has no height
 # of its own: its levels have one.
 _DEFAULT_HEIGHTS = {"marker": 30, "hierarchy": 120, "beat": 35 + 34}
-# TiLiA's set_data refuses a lower height (TimeLineAnnotator/project-management#316).
+# TiLiA's set_data refuses a lower height
+# (TimeLineAnnotator/project-management#316 (which heights timelines add accepts)).
 _MIN_HEIGHT = 10
 
 
@@ -113,7 +115,7 @@ def load_media(
     """Record the media, a local file or a YouTube link, and set its length
     (FR-052, FR-056). Returns the length set.
 
-    A local path must exist, and is stored absolute: the writer stores it
+    A local path must be a file, and is stored absolute: the writer stores it
     relative to the saved file. The length is a WAV's, read from its header;
     else `duration_if_error`; else, while no media is attached, the length set
     before. Without one, or for a change `set_media_length` refuses, raises
@@ -125,7 +127,9 @@ def load_media(
         stored = name = text
     else:
         local = Path(text.replace("\\", "/"))
-        if not local.exists():
+        # Not Path.exists: a folder isn't media, and os.path.isfile gives False,
+        # rather than raising, for a path the system can't look at.
+        if not os.path.isfile(local):
             raise ValueError(_MEDIA_NOT_FOUND.format(local))
         stored = str(local.resolve()).replace("\\", "/")
         name = local.name
@@ -161,7 +165,8 @@ def wav_length(path: str | os.PathLike[str]) -> float | None:
 
 def _wav_length(file: BinaryIO, size: int) -> float | None:
     """The `data` chunk's size over the `fmt ` chunk's byte rate (or block
-    align times sample rate). A data size past the end of the file, as a WAV
+    align times sample rate). The `fmt ` chunk's first 14 bytes, the oldest
+    form of it, hold both. A data size past the end of the file, as a WAV
     written as a stream gives it, counts the bytes there."""
     head = file.read(12)
     if len(head) < 12 or head[:4] != b"RIFF" or head[8:] != b"WAVE":
@@ -177,10 +182,10 @@ def _wav_length(file: BinaryIO, size: int) -> float | None:
         name, (chunk_size,) = header[:4], struct.unpack("<I", header[4:])
         start = position + 8
         if name == b"fmt ":
-            fmt = file.read(16)
-            if chunk_size < 16 or len(fmt) < 16:
+            fmt = file.read(14)
+            if chunk_size < 14 or len(fmt) < 14:
                 return None
-            _, _, rate, bytes_per_second, align, _ = struct.unpack("<HHIIHH", fmt)
+            _, _, rate, bytes_per_second, align = struct.unpack("<HHIIH", fmt)
             byte_rate = bytes_per_second or align * rate
         elif name == b"data":
             data_size = min(chunk_size, size - start)
@@ -206,7 +211,8 @@ def add_timeline(
     ("4" without one).
 
     Raises ValueError while the media length is unknown, and for a height or a
-    beat pattern the kind doesn't take or TiLiA wouldn't keep.
+    beat pattern the kind doesn't take or TiLiA wouldn't keep; TypeError for a
+    beat pattern that isn't text.
     """
     if document.media_length is None:
         raise ValueError(_NO_DURATION)
@@ -220,19 +226,22 @@ def add_timeline(
     if height is not None and not _is_height(height):
         raise ValueError(_NOT_VALID.format(height, "height"))
     if beat_pattern is not None:
+        if not isinstance(beat_pattern, str):
+            raise TypeError(
+                f"a beat pattern is text, such as '10[4] 3', not {beat_pattern!r}"
+            )
         parsed = pattern.parse(beat_pattern)
         if not parsed.is_complete:
             raise ValueError(_INVALID_BEAT_PATTERN.format(beat_pattern, parsed.error))
 
-    # The format's defaults, as the reader fills them in.
+    # The format's defaults, as the reader fills them in. A beat timeline's
+    # show_time_signatures is true there, as desktop#621 makes new ones.
     defaults = TIMELINE_SHAPES[kind].defaults
     attrs = {key: value for key, value in defaults.items() if key != "name"}
     if kind != "harmony":
         attrs["height"] = _DEFAULT_HEIGHTS[kind] if height is None else int(height)
-    if kind == "beat":
-        attrs["show_time_signatures"] = True
-        if beat_pattern is not None:
-            attrs["beat_pattern"] = beat_pattern
+    if beat_pattern is not None:
+        attrs["beat_pattern"] = beat_pattern
     ordinals = (timeline.ordinal for timeline in document.timelines.values())
     timeline_id = tla.new_id()
     document.timelines[timeline_id] = tla.Timeline(
