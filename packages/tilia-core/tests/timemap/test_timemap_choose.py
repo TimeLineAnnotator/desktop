@@ -116,6 +116,21 @@ def test_only_a_beat_timeline_can_have_the_role():
         assert found.timeline_id == beats.id and found.guessed
 
 
+@pytest.mark.parametrize(
+    "role, claims",
+    [(["time_map"], True), (["analysis", "time_map"], True), (["analysis"], False)],
+)
+def test_a_role_list_that_holds_time_map_claims_it(role, claims):
+    # Anne, 2026-10-14: metadata values may be lists.
+    first, listed = _beats(1), _beats(2)
+    listed.metadata["role"] = role
+
+    found = find_time_map(document(first, listed))
+
+    assert found.timeline_id == (listed.id if claims else first.id)
+    assert found.guessed is not claims
+
+
 def test_a_timeline_that_names_a_beat_timeline_gets_its_table_and_time_map():
     # Spec, US4 scenario 5: a score timeline names its table (WP3's FR-133).
     default, named = _beats(1, role="time_map"), _beats(2, last=7)
