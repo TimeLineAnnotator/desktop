@@ -17,8 +17,9 @@ reads `<value> is not a valid <attribute>.`, whatever the kind.
 A harmony's quality and inversion and a mode's type are checked against the
 installed music21, as TiLiA checks them, so checking a harmony or a mode needs
 the `harmony` extra. Without it, the other rules are checked, and when none is
-broken, `CantCheck` is raised. music21 is imported only when a harmony or a mode
-is checked.
+broken, `CantCheck` is raised, before the color is checked: a bad color mustn't
+hide that a rule couldn't be checked. music21 is imported only when a harmony or
+a mode is checked.
 """
 
 from __future__ import annotations
@@ -196,7 +197,8 @@ def pdf_marker(
 def harmony(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
-    """A harmony. Without music21, raises `CantCheck` when no other rule is broken."""
+    """A harmony. Without music21, raises `CantCheck` when no rule but the color is
+    broken: the color is checked after it."""
     music21, error = _music21()
     return _kept(
         attrs,
@@ -215,7 +217,8 @@ def harmony(
 def mode(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
-    """A key. Without music21, raises `CantCheck` when no other rule is broken."""
+    """A key. Without music21, raises `CantCheck` when no rule but the color is
+    broken: the color is checked after it."""
     music21, error = _music21()
     return _kept(
         attrs,
