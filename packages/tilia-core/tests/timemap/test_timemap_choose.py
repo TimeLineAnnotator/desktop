@@ -186,10 +186,11 @@ def test_found_is_frozen_and_hashes():
 
 
 @pytest.mark.parametrize("media_length", [19.5, 20.0])
-def test_the_last_beat_at_or_after_the_end_of_the_media_is_warned_once(
+def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
     media_length, caplog
 ):
-    # FR-082: returned, and logged with the timeline's id, once per file.
+    # FR-082: returned, and logged once with the timeline's id. The index calls
+    # find_time_map once when it reads a file.
     timeline = pickup_piece()  # the last beat at 20 s
     doc = document(timeline, media_length=media_length)
 
