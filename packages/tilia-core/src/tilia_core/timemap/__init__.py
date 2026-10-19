@@ -7,13 +7,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from tilia_core import tla
-from tilia_core.timemap.table import MeasureRow, build_rows
-from tilia_core.timemap.timemap import (
-    Positions,
-    TimeMap,
-    build_time_map,
-    media_warning,
-)
+from tilia_core.timemap.table import MeasureRow, build_rows, media_warning
+from tilia_core.timemap.timemap import Positions, TimeMap, build_time_map
 
 __all__ = [
     "MeasureRow",
@@ -40,7 +35,7 @@ class TimeMapFound:
     timeline_id: str | None  # the chosen beat timeline, even when it gives no time map
     guessed: bool  # no timeline had the role time_map: the first beat timeline was taken
     reason: str | None  # why the chosen timeline gives no time map
-    warnings: tuple[str, ...]  # several claim the role; the last beat past the media
+    warnings: tuple[str, ...]  # several claim the role; a last beat past the media
 
 
 def find_time_map(
@@ -57,8 +52,9 @@ def find_time_map(
     has no bars, and `reason` says why. A document without a beat timeline has
     no time map, and nothing is wrong with it: no reason, no warning.
 
-    The warning that the last beat is at or after the end of the media is
-    logged here, once for each call, and not when a table is built.
+    Every beat timeline whose last beat is at or after the end of the media
+    gets a warning, with its id, the time map's or not: it is logged here, once
+    for each call, and not when a table is built.
     """
     beat_timelines = sorted(
         (t for t in document.timelines.values() if t.kind == "beat"),
@@ -73,10 +69,10 @@ def find_time_map(
     timeline = (claiming or beat_timelines)[0]
     guessed = not claiming
     time_map, reason = build_time_map(document, timeline, guessed=guessed)
-    if time_map is not None:
-        warning = media_warning(document, time_map)
+    for beats in beat_timelines:
+        warning = media_warning(document, beats)
         if warning is not None:
-            logger.warning("Timeline %s: %s.", timeline.id, warning)
+            logger.warning("%s.", warning)
             warnings.append(warning)
     return TimeMapFound(
         time_map=time_map,

@@ -200,8 +200,8 @@ def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
     assert found.time_map.end == 21.0
     (warning,) = found.warnings
     assert warning == (
-        f"the last beat (20.0) is at or after the end of the media ({media_length}); "
-        "the last measure ends one gap after it"
+        f"Timeline {timeline.id}: the last beat (20.0) is at or after the end of "
+        f"the media ({media_length}); the last measure ends one gap after it"
     )
     (record,) = caplog.records
     assert record.name == "tilia_core.timemap"
@@ -211,13 +211,33 @@ def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
 
 
 def test_the_warnings_come_in_the_order_they_were_found():
-    claiming = [_beats(j, role="time_map") for j in (1, 2)]
+    # The claim first, then each timeline past the media, by ordinal.
+    later, earlier = _beats(2, role="time_map"), _beats(1, role="time_map")
 
-    found = find_time_map(document(*claiming, media_length=2.0))
+    found = find_time_map(document(later, earlier, media_length=2.0))
 
-    assert len(found.warnings) == 2
+    assert len(found.warnings) == 3
     assert found.warnings[0] == TWO_CLAIM
-    assert found.warnings[1].startswith("the last beat (3.0)")
+    assert found.warnings[1].startswith(f"Timeline {earlier.id}: the last beat (3.0)")
+    assert found.warnings[2].startswith(f"Timeline {later.id}: the last beat (3.0)")
+
+
+def test_every_beat_timeline_past_the_media_is_warned_about(caplog):
+    # Anne, 2026-10-14: the tables a score or an import names too, once for
+    # each call of find_time_map. A table without rows has no closing barline.
+    default, named = _beats(1, role="time_map"), _beats(2, last=7)
+    timeless = _beats(3, last=7)
+    timeless.components[timeless.measures.rows[0].beats[1]].attrs["time"] = None
+    doc = document(default, named, timeless, media_length=5.0)
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.timeline_id == default.id
+    (warning,) = found.warnings
+    assert warning.startswith(f"Timeline {named.id}: the last beat (7.0)")
+    (record,) = caplog.records
+    assert record.getMessage() == f"{warning}."
 
 
 @pytest.mark.parametrize(
@@ -248,15 +268,18 @@ def test_no_media_warning_for_a_media_length_that_isnt_a_number(caplog):
     assert not caplog.records
 
 
-def test_no_media_warning_without_a_time_map(caplog):
-    # The table is folded, so it has no closing barline to warn about.
-    doc = document(_folded(), media_length=2.0)
+def test_a_folded_table_past_the_media_is_warned_about(caplog):
+    # It has no time map, but its rows have a closing barline (FR-013).
+    folded = _folded()
+    doc = document(folded, media_length=2.0)
 
     with caplog.at_level(logging.WARNING):
         found = find_time_map(doc)
 
-    assert found.time_map is None and found.warnings == ()
-    assert not caplog.records
+    assert found.time_map is None and found.reason == FOLDED
+    (warning,) = found.warnings
+    assert warning.startswith(f"Timeline {folded.id}: the last beat (3.0)")
+    assert len(caplog.records) == 1
 
 
 def test_tables_and_named_time_maps_log_nothing_about_the_media(caplog):
