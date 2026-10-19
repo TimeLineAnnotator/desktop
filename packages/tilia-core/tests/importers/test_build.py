@@ -177,6 +177,24 @@ def test_a_field_is_stored_in_nfc():
     assert doc.metadata["compositeur"] == "Dvořák"
 
 
+def test_a_field_may_be_a_list_of_texts_each_in_nfc():
+    doc = build.new_script_document()
+
+    build.set_field(doc, "performers", ["Arrau", "Bréndel"])
+
+    assert doc.metadata["performers"] == ["Arrau", "Bréndel"]
+
+
+@pytest.mark.parametrize("value", [3, None, ("a", "b"), ["a", 3]])
+def test_a_field_is_text_or_a_list_of_texts(value):
+    doc = build.new_script_document()
+    before = copy.deepcopy(doc)
+
+    with pytest.raises(TypeError):
+        build.set_field(doc, "composer", value)
+    assert doc == before
+
+
 @pytest.mark.parametrize("name", ["media length", "Media Length", "MEDIA LENGTH"])
 def test_media_length_isnt_a_field(name):
     # US6 scenario 2.
@@ -330,6 +348,15 @@ def test_without_a_byte_rate_block_align_times_sample_rate_is_used(tmp_path):
     path.write_bytes(riff(chunk(b"fmt ", no_byte_rate), chunk(b"data", bytes(16000))))
 
     assert build.wav_length(path) == 0.5
+
+
+def test_wav_length_with_the_oldest_14_byte_fmt_chunk(tmp_path):
+    # WAVEFORMAT, before the bits per sample were added.
+    path = tmp_path / "a.wav"
+    waveformat = struct.pack("<HHIIH", 1, 1, 8000, 16000, 2)
+    path.write_bytes(riff(chunk(b"fmt ", waveformat), chunk(b"data", bytes(24000))))
+
+    assert build.wav_length(path) == 1.5
 
 
 def test_a_data_size_beyond_the_file_counts_the_bytes_there(tmp_path):
@@ -492,6 +519,29 @@ def test_media_that_doesnt_exist_is_refused(tmp_path):
     assert doc == before
 
 
+def test_a_folder_isnt_media(tmp_path):
+    folder = tmp_path / "clip.wav"
+    folder.mkdir()
+    doc = build.new_script_document()
+    before = copy.deepcopy(doc)
+
+    message = refused(build.load_media, doc, folder, duration_if_error=5.0)
+
+    assert message == MEDIA_NOT_FOUND.format(folder)
+    assert doc == before
+
+
+def test_a_path_the_system_cant_look_at_isnt_found(tmp_path):
+    # A name longer than any file system allows: on Python before 3.12,
+    # Path.exists raises for it on Linux and macOS.
+    path = tmp_path / ("x" * 300 + ".wav")
+    doc = build.new_script_document()
+
+    message = refused(build.load_media, doc, path, duration_if_error=5.0)
+
+    assert message == MEDIA_NOT_FOUND.format(path)
+
+
 def test_a_youtube_link_is_recorded_as_it_is():
     doc = build.new_script_document()
 
@@ -564,8 +614,9 @@ def script_document(media_length=60.0):
     "kind, height", [("marker", 30), ("hierarchy", 120), ("beat", 69)]
 )
 def test_a_timeline_without_a_height_gets_tilias_default(kind, height):
-    # #254: TiLiA's out-of-the-box defaults, fixed in the core; beat is 35 and
-    # 34 for the time signatures' band.
+    # TiLiA's out-of-the-box defaults, fixed in the core
+    # (TimeLineAnnotator/project-management#254 (a timeline's default height));
+    # beat is 35 and 34 for the time signatures' band.
     doc = script_document()
 
     timeline_id = build.add_timeline(doc, kind, "Name")
@@ -732,10 +783,21 @@ def test_a_beat_pattern_that_doesnt_parse_is_refused(pattern, reason):
     assert doc == before
 
 
+@pytest.mark.parametrize("pattern", [[4], 4, b"4"])
+def test_a_beat_pattern_is_text(pattern):
+    doc = script_document()
+    before = copy.deepcopy(doc)
+
+    with pytest.raises(TypeError):
+        build.add_timeline(doc, "beat", beat_pattern=pattern)
+    assert doc == before
+
+
 @pytest.mark.parametrize("height", [0, -5, 9, 10.0, True, "40"])
 def test_a_height_is_an_integer_of_at_least_10(height):
     # TiLiA's set_data refuses these (validate_bounded_integer, lower=10), and
-    # the strictest of TiLiA's checks applies (TimeLineAnnotator/project-management#316).
+    # the strictest of TiLiA's checks applies
+    # (TimeLineAnnotator/project-management#316 (which heights timelines add accepts)).
     doc = script_document()
     before = copy.deepcopy(doc)
 
