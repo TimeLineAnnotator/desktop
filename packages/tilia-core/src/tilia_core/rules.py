@@ -51,6 +51,11 @@ _NO_INVERSION_QUALITIES = frozenset(
     {"Italian", "French", "German", "Neapolitan", "Tristan", "power"}
 )
 
+# Hierarchy boundaries less than this far apart count as the same, as TiLiA's
+# `get_boundary_conflicts` compares them since `dev`'s 2ceec157: files TiLiA saved
+# before then hold boundaries a few ulps apart where they should meet.
+_TIME_ABS_TOL = 1e-9
+
 # The names TiLiA's reasons give the point kinds (their `frontend_name`).
 _POINT_NAMES = {
     "marker": "marker",
@@ -515,7 +520,8 @@ def _crossed(
 def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bool:
     """Whether two hierarchies overlap, and neither lies inside the other, lower.
 
-    This is when TiLiA's `get_boundary_conflicts` finds a conflict between them.
+    This is when TiLiA's `get_boundary_conflicts` finds a conflict between them, as
+    `dev` has it since 2ceec157: times less than 1e-9 apart count as the same.
     """
     other_start, other_end = other.get("start"), other.get("end")
     other_level = other.get("level")
@@ -525,11 +531,27 @@ def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bo
         and _is_comparable(other_level)
     ):
         return False
-    if not (start < other_end and other_start < end):
+    if not (_lt(start, other_end) and _lt(other_start, end)):
         return False
-    inside = other_start <= start and end <= other_end and level < other_level
-    around = start <= other_start and other_end <= end and other_level < level
+    inside = _le(other_start, start) and _le(end, other_end) and level < other_level
+    around = _le(start, other_start) and _le(other_end, end) and other_level < level
     return not (inside or around)
+
+
+def _times_close(a: float, b: float) -> bool:
+    """Whether two times count as the same, as TiLiA's `_times_close` says."""
+    try:
+        return math.isclose(a, b, abs_tol=_TIME_ABS_TOL)
+    except OverflowError:  # an integer too large for a float is close only to itself
+        return a == b
+
+
+def _le(a: float, b: float) -> bool:
+    return a < b or _times_close(a, b)
+
+
+def _lt(a: float, b: float) -> bool:
+    return a < b and not _times_close(a, b)
 
 
 def _range_place(
