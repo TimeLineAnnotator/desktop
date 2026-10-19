@@ -389,25 +389,16 @@ def _one_of(
     return _broken(not_valid(name, value))
 
 
-# A music21 that wouldn't import, kept so that it isn't imported again for every
-# harmony: Python doesn't keep a module whose import failed.
-_music21_failure: Exception | None = None
-
-
 def _music21() -> tuple[ModuleType | None, Exception | None]:
     """music21, with what the rules read of it; or None, without the `harmony`
     extra, and with the error when music21 is installed but won't import,
     whatever the error is."""
-    global _music21_failure
-    if _music21_failure is not None:
-        return None, _music21_failure
     try:
         if importlib.util.find_spec("music21") is None:
             return None, None
         import music21.harmony
         import music21.key
     except Exception as error:
-        _music21_failure = error
         return None, error
     return music21, None
 
