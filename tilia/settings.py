@@ -1,3 +1,4 @@
+import tempfile
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
@@ -169,6 +170,20 @@ class SettingsManager(QObject):
             if migration := self.MIGRATIONS.get(from_version):
                 migration(self._settings)
         self._settings.setValue(self.VERSION_KEY, self.VERSION)
+
+    def detach(self) -> None:
+        """
+        Keeps the current settings, but stops persisting any change to them,
+        e.g. for one-off runs that shouldn't touch the recent files.
+        """
+        self._detached_dir = tempfile.TemporaryDirectory()
+        detached = QSettings(
+            str(Path(self._detached_dir.name) / "settings.ini"),
+            QSettings.Format.IniFormat,
+        )
+        for key in self._settings.allKeys():
+            detached.setValue(key, self._settings.value(key))
+        self._settings = detached
 
     def _check_all_default_settings_present(self):
         for group_name, setting in self.DEFAULT_SETTINGS.items():
