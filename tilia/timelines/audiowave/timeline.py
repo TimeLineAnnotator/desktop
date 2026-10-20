@@ -44,12 +44,16 @@ class AudioWaveTimeline(Timeline):
             return None
 
     def _get_normalised_amplitudes(self):
-        divisions = min(
-            [
-                get(Get.PLAYBACK_AREA_WIDTH),
-                settings.get("audiowave_timeline", "max_divisions"),
-                self.audio.frames,
-            ]
+        # PLAYBACK_AREA_WIDTH can be a float, but the block size handed to
+        # soundfile below must be an int.
+        divisions = int(
+            min(
+                [
+                    get(Get.PLAYBACK_AREA_WIDTH),
+                    settings.get("audiowave_timeline", "max_divisions"),
+                    self.audio.frames,
+                ]
+            )
         )
         dt = self.audio.frames / self.audio.samplerate / divisions
         amplitude = [

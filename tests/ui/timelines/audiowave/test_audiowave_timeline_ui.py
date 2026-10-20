@@ -129,6 +129,18 @@ class TestMediaLoadInteraction:
 
         tilia_errors.assert_error()
 
+    def test_add_while_local_audio_loaded_draws_waveform(
+        self, qtui, tluis, tls, tilia_errors, resources
+    ):
+        load_local_media((resources / "example.wav").resolve())
+
+        commands.execute("timelines.add.audiowave", name="")
+
+        tilia_errors.assert_no_error()
+        tl = tls.get_timeline_by_type(AudioWaveTimeline)
+        assert tl.get_data("is_visible") is True
+        assert len(tluis.get_timeline_ui(tl.id)) > 0  # amplitude bars
+
     def test_loading_video_while_media_loaded_refreshes_waveform(
         self, qtui, tluis, resources
     ):
@@ -140,19 +152,6 @@ class TestMediaLoadInteraction:
 
         mock_refresh.assert_called()
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Creating/refreshing an AudioWave timeline over a loaded"
-            " audio file raises TypeError. In"
-            " AudioWaveTimeline._get_normalised_amplitudes,"
-            " `self.audio.blocks(self.audio.frames // divisions)` -- `divisions`"
-            " is `min(PLAYBACK_AREA_WIDTH,"
-            " max_divisions, frames)`, and PLAYBACK_AREA_WIDTH is a float, so when"
-            " it is the smallest of the three the `//` result stays a float and"
-            " soundfile.blocks() rejects it as a blocksize."
-        ),
-    )
     def test_loading_audio_while_media_loaded_refreshes_waveform(
         self, qtui, tluis, resources
     ):
