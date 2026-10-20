@@ -1,4 +1,3 @@
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
@@ -7,6 +6,8 @@ from PySide6.QtCore import QObject, QSettings
 
 import tilia.constants
 from tilia.ui.enums import ScrollType
+
+STORE_NAME = "Desktop Settings"
 
 
 class _Unreadable:
@@ -143,7 +144,14 @@ class SettingsManager(QObject):
     def __init__(self, qsettings: QSettings | None = None):
         super().__init__()
         if qsettings is None:
-            qsettings = self._open_store()
+            # defaultFormat() is the native store unless the test suite has
+            # switched it to an ini file it can move (tests/__init__.py).
+            qsettings = QSettings(
+                QSettings.defaultFormat(),
+                QSettings.Scope.UserScope,
+                tilia.constants.APP_NAME,
+                STORE_NAME,
+            )
         self._settings = qsettings
         self._files_updated_callbacks = set()
         self._cache = {}
@@ -168,22 +176,6 @@ class SettingsManager(QObject):
             if migration := self.MIGRATIONS.get(from_version):
                 migration(self._settings)
         self._settings.setValue(self.VERSION_KEY, self.VERSION)
-
-    @staticmethod
-    def _open_store() -> QSettings:
-        if os.environ.get("ENVIRONMENT") == "test":
-            # QSettings.setPath() can move ini files, but not the native stores
-            # of macOS and Windows. Tests use an ini file, which the test suite
-            # moves out of the user's settings (tests/__init__.py).
-            return QSettings(
-                QSettings.Format.IniFormat,
-                QSettings.Scope.UserScope,
-                tilia.constants.APP_NAME,
-                "Desktop Settings",
-            )
-        return QSettings(
-            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
-        )
 
     def _check_all_default_settings_present(self):
         for group_name, setting in self.DEFAULT_SETTINGS.items():
