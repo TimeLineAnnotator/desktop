@@ -218,6 +218,13 @@ class TimelineUIs:
         )
 
         commands.register(
+            "timeline.component.cut",
+            self.on_timeline_cut_element,
+            text="Cu&t",
+            shortcut="Ctrl+X",
+        )
+
+        commands.register(
             "timeline.component.paste",
             self.on_timeline_paste_element,
             text="&Paste",
@@ -287,11 +294,24 @@ class TimelineUIs:
         if isinstance(kind, type(Timeline)):
             kind = [kind]
 
+        self._run_timeline_command(
+            self.get_timelines_uis_for_request(kind, selector),
+            callback,
+            *args,
+            **kwargs,
+        )
+
+    def _run_timeline_command(
+        self,
+        timeline_uis: list[TimelineUI],
+        callback: Callable | str,
+        *args,
+        **kwargs,
+    ) -> None:
         # Passing method names is allowed to enable calling methods overridden by TimelineUI subclasses,
         # as we wouldn't be able to pass a different callback for each subclass.
         method_name = callback if isinstance(callback, str) else None
 
-        timeline_uis = self.get_timelines_uis_for_request(kind, selector)
         state_backup = get(Get.APP_STATE)
         result = []
 
@@ -1370,16 +1390,10 @@ class TimelineUIs:
         )
 
     def on_timeline_delete_element(self):
-        def components_are_deletable(flags: list[TimelineFlag]):
-            return (
-                TimelineFlag.COMPONENTS_NOT_DELETABLE not in flags
-                and TimelineFlag.COMPONENTS_NOT_EDITABLE not in flags
-            )
-
         kinds = [
             cls
             for cls in Timeline.__subclasses__()
-            if components_are_deletable(cls.FLAGS)
+            if _components_are_deletable(cls.FLAGS)
         ]
 
         self.on_timeline_command(
@@ -1388,7 +1402,7 @@ class TimelineUIs:
             TimelineSelector.SELECTED,
         )
 
-    def on_timeline_copy_element(self):
+    def _get_timeline_ui_to_copy_from(self) -> TimelineUI | None:
         kinds = Timeline.get_kinds_by_flag(TimelineFlag.COMPONENTS_COPYABLE)
         timeline_uis = self.get_timelines_uis_for_request(
             kinds, TimelineSelector.SELECTED
@@ -1404,8 +1418,26 @@ class TimelineUIs:
             )
             return
 
-        timeline_ui = timeline_uis[0]
-        timeline_ui.on_copy_element(timeline_ui.selected_elements)
+        return timeline_uis[0]
+
+    def on_timeline_copy_element(self) -> None:
+        timeline_ui = self._get_timeline_ui_to_copy_from()
+        if timeline_ui is not None:
+            timeline_ui.on_copy_element(timeline_ui.selected_elements)
+
+    def on_timeline_cut_element(self) -> None:
+        timeline_ui = self._get_timeline_ui_to_copy_from()
+        if (
+            timeline_ui is None
+            # Hierarchy paste only applies attributes to a selected hierarchy,
+            # so a cut hierarchy could not be pasted back.
+            or timeline_ui.timeline_class is HierarchyTimeline
+            or not _components_are_deletable(timeline_ui.timeline_class.FLAGS)
+            or not timeline_ui.on_copy_element(timeline_ui.selected_elements)
+        ):
+            return
+
+        self._run_timeline_command([timeline_ui], "on_delete_component")
 
     def on_timeline_paste_element(self, type: str = ""):
         if type == "complete":
@@ -1672,6 +1704,13 @@ class TimelineUIs:
 
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
+
+
+def _components_are_deletable(flags: list[TimelineFlag]) -> bool:
+    return (
+        TimelineFlag.COMPONENTS_NOT_DELETABLE not in flags
+        and TimelineFlag.COMPONENTS_NOT_EDITABLE not in flags
+    )
 
 
 class TimelineSelector(Enum):

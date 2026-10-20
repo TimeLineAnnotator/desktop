@@ -5,7 +5,12 @@ import pytest
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.beat.interact import click_beat_ui
 from tests.ui.timelines.interact import drag_mouse_in_timeline_view
-from tests.utils import get_command_names, reloadable, undoable
+from tests.utils import (
+    get_command_action,
+    get_command_names,
+    reloadable,
+    undoable,
+)
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -764,6 +769,25 @@ class TestTimelineUIContextMenu:
         context_menu = beat_tlui.CONTEXT_MENU_CLASS(beat_tlui, 0, 0)
 
         assert get_qaction("timeline.set_height") not in context_menu.actions()
+
+
+class TestElementContextMenu:
+    def test_has_cut(self, beat_tlui):
+        commands.execute("timeline.beat.add", time=0)
+        menu = BeatContextMenu(beat_tlui[0])
+        assert "timeline.component.cut" in get_command_names(menu)
+
+    def test_cut(self, beat_tlui):
+        commands.execute("timeline.beat.add", time=0)
+        commands.execute("timeline.beat.add", time=10)
+        click_beat_ui(beat_tlui[0])
+
+        menu = BeatContextMenu(beat_tlui[0])
+        with undoable():
+            get_command_action(menu, "timeline.component.cut").trigger()
+
+        assert len(beat_tlui) == 1
+        assert beat_tlui[0].get_data("time") == 10
 
 
 class TestChangeBeatsInMeasureContextMenu:

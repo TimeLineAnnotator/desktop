@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QInputDialog
 
 import tilia.errors
 from tests.mock import patch_yes_or_no_dialog
+from tests.ui.timelines.interact import click_timeline_ui_element_body, press_key
 from tests.utils import get_command_names, undoable
 from tilia.requests import Post, post
 from tilia.settings import settings
@@ -320,6 +321,24 @@ class TestAddFrameValidation:
         )
         menu = HierarchyContextMenu(tlui[0])
         assert self.POST_END not in get_command_names(menu)
+
+
+class TestCut:
+    # Hierarchy paste only applies attributes to a selected hierarchy, so a
+    # cut hierarchy could not be pasted back. Cut is not offered for them.
+
+    def test_context_menu_has_no_cut(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        menu = HierarchyContextMenu(tlui[0])
+        assert "timeline.component.cut" not in get_command_names(menu)
+
+    def test_shortcut_does_nothing(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        click_timeline_ui_element_body(tlui[0])
+
+        press_key("x", modifier=Qt.KeyboardModifier.ControlModifier)
+
+        assert len(tlui) == 1
 
 
 class TestCopyPaste:
