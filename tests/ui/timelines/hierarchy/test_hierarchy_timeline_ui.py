@@ -1,3 +1,4 @@
+from copy import deepcopy
 from unittest.mock import patch
 
 import pytest
@@ -9,7 +10,7 @@ import tilia.errors
 from tests.mock import patch_yes_or_no_dialog
 from tests.ui.timelines.interact import click_timeline_ui_element_body, press_key
 from tests.utils import get_command_names, undoable
-from tilia.requests import Post, post
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.ui import commands
@@ -342,6 +343,28 @@ class TestCut:
 
 
 class TestCopyPaste:
+    def test_copy_multiple_shows_error_and_keeps_clipboard(self, tlui):
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=0.5, level=1, label="copied"
+        )
+        commands.execute("timeline.hierarchy.add", start=0.5, end=1, level=1)
+        tlui.select_element(tlui[0])
+        commands.execute("timeline.component.copy")
+        clipboard_before = deepcopy(get(Get.CLIPBOARD_CONTENTS))
+
+        tlui.select_element(tlui[1])
+        with patch("tilia.errors.display") as display:
+            commands.execute("timeline.component.copy")
+
+        display.assert_called_once()
+        assert display.call_args.args[0] == tilia.errors.COMPONENTS_COPY_ERROR
+        assert "more than one hierarchy" in display.call_args.args[1]
+        assert get(Get.CLIPBOARD_CONTENTS) == clipboard_before
+
+        tlui.deselect_element(tlui[0])
+        commands.execute("timeline.component.paste")
+        assert tlui[1].get_data("label") == "copied"
+
     def test_paste(self, tlui):
         commands.execute(
             "timeline.hierarchy.add", start=0, end=1, level=1, label="paste test"
