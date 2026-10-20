@@ -1041,6 +1041,22 @@ class TestCopyPaste:
         assert starts == [0, 20, 80]
 
 
+class TestCut:
+    def test_cut_across_rows_deletes_nothing(self, range_tlui, tilia_errors):
+        commands.execute("timeline.range.add_row")
+        commands.execute("timeline.range.add_range", start=0, end=10)
+        commands.execute(
+            "timeline.range.add_range", row=range_tlui.rows[1], start=20, end=30
+        )
+        click_range_ui(range_tlui[0])
+        click_range_ui(range_tlui[1], modifier="ctrl")
+
+        commands.execute("timeline.component.cut")
+
+        tilia_errors.assert_in_error_message("multiple rows")
+        assert len(range_tlui) == 2
+
+
 class TestMoveToRow:
     def test_move_to_row_above(self, range_tlui):
         commands.execute("timeline.range.add_row")
@@ -1138,10 +1154,21 @@ class TestRangeElementContextMenu:
             "timeline.component.set_color",
             "timeline.component.reset_color",
             "timeline.component.copy",
+            "timeline.component.cut",
             "timeline.component.paste",
             "timeline.component.delete",
         ):
             assert expected in names
+
+    def test_cut(self, range_tlui):
+        commands.execute("timeline.range.add_range", start=0, end=10)
+        click_range_ui(range_tlui[0])
+
+        menu = RangeContextMenu(range_tlui[0])
+        with undoable():
+            get_command_action(menu, "timeline.component.cut").trigger()
+
+        assert len(range_tlui) == 0
 
     def test_join_hidden_when_only_one_selected(self, range_tlui):
         commands.execute("timeline.range.add_range", start=0, end=10)

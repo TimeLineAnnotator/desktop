@@ -1,5 +1,7 @@
 from typing import Any
 
+from tests.ui.timelines.interact import click_timeline_ui_element_body
+from tests.utils import get_command_action, get_command_names, undoable
 from tilia.requests import Post, post
 from tilia.timelines.pdf.timeline import PdfTimeline
 from tilia.ui import commands
@@ -42,6 +44,23 @@ class TestAddMarker:
         assert len(pdf_tlui.timeline) == 1
         assert_pdf_marker(pdf_tlui, 0, "time", 10)
         assert_pdf_marker(pdf_tlui, 0, "page_number", 5)
+
+
+class TestElementContextMenu:
+    def test_has_cut(self, pdf_tlui):
+        commands.execute("timeline.pdf.add", time=0)
+        menu = pdf_tlui[0].CONTEXT_MENU_CLASS(pdf_tlui[0])
+        assert "timeline.component.cut" in get_command_names(menu)
+
+    def test_cut(self, pdf_tlui):
+        commands.execute("timeline.pdf.add", time=0)
+        click_timeline_ui_element_body(pdf_tlui[0])
+
+        menu = pdf_tlui[0].CONTEXT_MENU_CLASS(pdf_tlui[0])
+        with undoable():
+            get_command_action(menu, "timeline.component.cut").trigger()
+
+        assert len(pdf_tlui) == 0
 
 
 class TestTimelineUIContextMenu:

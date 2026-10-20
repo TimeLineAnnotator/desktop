@@ -4,10 +4,11 @@ import tilia.ui.commands
 from tests.mock import Serve
 from tests.ui.timelines.harmony.interact import (
     click_harmony_ui,
+    click_mode_ui,
     label_as_typed,
     numeral_part,
 )
-from tests.utils import get_command_action
+from tests.utils import get_command_action, get_command_names, undoable
 from tilia.requests import Get
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
@@ -824,6 +825,42 @@ class TestCopyPaste:
         commands.execute("timeline.component.paste")
 
         assert len(harmony_tlui) == 5
+
+
+class TestElementContextMenu:
+    def test_harmony_menu_has_cut(self, harmony_tlui):
+        add_harmony()
+        harmony = harmony_tlui.harmonies()[0]
+        menu = harmony.CONTEXT_MENU_CLASS(harmony)
+        assert "timeline.component.cut" in get_command_names(menu)
+
+    def test_mode_menu_has_cut(self, harmony_tlui):
+        add_mode()
+        mode = harmony_tlui.modes()[0]
+        menu = mode.CONTEXT_MENU_CLASS(mode)
+        assert "timeline.component.cut" in get_command_names(menu)
+
+    def test_cut_harmony(self, harmony_tlui):
+        add_harmony()
+        harmony = harmony_tlui.harmonies()[0]
+        click_harmony_ui(harmony)
+
+        menu = harmony.CONTEXT_MENU_CLASS(harmony)
+        with undoable():
+            get_command_action(menu, "timeline.component.cut").trigger()
+
+        assert harmony_tlui.harmonies() == []
+
+    def test_cut_mode(self, harmony_tlui):
+        add_mode()
+        mode = harmony_tlui.modes()[0]
+        click_mode_ui(mode)
+
+        menu = mode.CONTEXT_MENU_CLASS(mode)
+        with undoable():
+            get_command_action(menu, "timeline.component.cut").trigger()
+
+        assert harmony_tlui.modes() == []
 
 
 class TestTimelineUIContextMenu:
