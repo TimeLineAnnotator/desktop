@@ -215,29 +215,6 @@ def resources() -> Path:
     return Path(__file__).parent / "resources"
 
 
-@pytest.fixture(scope="session", autouse=True)
-def isolate_settings():
-    """Start the session from the default settings.
-
-    Settings are backed by a real QSettings store, so anything a test writes
-    outlives it. Each test process keeps that store in a throwaway directory
-    of its own (tests/__init__.py), so values can't leak into the other xdist
-    workers, into subsequent runs or into the developer's own settings. This
-    clears whatever the process stored before its first test.
-
-    Autouse and session-scoped so that every test starts from the defaults,
-    whichever fixtures it happens to request.
-    """
-    _reset_settings_to_default()
-    yield
-
-
-def _reset_settings_to_default():
-    settings_module.settings._settings.clear()
-    settings_module.settings._cache = {}
-    settings_module.settings._check_all_default_settings_present()
-
-
 def pytest_unconfigure(config):
     # Write pending settings while Python is still running. Otherwise QSettings
     # writes them when the process exits, after the directory is gone, and
@@ -247,7 +224,7 @@ def pytest_unconfigure(config):
 
 
 @pytest.fixture(autouse=True)
-def restore_settings_after_test(isolate_settings):
+def restore_settings_after_test():
     """Undo any setting a test writes.
 
     Tests are expected to set the values they depend on explicitly, which only
