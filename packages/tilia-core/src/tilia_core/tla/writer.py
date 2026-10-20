@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 from collections.abc import Callable, Mapping
 from operator import itemgetter
 from typing import Any
 
+from tilia_core.tla.check import check
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -130,6 +132,8 @@ def _object(
         item = values[key]
         kind = type(item)
         if key not in always:
+            if item is None:
+                continue  # None is a missing key, as a null in a file is
             if key in defaults:
                 default = defaults[key]
                 if kind is type(default) and item == default:
@@ -137,8 +141,6 @@ def _object(
             elif key in empty:
                 if kind is dict and not item:
                     continue
-            elif item is None:
-                continue
         writer = writers.get(key) if writers else None
         if writer is not None:
             written[key] = writer(item, place, key)
@@ -291,8 +293,10 @@ def _raw_timeline(
     value = dict(raw)
     for key, item in edits.items():
         at_default = key in _RAW_FIELD_DEFAULTS and item == _RAW_FIELD_DEFAULTS[key]
-        if key in value or not at_default:
+        if value.get(key) is not None or not at_default:
             value[key] = item
+        elif key in value:
+            del value[key]  # a null in the file was a missing key
     return _object(value, UNKNOWN_TIMELINE, place)
 
 
@@ -411,9 +415,25 @@ def canonical_bytes(doc: Document) -> bytes:
     value of another type than JSON's; and for one nested deeper than the
     reader reads, as a value that holds itself is (FR-034).
     """
+    return _utf8(_text(_document(doc)))
+
+
+def checked_bytes(
+    doc: Document, *, path: str | os.PathLike[str] | None = None
+) -> bytes:
+    """The bytes `write` writes: `canonical_bytes(doc)`, once checked as the
+    reader checks a file. Raises `UnreadableFile`, with its place and line,
+    for a document the reader would refuse; one the reader only warns about
+    gives its bytes (FR-034). `path`, where they are to be written, is for
+    messages."""
     content = _document(doc)
-    text = json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False)
-    return _utf8(text + "\n")
+    text = _text(content)
+    check(content, text, path=path)
+    return _utf8(text)
+
+
+def _text(content: dict[str, Any]) -> str:
+    return json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
 
 
 def new_document(*, time_unit: str = "seconds") -> Document:
