@@ -312,6 +312,7 @@ class HierarchyTimelineUI(TimelineUI):
         success, reason = _validate_copy_cardinality(elements)
         if not success:
             _display_copy_error(reason)
+            return False
 
         component_data = [self.get_copy_data_from_hierarchy_ui(e) for e in elements]
 
