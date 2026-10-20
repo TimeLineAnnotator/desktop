@@ -605,7 +605,9 @@ class App:
         return {
             "timelines": self.timelines.get_export_data(),
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "media_path": get(Get.MEDIA_PATH),
+            # Falls back to the file when no media is loaded (e.g. the media
+            # could not be found), so the path the file records survives.
+            "media_path": get(Get.MEDIA_PATH) or self.file_manager.file.media_path,
         }
 
     def _ensure_slider_timeline(self) -> None:

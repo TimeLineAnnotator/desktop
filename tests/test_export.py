@@ -6,6 +6,7 @@ from PIL import Image
 from tests.conftest import parametrize_component
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
+from tests.utils import get_blank_file_data
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
@@ -100,6 +101,18 @@ class TestExportJSON:
         data = self._trigger_export_action(tmp_file)
 
         assert data["media_path"] == EXAMPLE_MEDIA_PATH
+
+    def test_export_has_media_path_of_file_when_media_is_missing(self, tilia, tmp_path):
+        file_data = get_blank_file_data()
+        file_data["media_path"] = "/does/not/exist.mp3"
+        tla_path = tmp_path / "test.tla"
+        tla_path.write_text(json.dumps(file_data), encoding="utf-8")
+        with Serve(Get.FROM_USER_RETRY_MEDIA_PATH, False):
+            commands.execute("file.open", str(tla_path))
+
+        data = self._trigger_export_action(tmp_path / "test.json")
+
+        assert data["media_path"] == "/does/not/exist.mp3"
 
     def test_export_has_media_metadata(self, tilia, tmp_path):
         post(Post.MEDIA_METADATA_FIELD_SET, "title", "Test Title")
