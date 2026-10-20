@@ -144,8 +144,9 @@ class SettingsManager(QObject):
     def __init__(self, qsettings: QSettings | None = None):
         super().__init__()
         if qsettings is None:
-            # defaultFormat() is the native store unless the test suite has
-            # switched it to an ini file it can move (tests/__init__.py).
+            # defaultFormat() is the native store. Calling
+            # QSettings.setDefaultFormat() before this module is imported moves
+            # the settings; tilia never does, and the test suite does on purpose.
             qsettings = QSettings(
                 QSettings.defaultFormat(),
                 QSettings.Scope.UserScope,
