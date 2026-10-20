@@ -13,6 +13,7 @@ DEFAULT_ITEMS = [
     (MenuItemKind.COMMAND, "timeline.component.reset_color"),
     (MenuItemKind.SEPARATOR, None),
     (MenuItemKind.COMMAND, "timeline.component.copy"),
+    (MenuItemKind.COMMAND, "timeline.component.cut"),
     (MenuItemKind.COMMAND, "timeline.component.paste"),
     (MenuItemKind.COMMAND, "timeline.component.paste_complete"),
     (MenuItemKind.SEPARATOR, None),

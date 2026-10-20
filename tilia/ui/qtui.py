@@ -107,6 +107,10 @@ class TiliaMainWindow(QMainWindow):
                 "timeline.component.copy",
             ),
             (
+                QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_X),
+                "timeline.component.cut",
+            ),
+            (
                 QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_V),
                 "timeline.component.paste",
             ),
