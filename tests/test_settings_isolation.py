@@ -5,13 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from tests import SETTINGS_DIR, SETTINGS_DIR_PREFIX
+from tests import SETTINGS_DIR, SETTINGS_DIR_PREFIX, SETTINGS_ROOT_VAR
 from tilia.constants import APP_NAME
 from tilia.settings import STORE_NAME, settings
 
 PERIODICITY = ("beat_timeline", "display_measure_periodicity")
 DEFAULT_PERIODICITY = 4
 CHANGED_FILE = "changed-by-previous-test.tla"
+CRASH_VAR = "TILIA_TEST_CRASH_WORKER"
 
 
 class TestSettingsIsolation:
@@ -41,6 +42,14 @@ class TestSettingsIsolation:
         assert CHANGED_FILE not in settings.get_recent_files()
 
 
+@pytest.mark.skipif(
+    CRASH_VAR not in os.environ,
+    reason="only runs inside test_test_session_leaves_no_settings_behind",
+)
+def test_worker_crash():
+    os._exit(1)
+
+
 USERS_SETTINGS = "[General]\nmine=1\n"
 
 
@@ -50,9 +59,9 @@ USERS_SETTINGS = "[General]\nmine=1\n"
 )
 @pytest.mark.timeout(60)
 def test_test_session_leaves_no_settings_behind(tmp_path):
-    """Run the tests above in a pytest session of its own, with an xdist
-    worker. The xdist controller runs no tests, and so no fixtures. One test,
-    so that the session runs once even under -n auto.
+    """Run the tests above in a pytest session of its own, with one xdist
+    worker that crashes at the end. The xdist controller runs no tests, and so
+    no fixtures. One test, so that the session runs once even under -n auto.
     """
     config_home = tmp_path / "config"
     users_settings = config_home / APP_NAME / f"{STORE_NAME}.conf"
@@ -60,8 +69,14 @@ def test_test_session_leaves_no_settings_behind(tmp_path):
     users_settings.write_text(USERS_SETTINGS)
     temp_dir = tmp_path / "temp"
     temp_dir.mkdir()
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PYTEST_")}
-    env.update(XDG_CONFIG_HOME=str(config_home), TMPDIR=str(temp_dir))
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if not k.startswith("PYTEST_") and k != SETTINGS_ROOT_VAR
+    }
+    env.update(
+        XDG_CONFIG_HOME=str(config_home), TMPDIR=str(temp_dir), **{CRASH_VAR: "1"}
+    )
 
     result = subprocess.run(
         [
@@ -74,6 +89,7 @@ def test_test_session_leaves_no_settings_behind(tmp_path):
             "no:cacheprovider",
             f"--basetemp={tmp_path / 'basetemp'}",
             f"{__file__}::TestSettingsIsolation",
+            f"{__file__}::test_worker_crash",
         ],
         cwd=Path(__file__).parents[1],
         env=env,
@@ -82,7 +98,7 @@ def test_test_session_leaves_no_settings_behind(tmp_path):
         timeout=50,
     )
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 failed, 4 passed" in result.stdout, result.stdout + result.stderr
     assert list(users_settings.parent.iterdir()) == [users_settings]
     assert users_settings.read_text() == USERS_SETTINGS
     assert not list(temp_dir.glob(f"{SETTINGS_DIR_PREFIX}*"))
