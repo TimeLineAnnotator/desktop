@@ -72,6 +72,7 @@ def test_test_session_leaves_no_settings_behind(tmp_path):
         env=env,
         capture_output=True,
         text=True,
+        timeout=50,
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
