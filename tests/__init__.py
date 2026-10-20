@@ -1,3 +1,4 @@
+import os
 import tempfile
 
 from PySide6.QtCore import QSettings
@@ -9,7 +10,15 @@ from PySide6.QtCore import QSettings
 # file. This has to run before anything imports tilia.settings, and pytest
 # imports this package before conftest.py. conftest.py removes the directory
 # at the end of the session.
+#
+# xdist workers inherit the controller's environment, so their directories go
+# inside the controller's. A worker that crashes never removes its own, and the
+# controller removes it with its own.
 SETTINGS_DIR_PREFIX = "tilia-test-settings-"
-SETTINGS_DIR = tempfile.mkdtemp(prefix=SETTINGS_DIR_PREFIX)
+SETTINGS_ROOT_VAR = "TILIA_TEST_SETTINGS_DIR"
+SETTINGS_DIR = tempfile.mkdtemp(
+    prefix=SETTINGS_DIR_PREFIX, dir=os.environ.get(SETTINGS_ROOT_VAR)
+)
+os.environ.setdefault(SETTINGS_ROOT_VAR, SETTINGS_DIR)
 QSettings.setDefaultFormat(QSettings.Format.IniFormat)
 QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, SETTINGS_DIR)
