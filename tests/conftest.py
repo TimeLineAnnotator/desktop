@@ -230,12 +230,21 @@ def restore_settings_after_test():
     Tests are expected to set the values they depend on explicitly, which only
     works if the next test does not inherit them.
     """
-    before = copy.deepcopy(settings_module.settings._cache)
+    store = settings_module.settings._settings
+    cache_before = copy.deepcopy(settings_module.settings._cache)
+    store_before = _read_store(store)
     yield
-    settings_module.settings._cache = before
-    for group_name, group in before.items():
-        for name, value in group.items():
-            settings_module.settings._set(group_name, name, value)
+    settings_module.settings._cache = cache_before
+    if _read_store(store) != store_before:
+        store.clear()
+        for key, value in store_before.items():
+            store.setValue(key, value)
+
+
+def _read_store(store):
+    # The whole store, not just the cached settings, so that recent files,
+    # window geometry and the user's details are restored too.
+    return {key: store.value(key) for key in store.allKeys()}
 
 
 @pytest.fixture(scope="module")

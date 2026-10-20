@@ -11,6 +11,7 @@ from tilia.settings import STORE_NAME, settings
 
 PERIODICITY = ("beat_timeline", "display_measure_periodicity")
 DEFAULT_PERIODICITY = 4
+CHANGED_FILE = "changed-by-previous-test.tla"
 
 
 class TestSettingsIsolation:
@@ -18,6 +19,9 @@ class TestSettingsIsolation:
     outlives it unless the suite isolates and restores the store. Without that,
     a value set here leaks into later tests, into the other xdist workers and
     into subsequent runs.
+
+    Under -n auto the last two tests may run in different workers, so
+    test_test_session_leaves_no_settings_behind runs them in one.
     """
 
     def test_settings_are_not_stored_in_the_users_own_store(self):
@@ -28,10 +32,13 @@ class TestSettingsIsolation:
 
     def test_setting_can_be_changed(self):
         settings.set(*PERIODICITY, 7)
+        settings.update_recent_files(CHANGED_FILE, b"", b"")
         assert settings.get(*PERIODICITY) == 7
+        assert CHANGED_FILE in settings.get_recent_files()
 
     def test_setting_changed_by_previous_test_was_restored(self):
         assert settings.get(*PERIODICITY) == DEFAULT_PERIODICITY
+        assert CHANGED_FILE not in settings.get_recent_files()
 
 
 USERS_SETTINGS = "[General]\nmine=1\n"
@@ -43,9 +50,9 @@ USERS_SETTINGS = "[General]\nmine=1\n"
 )
 @pytest.mark.timeout(60)
 def test_test_session_leaves_no_settings_behind(tmp_path):
-    """Run a test that changes a setting in a pytest session of its own, with
-    an xdist worker. The xdist controller runs no tests, and so no fixtures.
-    One test, so that the session runs once even under -n auto.
+    """Run the tests above in a pytest session of its own, with an xdist
+    worker. The xdist controller runs no tests, and so no fixtures. One test,
+    so that the session runs once even under -n auto.
     """
     config_home = tmp_path / "config"
     users_settings = config_home / APP_NAME / f"{STORE_NAME}.conf"
@@ -66,7 +73,7 @@ def test_test_session_leaves_no_settings_behind(tmp_path):
             "-p",
             "no:cacheprovider",
             f"--basetemp={tmp_path / 'basetemp'}",
-            f"{__file__}::TestSettingsIsolation::test_setting_can_be_changed",
+            f"{__file__}::TestSettingsIsolation",
         ],
         cwd=Path(__file__).parents[1],
         env=env,
