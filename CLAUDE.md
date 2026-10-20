@@ -15,8 +15,8 @@ A virtual environment exists at `.venv`. Activate it before running any Python c
 ```bash
 # Install (editable) with dev extras and pre-commit hooks
 pip install -e .
-pip install --group dev
-pip install --group ci-tests   # pytest-xdist, for pytest -n auto
+pip install --group dev       # includes pytest-xdist, for pytest -n auto
+pip install --group ci-tests  # CI tooling: pytest-timeout, coverage, ruff
 pre-commit install
 
 # Run the app
