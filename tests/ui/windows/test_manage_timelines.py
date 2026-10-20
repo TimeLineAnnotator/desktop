@@ -372,7 +372,7 @@ class TestDuplicateTimeline:
         assert get_comparable_state(duplicate) == get_comparable_state(original)
         assert len(tluis.get_timeline_ui(duplicate.id)) == 2
 
-    def test_duplicate_has_fresh_ids(self, tls):
+    def test_duplicate_has_fresh_ids(self, tls, tluis):
         commands.execute("timelines.add.marker", name="")
         commands.execute("timeline.marker.add", time=10)
         original = tls[0]
@@ -383,7 +383,7 @@ class TestDuplicateTimeline:
         assert duplicate.id != original.id
         assert duplicate[0].id != original[0].id
 
-    def test_duplicate_is_independent(self, tls):
+    def test_duplicate_is_independent(self, tls, tluis):
         commands.execute("timelines.add.marker", name="")
         commands.execute("timeline.marker.add", time=10)
         original = tls[0]
@@ -396,7 +396,7 @@ class TestDuplicateTimeline:
         assert original.is_empty
         assert len(duplicate) == 1
 
-    def test_duplicate_is_placed_below_original(self, tls):
+    def test_duplicate_is_placed_below_original(self, tls, tluis):
         commands.execute("timelines.add.marker", name="first")
         commands.execute("timelines.add.marker", name="second")
         commands.execute("timelines.add.marker", name="third")
@@ -407,7 +407,7 @@ class TestDuplicateTimeline:
         duplicate = self.get_duplicate(tls, "second_copy")
         assert_order_is_correct(tls, [first, second, duplicate, third])
 
-    def test_duplicate_last_timeline(self, tls):
+    def test_duplicate_last_timeline(self, tls, tluis):
         commands.execute("timelines.add.marker", name="first")
         commands.execute("timelines.add.marker", name="second")
         first, second = sorted(tls)
@@ -417,7 +417,7 @@ class TestDuplicateTimeline:
         duplicate = self.get_duplicate(tls, "second_copy")
         assert_order_is_correct(tls, [first, second, duplicate])
 
-    def test_list_widget_is_updated(self, tls):
+    def test_list_widget_is_updated(self, tls, tluis):
         commands.execute("timelines.add.marker", name="first")
         commands.execute("timelines.add.marker", name="second")
         with manage_timelines() as mt:
@@ -428,7 +428,7 @@ class TestDuplicateTimeline:
             ]
         assert names == ["first", "first_copy", "second"]
 
-    def test_duplicate_hidden_timeline(self, tls):
+    def test_duplicate_hidden_timeline(self, tls, tluis):
         commands.execute("timelines.add.marker", name="")
         commands.execute("timeline.set_is_visible", get(Get.TIMELINE_UIS)[0], False)
 
@@ -436,14 +436,14 @@ class TestDuplicateTimeline:
 
         assert not self.get_duplicate(tls, "_copy").get_data("is_visible")
 
-    def test_undo_redo(self, tls):
+    def test_undo_redo(self, tls, tluis):
         commands.execute("timelines.add.marker", name="first")
         commands.execute("timeline.marker.add", time=10)
         commands.execute("timelines.add.marker", name="second")
         with undoable():
             commands.execute("timeline.duplicate", get(Get.TIMELINE_UIS)[0])
 
-    def test_save_and_reopen(self, tls, tmp_path):
+    def test_save_and_reopen(self, tls, tluis, tmp_path):
         commands.execute("timelines.add.marker", name="Cadences")
         commands.execute("timeline.marker.add", time=10)
         commands.execute("timeline.duplicate", get(Get.TIMELINE_UIS)[0])
