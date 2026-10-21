@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QColorDialog, QInputDialog
 
 from tests.mock import patch_ask_for_string_dialog, patch_yes_or_no_dialog
 from tests.ui.test_qtui import get_toolbars_of_class
+from tests.ui.timelines.beat.interact import click_beat_ui
 from tests.ui.timelines.interact import (
     click_timeline_ui,
     drag_mouse_in_timeline_view,
@@ -221,6 +222,83 @@ class TestCopyPaste:
             assert marker_tlui[index].get_data("label") == label
 
 
+class TestCut:
+    def test_cut(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        with undoable():
+            commands.execute("timeline.component.cut")
+
+        assert len(marker_tlui) == 0
+
+    def test_shortcut(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        press_key("x", modifier=Qt.KeyboardModifier.ControlModifier)
+
+        assert len(marker_tlui) == 0
+
+    def test_cut_then_paste(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+        press_key("Enter")
+        type_string("cut me")
+        commands.execute("timeline.component.cut")
+
+        commands.execute("media.seek", 10)
+        commands.execute("timeline.component.paste")
+
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data("time") == 10
+        assert marker_tlui[0].get_data("label") == "cut me"
+
+    def test_cut_multiple(self, marker_tlui):
+        for time in [0, 10, 20]:
+            commands.execute("media.seek", time)
+            commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        click_marker_ui(marker_tlui[2], modifier="ctrl")
+
+        with undoable():
+            commands.execute("timeline.component.cut")
+
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data("time") == 10
+
+    def test_cut_with_nothing_selected_does_nothing(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+
+        commands.execute("timeline.component.cut")
+
+        assert len(marker_tlui) == 1
+
+    def test_cut_across_timelines_deletes_nothing(
+        self, marker_tlui, beat_tlui, tilia_errors
+    ):
+        commands.execute("timeline.marker.add")
+        commands.execute("timeline.beat.add", time=0)
+        click_marker_ui(marker_tlui[0])
+        click_beat_ui(beat_tlui[0], modifier="ctrl")
+
+        commands.execute("timeline.component.cut")
+
+        tilia_errors.assert_in_error_message("more than one timeline")
+        assert len(marker_tlui) == 1
+        assert len(beat_tlui) == 1
+
+    def test_cut_via_context_menu(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        context_menu = marker_tlui[0].CONTEXT_MENU_CLASS(marker_tlui[0])
+        get_command_action(context_menu, "timeline.component.cut").trigger()
+
+        assert len(marker_tlui) == 0
+
+
 class TestSelect:
     def test_select(self, marker_tlui, tluis):
         marker_tlui.create_marker(10)
@@ -344,6 +422,7 @@ class TestElementContextMenu:
             "timeline.component.reset_color",
             "timeline.component.set_color",
             "timeline.component.copy",
+            "timeline.component.cut",
             "timeline.component.paste",
         )
 

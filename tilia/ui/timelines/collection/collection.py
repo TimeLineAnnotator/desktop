@@ -218,6 +218,13 @@ class TimelineUIs:
         )
 
         commands.register(
+            "timeline.component.cut",
+            self.on_timeline_cut_element,
+            text="Cu&t",
+            shortcut="Ctrl+X",
+        )
+
+        commands.register(
             "timeline.component.paste",
             self.on_timeline_paste_element,
             text="&Paste",
@@ -1370,17 +1377,16 @@ class TimelineUIs:
         )
 
     def on_timeline_delete_element(self):
+        self._delete_selected_elements(Timeline.__subclasses__())
+
+    def _delete_selected_elements(self, kinds: list[type[Timeline]]) -> None:
         def components_are_deletable(flags: list[TimelineFlag]):
             return (
                 TimelineFlag.COMPONENTS_NOT_DELETABLE not in flags
                 and TimelineFlag.COMPONENTS_NOT_EDITABLE not in flags
             )
 
-        kinds = [
-            cls
-            for cls in Timeline.__subclasses__()
-            if components_are_deletable(cls.FLAGS)
-        ]
+        kinds = [cls for cls in kinds if components_are_deletable(cls.FLAGS)]
 
         self.on_timeline_command(
             kinds,
@@ -1388,7 +1394,8 @@ class TimelineUIs:
             TimelineSelector.SELECTED,
         )
 
-    def on_timeline_copy_element(self):
+    def _copy_selected_elements(self) -> TimelineUI | None:
+        """Returns the timeline UI the selection was copied from, or None if nothing was copied."""
         kinds = Timeline.get_kinds_by_flag(TimelineFlag.COMPONENTS_COPYABLE)
         timeline_uis = self.get_timelines_uis_for_request(
             kinds, TimelineSelector.SELECTED
@@ -1405,7 +1412,20 @@ class TimelineUIs:
             return
 
         timeline_ui = timeline_uis[0]
-        timeline_ui.on_copy_element(timeline_ui.selected_elements)
+        if not timeline_ui.on_copy_element(timeline_ui.selected_elements):
+            return
+
+        return timeline_ui
+
+    def on_timeline_copy_element(self) -> None:
+        self._copy_selected_elements()
+
+    def on_timeline_cut_element(self) -> None:
+        timeline_ui = self._copy_selected_elements()
+        if timeline_ui is None:
+            return
+
+        self._delete_selected_elements([timeline_ui.timeline_class])
 
     def on_timeline_paste_element(self, type: str = ""):
         if type == "complete":
