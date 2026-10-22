@@ -20,6 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ROOT / "packages"
 FORBIDDEN = ("PySide6", "shiboken6", "tilia")
+# What the packages' tests need besides the packages: tilia-core's dev group.
+TEST_REQUIREMENTS = ("pytest", "jsonschema>=4.23")
 
 FIND_SPEC = (
     "import importlib.util, sys\n"
@@ -67,7 +69,7 @@ def check_package(name: str, wheels: list[Path], tmp: Path) -> None:
     venv.create(env, with_pip=True)
     python = env_python(env)
     run(
-        [python, "-m", "pip", "install", "pytest", *map(str, wheels)],
+        [python, "-m", "pip", "install", *TEST_REQUIREMENTS, *map(str, wheels)],
         tmp,
         f"{name}: install into a fresh environment",
     )
