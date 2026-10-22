@@ -266,7 +266,7 @@ def test_the_last_beat_at_or_after_the_end_of_the_media_is_returned_and_logged(
     (warning,) = found.warnings
     assert warning == (
         f"Timeline {timeline.id}: the last beat (20.0) is at or after the end of "
-        f"the media ({media_length}); the last measure ends one gap after it"
+        f"the media ({media_length}); the last measure ends one beat after it"
     )
     (record,) = caplog.records
     assert record.name == "tilia_core.timemap"
@@ -386,7 +386,7 @@ def test_a_whole_number_media_length_caps_and_warns():
     assert past.time_map.end == 8.0
     assert past.warnings == (
         f"Timeline {timeline.id}: the last beat (6.0) is at or after the end of the "
-        "media (6); the last measure ends one gap after it",
+        "media (6); the last measure ends one beat after it",
     )
 
 
