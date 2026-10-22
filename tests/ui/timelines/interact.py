@@ -2,7 +2,7 @@ from typing import Literal
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsView
+from PySide6.QtWidgets import QApplication, QGraphicsItem, QGraphicsView, QWidget
 
 from tilia.requests import Get, Post, get, post
 from tilia.ui.coords import time_x_converter
@@ -88,7 +88,14 @@ def get_focused_widget():
     return QApplication.focusWidget()
 
 
-def press_key(key: str, modifier: Qt.KeyboardModifier | None = None):
+def press_key(
+    key: str,
+    modifier: Qt.KeyboardModifier | None = None,
+    widget: QWidget | None = None,
+):
+    """Sends a key click to `widget`, or to the focused widget if none is
+    given. Pass a timeline's `view` to exercise its keyPressEvent (arrow
+    keys) without depending on the test window being the active window."""
     if len(key) > 1:
         try:
             key = getattr(Qt.Key, f"Key_{key}")
@@ -96,7 +103,9 @@ def press_key(key: str, modifier: Qt.KeyboardModifier | None = None):
             raise ValueError(f"Unknown key: {key}") from e
 
     QTest.keyClick(
-        get_focused_widget(), key, modifier=modifier or Qt.KeyboardModifier.NoModifier
+        widget or get_focused_widget(),
+        key,
+        modifier=modifier or Qt.KeyboardModifier.NoModifier,
     )
 
 

@@ -127,6 +127,10 @@ class TimelineUIs:
         self.selection_boxes = []
         self.selection_boxes_above = False
         self.selection_boxes_below = True
+        # True while a selection box is selecting items, so that
+        # on_timeline_element_selected doesn't scroll the view out from
+        # under the mouse mid-drag.
+        self.is_selecting_via_box = False
 
     def _setup_drag_tracking_vars(self):
         self.is_dragging = False
@@ -475,6 +479,7 @@ class TimelineUIs:
             (Post.PLAYER_CURRENT_TIME_CHANGED, self.on_media_time_change),
             (Post.SELECTION_BOX_SELECT_ITEM, self.on_selection_box_select_item),
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
+            (Post.TIMELINE_ELEMENT_SELECTED, self.on_timeline_element_selected),
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
             (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_done),
             (
@@ -914,7 +919,11 @@ class TimelineUIs:
         if not timeline_ui.should_select(element, item):
             return
 
-        timeline_ui.select_element(element)
+        self.is_selecting_via_box = True
+        try:
+            timeline_ui.select_element(element)
+        finally:
+            self.is_selecting_via_box = False
         # keep track of selection triggers under selection box
         if element in self.sb_items_to_selected_items:
             self.sb_items_to_selected_items[element].add(item)
@@ -1541,6 +1550,30 @@ class TimelineUIs:
     def center_on_time(self, time: float):
         self.view.move_to_x(time_x_converter.get_x_by_time(time))
 
+    def on_timeline_element_selected(self, timeline_ui_id: int, element_id: int):
+        """Scroll the view so a newly selected element is centered, unless the
+        'center on selection' option is off, the element is already fully in
+        view, or the selection comes from a selection box drag. Only the view
+        moves; the playhead stays where it is."""
+        if not settings.get("general", "center_on_selection"):
+            return
+        if self.is_selecting_via_box:
+            return
+        timeline_ui = self.get_timeline_ui(timeline_ui_id)
+        if timeline_ui is None:
+            return
+        self.center_on_element_if_out_of_view(timeline_ui.get_element(element_id))
+
+    def center_on_element_if_out_of_view(self, element: TimelineUIElement) -> None:
+        bounds = _get_element_x_bounds(element)
+        if bounds is None:
+            return
+        start_x, end_x = bounds
+        viewport = self.view.current_viewport_x
+        if viewport[0] <= start_x and end_x <= viewport[1]:
+            return
+        self.view.move_to_x((start_x + end_x) / 2)
+
     @staticmethod
     def change_playback_line_position(timeline_ui: TimelineUI, time: float):
         if timeline_ui.timeline_class == SliderTimeline:
@@ -1672,6 +1705,18 @@ class TimelineUIs:
 
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
+
+
+def _get_element_x_bounds(element: TimelineUIElement) -> tuple[float, float] | None:
+    """Horizontal extent of `element` in scene coordinates: (start_x, end_x)
+    for spans (hierarchy, range, ...), (x, x) for point-like elements
+    (marker, beat, ...). None for elements without a time position."""
+    component = element.tl_component
+    if hasattr(component, "start") and hasattr(component, "end"):
+        return element.start_x, element.end_x
+    if hasattr(component, "time"):
+        return element.x, element.x
+    return None
 
 
 class TimelineSelector(Enum):

@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QLabel, QToolBar
+from PySide6.QtWidgets import QCheckBox, QComboBox, QLabel, QToolBar
 
 from tilia.requests import Post, listen, post
 from tilia.settings import settings
@@ -20,6 +20,22 @@ class OptionsToolbar(QToolBar):
         )
         self.combobox.currentTextChanged.connect(self.on_state_changed)
         self.addWidget(self.combobox)
+        self.addSeparator()
+        self.center_on_selection_checkbox = QCheckBox("Center on selection")
+        # Clicking the checkbox must not steal keyboard focus from the
+        # timelines: the whole point is to keep navigating with arrow keys.
+        self.center_on_selection_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.center_on_selection_checkbox.setToolTip(
+            "Scroll the view to a newly selected element when it is out of view"
+            " (e.g. when navigating with the arrow keys). Does not move the playhead."
+        )
+        self.center_on_selection_checkbox.setChecked(
+            settings.get("general", "center_on_selection")
+        )
+        self.center_on_selection_checkbox.toggled.connect(
+            self.on_center_on_selection_toggled
+        )
+        self.addWidget(self.center_on_selection_checkbox)
         listen(
             self,
             Post.SETTINGS_UPDATED,
@@ -31,6 +47,9 @@ class OptionsToolbar(QToolBar):
         settings.set("general", "auto-scroll", scroll_type)
         post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
 
+    def on_center_on_selection_toggled(self, checked: bool):
+        settings.set("general", "center_on_selection", checked)
+
     def on_settings_updated(self, updated_settings: list[str]):
         if "general" in updated_settings:
             scroll_type = settings.get("general", "auto-scroll")
@@ -38,3 +57,9 @@ class OptionsToolbar(QToolBar):
             self.combobox.setCurrentText(ScrollType.get_str_from_enum(scroll_type))
             post(Post.TIMELINES_AUTO_SCROLL_UPDATE, scroll_type)
             self.combobox.blockSignals(False)
+
+            self.center_on_selection_checkbox.blockSignals(True)
+            self.center_on_selection_checkbox.setChecked(
+                settings.get("general", "center_on_selection")
+            )
+            self.center_on_selection_checkbox.blockSignals(False)

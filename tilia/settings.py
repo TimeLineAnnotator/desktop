@@ -49,6 +49,7 @@ class SettingsManager(QObject):
     DEFAULT_SETTINGS = {
         "general": {
             "auto-scroll": ScrollType.OFF,
+            "center_on_selection": "true",
             "window_width": 800,
             "window_height": 400,
             "window_x": 20,
