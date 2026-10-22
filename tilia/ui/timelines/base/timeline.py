@@ -77,6 +77,14 @@ class TimelineUI(ABC):  # noqa: B024
     CONTEXT_MENU_CLASS: type[TimelineUIContextMenu] = TimelineUIContextMenu
     ACCEPTS_VERTICAL_ARROWS = False
     ACCEPTS_HORIZONTAL_ARROWS = False
+    # What each arrow (TimelineView.ARROWS) does in a kind that accepts it, for
+    # the shortcuts sheet, and the commands Ctrl+Up and Ctrl+Down run in a kind
+    # that accepts vertical arrows.
+    ARROW_TEXTS: dict[str, str] = {
+        "left": "Select the previous element",
+        "right": "Select the next element",
+    }
+    CTRL_ARROW_COMMANDS: dict[str, str] = {}
     timeline_class = None
     menu_class = None
 

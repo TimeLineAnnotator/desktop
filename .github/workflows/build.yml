@@ -239,9 +239,53 @@ jobs:
             build/*/velopack/RELEASES-*
           retention-days: 1
 
+  shortcuts-sheet:
+    # Made from the released code and attached to the release under fixed
+    # names, so that releases/latest/download/shortcuts.svg (and .md) shows
+    # the latest. Like the builds, a failure here doesn't hold back the
+    # release: "Check output" reports the missing files once it is up.
+    name: Make the keyboard shortcuts sheet
+    continue-on-error: true
+    # continue-on-error doesn't cover a hang: without a limit, deploy would
+    # wait for GitHub's six hours.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.11
+          cache: "pip"
+
+      - name: Setup additional Linux dependencies
+        run: |
+          chmod +x ./scripts/linux-setup.sh
+          ./scripts/linux-setup.sh
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Make the sheet
+        run: python -m tilia.ui.shortcuts_sheet --out build/shortcuts
+
+      - name: Upload the sheet
+        uses: actions/upload-artifact@v7
+        with:
+          name: shortcuts-sheet
+          path: build/shortcuts/
+          retention-days: 1
+
   deploy:
     name: Create release
-    needs: build
+    needs: [build, shortcuts-sheet]
     runs-on: "ubuntu-latest"
     permissions:
       contents: write
@@ -288,6 +332,14 @@ jobs:
             timeout 10 "$BINARY" --user-interface=cli || true
           fi
 
+      - name: Download the keyboard shortcuts sheet
+        # Missing if its job failed; "Check output" then reports it.
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: shortcuts-sheet
+          path: build/shortcuts/
+
       - name: Upload
         uses: "softprops/action-gh-release@v3"
         id: release
@@ -295,7 +347,10 @@ jobs:
           tag_name: ${{github.ref_name}}
           make_latest: ${{github.event_name == 'push'}}
           generate_release_notes: true
-          files: build/velopack/**
+          files: |
+            build/velopack/**
+            build/shortcuts/shortcuts.svg
+            build/shortcuts/shortcuts.md
 
       - name: Check output
         env:
@@ -309,13 +364,18 @@ jobs:
           echo "User downloads ($DOWNLOAD_COUNT/4):"; echo "$DOWNLOADS"
           MISSING_CHANNELS=()
           MISSING_MANIFESTS=()
+          MISSING_SHEET=()
           for channel in macos-silicon macos-intel ubuntu windows; do
             echo "$FULL_PACKAGES" | grep -q "${channel}-full\.nupkg$" || MISSING_CHANNELS+=("$channel")
             echo "$ASSETS" | jq -e --arg c "$channel" 'any(.[]; . == "releases." + $c + ".json")' > /dev/null || MISSING_MANIFESTS+=("$channel")
           done
-          if [ "${#MISSING_CHANNELS[@]}" -gt 0 ] || [ "${#MISSING_MANIFESTS[@]}" -gt 0 ] || [ "$DOWNLOAD_COUNT" -ne 4 ]; then
+          for file in shortcuts.svg shortcuts.md; do
+            echo "$ASSETS" | jq -e --arg f "$file" 'any(.[]; . == $f)' > /dev/null || MISSING_SHEET+=("$file")
+          done
+          if [ "${#MISSING_CHANNELS[@]}" -gt 0 ] || [ "${#MISSING_MANIFESTS[@]}" -gt 0 ] || [ "$DOWNLOAD_COUNT" -ne 4 ] || [ "${#MISSING_SHEET[@]}" -gt 0 ]; then
             [ "${#MISSING_CHANNELS[@]}" -gt 0 ] && echo "::error::Missing full.nupkg for channels: ${MISSING_CHANNELS[*]}"
             [ "${#MISSING_MANIFESTS[@]}" -gt 0 ] && echo "::error::Missing releases.<channel>.json for channels: ${MISSING_MANIFESTS[*]}"
             [ "$DOWNLOAD_COUNT" -ne 4 ] && echo "::error::Expected 4 user downloads, got $DOWNLOAD_COUNT."
+            [ "${#MISSING_SHEET[@]}" -gt 0 ] && echo "::error::Missing keyboard shortcuts sheet files: ${MISSING_SHEET[*]}"
             exit 1
           fi

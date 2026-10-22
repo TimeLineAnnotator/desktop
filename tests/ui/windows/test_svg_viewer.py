@@ -418,3 +418,50 @@ class TestZoom:
         scale_before = view.transform().m11()
         self._wheel_zoom(view, -120)
         assert view.transform().m11() < scale_before
+
+
+@pytest.fixture
+def viewer(qtui, score_tl, tls, tluis):
+    tls.set_timeline_data(score_tl.id, "svg_data", SVG_WITH_MARKERS)
+    return tluis.get_timeline_ui(score_tl.id).svg_view
+
+
+class TestKeys:
+    @pytest.mark.parametrize(
+        "command,text,shortcut",
+        [
+            ("timeline.score.add", "Add Annotation (Return)", ""),
+            ("timeline.score.delete", "Delete Annotation (Delete)", ""),
+            ("timeline.score.edit", "Edit Annotation", "Shift+Return"),
+            ("timeline.score.font_dec", "Decrease Annotation Font", "Shift+Down"),
+            ("timeline.score.font_inc", "Increase Annotation Font", "Shift+Up"),
+        ],
+    )
+    def test_opening_registers_the_commands(self, viewer, command, text, shortcut):
+        action = commands.get_qaction(command)
+
+        assert action.text() == text
+        assert action.shortcut().toString() == shortcut
+
+    @pytest.mark.parametrize(
+        "key,method",
+        [
+            (Qt.Key.Key_Delete, "annotation_delete"),
+            (Qt.Key.Key_Return, "annotation_add"),
+        ],
+    )
+    def test_key_runs_its_annotation_action(self, viewer, monkeypatch, key, method):
+        ran = []
+        monkeypatch.setattr(viewer, method, lambda: ran.append(method))
+
+        QTest.keyClick(viewer, key)
+
+        assert ran == [method]
+
+    def test_keypad_enter_doesnt_add_an_annotation(self, viewer, monkeypatch):
+        ran = []
+        monkeypatch.setattr(viewer, "annotation_add", lambda: ran.append("add"))
+
+        QTest.keyClick(viewer, Qt.Key.Key_Enter, Qt.KeyboardModifier.KeypadModifier)
+
+        assert ran == []

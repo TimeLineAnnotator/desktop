@@ -44,6 +44,15 @@ RowInfo = tuple[str, InspectRowKind, Callable[[], Any | None]]
 
 
 class Inspect(QDockWidget):
+    # The keys that close the inspector, caught by keyPressEvent. The shortcuts
+    # sheet (tilia/ui/shortcuts_sheet.py) lists them, with CLOSE_KEYS_TEXT.
+    CLOSE_KEYS: tuple[QKeyCombination, ...] = (
+        QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
+        QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
+        QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Escape),
+    )
+    CLOSE_KEYS_TEXT = "Close the inspector"
+
     KIND = WindowKind.INSPECT
 
     def __init__(self, main_window: QMainWindow) -> None:
@@ -104,11 +113,7 @@ class Inspect(QDockWidget):
             listen(self, post_, callback)
 
     def keyPressEvent(self, a0):
-        if a0.keyCombination() not in {
-            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
-            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
-            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Escape),
-        }:
+        if a0.keyCombination() not in self.CLOSE_KEYS:
             return super().keyPressEvent(a0)
         self.close()
 
