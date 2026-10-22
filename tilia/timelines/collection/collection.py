@@ -299,17 +299,36 @@ class Timelines:
             self.create_timeline(kind, id=id, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
-        # Attributes must be restored before components, as component validation
-        # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
-        if timeline.get_state()["hash"] != state["hash"]:
-            for attr in timeline.SERIALIZABLE:
-                self.set_timeline_data(timeline.id, attr, state[attr])
-
-        if (
+        attributes_changed = timeline.get_state()["hash"] != state["hash"]
+        components_changed = (
             timeline.component_manager is not None
             and timeline.component_manager.hash_components() != state["components_hash"]
-        ):
-            timeline.component_manager.restore_state(state["components"])
+        )
+
+        def restore_attributes():
+            if attributes_changed:
+                for attr in timeline.SERIALIZABLE:
+                    # Copy: the timeline edits some of these lists in place, and
+                    # must not edit the copy held by the undo stack.
+                    self.set_timeline_data(
+                        timeline.id, attr, copy.deepcopy(state[attr])
+                    )
+
+        def restore_components():
+            if components_changed:
+                timeline.component_manager.restore_state(state["components"])
+
+        if isinstance(timeline, BeatTimeline):
+            # The beat timeline derives its measure structure from its beats, and
+            # setting beats_in_measure recalculates it. Restoring the structure
+            # before the beats would recalculate it against the wrong beat count.
+            restore_components()
+            restore_attributes()
+        else:
+            # Attributes must be restored before components, as component validation
+            # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
+            restore_attributes()
+            restore_components()
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]

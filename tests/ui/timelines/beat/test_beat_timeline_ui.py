@@ -677,6 +677,23 @@ class TestFillWithBeats:
 
         assert len(beat_tlui) == 100
 
+    def test_deleting_existing_beats_restarts_measure_numbering(self, beat_tlui):
+        for time in range(8):
+            beat_tlui.create_beat(time)
+        beat_tlui.timeline.set_measure_number(1, 10)
+        post(Post.APP_STATE_RECORD, "numbered measures")
+
+        assert beat_tlui.timeline.measure_numbers == [1, 10]
+
+        response = (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 8))
+        with Serve(Get.FROM_USER_BEAT_TIMELINE_FILL_METHOD, response):
+            with patch_yes_or_no_dialog(True):
+                commands.execute("timeline.beat.fill")
+
+        # The old numbers described beats that are gone.
+        assert beat_tlui.timeline.measure_numbers == [1, 2]
+        assert beat_tlui.timeline.measures_to_force_display == []
+
     def test_reject_delete_existing_beats(self, beat_tlui):
         beat_tlui.create_beat(0)
         response = (True, (beat_tlui.timeline, BeatTimeline.FillMethod.BY_AMOUNT, 100))
