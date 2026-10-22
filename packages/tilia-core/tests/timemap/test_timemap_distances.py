@@ -116,7 +116,8 @@ def test_how_long_a_beat_and_a_bar_last():
     assert tm.unit_seconds(3.2, "bar") == 2.0  # bar 2 ends at the closing barline
     # Snapped first: 2.95 is on bar 2's downbeat.
     assert tm.unit_seconds(2.95, "beat") == 0.5 and tm.unit_seconds(2.95, "bar") == 2.0
-    # The last beat lasts as long as the gap before it (FR-011).
+    # The last beat lasts its own length at the tempo of the gap before
+    # it, here the gap itself (FR-011).
     assert tm.unit_seconds(4.7, "beat") == 0.5
     # Off the map: nothing.
     assert tm.unit_seconds(-1.0, "bar") is None and tm.unit_seconds(5.0, "beat") is None

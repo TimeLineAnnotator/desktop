@@ -102,3 +102,9 @@ def test_qstamps(case):
     assert [row.qstamp for row in time_map.measure_rows()] == [
         expected[k] for k in downbeats
     ]
+    # The last bar lasts as many quarter notes in the map as in its row:
+    # TimeLineAnnotator/project-management#325 (a last beat's length).
+    last = time_map.measure_rows()[-1]
+    assert time_map.quarters(last.start, last.end) == pytest.approx(
+        float(last.quarters)
+    )

@@ -465,6 +465,43 @@ def test_first_qstamps_on_two_maps_dont_wait_for_each_other(monkeypatch):
     assert slow.qstamp(100.5) == 0.5 and quick.qstamp(0.5) == 0.5
 
 
+def _uneven_ending(units: str, **kwargs) -> TimeMap:
+    """Two bars of two taps under `units` over 8, a beat every second, then a
+    last bar of one tap at 4 s, which reads the pattern's first entry."""
+    return _map(_timeline(range(5), [2], {0: (8, units)}), **kwargs)
+
+
+def test_a_last_beat_lasts_its_own_length_at_the_last_tempo():
+    # TimeLineAnnotator/project-management#325's example: under 2+3, the beat
+    # at 3 s is worth 3 eighths and lasts 1 s, so an eighth takes 1/3 s; the
+    # last beat, worth 2, lasts 2/3 s.
+    tm = _uneven_ending("2+3")
+    last = tm.measure_rows()[-1]
+
+    assert tm.end == pytest.approx(4 + 2 / 3)
+    assert (last.quarters, last.end) == (1, tm.end)
+    assert tm.quarters(last.start, last.end) == 1.0
+    assert tm.qstamp(tm.end) == pytest.approx(float(last.qstamp + last.quarters))
+    assert tm.qstamp(4.5) == 5.75  # desktop#621's tempo past the last beat
+    assert tm.positions(4.8, 4.8) is None  # past the closing barline
+    # Worth more than the beat before: under 3+2, the last beat is worth 3
+    # eighths after a beat of 2 that took 1 s, so it lasts 1.5 s.
+    longer = _uneven_ending("3+2")
+    assert longer.end == 5.5 and longer.quarters(4.0, 5.5) == 1.5
+    # The end of the media still comes first.
+    assert _uneven_ending("2+3", media_length=4.5).end == 4.5
+
+
+def test_a_last_beat_worth_the_same_ends_one_gap_after_it():
+    # When the last two beats are worth the same, the barline doesn't move:
+    # exactly one gap after the last beat, as before #325. Under 5/3, the gap
+    # through the tempo in floats would move this barline by a float's last
+    # place.
+    for units in ("3", "1", "1/3", "5/3"):
+        tm = _map(_timeline([0.0, 0.3, 0.5, 0.721, 0.94], [2], {0: (8, units)}))
+        assert tm.end == 0.94 + (0.94 - 0.721)
+
+
 @pytest.mark.parametrize(
     "beat_unit, taps, quarters",
     [
