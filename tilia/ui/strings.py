@@ -1,10 +1,37 @@
 VALIDATE_BOUNDED_INTEGER = "{0} must be a value between {1} and {2}."
 BEAT_PATTERN_DIALOG_TITLE = "Beat pattern"
-BEAT_PATTERN_DIALOG_PROMPT = "Insert initial beat pattern (can be changed later):"
-BEAT_PATTERN_DIALOG_TOOLTIP = """Empty spaces separate measures, line breaks are ignored.
-Examples:
-  - '5' = 5 beats per measure;
-  - '4 3 3' = a cycle of 4, then 3, then 3 beats per measure."""
+BEAT_PATTERN_DIALOG_PROMPT = (
+    "Beats per bar, separated by spaces. The pattern repeats after its last bar."
+)
+BEAT_PATTERN_DIALOG_TOOLTIP = """Examples:
+  - '4' = 4 beats in every bar;
+  - '4 3 3' = a cycle of 4, then 3, then 3 beats per bar;
+  - '10[4] 3 15[4]' = 10 bars of 4, a bar of 3, then 15 bars of 4;
+  - '2[4 3[3]]' = 4 3 3 3 4 3 3 3."""
+BEAT_PATTERN_OVERWRITE_TITLE = "Overwrite bars set by hand"
+BEAT_PATTERN_OVERWRITE_PROMPT = (
+    "This pattern will overwrite bars set by hand (bars {})."
+    "\nDo you want to continue?"
+)
+BEAT_UNIT_DIALOG_TITLE = "Beat unit"
+BEAT_UNIT_DENOMINATOR_LABEL = "Denominator:"
+BEAT_UNIT_UNITS_LABEL = "Units per tap:"
+BEAT_UNIT_UNITS_TOOLTIP = """How many denominator units each tapped beat is worth.
+Separate taps in a measure with '+'. Examples:
+  - '1' = one unit per tap (4/4 tapped in 4);
+  - '3' = three units per tap (6/8 tapped in 2);
+  - '1/2' = half a unit per tap (2/2 tapped in 4);
+  - '2+3' = two units, then three (5/4 tapped as 2+3)."""
+BEAT_UNIT_SCOPE_ONWARD = "From this measure until the next change"
+BEAT_UNIT_SCOPE_MEASURE = "This measure only"
+BEAT_UNIT_SCOPE_PROMPT = "Where should this change apply?"
+BEAT_UNIT_CONFLICT_TOOLTIP = (
+    "This measure has more than one beat unit. The first one applies."
+)
+BEAT_UNIT_AMBIGUOUS_TOOLTIP = "{} taps under {}: treated as {}."
+BEAT_UNIT_ASSUMED_TOOLTIP = (
+    "Assumed from the tapped beats. Set the beat unit to confirm."
+)
 PROMPT_CREATE_LEVEL_BELOW_TITLE = "Create level below"
 PROMPT_CREATE_LEVEL_BELOW_MESSAGE = (
     "Node is at already lowest level."

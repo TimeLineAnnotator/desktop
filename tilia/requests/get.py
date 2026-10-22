@@ -13,6 +13,8 @@ class Get(Enum):
     FILE_PATH = auto()
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
     FROM_USER_BEAT_PATTERN = auto()
+    FROM_USER_BEAT_UNIT = auto()
+    FROM_USER_BEAT_UNIT_SCOPE = auto()
     FROM_USER_BEAT_TIMELINE_FILL_METHOD = auto()
     FROM_USER_COLOR = auto()
     FROM_USER_EXPORT_PATH = auto()
