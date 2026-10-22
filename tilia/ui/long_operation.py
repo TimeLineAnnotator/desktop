@@ -1,7 +1,24 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QCoreApplication, QElapsedTimer, QEvent, QObject, Qt
-from PySide6.QtWidgets import QApplication, QDialog, QLabel, QProgressBar, QToolBar
+
+# QProxyStyle is imported for its import side effect only, hence the noqa.
+# PySide6 builds the Python wrapper for a Qt type the first time Python needs
+# one. Doing that from inside an application-wide event filter re-enters
+# shiboken's lazy type creation (incarnateType -> PyModule_lazyGetAttro ->
+# incarnateType), which erases from the type map the outer call is still
+# iterating, and segfaults. The filters below are installed on the QApplication,
+# so they are handed every object that receives an event -- including the
+# QStyleSheetStyle that QWidget.setStyleSheet installs, a QProxyStyle subclass.
+# Importing it here incarnates the type at import time, outside any filter.
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QProgressBar,
+    QProxyStyle,  # noqa: F401
+    QToolBar,
+)
 
 from tilia.requests import Get, LongOperation, Post, get, listen
 
