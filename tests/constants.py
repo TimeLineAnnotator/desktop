@@ -5,6 +5,9 @@ EXAMPLE_MEDIA_PATH = str(
 ).replace("\\", "/")
 EXAMPLE_MEDIA_DURATION = 9.952
 EXAMPLE_MEDIA_SCALE_FACTOR = EXAMPLE_MEDIA_DURATION / 100
+EXAMPLE_PDF_PATH = str(
+    (Path(__file__).parent / "resources" / "example.pdf").resolve()
+).replace("\\", "/")
 EXAMPLE_MUSICXML_PATH = str(
     (Path(__file__).parent / "resources" / "example.musicxml").resolve()
 ).replace("\\", "/")
