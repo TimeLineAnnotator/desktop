@@ -74,7 +74,9 @@ class TestSamePath:
     def test_hand_written_spellings_are_one_corpus(self, corpora, folder, monkeypatch):
         corpora.path.parent.mkdir(parents=True)
         monkeypatch.chdir(folder.parent)
-        for spelling in (f"{folder}/", folder.name, f"{folder.parent}/./{folder.name}"):
+        # Forward slashes: a backslash in a TOML basic string starts an escape.
+        posix, parent = folder.as_posix(), folder.parent.as_posix()
+        for spelling in (f"{posix}/", folder.name, f"{parent}/./{folder.name}"):
             corpora.path.write_text(
                 f'version = 1\n[[corpora]]\nid = "mozart-0000"\npath = "{spelling}"\n',
                 encoding="utf-8",
@@ -175,8 +177,9 @@ class TestFile:
 
     def test_hand_written_inline_array_survives_add(self, corpora, folder, tmp_path):
         corpora.path.parent.mkdir(parents=True)
+        path = tmp_path.as_posix()  # a backslash in a TOML basic string starts an escape
         corpora.path.write_text(
-            f'version = 1\ncorpora = [{{id = "haydn-1234", path = "{tmp_path}"}}]\n',
+            f'version = 1\ncorpora = [{{id = "haydn-1234", path = "{path}"}}]\n',
             encoding="utf-8",
         )
         assert [c.id for c in corpora.all()] == ["haydn-1234"]
