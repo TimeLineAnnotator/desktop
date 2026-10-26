@@ -111,11 +111,11 @@ def _is_old(version: str) -> bool:
 def _check_version(
     content: dict[str, Any], path: str | os.PathLike[str] | None
 ) -> None:
-    """Return if the file is in the current format or an old one, which the
-    migration reads, and raise otherwise: a draft other than the current one
-    is converted again from its sources, never read (FR-007), and a newer
-    format is refused, naming its version (FR-014). Nothing else in the file
-    is looked at."""
+    """Return if the file is in the current format, spelled exactly so, or an
+    old one, which the migration reads, and raise otherwise: a draft other
+    than the current one is converted again from its sources, never read
+    (FR-007), and a newer format is refused, naming its version (FR-014).
+    Nothing else in the file is looked at."""
     version = content.get("version", "0.0.0")
     if not isinstance(version, str):
         raise UnreadableFile(
@@ -124,13 +124,17 @@ def _check_version(
     if version == FORMAT_VERSION or _is_old(version):
         return
     ours, theirs = _precedence(FORMAT_VERSION), _precedence(version)
-    if theirs is not None and version.partition("+")[0] == FORMAT_VERSION:
-        # The current version with build metadata, which Semantic Versioning
-        # ignores when it compares versions. Compared as text, since
-        # _precedence reads draft.01, which isn't in its form, as draft.1.
-        return
-    if theirs is not None and (
-        theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE)
+    # The current version with build metadata, which Semantic Versioning
+    # ignores when it compares versions, is refused too, as the schema's
+    # `const` refuses it (FR-091). It isn't another draft, to convert again
+    # from its sources, so it is refused as a version this TiLiA doesn't
+    # know. Compared as text, since _precedence reads draft.01, which isn't
+    # in its form, as draft.1.
+    with_build = version.partition("+")[0] == FORMAT_VERSION
+    if (
+        theirs is not None
+        and not with_build
+        and (theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE))
     ):
         message = (
             f"a draft of the format ({printable(version)}):"

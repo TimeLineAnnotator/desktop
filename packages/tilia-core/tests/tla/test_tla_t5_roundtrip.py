@@ -1071,13 +1071,17 @@ def with_version(version):
 
 
 @pytest.mark.parametrize("build", ["+build.5", "+20261009", "+exp.sha.5114f85"])
-def test_the_current_version_with_build_metadata_is_current(build):
-    # Semantic Versioning ignores build metadata when it compares versions.
+def test_the_current_version_with_build_metadata_is_refused(build):
+    # The current version is read only as it is written, as the schema's
+    # `const` says. With build metadata, it isn't another draft either: it is
+    # refused as a version this TiLiA doesn't know.
+    version = tla.FORMAT_VERSION + build
     content = json.loads(EVERY_KIND.read_bytes())
-    content["version"] = tla.FORMAT_VERSION + build
-    doc = tla.loads(json.dumps(content).encode())
-    assert doc.format_version == tla.FORMAT_VERSION + build
-    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+    content["version"] = version
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.message == f"written by a newer TiLiA (format {version})"
+    assert error.value.place == "/version"
 
 
 @pytest.mark.parametrize(
