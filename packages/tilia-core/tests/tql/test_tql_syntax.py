@@ -582,3 +582,8 @@ def test_group_color_takes_hex_or_a_css_name(color):
 def test_group_color_refuses_anything_else(color):
     with pytest.raises(TQLError, match="COLOR takes"):
         parse(f'verse -> GROUP AS "x" COLOR "{color}"')
+
+
+def test_a_time_takes_seconds_up_to_59():
+    assert parse("* WHERE start > 1:59.5").where[0].value.value == 119.5
+    assert parse("* WHERE start > 0:00").where[0].value.value == 0

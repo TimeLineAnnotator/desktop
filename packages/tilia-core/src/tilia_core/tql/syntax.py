@@ -1757,11 +1757,22 @@ _HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$")
 
 def _refuse_hms_and_ms(text: str, pos: int, ms: bool = True) -> None:
     """Raise for ``text`` written as hours:minutes:seconds or, when ``ms`` is
-    true, in milliseconds: TQL v0.1.0 has neither as a value."""
+    true, in milliseconds: TQL v0.1.0 has neither as a value. Raise too for a
+    ``m:ss`` time whose seconds are 60 or more (``1:75``)."""
     t = text.strip()
     pos += len(text) - len(text.lstrip())
     if _HMS_RE.match(t):
         raise _not_in_v01(t, pos, pos + len(t))
+    m = _TIME_RE.match(t)
+    if m and float(m.group(2)) >= 60:
+        whole, dot, frac = m.group(2).partition(".")
+        minutes, seconds = int(m.group(1)) + int(whole) // 60, int(whole) % 60
+        raise TQLError(
+            f"{t}: the seconds of a time run from 0 to 59 - write "
+            f"{minutes}:{seconds:02d}{dot}{frac}",
+            pos,
+            pos + len(t),
+        )
     m = _NUM_UNIT_RE.match(t)
     if ms and m and _UNITS.get(m.group(2).lower()) == "ms":
         raise _not_in_v01(t, pos, pos + len(t))
