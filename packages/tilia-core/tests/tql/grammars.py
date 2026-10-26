@@ -23,6 +23,10 @@ class DeClercq:
                 found.append(category)
         return tuple(found)
 
+    def supertype(self, category: str) -> str | None:
+        head, dot, _ = category.partition(".")
+        return head if dot and head else None
+
     def group(self, category: str) -> str | None:
         return None
 
