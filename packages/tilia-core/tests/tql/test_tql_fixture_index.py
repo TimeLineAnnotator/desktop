@@ -134,17 +134,6 @@ def test_a_list_field_gives_one_row_per_item():
     ]
 
 
-def test_label_folded_is_the_folded_label():
-    index = fixture_index.build_index(FIXTURES["scripts"])
-    assert rows(
-        index, "SELECT label, label_folded FROM components WHERE label <> ''"
-    ) == [("主歌", "主歌"), ("副歌", "副歌"), ("主歌", "主歌"), ("Straße", "strasse")]
-    index = fixture_index.build_index(FIXTURES["exposition"])
-    assert one(index, "SELECT label_folded FROM components WHERE label = 'MT'") == (
-        "mt",
-    )
-
-
 def test_chord_before_the_first_key_has_no_key():
     fixture = {
         "length": 8,

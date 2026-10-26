@@ -22,7 +22,6 @@ COLUMNS = {
         "start",
         "end",
         "label",
-        "label_folded",
         "color",
         "comments",
     ],
@@ -93,5 +92,4 @@ def test_indexes():
         ("categories", ["category"]),
         ("categories", ["component_id"]),
         ("components", ["file_id", "timeline_id", "start"]),
-        ("components", ["label_folded"]),
     ]
