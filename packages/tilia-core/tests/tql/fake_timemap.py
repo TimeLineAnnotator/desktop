@@ -2,7 +2,9 @@
 
 import bisect
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+
+from tilia_core.corpus.time_map import Measure, Positions
 
 SNAP = 0.1
 EPS = 1e-6
@@ -14,11 +16,24 @@ class FakeTimeMap:
     beats of ``every`` seconds from ``start``. The map ends at
     ``start + len(numbers) * beats_per_bar * every``. A time within 0.1 s of a
     beat or of the map's end counts as on it; a start just before the end lies
-    in the last beat; off the map, answers are None."""
+    in the last beat; off the map, answers are None.
+
+    ``timeline_id`` names the beat timeline it stands for, and ``guessed`` says
+    whether that timeline was taken as the first beat timeline, because none has
+    the role ``time_map`` (contracts/time-map.md)."""
 
     def __init__(
-        self, start: float, every: float, beats_per_bar: int, numbers: Sequence[int]
+        self,
+        start: float,
+        every: float,
+        beats_per_bar: int,
+        numbers: Sequence[int],
+        *,
+        timeline_id: str = "",
+        guessed: bool = False,
     ) -> None:
+        self.timeline_id = timeline_id
+        self.guessed = guessed
         self.start = float(start)
         self.every = float(every)
         self.beats_per_bar = beats_per_bar
@@ -161,3 +176,67 @@ class FakeTimeMap:
         k = bisect.bisect_left(d, float(t))
         near = min(abs(d[x] - t) for x in (k - 1, k) if 0 <= x < len(d))
         return near <= DOWNBEAT_TOL
+
+    # -- what the index stores (contracts/time-map.md) ------------------------ #
+    def measure_rows(self) -> list[Measure]:
+        """One record per bar, in playing order, for the ``measures`` table."""
+        return [
+            Measure(
+                count=count,
+                number=number,
+                label=label,
+                start=start,
+                end=end,
+                beats=self.beats_per_bar,
+                pass_=self.pass_of(start),
+                beat_unit=4,
+                time_signature=f"{self.beats_per_bar}/4",
+                assumed=False,
+            )
+            for count, (start, end, number, label) in enumerate(self.measures(), 1)
+        ]
+
+    def positions(self, start: float, end: float) -> Positions | None:
+        """Where a unit from ``start`` to ``end`` falls; None when its start is
+        off the map. A point ends in the bar it starts in."""
+        bar = self.bar(start)
+        if bar is None:
+            return None
+        return Positions(
+            bar=bar,
+            end_bar=bar if start == end else self.end_bar(end, start),
+            beat=self.beat(start),
+            pass_=self.pass_of(start),
+            bar_count=self.bar_count(start),
+            bar_label=self.bar_label(start),
+            bar_beat_count=self.measure_beats(start),
+            downbeat=self.is_downbeat(start),
+        )
+
+
+def time_map_of(document, roles: Mapping[str, str | None]) -> FakeTimeMap | None:
+    """The fake time map of a document (WP9's signature, contracts/time-map.md):
+    from the beat timeline whose role is ``time_map``, else the first beat
+    timeline (``guessed``); None without a beat timeline. It reads the timeline
+    as ``corpus_docs`` writes it: a beat component per beat of a regular grid,
+    ``beats_in_measure`` (or ``beat_pattern``) and ``measure_numbers``."""
+    beat_timelines = [tl for tl in document.timelines if tl.kind == "beat"]
+    chosen = [tl for tl in beat_timelines if roles.get(tl.id) == "time_map"]
+    guessed = not chosen
+    timelines = chosen or beat_timelines
+    if not timelines:
+        return None
+    tl = timelines[0]
+    times = sorted(float(c.attrs["time"]) for c in tl.components if c.kind == "beat")
+    if not times:
+        return None
+    per_bar = (tl.attrs.get("beats_in_measure") or tl.attrs["beat_pattern"])[0]
+    every = times[1] - times[0] if len(times) > 1 else 1.0
+    return FakeTimeMap(
+        times[0],
+        every,
+        per_bar,
+        tl.attrs["measure_numbers"],
+        timeline_id=tl.id,
+        guessed=guessed,
+    )
