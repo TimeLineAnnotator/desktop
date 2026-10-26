@@ -116,7 +116,14 @@ class TestChordLiterals:
         assert starts(HARMONY, "/^V7$/ IN harmony") == [1, 9, 17]
         assert starts(HARMONY, "/^G7/ IN harmony") == [1, 3, 9]
         assert starts(HARMONY, "/^Bb7$/ IN harmony") == [17]
-        assert starts(HARMONY, "/^Eb$/ IN harmony") == [16, 17, 18]  # the key
+
+    def test_a_regular_expression_never_searches_the_key(self):
+        # #104 R3: a regular expression in a chords lane searches the chord's
+        # label only; the V7 of C major at 1 and the Bb7 of E-flat major at 17
+        # are not found by their key
+        assert starts(HARMONY, "/^C$/ IN harmony") == [0, 2, 4, 7, 10]
+        assert starts(HARMONY, "/^Eb$/ IN harmony") == [16, 18]
+        assert starts(HARMONY, "/^Eb$/ IN keys") == [16]
 
     def test_a_regular_expression_searches_custom_text(self):
         index = fixture_index.build_index(HARMONY)

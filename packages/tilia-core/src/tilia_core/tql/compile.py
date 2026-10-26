@@ -268,13 +268,14 @@ def _alt_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
     )
 
 
-REGEX_COLUMNS = ("roman", "symbol", "key", "custom_text")
+REGEX_COLUMNS = ("roman", "symbol", "custom_text")  # a chord's label, never its key
 
 
 def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
     """The test that ``alt`` fits the chord or key ``comp`` (tql.md §5): a
-    regular expression alone searches a chord's Roman numeral, symbol, key and
-    custom text, or a key's name; any other literal is read as a chord or a key
+    regular expression alone searches a chord's label (its Roman numeral,
+    symbol and custom text; never its key, #104 R3), or a key's name; any
+    other literal is read as a chord or a key
     (``V/V`` and ``C/E`` as written, with their slash). A chord literal that is
     no chord, written in quotes, still matches a chord's own custom text."""
     lits = alt.lits
