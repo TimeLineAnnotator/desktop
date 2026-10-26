@@ -31,6 +31,18 @@ def load_example():
     post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH)
 
 
+class TestSeek:
+    @pytest.mark.parametrize(
+        "time, expected",
+        [(50, 50), (150, 100), (-10, 0)],
+        ids=["in_bounds", "past_end", "negative"],
+    )
+    def test_seek_is_clamped_to_media_bounds(self, tilia_state, time, expected):
+        tilia_state.duration = 100
+        commands.execute("media.seek", time)
+        assert tilia_state.current_time == expected
+
+
 @pytest.mark.skipif(os.getenv("CI") == "true", reason="Tests are flaky on CI.")
 class TestPlayer:
     def test_unload_media(self, tilia):
