@@ -254,15 +254,40 @@ def _unit_units(
 
 def _harmony_warnings(log: _Log, query: syntax.Query) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
-    neither, in the chords and keys lanes they are looked for in, warn."""
-    pairs = list(_lane_units(query))
+    neither, in the chords and keys lanes they are looked for in, warn. Only
+    a unit with a literal that is no chord or no key can warn, so the lanes
+    (resolved once per file and ``IN``) are looked up for those alone."""
+    pairs = [
+        (unit, lane)
+        for unit, lane in _lane_units(query)
+        if tql_compile.harmony_problems(unit, ("chord",))
+        or tql_compile.harmony_problems(unit, ("key",))
+    ]
+    if not pairs:
+        return []
+    custom: dict[str, bool] = {}
+
+    def has_custom(text: str) -> bool:
+        if text not in custom:
+            found = log.con.execute(
+                "SELECT 1 FROM chords WHERE trim(custom_text) = ? LIMIT 1", (text,)
+            ).fetchone()
+            custom[text] = found is not None
+        return custom[text]
+
     out: list[str] = []
-    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+    # lookups, not search statements: kept out of the SQL a result shows
+    for (file_id,) in log.con.execute("SELECT id FROM files ORDER BY id"):
+        kinds_of: dict[int, tuple[str, ...]] = {}
         for unit, lane in pairs:
-            kinds = {s.kind for s in tql_compile.resolve_lanes(log.con, file_id, lane)}
-            for kind in ("chord", "key"):
-                if kind in kinds:
-                    out.extend(tql_compile.harmony_problems(unit, kind))
+            if id(lane) not in kinds_of:
+                specs = tql_compile.resolve_lanes(log.con, file_id, lane)
+                kinds = {s.kind for s in specs}
+                kinds_of[id(lane)] = tuple(k for k in ("chord", "key") if k in kinds)
+            if kinds_of[id(lane)]:
+                out.extend(
+                    tql_compile.harmony_problems(unit, kinds_of[id(lane)], has_custom)
+                )
     return out
 
 

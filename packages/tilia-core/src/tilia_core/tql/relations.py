@@ -589,9 +589,7 @@ class Scope:
             if comp.kind in ("chord", "key") and cond.value.kind != "any":
                 if bracket:
                     continue  # the unit's lane is checked as a whole
-                raise NotImplementedError(
-                    "labels in chords and keys lanes are for the harmony part"
-                )
+                raise NotImplementedError(tql_compile.LABEL_STEP_MESSAGE)
             hit = hit or self.fits(step, comp)
         if cond.op in ("=", "~"):
             return hit

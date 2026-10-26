@@ -7,6 +7,7 @@ import weakref
 
 import examples
 import fixture_index
+import pytest
 
 from tilia_core import tql
 
@@ -191,6 +192,60 @@ class TestWarnings:
     def test_a_label_over_other_lanes_does_not_warn(self):
         assert run(FIXTURES["sonata"], "Xyz IN form").warnings == []
 
+    def test_a_lane_of_both_kinds_warns_only_for_a_literal_that_is_neither(self):
+        # IN "Harmony" names the chords and the keys: a good chord is no key,
+        # and a good key no chord, and neither warns
+        got = run(HARMONY, 'V IN "Harmony"')
+        assert starts(HARMONY, 'V IN "Harmony"') == [6, 14]
+        assert got.warnings == []
+        assert run(HARMONY, 'c IN "Harmony"').warnings == []
+        got = run(HARMONY, 'Xyz IN "Harmony"')
+        assert got.matches == []
+        assert len(got.warnings) == 2
+        assert any("'Xyz' is not a chord" in w for w in got.warnings)
+        assert any("'Xyz' is not a key" in w for w in got.warnings)
+
+    def test_an_exact_literal_that_matches_custom_text_does_not_warn(self):
+        assert any("'N.C.' is not a chord" in w for w in run(HARMONY, '"N.C." IN harmony').warnings)
+        index = fixture_index.build_index(HARMONY)
+        con = index.connection()
+        con.execute(
+            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id LIKE '%c2'"
+        )
+        got = tql.run(index, '"N.C." IN harmony')
+        assert [c.start for m in got.matches for c in m.slots[0]] == [1]
+        assert got.warnings == []
+
+    def test_a_warning_names_the_literal_once(self):
+        assert run(HARMONY, "Xyz IN keys").warnings == [
+            "'Xyz' is not a key: write C (major), c (minor), Eb, f#"
+        ]
+
+    def test_the_warnings_pass_resolves_no_lane_it_cannot_warn_on(self, monkeypatch):
+        # the search resolves the lanes of every file once; the warnings pass
+        # must not do it again for a query whose literals are all chords or
+        # keys, and once per lane and file, not per unit, for one that can warn
+        from tilia_core.tql import compile as tql_compile
+
+        index = fixture_index.build_index(HARMONY)
+        calls = [0]
+        resolve = tql_compile.resolve_lanes
+
+        def counted(*args, **kwargs):
+            calls[0] += 1
+            return resolve(*args, **kwargs)
+
+        monkeypatch.setattr(tql_compile, "resolve_lanes", counted)
+
+        def count(text):
+            calls[0] = 0
+            tql.run(index, text)
+            return calls[0]
+
+        assert count("phrase THEN phrase THEN phrase IN form") == count("phrase IN form")
+        assert count("V7 THEN I THEN V7 IN harmony") == count("V7 IN harmony")
+        assert count("Xyz THEN Xyz THEN Xyz IN harmony") == count("Xyz IN harmony")
+
 
 class TestSql:
     def test_chord_matching_is_in_the_sql(self):
@@ -260,6 +315,11 @@ class TestRelationsAndBrackets:
     def test_a_key_condition_on_chords_in_brackets(self):
         assert starts(HARMONY, '*[key = "Eb"] IN harmony') == [16, 17, 18]
         assert starts(HARMONY, '*[key = "Eb"] IN keys') == [16]
+
+    def test_a_label_condition_on_chords_says_what_to_write_instead(self):
+        for text in ("*[label = V7] IN harmony", "* IN harmony WHERE label = V7"):
+            with pytest.raises(NotImplementedError, match="write the chord as a step"):
+                run(HARMONY, text)
 
 
 class TestFieldsAsMusic:

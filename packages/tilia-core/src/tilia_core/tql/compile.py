@@ -194,10 +194,13 @@ def check_labels(specs: Iterable[LaneSpec], units: Iterable[syntax.Unit]) -> Non
     if any(s.kind in ("chord", "key") for s in specs) and any(
         has_label_step(u) for u in units
     ):
-        raise NotImplementedError(
-            "a label condition on chords and keys is not available yet "
-            "(write the chord as a step: V7 IN harmony)"
-        )
+        raise NotImplementedError(LABEL_STEP_MESSAGE)
+
+
+LABEL_STEP_MESSAGE = (
+    "a label condition on chords and keys is not available yet "
+    "(write the chord as a step: V7 IN harmony)"
+)
 
 
 def has_label_step(unit: syntax.Unit) -> bool:
@@ -312,9 +315,16 @@ def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
     return f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
 
 
-def harmony_problems(unit: syntax.Unit, kind: str) -> list[str]:
-    """The warnings for the literals of ``unit`` that are read as chords
-    (``kind`` ``chord``) or as keys (``key``) and are none."""
+def harmony_problems(
+    unit: syntax.Unit,
+    kinds: tuple[str, ...],
+    has_custom: Callable[[str], bool] | None = None,
+) -> list[str]:
+    """The warnings for the literals of ``unit`` that are read in a lane of
+    ``kinds`` (``chord``, ``key``, or both for a timeline named as a whole)
+    and are none of them: a literal that is a chord or a key of the lane
+    warns nothing. A quoted literal that is no chord but is the custom text
+    of some chord (``has_custom``) matches that text and warns nothing."""
     out: list[str] = []
     for alt in unit.term.alts if unit.term is not None else ():
         lits = alt.lits
@@ -323,12 +333,20 @@ def harmony_problems(unit: syntax.Unit, kind: str) -> list[str]:
         if any(lit.kind == "regex" for lit in lits):
             out.append("a regular expression in a harmony lane must stand alone")
             continue
-        text = nfc(
-            lits[0].text if len(lits) == 1 and lits[0].kind == "exact" else alt.raw
-        )
-        spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
-        if isinstance(spec, str):
-            out.append(f"{text!r} is not a {kind}: {spec}")
+        exact = len(lits) == 1 and lits[0].kind == "exact"
+        text = nfc(lits[0].text if exact else alt.raw)
+        problems: list[str] = []
+        for kind in kinds:
+            spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
+            if not isinstance(spec, str):
+                break
+            if kind == "chord" and exact and has_custom and has_custom(text.strip()):
+                break
+            # a HarmonyError may already name the literal and the kind
+            prefix = f"{text!r} is not a {kind}: "
+            problems.append(spec if spec.startswith(prefix) else prefix + spec)
+        else:
+            out.extend(problems)
     return out
 
 
