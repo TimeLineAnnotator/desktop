@@ -1331,7 +1331,7 @@ class _Parser:
             if unit == "%" and any(
                 u is None and _NUM_RE.match(side.strip()) for (_, u), side in sides
             ):
-                # unlike 7..9bars, 25..75% would read 25 as seconds
+                # unlike 7..9bars: 25 alone could be seconds as well as 25%
                 bare = [side.strip().rstrip("%") for side in (lo_t, hi_t)]
                 raise TQLError(
                     f"range {raw} mixes units - write {bare[0]}%..{bare[1]}%",
