@@ -622,3 +622,18 @@ def test_comments_other_than_an_arrow_stay_comments(text):
 def test_dashes_inside_a_label_or_string_are_no_comment():
     assert parse("a--b THEN c").pattern.seq.steps[0].item.term.alts[0].lits[0].text == "a--b"
     assert first_cond('x[label = "-->"]').value.value == "-->"
+
+
+@pytest.mark.parametrize(
+    "value", ['"#ff0000"', '"#FF0000"', "pink", '"RebeccaPurple"', "$2.color"]
+)
+def test_set_color_takes_hex_a_css_name_or_a_units_colour(value):
+    parse(f"a THEN b -> SET $1.color = {value}")
+
+
+@pytest.mark.parametrize(
+    "value", ['"#ff  00"', '"#fff"', "808080", '""', "rosa", '" pink"', "12"]
+)
+def test_set_color_refuses_anything_else(value):
+    with pytest.raises(TQLError, match="SET color takes"):
+        parse(f"a THEN b -> SET $1.color = {value}")
