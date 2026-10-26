@@ -58,7 +58,8 @@ Lexical rules:
   (after ``[``, ``(``, an operator or a keyword) and means "and" between two
   literals otherwise, so ``verse/chorus`` and ``NOT /^_/`` both read as meant.
 * ``"…"`` is a string (``\\"`` and ``\\\\`` escape); ``-- …`` to the end of a
-  line is a comment.
+  line is a comment. ``-->`` is refused: it is a mistyped ``->``, and as a
+  comment it would turn an edit into a read.
 * Text in any script: words, strings and regular expressions are read in one
   Unicode normal form (NFC), and keywords are ASCII. Error offsets count the
   characters as typed.
@@ -70,9 +71,11 @@ Lexical rules:
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Union
 
+from tilia_core import colors
 from tilia_core.labels import nfc
 
 __all__ = ["TQLError", "parse", "format_error", "KEYWORDS", "Query"]
@@ -134,12 +137,13 @@ _RESOLUTIONS = ("INSERT", "ADD-CATEGORY", "SKIP")
 SEQ_RELATIONS = frozenset({"CONTAINS", "STARTS_WITH", "ENDS_WITH", "CONSISTS_OF"})
 
 _STOP = set('[](){}",=<>!~/$@')
-_COUNT_RE = re.compile(r"\{\s*(\d+)\s*(?:(,)\s*(\d*)\s*)?\}")
-_REF_RE = re.compile(r"\$(-?\d+)((?:\.[A-Za-z_][A-Za-z_0-9]*)*)")
-_NUM_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)$")
-_NUM_UNIT_RE = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+))([A-Za-z]+)$")
-_TIME_RE = re.compile(r"^(\d+):(\d{1,2}(?:\.\d+)?)$")
-_PERCENT_RE = re.compile(r"^(\d+\.?\d*|\.\d+)%$")  # of the piece's length
+# Numbers take the digits 0-9 only (re.ASCII): \d alone would read ١٢ as 12.
+_COUNT_RE = re.compile(r"\{\s*(\d+)\s*(?:(,)\s*(\d*)\s*)?\}", re.ASCII)
+_REF_RE = re.compile(r"\$(-?\d+)((?:\.[A-Za-z_][A-Za-z_0-9]*)*)", re.ASCII)
+_NUM_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)$", re.ASCII)
+_NUM_UNIT_RE = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+))([A-Za-z]+)$", re.ASCII)
+_TIME_RE = re.compile(r"^(\d+):(\d{1,2}(?:\.\d+)?)$", re.ASCII)
+_PERCENT_RE = re.compile(r"^(\d+\.?\d*|\.\d+)%$", re.ASCII)  # of the piece's length
 _UNITS = {
     "s": "s",
     "sec": "s",
@@ -154,6 +158,7 @@ _UNITS = {
     "measure": "bar",
     "measures": "bar",
 }
+_UNIT_NAMES = ", ".join(_UNITS)  # for the errors: the aliases are units too
 _BAR_NUMBERS = ("bar", "end_bar", "bar.count", "bar.label", "pass")
 
 
@@ -213,6 +218,18 @@ def lex(text: str) -> list[Tok]:
         # `-- comment` to the end of the line (only at a token boundary, so a
         # label such as `a--b` keeps its dashes)
         if text.startswith("--", i) and (i == 0 or text[i - 1].isspace()):
+            # ... except `-->` (or `--->`): a mistyped `->` that would turn the
+            # action into a comment, and an edit into a read
+            k = i
+            while k < n and text[k] == "-":
+                k += 1
+            if k < n and text[k] == ">":
+                raise TQLError(
+                    f"{text[i:k + 1]} is no arrow - an action starts with ->, "
+                    "a comment with -- and no > after it",
+                    i,
+                    k + 1,
+                )
             j = text.find("\n", i)
             i = n if j < 0 else j
             continue
@@ -519,7 +536,7 @@ class Action:
     verb: str  # SET | GROUP | UNGROUP | TAG | UNTAG | DELETE
     assigns: list[Assign] = field(default_factory=list)  # SET
     label: str | None = None  # GROUP AS "label"
-    color: str | None = None  # GROUP AS "label" COLOR "#rrggbb"
+    color: str | None = None  # GROUP AS "label" COLOR "#rrggbb" or a CSS name
     on: list[OnRule] = field(default_factory=list)  # GROUP ... ON, as written
     tag: str | None = None  # TAG "x" / UNTAG "x" | UNTAG *
     unit: int | None = None  # TAG $n "x" / UNTAG $n "x": whose units; 0 is all
@@ -993,14 +1010,14 @@ class _Parser:
             u = self.peek()
             if u.type != "WORD" or u.text.lower() not in _UNITS:
                 raise self.err(
-                    "WITHIN needs a unit after the amount: s, ms, beats " "or bars", u
+                    f"WITHIN needs a unit after the amount, one of {_UNIT_NAMES}", u
                 )
             self.next()
             unit = u.text.lower()
         else:
             raise self.err(f"WITHIN needs a number, found {t.text!r}", t)
         if unit not in _UNITS:
-            raise self.err(f"unknown unit {unit!r} - one of s, ms, beats, bars", t)
+            raise self.err(f"unknown unit {unit!r} - one of {_UNIT_NAMES}", t)
         if amount < 0:
             raise self.err("WITHIN needs a positive amount", t)
         return Within(amount, _UNITS[unit], kw.pos)
@@ -1267,7 +1284,7 @@ class _Parser:
             amount, unit = float(m.group(1)), _UNITS.get(m.group(2).lower())
             if unit is None:
                 raise TQLError(
-                    f"unknown unit {m.group(2)!r} - one of s, ms, beats, bars",
+                    f"unknown unit {m.group(2)!r} - one of {_UNIT_NAMES}",
                     a_pos,
                     a_end,
                 )
@@ -1284,7 +1301,7 @@ class _Parser:
             if _NUM_RE.match(text) and u.type == "WORD" and u.upper not in KEYWORDS:
                 if u.text.lower() not in _UNITS:
                     raise self.err(
-                        f"unknown unit {u.text!r} - one of s, ms, beats, bars", u
+                        f"unknown unit {u.text!r} - one of {_UNIT_NAMES}", u
                     )
                 self.next()
                 unit, a_end = _UNITS[u.text.lower()], u.end
@@ -1326,7 +1343,18 @@ class _Parser:
                     pos + len(raw),
                 )
             unit = lo[1] or hi[1]  # 7..9bars: the unit may come once, at the end
-            for (_, u), side in ((lo, lo_t), (hi, hi_t)):
+            sides = ((lo, lo_t), (hi, hi_t))
+            if unit == "%" and any(
+                u is None and _NUM_RE.match(side.strip()) for (_, u), side in sides
+            ):
+                # unlike 7..9bars: 25 alone could be seconds as well as 25%
+                bare = [side.strip().rstrip("%") for side in (lo_t, hi_t)]
+                raise TQLError(
+                    f"range {raw} mixes units - write {bare[0]}%..{bare[1]}%",
+                    pos,
+                    pos + len(raw),
+                )
+            for (_, u), side in sides:
                 if (
                     unit
                     and u != unit
@@ -1426,6 +1454,11 @@ class _Parser:
                     raise _EditError("GROUP AS needs a non-empty label")
                 if len(args) == 4:
                     action.color = args[3].value
+                    if not colors.is_color(action.color):
+                        raise _EditError(
+                            'COLOR takes "#rrggbb" or a CSS colour name, such as '
+                            f'"pink" - not {action.color!r}'
+                        )
             elif verb == "UNGROUP":
                 if args:
                     raise _EditError(f"UNGROUP takes no arguments, got {rest!r}")
@@ -1734,19 +1767,47 @@ def _string(args: list[Tok], rest: str, what: str) -> str:
     return args[0].value
 
 
-_HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$")
+_HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$", re.ASCII)
 
 
 def _refuse_hms_and_ms(text: str, pos: int, ms: bool = True) -> None:
     """Raise for ``text`` written as hours:minutes:seconds or, when ``ms`` is
-    true, in milliseconds: TQL v0.1.0 has neither as a value."""
+    true, in milliseconds: TQL v0.1.0 has neither as a value. Raise too for a
+    ``m:ss`` time whose seconds are 60 or more (``1:75``), and for a number
+    written with digits other than 0-9 (``١٢``, ``１２``)."""
     t = text.strip()
     pos += len(text) - len(text.lstrip())
+    _refuse_other_digits(t, pos)
     if _HMS_RE.match(t):
         raise _not_in_v01(t, pos, pos + len(t))
+    m = _TIME_RE.match(t)
+    if m and float(m.group(2)) >= 60:
+        whole, dot, frac = m.group(2).partition(".")
+        minutes, seconds = int(m.group(1)) + int(whole) // 60, int(whole) % 60
+        raise TQLError(
+            f"{t}: the seconds of a time run from 0 to 59 - write "
+            f"{minutes}:{seconds:02d}{dot}{frac}",
+            pos,
+            pos + len(t),
+        )
     m = _NUM_UNIT_RE.match(t)
     if ms and m and _UNITS.get(m.group(2).lower()) == "ms":
         raise _not_in_v01(t, pos, pos + len(t))
+
+
+def _refuse_other_digits(t: str, pos: int) -> None:
+    """Raise for ``t`` when it would be a number, a time or a length if its
+    digits from other scripts were 0-9."""
+    if t.isascii() or not any(c.isdecimal() for c in t):
+        return
+    ascii_t = "".join(str(unicodedata.decimal(c)) if c.isdecimal() else c for c in t)
+    if ascii_t.isascii() and (_amount(ascii_t) is not None or _HMS_RE.match(ascii_t)):
+        raise TQLError(
+            f"write numbers with the digits 0-9: {ascii_t}, not {t!r} "
+            f'(a label is quoted: "{t}")',
+            pos,
+            pos + len(t),
+        )
 
 
 def _scalar(text: str) -> float | None:

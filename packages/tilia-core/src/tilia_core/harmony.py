@@ -5,7 +5,8 @@ The query language searches TiLiA harmony timelines with chord symbols (``G7``, 
 (``c``, ``Eb``). This module reads those literals and matches them against
 TiLiA components; the query engine decides which components to try and which
 key is in force. Standard library only: TiLiA's semantics were read from its
-source (TiLiA 0.6.3) and re-implemented here without music21.
+source (TiLiA 0.6.3, and the labels from its ``dev`` branch) and re-implemented
+here without music21.
 
 What TiLiA stores
 -----------------
@@ -82,8 +83,9 @@ Matching rules
   one; a ``#`` on such a raised numeral or a ``b`` on a natural one is a
   courtesy accidental. So under c minor ``vii°`` and ``#vii°`` are both B°,
   ``VII`` and ``bVII`` both Bb, ``VI`` is Ab, ``#VI`` A major and ``bvi`` Ab
-  minor. TiLiA needs this leniency: it displays B° under c minor as ``#viio``,
-  yet its own text entry (music21's default reading) takes ``#viio`` for B#°.
+  minor. TiLiA 0.6.3 needed this leniency: it displayed B° under c minor as
+  ``#viio``, yet its own text entry (music21's default reading) takes
+  ``#viio`` for B#°.
 * **Applied chords** resolve the target in the key in force (its case gives the
   mode of the tonicized key: ``/V`` major, ``/ii`` minor), then the numeral in
   that key. A literal with a target matches only chords stored with that
@@ -106,17 +108,18 @@ Matching rules
 
 Display (:func:`chord_props`)
 -----------------------------
-``symbol`` is lead-sheet spelling (``G7/B``, ``Bbmaj7``, ``F#m7b5``,
-``Ebdim7``, ``Caug``). ``roman`` is textbook spelling with the inversion figure
-(``V65/V``, ``vii°7``, ``bVI``, ``I64``); root-position triads and sevenths
-carry no ``53``/``753``. For an applied chord the target is written in the case
-of the key's diatonic triad (ii iii IV V vi vii in major; ii III iv V VI VII in
-minor). When the root needs an accidental, it goes on the target if that leaves
-the numeral plain: Eb7 applied to VI under C is ``V7/bVI``. Every derived
-label parses back to a literal that matches its chord. Where this differs from
-TiLiA's own label (TiLiA writes B° under c minor as ``#viio`` and omits all
-accidentals on applied chords) the label here is the one that means the
-stored chord.
+``symbol`` and ``roman`` are the labels TiLiA shows for the chord, in its
+letter and Roman display modes, as its ``dev`` branch writes them
+(``letter_symbol_label`` and ``to_roman_numeral``), ported rule for rule.
+TiLiA writes them for its MusAnalysis font; here they are plain text, as the
+font draws them: ``vii°`` (font ``viio``), ``iiø7`` (``iio\\7``), ``GΔ7``
+(``G^^7``), ``V7(b5)`` (``V7((b5))``), a stacked figure's accidentals before
+their numbers (``v%bss643`` is ``vb643``). So the figures carry the
+accidentals the key gives them (``V#7`` is Gmaj7 under C), B° under c minor is
+``vii°``, and an applied chord has no accidental and an upper-case target: Eb7
+applied to VI under C is ``V7/VI``. A label need not read back as a literal
+for its chord (``V7/VI`` reads as E7 applied to A major); literals keep their
+own rules above.
 """
 from __future__ import annotations
 
@@ -941,45 +944,397 @@ def key_matches(spec: KeySpec, mode: dict[str, Any]) -> bool:
 # --------------------------------------------------------------------------- #
 # Display
 # --------------------------------------------------------------------------- #
-def _roman_label(
-    root: Pitch, q: _Quality, inversion: int, applied: int, key: tuple[int, int, str]
-) -> str:
-    tonic, mode = key[:2], key[2]
-    suffix = _roman_suffix(q, inversion)
-    if not applied:
-        degree = (root[0] - tonic[0]) % 7
-        alter = _find_alter(tonic, mode, degree, q.lower, root)
-        return _acc_text(alter) + _numeral_text(degree, q.lower) + suffix
-    degree = (root[0] - tonic[0] - applied) % 7
-    default = _TARGET_MODE[mode][applied]
-    other = "minor" if default == "major" else "major"
-    # Prefer a plain numeral: put any accidental on the target (V7/bVI).
-    for t_alter, t_mode in (
-        (0, default),
-        (0, other),
-        (-1, "major"),
-        (1, "major"),
-        (-1, "minor"),
-        (1, "minor"),
-        (-2, "major"),
-        (2, "major"),
+# TiLiA's labels, ported from its ``dev`` branch: ``to_roman_numeral`` in
+# tilia/ui/timelines/harmony/utils.py and ``HarmonyUI.letter_symbol_label`` in
+# tilia/ui/timelines/harmony/elements/harmony.py. Both write text for the
+# MusAnalysis font; :func:`_plain` turns it into plain text.
+
+# Qualities that are a quality above plus one added tone, spelled from the root
+# (ADDED_TONE_QUALITIES in tilia/timelines/harmony/constants.py). TiLiA labels
+# them as their base quality, then the tone; no literal names them yet.
+_ADDED_TONE = {
+    "dominant-seventh-flat-ninth": ("dominant-seventh", "b9"),
+    "dominant-seventh-sharp-ninth": ("dominant-seventh", "#9"),
+    "dominant-seventh-sharp-eleventh": ("dominant-seventh", "#11"),
+    "dominant-seventh-flat-thirteenth": ("dominant-seventh", "b13"),
+    "dominant-seventh-added-thirteenth": ("dominant-seventh", "13"),
+    "dominant-ninth-sharp-eleventh": ("dominant-ninth", "#11"),
+    "major-seventh-sharp-eleventh": ("major-seventh", "#11"),
+    "major-seventh-added-sixth": ("major-seventh", "6"),
+    "major-sixth-added-ninth": ("major-sixth", "9"),
+    "minor-sixth-added-ninth": ("minor-sixth", "9"),
+    "major-added-ninth": ("major", "9"),
+    "minor-added-ninth": ("minor", "9"),
+    "minor-seventh-added-eleventh": ("minor-seventh", "11"),
+}
+
+# TiLiA's fixed labels, in both display modes.
+_FIXED_LABEL = {"Italian": "It6+", "French": "Fr6+", "German": "Gr6+", "Neapolitan": "N6"}
+
+# The chord-symbol suffix music21 writes for each quality (the first of its
+# abbreviations, which TiLiA's letter labels start from).
+_M21_SUFFIX = {
+    "major": "",
+    "minor": "m",
+    "augmented": "+",
+    "diminished": "dim",
+    "dominant-seventh": "7",
+    "major-seventh": "maj7",
+    "minor-major-seventh": "mM7",
+    "minor-seventh": "m7",
+    "augmented-major-seventh": "+M7",
+    "augmented-seventh": "7+",
+    "half-diminished-seventh": "ø7",
+    "diminished-seventh": "o7",
+    "seventh-flat-five": "dom7dim5",
+    "major-sixth": "6",
+    "minor-sixth": "m6",
+    "major-ninth": "M9",
+    "dominant-ninth": "9",
+    "minor-major-ninth": "mM9",
+    "minor-ninth": "m9",
+    "augmented-major-ninth": "+M9",
+    "augmented-dominant-ninth": "9#5",
+    "half-diminished-ninth": "ø9",
+    "half-diminished-minor-ninth": "øb9",
+    "diminished-ninth": "o9",
+    "diminished-minor-ninth": "ob9",
+    "dominant-11th": "11",
+    "major-11th": "M11",
+    "minor-major-11th": "mM11",
+    "minor-11th": "m11",
+    "augmented-major-11th": "+M11",
+    "augmented-11th": "+11",
+    "half-diminished-11th": "ø11",
+    "diminished-11th": "o11",
+    "major-13th": "M13",
+    "dominant-13th": "13",
+    "minor-major-13th": "mM13",
+    "minor-13th": "m13",
+    "augmented-major-13th": "+M13",
+    "augmented-dominant-13th": "+13",
+    "half-diminished-13th": "ø13",
+    "suspended-second": "sus2",
+    "suspended-fourth": "sus",
+    "suspended-fourth-seventh": "7sus",
+    "pedal": "pedal",
+    "power": "power",
+    "Tristan": "tristan",
+}
+assert set(_M21_SUFFIX) == set(_QUAL)
+
+# The inversions music21 cannot build; TiLiA then puts the root in the bass.
+_ROOT_IN_BASS = frozenset(
+    {
+        ("major-sixth", 3),
+        ("minor-sixth", 3),
+        ("suspended-second", 1),
+        ("suspended-fourth", 1),
+        ("suspended-fourth-seventh", 1),
+    }
+)
+
+# Qualities whose Roman suffix is fixed per inversion (None: the first one).
+_FIXED_SUFFIX = {
+    "seventh-flat-five": ("7((b5))", None, None, None),
+    "major-sixth": ("((6))", "6((4))", "64((2))", "7"),
+    "minor-sixth": ("((6))", "6((4))", "64((2))", "7"),
+    "suspended-second": ("52", "74", "54", None),
+    "suspended-fourth": ("54", "52", "74", None),
+    "suspended-fourth-seventh": ("74", "54", "52", None),
+    "pedal": ("`p`e`d", None, None, None),
+    "power": ("5", None, None, None),
+    "Tristan": ("`t`r`i`s`t", None, None, None),
+}
+_EXTENSION = {"seventh": 7, "ninth": 9, "eleventh": 11, "thirteenth": 13}
+_M21_ACC = {0: "", 1: "#", -1: "-", 2: "##", -2: "--"}
+_FONT_ACC = {-2: "`b`b", -1: "`b", 0: "", 1: "`#", 2: "`x"}
+# A lone figure's accidental: a double sharp is a raised x, two flats are kept
+# apart by a zero-width non-joiner.
+_LONE_FIGURE_ACC = {"#": "#", "##": "^x", "-": "b", "--": "b‌b"}
+
+Key = tuple[int, int, str]
+Figures = list[tuple[int, str | None]]
+
+
+def _acc_symbol(table: dict[int, str], value: int) -> str:
+    """``Accidental.get_from_int``: the accidental ``value`` in ``table``'s
+    spelling; beyond a double one, single and double signs combined."""
+    if value in table:
+        return table[value]
+    sign = 1 if value > 0 else -1
+    return table[sign] * int(abs(value % 2)) + table[sign * 2] * int(abs(value // 2))
+
+
+def _chord_size(quality: str) -> str | None:
+    """triad, seventh, ninth, eleventh or thirteenth; None for the qualities
+    with a fixed suffix."""
+    if quality in _FIXED_SUFFIX:
+        return None
+    if quality in ("major", "minor", "augmented", "diminished"):
+        return "triad"
+    for word, size in (
+        ("seventh", "seventh"),
+        ("ninth", "ninth"),
+        ("11th", "eleventh"),
+        ("13th", "thirteenth"),
     ):
-        t_tonic = _numeral_root(tonic, mode, applied, t_alter, t_mode == "minor")
-        if _numeral_root(t_tonic, t_mode, degree, 0, q.lower) == root:
-            alter = 0
-            break
+        if word in quality:
+            return size
+    return None
+
+
+def _key_pitches(key: Key) -> list[Pitch]:
+    return [_degree(key[:2], key[2], d) for d in range(7)]
+
+
+def _chord_pitches(root: Pitch, quality: str) -> list[Pitch]:
+    return [_transpose(root, *tone) for tone in _QUAL[quality].tones]
+
+
+def _chord_step(pitches: list[Pitch], root: Pitch, number: int) -> Pitch | None:
+    """The chord tone ``number`` (3, 5, 7, 9 ...) letters above the root."""
+    for p in pitches:
+        if (p[0] - root[0]) % 7 == (number - 1) % 7:
+            return p
+    return None
+
+
+def _figure_number(pitch: Pitch, bass: Pitch) -> int:
+    """The figure for ``pitch`` above ``bass``, 1-7 (1: the bass's letter)."""
+    return (pitch[0] - bass[0]) % 7 + 1
+
+
+def _figure_index(figures: Figures, pitch: Pitch | None, bass: Pitch) -> int | None:
+    if pitch is None:
+        return None
+    number = _figure_number(pitch, bass)
+    if number <= 1:
+        return None
+    for i, (n, _) in enumerate(figures):
+        if n == number:
+            return i
+    return None
+
+
+def _figures(root: Pitch, quality: str, bass: Pitch, key: Key) -> Figures:
+    """The figured bass of a chord: (figure, music21 accidental or None) per
+    chord tone above the bass, the accidental measured from the key. In minor,
+    a root, third or fifth (and a half-diminished seventh's seventh) on the
+    raised sixth or seventh degree takes none."""
+    pitches = _chord_pitches(root, quality)
+    scale = _key_pitches(key)
+    raised: set[Pitch] = set()
+    if key[2] == "minor":
+        natural = {p[0]: p[1] for p in scale}
+        sixth_and_seventh = {scale[5][0], scale[6][0]}
+        tones = [root, _chord_step(pitches, root, 3), _chord_step(pitches, root, 5)]
+        if quality == "half-diminished-seventh":
+            tones.append(_chord_step(pitches, root, 7))
+        raised = {
+            t
+            for t in tones
+            if t is not None
+            and t[0] in sixth_and_seventh
+            and t[1] - natural[t[0]] == 1
+        }
+    bass_degree = (bass[0] - key[0]) % 7
+    figures: Figures = []
+    seen: set[int] = set()
+    for p in pitches:
+        if p[0] == bass[0]:
+            continue
+        number = _figure_number(p, bass)
+        if number in seen:
+            continue
+        seen.add(number)
+        diff = 0 if p in raised else p[1] - scale[(bass_degree + number - 1) % 7][1]
+        figures.append((number, _acc_symbol(_M21_ACC, diff) or None))
+    figures.sort(key=lambda f: -f[0])
+    return figures
+
+
+def _fmt_mod(mod: str | None, none: str = "") -> str:
+    return none if mod is None else mod.replace("-", "b")
+
+
+def _figures_text(figures: Figures) -> str:
+    """Three figures with one-character accidentals as the font's stack
+    (``%`` + a slot each, ``s`` for none, + the numbers); others inline."""
+    slots = [_fmt_mod(mod, "s") for _, mod in figures]
+    numbers = "".join(str(n) for n, _ in figures)
+    if len(slots) == 3 and all(len(s) == 1 for s in slots):
+        return "%" + "".join(slots) + numbers
+    return "".join(_fmt_mod(mod) for _, mod in figures) + numbers
+
+
+def _inversion_figures(root: Pitch, quality: str, inversion: int, key: Key) -> str:
+    """The figures of an inverted chord: the tones its kind implies (a ninth
+    chord's seventh, ...) and a diatonic fifth left out, or else a diatonic
+    third when the chord has a seventh."""
+    pitches = _chord_pitches(root, quality)
+    bass = pitches[inversion]
+    figures = _figures(root, quality, bass, key)
+    size = _chord_size(quality)
+    seventh = _chord_step(pitches, root, 7)
+    if quality == "diminished-seventh":
+        i = _figure_index(figures, seventh, bass)
+        if i is not None:
+            figures[i] = (figures[i][0], None)
+    implied = []
+    if size in ("ninth", "eleventh", "thirteenth"):
+        implied.append(seventh)
+    if size in ("eleventh", "thirteenth"):
+        implied.append(_chord_step(pitches, root, 9))
+    if size == "thirteenth":
+        implied.append(_chord_step(pitches, root, 11))
+    for pitch in implied:
+        i = _figure_index(figures, pitch, bass)
+        if i is not None:
+            figures.pop(i)
+    fifth = _figure_index(figures, _chord_step(pitches, root, 5), bass)
+    if fifth is not None and figures[fifth][1] is None:
+        figures.pop(fifth)
+    elif seventh is not None:
+        third = _figure_index(figures, _chord_step(pitches, root, 3), bass)
+        if third is not None and figures[third][1] is None:
+            figures.pop(third)
+    return _figures_text(figures)
+
+
+def _quality_mark(quality: str, inverted: bool) -> str:
+    if quality.startswith("half-diminished"):
+        return "o\\"
+    if quality.startswith("diminished"):
+        return "o"
+    if quality.startswith("augmented") and not (inverted and "seventh" in quality):
+        return "+"
+    return ""
+
+
+def _root_position_suffix(root: Pitch, quality: str, key: Key, applied: int) -> str:
+    """The quality mark, then the extension's number with the accidental the
+    key gives it (none on an applied chord or a diminished seventh)."""
+    mark = _quality_mark(quality, False)
+    size = _chord_size(quality)
+    if size not in _EXTENSION:
+        return mark
+    number = _EXTENSION[size]
+    if applied or quality == "diminished-seventh":
+        return mark + str(number)
+    pitches = _chord_pitches(root, quality)
+    figures = _figures(root, quality, root, key)
+    i = _figure_index(figures, _chord_step(pitches, root, number), root)
+    mod = figures[i][1] if i is not None else None
+    return mark + _LONE_FIGURE_ACC.get(mod, _fmt_mod(mod)) + str(number)
+
+
+def _added_tone_text(tone: str) -> str:
+    return "((" + tone.replace("11", "1‌1") + "))" if tone else ""
+
+
+def _tilia_roman(
+    root: Pitch, full_quality: str, inversion: int, applied: int, key: Key
+) -> str:
+    """TiLiA's Roman-numeral label, in the font's text."""
+    quality, tone = _ADDED_TONE.get(full_quality, (full_quality, ""))
+    if quality in _FIXED_LABEL:
+        return _FIXED_LABEL[quality]
+    tonic, mode = key[:2], key[2]
+    lower = quality.startswith(("minor", "diminished", "half-diminished"))
+    numeral = _numeral_text((root[0] - tonic[0] - applied) % 7, lower)
+    degree = (root[0] - tonic[0]) % 7
+    natural = _degree(tonic, mode, degree)[1]
+    if mode == "minor" and degree in (5, 6):
+        # the numeral's case picks the raised or the natural degree
+        accidental = root[1] - (natural + (1 if lower else 0))
     else:
-        t_alter, t_mode = 0, default
-        t_tonic = _numeral_root(tonic, mode, applied, 0, default == "minor")
-        alter = _find_alter(t_tonic, t_mode, degree, q.lower, root)
-    return (
-        _acc_text(alter)
-        + _numeral_text(degree, q.lower)
-        + suffix
-        + "/"
-        + _acc_text(t_alter)
-        + _numeral_text(applied, t_mode == "minor")
+        accidental = root[1] - natural
+    prefix = "" if applied else _acc_symbol(_FONT_ACC, accidental)
+    size = _chord_size(quality)
+    if size is not None:
+        limit = {"triad": 2, "seventh": 3}.get(size, len(_QUAL[quality].tones) - 1)
+        if 0 < inversion <= limit:
+            suffix = _quality_mark(quality, True) + _inversion_figures(
+                root, quality, inversion, key
+            )
+        else:
+            suffix = _root_position_suffix(root, quality, key, applied)
+    else:
+        fixed = _FIXED_SUFFIX[quality]
+        suffix = (fixed[inversion] if 0 <= inversion < len(fixed) else None) or fixed[0]
+    suffix += _added_tone_text(tone)
+    if "11th" in quality:
+        suffix += "    "
+    return prefix + numeral + suffix + ("/" + _ROMANS[applied] if applied else "")
+
+
+def _tilia_letter(root: Pitch, full_quality: str, inversion: int) -> str:
+    """TiLiA's chord-symbol label, in the font's text."""
+    quality, tone = _ADDED_TONE.get(full_quality, (full_quality, ""))
+    if quality in _FIXED_LABEL:
+        return _FIXED_LABEL[quality]
+    figure = LETTERS[root[0]] + _acc_symbol(_M21_ACC, root[1]) + _M21_SUFFIX[quality]
+    special = {
+        "power": ("power", "&5"),
+        "Tristan": ("tristan", "`t`r`i`s`t"),
+        "pedal": ("pedal", "`p`e`d"),
+        "seventh-flat-five": ("dom7dim5", "7((b5))"),
+    }
+    if quality in special:
+        return figure.replace(*special[quality])
+    if root[1]:
+        figure = figure.replace(
+            _acc_symbol(_M21_ACC, root[1]), _acc_symbol(_FONT_ACC, root[1])
+        )
+    figure += _added_tone_text(tone)
+    if inversion:
+        tones = _QUAL[quality].tones
+        if (quality, inversion) in _ROOT_IN_BASS or not 0 <= inversion < len(tones):
+            bass = root
+        else:
+            bass = _transpose(root, *tones[inversion])
+        figure += "/" + LETTERS[bass[0]] + _acc_symbol(_FONT_ACC, bass[1])
+    for m21, font in (
+        ("maj7", "^^7"),
+        ("M7", "^^7"),
+        ("M9", "^^9"),
+        ("M11", "^^11"),
+        ("M13", "^^13"),
+    ):
+        figure = figure.replace(m21, font)
+    if "11th" in quality:
+        figure += "   "
+    return figure
+
+
+_STACK = re.compile(r"%([sb#])([sb#])([sb#])(\d)(\d)(\d)")
+
+
+def _plain(text: str) -> str:
+    """TiLiA's label in plain text, as the MusAnalysis font draws it: ``o`` is
+    °, ``o\\`` ø, ``^^`` Δ, ``((…))`` raised parentheses (here plain ones), a
+    ``%`` stack its figures each after its accidental, and the font's escapes
+    (`````, ``^x``, ``&``, a zero-width non-joiner) and padding dropped."""
+    text = text.replace("‌", "").replace(" ", "")
+    text = _STACK.sub(
+        lambda m: "".join(
+            ("" if s == "s" else s) + n
+            for s, n in zip(m.group(1, 2, 3), m.group(4, 5, 6), strict=True)
+        ),
+        text,
     )
+    for font, plain in (
+        ("o\\", "ø"),
+        ("((", "("),
+        ("))", ")"),
+        ("^^", "Δ"),
+        ("^x", "x"),
+        ("o", "°"),
+        ("&", ""),
+    ):
+        text = text.replace(font, plain)
+    return re.sub(r"`(.)", r"\1", text)
 
 
 @lru_cache(maxsize=4096)
@@ -991,27 +1346,29 @@ def _labels(
     applied: int,
     key: tuple[int, int, str] | None,
 ) -> tuple[str, str | None, str | None]:
-    """(symbol, roman, bass) of one chord."""
+    """(symbol, roman, bass) of one chord: TiLiA's labels in plain text."""
     root = (step, alter)
     if quality in _SPECIAL:
-        return _SPECIAL[quality], _SPECIAL[quality], None
-    q = _QUAL.get(quality)
+        return _FIXED_LABEL[quality], _FIXED_LABEL[quality], None
+    base = _ADDED_TONE.get(quality, (quality, ""))[0]
+    q = _QUAL.get(base)
     if q is None:  # not a TiLiA quality
         return f"{_pitch_name(root)}[{quality}]", None, None
     bass = (
         _transpose(root, *q.tones[inversion]) if 0 <= inversion < len(q.tones) else None
     )
-    symbol = _pitch_name(root) + q.symbol
-    if bass is not None and inversion:
-        symbol += "/" + _pitch_name(bass)
-    roman = None if key is None else _roman_label(root, q, inversion, applied, key)
+    symbol = _plain(_tilia_letter(root, quality, inversion))
+    roman = (
+        None if key is None else _plain(_tilia_roman(root, quality, inversion, applied, key))
+    )
     return symbol, roman, (_pitch_name(bass) if bass else None)
 
 
 def chord_props(chord: dict[str, Any], key: dict[str, Any] | None) -> dict[str, Any]:
     """Derived, JSON-friendly properties of a HARMONY component under the key
     in force: ``root``, ``quality``, ``inversion``, ``applied_to`` (as stored),
-    ``symbol``, ``roman`` (None without a key, except It+6/Fr+6/Ger+6/N6),
+    ``symbol`` and ``roman``, TiLiA's labels (``roman`` None without a key,
+    except for It6+, Fr6+, Gr6+ and N6),
     ``key`` (the key in force, ``"C"``/``"c"``, or None) and ``bass``."""
     step, alter, quality, inversion, applied = _chord_fields(chord)
     symbol, roman, bass = _labels(
