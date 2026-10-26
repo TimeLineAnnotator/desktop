@@ -1,3 +1,4 @@
+import collections
 import copy
 import importlib.util
 import itertools
@@ -66,6 +67,17 @@ def range_in(row_id, start, end, **attrs):
 @pytest.fixture
 def music21():
     return pytest.importorskip("music21", reason="needs the harmony extra")
+
+
+@pytest.fixture
+def default_int_digits():
+    # Python's default limit on the digits of an integer it turns into text.
+    if not hasattr(sys, "set_int_max_str_digits"):
+        pytest.skip("this Python shows integers of any length")
+    limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    yield
+    sys.set_int_max_str_digits(limit)
 
 
 @pytest.fixture
@@ -336,24 +348,32 @@ class TestEveryKind:
     def test_a_media_length_too_large_for_a_float(self, kind):
         assert check(kind, media_length=10**400) == OK
 
-    def test_an_integer_too_long_to_show(self):
-        if not hasattr(sys, "set_int_max_str_digits"):
-            pytest.skip("this Python shows integers of any length")
-        limit = sys.get_int_max_str_digits()
-        sys.set_int_max_str_digits(4300)
-        try:
-            huge = 10**5000
+    def test_an_integer_too_long_to_show(self, default_int_digits):
+        huge = 10**5000
 
-            assert check("marker", time=huge) == (
-                False,
-                "an integer too long to show is not a valid time.",
-            )
-            assert check("hierarchy", level=-huge) == (
-                False,
-                "Level can't be below 1. Got 'an integer too long to show'",
-            )
-        finally:
-            sys.set_int_max_str_digits(limit)
+        assert check("marker", time=huge) == (
+            False,
+            "an integer too long to show is not a valid time.",
+        )
+        assert check("hierarchy", level=-huge) == (
+            False,
+            "Level can't be below 1. Got 'an integer too long to show'",
+        )
+
+    @pytest.mark.parametrize(
+        "value, shown",
+        [
+            ([10**5000], "a list"),
+            ((10**5000,), "a tuple"),
+            ({"a": 10**5000}, "a dict"),
+            (collections.OrderedDict(a=10**5000), "an OrderedDict"),
+        ],
+    )
+    def test_another_value_that_cant_be_shown(self, default_int_digits, value, shown):
+        assert check("marker", label=value) == (
+            False,
+            f"{shown} that can't be shown is not a valid label.",
+        )
 
     def test_a_missing_time(self):
         assert rules.marker(MEDIA, [], {}) == (False, "None is not a valid time.")
