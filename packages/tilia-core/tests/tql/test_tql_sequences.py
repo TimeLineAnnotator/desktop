@@ -159,6 +159,24 @@ class TestGroups:
         items = spans("a", "b", "c")
         assert spans_of("(a THEN b)? THEN c", items) == [(0, 3)]
 
+    def test_a_group_whose_option_can_be_empty_matches_empty(self):
+        # tql.md §6.2: x* and x? count zero, and a group may hold such a step,
+        # so a THEN (c*) matches a alone, as a THEN c* does
+        items = spans("a", "b")
+        assert spans_of("a THEN (c*)", items) == [(0, 1)]
+        assert spans_of("a THEN (c?){2}", items) == [(0, 1)]
+        assert spans_of("a THEN (b?){2}", items) == [(0, 2)]
+        assert spans_of('("a"*){2,}', items) == [(0, 1)]
+        assert spans_of("a THEN (c? THEN (d?))", items) == [(0, 1)]
+        assert spans_of("a THEN (c? THEN d)", items) == []
+        assert sequences.nullable(seq_of("(c? THEN d)").steps[0].item) is False
+
+    def test_marks_inside_an_empty_group_take_nothing(self):
+        got = run("a THEN (@c?){2}", spans("a"), marks=True)
+        assert [(i, j, a, f) for i, j, a, f in got] == [(0, 1, [0], [False])]
+        got = run("a THEN (@b?){2}", spans("a", "b"), marks=True)
+        assert [(i, j, a, f) for i, j, a, f in got] == [(0, 2, [0, 1], [False, True])]
+
 
 class TestMarks:
     def test_mark_in_sequence(self):
