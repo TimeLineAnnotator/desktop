@@ -29,6 +29,8 @@ HAS_COMPONENTS = (
 )
 # Where neither has one (TimeLineAnnotator/project-management#326).
 NOT_AN_OBJECT = "expected an object of fields"
+# tla's reader's, for a file nested too deep.
+TOO_DEEP = "nested more than 100 levels deep"
 LENGTH_IGNORED = "media length ignored: " + MEDIA_LOADED
 
 
@@ -461,18 +463,85 @@ def test_a_file_that_isnt_utf8(tmp_path):
     assert fails(doc, path) == UTF8_DECODE_FAILED.format(path)
 
 
-def test_a_file_nested_too_deep_to_read(tmp_path):
+def nested(opening: str, closing: str, levels: int) -> str:
+    # The top level counts as one, as in tla's reader.
+    inner = opening * (levels - 1) + "1" + closing * (levels - 1)
+    return '{"a": ' + inner + "}"
+
+
+BRACKETS = [("[", "]"), ('{"a": ', "}")]
+
+
+@pytest.mark.parametrize("opening, closing", BRACKETS)
+def test_a_file_nested_up_to_the_limit(tmp_path, opening, closing):
     doc = build.new_script_document()
-    path = text_file(tmp_path, '{"a": ' + "[" * 100_000 + "]" * 100_000 + "}")
+
+    importers.import_metadata(doc, text_file(tmp_path, nested(opening, closing, 100)))
+
+    assert doc.metadata["a"] == opening * 99 + "1" + closing * 99
+
+
+@pytest.mark.parametrize("opening, closing", BRACKETS)
+@pytest.mark.parametrize("levels", [101, 100_000])
+def test_a_file_nested_too_deep(tmp_path, opening, closing, levels):
+    # 101 levels: every Python reads them. 100,000: some systems' parsers run
+    # out of stack, others don't. The limit is tla's reader's.
+    doc = build.new_script_document()
+    path = text_file(tmp_path, nested(opening, closing, levels))
+
+    assert fails(doc, path) == JSON_FAILED.format(path, TOO_DEEP)
+
+
+@pytest.mark.parametrize(
+    "after",
+    [', "b": }', ', "b": ' + "1" * 5000 + "}"],
+    ids=["not JSON", "a number too long to read"],
+)
+def test_a_file_nested_too_deep_before_another_problem(tmp_path, after):
+    # Whether json.loads runs out of stack at 2000 levels, before it meets the
+    # error or the number too long to read, depends on the Python version. The
+    # first problem in the file is the depth, on every one.
+    doc = build.new_script_document()
+    path = text_file(tmp_path, nested("[", "]", 2000)[:-1] + after)
+
+    assert fails(doc, path) == JSON_FAILED.format(path, TOO_DEEP)
+
+
+def test_a_file_that_isnt_json_before_it_nests_too_deep(tmp_path):
+    doc = build.new_script_document()
+    path = text_file(tmp_path, '{"b": x, ' + nested("[", "]", 2000)[1:])
+
+    error = "Expecting value: line 1 column 7 (char 6)"
+    assert fails(doc, path) == JSON_FAILED.format(path, f"JSONDecodeError({error!r})")
+
+
+@pytest.mark.skipif(
+    not hasattr(sys, "get_int_max_str_digits"), reason="no limit on this Python"
+)
+def test_a_number_too_long_to_read_before_the_file_nests_too_deep(tmp_path):
+    doc = build.new_script_document()
+    path = text_file(
+        tmp_path, '{"b": ' + "1" * 5000 + ", " + nested("[", "]", 2000)[1:]
+    )
 
     message = fails(doc, path)
 
-    assert message.startswith(f"Error when parsing file {path}:\nRecursionError(")
+    assert message.startswith(f"Error when parsing file {path}:\nValueError(")
+
+
+@pytest.mark.parametrize("text", ["[" * 200, '\\"' + "[" * 200, "{" * 200])
+def test_brackets_in_text_dont_count(tmp_path, text):
+    doc = build.new_script_document()
+
+    importers.import_metadata(doc, text_file(tmp_path, f'{{"{text}": "{text}"}}'))
+
+    unescaped = text.replace('\\"', '"')
+    assert doc.metadata[unescaped] == unescaped
 
 
 def test_a_value_too_deep_to_write_as_text(tmp_path, monkeypatch):
-    # Nesting json.load reads may still be too deep for json.dumps, at the
-    # margin of the recursion limit.
+    # Within the limit, json.dumps runs out of stack only for an import called
+    # near the end of it.
     doc = build.new_script_document()
     path = json_file(tmp_path, {"composer": "Haydn", "work": {"a": [[1]]}})
 

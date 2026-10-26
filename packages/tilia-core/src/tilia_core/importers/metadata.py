@@ -12,6 +12,7 @@ from typing import Any
 from tilia_core import build, tla
 from tilia_core.importers._csv import UTF8_DECODE_FAILED
 from tilia_core.importers._results import ImportFailed, ImportResult
+from tilia_core.tla.parse import MAX_DEPTH
 
 # TiLiA's texts (tilia/errors.py), word for word.
 _JSON_FAILED = "Error when parsing file {}:\n{}"
@@ -20,6 +21,11 @@ _MEDIA_LOADED = "Can't change media length when a media file is loaded."
 # Where TiLiA has none (TimeLineAnnotator/project-management#326).
 _NOT_AN_OBJECT = "expected an object of fields"
 _LENGTH_IGNORED = "{} ignored: " + _MEDIA_LOADED
+# tla's reader's, with its limit. How deep json.loads reads depends on the
+# system and Python version.
+_TOO_DEEP = f"nested more than {MAX_DEPTH} levels deep"
+# A text, whose brackets don't count, or a bracket.
+_TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|[\[\]{}]')
 
 _MEDIA_LENGTH = "media length"
 # A number written as text, in ASCII, as WP3's migration reads an old file's
@@ -39,7 +45,8 @@ def import_metadata(
     and is ignored, with a note, while media is.
 
     Raises `ImportFailed`, and changes nothing, for a file that doesn't exist,
-    isn't UTF-8, isn't JSON or isn't an object, and for a media length
+    isn't UTF-8, isn't JSON, nests deeper than `MAX_DEPTH` levels (the top
+    level counts as one) or isn't an object, and for a media length
     `build.set_media_length` refuses; `OSError` for a file that can't be opened.
     """
     path = Path(path)
@@ -70,18 +77,44 @@ def import_metadata(
 def _read(path: Path) -> dict[str, Any]:
     try:
         with open(path, encoding="utf-8-sig") as file:
-            content = json.load(file)
+            text = file.read()
     except FileNotFoundError:
         raise ImportFailed(path, _FILE_FAILED.format(path)) from None
     except UnicodeDecodeError:
         raise ImportFailed(path, UTF8_DECODE_FAILED.format(path, "JSON")) from None
-    except (ValueError, RecursionError) as error:
-        # A JSONDecodeError as TiLiA shows it; also nesting too deep, and an
-        # integer too long, to read.
-        raise ImportFailed(path, _JSON_FAILED.format(path, repr(error))) from None
+    # Only the text before the first level too deep is read, so that json.loads
+    # never runs out of stack, and a problem there comes first.
+    deep = _too_deep(text)
+    try:
+        content = json.loads(text if deep is None else text[:deep])
+    except ValueError as error:
+        # A JSONDecodeError as TiLiA shows it, or an integer too long to read;
+        # but not the end of the text cut short.
+        if (
+            deep is None
+            or not isinstance(error, json.JSONDecodeError)
+            or error.pos < deep
+        ):
+            raise ImportFailed(path, _JSON_FAILED.format(path, repr(error))) from None
+    if deep is not None:
+        raise ImportFailed(path, _JSON_FAILED.format(path, _TOO_DEEP))
     if not isinstance(content, dict):
         raise ImportFailed(path, _JSON_FAILED.format(path, _NOT_AN_OBJECT))
     return content
+
+
+def _too_deep(text: str) -> int | None:
+    """Where the text first opens a level deeper than MAX_DEPTH, or None. Right
+    as far as the text is JSON."""
+    depth = 0
+    for token in _TOKEN.finditer(text):
+        if token[0] in ("[", "{"):
+            depth += 1
+            if depth > MAX_DEPTH:
+                return token.start()
+        elif token[0] in ("]", "}"):
+            depth -= 1
+    return None
 
 
 def _field(value: Any) -> str | list[str]:
