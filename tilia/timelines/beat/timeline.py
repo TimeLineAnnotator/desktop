@@ -414,6 +414,16 @@ class BeatTimeline(Timeline):
     COMPONENT_MANAGER_CLASS = BeatTLComponentManager
     FLAGS = [TimelineFlag.COMPONENTS_COPYABLE, TimelineFlag.COMPONENTS_IMPORTABLE]
 
+    @staticmethod
+    def update_component_references(
+        components: dict[int | str, dict[str, Any]],
+        new_ids: dict[int | str, int | str],
+    ) -> None:
+        # A beat unit names the beat it is on by its id.
+        for data in components.values():
+            if data["kind"] == ComponentKind.BEAT_UNIT.name:
+                data["beat_id"] = new_ids.get(data["beat_id"], data["beat_id"])
+
     def __init__(
         self,
         beat_pattern: str | list[int] | None = None,
