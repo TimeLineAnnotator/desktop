@@ -174,7 +174,30 @@ def test_state_before_the_first_scan(liveness, corpus):
     assert state["scanning"] is False
     assert state["last_scan"] is None
     assert state["available"] is True
-    assert (state["files"], state["unreadable"], state["unavailable"]) == FIXTURE_COUNTS
+    assert (state["files"], state["unreadable"], state["unavailable"]) == (
+        None,
+        None,
+        None,
+    )
+
+
+def test_watch_does_not_read_the_files(liveness, backend, corpus):
+    liveness.watch(corpus.id, corpus, "h")
+    assert backend.files_calls == 0
+
+
+def test_count_fills_the_counts_once(liveness, backend, corpus):
+    liveness.count(corpus.id, [{"state": "ok"}])  # not watched: nothing happens
+    assert liveness.state(corpus.id) is None
+    liveness.watch(corpus.id, corpus, "h")
+    rows = [{"state": "ok"}, {"state": "unreadable"}, {"state": "unavailable"}]
+    liveness.count(corpus.id, rows + [{"state": "ok"}])
+    state = liveness.state(corpus.id)
+    assert (state["files"], state["unreadable"], state["unavailable"]) == (4, 1, 1)
+    # Counted, the rescans keep the counts; later rows don't overwrite them.
+    liveness.count(corpus.id, [])
+    assert liveness.state(corpus.id)["files"] == 4
+    assert backend.files_calls == 0
 
 
 def test_state_is_a_copy(liveness, corpus):
@@ -214,7 +237,7 @@ def test_the_rows_are_read_only_when_the_generation_moves(
     liveness, backend, clock, corpus
 ):
     liveness.watch(corpus.id, corpus, "h")
-    assert backend.files_calls == 1
+    assert backend.files_calls == 0
     for step in (3.0, 6.0, 9.0):
         clock.now = step
         liveness.tick()
@@ -252,6 +275,7 @@ def test_a_vanished_folder_whose_scan_raises_is_unavailable(
     liveness, backend, clock, corpus, folder, caplog
 ):
     liveness.watch(corpus.id, corpus, "h")
+    liveness.count(corpus.id, backend.files("h"))  # as the files route does
     folder.rmdir()
     backend.fail = True
     clock.now = 3.0
@@ -324,6 +348,7 @@ def test_unwatch_during_a_tick_skips_the_corpus(
 
 def test_a_failing_scan_keeps_the_state(liveness, backend, clock, corpus, caplog):
     liveness.watch(corpus.id, corpus, "h")
+    liveness.count(corpus.id, backend.files("h"))  # as the files route does
     before = liveness.state(corpus.id)
     backend.fail = True
     clock.now = 3.0
@@ -451,7 +476,7 @@ def test_a_removed_corpus_is_neither_rescanned_nor_reported(
     assert corpora.add(folder).id == cid
     _call(served, "GET", f"/api/{cid}/files")
     assert liveness.state(cid) is not None
-    assert backend.files_calls == opened + 2  # the listing and the watch
+    assert backend.files_calls == opened + 1  # the listing; the watch reads none
 
 
 def test_state_is_404_once_the_library_no_longer_lists_the_corpus(
@@ -478,6 +503,30 @@ def test_the_liveness_register_all_makes_stops_with_the_server(backend, corpora)
     server.start()
     server.stop()
     assert not thread.is_alive()
+
+
+def test_opening_a_corpus_reads_its_files_once(served, backend, liveness, corpus):
+    status, data = _call(served, "GET", f"/api/{corpus.id}/files")
+    assert status == 200
+    assert backend.files_calls == 1
+    rows = data["rows"]
+    state = liveness.state(corpus.id)
+    assert (state["files"], state["unreadable"], state["unavailable"]) == (
+        len(rows),
+        sum(1 for r in rows if r["state"] == "unreadable"),
+        sum(1 for r in rows if r["state"] == "unavailable"),
+    )
+    assert state["files"] == FIXTURE_COUNTS[0]
+
+
+def test_opened_by_another_route_the_first_rescan_counts(
+    served, backend, liveness, clock, corpus
+):
+    _call(served, "POST", f"/api/{corpus.id}/rescan", {})
+    assert liveness.state(corpus.id)["files"] is None
+    liveness.tick()
+    assert backend.files_calls == 1
+    assert liveness.state(corpus.id)["files"] == FIXTURE_COUNTS[0]
 
 
 def test_rescan_opens_the_corpus(served, backend, liveness, corpus):
