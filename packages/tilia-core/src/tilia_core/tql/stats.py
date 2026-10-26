@@ -148,12 +148,15 @@ def _check_key(reader: _Reader, key: str) -> None:
 
 
 def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]:
-    """The group values of ``comp`` under ``key``: one, except for categories.
+    """The group values of ``comp`` under ``key``: one, except for categories
+    and tags.
 
     ``label`` is the label in NFC, case and spacing kept (``category`` folds
-    them); a target without a category has the one value None. A field with
-    several values (a file field, a component field set twice, ``tags``) gives
-    them joined by ``, ``, as the result table does."""
+    them); a target without a category has the one value None. ``tags`` gives
+    each tag once, as ``category`` gives each category, so a unit tagged
+    ``fast`` and ``loud`` counts under each; one without tags has the one value
+    None. Another field with several values (a file field, a component field
+    set twice) gives them joined by ``, ``, as the result table does."""
     if key == "label":
         return [nfc(comp.label)]
     if key == "file":
@@ -209,6 +212,8 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         return [comp.start if key == "time" else comp.end - comp.start]
     if key in UNIT_FIELDS:  # a chord, key or position field, or tags
         value = reader.facts(comp.file_id).unit(comp.id).get(key)
+        if key == "tags":  # one group per tag
+            return sorted({nfc(str(v)) for v in value or []}) or [None]
         if isinstance(value, list):
             return [", ".join(str(v) for v in value) if value else None]
         return [value]
