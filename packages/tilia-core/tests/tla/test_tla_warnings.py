@@ -90,9 +90,11 @@ def test_a_valid_vocabulary_reads_without_a_warning(value):
         "lcma-form@0.3.0.1",
         "lcma-form@^0.3.0",  # a range, not an exact version
         "lcma-form@v0.3.0",
+        "lcma-form@01.0.0",  # a number with a leading zero
         "lcma-form@",
         "@0.3.0",
         "Cadences",
+        "café@1.0.0",  # a letter outside ASCII
         "lcma form",
         "lcma_form",
         "cadences\n",
