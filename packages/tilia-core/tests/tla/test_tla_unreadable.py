@@ -684,6 +684,9 @@ def test_row_ids_are_compared_in_nfc():
         rows = timeline(content, "texture")["rows"]
         rows[0]["id"] = composed
         rows.append({"id": decomposed, "name": "Bass"})
+        # Its ranges name a row it has, so that only the rows are refused.
+        for name in ("melody_1", "melody_2"):
+            component(content, name, of="texture")["row_id"] = composed
 
     error = refusal(edited(change))
     assert error.place == place("/timelines/{texture}/rows/1/id")
