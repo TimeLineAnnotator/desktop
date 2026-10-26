@@ -96,7 +96,7 @@ def test_empty_and_lower_case_are_not_chord_symbols():
         "X",
         "C/D",
         "Cm/E",
-        "C9/D",
+        "C9/E#",
         "G7/C",
         "C/",
         "V/V/V",
@@ -115,6 +115,17 @@ def test_empty_and_lower_case_are_not_chord_symbols():
 )
 def test_unreadable_chord_literals(text):
     bad(text)
+
+
+def test_non_text_chord_literal_is_a_harmony_error():
+    for value in (5, None, ["V7"]):
+        with pytest.raises(HarmonyError, match="must be text"):
+            parse_chord(value)
+
+
+def test_major_seventh_mark_hint():
+    with pytest.raises(HarmonyError, match=r"'M' marks a major seventh: write IM7"):
+        parse_chord("IM")
 
 
 # figures and slash basses fix the inversion; bare numerals and symbols don't
@@ -143,11 +154,29 @@ def test_unreadable_chord_literals(text):
         ("Bbmaj7/A", "major-seventh", 3),
         ("Csus4/F", "suspended-fourth", 1),
         ("C6/A", "major-sixth", 3),
+        ("C9/D", "dominant-ninth", 4),
+        ("Cm11/F", "minor-11th", 5),
+        ("C13/A", "dominant-13th", 6),
     ],
 )
 def test_quality_and_inversion(lit, quality, inversion):
     s = parse_chord(lit)
     assert (s.quality, s.inversion) == (quality, inversion), (lit, s)
+
+
+# TiLiA's inversion limit is the chord's size: a ninth takes 0-4, an eleventh
+# 0-5, a thirteenth 0-6, and the symbol label of each reads back
+@pytest.mark.parametrize(
+    "name", [q for q in QUALITIES if q in _QUAL and len(_QUAL[q].tones) > 4]
+)
+def test_upper_inversions_read_back(name):
+    for inversion in range(len(_QUAL[name].tones)):
+        ch = chord("C", name, inversion)
+        p = chord_props(ch, C)
+        for label in (p["symbol"], p["roman"]):
+            spec = parse_chord(label)
+            assert chord_matches(spec, ch, C), (label, ch)
+        assert parse_chord(p["symbol"]).inversion == (inversion or None), p
 
 
 @pytest.mark.parametrize(
@@ -540,10 +569,25 @@ def test_parse_key(text, tonic, mode, canonical):
     assert (k.tonic, k.mode, k.canonical) == (tonic, mode, canonical), (text, k)
 
 
-@pytest.mark.parametrize("text", ["", "H", "C#b", "c moll", "Cx#", "7", "major"])
+@pytest.mark.parametrize(
+    "text", ["", "H", "C#b", "c moll", "Cx#", "7", "major", "C-", "c-", "Eb-"]
+)
 def test_unreadable_keys(text):
     with pytest.raises(HarmonyError):
         parse_key(text)
+
+
+def test_trailing_dash_key_hints_at_minor():
+    # C- is Cm as a chord; as a key it is refused rather than read as major
+    with pytest.raises(HarmonyError, match="for C minor write c or Cm"):
+        parse_key("C-")
+    assert parse_key("C-minor").mode == "minor"
+
+
+def test_non_text_key_is_a_harmony_error():
+    for value in (None, 5, ["c"]):
+        with pytest.raises(HarmonyError, match="must be text"):
+            parse_key(value)
 
 
 def test_key_matches():
@@ -554,6 +598,58 @@ def test_key_matches():
 def test_key_props():
     assert key_props(key("eb")) == {"tonic": "Eb", "mode": "minor", "key": "eb"}
     assert key_props(Bb) == {"tonic": "Bb", "mode": "major", "key": "Bb"}
+
+
+# modal keys: TiLiA stores dorian, phrygian, lydian, mixolydian and locrian
+# too; they keep their type, match no major or minor literal, and their Roman
+# numerals go through the mode's scale as TiLiA's display does
+def mode(name, typ):
+    return {**key(name), "type": typ}
+
+
+d_dorian, g_mixo, e_phryg = mode("D", "dorian"), mode("G", "mixolydian"), mode("E", "phrygian")
+
+
+def test_modal_key_props():
+    assert key_props(d_dorian) == {"tonic": "D", "mode": "dorian", "key": "D Dorian"}
+    assert key_props(g_mixo) == {"tonic": "G", "mode": "mixolydian", "key": "G Mixolydian"}
+    assert key_props(mode("Bb", "lydian"))["key"] == "Bb Lydian"
+    assert key_props({**d_dorian, "type": "ionian"})["mode"] == "major"
+
+
+def test_modal_key_matches_no_literal():
+    for lit in ("D", "d", "D major", "Dm"):
+        assert not key_matches(parse_key(lit), d_dorian), lit
+    assert not key_matches(parse_key("G"), g_mixo)
+
+
+@pytest.mark.parametrize(
+    "ch, k, roman",
+    [
+        (chord("F"), d_dorian, "III"),
+        (chord("D", "minor"), d_dorian, "i"),
+        (chord("B", "diminished"), d_dorian, "vi°"),
+        (chord("C"), d_dorian, "VII"),
+        (chord("F#"), d_dorian, "#III"),
+        (chord("F"), g_mixo, "VII"),
+        (chord("F#", "diminished"), g_mixo, "#vii°"),
+        (chord("F"), e_phryg, "II"),
+        (chord("B", "diminished"), e_phryg, "v°"),
+        (chord("E", "major", 0, 4), d_dorian, "V/v"),  # dorian's v is minor
+    ],
+)
+def test_modal_roman_labels(ch, k, roman):
+    p = chord_props(ch, k)
+    assert (p["roman"], p["key"]) == (roman, key_props(k)["key"]), p
+    yes(roman, ch, k)
+
+
+def test_modal_roman_matches_through_the_mode():
+    yes("III", chord("F"), d_dorian)
+    no("bIII", chord("F"), d_dorian)
+    no("III", chord("F#"), d_dorian)
+    yes("VII", chord("F"), g_mixo)
+    no("bVII", chord("F"), g_mixo)
 
 
 # derived labels
@@ -599,7 +695,14 @@ def test_derived_labels(ch, k, symbol, roman):
 
 
 # every derived label reads back to a literal that matches its chord
-@pytest.mark.parametrize("k", [key(t) for t in ("C", "c", "f#", "Eb", "bb", "A")])
+@pytest.mark.parametrize(
+    "k",
+    [key(t) for t in ("C", "c", "f#", "Eb", "bb", "A")]
+    + [mode("D", "dorian"), mode("E", "phrygian"), mode("Bb", "lydian"),
+       mode("G", "mixolydian"), mode("F#", "locrian")],
+    ids=["C", "c", "f#", "Eb", "bb", "A", "D-dorian", "E-phrygian",
+         "Bb-lydian", "G-mixolydian", "F#-locrian"],
+)
 @pytest.mark.parametrize(
     "name",
     [
