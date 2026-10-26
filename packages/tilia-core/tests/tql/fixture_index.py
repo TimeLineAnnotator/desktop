@@ -279,8 +279,17 @@ class _Builder:
     def _add_positions(self, fid: str, tmap: FakeTimeMap) -> None:
         for count, (start, end, number, label) in enumerate(tmap.measures(), 1):
             self.con.execute(
-                "INSERT INTO measures VALUES (?,?,?,?,?,?,?)",
-                (fid, count, number, label, start, end, tmap.beats_per_bar),
+                "INSERT INTO measures VALUES (?,?,?,?,?,?,?,?)",
+                (
+                    fid,
+                    count,
+                    number,
+                    label,
+                    start,
+                    end,
+                    tmap.beats_per_bar,
+                    tmap.pass_of(start),
+                ),
             )
         rows = self.con.execute(
             'SELECT id, start, "end" FROM components WHERE file_id = ?', (fid,)

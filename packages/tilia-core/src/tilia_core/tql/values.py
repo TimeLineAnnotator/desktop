@@ -24,7 +24,7 @@ from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
 from . import regexes, syntax
-from .lanes import bar_id, pass_numbers
+from .lanes import bar_id
 from .result import Component
 
 CASE_SENSITIVE = frozenset({"key", "roman", "symbol"})
@@ -91,19 +91,24 @@ def _ordered(op: str, a: Any, b: Any) -> bool:
 
 
 def _search(
-    pattern: str, subject: str, caps: list[str] | None, literal: bool = False
+    pattern: str,
+    subject: str,
+    caps: list[str] | None,
+    literal: bool = False,
+    ignore_case: bool = False,
 ) -> bool:
     """Whether ``pattern`` is found in ``subject`` (NFC, case-sensitive unless
-    the pattern starts with ``(?i)``). The groups it captures go to ``caps``.
-    ``literal`` reads a pattern that is another unit's data, and so no query's
-    to get right, as text when it is no regular expression."""
+    the pattern starts with ``(?i)`` or ``ignore_case``). The groups it captures
+    go to ``caps``. ``literal`` reads a pattern that is another unit's data, and
+    so no query's to get right, as text when it is no regular expression."""
     subject = nfc(subject)
+    prefix = "(?i)" if ignore_case else ""
     try:
-        found = regexes.search(pattern, subject)
+        found = regexes.search(prefix + pattern, subject)
     except regexes.PatternError:
         if not literal:
             raise
-        found = regexes.search(re.escape(pattern), subject)
+        found = regexes.search(prefix + re.escape(pattern), subject)
     if found and caps is not None:
         caps[:] = [g if g is not None else "" for g in found.groups()]
     return bool(found)
@@ -124,8 +129,14 @@ def _pair(op: str, lhs: Any, rhs: Any, fname: str, caps: list[str] | None) -> bo
     both_text = isinstance(lhs, str) and isinstance(rhs, str)
     if a is not None and b is not None and not (both_text and fname in LABELS):
         return _ordered(op, a, b)
-    if op == "~":
-        return _search(nfc(text(rhs)), text(lhs), caps, literal=True)
+    if op == "~":  # two units' fields ignore case, `~` included (Q25)
+        return _search(
+            nfc(text(rhs)),
+            text(lhs),
+            caps,
+            literal=True,
+            ignore_case=fname not in CASE_SENSITIVE,
+        )
     if fname in CASE_SENSITIVE:
         have, want = nfc(text(lhs)), nfc(text(rhs))
         same = same_harmony(fname, have.strip(), want.strip())
@@ -295,13 +306,13 @@ class Facts:
 
     def _load_bars(self) -> dict[str, dict[str, Any]]:
         """The position fields of the units of the bars lane, which no component
-        row holds: each bar starts on its downbeat, at its first beat."""
+        row holds: each bar starts on its downbeat, at its first beat, and its
+        ``pass`` is the one ``measures`` records."""
         rows = self.log.execute(
-            "SELECT count, number, label, beats FROM measures WHERE file_id = ? "
-            "ORDER BY count",
+            "SELECT count, number, label, beats, pass FROM measures "
+            "WHERE file_id = ? ORDER BY count",
             (self.file_id,),
         )
-        passes = pass_numbers([r[1] for r in rows])
         return {
             bar_id(self.file_id, count): {
                 "bar": number,
@@ -313,7 +324,7 @@ class Facts:
                 "bar.beat_count": beats,
                 "downbeat": 1,
             }
-            for (count, number, label, beats), nth in zip(rows, passes, strict=True)
+            for count, number, label, beats, nth in rows
         }
 
     def timeline(self, timeline_id: str | None) -> dict[str, Any]:

@@ -241,6 +241,25 @@ def test_measures_and_beats_of_repeat():
     assert one(index, "SELECT MAX(start) FROM components WHERE kind = 'beat'") == (95,)
 
 
+def test_measures_pass_follows_the_repeats():
+    index = fixture_index.build_index(FIXTURES["repeat"])
+    got = rows(index, "SELECT number, pass FROM measures ORDER BY count")
+    tm = index.time_map("f1")
+    seen: dict[int, int] = {}
+    want = []
+    for number in tm.numbers:
+        seen[number] = seen.get(number, 0) + 1
+        want.append((number, seen[number]))
+    assert got == want
+    assert {p for _, p in got} == {1, 2}
+
+
+def test_measures_pass_is_1_without_repeats():
+    index = fixture_index.build_index(FIXTURES["sonata"])
+    got = rows(index, "SELECT pass FROM measures")
+    assert got and set(got) == {(1,)}
+
+
 def test_fake_timemap_of_repeat():
     index = fixture_index.build_index(FIXTURES["repeat"])
     tm = index.time_map("f1")

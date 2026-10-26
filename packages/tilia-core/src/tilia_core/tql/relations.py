@@ -65,6 +65,29 @@ def uses_map(within: syntax.Within | None) -> bool:
     return within is not None and within.unit in ("bar", "beat")
 
 
+def off_map(rel: syntax.Relation, a: Component, tmap: Any) -> bool:
+    """Whether a time of the left unit ``a`` that ``rel``'s ``WITHIN`` in bars or
+    beats reads lies off the time map ``tmap``, or there is none: its start, and
+    for ``BEFORE`` its end, where the gap begins. A time off the map never
+    matches, ``NOT`` included, so such a unit is in no such relation."""
+    assert rel.within is not None
+    unit = rel.within.unit
+    if tmap is None or tmap.unit_seconds(a.start, unit) is None:
+        return True
+    return rel.rel == "BEFORE" and tmap.position(a.end, unit) is None
+
+
+def on_map_sql(rel: syntax.Relation, a: str) -> str:
+    """The SQL twin of ``NOT off_map(rel, a)``, ``a`` the left unit's alias."""
+    assert rel.within is not None
+    unit = rel.within.unit
+    test = f"tql_unit_seconds({a}.file_id, {a}.start, '{unit}') IS NOT NULL"
+    if rel.rel == "BEFORE":
+        end = f'{a}."end"'
+        test += f" AND tql_position({a}.file_id, {end}, '{unit}') IS NOT NULL"
+    return test
+
+
 def seconds(within: syntax.Within) -> float:
     """``within`` in seconds; it must be in seconds or milliseconds."""
     if within.unit == "s":
@@ -311,6 +334,9 @@ def exists_sql(rel: syntax.Relation, comp: str, bld: SqlBuilder) -> str:
         f"{tql_compile.unit_test(target, other, bld, specs)}"
     )
     found = f"EXISTS (SELECT 1 FROM components {other} WHERE {inner})"
+    if rel.negate and uses_map(rel.within):
+        # off the map, NOT included: a unit off it is in no such relation
+        return f"({on_map_sql(rel, comp)} AND NOT {found})"
     return f"NOT {found}" if rel.negate else found
 
 
@@ -411,6 +437,11 @@ def _single(seq: syntax.Seq) -> syntax.Unit:
         LOG.error("a sequence is the target of a relation between two units")
         return next(units_of(seq))
     return step.item
+
+
+def _parts(_end: float, _start: float) -> bool:
+    """``joins`` for a unit's children: each follows the one before, gap or not."""
+    return True
 
 
 class Scope:
@@ -660,17 +691,29 @@ class Scope:
         if isinstance(cond, syntax.Children):
             if comp.kind != "hierarchy":
                 return cond.negate
+            # A unit's children are its parts: consecutive in start order
+            # whatever the gaps between them, so no hole breaks a run of them.
             items: list[Item] = [(c, c.start, c.end) for c in self.children(comp)]
             found = bool(items) and bool(
-                find_runs(cond.seq, items, "any", False, self.fits, check=self.check)
+                find_runs(
+                    cond.seq,
+                    items,
+                    "any",
+                    False,
+                    self.fits,
+                    joins=_parts,
+                    check=self.check,
+                )
             )
             return found != cond.negate
         if isinstance(cond, syntax.Downbeat):
             value = self.facts.unit(comp.id).get("downbeat")
             return value is not None and bool(value) != cond.negate
         if isinstance(cond, syntax.RelCond):
-            if uses_map(cond.relation.within) and self.time_map is None:
-                return False  # nothing is within a distance in bars or beats
+            if uses_map(cond.relation.within) and off_map(
+                cond.relation, comp, self.time_map
+            ):
+                return False  # off the map, NOT included: no time holds
             got = bool(self.rel_targets(comp, cond.relation, first_only=True))
             return got != cond.relation.negate
         if isinstance(cond, syntax.Compare):
@@ -719,14 +762,19 @@ class Scope:
             return "unit"
         return "tl" if f.name in names.TIMELINE_FIELDS else "file"
 
-    def field_values(self, f: syntax.FieldRef, subject: values.Subject) -> list[Any]:
+    def field_values(
+        self, f: syntax.FieldRef, subject: values.Subject, open_if_missing: bool = True
+    ) -> list[Any]:
         """The values of field ``f``, one per unit (or timeline) it reads; a list
-        field such as ``tags`` gives all its values."""
+        field such as ``tags`` gives all its values. A file without ``f`` is
+        noted in ``missing``, to warn that it could not answer, unless
+        ``open_if_missing`` is false: the comparison's answer is definite."""
         where = self.place(f, subject)
         if where == "file":
             got = self.facts.file().get(f.name)
             if got is None:
-                self.missing.add(f.name)
+                if open_if_missing:
+                    self.missing.add(f.name)
                 return []
             return list(got)
         out: list[Any] = []
@@ -876,9 +924,14 @@ class Scope:
                 self.parent(u) for u in self.subject_units(f, subject)
             ]
             return self.step_ok(cond, parents)
-        lhs = self.field_values(f, subject)
+        # A file without the field answers `!=` and `NOT … =` (#104, R2): no
+        # warning that it could not.
+        open_ = not (
+            (cond.op == "!=" and not cond.negate) or (cond.op == "=" and cond.negate)
+        )
+        lhs = self.field_values(f, subject, open_)
         if v.kind == "ref":
-            rhs = self.field_values(v.value, subject)
+            rhs = self.field_values(v.value, subject, open_)
             if (_is_position(f) and not _known(lhs)) or (
                 _is_position(v.value) and not _known(rhs)
             ):
@@ -917,8 +970,9 @@ class Scope:
     ) -> Callable[[float, float], bool] | None:
         """``THEN … WITHIN``: whether the gap between two neighbours of a lane is
         one a ``THEN`` crosses: at most 0.1 s, or at most ``within``. In bars or
-        beats it is counted along the time map; without one, only the 0.1 s
-        gaps cross. None without ``WITHIN``: the default rule."""
+        beats it is counted along the time map (a file without one has no match:
+        see the engine's sequence matches). None without ``WITHIN``: the default
+        rule."""
         if within is None:
             return None
         metric = gap_metric(within, self.time_map)

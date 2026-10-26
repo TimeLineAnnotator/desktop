@@ -610,6 +610,11 @@ class TestWhereSequences:
         assert len(got.matches) == 0
         got = run("verse THEN chorus IN form WHERE $1.label != $2.label")
         assert len(got.matches) == 1
+        # `~` included: "chorus" is found in "Chorus"
+        got = run("chorus THEN chorus IN form WHERE $1.label ~ $2.label")
+        assert len(got.matches) == 1
+        got = run("verse THEN chorus IN form WHERE $1.label ~ $2.label")
+        assert len(got.matches) == 0
         got = run("verse THEN chorus IN form WHERE $1.start < $2.start")
         assert len(got.matches) == 1
         got = run("verse THEN chorus IN form WHERE $1.start >= $2.start")
@@ -815,6 +820,22 @@ class TestWarnings:
         assert got.warnings == [
             "2 files without the file field 'composer' could not answer"
         ]
+
+    def test_no_warning_where_a_file_without_the_field_answers(self):
+        # #104, R2: `!=` and `NOT … =` hold of a file without the field
+        for text in (
+            "WHERE composer != Mozart",
+            "WHERE NOT composer = Mozart",
+            "* IN form WHERE composer != Mozart",
+            "* IN form WHERE NOT file.composer = Mozart",
+        ):
+            got = run(text, SONG, OTHER, BARE)
+            assert got.warnings == [], text
+            assert got.matches, text
+        for text in ("WHERE NOT composer != Mozart", "WHERE composer < Mozart"):
+            assert run(text, SONG, OTHER, BARE).warnings == [
+                "1 file without the file field 'composer' could not answer"
+            ], text
 
     def test_no_warning_when_every_file_has_it(self):
         assert run("* IN form WHERE composer = Mozart", SONG, OTHER).warnings == []

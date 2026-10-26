@@ -39,7 +39,11 @@ def _sequence_matches(
     marked: bool,
     limits: Limits,
 ) -> Iterator[Match]:
-    """The matches of a sequence pattern in the lanes ``specs`` of one file."""
+    """The matches of a sequence pattern in the lanes ``specs`` of one file.
+    ``THEN … WITHIN`` in bars or beats on a file without a time map has none:
+    the file could not answer."""
+    if relations.uses_map(pattern.within) and scope.time_map is None:
+        return
     mode = MODES[pattern.order]
     n_steps = len(pattern.seq.steps)
     for node in relations.units_of(pattern.seq):

@@ -36,17 +36,6 @@ def lane_order(starts: Sequence[float], labels: Sequence[str]) -> list[int]:
     return sorted(range(len(starts)), key=lambda i: (starts[i], fold(labels[i]), i))
 
 
-def pass_numbers(numbers: Sequence[Any]) -> list[int]:
-    """For each bar in playing order, which time through its printed number it
-    is: 1 for the first, 2 for the second (a repeat), and so on."""
-    seen: dict[Any, int] = {}
-    out: list[int] = []
-    for n in numbers:
-        seen[n] = seen.get(n, 0) + 1
-        out.append(seen[n])
-    return out
-
-
 def project(units: Sequence[U], level: int) -> list[tuple[U, float, float]]:
     """Project a hierarchy onto one level: tile the covered time with
     ``(unit, start, end)`` segments, each the deepest unit whose level is at
