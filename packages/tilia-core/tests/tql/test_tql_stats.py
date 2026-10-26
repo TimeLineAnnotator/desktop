@@ -18,6 +18,7 @@ SUBTYPES = {
     "name": "subtypes",
     "length": 40,
     "fields": {"title": "Sub"},
+    "grammar": "de Clercq",  # a dot marks a subtype only under a grammar
     "timelines": [
         {
             "name": "Form (A)",
@@ -42,13 +43,7 @@ def run(name, query):
 
 
 def subtypes():
-    index = fixture_index.build_index(SUBTYPES)
-    con = index.connection()
-    for label, cid in con.execute(
-        "SELECT label, id FROM components WHERE label LIKE 'bridge%'"
-    ).fetchall():
-        con.execute("INSERT INTO categories VALUES (?, ?)", (cid, label))
-    return tql.run(index, "bridge* IN form")
+    return tql.run(fixture_index.build_index(SUBTYPES), "bridge* IN form")
 
 
 # (name, by, the column that counts targets)
@@ -174,6 +169,16 @@ class TestCounts:
         result = subtypes()
         table = result.stats("counts", "category", fold_subtypes=True)
         assert table.rows == [("bridge", 3, 1)]
+
+    def test_fold_subtypes_without_a_grammar_keeps_the_dot(self):
+        # with no label grammar "I. Allegro" is no subtype of "i"
+        fixture = {**SUBTYPES, "timelines": [
+            {"name": "Form (A)", "kind": "hierarchy",
+             "units": [["I. Allegro", 1, 0, 20], ["II. Adagio", 1, 20, 40]]}]}
+        del fixture["grammar"]
+        result = tql.run(fixture_index.build_index(fixture), "* IN form")
+        table = result.stats("counts", "category", fold_subtypes=True)
+        assert table.rows == [("i. allegro", 1, 1), ("ii. adagio", 1, 1)]
 
     def test_only_targets_are_counted(self):
         table = run("pop", "verse THEN @chorus IN form").stats("counts")

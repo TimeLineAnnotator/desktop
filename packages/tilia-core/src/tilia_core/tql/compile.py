@@ -86,28 +86,37 @@ def name_pattern(lane: syntax.Lane) -> str:
     return text
 
 
+# The levels and rows of one timeline. The file id lets SQLite find the
+# timeline's components by components_by_timeline (file_id, timeline_id, start)
+# instead of reading every component.
+LEVELS_SQL = (
+    "SELECT DISTINCT h.level FROM hierarchies h "
+    "JOIN components c ON c.id = h.component_id "
+    "WHERE c.file_id = ? AND c.timeline_id = ? AND h.level IS NOT NULL "
+    "ORDER BY h.level"
+)
+ROWS_SQL = (
+    "SELECT DISTINCT r.row_id, r.row FROM ranges r "
+    "JOIN components c ON c.id = r.component_id "
+    "WHERE c.file_id = ? AND c.timeline_id = ? ORDER BY r.row_id"
+)
+
+
 def _lanes_of(
-    con: sqlite3.Connection, tl: tuple[Any, ...], kinds: tuple[str, ...] | None
+    con: sqlite3.Connection,
+    file_id: str,
+    tl: tuple[Any, ...],
+    kinds: tuple[str, ...] | None,
 ) -> list[LaneSpec]:
-    """The lanes of one timeline row ``(id, kind, name, ...)``, those of the
-    given lane ``kinds`` only (None: all)."""
+    """The lanes of one timeline row ``(id, kind, name, ...)`` of file
+    ``file_id``, those of the given lane ``kinds`` only (None: all)."""
     tid, kind, name = tl[0], tl[1], tl[2]
     out: list[LaneSpec] = []
     if kind == "hierarchy":
-        rows = con.execute(
-            "SELECT DISTINCT h.level FROM hierarchies h "
-            "JOIN components c ON c.id = h.component_id "
-            "WHERE c.timeline_id = ? AND h.level IS NOT NULL ORDER BY h.level",
-            (tid,),
-        ).fetchall()
+        rows = con.execute(LEVELS_SQL, (file_id, tid)).fetchall()
         out = [LaneSpec(tid, name, "hierarchy", level=r[0]) for r in rows]
     elif kind == "range":
-        rows = con.execute(
-            "SELECT DISTINCT r.row_id, r.row FROM ranges r "
-            "JOIN components c ON c.id = r.component_id "
-            "WHERE c.timeline_id = ? ORDER BY r.row_id",
-            (tid,),
-        ).fetchall()
+        rows = con.execute(ROWS_SQL, (file_id, tid)).fetchall()
         out = [LaneSpec(tid, name, "range", row_id=r[0], row=r[1]) for r in rows]
     elif kind == "marker":
         out = [LaneSpec(tid, name, "marker")]
@@ -131,7 +140,9 @@ def resolve_lanes(
         (file_id,),
     ).fetchall()
     if lane is None:
-        return [s for tl in timelines for s in _lanes_of(con, tl, DEFAULT_KINDS)]
+        return [
+            s for tl in timelines for s in _lanes_of(con, file_id, tl, DEFAULT_KINDS)
+        ]
 
     word = fold(lane.text.strip())
     if not lane.quoted:
@@ -143,16 +154,18 @@ def resolve_lanes(
             return _role_lanes(con, file_id, timelines, word)
         if word in KIND_WORDS:
             kind = KIND_WORDS[word]
-            return [s for tl in timelines for s in _lanes_of(con, tl, (kind,))]
+            return [
+                s for tl in timelines for s in _lanes_of(con, file_id, tl, (kind,))
+            ]
 
     pattern = name_pattern(lane)
     out: list[LaneSpec] = []
     for tl in timelines:
         name = tl[3] if not lane.quoted else nfc(tl[2])
         if fnmatch.fnmatchcase(name, pattern):
-            out.extend(_lanes_of(con, tl, None))
+            out.extend(_lanes_of(con, file_id, tl, None))
         elif tl[1] == "range":
-            for spec in _lanes_of(con, tl, None):
+            for spec in _lanes_of(con, file_id, tl, None):
                 row = fold(spec.row or "") if not lane.quoted else nfc(spec.row or "")
                 if fnmatch.fnmatchcase(row, pattern):
                     out.append(spec)
@@ -193,22 +206,22 @@ def _role_lanes(
     for tl in timelines:
         tid, kind, stored = tl[0], tl[1], tl[4]
         if role == "harmony" and kind == "harmony" and stored in ("harmony", "keys"):
-            out.extend(_lanes_of(con, tl, ("chord",)))
+            out.extend(_lanes_of(con, file_id, tl, ("chord",)))
         elif role == "keys" and kind == "harmony" and stored in ("harmony", "keys"):
-            out.extend(_lanes_of(con, tl, ("key",)))
+            out.extend(_lanes_of(con, file_id, tl, ("key",)))
         elif role == "time_map" and kind == "beat" and tid == time_map_id:
-            out.extend(_lanes_of(con, tl, None))
+            out.extend(_lanes_of(con, file_id, tl, None))
         elif stored == role:
-            out.extend(_lanes_of(con, tl, None))
+            out.extend(_lanes_of(con, file_id, tl, None))
     return out
 
 
 def timeline_lanes(con: sqlite3.Connection, timeline_id: str) -> list[LaneSpec]:
     """Every lane of one timeline."""
     tl = con.execute(
-        "SELECT id, kind, name FROM timelines WHERE id = ?", (timeline_id,)
+        "SELECT id, kind, name, file_id FROM timelines WHERE id = ?", (timeline_id,)
     ).fetchone()
-    return [] if tl is None else _lanes_of(con, tl, None)
+    return [] if tl is None else _lanes_of(con, tl[3], tl, None)
 
 
 # --------------------------------------------------------------------------- #
@@ -250,12 +263,15 @@ def is_label_step(cond: syntax.Cond) -> bool:
 
 
 def _category_test(lit: syntax.Literal, alias: str, params: list[Any]) -> str:
+    """A word: its category, or one its label grammar makes a subtype of it
+    (``bridge`` finds ``bridge.modern``). With no grammar a dot marks no
+    subtype: ``i`` does not find "I. Allegro"."""
     head = fold(lit.text)
     if lit.sub:
         params.append(f"{head}.{fold(lit.sub)}")
         return f"{alias}.category = ?"
-    params.extend((head, len(head) + 1, head + "."))
-    return f"({alias}.category = ? OR substr({alias}.category, 1, ?) = ?)"
+    params.extend((head, head))
+    return f"({alias}.category = ? OR {alias}.supertype = ?)"
 
 
 def holds(specs: Iterable[LaneSpec] | None) -> tuple[bool, bool]:

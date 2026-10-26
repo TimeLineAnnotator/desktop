@@ -2,7 +2,7 @@ import examples
 import pytest
 from grammars import DeClercq
 
-from tilia_core import derived
+from tilia_core import colors, derived
 from tilia_core.labels import WholeLabel
 
 FIXTURES = examples.load()["fixtures"]
@@ -173,7 +173,9 @@ def test_color():
 
 
 def test_color_knows_every_svg_name():
-    assert len(derived._CSS) == 148
+    # the one table of names, the one TQL's COLOR reads too
+    assert derived.CSS_COLORS is colors.CSS_COLORS
+    assert len(colors.CSS_COLORS) == 148
     assert derived.color("darkslategray") == "#2f4f4f"
     assert derived.color("DarkSlateGrey") == "#2f4f4f"
     assert derived.color("rebeccapurple") == "#663399"

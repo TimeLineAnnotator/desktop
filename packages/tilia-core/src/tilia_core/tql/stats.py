@@ -183,11 +183,12 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         ]
     if key == "category":
         rows = reader.con.execute(
-            "SELECT category FROM categories WHERE component_id = ?", (comp.id,)
+            "SELECT category, supertype FROM categories WHERE component_id = ?",
+            (comp.id,),
         )
-        found = [r[0] for r in rows]
-        if fold:
-            found = [c.split(".", 1)[0] for c in found]
+        # folded, a subtype counts as the category its label grammar puts it
+        # under; with no grammar a dot is part of the category
+        found = [(r[1] or r[0]) if fold else r[0] for r in rows]
         return sorted(set(found)) or [None]
     if key.startswith("file."):
         name = key[5:]

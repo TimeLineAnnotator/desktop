@@ -165,11 +165,13 @@ class Result:
         """A statistics table of the targets: ``counts`` (``by`` one key or two),
         ``durations`` and ``positions`` (one key), or ``transitions`` (none).
         ``by`` is ``label`` unless given; see :mod:`tilia_core.tql.stats`.
-        ``fold_subtypes`` makes the ``category`` key the part before the first
-        dot. The table counts only the matches found, and its ``stopped`` is
-        this result's ``stopped`` (None when the run was not cut). Raises
-        ``ValueError`` for an unknown ``name`` or key, and ``RuntimeError`` when
-        another thread is running on the connection the index gives."""
+        ``fold_subtypes`` makes the ``category`` key of a subtype the category
+        its label grammar puts it under (``bridge.modern``: ``bridge``); with no
+        grammar a dot marks no subtype. The table counts only the matches found,
+        and its ``stopped`` is this result's ``stopped`` (None when the run was
+        not cut). Raises ``ValueError`` for an unknown ``name`` or key, and
+        ``RuntimeError`` when another thread is running on the connection the
+        index gives."""
         return stats.compute(self, name, by, fold_subtypes=fold_subtypes)
 
 
