@@ -147,7 +147,7 @@ def bare_scope(cat: Catalogue, f: syntax.FieldRef, single: bool) -> str:
         raise _error(f"unknown field {f.name!r}{_renamed(f.name)}", f)
     if len(where) > 1:
         options = " or ".join(
-            f"{'' if w == 'unit' else w + '.'}{f.name}" for w in where
+            f"{'$1.' if w == 'unit' else w + '.'}{f.name}" for w in where
         )
         raise _error(f"{f.name!r} exists on more than one level - write {options}", f)
     return where[0]
