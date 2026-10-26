@@ -194,9 +194,9 @@ def _role_lanes(
 def timeline_lanes(con: sqlite3.Connection, timeline_id: str) -> list[LaneSpec]:
     """Every lane of one timeline."""
     tl = con.execute(
-        "SELECT id, kind, name FROM timelines WHERE id = ?", (timeline_id,)
+        "SELECT id, kind, name, file_id FROM timelines WHERE id = ?", (timeline_id,)
     ).fetchone()
-    return [] if tl is None else _lanes_of(con, tl, None)
+    return [] if tl is None else _lanes_of(con, tl[3], tl, None)
 
 
 def check_labels(specs: Iterable[LaneSpec], units: Iterable[syntax.Unit]) -> None:
