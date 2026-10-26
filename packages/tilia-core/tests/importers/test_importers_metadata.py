@@ -362,6 +362,34 @@ def test_a_first_length_isnt_a_change(tmp_path):
     assert doc.media_length == 30.0
 
 
+def test_a_length_within_a_millisecond_keeps_the_known_one(tmp_path):
+    # A WAV's length from its header, against the whole milliseconds a file
+    # TiLiA saved holds (TimeLineAnnotator/project-management#327).
+    doc = with_a_marker(3.125)
+    path = json_file(tmp_path, {"media length": 3.124716553287982})
+
+    importers.import_metadata(doc, path)
+
+    assert doc.media_length == 3.125
+
+
+@pytest.mark.parametrize("value", [3.126, "3.124"])
+def test_a_length_a_millisecond_away_is_a_change(tmp_path, value):
+    doc = with_a_marker(3.125)
+    path = json_file(tmp_path, {"composer": "Mozart", "media length": value})
+
+    assert fails(doc, path) == HAS_COMPONENTS
+
+
+def test_without_components_a_length_within_a_millisecond_is_set_as_read(tmp_path):
+    doc = document(media_length=3.125, timelines=[timeline("marker")])
+    path = json_file(tmp_path, {"media length": 3.124716553287982})
+
+    importers.import_metadata(doc, path)
+
+    assert doc.media_length == 3.124716553287982
+
+
 def test_a_length_refused_after_another_was_set_changes_nothing(tmp_path):
     # Two keys for the media length, in different letter cases: the second is
     # refused, and the first is undone.
