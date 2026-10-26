@@ -165,6 +165,29 @@ def test_categories_of_pop():
     )
 
 
+def test_supertypes_come_from_the_grammar_only():
+    # de Clercq marks a subtype with a dot; with no grammar a dot is part of
+    # the label, and no category has a supertype
+    def fixture(grammar):
+        f = {
+            "length": 10,
+            "timelines": [
+                {
+                    "name": "Form (A)",
+                    "kind": "hierarchy",
+                    "units": [["bridge.modern", 1, 0, 5], ["I. Allegro", 1, 5, 10]],
+                }
+            ],
+        }
+        return {**f, "grammar": grammar} if grammar else f
+
+    sql = "SELECT category, supertype FROM categories ORDER BY 1"
+    with_grammar = fixture_index.build_index(fixture("de Clercq"))
+    assert rows(with_grammar, sql) == [("bridge.modern", "bridge"), ("i. allegro", "i")]
+    without = fixture_index.build_index(fixture(None))
+    assert rows(without, sql) == [("bridge.modern", None), ("i. allegro", None)]
+
+
 def test_categories_without_grammar_are_whole_labels():
     index = fixture_index.build_index(FIXTURES["scripts"])
     assert rows(index, "SELECT DISTINCT category FROM categories ORDER BY 1") == [

@@ -42,7 +42,7 @@ COLUMNS = {
         "key",
     ],
     "keys": ["component_id", "step", "accidental", "mode", "tonic", "key"],
-    "categories": ["component_id", "category"],
+    "categories": ["component_id", "category", "supertype"],
     "positions": [
         "component_id",
         "bar",

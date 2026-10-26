@@ -131,7 +131,10 @@ class _Builder:
     def _categorise(self, cid: str, label: str, grammar: Any) -> None:
         if label:
             for category in derived.categories(label, grammar):
-                self.con.execute("INSERT INTO categories VALUES (?,?)", (cid, category))
+                self.con.execute(
+                    "INSERT INTO categories VALUES (?,?,?)",
+                    (cid, category, grammar.supertype(category)),
+                )
 
     def _add_hierarchy(
         self, fid: str, tid: str, tl: dict, length: float, grammar: Any

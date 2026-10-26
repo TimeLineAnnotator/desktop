@@ -9,6 +9,9 @@ One row of ``components`` per hierarchy unit, marker, range, chord, key or
 beat; the tables named after a kind (``hierarchies``, ``ranges``, ``chords``,
 ``keys``) hold what only that kind has, ``positions`` and ``measures`` what the
 file's time map gives, and ``fields`` the user-set fields of files and others.
+``categories`` holds each component's categories under its corpus's label
+grammar, each with the category it is a subtype of (``supertype``), which only
+a grammar with subtypes gives: with none, a dot is part of the label.
 """
 
 import sqlite3
@@ -85,7 +88,8 @@ CREATE TABLE keys (
 
 CREATE TABLE categories (
     component_id TEXT,
-    category TEXT
+    category TEXT,
+    supertype TEXT
 );
 
 CREATE TABLE positions (
