@@ -892,14 +892,22 @@ class Scope:
         self, conds: list[syntax.Cond], subject: values.Subject
     ) -> tuple[bool, tuple[str, ...]]:
         """Whether the match ``subject`` meets every condition of ``WHERE``, and
-        the groups its ``~`` conditions captured."""
+        the groups its ``~`` conditions captured. A relation or children test
+        reads the first step as a bare comparison does, any unit it took (Q7):
+        it holds when one has it, negated when none has."""
         caps: list[str] = []
         for cond in conds:
             if isinstance(cond, syntax.Compare):
                 ok = self.compare(cond, subject, caps)
             else:
-                first = next((u for slot in subject.slots for u in slot), None)
-                ok = first is not None and self.cond_ok(cond, first)
+                units = list(subject.slots[0]) if subject.slots else []
+                negate = (
+                    cond.relation.negate
+                    if isinstance(cond, syntax.RelCond)
+                    else cond.negate
+                )
+                hits = [self.cond_ok(cond, u) for u in units]
+                ok = bool(units) and (all(hits) if negate else any(hits))
             if not ok:
                 return False, ()
         return True, tuple(caps)
@@ -975,12 +983,20 @@ class Scope:
         if r in SEQUENCE_MODES:
             n_steps = len(rel.target.steps)
             seen: set[tuple[tuple[str, ...], ...]] = set()
+            # the WITHIN after the target's IN lets its THENs cross holes, as
+            # after any IN (tql.md §6.1), besides setting the tolerance (§8)
+            joins = self.joiner(rel.within)
             for spec in specs:
                 inner = self.inside_items(self.lane_items(spec), a, metric, own)
                 if not inner:
                     continue
                 for i, j, assign, _ in find_runs(
-                    rel.target, inner, SEQUENCE_MODES[r], spec.point, self.fits
+                    rel.target,
+                    inner,
+                    SEQUENCE_MODES[r],
+                    spec.point,
+                    self.fits,
+                    joins=joins,
                 ):
                     slots = slots_of(inner, i, j, assign, n_steps)
                     key = tuple(tuple(it[0].id for it in s) for s in slots)
@@ -1011,6 +1027,9 @@ class Scope:
             for b in self.candidates(target, specs):
                 if b.id == a.id:
                     continue
+                # A STARTS B is B STARTS WITH A: with IN, time decides what
+                # lies in B, as it does for STARTS WITH; without IN, B's
+                # descendants, as for every order relation
                 inner = self.inside_items(items, b, metric, own)
                 if not inner:
                     continue

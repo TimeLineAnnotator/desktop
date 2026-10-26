@@ -41,6 +41,38 @@ def test_csv_read_back_is_the_table(tmp_path):
                 assert field == str(value)
 
 
+def test_columns_are_the_rows_keys():
+    for name, query in (
+        ("pop", "verse THEN chorus IN form"),
+        ("pop", "chorus"),
+        ("harmony", "* IN chords DURING * IN keys"),
+        ("harmony", "WHERE key = C"),
+        ("pop", "WHERE tl.kind = hierarchy"),
+        ("harmony", 'WHERE file.composer = "Mozart"'),
+    ):
+        result = run(name, query)
+        assert result.rows, query
+        for row in result.rows:
+            assert list(row) == result.columns, query
+
+
+def test_an_empty_result_writes_the_header(tmp_path):
+    path = tmp_path / "out.csv"
+    full = run("pop", "verse THEN chorus IN form")
+    empty = run("pop", "nothing THEN chorus IN form")
+    assert empty.rows == []
+    empty.to_csv(path)
+    assert read(path) == [list(full.rows[0])]
+    empty = run("harmony", 'WHERE file.composer = "Nobody"')
+    assert empty.rows == [] and empty.grain == "file"
+    empty.to_csv(path)
+    assert read(path) == [["file", "title", "composer"]]
+    empty = run("harmony", 'WHERE tl.kind = nothing')
+    assert empty.rows == [] and empty.grain == "timeline"
+    empty.to_csv(path)
+    assert read(path) == [["file", "title", "timeline", "kind", "role", "author"]]
+
+
 def test_no_bom_no_cr(tmp_path):
     path = tmp_path / "out.csv"
     run("pop", "chorus IN form").to_csv(path)

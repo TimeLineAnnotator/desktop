@@ -289,6 +289,7 @@ def functions(con):
 FUNCTIONS = {
     ("regexp", 2),
     ("tql_fold", 1),
+    ("tql_nfc", 1),
     ("tql_color", 1),
     ("tql_chord", 9),
     ("tql_key", 4),

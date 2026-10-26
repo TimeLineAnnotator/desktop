@@ -2,6 +2,7 @@
 
 import csv
 import threading
+import unicodedata
 
 import examples
 import fixture_index
@@ -9,6 +10,7 @@ import pytest
 
 from tilia_core import tql
 from tilia_core.tql import stats
+from tilia_core.tql.result import Component
 
 FIXTURES = examples.load()["fixtures"]
 
@@ -101,6 +103,64 @@ class TestCounts:
     def test_category_counts_a_target_once_per_category(self):
         table = run("pop", "* IN form").stats("counts", "category")
         assert dict((r[0], r[1]) for r in table.rows)["chorus"] == 5
+        fixture = {
+            "length": 20,
+            "grammar": "de Clercq",
+            "timelines": [
+                {
+                    "name": "Form (X)",
+                    "kind": "hierarchy",
+                    "units": [["verse/chorus", 1, 0, 10], ["verse", 1, 10, 20]],
+                }
+            ],
+        }
+        result = tql.run(fixture_index.build_index(fixture), "* IN form")
+        table = result.stats("counts", "category")
+        assert table.rows == [("chorus", 1, 1), ("verse", 2, 1)]
+
+    def test_a_target_without_a_category_is_a_row_with_an_empty_key(self):
+        fixture = {
+            "length": 30,
+            "timelines": [
+                {
+                    "name": "Form (X)",
+                    "kind": "hierarchy",
+                    "units": [["a", 1, 0, 10], ["  ", 1, 10, 20], ["", 1, 20, 30]],
+                }
+            ],
+        }
+        result = tql.run(fixture_index.build_index(fixture), "* IN form")
+        assert result.stats("counts", "category").rows == [("a", 1, 1), (None, 2, 1)]
+        assert sum(r[1] for r in result.stats("counts").rows) == 3
+
+    def test_label_groups_in_nfc(self):
+        nfc = "Straśe"
+        nfd = unicodedata.normalize("NFD", nfc)
+        assert nfc != nfd
+        fixture = {
+            "length": 30,
+            "timelines": [
+                {
+                    "name": "Form (X)",
+                    "kind": "hierarchy",
+                    "units": [[nfc, 1, 0, 10], [nfd, 1, 10, 20], [nfc, 1, 20, 30]],
+                }
+            ],
+        }
+        result = tql.run(fixture_index.build_index(fixture), "Straśe IN form")
+        assert result.stats("counts").rows == [(nfc, 3, 1)]
+        assert result.stats("durations").rows[0][:2] == (nfc, 3)
+        assert result.stats("transitions").rows == [(nfc, nfc, 2)]
+
+    def test_a_result_of_files_or_timelines_is_refused(self):
+        result = tql.run(index_of("harmony"), 'WHERE file.composer = "Mozart"')
+        assert result.grain == "file" and result.rows
+        with pytest.raises(ValueError, match="lists files, not units"):
+            result.stats("counts", "file")
+        result = run("pop", "WHERE tl.kind = hierarchy")
+        assert result.grain == "timeline" and result.rows
+        with pytest.raises(ValueError, match="lists timelines, not units"):
+            result.stats("counts", "timeline")
 
     def test_subtypes_are_categories_of_their_own(self):
         table = subtypes().stats("counts", "category")
@@ -150,6 +210,66 @@ class TestKeys:
     def test_level(self):
         table = run("pop", "* IN form").stats("counts", "level")
         assert [r[0] for r in table.rows] == [1, 2]
+
+    def test_a_component_field_with_several_values_joins_them(self):
+        index = fixture_index.build_index(FIXTURES["pop"])
+        con = index.connection()
+        for value in ("sad", "happy"):
+            con.execute(
+                "INSERT INTO fields VALUES ('component', 'f1:t1:c6', 'mood', ?)",
+                (value,),
+            )
+        table = tql.run(index, "chorus IN form").stats("counts", "mood")
+        assert table.rows == [("sad, happy", 1, 1), (None, 4, 1)]
+
+    def test_chord_and_key_fields(self):
+        result = tql.run(index_of("harmony"), "* IN chords")
+        table = result.stats("counts", "roman")
+        assert table.columns == ["roman", "matches", "files"]
+        assert table.rows == [
+            ("I", 7, 1),
+            ("V", 2, 1),
+            ("V65", 1, 1),
+            ("V7", 3, 1),
+            ("i", 1, 1),
+        ]
+        assert result.stats("counts", "key").rows == [
+            ("C", 7, 1),
+            ("Eb", 3, 1),
+            ("c", 4, 1),
+        ]
+        assert result.stats("counts", "root").rows == [
+            ("Bb", 1, 1),
+            ("C", 6, 1),
+            ("Eb", 2, 1),
+            ("G", 5, 1),
+        ]
+        assert result.stats("counts", ["quality", "inversion"]).rows == [
+            ("dominant-seventh", 0, 3, 1),
+            ("dominant-seventh", 1, 1, 1),
+            ("major", 0, 9, 1),
+            ("minor", 0, 1, 1),
+        ]
+        keys = tql.run(index_of("harmony"), "* IN keys")
+        assert keys.stats("counts", ["tonic", "mode"]).rows == [
+            ("C", "major", 1, 1),
+            ("C", "minor", 1, 1),
+            ("Eb", "major", 1, 1),
+        ]
+        assert keys.stats("durations", "mode").rows[0][:3] == ("major", 2, 8.0)
+
+    def test_position_and_duration_fields(self):
+        result = run("pop", "chorus IN form")
+        assert result.stats("counts", "bar").rows == [(11, 2, 1), (19, 1, 1), (27, 2, 1)]
+        assert result.stats("counts", "duration").rows == [(16.0, 5, 1)]
+        assert result.stats("counts", "start").rows == [
+            (40.0, 2, 1),
+            (72.0, 1, 1),
+            (104.0, 2, 1),
+        ]
+        assert result.stats("counts", "tags").rows == [(None, 5, 1)]
+        with pytest.raises(ValueError, match="unknown key 'parent'"):
+            result.stats("counts", "parent")
 
     def test_unknown_name_is_refused(self):
         result = run("pop", "chorus IN form")
@@ -213,6 +333,32 @@ class TestDurations:
         ]
         assert any("time map" in w for w in result.warnings)
 
+    def test_units_outside_the_time_map_warn_as_such(self):
+        fixture = {
+            "length": 40,
+            "timelines": [
+                {
+                    "name": "Form (X)",
+                    "kind": "hierarchy",
+                    "units": [["a", 1, 0, 10], ["a", 1, 10, 30]],
+                },
+                {
+                    "name": "Beats",
+                    "kind": "beats",
+                    "start": 0,
+                    "every": 1,
+                    "beats_per_bar": 4,
+                    "bars": 5,
+                },
+            ],
+        }
+        result = tql.run(fixture_index.build_index(fixture), "a IN form")
+        table = result.stats("durations")
+        assert table.rows == [("a", 2, 10.0, 15.0, 15.0, 20.0, 1, 2.5, 2.5, 2.5, 2.5)]
+        assert result.warnings == [
+            "1 unit outside the time map was left out of the bar columns"
+        ]
+
 
 class TestPositions:
     def test_tenths(self):
@@ -234,6 +380,24 @@ class TestPositions:
         }
         result = tql.run(fixture_index.build_index(fixture), "x")
         assert result.stats("positions").rows == [("x", 0, 10, 1), ("x", 90, 100, 1)]
+        assert result.warnings == []
+
+    def test_starts_outside_the_media_length_are_left_out(self):
+        fixture = {
+            "length": 10,
+            "timelines": [
+                {
+                    "name": "Cadences",
+                    "kind": "marker",
+                    "units": [["x", 12], ["x", 5], ["x", -1]],
+                }
+            ],
+        }
+        result = tql.run(fixture_index.build_index(fixture), "x")
+        assert result.stats("positions").rows == [("x", 50, 60, 1)]
+        assert result.warnings == [
+            "2 units outside the media length were left out of positions"
+        ]
 
     def test_files_without_a_media_length_warn(self):
         index = fixture_index.build_index(FIXTURES["pop"])
@@ -263,6 +427,30 @@ class TestTransitions:
     def test_rows_are_sorted(self):
         table = run("pop", "* IN form").stats("transitions")
         assert table.rows == sorted(table.rows)
+
+    def test_pairs_follow_start_order_not_match_order(self):
+        index = index_of("pop")
+        units = [
+            Component(f"c{n}", "f1", "t1", "hierarchy", label, 10.0 * n, 10.0 * n + 10, 1)
+            for n, label in enumerate(("a", "b", "c"))
+        ]
+        matches = [tql.Match([[c]], "level 1") for c in reversed(units)]
+        result = tql.Result("match", [], matches, "", "", [], None, 0, _index=index)
+        assert result.stats("transitions").rows == [("a", "b", 1), ("b", "c", 1)]
+
+    def test_chords_and_keys_are_lanes_of_their_own(self):
+        result = tql.run(index_of("harmony"), "WHERE key = C")
+        kinds = {c.kind for m in result.matches for s in m.slots for c in s}
+        assert kinds == {"chord", "key"}
+        table = result.stats("transitions")
+        assert table.rows == [
+            ("I", "V", 1),
+            ("I", "V65", 1),
+            ("I", "V7", 1),
+            ("V", "I", 1),
+            ("V65", "I", 1),
+            ("V7", "I", 1),
+        ]
 
 
 class TestTableCsv:

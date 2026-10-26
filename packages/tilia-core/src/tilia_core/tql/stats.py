@@ -17,17 +17,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
-from tilia_core.labels import fold
+from tilia_core.labels import fold, nfc
 
 from . import names
 from .inuse import in_use
 
 if TYPE_CHECKING:
     from .result import Component, Result
+    from .values import Facts
 
 NAMES = ("counts", "durations", "positions", "transitions")
 LOG = logging.getLogger(__name__)
 COMPONENT_COLUMNS = ("id", "kind", "label", "start", "end", "color", "comments")
+# The fields of a unit a key may name (tql.md §7.2), read as WHERE reads them;
+# `parent` is a unit, not a value to group by.
+UNIT_FIELDS = frozenset(names.UNIT_FIELDS - {"parent"})
 TENTHS = 10
 
 
@@ -98,6 +102,20 @@ class _Reader:
         self.index = index
         self.con = index.connection()
         self.result = result
+        self._facts: dict[str, Facts] = {}
+
+    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
+        """What :class:`~tilia_core.tql.values.Facts` runs statements with."""
+        return self.con.execute(sql, params).fetchall()
+
+    def facts(self, file_id: str) -> Facts:
+        """The stored fields of one file's units, as ``WHERE`` reads them."""
+        got = self._facts.get(file_id)
+        if got is None:
+            from .values import Facts  # values imports result, which imports here
+
+            got = self._facts[file_id] = Facts(self, file_id)
+        return got
 
     def targets(self) -> list[Component]:
         """The distinct target units of the matches, in order of appearance."""
@@ -123,9 +141,7 @@ class _Reader:
         rows = self.con.execute(
             "SELECT DISTINCT name FROM fields WHERE scope = 'component'"
         )
-        return sorted(
-            {*COMPONENT_COLUMNS, "level", "depth", "row", *(r[0] for r in rows)}
-        )
+        return sorted({*COMPONENT_COLUMNS, *UNIT_FIELDS, *(r[0] for r in rows)})
 
 
 def _check_key(reader: _Reader, key: str) -> None:
@@ -151,9 +167,14 @@ def _check_key(reader: _Reader, key: str) -> None:
 
 
 def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]:
-    """The group values of ``comp`` under ``key``: one, except for categories."""
+    """The group values of ``comp`` under ``key``: one, except for categories.
+
+    ``label`` is the label in NFC, case and spacing kept (``category`` folds
+    them); a target without a category has the one value None. A field with
+    several values (a file field, a component field set twice, ``tags``) gives
+    them joined by ``, ``, as the result table does."""
     if key == "label":
-        return [comp.label]
+        return [nfc(comp.label)]
     if key == "file":
         return [comp.file_id]
     if key == "timeline":
@@ -167,7 +188,7 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         found = [r[0] for r in rows]
         if fold:
             found = [c.split(".", 1)[0] for c in found]
-        return sorted(set(found))
+        return sorted(set(found)) or [None]
     if key.startswith("file."):
         name = key[5:]
         if name == "id":
@@ -202,13 +223,19 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         ]
     if key == "row":
         return [reader.one("SELECT row FROM ranges WHERE component_id = ?", (comp.id,))]
-    return [
-        reader.one(
-            "SELECT value FROM fields WHERE scope = 'component' AND owner_id = ? "
-            "AND name = ? ORDER BY rowid",
-            (comp.id, key),
-        )
-    ]
+    if key in ("time", "duration"):
+        return [comp.start if key == "time" else comp.end - comp.start]
+    if key in UNIT_FIELDS:  # a chord, key or position field, or tags
+        value = reader.facts(comp.file_id).unit(comp.id).get(key)
+        if isinstance(value, list):
+            return [", ".join(str(v) for v in value) if value else None]
+        return [value]
+    rows = reader.con.execute(
+        "SELECT value FROM fields WHERE scope = 'component' AND owner_id = ? "
+        "AND name = ? ORDER BY rowid",
+        (comp.id, key),
+    ).fetchall()
+    return [", ".join(str(r[0]) for r in rows) if rows else None]
 
 
 def _groups(
@@ -251,6 +278,7 @@ def _spread(values: list[float]) -> tuple[Any, ...]:
 
 def _durations(reader: _Reader, key: str, fold: bool) -> Table:
     no_map: set[str] = set()
+    off_map: set[str] = set()
     rows = []
     for group, comps in _groups(reader, [key], fold).items():
         spans = [c for c in comps if c.end > c.start]  # points have no duration
@@ -258,9 +286,12 @@ def _durations(reader: _Reader, key: str, fold: bool) -> Table:
         bars: list[float] = []
         for c in spans:
             tmap = reader.index.time_map(c.file_id)
-            length = None if tmap is None else tmap.length(c.start, c.end, "bar")
-            if length is None:
+            if tmap is None:
                 no_map.add(c.file_id)
+                continue
+            length = tmap.length(c.start, c.end, "bar")
+            if length is None:
+                off_map.add(c.id)
             else:
                 bars.append(length)
         rows.append(
@@ -272,6 +303,13 @@ def _durations(reader: _Reader, key: str, fold: bool) -> Table:
             reader.result,
             f"{n} file{'s' if n != 1 else ''} without a time map could not answer "
             "for the bar durations",
+        )
+    if off_map:
+        n = len(off_map)
+        _warn(
+            reader.result,
+            f"{n} unit{'s' if n != 1 else ''} outside the time map "
+            f"{'were' if n != 1 else 'was'} left out of the bar columns",
         )
     rows.sort(key=lambda r: _row_key(r[:1]))
     columns = [key, "n", "min", "median", "mean", "max"]
@@ -285,6 +323,7 @@ def _positions(reader: _Reader, key: str, fold: bool) -> Table:
         for fid, length in reader.con.execute("SELECT id, media_length FROM files")
     }
     no_length: set[str] = set()
+    outside: set[str] = set()
     tenths: dict[tuple[Any, ...], int] = {}
     for group, comps in _groups(reader, [key], fold).items():
         for c in comps:
@@ -293,7 +332,12 @@ def _positions(reader: _Reader, key: str, fold: bool) -> Table:
                 no_length.add(c.file_id)
                 continue
             tenth = int(round(c.start * TENTHS / length, 9) // 1)
-            slot = (*group, min(max(tenth, 0), TENTHS - 1))
+            if tenth == TENTHS:  # a start at the very end is in the last tenth
+                tenth = TENTHS - 1
+            if not 0 <= tenth < TENTHS:
+                outside.add(c.id)
+                continue
+            slot = (*group, tenth)
             tenths[slot] = tenths.get(slot, 0) + 1
     if no_length:
         n = len(no_length)
@@ -301,6 +345,13 @@ def _positions(reader: _Reader, key: str, fold: bool) -> Table:
             reader.result,
             f"{n} file{'s' if n != 1 else ''} without a media length could not "
             "answer for positions",
+        )
+    if outside:
+        n = len(outside)
+        _warn(
+            reader.result,
+            f"{n} unit{'s' if n != 1 else ''} outside the media length "
+            f"{'were' if n != 1 else 'was'} left out of positions",
         )
     rows = [
         (*slot[:-1], slot[-1] * TENTHS, (slot[-1] + 1) * TENTHS, n)
@@ -311,15 +362,18 @@ def _positions(reader: _Reader, key: str, fold: bool) -> Table:
 
 
 def _transitions(reader: _Reader) -> Table:
-    lanes: dict[tuple[str, str, Any], list[Component]] = {}
+    # a lane: the level or row of one timeline; a harmony timeline has two,
+    # its chords and its keys (tql.md §4), so the kind is part of the key
+    lanes: dict[tuple[str, str, str, Any], list[Component]] = {}
     for c in reader.targets():
         lane = c.level if c.level is not None else c.row
-        lanes.setdefault((c.file_id, c.timeline_id, lane), []).append(c)
+        lanes.setdefault((c.file_id, c.timeline_id, c.kind, lane), []).append(c)
     pairs: dict[tuple[str, str], int] = {}
     for comps in lanes.values():
         comps.sort(key=lambda c: (c.start, c.end, fold(c.label), c.id))
         for a, b in zip(comps, comps[1:], strict=False):
-            pairs[(a.label, b.label)] = pairs.get((a.label, b.label), 0) + 1
+            pair = (nfc(a.label), nfc(b.label))
+            pairs[pair] = pairs.get(pair, 0) + 1
     rows = [(a, b, n) for (a, b), n in pairs.items()]
     rows.sort(key=lambda r: _row_key(r[:2]))
     return Table(["from", "to", "n"], rows)
@@ -335,9 +389,15 @@ def compute(
     """The statistics table ``name`` of ``result`` (see :meth:`Result.stats`),
     with the ``stopped`` of ``result``.
 
-    Raises ``ValueError`` for an unknown ``name`` or key."""
+    Raises ``ValueError`` for an unknown ``name`` or key, and for a result of
+    only ``WHERE`` that lists files or timelines: the tables are of units."""
     if name not in NAMES:
         raise ValueError(f"unknown statistics {name!r}; allowed: {', '.join(NAMES)}")
+    if result.grain != "match":
+        raise ValueError(
+            f"this result lists {result.grain}s, not units; statistics are of "
+            "the units a query matched, so it must name one or a lane"
+        )
     reader = _Reader(result)
     with in_use(reader.con):
         table = _compute_on(reader, name, by, fold_subtypes)

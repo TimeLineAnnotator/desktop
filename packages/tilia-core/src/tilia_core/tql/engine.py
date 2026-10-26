@@ -16,6 +16,7 @@ import threading
 from typing import Any, Iterator
 
 from tilia_core import derived
+from tilia_core.labels import fold
 
 from . import compile as tql_compile
 from . import names, regexes, relations, showsql, sqlfuncs, syntax, values
@@ -26,6 +27,7 @@ from .readonly import CHECK_EVERY, Limits, Stopped
 from .result import Component, Match, Result
 from .sequences import find_runs, slots_of
 from .showsql import Recorder
+from .syntax import TQLError
 
 MODES = {None: "any", "STARTS_WITH": "start", "ENDS_WITH": "end", "CONSISTS_OF": "full"}
 
@@ -224,6 +226,7 @@ def _run_on(
         warnings=warn.messages(),
         stopped=stopped,
         generation=index.generation,
+        columns=_columns(grain, query, extra),
         _index=index,
     )
 
@@ -234,6 +237,7 @@ class _Warnings:
     def __init__(self) -> None:
         self.files: dict[str, set[str]] = {}
         self.words: dict[str, None] = {}  # literals that are no chord or key
+        self.other: list[str] = []
 
     def file_lacks(self, field_name: str, file_id: str) -> None:
         self.file_without(f"the file field {field_name!r}", file_id)
@@ -255,7 +259,7 @@ class _Warnings:
             self.file_without("a media length", file_id)
 
     def messages(self) -> list[str]:
-        out = []
+        out = list(self.other)
         for what, files in self.files.items():
             n = len(files)
             out.append(
@@ -302,19 +306,44 @@ def _unit_units(
 
 def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
-    neither, in the chords and keys lanes they are looked for in, warn. It ends
+    neither, in the chords and keys lanes they are looked for in, warn. Only
+    a unit with a literal that is no chord or no key can warn, so the lanes
+    (resolved once per file and ``IN``) are looked up for those alone. It ends
     at the first file it reaches after a limit or the cancel has stopped the
     call, and then gives the warnings found so far."""
-    pairs = list(_lane_units(query))
+    pairs = [
+        (unit, lane)
+        for unit, lane in _lane_units(query)
+        if tql_compile.harmony_problems(unit, ("chord",))
+        or tql_compile.harmony_problems(unit, ("key",))
+    ]
+    if not pairs:
+        return []
+    custom: dict[str, bool] = {}
+
+    def has_custom(text: str) -> bool:
+        if text not in custom:
+            found = log.con.execute(
+                "SELECT 1 FROM chords WHERE trim(custom_text) = ? LIMIT 1", (text,)
+            ).fetchone()
+            custom[text] = found is not None
+        return custom[text]
+
     out: list[str] = []
-    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+    # lookups, not search statements: kept out of the SQL a result shows
+    for (file_id,) in log.con.execute("SELECT id FROM files ORDER BY id"):
         if limits.check():
             break
+        kinds_of: dict[int, tuple[str, ...]] = {}
         for unit, lane in pairs:
-            kinds = {s.kind for s in tql_compile.resolve_lanes(log.con, file_id, lane)}
-            for kind in ("chord", "key"):
-                if kind in kinds:
-                    out.extend(tql_compile.harmony_problems(unit, kind))
+            if id(lane) not in kinds_of:
+                specs = tql_compile.resolve_lanes(log.con, file_id, lane)
+                kinds = {s.kind for s in specs}
+                kinds_of[id(lane)] = tuple(k for k in ("chord", "key") if k in kinds)
+            if kinds_of[id(lane)]:
+                out.extend(
+                    tql_compile.harmony_problems(unit, kinds_of[id(lane)], has_custom)
+                )
     return out
 
 
@@ -404,6 +433,7 @@ def _pattern_matches(
     order: list[tuple[Any, ...]] = []
     stopped: str | None = None
     labels = showsql.describe_units(query)
+    any_lane = False
     try:
         limits.ensure()
         for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
@@ -414,6 +444,7 @@ def _pattern_matches(
             specs = scope.lanes(pattern.lane)
             if not specs:
                 continue
+            any_lane = True
             scope.play = _lanes_in_play(scope, query, specs)
             if isinstance(pattern, syntax.RelPattern):
                 part = showsql.relation_part(query)
@@ -432,6 +463,8 @@ def _pattern_matches(
                 key = (file_id, tuple(tuple(c.id for c in s) for s in match.slots))
                 cur = found.get(key)
                 if cur is None:
+                    # the limit is hit by the match it refuses, not by the
+                    # one that reaches it: a complete result is not cut
                     if max_matches is not None and len(order) >= max_matches:
                         stopped = "max_matches"
                         break
@@ -448,6 +481,8 @@ def _pattern_matches(
             warn.scope_lacks(scope, needs, file_id)
             if stopped:
                 break
+        if pattern.lane is not None and not any_lane:
+            _no_lane(log, pattern.lane, warn.other)
     except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
         stopped = limits.reason_of(err)
 
@@ -563,6 +598,59 @@ def _where_only(
     return grain, matches, names.named_file_fields(cat, query), stopped
 
 
+ROLE_HINTS = {
+    "form": "IN hierarchies",
+    "cadences": "IN markers",
+    "harmony": "IN chords",
+    "keys": "IN key",
+    "time_map": "IN beats",
+}
+
+
+def _no_lane(log: Recorder, lane: syntax.Lane, warnings: list[str]) -> None:
+    """No file of the corpus has a lane ``lane`` names. A role or kind no
+    timeline has is a warning (a role: with the kind to try instead); a word
+    that is neither, nor a timeline or row name, is an error on the name."""
+    if not lane.quoted:
+        word = fold(lane.text.strip())
+        word = tql_compile.ROLE_ALIASES.get(word, word)
+        stored = {
+            r[0]
+            for r in log.execute(
+                "SELECT DISTINCT role FROM timelines WHERE role IS NOT NULL"
+            )
+        }
+        if word in tql_compile.BUILTIN_ROLES:
+            hint = ROLE_HINTS[word]
+            warnings.append(
+                f"no timeline has the role {word!r} - try {hint}, a quoted "
+                '"timeline name", or give a timeline the role: '
+                f'WHERE tl.name ~ /…/ -> SET tl.role = "{word}"'
+            )
+            return
+        if (
+            word in stored
+            or word in tql_compile.KIND_WORDS
+            or word in tql_compile.BAR_WORDS
+        ):
+            return
+    if lane.quoted:
+        raise TQLError(
+            f'no timeline or row called "{lane.text}" - a quoted name keeps its '
+            "case; * is a wildcard",
+            lane.pos,
+            lane.pos + len(lane.text) + 2,
+        )
+    raise TQLError(
+        f"no timeline, role or kind called {lane.text!r} - roles: "
+        f"{', '.join(tql_compile.BUILTIN_ROLES)}; kinds: hierarchies, markers, "
+        'ranges, beats, bars, chords, keys; or a quoted "timeline name" (* is a '
+        "wildcard)",
+        lane.pos,
+        lane.pos + len(lane.text),
+    )
+
+
 # --------------------------------------------------------------------------- #
 # The result table (tql.md §10)
 # --------------------------------------------------------------------------- #
@@ -588,16 +676,39 @@ def _extent(m: Match) -> tuple[float, float]:
 def _position(log: Recorder, comp: Component | None) -> tuple[Any, Any]:
     if comp is None:
         return None, None
+    # not logged: one lookup per target and per step would grow the shown
+    # SQL by several statements per match
     if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
-        rows = log.execute(
+        rows = log.con.execute(
             "SELECT number FROM measures WHERE file_id = ? AND start = ?",
             (comp.file_id, comp.start),
-        )
+        ).fetchall()
         return (rows[0][0], 1.0) if rows else (None, None)
-    rows = log.execute(
+    rows = log.con.execute(
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
-    )
+    ).fetchall()
     return (rows[0][0], rows[0][1]) if rows else (None, None)
+
+
+RESULT_COLUMNS = ("file", "title", "timeline", "lane", "ids", "label")
+RESULT_COLUMNS += ("start", "end", "bar", "beat")
+STEP_COLUMNS = ("label", "timeline", "start", "end", "bar", "ids")
+TIMELINE_COLUMNS = ("file", "title", "timeline", "kind", "role", "author")
+
+
+def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[str]:
+    """The columns of the result table (tql.md §10), as ``_row``,
+    ``_timeline_row`` and ``_file_row`` write them; a query of only ``WHERE``
+    that lists units has the one numbered unit each match holds."""
+    if grain == "timeline":
+        return list(TIMELINE_COLUMNS)
+    if grain == "file":
+        return ["file", "title", *(f for f in file_fields if f not in ("file", "title"))]
+    steps = query.slot_count if query.pattern is not None else 1
+    return [
+        *RESULT_COLUMNS,
+        *(f"${n}.{c}" for n in range(1, steps + 1) for c in STEP_COLUMNS),
+    ]
 
 
 def _lane_column(m: Match) -> str | None:

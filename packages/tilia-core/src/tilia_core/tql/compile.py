@@ -295,13 +295,14 @@ def _alt_sql(
     )
 
 
-REGEX_COLUMNS = ("roman", "symbol", "key", "custom_text")
+REGEX_COLUMNS = ("roman", "symbol", "custom_text")  # a chord's label, never its key
 
 
 def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
     """The test that ``alt`` fits the chord or key ``comp`` (tql.md §5): a
-    regular expression alone searches a chord's Roman numeral, symbol, key and
-    custom text, or a key's name; any other literal is read as a chord or a key
+    regular expression alone searches a chord's label (its Roman numeral,
+    symbol and custom text; never its key, #104 R3), or a key's name; any
+    other literal is read as a chord or a key
     (``V/V`` and ``C/E`` as written, with their slash). A chord literal that is
     no chord, written in quotes, still matches a chord's own custom text."""
     lits = alt.lits
@@ -338,9 +339,16 @@ def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
     return f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
 
 
-def harmony_problems(unit: syntax.Unit, kind: str) -> list[str]:
-    """The warnings for the literals of ``unit`` that are read as chords
-    (``kind`` ``chord``) or as keys (``key``) and are none."""
+def harmony_problems(
+    unit: syntax.Unit,
+    kinds: tuple[str, ...],
+    has_custom: Callable[[str], bool] | None = None,
+) -> list[str]:
+    """The warnings for the literals of ``unit`` that are read in a lane of
+    ``kinds`` (``chord``, ``key``, or both for a timeline named as a whole)
+    and are none of them: a literal that is a chord or a key of the lane
+    warns nothing. A quoted literal that is no chord but is the custom text
+    of some chord (``has_custom``) matches that text and warns nothing."""
     out: list[str] = []
     for alt in unit.term.alts if unit.term is not None else ():
         lits = alt.lits
@@ -349,12 +357,20 @@ def harmony_problems(unit: syntax.Unit, kind: str) -> list[str]:
         if any(lit.kind == "regex" for lit in lits):
             out.append("a regular expression in a harmony lane must stand alone")
             continue
-        text = nfc(
-            lits[0].text if len(lits) == 1 and lits[0].kind == "exact" else alt.raw
-        )
-        spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
-        if isinstance(spec, str):
-            out.append(f"{text!r} is not a {kind}: {spec}")
+        exact = len(lits) == 1 and lits[0].kind == "exact"
+        text = nfc(lits[0].text if exact else alt.raw)
+        problems: list[str] = []
+        for kind in kinds:
+            spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
+            if not isinstance(spec, str):
+                break
+            if kind == "chord" and exact and has_custom and has_custom(text.strip()):
+                break
+            # a HarmonyError may already name the literal and the kind
+            prefix = f"{text!r} is not a {kind}: "
+            problems.append(spec if spec.startswith(prefix) else prefix + spec)
+        else:
+            out.extend(problems)
     return out
 
 
@@ -382,8 +398,10 @@ def _label_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
         )
     for lit in alt.lits:
         if lit.kind == "exact":
-            tests.append(f"COALESCE(trim({comp}.label), '') = ?")
-            params.append(nfc(lit.text))
+            # both sides in NFC and trimmed of spaces: a label stored in NFD
+            # is the same label, and "verse " must find what "verse" finds
+            tests.append(f"COALESCE(trim(tql_nfc({comp}.label)), '') = ?")
+            params.append(nfc(lit.text).strip(" "))
         elif lit.kind == "regex":
             tests.append(f"({comp}.label IS NOT NULL AND {comp}.label REGEXP ?)")
             params.append(lit.text)
@@ -454,8 +472,9 @@ def compare_in_sql(cond: syntax.Compare) -> bool:
 
 def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
     """The condition ``cond`` (see :func:`compare_in_sql`) on component ``comp``.
-    A unit without the value never satisfies a comparison, ``NOT`` included, as in
-    Python: the test is 0 then, not NULL."""
+    A unit without the value never satisfies ``=`` or an ordered comparison (the
+    test is 0 then, not NULL), so it satisfies ``!=`` and ``NOT``, as in Python:
+    ``x != v`` is ``NOT x = v`` (#104, R2)."""
     f, v = cond.field, cond.value
     if f.name == "color":
         col = f"tql_color({comp}.color)"
@@ -463,6 +482,7 @@ def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
         col = f"tql_length({comp}.file_id, {comp}.start, {comp}.\"end\", '{v.unit}')"
     else:
         col = STORED_NUMBERS[f.name].format(c=comp)
+    negate = cond.negate
     if v.kind == "any":
         empty = (
             f"({col} IS NULL OR {col} = '')" if f.name == "color" else f"{col} IS NULL"
@@ -471,19 +491,22 @@ def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
     elif v.kind == "range":
         lo, hi = v.value
         bld.params.extend((lo - 1e-9, hi + 1e-9))
-        between = "NOT BETWEEN" if cond.op == "!=" else "BETWEEN"
-        test = f"{col} {between} ? AND ?"
+        test = f"{col} BETWEEN ? AND ?"
+        negate = negate != (cond.op == "!=")
     elif f.name == "color":
         raw = v.raw if v.kind == "number" else v.value
         bld.params.append(derived.color(str(raw)))
-        test = f"{col} {ORDER_OPS[cond.op]} ?"
+        test = f"{col} = ?"
+        negate = negate != (cond.op == "!=")
     else:
         bld.params.append(float(v.value))
-        test = f"{col} {ORDER_OPS[cond.op]} ?"
+        op = "=" if cond.op == "!=" else ORDER_OPS[cond.op]
+        test = f"{col} {op} ?"
+        negate = negate != (cond.op == "!=")
     if cond_unknowable(cond):  # no value is no match, ``NOT`` included
-        return f"COALESCE(({'NOT ' if cond.negate else ''}({test})), 0)"
+        return f"COALESCE(({'NOT ' if negate else ''}({test})), 0)"
     test = f"COALESCE(({test}), 0)"
-    return f"NOT {test}" if cond.negate else test
+    return f"NOT {test}" if negate else test
 
 
 def cond_unknowable(cond: syntax.Compare) -> bool:

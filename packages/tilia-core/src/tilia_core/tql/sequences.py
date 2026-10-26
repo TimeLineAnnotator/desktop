@@ -17,6 +17,15 @@ Item = tuple[Any, float, float]
 Run = tuple[int, int, list[int], "list[bool] | None"]
 
 
+def nullable(item: Unit | Group) -> bool:
+    """Whether ``item`` can match nothing: a group with an option whose every
+    step may take nothing (``(c*)``, ``(a? THEN (b?))``). A unit never can."""
+    return isinstance(item, Group) and any(
+        all(st.lo == 0 or nullable(st.item) for st in opt.steps)
+        for opt in item.options
+    )
+
+
 class Runs:
     """Matches a :class:`~tilia_core.tql.syntax.Seq` inside one contiguous block
     of items.
@@ -36,10 +45,20 @@ class Runs:
         self.check = check
         self.items = items
         self.n = len(items)
+        self.ticks = 0  # steps of the walk; ``check`` runs every 256th
         self.m_steps: dict[tuple[int, int, int], frozenset[int]] = {}
         self.m_step: dict[tuple[int, int], frozenset[int]] = {}
 
+    def tick(self) -> None:
+        """One step of the walk: every 256th calls ``check``, so a time limit
+        can stop a lane whose walk is long (``(*+ THEN *+)+`` on 2,000 items
+        runs for half a minute)."""
+        self.ticks += 1
+        if self.check is not None and not self.ticks & 255:
+            self.check()
+
     def ends_steps(self, steps: list[Step], si: int, pos: int) -> frozenset[int]:
+        self.tick()
         key = (id(steps), si, pos)
         hit = self.m_steps.get(key)
         if hit is not None:
@@ -62,7 +81,11 @@ class Runs:
         if hit is not None:
             return hit
         lo, hi = step.lo, step.hi
-        result: set[int] = {pos} if lo == 0 else set()
+        # A group that can match nothing fills any missing repetition with an
+        # empty one, so its lower bound is as good as zero (tql.md §6.2: x*
+        # and x? count zero); the loop below still takes an item per round.
+        empty = lo == 0 or nullable(step.item)
+        result: set[int] = {pos} if empty else set()
         frontier, count = {pos}, 0
         reuse = hi is None and lo <= 1  # an unbounded step restarts from any end
         while frontier and (hi is None or count < hi):
@@ -73,7 +96,7 @@ class Runs:
                     nxt |= self.m_step[id(step), p]  # later starts come first
                     continue
                 nxt |= {e for e in self.ends_item(step.item, p) if e > p}
-            if count >= lo:
+            if count >= lo or empty:
                 fresh = nxt - result
                 result |= nxt
                 if hi is None:
@@ -142,7 +165,7 @@ class Runs:
                 return memo[p, k]
             out: list[int] | None = None
             if p == end:
-                out = [] if k >= st.lo else None
+                out = [] if k >= st.lo or nullable(item) else None
             elif st.hi is None or k < st.hi:
                 for q in sorted(
                     (e for e in self.ends_item(item, p) if p < e <= end),
@@ -199,6 +222,8 @@ def blocks(
 ) -> list[tuple[int, int]]:
     """Split a lane into runs of time-contiguous items: ``THEN`` means
     "immediately follows", so a hole breaks it. Point lanes never break.
+    A gap of ``GAP_EPS`` or less is no hole, with ``SLACK`` added so
+    that float noise (1.1 - 1.0 > 0.1) does not turn exactly 0.1 s into one.
     ``joins(end, start)``, from ``THEN … WITHIN``, replaces that rule: two
     neighbours stay in one run when it says the gap between them is crossed."""
     if not items:
@@ -231,8 +256,9 @@ def find_runs(
     any (unanchored), start, end, full. ``joins``: see :func:`blocks`.
     ``flags``, with ``marks`` (a query with ``@``): per item of the run,
     whether a marked step took it; None otherwise, when the whole run is the
-    target. ``check``, if given, is called first and may raise to stop a query
-    that runs too long."""
+    target. ``check``, if given, is called first and then every few hundred
+    steps of each block's walk, and may raise to stop a query that runs too
+    long."""
     if check is not None:
         check()
     bl = blocks(items, point, joins)

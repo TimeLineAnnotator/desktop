@@ -89,6 +89,10 @@ class Result:
     SQL functions (:mod:`tilia_core.tql.sqlfuncs`); a plain SQLite client lacks
     them.
 
+    ``columns`` are the table's columns in order, which the query decides (its
+    grain and how many numbered units a match has), so a result with no rows
+    still has them.
+
     ``stopped`` is None, or says why the run ended early. ``"max_matches"``
     means the result holds some N matches, not necessarily the first N of the
     full result in file and time order: the search stops after N are found, and
@@ -105,6 +109,7 @@ class Result:
     warnings: list[str]
     stopped: str | None
     generation: int
+    columns: list[str] = field(default_factory=list)
     _index: Any = field(default=None, repr=False, compare=False)
 
     @property
@@ -120,13 +125,14 @@ class Result:
     def to_csv(self, path: str | Path) -> str | None:
         """Write the table of ``rows`` as CSV: a header of the columns, then a
         line per row; UTF-8 in NFC, LF line endings, no byte-order mark. Times
-        are in seconds with three decimals, None is an empty field.
+        are in seconds with three decimals, None is an empty field. A result
+        with no rows writes the header alone.
 
         Returns ``stopped``: why the result holds only the matches found
         (``"max_matches"``, ``"time_limit"`` or ``"cancelled"``), else None. A
         stopped result logs one WARNING that names the reason. The file is the
         same either way: it does not say that the result stopped."""
-        columns: list[str] = []
+        columns = list(self.columns)
         for row in self.rows:
             columns.extend(c for c in row if c not in columns)
         timed = [bool(_TIME_COLUMN.match(c)) for c in columns]

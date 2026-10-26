@@ -2,12 +2,14 @@
 
 import sqlite3
 import threading
+import unicodedata
 
 import examples
 import fixture_index
 import pytest
 
 from tilia_core import tql
+from tilia_core.tql import TQLError
 from tilia_core.tql import compile as tql_compile
 from tilia_core.tql import sqlfuncs
 from tilia_core.tql.syntax import Lane
@@ -148,8 +150,67 @@ class TestLanes:
             "Harmony · keys",
         ]
 
-    def test_unknown_lane_is_empty(self):
-        assert lane_names("pop", bare("nothing")) == []
+    def test_unknown_lane_is_refused(self):
+        # FR-020: a lane no file has is an error positioned on the name
+        index = index_of("pop")
+        with pytest.raises(TQLError, match="no timeline, role or kind called 'nothing'") as e:
+            tql.run(index, "verse IN nothing")
+        assert (e.value.pos, e.value.end) == (9, 16)
+        with pytest.raises(TQLError, match='no timeline or row called "Nothing"') as e:
+            tql.run(index, 'verse IN "Nothing"')
+        assert (e.value.pos, e.value.end) == (9, 18)
+        assert tql.run(index, "verse IN beats").matches == []  # a kind: no error
+
+    def test_a_role_no_timeline_has_is_a_warning(self):
+        # FR-012: a timeline called "Form" without the role is not IN form
+        fixture = {
+            "length": 10,
+            "timelines": [
+                {"name": "Form", "kind": "hierarchy", "units": [["verse", 1, 0, 10]]}
+            ],
+        }
+        index = fixture_index.build_index(fixture)
+        got = tql.run(index, "verse IN form")
+        assert got.matches == []
+        assert len(got.warnings) == 1
+        assert "no timeline has the role 'form'" in got.warnings[0]
+        assert "IN hierarchies" in got.warnings[0]
+        assert "IN markers" in tql.run(index, "PAC IN cadence").warnings[0]
+        assert tql.run(index, 'verse IN "Form"').warnings == []
+        assert len(tql.run(index, 'verse IN "Form"').matches) == 1
+        assert tql.run(index_of("pop"), "verse IN form").warnings == []
+
+    def test_brackets_and_question_mark_in_a_name_are_literal(self):
+        fixture = {
+            "length": 20,
+            "timelines": [
+                {"name": "Form [A]", "kind": "hierarchy", "units": [["a", 1, 0, 4]]},
+                {"name": "Form (A)", "kind": "hierarchy", "units": [["b", 1, 0, 4]]},
+                {"name": "Who?", "kind": "marker", "units": [["x", 1]]},
+                {"name": "Whoa", "kind": "marker", "units": [["y", 1]]},
+            ],
+        }
+        con = fixture_index.build_index(fixture).connection()
+
+        def names(lane):
+            return [s.description for s in tql_compile.resolve_lanes(con, "f1", lane)]
+
+        assert names(quoted("Form [A]")) == ["Form [A] · level 1"]
+        assert names(bare("form [a]")) == ["Form [A] · level 1"]
+        assert names(quoted("Who?")) == ["Who?"]
+        assert names(bare("who?")) == ["Who?"]
+
+    def test_time_map_is_the_files_own_beat_timeline(self):
+        beats = {"kind": "beats", "start": 0, "every": 1, "beats_per_bar": 4, "bars": 2}
+        fixture = {
+            "length": 8,
+            "timelines": [dict(beats, name="Beats"), dict(beats, name="Other beats")],
+        }
+        con = fixture_index.build_index(fixture).connection()
+        specs = tql_compile.resolve_lanes(con, "f1", bare("time_map"))
+        assert [s.description for s in specs] == ["Beats"]
+        specs = tql_compile.resolve_lanes(con, "f1", bare("beats"))
+        assert [s.description for s in specs] == ["Beats", "Other beats"]
 
 
 # --------------------------------------------------------------------------- #
@@ -174,6 +235,8 @@ LITERALS = {
                 ["Straße", 1, 8, 9],
                 ["", 1, 9, 10],
                 ["100%", 1, 10, 11],
+                [unicodedata.normalize("NFD", "Sätze"), 1, 11, 12],
+                ["Sätze ", 1, 12, 13],
             ],
         }
     ],
@@ -222,6 +285,14 @@ class TestLiterals:
         assert matched('"Chorus"') == ["Chorus"]
         assert matched('"it\'s"') == ["it's"]
 
+    def test_exact_label_reads_nfc_and_trims_both_sides(self):
+        # a label stored decomposed (NFD) is the same label, and a literal
+        # with a trailing space finds what the trimmed one finds
+        nfd, spaced = unicodedata.normalize("NFD", "Sätze"), "Sätze "
+        assert matched('"Sätze"') == [nfd, spaced]
+        assert matched('"Sätze "') == [nfd, spaced]
+        assert matched("/^Sätze$/") == [nfd]
+
     def test_regex_is_case_sensitive(self):
         assert matched("/^ver/") == [
             "verse",
@@ -251,9 +322,17 @@ class TestLiterals:
             "verse/chorus",
         ]
 
+    def test_not_applies_to_the_whole_or(self):
+        got = matched("NOT verse OR chorus")
+        assert got == ["bridge.modern", "it's", "verse_", "Straße", "", "100%"] + [
+            unicodedata.normalize("NFD", "Sätze"),
+            "Sätze ",
+        ]
+        assert "Chorus" not in got and "verse/chorus" not in got
+
     def test_wildcard_matches_an_unlabelled_unit(self):
         got = matched("*")
-        assert len(got) == 11 and "" in got
+        assert len(got) == 13 and "" in got
 
     def test_a_position_is_read_from_the_positions_table(self):
         unit = tql.parse("verse[bar = 1] IN form").pattern.seq.steps[0].item
@@ -356,6 +435,31 @@ class TestRun:
         got = tql.run(index, "* IN form", max_matches=3)
         assert len(got.matches) == 3 and got.stopped == "max_matches"
         assert tql.run(index, "* IN form").stopped is None
+
+    def test_max_matches_is_not_hit_by_a_complete_result(self):
+        index = index_of("exposition")  # exactly 9 matches
+        got = tql.run(index, "* IN form", max_matches=9)
+        assert len(got.matches) == 9 and got.stopped is None
+        got = tql.run(index, "* IN form", max_matches=8)
+        assert len(got.matches) == 8 and got.stopped == "max_matches"
+
+    def test_a_range_lane_keeps_to_its_row(self):
+        fixture = {
+            "length": 20,
+            "timelines": [
+                {
+                    "name": "Instr",
+                    "kind": "range",
+                    "rows": ["solo", "duo"],
+                    "units": [["solo", "a", 0, 4], ["duo", "b", 4, 8], ["solo", "c", 8, 12]],
+                }
+            ],
+        }
+        index = fixture_index.build_index(fixture)
+        assert tql.run(index, "a THEN b IN solo").matches == []
+        assert tql.run(index, "a THEN b IN ranges").matches == []
+        assert starts(tql.run(index, "* IN duo")) == [[("b", 4)]]
+        assert starts(tql.run(index, "* IN solo")) == [[("a", 0)], [("c", 8)]]
 
     def test_time_limit_and_cancel_are_accepted(self):
         index = index_of("exposition")
@@ -503,6 +607,16 @@ class TestSql:
         assert "c.file_id = 'f1'" in got.sql
         assert "'it''s'" in got.sql
         assert "'verse'" in got.sql
+
+    def test_sql_does_not_grow_with_the_matches(self):
+        # the shown SQL is the lanes' and candidates' statements, not a
+        # position lookup per target of every match
+        index = index_of("pop")
+        many = tql.run(index, "* IN form")
+        few = tql.run(index, "intro IN form")
+        assert len(many.matches) > len(few.matches) >= 1
+        assert many.sql.count(";") == few.sql.count(";")
+        assert "positions" not in many.sql
 
     def test_numbers_and_null_are_written_as_they_are(self):
         from tilia_core.tql.showsql import sql_literal

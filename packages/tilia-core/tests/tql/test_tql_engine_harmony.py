@@ -117,7 +117,14 @@ class TestChordLiterals:
         assert starts(HARMONY, "/^V7$/ IN harmony") == [1, 9, 17]
         assert starts(HARMONY, "/^G7/ IN harmony") == [1, 3, 9]
         assert starts(HARMONY, "/^Bb7$/ IN harmony") == [17]
-        assert starts(HARMONY, "/^Eb$/ IN harmony") == [16, 17, 18]  # the key
+
+    def test_a_regular_expression_never_searches_the_key(self):
+        # #104 R3: a regular expression in a chords lane searches the chord's
+        # label only; the V7 of C major at 1 and the Bb7 of E-flat major at 17
+        # are not found by their key
+        assert starts(HARMONY, "/^C$/ IN harmony") == [0, 2, 4, 7, 10]
+        assert starts(HARMONY, "/^Eb$/ IN harmony") == [16, 18]
+        assert starts(HARMONY, "/^Eb$/ IN keys") == [16]
 
     def test_a_regular_expression_searches_custom_text(self):
         index = fixture_index.build_index(HARMONY)
@@ -139,6 +146,9 @@ class TestChordLiterals:
 
     def test_a_label_wildcard_still_takes_any_chord(self):
         assert len(run(HARMONY, "* IN harmony").matches) == 14
+        # [label = *] is allowed on chords and keys, unlike [label = V7]
+        assert len(run(HARMONY, "*[label = *] IN harmony").matches) == 14
+        assert len(run(HARMONY, "*[label = *] IN keys").matches) == 3
 
 
 class TestKeyLiterals:
@@ -167,6 +177,13 @@ class TestWarnings:
     def test_a_good_query_does_not_warn(self):
         assert run(HARMONY, "V7 IN harmony").warnings == []
 
+    def test_a_regular_expression_beside_another_literal_warns(self):
+        message = "a regular expression in a harmony lane must stand alone"
+        for text in ("V7//x/ IN harmony", "/x//y IN harmony", "/x//y IN keys"):
+            got = run(HARMONY, text)
+            assert got.matches == [], text
+            assert got.warnings == [message], text
+
     def test_warnings_do_not_carry_over_between_runs(self):
         index = fixture_index.build_index(HARMONY)
         assert tql.run(index, "Xyz IN harmony").warnings
@@ -174,6 +191,60 @@ class TestWarnings:
 
     def test_a_label_over_other_lanes_does_not_warn(self):
         assert run(FIXTURES["sonata"], "Xyz IN form").warnings == []
+
+    def test_a_lane_of_both_kinds_warns_only_for_a_literal_that_is_neither(self):
+        # IN "Harmony" names the chords and the keys: a good chord is no key,
+        # and a good key no chord, and neither warns
+        got = run(HARMONY, 'V IN "Harmony"')
+        assert starts(HARMONY, 'V IN "Harmony"') == [6, 14]
+        assert got.warnings == []
+        assert run(HARMONY, 'c IN "Harmony"').warnings == []
+        got = run(HARMONY, 'Xyz IN "Harmony"')
+        assert got.matches == []
+        assert len(got.warnings) == 2
+        assert any("'Xyz' is not a chord" in w for w in got.warnings)
+        assert any("'Xyz' is not a key" in w for w in got.warnings)
+
+    def test_an_exact_literal_that_matches_custom_text_does_not_warn(self):
+        assert any("'N.C.' is not a chord" in w for w in run(HARMONY, '"N.C." IN harmony').warnings)
+        index = fixture_index.build_index(HARMONY)
+        con = index.connection()
+        con.execute(
+            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id LIKE '%c2'"
+        )
+        got = tql.run(index, '"N.C." IN harmony')
+        assert [c.start for m in got.matches for c in m.slots[0]] == [1]
+        assert got.warnings == []
+
+    def test_a_warning_names_the_literal_once(self):
+        assert run(HARMONY, "Xyz IN keys").warnings == [
+            "'Xyz' is not a key: write C (major), c (minor), Eb, f#"
+        ]
+
+    def test_the_warnings_pass_resolves_no_lane_it_cannot_warn_on(self, monkeypatch):
+        # the search resolves the lanes of every file once; the warnings pass
+        # must not do it again for a query whose literals are all chords or
+        # keys, and once per lane and file, not per unit, for one that can warn
+        from tilia_core.tql import compile as tql_compile
+
+        index = fixture_index.build_index(HARMONY)
+        calls = [0]
+        resolve = tql_compile.resolve_lanes
+
+        def counted(*args, **kwargs):
+            calls[0] += 1
+            return resolve(*args, **kwargs)
+
+        monkeypatch.setattr(tql_compile, "resolve_lanes", counted)
+
+        def count(text):
+            calls[0] = 0
+            tql.run(index, text)
+            return calls[0]
+
+        assert count("phrase THEN phrase THEN phrase IN form") == count("phrase IN form")
+        assert count("V7 THEN I THEN V7 IN harmony") == count("V7 IN harmony")
+        assert count("Xyz THEN Xyz THEN Xyz IN harmony") == count("Xyz IN harmony")
 
 
 class TestSql:
@@ -246,6 +317,12 @@ class TestRelationsAndBrackets:
     def test_a_key_condition_on_chords_in_brackets(self):
         assert starts(HARMONY, '*[key = "Eb"] IN harmony') == [16, 17, 18]
         assert starts(HARMONY, '*[key = "Eb"] IN keys') == [16]
+
+    def test_a_label_condition_on_chords_matches_as_the_step(self):
+        step = starts(HARMONY, "V7 IN harmony")
+        assert step
+        for text in ("*[label = V7] IN harmony", "* IN harmony WHERE label = V7"):
+            assert starts(HARMONY, text) == step
 
 
 def phrases(chords, keys=((0, "C", "major"),), markers=()):
@@ -455,6 +532,14 @@ class TestFieldsAsMusic:
     def test_two_units_compare_as_music(self):
         got = run(HARMONY, "* THEN * IN keys WHERE $1.key != $2.key")
         assert len(got.matches) == 2
+        # one key spelled two ways: the index never writes "Cm", so put it there
+        fix = harmony_fixture([[0, "C", "minor"], [5, "C", "minor"]], [])
+        index = fixture_index.build_index(fix)
+        con = index.connection()
+        con.execute("UPDATE keys SET key = 'Cm' WHERE component_id LIKE '%k2'")
+        assert [r[0] for r in con.execute("SELECT key FROM keys")] == ["c", "Cm"]
+        assert len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
+        assert tql.run(index, "* THEN * IN keys WHERE $1.key != $2.key").matches == []
 
 
 class TestShownSqlKeepsToWhatItDoes:
