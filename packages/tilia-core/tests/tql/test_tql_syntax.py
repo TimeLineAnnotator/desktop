@@ -277,8 +277,8 @@ def test_edit_strings_keep_their_whitespace():
     # the verbs read their strings from the lexer, as SET and labels do: two
     # spaces, a tab or a newline inside the quotes reach the planned write as typed
     assert parse('verse -> GROUP AS "Chorus  2"').action.label == "Chorus  2"
-    a = parse('verse -> GROUP AS " x " COLOR "#ff  00"').action
-    assert (a.label, a.color) == (" x ", "#ff  00")
+    a = parse('verse -> GROUP AS " x " COLOR "#ff0000"').action
+    assert (a.label, a.color) == (" x ", "#ff0000")
     assert parse('verse -> TAG "a\tb"').action.tag == "a\tb"
     assert parse('verse -> UNTAG "x   y"').action.tag == "x   y"
     assert parse('a THEN b -> TAG $1 "p\nq"').action.tag == "p\nq"
@@ -570,3 +570,16 @@ def test_format_error_underlines_the_culprit():
     shown = format_error(text, exc.value)
     assert shown.splitlines()[1:] == ["  THEN chorus", "  ^^^^"]
     assert format_error("x", TQLError("plain")) == "plain"
+
+
+@pytest.mark.parametrize("color", ["#ffc0cb", "#FFC0CB", "pink", "RebeccaPurple"])
+def test_group_color_takes_hex_or_a_css_name(color):
+    assert parse(f'verse -> GROUP AS "x" COLOR "{color}"').action.color == color
+
+
+@pytest.mark.parametrize(
+    "color", ["#ff  00", "#fff", "ff0000", "#ff00000", "rgb(255,0,0)", "", " pink", "rosa"]
+)
+def test_group_color_refuses_anything_else(color):
+    with pytest.raises(TQLError, match="COLOR takes"):
+        parse(f'verse -> GROUP AS "x" COLOR "{color}"')

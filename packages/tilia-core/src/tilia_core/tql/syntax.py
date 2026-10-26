@@ -73,6 +73,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Union
 
+from tilia_core import colors
 from tilia_core.labels import nfc
 
 __all__ = ["TQLError", "parse", "format_error", "KEYWORDS", "Query"]
@@ -519,7 +520,7 @@ class Action:
     verb: str  # SET | GROUP | UNGROUP | TAG | UNTAG | DELETE
     assigns: list[Assign] = field(default_factory=list)  # SET
     label: str | None = None  # GROUP AS "label"
-    color: str | None = None  # GROUP AS "label" COLOR "#rrggbb"
+    color: str | None = None  # GROUP AS "label" COLOR "#rrggbb" or a CSS name
     on: list[OnRule] = field(default_factory=list)  # GROUP ... ON, as written
     tag: str | None = None  # TAG "x" / UNTAG "x" | UNTAG *
     unit: int | None = None  # TAG $n "x" / UNTAG $n "x": whose units; 0 is all
@@ -1426,6 +1427,11 @@ class _Parser:
                     raise _EditError("GROUP AS needs a non-empty label")
                 if len(args) == 4:
                     action.color = args[3].value
+                    if not colors.is_color(action.color):
+                        raise _EditError(
+                            'COLOR takes "#rrggbb" or a CSS colour name, such as '
+                            f'"pink" - not {action.color!r}'
+                        )
             elif verb == "UNGROUP":
                 if args:
                     raise _EditError(f"UNGROUP takes no arguments, got {rest!r}")
