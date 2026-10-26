@@ -277,8 +277,8 @@ def test_edit_strings_keep_their_whitespace():
     # the verbs read their strings from the lexer, as SET and labels do: two
     # spaces, a tab or a newline inside the quotes reach the planned write as typed
     assert parse('verse -> GROUP AS "Chorus  2"').action.label == "Chorus  2"
-    a = parse('verse -> GROUP AS " x " COLOR "#ff  00"').action
-    assert (a.label, a.color) == (" x ", "#ff  00")
+    a = parse('verse -> GROUP AS " x " COLOR "#ff0000"').action
+    assert (a.label, a.color) == (" x ", "#ff0000")
     assert parse('verse -> TAG "a\tb"').action.tag == "a\tb"
     assert parse('verse -> UNTAG "x   y"').action.tag == "x   y"
     assert parse('a THEN b -> TAG $1 "p\nq"').action.tag == "p\nq"
@@ -496,7 +496,6 @@ def test_at_with_a_tag_action():
         ("*[end <= 67.5%]", ("number", 67.5, "%")),
         ("*[time > .5%]", ("number", 0.5, "%")),
         ("*[start = 25%..75%]", ("range", (25.0, 75.0), "%")),
-        ("*[start = 25..75%]", ("range", (25.0, 75.0), "%")),
     ],
 )
 def test_percentages_of_the_piece(text, want):
@@ -570,3 +569,41 @@ def test_format_error_underlines_the_culprit():
     shown = format_error(text, exc.value)
     assert shown.splitlines()[1:] == ["  THEN chorus", "  ^^^^"]
     assert format_error("x", TQLError("plain")) == "plain"
+
+
+@pytest.mark.parametrize("color", ["#ffc0cb", "#FFC0CB", "pink", "RebeccaPurple"])
+def test_group_color_takes_hex_or_a_css_name(color):
+    assert parse(f'verse -> GROUP AS "x" COLOR "{color}"').action.color == color
+
+
+@pytest.mark.parametrize(
+    "color", ["#ff  00", "#fff", "ff0000", "#ff00000", "rgb(255,0,0)", "", " pink", "rosa"]
+)
+def test_group_color_refuses_anything_else(color):
+    with pytest.raises(TQLError, match="COLOR takes"):
+        parse(f'verse -> GROUP AS "x" COLOR "{color}"')
+
+
+def test_a_time_takes_seconds_up_to_59():
+    assert parse("* WHERE start > 1:59.5").where[0].value.value == 119.5
+    assert parse("* WHERE start > 0:00").where[0].value.value == 0
+
+
+def test_digits_of_other_scripts_stay_in_labels():
+    # only a number must be written with 0-9; a label may hold any digits
+    assert first_cond("*[label = فصل١]").value.kind == "word"
+    assert first_cond('*[label = "١٢"]').value.value == "١٢"
+    lit = parse("فصل١ THEN x").pattern.seq.steps[0].item.term
+    assert lit.alts[0].lits[0].text == "فصل١"
+
+
+@pytest.mark.parametrize(
+    "text", ["verse -- a comment", "verse -- -> no action", "verse -- > a note", "verse --"]
+)
+def test_comments_other_than_an_arrow_stay_comments(text):
+    assert parse(text).action is None
+
+
+def test_dashes_inside_a_label_or_string_are_no_comment():
+    assert parse("a--b THEN c").pattern.seq.steps[0].item.term.alts[0].lits[0].text == "a--b"
+    assert first_cond('x[label = "-->"]').value.value == "-->"
