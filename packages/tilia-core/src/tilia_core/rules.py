@@ -112,11 +112,13 @@ class Outcome(tuple[bool, str]):
     time or place, the hierarchies it crosses, the ranges it should join.
     """
 
-    others: tuple[str, ...]
+    # Read through `others`, which can't be set: every outcome that keeps to the
+    # rules is the one `OK`. A tuple's subclass can't give it a slot.
+    _others: tuple[str, ...]
 
     def __new__(cls, ok: bool, reason: str = "", others: Iterable[str] = ()) -> Outcome:
         outcome = super().__new__(cls, (bool(ok), reason))
-        outcome.others = tuple(others)
+        outcome._others = tuple(others)
         return outcome
 
     def __bool__(self) -> bool:
@@ -124,7 +126,11 @@ class Outcome(tuple[bool, str]):
 
     def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...]]:  # type: ignore[override]
         # What copy and pickle give __new__: a tuple's would be the pair alone.
-        return self[0], self[1], self.others
+        return self[0], self[1], self._others
+
+    @property
+    def others(self) -> tuple[str, ...]:
+        return self._others
 
     @property
     def ok(self) -> bool:

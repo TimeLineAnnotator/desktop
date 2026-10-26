@@ -272,6 +272,21 @@ class TestOutcome:
         assert outcome.others == ("a", "b")
         assert (outcome.ok, outcome.reason) == (False, "Component would overlap")
 
+    @pytest.mark.parametrize(
+        "outcome",
+        [rules.Outcome(True), rules.Outcome(False, "Invalid row ID.", ["a"])],
+    )
+    def test_its_others_cant_be_changed(self, outcome):
+        # Every outcome that keeps to the rules is the one `OK`, so changing its
+        # others would change them all. The test changes new outcomes, so that it
+        # leaves `OK` as it is if it fails.
+        others = outcome.others
+
+        with pytest.raises(AttributeError):
+            outcome.others = ("zz",)
+
+        assert outcome.others == others
+
 
 class TestEveryKind:
     @pytest.mark.parametrize(
