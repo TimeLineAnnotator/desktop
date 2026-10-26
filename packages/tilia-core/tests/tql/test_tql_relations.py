@@ -48,6 +48,11 @@ TOLERANCE = fixture(
     hierarchy("Form (X)", FORM_UNITS),
     hierarchy("Layers", [["v", 1, 3.95, 8.05]]),
 )
+# P has exactly a's extent and Q exactly b's: each parent lies in its child in
+# time (tql.md §8, Q33), but is not below it in the hierarchy.
+SAME_EXTENT = fixture(
+    hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8], ["P", 2, 0, 4], ["Q", 2, 4, 8]])
+)
 
 
 def run(fix, query):
@@ -363,6 +368,39 @@ class TestOrderRelations:
         assert rows(SPANS, "* IN form STARTS P") == Counter(["a@0 | P@0"])
         assert rows(SPANS, "* IN form ENDS P") == Counter(["b@4 | P@0"])
         assert rows(SPANS, "b IN form STARTS P") == Counter()
+
+    def test_starts_and_ends_with_in_mirror_starts_with_and_ends_with(self):
+        # tql.md §8: A STARTS B is B STARTS WITH A, and with IN a unit of the
+        # same extent lies inside the other in time (Q33), whichever is the
+        # parent; without IN the target's lane is read through the hierarchy
+        assert rows(SAME_EXTENT, "P IN form STARTS WITH a IN form") == Counter(
+            ["P@0 | a@0"]
+        )
+        assert rows(SAME_EXTENT, "a IN form STARTS P IN form") == Counter(
+            ["a@0 | P@0"]
+        )
+        assert rows(SAME_EXTENT, "a IN form STARTS WITH P IN form") == Counter(
+            ["a@0 | P@0"]
+        )
+        assert rows(SAME_EXTENT, "P IN form STARTS a IN form") == Counter(
+            ["P@0 | a@0"]
+        )
+        assert rows(SAME_EXTENT, "Q IN form ENDS WITH b IN form") == Counter(
+            ["Q@4 | b@4"]
+        )
+        assert rows(SAME_EXTENT, "b IN form ENDS Q IN form") == Counter(
+            ["b@4 | Q@4"]
+        )
+        assert rows(SAME_EXTENT, "b IN form ENDS WITH Q IN form") == Counter(
+            ["b@4 | Q@4"]
+        )
+        assert rows(SAME_EXTENT, "Q IN form ENDS b IN form") == Counter(
+            ["Q@4 | b@4"]
+        )
+        assert lefts(SAME_EXTENT, "*[STARTS a IN form] IN form") == ["P@0"]
+        assert lefts(SAME_EXTENT, "*[ENDS b IN form] IN form") == ["Q@4"]
+        assert not rows(SAME_EXTENT, "P IN form STARTS a")
+        assert not rows(SAME_EXTENT, "Q IN form ENDS b")
 
     def test_negated_order_relations_have_no_second_unit(self):
         got = run(SPANS, "* IN form NOT STARTS WITH a")
