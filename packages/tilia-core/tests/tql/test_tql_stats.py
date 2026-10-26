@@ -16,6 +16,7 @@ SUBTYPES = {
     "name": "subtypes",
     "length": 40,
     "fields": {"title": "Sub"},
+    "grammar": "de Clercq",  # a dot marks a subtype only under a grammar
     "timelines": [
         {
             "name": "Form (A)",
@@ -40,13 +41,7 @@ def run(name, query):
 
 
 def subtypes():
-    index = fixture_index.build_index(SUBTYPES)
-    con = index.connection()
-    for label, cid in con.execute(
-        "SELECT label, id FROM components WHERE label LIKE 'bridge%'"
-    ).fetchall():
-        con.execute("INSERT INTO categories VALUES (?, ?)", (cid, label))
-    return tql.run(index, "bridge* IN form")
+    return tql.run(fixture_index.build_index(SUBTYPES), "bridge* IN form")
 
 
 class TestCounts:
