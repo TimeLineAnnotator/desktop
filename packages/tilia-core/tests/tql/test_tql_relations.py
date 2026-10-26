@@ -48,6 +48,28 @@ TOLERANCE = fixture(
     hierarchy("Form (X)", FORM_UNITS),
     hierarchy("Layers", [["v", 1, 3.95, 8.05]]),
 )
+# P has exactly a's extent and Q exactly b's: each parent lies in its child in
+# time (tql.md §8, Q33), but is not below it in the hierarchy.
+SAME_EXTENT = fixture(
+    hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8], ["P", 2, 0, 4], ["Q", 2, 4, 8]])
+)
+# a starts 0.05 s before P, so the index does not make it P's child, though it
+# lies in P within the tolerance; b is P's child.
+LOOSE = fixture(
+    hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8], ["P", 2, 0.05, 8]])
+)
+# Two phrases and three chords; the V begins in the first phrase and rings on
+# into the second.
+CHORDS = fixture(
+    hierarchy("Form (X)", [["first", 1, 0, 8], ["second", 1, 8, 16]]),
+    {
+        "name": "Harmony",
+        "kind": "harmony",
+        "keys": [[0, "C", "major"]],
+        "chords": [[0, "C", "major"], [6, "G", "major"], [12, "C", "major"]],
+    },
+    length=16,
+)
 
 
 def run(fix, query):
@@ -134,6 +156,17 @@ class TestTimingRelations:
         )
         assert rows(SPANS, "* IN Layers SAME START a IN form") == Counter(["w@0 | a@0"])
 
+    def test_a_unit_is_never_in_a_relation_with_itself(self):
+        # the same lane on both sides: a unit has its own start and extent,
+        # but is not a match with itself
+        assert rows(SPANS, "* IN form SAME * IN form") == Counter(
+            ["Q@8 | c@8", "c@8 | Q@8"]
+        )
+        assert rows(SPANS, "* IN form SAME START * IN form") == Counter(
+            ["P@0 | a@0", "a@0 | P@0", "Q@8 | c@8", "c@8 | Q@8"]
+        )
+        assert not rows(SPANS, "* IN Marks SAME * IN Marks")
+
     def test_a_lane_that_resolves_to_nothing_finds_nothing(self):
         # a role no timeline has: the lane exists in the language, and is empty
         assert not rows(SPANS, "* IN form DURING * IN cadences")
@@ -168,6 +201,21 @@ class TestPoints:
         assert rows(SPANS, "* IN Marks OVERLAPS * IN Other") == Counter(
             ["p@4 | s@4.05"]
         )
+
+    def test_points_overlap_in_python_as_in_sql(self):
+        # a target with a condition SQL cannot test runs the Python twin of
+        # the timing test, which reads points on the edges the same way
+        assert lefts(SPANS, "*[OVERLAPS p[NOT AFTER u] IN Marks] IN form") == [
+            "P@0",
+            "a@0",
+            "b@4",
+        ]
+        assert lefts(SPANS, "*[OVERLAPS a[NOT AFTER b] IN form] IN Marks") == [
+            "p@4",
+            "r@2",
+        ]
+        assert lefts(SPANS, "*[OVERLAPS s[NOT AFTER t] IN Other] IN Marks") == ["p@4"]
+        assert lefts(SPANS, "*[OVERLAPS t[NOT AFTER s] IN Other] IN Marks") == []
 
     def test_a_point_starts_and_ends_where_it_is(self):
         assert rows(SPANS, "* IN Marks SAME START b IN form") == Counter(["p@4 | b@4"])
@@ -240,6 +288,16 @@ class TestTolerance:
         ]
         assert lefts(SPANS, "* IN form STARTS BEFORE x IN Layers WITHIN 1 s") == []
         assert lefts(SPANS, "* IN form STARTS AFTER x IN Layers WITHIN 2 s") == ["b@4"]
+
+    def test_within_limits_the_gap_without_in_too(self):
+        # without IN the relation runs in Python, with the same limit
+        assert lefts(SPANS, "*[BEFORE c WITHIN 1 s] IN form") == ["P@0", "b@4"]
+        assert rows(SPANS, "* IN form BEFORE c WITHIN 1 s") == Counter(
+            ["P@0 | c@8", "b@4 | c@8"]
+        )
+        assert lefts(SPANS, "*[AFTER a WITHIN 1 s] IN form") == ["b@4"]
+        assert lefts(SPANS, "*[STARTS BEFORE c WITHIN 5 s] IN form") == ["b@4"]
+        assert lefts(SPANS, "*[STARTS AFTER a WITHIN 5 s] IN form") == ["b@4"]
 
     @pytest.mark.parametrize("unit_", ["bar", "bars", "beat", "beats"])
     def test_within_in_bars_and_beats_is_for_later(self, unit_):
@@ -365,6 +423,39 @@ class TestOrderRelations:
         assert rows(SPANS, "* IN form ENDS P") == Counter(["b@4 | P@0"])
         assert rows(SPANS, "b IN form STARTS P") == Counter()
 
+    def test_starts_and_ends_with_in_mirror_starts_with_and_ends_with(self):
+        # tql.md §8: A STARTS B is B STARTS WITH A, and with IN a unit of the
+        # same extent lies inside the other in time (Q33), whichever is the
+        # parent; without IN the target's lane is read through the hierarchy
+        assert rows(SAME_EXTENT, "P IN form STARTS WITH a IN form") == Counter(
+            ["P@0 | a@0"]
+        )
+        assert rows(SAME_EXTENT, "a IN form STARTS P IN form") == Counter(
+            ["a@0 | P@0"]
+        )
+        assert rows(SAME_EXTENT, "a IN form STARTS WITH P IN form") == Counter(
+            ["a@0 | P@0"]
+        )
+        assert rows(SAME_EXTENT, "P IN form STARTS a IN form") == Counter(
+            ["P@0 | a@0"]
+        )
+        assert rows(SAME_EXTENT, "Q IN form ENDS WITH b IN form") == Counter(
+            ["Q@4 | b@4"]
+        )
+        assert rows(SAME_EXTENT, "b IN form ENDS Q IN form") == Counter(
+            ["b@4 | Q@4"]
+        )
+        assert rows(SAME_EXTENT, "b IN form ENDS WITH Q IN form") == Counter(
+            ["b@4 | Q@4"]
+        )
+        assert rows(SAME_EXTENT, "Q IN form ENDS b IN form") == Counter(
+            ["Q@4 | b@4"]
+        )
+        assert lefts(SAME_EXTENT, "*[STARTS a IN form] IN form") == ["P@0"]
+        assert lefts(SAME_EXTENT, "*[ENDS b IN form] IN form") == ["Q@4"]
+        assert not rows(SAME_EXTENT, "P IN form STARTS a")
+        assert not rows(SAME_EXTENT, "Q IN form ENDS b")
+
     def test_negated_order_relations_have_no_second_unit(self):
         got = run(SPANS, "* IN form NOT STARTS WITH a")
         assert sorted(unit(m.slots[0][0]) for m in got.matches) == [
@@ -402,6 +493,27 @@ class TestWithoutIn:
             "b@4",
             "c@8",
         ]
+
+    def test_during_without_in_reads_the_ancestors_not_the_time(self):
+        # a lies in P within the tolerance, but P is not its parent
+        assert rows(LOOSE, "b IN form DURING P") == Counter(["b@4 | P@0.05"])
+        assert not rows(LOOSE, "a IN form DURING P")
+        assert lefts(LOOSE, "*[DURING P] IN form") == ["b@4"]
+        assert lefts(LOOSE, "*[NOT DURING P] IN form") == ["P@0.05", "a@0"]
+        # with IN, time decides
+        assert lefts(LOOSE, "*[DURING P IN form] IN form") == ["a@0", "b@4"]
+
+    def test_the_order_relations_without_in_read_the_descendants_not_the_time(self):
+        assert lefts(LOOSE, "*[CONTAINS a] IN form") == []
+        assert lefts(LOOSE, "*[CONTAINS b] IN form") == ["P@0.05"]
+        assert lefts(LOOSE, "*[STARTS WITH a] IN form") == []
+        assert lefts(LOOSE, "*[STARTS WITH b] IN form") == ["P@0.05"]
+        assert not rows(LOOSE, "P IN form CONSISTS OF a THEN b")
+        assert rows(LOOSE, "P IN form CONSISTS OF b") == Counter(["P@0.05 | b@4"])
+        assert rows(LOOSE, "* IN form STARTS P") == Counter(["b@4 | P@0.05"])
+        # with IN, time decides
+        assert lefts(LOOSE, "*[CONTAINS a IN form] IN form") == ["P@0.05"]
+        assert lefts(LOOSE, "*[STARTS WITH a IN form] IN form") == ["P@0.05"]
 
     def test_contains_looks_at_the_descendants(self):
         assert rows(SPANS, "P IN form CONTAINS b") == Counter(["P@0 | b@4"])
@@ -593,3 +705,19 @@ class TestLabelsAndMatches:
         assert lefts(harmony, "phrase[CONTAINS V IN harmony] IN form") == ["phrase@0"]
         assert lefts(harmony, "phrase IN form CONTAINS I IN harmony") == ["phrase@0"]
         assert lefts(harmony, "phrase[CONTAINS * IN harmony] IN form") == ["phrase@0"]
+        assert lefts(harmony, "* IN harmony DURING phrase IN form") == ["I@0", "V@4"]
+
+    def test_a_chord_counts_where_it_begins(self):
+        # tql.md §8: inside a unit, chords and keys count where they begin, so
+        # the V that begins in the first phrase and rings on into the second
+        # is in the first; SQL (the join, EXISTS) and Python read it alike
+        assert rows(CHORDS, "* IN form CONTAINS * IN harmony") == Counter(
+            ["first@0 | I@0", "first@0 | V@6", "second@8 | I@12"]
+        )
+        assert lefts(CHORDS, "*[DURING first IN form] IN harmony") == ["I@0", "V@6"]
+        assert lefts(CHORDS, "*[CONSISTS OF *{2} IN harmony] IN form") == ["first@0"]
+        # a target with a condition SQL cannot test runs the Python twin
+        assert lefts(CHORDS, "*[DURING first[NOT zzz] IN form] IN harmony") == [
+            "I@0",
+            "V@6",
+        ]
