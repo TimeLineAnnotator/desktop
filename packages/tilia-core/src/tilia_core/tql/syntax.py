@@ -1572,6 +1572,16 @@ class _Parser:
                 "$2.start + 2 bars, only compares in WHERE",
                 u,
             )
+        if f.name == "color" and f.scope is None and v.kind != "ref":
+            # a unit's colour, as COLOR takes it; another unit's is copied as is
+            text = v.value if v.kind in ("string", "word") else v.raw
+            if not isinstance(text, str) or not colors.is_color(text):
+                raise TQLError(
+                    'SET color takes "#rrggbb" or a CSS colour name, such as '
+                    f'"pink" - not {v.raw}',
+                    v.pos,
+                    v.pos + max(1, len(v.raw)),
+                )
         return Assign(f, v)
 
     # -- checks ------------------------------------------------------------ #
