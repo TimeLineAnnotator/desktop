@@ -118,6 +118,13 @@ class TestThen:
         items = spans("a", "b", "a", "b", "c")
         assert spans_of("a THEN b", items) == [(0, 2), (2, 4)]
 
+    def test_earlier_steps_take_as_many_as_the_rest_allows(self):
+        # §6.3: the first *+ takes a and b, the second only c
+        got = run("*+ THEN *+", spans("a", "b", "c"))
+        assert [(i, j, a) for i, j, a, _ in got] == [(0, 3, [0, 0, 1])]
+        got = run("verse+ THEN *+", spans("verse", "verse", "verse"))
+        assert [a for *_, a, _ in got] == [[0, 0, 1]]
+
     def test_slots_of(self):
         items = spans("verse", "verse", "chorus", "bridge")
         ((i, j, assign, _),) = run("verse+ THEN chorus", items)
@@ -152,6 +159,24 @@ class TestGroups:
         items = spans("a", "b", "c")
         assert spans_of("(a THEN b)? THEN c", items) == [(0, 3)]
 
+    def test_a_group_whose_option_can_be_empty_matches_empty(self):
+        # tql.md §6.2: x* and x? count zero, and a group may hold such a step,
+        # so a THEN (c*) matches a alone, as a THEN c* does
+        items = spans("a", "b")
+        assert spans_of("a THEN (c*)", items) == [(0, 1)]
+        assert spans_of("a THEN (c?){2}", items) == [(0, 1)]
+        assert spans_of("a THEN (b?){2}", items) == [(0, 2)]
+        assert spans_of('("a"*){2,}', items) == [(0, 1)]
+        assert spans_of("a THEN (c? THEN (d?))", items) == [(0, 1)]
+        assert spans_of("a THEN (c? THEN d)", items) == []
+        assert sequences.nullable(seq_of("(c? THEN d)").steps[0].item) is False
+
+    def test_marks_inside_an_empty_group_take_nothing(self):
+        got = run("a THEN (@c?){2}", spans("a"), marks=True)
+        assert [(i, j, a, f) for i, j, a, f in got] == [(0, 1, [0], [False])]
+        got = run("a THEN (@b?){2}", spans("a", "b"), marks=True)
+        assert [(i, j, a, f) for i, j, a, f in got] == [(0, 2, [0, 1], [False, True])]
+
 
 class TestMarks:
     def test_mark_in_sequence(self):
@@ -172,6 +197,12 @@ class TestMarks:
         got = run("@(verse THEN chorus) THEN bridge", items, marks=True)
         assert [f for *_, f in got] == [[True, True, False]]
 
+    def test_repeated_marked_group_splits_longest_first(self):
+        # the repetitions are (a a)(a), not (a)(a)(a): the first and third
+        # units are the marked a's, the second is the optional one
+        got = run("(@a THEN a?)+", spans("a", "a", "a"), marks=True)
+        assert [f for *_, f in got] == [[True, False, True]]
+
     def test_no_flags_without_marks(self):
         got = run("verse", spans("verse"))
         assert got[0][3] is None
@@ -185,6 +216,20 @@ class TestHoles:
     def test_small_gap_does_not_break(self):
         items = spans("verse", "chorus", gap=0.05)
         assert spans_of("verse THEN chorus", items) == [(0, 2)]
+
+    def test_gap_of_exactly_eps_is_no_hole(self):
+        # §6.1: "a gap of 0.1 s or less is no hole"; 1.1 - 1.0 is 0.1 plus
+        # float noise, so the comparison needs slack
+        def lane(a_end, b_start):
+            a = FakeUnit("verse", 0.0, a_end)
+            b = FakeUnit("chorus", b_start, b_start + 1)
+            return [(a, 0.0, a_end), (b, b_start, b_start + 1)]
+
+        assert 1.1 - 1.0 > 0.1  # the noise is real
+        for a_end, b_start in ((1.0, 1.1), (2.0, 2.1), (10.0, 10.1), (12.3, 12.4)):
+            got = spans_of("verse THEN chorus", lane(a_end, b_start))
+            assert got == [(0, 2)], (a_end, b_start)
+        assert spans_of("verse THEN chorus", lane(1.0, 1.101)) == []
 
     def test_gap_breaks_quantifier_run(self):
         items = spans("verse", "verse", gap=0.5)
@@ -263,12 +308,29 @@ class TestModes:
         items[2:] = [(u, s + 1, e + 1) for u, s, e in items[2:]]
         assert spans_of("verse", items, mode="start") == [(0, 1)]
 
+    def test_end_and_full_only_in_last_block(self):
+        # a b | c: the hole before c means the lane ends with c, not b
+        items = spans("a", "b") + [(FakeUnit("c", 5, 6), 5.0, 6.0)]
+        assert spans_of("b", items, mode="end") == []
+        assert spans_of("a THEN b", items, mode="full") == []
+        assert spans_of("c", items, mode="end") == [(2, 3)]
+
+    def test_end_gives_one_row_per_lane(self):
+        # §6.5: (2, 4) lies inside (0, 4) and is dropped
+        items = spans("a", "b", "a", "b")
+        assert spans_of("(a THEN b)+", items, mode="end") == [(0, 4)]
+
 
 class TestProject:
     def test_level_one(self):
         a1 = FakeUnit("a1", 0, 5, 1)
         big = FakeUnit("A", 0, 10, 2)
         assert lanes.project([a1, big], 1) == [(a1, 0, 5), (big, 5, 10)]
+
+    def test_lowest_level_wins_whatever_the_order(self):
+        a1 = FakeUnit("a1", 0, 5, 1)
+        big = FakeUnit("A", 0, 10, 2)
+        assert lanes.project([big, a1], 1) == [(a1, 0, 5), (big, 5, 10)]
 
     def test_level_two(self):
         a1 = FakeUnit("a1", 0, 5, 1)
@@ -344,6 +406,21 @@ class TestCheck:
         with pytest.raises(TimeoutError):
             run("verse THEN verse", spans("verse", "verse"), check=check)
 
+    def test_called_during_one_lane_and_stops_it(self):
+        # the walk of one long block is where a query is slow, so check
+        # runs inside it, not only before it
+        items = spans(*(["a", "b"] * 50))
+        calls = []
+
+        def check():
+            calls.append(1)
+            if len(calls) == 2:
+                raise TimeoutError("too slow")
+
+        with pytest.raises(TimeoutError):
+            run("(*+ THEN *+)+", items, check=check)
+        assert len(calls) == 2
+
 
 class TestPerformance:
     def test_long_lane_time(self):
@@ -358,3 +435,33 @@ class TestPerformance:
         assert spans_of("verse+", items) == [(0, 400)]
         items = spans(*(["verse", "chorus"] * 200))
         assert spans_of("(verse THEN chorus)+", items) == [(0, 400)]
+
+
+class TestWork:
+    @pytest.fixture
+    def ends_item_calls(self, monkeypatch):
+        calls = []
+        orig = Runs.ends_item
+
+        def counting(self, item, pos):
+            calls.append(pos)
+            return orig(self, item, pos)
+
+        monkeypatch.setattr(Runs, "ends_item", counting)
+        return calls
+
+    def test_memo_reuse_keeps_the_walk_linear(self, ends_item_calls):
+        # without the reuse of a later start's ends, each start expands the
+        # whole rest of the lane again: 21,101 calls on 400 items, not 1,201
+        items = spans(*(["verse", "chorus"] * 200))
+        assert spans_of("(verse THEN chorus)+", items) == [(0, 400)]
+        assert len(ends_item_calls) <= 4 * len(items)
+
+    def test_empty_repetition_is_not_expanded_again(self, ends_item_calls):
+        # a repetition that takes nothing is dropped at once, so a position is
+        # expanded once per round it is reached in, not once per round:
+        # 400 calls on 100 items, 700 without the guard
+        items = spans(*(["verse"] * 100))
+        got = spans_of("(verse?){1,3}", items)
+        assert got[:2] == [(0, 3), (1, 4)] and len(got) == 98
+        assert len(ends_item_calls) <= 4 * len(items)

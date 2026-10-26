@@ -12,6 +12,7 @@ import pytest
 
 from tilia_core import tql
 from tilia_core.tql import sqlfuncs
+from tilia_core.tql.syntax import TQLError
 
 DATA = examples.load()["fixtures"]
 NO_MAP = "1 file without a time map could not answer"
@@ -129,6 +130,16 @@ class TestPositionFields:
             "*[bar = 16] IN cadences"
         )
 
+    def test_a_short_unit_ends_in_its_start_s_bar(self):
+        # #104 (2026-10-10): a unit whose end snaps back onto its start's
+        # downbeat ends there, not in the bar before
+        fix = fixture(
+            hierarchy("Form (Z)", [["s0", 1, 0, 0.05], ["s4", 1, 4, 4.05]]), beats(2)
+        )
+        assert units(fix, "*[end_bar = 1] IN form") == ["s0@0"]
+        assert units(fix, "*[end_bar = 2] IN form") == ["s4@4"]
+        assert units(fix, "*[end_bar = *] IN form") == ["s0@0", "s4@4"]
+
     def test_a_position_can_be_asked_for_any(self):
         assert len(sonata("*[bar = *] IN cadences")) == 4
 
@@ -141,6 +152,31 @@ class TestDownbeat:
     def test_not_downbeat(self):
         assert sonata("*[NOT downbeat] IN cadences") == ["PAC@157"]
         assert sonata("* IN cadences WHERE NOT downbeat") == ["PAC@157"]
+
+    def test_in_a_sequence_a_bare_downbeat_in_where_is_ambiguous(self):
+        # a unit's position, as beat is (tql.md §7.1): it needs its step
+        text = "HC THEN PAC IN cadences WHERE downbeat"
+        with pytest.raises(TQLError) as info:
+            run(DATA["sonata"], text)
+        assert "in a sequence, 'downbeat' is ambiguous" in info.value.msg
+        assert "$1.beat = 1" in info.value.msg
+        assert (info.value.pos, info.value.end) == (text.index("downbeat"), len(text))
+        text = "HC THEN PAC IN cadences WHERE NOT downbeat AND tl.name = Cadences"
+        with pytest.raises(TQLError) as info:
+            run(DATA["sonata"], text)
+        assert (info.value.pos, info.value.end) == (
+            text.index("NOT"),
+            text.index(" AND"),
+        )
+        assert sonata("HC THEN PAC[downbeat] IN cadences") == []
+        assert sonata("HC THEN PAC IN cadences WHERE $2.beat = 2") == ["HC@128|PAC@157"]
+
+    def test_on_one_step_it_is_the_unit_s(self):
+        assert len(run(DATA["sonata"], "*+ IN cadences WHERE downbeat").rows) == 1
+        assert sonata("*+ IN cadences WHERE NOT downbeat") == []
+        assert sonata("* IN cadences DURING ST IN form WHERE downbeat") == [
+            "HC@128|ST@96"
+        ]
 
 
 class TestRepeats:
@@ -456,6 +492,60 @@ class TestSequenceWithin:
         assert units(fix, "a THEN b IN form") == ["a@0|b@4.05"]
         assert units(fix, "a THEN b IN form WITHIN 1 bar") == ["a@0|b@4.05"]
 
+    # P, in another timeline, holds the whole form lane, which keeps its holes;
+    # Q starts two seconds into v.
+    OUTER = fixture(
+        *GRID["timelines"],
+        hierarchy("Outer", [["P", 1, 0, 32]]),
+        hierarchy("Outer2", [["Q", 1, 2, 32]]),
+    )
+
+    def test_a_relation_s_sequence_target_crosses_holes_too(self):
+        outer = self.OUTER
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form") == []
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 1 bar") == [
+            "P@0|v@0|c@12"
+        ]
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 4 s") == [
+            "P@0|v@0|c@12"
+        ]
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 3 beats") == []
+        assert units(
+            outer, "P IN outer STARTS WITH v THEN c IN form WITHIN 1 bar"
+        ) == ["P@0|v@0|c@12"]
+        assert units(
+            outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 2 beats"
+        ) == ["P@0|c@12|d@22"]
+        assert units(outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 1 beat") == []
+        assert units(
+            outer, "P IN outer CONSISTS OF v THEN c THEN d IN form WITHIN 1 bar"
+        ) == ["P@0|v@0|c@12|d@22"]
+        assert units(outer, "P[CONTAINS v THEN c IN form WITHIN 1 bar] IN outer") == [
+            "P@0"
+        ]
+        assert units(outer, "P[CONTAINS v THEN c IN form] IN outer") == []
+
+    def test_the_same_within_is_the_relation_s_tolerance_too(self):
+        outer = self.OUTER
+        assert units(outer, "Q IN outer2 CONTAINS v IN form") == []
+        assert units(outer, "Q IN outer2 CONTAINS v IN form WITHIN 1 bar") == [
+            "Q@2|v@0"
+        ]
+        assert units(outer, "Q IN outer2 CONTAINS v THEN c IN form WITHIN 1 bar") == [
+            "Q@2|v@0|c@12"
+        ]
+
+    def test_without_a_time_map_a_relation_s_target_crosses_nothing(self):
+        fix = fixture(*UNMAPPED["timelines"], hierarchy("Outer", [["P", 1, 0, 32]]))
+        for query in (
+            "P IN outer CONTAINS v THEN c IN form WITHIN 1 bar",
+            "P[CONTAINS v THEN c IN form WITHIN 1 bar] IN outer",
+        ):
+            got = run(fix, query)
+            assert got.rows == [] and got.warnings == [NO_MAP], query
+        got = run(fix, "P IN outer CONTAINS v THEN c IN form WITHIN 4 s")
+        assert len(got.rows) == 1 and got.warnings == []
+
 
 # --------------------------------------------------------------------------- #
 # Relations' WITHIN
@@ -543,6 +633,61 @@ class TestRelationWithin:
     def test_seconds_still_work(self):
         assert units(GRID, "v IN form BEFORE c IN form WITHIN 4 s") == ["v@0|c@12"]
         assert units(GRID, "v IN form BEFORE c IN form WITHIN 3 s") == []
+
+
+class TestOffTheMap:
+    """A unit that lies off the time map (the map ends at 32 s, the piece at 60):
+    a tolerance or a gap in bars or beats cannot be measured there, so the
+    relation holds of nothing, in SQL and in Python alike."""
+
+    OFF = fixture(
+        hierarchy("Form (Z)", [["a", 1, 28, 31], ["b", 1, 40, 41], ["e", 1, 40, 48]]),
+        hierarchy("Inner", [["g", 1, 40, 44]]),
+        markers("Notes", [["m", 40], ["n", 40.05]]),
+        beats(8),
+        length=60,
+    )
+
+    def test_a_tolerance_in_beats_at_a_start_off_the_map_holds_of_nothing(self):
+        # Python paths: a relation without IN, and a sequence relation with IN
+        assert units(self.OFF, "n[SAME START m] IN notes") == ["n@40.05"]
+        assert units(self.OFF, "n[SAME START m WITHIN 1 beat] IN notes") == []
+        assert units(self.OFF, "e IN form STARTS WITH g IN inner") == ["e@40|g@40"]
+        assert units(self.OFF, "e IN form STARTS WITH g IN inner WITHIN 1 beat") == []
+        # the SQL path agrees
+        assert units(self.OFF, "n IN notes SAME START m IN notes") == ["n@40.05|m@40"]
+        assert units(self.OFF, "n IN notes SAME START m IN notes WITHIN 1 beat") == []
+
+    def test_a_gap_whose_end_lies_off_the_map_is_within_nothing(self):
+        assert units(self.OFF, "a[BEFORE b] IN form") == ["a@28"]
+        assert units(self.OFF, "a[BEFORE b WITHIN 1 bar] IN form") == []
+        assert units(self.OFF, "a[BEFORE b WITHIN 10 bars] IN form") == []
+        assert units(self.OFF, "a IN form BEFORE b IN form WITHIN 10 bars") == []
+        assert units(self.OFF, "a[BEFORE b WITHIN 10 s] IN form") == ["a@28"]
+
+    def test_two_positions_compare_only_when_both_are_known(self):
+        base = "a IN form BEFORE b IN form WHERE "
+        for cond in (
+            "$1.bar = $2.bar",
+            "$1.bar != $2.bar",
+            "NOT $1.bar = $2.bar",
+            "$2.bar != $1.bar",
+        ):
+            assert units(self.OFF, base + cond) == [], cond
+        assert units(self.OFF, base + "$1.bar = 8") == ["a@28|b@40"]
+
+    def test_a_distance_in_beats_ignores_float_noise(self):
+        # beats every 0.3 s: 0.75 s is beat 3.5 and 1.05 s beat 4.5 only after
+        # rounding, since 0.75 / 0.3 and 1.05 / 0.3 are not exact in binary
+        tl = {"name": "Beats", "kind": "beats", "start": 0, "every": 0.3}
+        tl.update({"beats_per_bar": 4, "bars": 2})
+        fix = fixture(markers("M", [["a", 0.75], ["c", 1.05]]), tl, length=5)
+        assert units(
+            fix, "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 1 beat"
+        ) == ["a@0.75|c@1.05"]
+        assert units(
+            fix, "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 2 beats"
+        ) == []
 
 
 # --------------------------------------------------------------------------- #
@@ -656,6 +801,10 @@ class TestSqlFunctions:
             "SELECT tql_length('f1', NULL, 5, 'bar')",
             "SELECT tql_unit_seconds('f1', 5000, 'bar')",
             "SELECT tql_unit_seconds('nope', 5, 'beat')",
+            "SELECT tql_position('f1', 'eight', 'bar')",
+            "SELECT tql_length('f1', 0, 'eight', 'bar')",
+            "SELECT tql_length('f1', 'zero', 8, 'bar')",
+            "SELECT tql_unit_seconds('f1', 'eight', 'bar')",
         ],
     )
     def test_null_off_the_map(self, sql):

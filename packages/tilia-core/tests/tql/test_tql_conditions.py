@@ -213,9 +213,31 @@ class TestUnitFields:
             "verse@10",
         ]
 
-    def test_not_holds_for_a_unit_without_the_field_too(self):
-        assert units("*[NOT level = 1] IN markers") == ["HC@35", "PAC@5", "late@95"]
-        assert units("*[level != 1] IN markers") == []
+    def test_not_equal_holds_for_a_unit_without_the_field(self):
+        # #104, R2: `x != v` is `NOT x = v`, a unit without the field included
+        all_markers = ["HC@35", "PAC@5", "late@95"]
+        assert units("*[NOT level = 1] IN markers") == all_markers
+        assert units("*[level != 1] IN markers") == all_markers
+        assert units("*[level != 1..3] IN markers") == all_markers
+        assert units("*[NOT level != 1] IN markers") == []
+        assert units("* IN markers WHERE level != 1") == all_markers
+        assert units("* IN markers WHERE NOT level != 1") == []
+        # A, B and chorus@30 have no colour
+        assert units("*[color != pink] IN form") == units("*[NOT color = pink] IN form")
+        assert units("* IN form WHERE color != pink") == [
+            "A@0",
+            "B@20",
+            "Chorus@20",
+            "chorus@30",
+        ]
+        # verse@10 is the one unit with comments; the others' are empty
+        assert units('*[comments != "needs review"] IN form') == [
+            "A@0",
+            "B@20",
+            "Chorus@20",
+            "Verse 1@0",
+            "chorus@30",
+        ]
 
     def test_row_is_a_range_unit_s(self):
         assert units("*[row = solo] IN ranges") == ["S@2"]
@@ -226,7 +248,12 @@ class TestUnitFields:
         assert units("*[color = pink] IN form") == ["Verse 1@0", "verse@10"]
         assert units('*[color = "#FFC0CB"] IN form') == ["Verse 1@0", "verse@10"]
         assert units("*[color = red] IN form") == ["Chorus@20"]
-        assert units("*[color != pink] IN form") == ["Chorus@20"]
+        assert units("*[color != pink] IN form") == [
+            "A@0",
+            "B@20",
+            "Chorus@20",
+            "chorus@30",
+        ]
         assert units("*[NOT color = pink] IN form") == [
             "A@0",
             "B@20",
@@ -313,6 +340,25 @@ class TestTimelineAndFileFields:
     def test_across_files(self):
         got = run("verse IN form WHERE file.composer = Bach", SONG, OTHER)
         assert [r["file"] for r in got.rows] == ["other"]
+
+    def test_not_equal_holds_for_a_timeline_or_a_file_without_the_field(self):
+        # #104, R2: Cadences, Layers and Harmony have no author, bare no composer
+        got = run("WHERE author != Ana", SONG, OTHER)
+        assert [r["timeline"] for r in got.rows] == [
+            "Form (Ben)",
+            "Cadences",
+            "Layers",
+            "Harmony",
+        ]
+        assert got.rows == run("WHERE NOT author = Ana", SONG, OTHER).rows
+        got = run("WHERE composer != Mozart", SONG, OTHER, BARE)
+        assert [r["file"] for r in got.rows] == ["bare", "other"]
+        assert got.rows == run("WHERE NOT composer = Mozart", SONG, OTHER, BARE).rows
+        assert units("* IN form WHERE file.genre != rock", SONG, OTHER, BARE) == [
+            "bridge@10",
+            "verse@0",
+            "verse@0",
+        ]
 
     def test_author_is_matched_exactly(self):
         got = run('WHERE tl.author = "de Clercq"', AUTHORS)
@@ -419,8 +465,26 @@ class TestValues:
         assert units("*[comments ~ /Review/] IN form") == []
         assert units("*[comments ~ /(?i)Review/] IN form") == ["verse@10"]
 
-    def test_a_bare_word_after_a_tilde_is_a_pattern(self):
+    def test_a_bare_word_after_a_tilde_is_a_pattern_that_ignores_case(self):
+        # Q25: a bare word ignores case in every condition; a quoted one keeps it
         assert units("*[comments ~ rev] IN form") == ["verse@10"]
+        assert units("*[comments ~ Rev] IN form") == ["verse@10"]
+        assert units("* IN form WHERE comments ~ REV") == ["verse@10"]
+        assert units('*[comments ~ "Rev"] IN form') == []
+
+    def test_a_range_forgives_float_noise_at_its_ends(self):
+        noisy = {
+            "name": "noisy",
+            "length": 10,
+            "timelines": [
+                hierarchy("Form (X)", [["a", 1, 0.1 + 0.2, 1], ["b", 1, 1, 2]])
+            ],
+        }
+        assert 0.1 + 0.2 > 0.3
+        assert units("*[start = 0..0.3] IN form", noisy) == ["a@0.3"]  # SQL
+        assert units("* IN form WHERE start = 0..0.3", noisy) == ["a@0.3"]  # Python
+        assert units("*[start != 0..0.3] IN form", noisy) == ["b@1"]
+        assert units("* IN form WHERE start != 0..0.3", noisy) == ["b@1"]
 
     def test_the_number_of_a_numeric_field_is_checked(self):
         text = "*[start > soon] IN form"
@@ -453,6 +517,27 @@ class TestWhereOneUnit:
         assert units("* IN form WHERE tl.name ~ /Ana/ AND file.composer = Mozart") == (
             units("* IN form")
         )
+
+    def test_a_relation_in_where_reads_any_unit_of_the_step(self):
+        # Q7: as `$1.start = 10` does; verse@10 contains the PAC, verse@0 not
+        form = {
+            "name": "f",
+            "length": 40,
+            "timelines": [
+                hierarchy(
+                    "Form (Z)",
+                    [["verse", 1, 0, 10], ["verse", 1, 10, 20], ["chorus", 1, 20, 30]],
+                ),
+                markers("Cadences", [["PAC", 15]]),
+            ],
+        }
+        got = run("verse+ IN form WHERE CONTAINS PAC IN cadences", form)
+        assert [[c.start for c in m.slots[0]] for m in got.matches] == [[0, 10]]
+        got = run("verse+ IN form WHERE $1.start = 10", form)
+        assert [[c.start for c in m.slots[0]] for m in got.matches] == [[0, 10]]
+        # negated: none of the units has it, as `!=` means none
+        assert run("verse+ IN form WHERE NOT CONTAINS PAC IN cadences", form).matches == []
+        assert run("chorus IN form WHERE NOT CONTAINS PAC IN cadences", form).matches
 
     def test_a_unit_s_own_name_is_the_relation_s_left_unit(self):
         got = run("PAC IN cadences DURING * IN form WHERE time = 5")
@@ -533,6 +618,38 @@ class TestWhereSequences:
     def test_the_timeline_of_a_step(self):
         got = run('verse THEN chorus IN form WHERE $2.tl.name = "Form (Ana)"')
         assert len(got.matches) == 1
+
+    def test_the_timeline_of_a_step_is_its_own_not_the_subject_s(self):
+        # a relation across timelines: $1 is the PAC in Cadences, $2 in Form
+        base = "PAC IN cadences DURING * IN form WHERE "
+        assert len(run(base + '$2.tl.name = "Form (Ana)"').matches) == 2
+        assert run(base + '$2.tl.name = "Cadences"').matches == []
+        assert len(run(base + '$1.tl.name = "Cadences"').matches) == 2
+        assert run(base + '$1.tl.name = "Form (Ana)"').matches == []
+
+    def test_not_equal_between_two_steps_fields_holds_when_no_pair_is_equal(self):
+        mixed = {
+            "name": "mixed",
+            "length": 40,
+            "timelines": [
+                hierarchy(
+                    "Form (X)",
+                    [
+                        ["a", 1, 0, 10, "red"],
+                        ["a", 1, 10, 20, "blue"],
+                        ["b", 1, 20, 30, "red"],
+                        ["c", 1, 30, 40],
+                    ],
+                )
+            ],
+        }
+        # a+ took red and blue; b is red: some pair is equal, so != fails
+        assert len(run("a+ THEN b IN form WHERE $1.color = $2.color", mixed).matches) == 1
+        assert run("a+ THEN b IN form WHERE $1.color != $2.color", mixed).matches == []
+        assert run("a+ THEN b IN form WHERE NOT $1.color = $2.color", mixed).matches == []
+        # c has no colour: != is NOT = (#104, R2)
+        assert run("b THEN c IN form WHERE $1.color = $2.color", mixed).matches == []
+        assert len(run("b THEN c IN form WHERE $1.color != $2.color", mixed).matches) == 1
 
 
 class TestCaptures:
@@ -643,6 +760,20 @@ class TestWhereOnly:
     def test_a_unit_is_listed_once(self):
         got = run("WHERE label = verse")
         assert [r["start"] for r in got.rows] == [0, 10]
+        # a childless level-2 unit (Q) sits in two lanes, and is listed once
+        two_lanes = {
+            "name": "h",
+            "length": 40,
+            "timelines": [
+                hierarchy(
+                    "Form (X)",
+                    [["a", 1, 0, 10], ["b", 1, 10, 20], ["P", 2, 0, 20], ["Q", 2, 20, 40]],
+                )
+            ],
+        }
+        got = run("WHERE start >= 0", two_lanes)
+        assert sorted(r["label"] for r in got.rows) == ["P", "Q", "a", "b"]
+        assert [r["lane"] for r in got.rows if r["label"] == "Q"] == ["level 2"]
 
     def test_chords_and_keys_when_it_asks_about_harmony(self):
         got = run("WHERE inversion = 1")
@@ -787,6 +918,25 @@ class TestUnknownNames:
             run(f"* IN {lane}")
         run("* IN bars")
 
+    def test_a_role_the_corpus_declares_is_a_lane(self):
+        index = build()
+        index.connection().execute(
+            "UPDATE timelines SET role = 'groove' WHERE name = 'Layers'"
+        )
+        got = tql.run(index, "* IN groove")
+        assert got.warnings == []
+        assert [c.label for m in got.matches for c in m.slots[0]] == ["S"]
+        assert error("* IN groove").pos == len("* IN ")
+
+    def test_key_roman_and_symbol_keep_case_even_as_bare_words(self):
+        assert units("* IN keys WHERE key = C") == ["C@0"]
+        assert units("* IN keys WHERE key = c") == []
+        assert starts("*[roman = I] IN harmony") == [0, 20]
+        assert starts("*[roman = i] IN harmony") == []
+        assert starts("*[symbol = G7] IN harmony") == [10]
+        assert starts("*[symbol = g7] IN harmony") == []
+        assert starts("*[mode = MAJOR] IN keys") == [0, 20]  # other fields fold
+
 
 class TestAmbiguousNames:
     def test_a_name_on_two_scopes_needs_a_prefix(self):
@@ -820,6 +970,15 @@ class TestAmbiguousNames:
                     "fields": {"start": "x"},
                 },
             )
+
+    def test_the_hint_for_a_unit_field_a_file_also_has_names_the_numbered_form(self):
+        with_key = {**SONG, "fields": {**SONG["fields"], "key": "C major"}}
+        text = '* IN keys WHERE key = "C"'
+        err = error(text, with_key)
+        assert "write $1.key or file.key" in err.msg
+        assert err.pos == text.index("key =")
+        assert units('* IN keys WHERE $1.key = "C"', with_key) == ["C@0"]
+        assert units('* IN keys WHERE file.key = "C major"', with_key) == ["C@0", "Eb@20"]
 
     def test_a_name_only_the_file_has_is_the_file_s(self):
         assert units("* IN form WHERE genre = rock") == units("* IN form")

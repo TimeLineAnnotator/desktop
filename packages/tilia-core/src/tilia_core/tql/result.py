@@ -84,7 +84,11 @@ class Result:
     None where Python takes over. ``sql`` shows them as text. Each statement
     runs on its own through :func:`tilia_core.tql.sql`, which registers TiLiA's
     SQL functions (:mod:`tilia_core.tql.sqlfuncs`); a plain SQLite client lacks
-    them."""
+    them.
+
+    ``columns`` are the table's columns in order, which the query decides (its
+    grain and how many numbered units a match has), so a result with no rows
+    still has them."""
 
     grain: str
     rows: list[dict[str, Any]]
@@ -94,6 +98,7 @@ class Result:
     warnings: list[str]
     stopped: str | None
     generation: int
+    columns: list[str] = field(default_factory=list)
     _index: Any = field(default=None, repr=False, compare=False)
 
     @property
@@ -109,8 +114,9 @@ class Result:
     def to_csv(self, path: str | Path) -> None:
         """Write the table of ``rows`` as CSV: a header of the columns, then a
         line per row; UTF-8 in NFC, LF line endings, no byte-order mark. Times
-        are in seconds with three decimals, None is an empty field."""
-        columns: list[str] = []
+        are in seconds with three decimals, None is an empty field. A result
+        with no rows writes the header alone."""
+        columns = list(self.columns)
         for row in self.rows:
             columns.extend(c for c in row if c not in columns)
         timed = [bool(_TIME_COLUMN.match(c)) for c in columns]
