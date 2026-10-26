@@ -13,8 +13,8 @@ line:
   The schema describes its other limits, such as a minimum, without checking
   them: the reader reads a value that breaks one;
 - a score whose content has no lines;
-- what JSON Schema can't check: an id used twice in the file, and a
-  reference that names nothing.
+- what JSON Schema can't check: an id used twice in the file, or a row's
+  used twice in its timeline, and a reference that names nothing.
 
 Kept, with a warning: a timeline's `vocabulary` that isn't a reference to a
 vocabulary (FR-072); a component of a kind its timeline doesn't hold, kept as
@@ -554,8 +554,21 @@ class _Checker:
             components = (place, "components")
             for component_id in value["components"]:
                 see(component_id, "component", (components, component_id))
+            if kind == "range":
+                self.row_ids(value["rows"], (place, "rows"))
         for place, score in self.scores:
             see(score["id"], "score", (place, "id"))
+
+    def row_ids(self, rows: list[dict[str, Any]], place: Place) -> None:
+        """Refuse an id that two rows of one timeline share: a row's id is
+        unique in its timeline only. Compared as the reader gives them: in NFC."""
+        seen: set[str] = set()
+        for index, row in enumerate(rows):
+            row_id = nfc_text(row["id"])
+            if row_id in seen:
+                message = f"two rows have the id {_quoted(row['id'])}"
+                raise _Broken(message, ((place, index), "id"))
+            seen.add(row_id)
 
     def references(self) -> None:
         """Refuse a reference that names nothing."""

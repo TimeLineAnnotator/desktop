@@ -122,6 +122,11 @@ EXPECTED = {
         "/scores/0/content",
         111,
     ),
+    "row-id-twice.tla": (
+        'two rows have the id "aZ3k9P"',
+        "/timelines/{texture}/rows/1/id",
+        78,
+    ),
     "row-named-nowhere.tla": (
         'a range names row "Qm7x2L", which its timeline doesn\'t have',
         MELODY + "/row_id",
@@ -671,6 +676,37 @@ def test_a_component_of_a_timeline_of_an_unknown_kind_isnt_checked():
     assert named(doc, "Form").raw["components"]["1"] == {"text": 5}
 
 
+def test_row_ids_are_compared_in_nfc():
+    # The reader composes both, so the two rows would have one id.
+    decomposed, composed = "Me\u0301lodie", "M\u00e9lodie"
+
+    def change(content):
+        rows = timeline(content, "texture")["rows"]
+        rows[0]["id"] = composed
+        rows.append({"id": decomposed, "name": "Bass"})
+
+    error = refusal(edited(change))
+    assert error.place == place("/timelines/{texture}/rows/1/id")
+    assert error.message == f'two rows have the id "{decomposed}"'
+
+
+def test_two_range_timelines_may_have_rows_with_the_same_id():
+    # A row's id is unique in its timeline only.
+    def change(content):
+        content["timelines"][IDS["nothing"]] = {
+            "kind": "Range",
+            "name": "Accompaniment",
+            "ordinal": 6,
+            "height": 60,
+            "rows": copy.deepcopy(timeline(content, "texture")["rows"]),
+            "components": {},
+        }
+
+    doc = tla.loads(edited(change))
+    rows = [named(doc, name).attrs["rows"] for name in ("Texture", "Accompaniment")]
+    assert rows[0][0]["id"] == rows[1][0]["id"] == "aZ3k9P"
+
+
 # A null is a missing key: refused only where the key is required
 
 
@@ -1018,6 +1054,10 @@ def _without_level(doc):
     del _section(doc).attrs["level"]
 
 
+def _second_row(doc):
+    named(doc, "Texture").attrs["rows"].append({"id": "aZ3k9P", "name": "Bass"})
+
+
 IN_MEMORY = {
     "a component without an id": (
         _component_under(""),
@@ -1044,6 +1084,7 @@ IN_MEMORY = {
         _set_attr(_melody, "row_id", "Qm7x2L"),
         MELODY + "/row_id",
     ),
+    "two rows with one id": (_second_row, "/timelines/{texture}/rows/1/id"),
     "a range joined to nothing": (
         _set_attr(_melody, "joined_right", IDS["nothing"]),
         MELODY + "/joined_right",

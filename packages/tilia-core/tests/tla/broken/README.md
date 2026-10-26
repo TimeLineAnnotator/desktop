@@ -24,6 +24,7 @@ The last column says whether the format's JSON Schema refuses the file too. Thre
 | `not-json.tla` | a comma missing | can't parse |
 | `older-draft.tla` | an earlier draft of the format | refuses |
 | `repeated-key.tla` | a key given twice in one object | core only |
+| `row-id-twice.tla` | two rows of one range timeline with the same id (a row's id is unique in its timeline only) | core only |
 | `row-named-nowhere.tla` | a range names a row its timeline doesn't have | core only |
 | `score-measure-table-named-nowhere.tla` | a score timeline names a measure table the file doesn't have | core only |
 | `score-named-nowhere.tla` | a score timeline names a score the file doesn't have | core only |

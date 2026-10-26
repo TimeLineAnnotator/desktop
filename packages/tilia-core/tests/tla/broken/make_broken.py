@@ -212,6 +212,13 @@ def _without_level(content: dict[str, Any]) -> None:
     del component(content, "section", of="form")["level"]
 
 
+def _second_row(row_id: str) -> Callable[[dict[str, Any]], None]:
+    def change(content: dict[str, Any]) -> None:
+        timeline(content, "texture")["rows"].append({"id": row_id, "name": "Bass"})
+
+    return change
+
+
 def _unknown_ordinal_as_text(content: dict[str, Any]) -> None:
     form = timeline(content, "form")
     form["kind"] = "Lyrics"
@@ -277,6 +284,8 @@ FILES: dict[str, Callable[[], bytes]] = {
         _set(lambda c: timeline(c, "form"), "metadata", ["lcma-form@0.3.0"])
     ),
     "score-without-lines.tla": _changed(_set(lambda c: c["scores"][0], "content", [])),
+    # An id used twice: a row's, in its timeline.
+    "row-id-twice.tla": _changed(_second_row("aZ3k9P")),
     # A reference that names nothing.
     "row-named-nowhere.tla": _changed(
         _set(lambda c: component(c, "melody_1", of="texture"), "row_id", "Qm7x2L")
