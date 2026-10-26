@@ -1572,9 +1572,11 @@ class _Parser:
                 u,
             )
         if f.name == "color" and f.scope is None and v.kind != "ref":
-            # a unit's colour, as COLOR takes it; another unit's is copied as is
+            # a unit's colour, as COLOR takes it; another unit's is copied as
+            # is, and "" removes the colour (TiLiA's "no colour")
             text = v.value if v.kind in ("string", "word") else v.raw
-            if not isinstance(text, str) or not colors.is_color(text):
+            removes = v.kind == "string" and text == ""
+            if not removes and (not isinstance(text, str) or not colors.is_color(text)):
                 raise TQLError(
                     'SET color takes "#rrggbb" or a CSS colour name, such as '
                     f'"pink" - not {v.raw}',
