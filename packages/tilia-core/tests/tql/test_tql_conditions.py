@@ -612,6 +612,11 @@ class TestWhereSequences:
         assert len(got.matches) == 0
         got = run("verse THEN chorus IN form WHERE $1.label != $2.label")
         assert len(got.matches) == 1
+        # `~` included: "chorus" is found in "Chorus"
+        got = run("chorus THEN chorus IN form WHERE $1.label ~ $2.label")
+        assert len(got.matches) == 1
+        got = run("verse THEN chorus IN form WHERE $1.label ~ $2.label")
+        assert len(got.matches) == 0
         got = run("verse THEN chorus IN form WHERE $1.start < $2.start")
         assert len(got.matches) == 1
         got = run("verse THEN chorus IN form WHERE $1.start >= $2.start")
