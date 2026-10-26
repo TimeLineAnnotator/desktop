@@ -280,6 +280,17 @@ class TestTheUnit:
         with pytest.raises(ValueError):
             plan(doc, tl, [(BarRef(2), too_long)])
 
+    def test_the_refusal_shows_the_time_signature_as_it_is_written(self):
+        doc, tl = piece([2, 3])
+
+        # 1/128 over two taps: 1/256, a denominator no unit can have.
+        with pytest.raises(ValueError) as raised:
+            plan(doc, tl, [(BarRef(1), ts("(1/128)/4"))])
+
+        assert str(raised.value).startswith(
+            "Measure 1: (1/128)/4 over 2 taps gives units that can't be read back: "
+        )
+
     def test_of_two_settings_for_a_bar_the_later_wins(self):
         doc, tl = piece([3, 3, 3])
 
