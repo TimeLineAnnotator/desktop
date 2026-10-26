@@ -532,14 +532,19 @@ class Scope:
             return "unit"
         return "tl" if f.name in names.TIMELINE_FIELDS else "file"
 
-    def field_values(self, f: syntax.FieldRef, subject: values.Subject) -> list[Any]:
+    def field_values(
+        self, f: syntax.FieldRef, subject: values.Subject, open_if_missing: bool = True
+    ) -> list[Any]:
         """The values of field ``f``, one per unit (or timeline) it reads; a list
-        field such as ``tags`` gives all its values."""
+        field such as ``tags`` gives all its values. A file without ``f`` is
+        noted in ``missing``, to warn that it could not answer, unless
+        ``open_if_missing`` is false: the comparison's answer is definite."""
         where = self.place(f, subject)
         if where == "file":
             got = self.facts.file().get(f.name)
             if got is None:
-                self.missing.add(f.name)
+                if open_if_missing:
+                    self.missing.add(f.name)
                 return []
             return list(got)
         out: list[Any] = []
@@ -618,11 +623,15 @@ class Scope:
                 self.parent(u) for u in self.subject_units(f, subject)
             ]
             return self.step_ok(cond, parents, subject.bracket)
-        lhs = self.field_values(f, subject)
+        # A file without the field answers `!=` and `NOT … =` (#104, R2): no
+        # warning that it could not.
+        open_ = not (
+            (cond.op == "!=" and not cond.negate) or (cond.op == "=" and cond.negate)
+        )
+        lhs = self.field_values(f, subject, open_)
         if v.kind == "ref":
-            return values.compare(
-                cond.op, lhs, self.field_values(v.value, subject), fname, caps
-            )
+            rhs = self.field_values(v.value, subject, open_)
+            return values.compare(cond.op, lhs, rhs, fname, caps)
         return values.compare_value(cond.op, lhs, v, fname, caps)
 
     def where_ok(
