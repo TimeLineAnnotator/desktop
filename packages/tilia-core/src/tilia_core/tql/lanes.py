@@ -40,7 +40,9 @@ def project(units: Sequence[U], level: int) -> list[tuple[U, float, float]]:
     """Project a hierarchy onto one level: tile the covered time with
     ``(unit, start, end)`` segments, each the deepest unit whose level is at
     least ``level`` (ties: the shorter one). Neighbouring segments of the same
-    unit are merged.
+    unit are merged. A segment of a unit above ``level`` that is ``GAP_EPS``
+    long or less is left out: it counts as a gap, which ``THEN`` crosses, not
+    as an item, so a sliver of a parent does not stand between two children.
 
     A unit is any object with the attributes ``level`` (an int or None),
     ``start`` and ``end``; units without a level are ignored."""
@@ -61,6 +63,8 @@ def project(units: Sequence[U], level: int) -> list[tuple[U, float, float]]:
                 rep = u
         if rep is None:
             continue
+        if rep.level > level and b - a <= GAP_EPS + LEAF_EPS:
+            continue  # a gap THEN crosses, not an item
         if segs and segs[-1][0] is rep and abs(segs[-1][2] - a) <= LEAF_EPS:
             segs[-1][2] = b
         else:
