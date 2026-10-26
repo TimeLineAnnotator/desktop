@@ -47,6 +47,12 @@ _NO_LENGTH = (
 )
 _NOT_VALID = "{} is not a valid {}."
 
+# A millisecond, the precision of TiLiA's player: a file TiLiA saved holds its
+# media's length in whole milliseconds, and a WAV's header gives it exactly
+# (TimeLineAnnotator/project-management#327 (a media length within a
+# millisecond)).
+_SAME_LENGTH = 0.001
+
 # tilia.constants.YOUTUBE_URL_REGEX. A stand-in until WP3 gives its copy
 # (TimeLineAnnotator/project-management#176 (media paths)), which replaces it
 # (TimeLineAnnotator/project-management#317 (WP3's YouTube pattern in build)).
@@ -97,13 +103,14 @@ def set_media_length(document: tla.Document, seconds: float) -> None:
 
     Raises ValueError for a length that isn't a positive number; while media is
     attached, whose length comes with it; and for a change to a known length
-    once timelines have components, which nothing moves or crops.
+    once timelines have components, which nothing moves or crops. A length
+    less than a millisecond from the known one isn't a change then, and the
+    known one stays.
     """
     length = _media_length(seconds)
     if document.media_path:
         raise ValueError(_MEDIA_LOADED)
-    _check_change(document, length)
-    document.media_length = length
+    document.media_length = _check_change(document, length)
 
 
 def load_media(
@@ -119,7 +126,8 @@ def load_media(
     relative to the saved file. The length is a WAV's, read from its header;
     else `duration_if_error`; else, while no media is attached, the length set
     before. Without one, or for a change `set_media_length` refuses, raises
-    ValueError, and the document is left as it was.
+    ValueError, and the document is left as it was. Where `set_media_length`
+    keeps the known length, so does this.
     """
     text = os.fspath(path)
     length: float | None = None
@@ -142,7 +150,7 @@ def load_media(
             length = document.media_length
         else:
             raise ValueError(_NO_LENGTH.format(name))
-    _check_change(document, length)
+    length = _check_change(document, length)
     document.media_path = stored
     document.media_length = length
     return length
@@ -290,11 +298,18 @@ def _media_length(value: object) -> float:
     raise ValueError(_NOT_A_MEDIA_LENGTH.format(value))
 
 
-def _check_change(document: tla.Document, length: float) -> None:
-    """A known length can't change once timelines have components (FR-056)."""
+def _check_change(document: tla.Document, length: float) -> float:
+    """The length to set: a known length can't change once timelines have
+    components (FR-056). Then a length less than a millisecond from it is the
+    same one, and the known length stays, as the components were checked
+    against it. The difference is rounded to the nanosecond first, since
+    3.126 - 3.125 computes as a little under 0.001."""
     known = document.media_length
-    if known is not None and length != known and _has_components(document):
-        raise ValueError(_HAS_COMPONENTS)
+    if known is None or not _has_components(document):
+        return length
+    if round(abs(length - known), 9) < _SAME_LENGTH:
+        return known
+    raise ValueError(_HAS_COMPONENTS)
 
 
 def _has_components(document: tla.Document) -> bool:
