@@ -124,8 +124,8 @@ def load_media(
 
     A local path must be a file, and is stored absolute: the writer stores it
     relative to the saved file. The length is a WAV's, read from its header;
-    else `duration_if_error`; else, while no media is attached, the length set
-    before. Without one, or for a change `set_media_length` refuses, raises
+    else `duration_if_error`; else, while no media is attached, the known
+    length. Without one, or for a change `set_media_length` refuses, raises
     ValueError, and the document is left as it was. Where `set_media_length`
     keeps the known length, so does this.
     """
@@ -146,9 +146,9 @@ def load_media(
     if length is None:
         if duration_if_error is not None:
             length = _media_length(duration_if_error)
-        elif document.media_length is not None and not document.media_path:
-            length = document.media_length
-        else:
+        elif not document.media_path:
+            length = _known_length(document)
+        if length is None:
             raise ValueError(_NO_LENGTH.format(name))
     length = _check_change(document, length)
     document.media_path = stored
@@ -218,11 +218,11 @@ def add_timeline(
     timeline shows its time signatures, and keeps `beat_pattern` as given
     ("4" without one).
 
-    Raises ValueError while the media length is unknown, and for a height or a
+    Raises ValueError while no media length is known, and for a height or a
     beat pattern the kind doesn't take or TiLiA wouldn't keep; TypeError for a
     beat pattern that isn't text.
     """
-    if document.media_length is None:
+    if _known_length(document) is None:
         raise ValueError(_NO_DURATION)
     if kind not in _KINDS:
         kinds = ", ".join(_KINDS)
@@ -298,13 +298,28 @@ def _media_length(value: object) -> float:
     raise ValueError(_NOT_A_MEDIA_LENGTH.format(value))
 
 
+def _known_length(document: tla.Document) -> float | None:
+    """The document's media length, as it is, when `_media_length` accepts it;
+    else None. The reader keeps a file's length as the file has it, and one
+    the format doesn't allow (text, a bool, zero or less, a whole number too
+    large for a float) counts as no length, as WP9's time map reads it
+    (TimeLineAnnotator/project-management#216 (choose a document's time map
+    by role))."""
+    length = document.media_length
+    try:
+        _media_length(length)
+    except ValueError:
+        return None
+    return length
+
+
 def _check_change(document: tla.Document, length: float) -> float:
     """The length to set: a known length can't change once timelines have
     components (FR-056). Then a length less than a millisecond from it is the
     same one, and the known length stays, as the components were checked
     against it. The difference is rounded to the nanosecond first, since
     3.126 - 3.125 computes as a little under 0.001."""
-    known = document.media_length
+    known = _known_length(document)
     if known is None or not _has_components(document):
         return length
     if round(abs(length - known), 9) < _SAME_LENGTH:
