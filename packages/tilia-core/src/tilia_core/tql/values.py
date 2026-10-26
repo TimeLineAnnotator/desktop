@@ -24,7 +24,7 @@ from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
 from . import syntax
-from .lanes import bar_id, pass_numbers
+from .lanes import bar_id
 from .result import Component
 
 CASE_SENSITIVE = frozenset({"key", "roman", "symbol"})
@@ -306,13 +306,13 @@ class Facts:
 
     def _load_bars(self) -> dict[str, dict[str, Any]]:
         """The position fields of the units of the bars lane, which no component
-        row holds: each bar starts on its downbeat, at its first beat."""
+        row holds: each bar starts on its downbeat, at its first beat, and its
+        ``pass`` is the one ``measures`` records."""
         rows = self.log.execute(
-            "SELECT count, number, label, beats FROM measures WHERE file_id = ? "
-            "ORDER BY count",
+            "SELECT count, number, label, beats, pass FROM measures "
+            "WHERE file_id = ? ORDER BY count",
             (self.file_id,),
         )
-        passes = pass_numbers([r[1] for r in rows])
         return {
             bar_id(self.file_id, count): {
                 "bar": number,
@@ -324,7 +324,7 @@ class Facts:
                 "bar.beat_count": beats,
                 "downbeat": 1,
             }
-            for (count, number, label, beats), nth in zip(rows, passes, strict=True)
+            for count, number, label, beats, nth in rows
         }
 
     def timeline(self, timeline_id: str | None) -> dict[str, Any]:

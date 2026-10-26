@@ -768,6 +768,17 @@ class TestBarsLane:
         assert sonata_bars("*[beat = 1 AND bar = 40] IN bars") == ["40@156"]
         assert units(DATA["repeat"], "*[bar = 12 AND pass = 2] IN bars") == ["12@76"]
 
+    def test_a_bar_s_pass_is_the_one_measures_records(self):
+        index = index_of(DATA["repeat"])
+        assert units(index, "*[pass = 2] IN bars") == sorted(
+            f"{n}@{t}" for n, t in zip(range(9, 17), range(64, 96, 4), strict=True)
+        )
+        # the index, not the printed numbers, says which pass a bar is
+        index.connection().execute("UPDATE measures SET pass = 3 WHERE count = 17")
+        assert units(index, "*[pass = 3] IN bars") == ["9@64"]
+        got = run(index, "* IN bars WHERE pass = 3")
+        assert [r["label"] for r in got.rows] == ["9"]
+
     def test_a_sequence_of_bars(self):
         assert units(GRID, "3 THEN 4 IN bars") == ["3@8|4@12"]
         assert units(GRID, "* THEN * IN bars WHERE $1.bar = 7") == ["7@24|8@28"]
