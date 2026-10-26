@@ -105,6 +105,7 @@ class TestTimeSignature:
             ([2, 3, 2], 8, (2, 3, 2)),
             ([F(1, 3)] * 4, 4, (F(4, 3),)),
             ([F(1, 2), 1], 8, (F(1, 2), 1)),
+            ([F(1, 128)], 4, (F(1, 128),)),
             ([1], 1, (1,)),
             ([1], 128, (1,)),
         ],
@@ -159,6 +160,7 @@ class TestTimeSignature:
             ((True,), 8),
             ("12", 8),
             ((F(10**32),), 8),  # 33 digits: longer than a unit can be
+            ((F(1, 129),), 4),  # a fraction's denominator above 128, as in a unit
         ],
     )
     def test_a_time_signature_that_cant_be_written_is_refused(self, parts, denominator):
