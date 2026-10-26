@@ -635,6 +635,61 @@ class TestRelationWithin:
         assert units(GRID, "v IN form BEFORE c IN form WITHIN 3 s") == []
 
 
+class TestOffTheMap:
+    """A unit that lies off the time map (the map ends at 32 s, the piece at 60):
+    a tolerance or a gap in bars or beats cannot be measured there, so the
+    relation holds of nothing, in SQL and in Python alike."""
+
+    OFF = fixture(
+        hierarchy("Form (Z)", [["a", 1, 28, 31], ["b", 1, 40, 41], ["e", 1, 40, 48]]),
+        hierarchy("Inner", [["g", 1, 40, 44]]),
+        markers("Notes", [["m", 40], ["n", 40.05]]),
+        beats(8),
+        length=60,
+    )
+
+    def test_a_tolerance_in_beats_at_a_start_off_the_map_holds_of_nothing(self):
+        # Python paths: a relation without IN, and a sequence relation with IN
+        assert units(self.OFF, "n[SAME START m] IN notes") == ["n@40.05"]
+        assert units(self.OFF, "n[SAME START m WITHIN 1 beat] IN notes") == []
+        assert units(self.OFF, "e IN form STARTS WITH g IN inner") == ["e@40|g@40"]
+        assert units(self.OFF, "e IN form STARTS WITH g IN inner WITHIN 1 beat") == []
+        # the SQL path agrees
+        assert units(self.OFF, "n IN notes SAME START m IN notes") == ["n@40.05|m@40"]
+        assert units(self.OFF, "n IN notes SAME START m IN notes WITHIN 1 beat") == []
+
+    def test_a_gap_whose_end_lies_off_the_map_is_within_nothing(self):
+        assert units(self.OFF, "a[BEFORE b] IN form") == ["a@28"]
+        assert units(self.OFF, "a[BEFORE b WITHIN 1 bar] IN form") == []
+        assert units(self.OFF, "a[BEFORE b WITHIN 10 bars] IN form") == []
+        assert units(self.OFF, "a IN form BEFORE b IN form WITHIN 10 bars") == []
+        assert units(self.OFF, "a[BEFORE b WITHIN 10 s] IN form") == ["a@28"]
+
+    def test_two_positions_compare_only_when_both_are_known(self):
+        base = "a IN form BEFORE b IN form WHERE "
+        for cond in (
+            "$1.bar = $2.bar",
+            "$1.bar != $2.bar",
+            "NOT $1.bar = $2.bar",
+            "$2.bar != $1.bar",
+        ):
+            assert units(self.OFF, base + cond) == [], cond
+        assert units(self.OFF, base + "$1.bar = 8") == ["a@28|b@40"]
+
+    def test_a_distance_in_beats_ignores_float_noise(self):
+        # beats every 0.3 s: 0.75 s is beat 3.5 and 1.05 s beat 4.5 only after
+        # rounding, since 0.75 / 0.3 and 1.05 / 0.3 are not exact in binary
+        tl = {"name": "Beats", "kind": "beats", "start": 0, "every": 0.3}
+        tl.update({"beats_per_bar": 4, "bars": 2})
+        fix = fixture(markers("M", [["a", 0.75], ["c", 1.05]]), tl, length=5)
+        assert units(
+            fix, "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 1 beat"
+        ) == ["a@0.75|c@1.05"]
+        assert units(
+            fix, "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 2 beats"
+        ) == []
+
+
 # --------------------------------------------------------------------------- #
 # The bars lane
 # --------------------------------------------------------------------------- #
@@ -746,6 +801,10 @@ class TestSqlFunctions:
             "SELECT tql_length('f1', NULL, 5, 'bar')",
             "SELECT tql_unit_seconds('f1', 5000, 'bar')",
             "SELECT tql_unit_seconds('nope', 5, 'beat')",
+            "SELECT tql_position('f1', 'eight', 'bar')",
+            "SELECT tql_length('f1', 0, 'eight', 'bar')",
+            "SELECT tql_length('f1', 'zero', 8, 'bar')",
+            "SELECT tql_unit_seconds('f1', 'eight', 'bar')",
         ],
     )
     def test_null_off_the_map(self, sql):
