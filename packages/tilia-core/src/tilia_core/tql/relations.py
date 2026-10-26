@@ -63,6 +63,29 @@ def uses_map(within: syntax.Within | None) -> bool:
     return within is not None and within.unit in ("bar", "beat")
 
 
+def off_map(rel: syntax.Relation, a: Component, tmap: Any) -> bool:
+    """Whether a time of the left unit ``a`` that ``rel``'s ``WITHIN`` in bars or
+    beats reads lies off the time map ``tmap``, or there is none: its start, and
+    for ``BEFORE`` its end, where the gap begins. A time off the map never
+    matches, ``NOT`` included, so such a unit is in no such relation."""
+    assert rel.within is not None
+    unit = rel.within.unit
+    if tmap is None or tmap.unit_seconds(a.start, unit) is None:
+        return True
+    return rel.rel == "BEFORE" and tmap.position(a.end, unit) is None
+
+
+def on_map_sql(rel: syntax.Relation, a: str) -> str:
+    """The SQL twin of ``NOT off_map(rel, a)``, ``a`` the left unit's alias."""
+    assert rel.within is not None
+    unit = rel.within.unit
+    test = f"tql_unit_seconds({a}.file_id, {a}.start, '{unit}') IS NOT NULL"
+    if rel.rel == "BEFORE":
+        end = f'{a}."end"'
+        test += f" AND tql_position({a}.file_id, {end}, '{unit}') IS NOT NULL"
+    return test
+
+
 def seconds(within: syntax.Within) -> float:
     """``within`` in seconds; it must be in seconds or milliseconds."""
     if within.unit == "s":
@@ -304,6 +327,9 @@ def exists_sql(rel: syntax.Relation, comp: str, bld: SqlBuilder) -> str:
         f"{tql_compile.unit_test(target, other, bld)}"
     )
     found = f"EXISTS (SELECT 1 FROM components {other} WHERE {inner})"
+    if rel.negate and uses_map(rel.within):
+        # off the map, NOT included: a unit off it is in no such relation
+        return f"({on_map_sql(rel, comp)} AND NOT {found})"
     return f"NOT {found}" if rel.negate else found
 
 
@@ -628,8 +654,10 @@ class Scope:
             value = self.facts.unit(comp.id).get("downbeat")
             return value is not None and bool(value) != cond.negate
         if isinstance(cond, syntax.RelCond):
-            if uses_map(cond.relation.within) and self.time_map is None:
-                return False  # nothing is within a distance in bars or beats
+            if uses_map(cond.relation.within) and off_map(
+                cond.relation, comp, self.time_map
+            ):
+                return False  # off the map, NOT included: no time holds
             got = bool(self.rel_targets(comp, cond.relation, first_only=True))
             return got != cond.relation.negate
         if isinstance(cond, syntax.Compare):

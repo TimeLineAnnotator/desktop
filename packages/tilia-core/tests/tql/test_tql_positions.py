@@ -638,7 +638,7 @@ class TestRelationWithin:
 class TestOffTheMap:
     """A unit that lies off the time map (the map ends at 32 s, the piece at 60):
     a tolerance or a gap in bars or beats cannot be measured there, so the
-    relation holds of nothing, in SQL and in Python alike."""
+    relation holds of nothing, NOT included, in SQL and in Python alike."""
 
     OFF = fixture(
         hierarchy("Form (Z)", [["a", 1, 28, 31], ["b", 1, 40, 41], ["e", 1, 40, 48]]),
@@ -664,6 +664,40 @@ class TestOffTheMap:
         assert units(self.OFF, "a[BEFORE b WITHIN 10 bars] IN form") == []
         assert units(self.OFF, "a IN form BEFORE b IN form WITHIN 10 bars") == []
         assert units(self.OFF, "a[BEFORE b WITHIN 10 s] IN form") == ["a@28"]
+
+    def test_not_holds_of_no_unit_off_the_map(self):
+        # a time off the map never matches, NOT included: the Python paths
+        assert units(self.OFF, "n[NOT SAME START m WITHIN 1 beat] IN notes") == []
+        query = "e IN form NOT STARTS WITH g IN inner WITHIN 1 beat"
+        assert units(self.OFF, query) == []
+        assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 bars] IN form") == ["a@28"]
+        assert units(
+            self.OFF, "* IN form WHERE NOT SAME START g IN inner WITHIN 1 beat"
+        ) == ["a@28"]
+        # the SQL path agrees
+        query = "* IN notes NOT SAME START m IN notes WITHIN 1 beat"
+        assert units(self.OFF, query) == []
+        assert units(
+            self.OFF, "*[NOT SAME START g IN inner WITHIN 1 beat] IN form"
+        ) == ["a@28"]
+        # in seconds, the map is not read
+        assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 s] IN form") == [
+            "b@40",
+            "e@40",
+        ]
+
+    def test_not_before_holds_of_no_unit_ending_off_the_map(self):
+        # c starts on the map (it ends at 32 s) and ends off it, where BEFORE's
+        # gap begins
+        fix = fixture(
+            hierarchy("Form (Z)", [["c", 1, 30, 34], ["z", 1, 50, 51]]),
+            beats(8),
+            length=60,
+        )
+        assert units(fix, "c[NOT BEFORE z WITHIN 1 bar] IN form") == []
+        assert units(fix, "c IN form NOT BEFORE z IN form WITHIN 1 bar") == []
+        assert units(fix, "c[NOT BEFORE z IN form WITHIN 1 bar] IN form") == []
+        assert units(fix, "c[NOT BEFORE z WITHIN 1 s] IN form") == ["c@30"]
 
     def test_two_positions_compare_only_when_both_are_known(self):
         base = "a IN form BEFORE b IN form WHERE "
