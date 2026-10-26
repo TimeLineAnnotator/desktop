@@ -134,11 +134,6 @@ _RESOLUTIONS = ("INSERT", "ADD-CATEGORY", "SKIP")
 SEQ_RELATIONS = frozenset({"CONTAINS", "STARTS_WITH", "ENDS_WITH", "CONSISTS_OF"})
 
 _STOP = set('[](){}",=<>!~/$@')
-_STR_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
-_GROUP_RE = re.compile(
-    r'^AS\s+(?P<label>"(?:[^"\\]|\\.)*")(?:\s+COLOR\s+(?P<color>"(?:[^"\\]|\\.)*"))?$',
-    re.I,
-)
 _COUNT_RE = re.compile(r"\{\s*(\d+)\s*(?:(,)\s*(\d*)\s*)?\}")
 _REF_RE = re.compile(r"\$(-?\d+)((?:\.[A-Za-z_][A-Za-z_0-9]*)*)")
 _NUM_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)$")
@@ -188,8 +183,8 @@ def _opens_operand(toks: list[Tok]) -> bool:
     prev = toks[-1] if toks else None
     if prev is None:
         return True
-    if prev.type in ("[", "(", ",", "OP", "ARROW", "AT"):
-        return True
+    if prev.type in ("[", "(", ",", "OP", "ARROW", "AT", "SLASH"):
+        return True  # after a joining `/` the next literal starts: verse//^c/
     if prev.type != "WORD":
         return False
     if prev.upper in (KEYWORDS | {"WITH", "OF"}):
@@ -608,7 +603,8 @@ class _Parser:
 
     @staticmethod
     def err(msg: str, t: Tok) -> TQLError:
-        return TQLError(msg, t.pos, max(t.end, t.pos + 1))
+        # the end of the query has no character to underline: end == pos there
+        return TQLError(msg, t.pos, t.end if t.type == "EOF" else max(t.end, t.pos + 1))
 
     def at_relation(self, k: int = 0) -> bool:
         """A relation (optionally negated) starts here."""
@@ -1175,6 +1171,12 @@ class _Parser:
             return Value("regex", t.value, t.text, t.pos)
         if t.type == "REF":
             return Value("ref", self.field_ref(), t.text, t.pos)
+        if t.type == "WORD" and t.upper in KEYWORDS:
+            raise self.err(
+                f"expected a value, found keyword {t.upper} - quote it "
+                f'("{t.text}") to match a label spelled so',
+                t,
+            )
         if t.type == "WORD" or t.type == "QUANT":
             # glue adjacent pieces back together: `verse?` is a value here, not
             # a step with a quantifier
@@ -1397,8 +1399,11 @@ class _Parser:
             ),
             None,
         )
-        body_end = len(self.text) if on_at is None else self.toks[on_at].pos
-        rest = _flat(self.text[(unit_tok or t).end : body_end])
+        body_end = len(self.toks) - 1 if on_at is None else on_at
+        # the verb's arguments, as tokens: the lexer has already unescaped the
+        # strings and read them in NFC, keeping their whitespace as typed
+        args = self.toks[self.i : body_end]
+        rest = _flat(self.text[(unit_tok or t).end : self.toks[body_end].pos])
         action = Action(
             verb,
             text=nfc(_strip_comments(self.text[t.pos :])).strip(),
@@ -1407,21 +1412,25 @@ class _Parser:
         )
         try:
             if verb == "GROUP":
-                m = _GROUP_RE.match(rest)
-                if not m:
+                shape = [a.type for a in args]
+                if (
+                    shape not in (["WORD", "STRING"], ["WORD", "STRING", "WORD", "STRING"])
+                    or args[0].upper != "AS"
+                    or (len(args) == 4 and args[2].upper != "COLOR")
+                ):
                     raise _EditError(
                         'GROUP expects: GROUP AS "label" [COLOR "#rrggbb"]'
                     )
-                action.label = _unquote(m.group("label"), "GROUP AS")
+                action.label = args[1].value
                 if not action.label.strip():
                     raise _EditError("GROUP AS needs a non-empty label")
-                if m.group("color"):
-                    action.color = _unquote(m.group("color"), "COLOR")
+                if len(args) == 4:
+                    action.color = args[3].value
             elif verb == "UNGROUP":
-                if rest:
+                if args:
                     raise _EditError(f"UNGROUP takes no arguments, got {rest!r}")
             elif verb == "TAG":
-                action.tag = _unquote(rest, "TAG")
+                action.tag = _string(args, rest, "TAG")
                 if not action.tag.strip():
                     raise _EditError("TAG needs a non-empty value")
             else:
@@ -1429,10 +1438,10 @@ class _Parser:
                 # UNTAG is refused rather than assumed to mean `*`: "take this
                 # tag off" and "take all tags off" are different intents, and
                 # the destructive one has to be spelled out.
-                if rest == "*":
+                if len(args) == 1 and args[0].type == "WORD" and args[0].text == "*":
                     action.tag = "*"
                 else:
-                    action.tag = _unquote(rest, "UNTAG")
+                    action.tag = _string(args, rest, "UNTAG")
                     if not action.tag.strip():
                         raise _EditError("UNTAG needs a non-empty value")
             if on_at is not None:
@@ -1474,26 +1483,29 @@ class _Parser:
             if shape in seen:
                 raise _EditError(f"ON lists {shape!r} twice")
             seen.add(shape)
-            stop = toks[heads[n + 1]].pos if n + 1 < len(heads) else len(self.text)
-            body = _flat(self.text[toks[j].end : stop])
-            if not body.startswith("->"):
+            stop = heads[n + 1] if n + 1 < len(heads) else len(toks)
+            after = toks[stop].pos if stop < len(toks) else len(self.text)
+            body = toks[j + 1 : stop]
+            if not body or body[0].type != "ARROW":
                 raise _EditError(f"ON {shape} must be followed by '->'")
-            head, _, tail = body[2:].strip().partition(" ")
-            do = head.strip().upper()
+            head = body[1] if len(body) > 1 else None
+            do = head.upper if head is not None else ""
             if do not in _RESOLUTIONS:
                 raise _EditError(
-                    f"unknown resolution {head.strip()!r} for {shape} - "
-                    f"one of {', '.join(_RESOLUTIONS)}"
+                    f"unknown resolution {'' if head is None else head.text!r} "
+                    f"for {shape} - one of {', '.join(_RESOLUTIONS)}"
                 )
             tag: str | None = None
-            tail = tail.strip()
+            tail = body[2:]
             if tail:
-                kw, _, arg = tail.partition(" ")
-                if kw.strip().upper() != "TAG":
-                    raise _EditError(f'unexpected {tail!r} after {do} - only TAG "…"')
+                if tail[0].upper != "TAG":
+                    raise _EditError(
+                        f"unexpected {_flat(self.text[tail[0].pos : after])!r} "
+                        f'after {do} - only TAG "…"'
+                    )
                 if do != "SKIP":
                     raise _EditError("TAG may only follow SKIP")
-                tag = _unquote(arg, "TAG")
+                tag = _string(tail[1:], _flat(self.text[tail[0].end : after]), "TAG")
             rules.append(OnRule(shape, do, tag))
         return rules
 
@@ -1502,7 +1514,31 @@ class _Parser:
         op = self.expect("OP", "'='")
         if op.text != "=":
             raise self.err("SET assigns with '='", op)
-        return Assign(f, self.value())
+        v = self.value()
+        u = self.peek()
+        if v.unit in ("bar", "beat") or (
+            v.kind in ("number", "range")
+            and u.type == "WORD"
+            and u.text.lower() in _UNITS
+        ):
+            end = u.end if u.type == "WORD" and u.text.lower() in _UNITS else v.pos + len(v.raw)
+            raise TQLError(
+                f"SET takes no length - {self.text[v.pos:end]} measures a "
+                "duration, which is not writable; SET writes text, a number "
+                "or another unit's field",
+                v.pos,
+                end,
+            )
+        if v.kind == "ref" and (
+            (u.type == "QUANT" and u.text == "+")
+            or (u.type == "WORD" and u.text[:1] in "+-")
+        ):
+            raise self.err(
+                "SET takes no distance - a time plus a distance, as in "
+                "$2.start + 2 bars, only compares in WHERE",
+                u,
+            )
+        return Assign(f, v)
 
     # -- checks ------------------------------------------------------------ #
     def check_targets(self, q: Query) -> None:
@@ -1662,7 +1698,11 @@ def _strip_comments(text: str) -> str:
     out, i, n, quoted = [], 0, len(text), False
     while i < n:
         ch = text[i]
-        if ch == '"' and (i == 0 or text[i - 1] != "\\"):
+        if quoted and ch == "\\" and i + 1 < n and text[i + 1] in '"\\':
+            out.append(text[i : i + 2])
+            i += 2
+            continue
+        if ch == '"':
             quoted = not quoted
         elif (
             not quoted
@@ -1686,12 +1726,12 @@ def _flat(text: str) -> str:
     return " ".join(nfc(_strip_comments(text)).split())
 
 
-def _unquote(tok: str, what: str) -> str:
-    """Read a double-quoted string; ``\\"`` and ``\\\\`` are the only escapes."""
-    m = _STR_RE.fullmatch(tok.strip())
-    if not m:
-        raise _EditError(f"{what} must be a double-quoted string, got {tok.strip()!r}")
-    return m.group(1).replace('\\"', '"').replace("\\\\", "\\")
+def _string(args: list[Tok], rest: str, what: str) -> str:
+    """The value of ``args`` when it is one ``STRING`` token; ``rest`` is the
+    same text flattened, for the message."""
+    if len(args) != 1 or args[0].type != "STRING":
+        raise _EditError(f"{what} must be a double-quoted string, got {rest!r}")
+    return args[0].value
 
 
 _HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$")

@@ -147,7 +147,7 @@ def bare_scope(cat: Catalogue, f: syntax.FieldRef, single: bool) -> str:
         raise _error(f"unknown field {f.name!r}{_renamed(f.name)}", f)
     if len(where) > 1:
         options = " or ".join(
-            f"{'' if w == 'unit' else w + '.'}{f.name}" for w in where
+            f"{'$1.' if w == 'unit' else w + '.'}{f.name}" for w in where
         )
         raise _error(f"{f.name!r} exists on more than one level - write {options}", f)
     return where[0]
@@ -191,13 +191,16 @@ def _check_lane(cat: Catalogue, lane: syntax.Lane | None) -> None:
     end = lane.pos + len(lane.text) + (2 if lane.quoted else 0)
     if lane.quoted:  # a quoted name keeps its case: say so where only case differs
         near = lane_names(cat, lane, fold_case=True)
-        if near:
-            raise TQLError(
-                f'no timeline or row called "{lane.text}" - a quoted name keeps '
-                f'its case: "{sorted(set(near))[0]}"?',
-                lane.pos,
-                end,
-            )
+        hint = (
+            f'its case: "{sorted(set(near))[0]}"?'
+            if near
+            else "its case; * is a wildcard"
+        )
+        raise TQLError(
+            f'no timeline or row called "{lane.text}" - a quoted name keeps {hint}',
+            lane.pos,
+            end,
+        )
     raise TQLError(
         f"no timeline, role or kind called {lane.text!r} - roles: "
         f"{', '.join(sorted(tql_compile.BUILTIN_ROLES))}; kinds: {KIND_NAMES}; or a "
