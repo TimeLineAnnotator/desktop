@@ -10,9 +10,11 @@ except ModuleNotFoundError:
 
 # SHA-256 of examples.toml with LF line endings. The file is a copy of
 # library-manager/tql-examples.toml in TimeLineAnnotator/project-management,
-# TQL 0.1.0's example list (#102; last changed there in 1949ac5, #104). Change
-# the copy only together with the planning repo's, then this hash.
-EXAMPLES_SHA256 = "a1ad76e8d9fb2a8b2e79698cdbe897b2f23b514d78e4c1551bcb310536771661"
+# TQL 0.1.0's example list (#102; last changed there in 1949ac5, #104), with
+# example 28's rows and why changed for Q36 (a chord on a unit's end counts for
+# it), which the planning repo's copy does not have yet. Change the copy only
+# together with the planning repo's, then this hash.
+EXAMPLES_SHA256 = "25dfbf835dbd95c89cf9c25901dbc97d45f156f5a9f42130d7b7a3474bb78194"
 
 PATH = Path(__file__).with_name("examples.toml")
 
