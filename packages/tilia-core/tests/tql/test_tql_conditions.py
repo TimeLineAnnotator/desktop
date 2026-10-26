@@ -88,10 +88,11 @@ def build(*fixtures):
     con = index.connection()
     # the user-set fields no fixture can hold yet
     con.execute(
-        "UPDATE components SET comments = 'needs review' WHERE id = 'song:t1:c2'"
+        "UPDATE components SET comments = 'needs review' WHERE uuid = 'song:t1:c2'"
     )
     con.executemany(
-        "INSERT INTO fields VALUES ('component', 'song:t1:c2', 'tags', ?)",
+        "INSERT INTO fields SELECT 'component', id, 'tags', ? FROM components "
+        "WHERE uuid = 'song:t1:c2'",
         [("draft",), ("hold",)],
     )
     return index
@@ -431,7 +432,7 @@ class TestSqlAndPythonAgree:
         got = run("*[level = 2] IN form")
         assert "hierarchies" in got.sql and "level" in got.sql
         text = tql_compile.candidate_statement(
-            tql.parse("*[level = 2] IN form").pattern.seq.steps[0].item, "song"
+            tql.parse("*[level = 2] IN form").pattern.seq.steps[0].item, "song.tla"
         )
         assert "level" not in text[0].split("?")[-1]
         assert 2.0 in text[1]
@@ -712,7 +713,12 @@ class TestWhereOnly:
             },
         ]
         assert all(m.slots == [] for m in got.matches)
-        assert [m.file_id for m in got.matches] == ["other", "song"]
+        # a match names its file by the index's key; the row by its document id
+        index = build(SONG, OTHER)
+        assert [m.file_id for m in got.matches] == [
+            fixture_index.file_key(index, "other"),
+            fixture_index.file_key(index, "song"),
+        ]
 
     def test_a_bare_timeline_field_lists_timelines(self):
         got = run("WHERE author = Ana", SONG, OTHER)
@@ -731,7 +737,8 @@ class TestWhereOnly:
         assert got.grain == "file"
         assert got.rows == [{"file": "song", "title": "Song", "composer": "Mozart"}]
         assert all(m.slots == [] for m in got.matches)
-        assert [m.key for m in got.matches] == ["song|file"]
+        key = fixture_index.file_key(build(SONG, OTHER), "song")
+        assert [m.key for m in got.matches] == [f"{key}|file"]
 
     def test_a_bare_file_field_lists_files(self):
         got = run("WHERE composer = Bach", SONG, OTHER)

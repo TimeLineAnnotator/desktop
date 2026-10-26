@@ -820,40 +820,45 @@ class TestBarsLane:
 # The SQL functions
 # --------------------------------------------------------------------------- #
 class TestSqlFunctions:
+    # The functions take a file's key; 1 is the key of a fixture index's first
+    # file, f1.
     def call(self, index, sql):
         sqlfuncs.register(index.connection(), index)
         return index.connection().execute(sql).fetchone()[0]
 
+    def test_the_first_file_has_key_1(self):
+        assert fixture_index.file_key(index_of(DATA["sonata"]), "f1") == 1
+
     def test_position(self):
         index = index_of(DATA["sonata"])
-        assert self.call(index, "SELECT tql_position('f1', 8, 'bar')") == 2.0
-        assert self.call(index, "SELECT tql_position('f1', 8, 'beat')") == 8.0
-        assert self.call(index, "SELECT tql_position('f1', 10, 'bar')") == 2.5
+        assert self.call(index, "SELECT tql_position(1, 8, 'bar')") == 2.0
+        assert self.call(index, "SELECT tql_position(1, 8, 'beat')") == 8.0
+        assert self.call(index, "SELECT tql_position(1, 10, 'bar')") == 2.5
 
     def test_length(self):
         index = index_of(DATA["sonata"])
-        assert self.call(index, "SELECT tql_length('f1', 0, 64, 'bar')") == 16.0
-        assert self.call(index, "SELECT tql_length('f1', 0, 64, 'beat')") == 64.0
+        assert self.call(index, "SELECT tql_length(1, 0, 64, 'bar')") == 16.0
+        assert self.call(index, "SELECT tql_length(1, 0, 64, 'beat')") == 64.0
 
     def test_unit_seconds(self):
         index = index_of(DATA["sonata"])
-        assert self.call(index, "SELECT tql_unit_seconds('f1', 5, 'bar')") == 4.0
-        assert self.call(index, "SELECT tql_unit_seconds('f1', 5, 'beat')") == 1.0
+        assert self.call(index, "SELECT tql_unit_seconds(1, 5, 'bar')") == 4.0
+        assert self.call(index, "SELECT tql_unit_seconds(1, 5, 'beat')") == 1.0
 
     @pytest.mark.parametrize(
         "sql",
         [
-            "SELECT tql_position('f1', 5000, 'bar')",
-            "SELECT tql_position('f1', NULL, 'bar')",
+            "SELECT tql_position(1, 5000, 'bar')",
+            "SELECT tql_position(1, NULL, 'bar')",
             "SELECT tql_position('nope', 5, 'bar')",
-            "SELECT tql_length('f1', 0, 5000, 'bar')",
-            "SELECT tql_length('f1', NULL, 5, 'bar')",
-            "SELECT tql_unit_seconds('f1', 5000, 'bar')",
+            "SELECT tql_length(1, 0, 5000, 'bar')",
+            "SELECT tql_length(1, NULL, 5, 'bar')",
+            "SELECT tql_unit_seconds(1, 5000, 'bar')",
             "SELECT tql_unit_seconds('nope', 5, 'beat')",
-            "SELECT tql_position('f1', 'eight', 'bar')",
-            "SELECT tql_length('f1', 0, 'eight', 'bar')",
-            "SELECT tql_length('f1', 'zero', 8, 'bar')",
-            "SELECT tql_unit_seconds('f1', 'eight', 'bar')",
+            "SELECT tql_position(1, 'eight', 'bar')",
+            "SELECT tql_length(1, 0, 'eight', 'bar')",
+            "SELECT tql_length(1, 'zero', 8, 'bar')",
+            "SELECT tql_unit_seconds(1, 'eight', 'bar')",
         ],
     )
     def test_null_off_the_map(self, sql):
@@ -861,19 +866,19 @@ class TestSqlFunctions:
 
     def test_null_for_a_file_without_a_time_map(self):
         index = index_of(EXPOSITION)
-        assert self.call(index, "SELECT tql_position('f1', 5, 'bar')") is None
-        assert self.call(index, "SELECT tql_length('f1', 0, 5, 'bar')") is None
-        assert self.call(index, "SELECT tql_unit_seconds('f1', 5, 'bar')") is None
+        assert self.call(index, "SELECT tql_position(1, 5, 'bar')") is None
+        assert self.call(index, "SELECT tql_length(1, 0, 5, 'bar')") is None
+        assert self.call(index, "SELECT tql_unit_seconds(1, 5, 'bar')") is None
 
     def test_register_without_an_index_still_works(self):
         index = index_of(DATA["sonata"])
         con = index.connection()
         sqlfuncs.register(con)
         sqlfuncs.register(con)
-        assert con.execute("SELECT tql_position('f1', 8, 'bar')").fetchone()[0] is None
+        assert con.execute("SELECT tql_position(1, 8, 'bar')").fetchone()[0] is None
         assert con.execute("SELECT tql_color('red')").fetchone()[0] == "#ff0000"
         sqlfuncs.register(con, index)
-        assert con.execute("SELECT tql_position('f1', 8, 'bar')").fetchone()[0] == 2.0
+        assert con.execute("SELECT tql_position(1, 8, 'bar')").fetchone()[0] == 2.0
 
     def test_a_dropped_index_frees_its_connection(self):
         # The functions on the connection ask the index, which holds the
@@ -886,7 +891,7 @@ class TestSqlFunctions:
         con = sqlite3.connect(":memory:", factory=Connection)
         built.connection().backup(con)
         index = fixture_index.FixtureIndex(con, built._maps)
-        assert self.call(index, "SELECT tql_position('f1', 8, 'bar')") == 2.0
+        assert self.call(index, "SELECT tql_position(1, 8, 'bar')") == 2.0
         assert tql.run(index, "*[bar = 1] IN form").matches
         freed = weakref.ref(con)
         del index, con

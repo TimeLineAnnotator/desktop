@@ -178,8 +178,8 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
     set twice) gives them joined by ``, ``, as the result table does."""
     if key == "label":
         return [nfc(comp.label)]
-    if key == "file":
-        return [comp.file_id]
+    if key == "file":  # by path: keys change between runs, copies share an id
+        return [reader.one("SELECT path FROM files WHERE id = ?", (comp.file_id,))]
     if key == "timeline":
         return [
             reader.one("SELECT name FROM timelines WHERE id = ?", (comp.timeline_id,))
@@ -195,8 +195,12 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         return sorted(set(found)) or [None]
     if key.startswith("file."):
         name = key[5:]
-        if name == "id":
-            return [comp.file_id]
+        if name == "id":  # the document id the file stores
+            return [
+                reader.one(
+                    "SELECT document_id FROM files WHERE id = ?", (comp.file_id,)
+                )
+            ]
         rows = reader.con.execute(
             "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
             "AND name = ? ORDER BY rowid",
@@ -205,13 +209,16 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         return [", ".join(str(r[0]) for r in rows) if rows else None]
     if key.startswith("tl."):
         column = key[3:]  # one of names.TIMELINE_FIELDS, checked
+        if column == "id":  # the timeline's id in its file
+            column = "uuid"
         return [
             reader.one(
                 f"SELECT {column} FROM timelines WHERE id = ?", (comp.timeline_id,)
             )
         ]
     if key in COMPONENT_COLUMNS:
-        column = '"end"' if key == "end" else key
+        # a unit's id is its id in its file, not the index's key
+        column = {"end": '"end"', "id": "uuid"}.get(key, key)
         return [reader.one(f"SELECT {column} FROM components WHERE id = ?", (comp.id,))]
     if key == "level":
         return [

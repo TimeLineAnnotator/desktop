@@ -321,10 +321,16 @@ class TestTolerance:
 class TestSql:
     def test_the_sentence_form_joins_the_two_sides_with_the_tolerance(self):
         got = run(SPANS, "* IN form DURING w IN Layers")
-        assert "FROM components a JOIN components b ON" in got.sql
+        assert (
+            "FROM components a JOIN files f ON f.id = a.file_id "
+            "JOIN components b ON" in got.sql
+        )
+        assert "f.path = 'f1.tla'" in got.sql
         assert "0.1" in got.sql
         assert "?" not in got.sql
-        assert "'f1:t1'" in got.sql and "'f1:t2'" in got.sql
+        index = fixture_index.build_index(SPANS)
+        t1, t2 = (fixture_index.key_of(index, f"f1:t{n}") for n in (1, 2))
+        assert f"a.timeline_id = {t1}" in got.sql and f"b.timeline_id = {t2}" in got.sql
 
     def test_the_bracket_form_is_an_exists(self):
         got = run(SPANS, "*[DURING w IN Layers] IN form")
@@ -671,7 +677,8 @@ class TestLabelsAndMatches:
     def test_more_than_one_file(self):
         index = fixture_index.build_index(SPANS, NESTED)
         got = tql.run(index, "*[CONTAINS a] IN form")
-        assert sorted(m.slots[0][0].file_id for m in got.matches) == ["f1", "f2", "f2"]
+        f1, f2 = (fixture_index.file_key(index, f) for f in ("f1", "f2"))
+        assert sorted(m.slots[0][0].file_id for m in got.matches) == [f1, f2, f2]
 
     @pytest.mark.parametrize(
         "query, expected",
@@ -774,24 +781,29 @@ class TestEqualTimes:
         assert not rows(fix, "a THEN z IN Analysis")
 
     def test_equal_labels_are_ordered_by_id(self):
-        fix = self.cadences("HC", "HC")
-        (match,) = run(fix, "HC THEN HC IN cadences").matches
-        assert [c.id for s in match.slots for c in s] == ["f1:t1:c1", "f1:t1:c2"]
+        index = fixture_index.build_index(self.cadences("HC", "HC"))
+        (match,) = tql.run(index, "HC THEN HC IN cadences").matches
+        assert [c.id for s in match.slots for c in s] == [
+            fixture_index.key_of(index, "f1:t1:c1"),
+            fixture_index.key_of(index, "f1:t1:c2"),
+        ]
 
     @staticmethod
     def swap_ids(index, first, second):
-        """Exchange the ids of two units, so that the one stored first has the
-        later id."""
+        """Exchange the keys of the two units whose own ids are ``first`` and
+        ``second``, so that the one the file lists first has the later key."""
         con = index.connection()
-        con.execute("UPDATE components SET id = 'tmp' WHERE id = ?", (first,))
-        con.execute("UPDATE components SET id = ? WHERE id = ?", (first, second))
-        con.execute("UPDATE components SET id = ? WHERE id = 'tmp'", (second,))
+        a, b = (fixture_index.key_of(index, u) for u in (first, second))
+        con.execute("UPDATE components SET id = -1 WHERE id = ?", (a,))
+        con.execute("UPDATE components SET id = ? WHERE id = ?", (a, b))
+        con.execute("UPDATE components SET id = ? WHERE id = -1", (b,))
+        return a, b
 
     def test_equal_labels_follow_the_id_and_not_the_order_of_storage(self):
         index = fixture_index.build_index(self.cadences("HC", "HC"))
-        self.swap_ids(index, "f1:t1:c1", "f1:t1:c2")
+        a, b = self.swap_ids(index, "f1:t1:c1", "f1:t1:c2")
         (match,) = tql.run(index, "HC THEN HC IN cadences").matches
-        assert [c.id for s in match.slots for c in s] == ["f1:t1:c1", "f1:t1:c2"]
+        assert [c.id for s in match.slots for c in s] == [a, b]
 
     def test_a_join_lists_equal_labels_by_id_and_not_by_storage(self):
         index = fixture_index.build_index(
@@ -800,9 +812,9 @@ class TestEqualTimes:
                 markers("Cadences", [["HC", 4], ["HC", 4]]),
             )
         )
-        self.swap_ids(index, "f1:t2:c1", "f1:t2:c2")
+        a, b = self.swap_ids(index, "f1:t2:c1", "f1:t2:c2")
         got = tql.run(index, "HC IN cadences DURING a IN form")
-        assert [m.slots[0][0].id for m in got.matches] == ["f1:t2:c1", "f1:t2:c2"]
+        assert [m.slots[0][0].id for m in got.matches] == [a, b]
 
     @pytest.mark.parametrize("stored", [("chorus", "B"), ("B", "chorus")])
     def test_a_lane_shows_the_first_of_two_units_of_one_extent(self, stored):

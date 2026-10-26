@@ -196,8 +196,39 @@ class TestCounts:
 
 class TestKeys:
     def test_file(self):
+        # by path (research R18): keys change between runs, copies share an id
         table = run("pop", "chorus IN form").stats("counts", "file")
+        assert table.rows == [("f1.tla", 5, 1)]
+
+    def test_file_groups_by_path_not_by_document_id(self):
+        # two copies share a document id, and are told apart by path
+        index = fixture_index.build_index(FIXTURES["pop"], FIXTURES["pop"])
+        con = index.connection()
+        con.execute("UPDATE files SET document_id = 'same'")
+        con.execute("UPDATE files SET path = 'b/pop.tla' WHERE id = 1")
+        con.execute("UPDATE files SET path = 'a/pop.tla' WHERE id <> 1")
+        table = tql.run(index, "chorus IN form").stats("counts", "file")
+        assert table.rows == [("a/pop.tla", 5, 1), ("b/pop.tla", 5, 1)]
+        assert tql.run(index, "chorus IN form").stats("counts", "file.id").rows == [
+            ("same", 10, 2)
+        ]
+
+    def test_file_id_is_the_document_id(self):
+        table = run("pop", "chorus IN form").stats("counts", "file.id")
         assert table.rows == [("f1", 5, 1)]
+        named = dict(FIXTURES["pop"], name="song")
+        result = tql.run(fixture_index.build_index(named), "chorus IN form")
+        assert result.stats("counts", "file.id").rows == [("song", 5, 1)]
+
+    def test_tl_id_is_the_timelines_own_id(self):
+        table = run("pop", "chorus IN form").stats("counts", "tl.id")
+        assert table.rows == [("f1:t1", 3, 1), ("f1:t2", 2, 1)]
+
+    def test_id_is_the_units_own_id(self):
+        result = run("pop", "chorus IN form")
+        table = result.stats("counts", "id")
+        assert table.rows == sorted((r["ids"], 1, 1) for r in result.rows)
+        assert all(r[0].startswith("f1:t") for r in table.rows)
 
     def test_tl_field(self):
         table = run("pop", "chorus IN form").stats("counts", "tl.author")
@@ -221,8 +252,8 @@ class TestKeys:
         con = index.connection()
         for value in ("sad", "happy"):
             con.execute(
-                "INSERT INTO fields VALUES ('component', 'f1:t1:c6', 'mood', ?)",
-                (value,),
+                "INSERT INTO fields VALUES ('component', ?, 'mood', ?)",
+                (fixture_index.key_of(index, "f1:t1:c6"), value),
             )
         table = tql.run(index, "chorus IN form").stats("counts", "mood")
         assert table.rows == [("sad, happy", 1, 1), (None, 4, 1)]

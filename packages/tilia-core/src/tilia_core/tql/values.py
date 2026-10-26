@@ -249,9 +249,9 @@ class Facts:
     positions and chord and key columns, its timelines' fields and its own
     fields. Everything is loaded when first asked for."""
 
-    def __init__(self, log: Log, file_id: str) -> None:
+    def __init__(self, log: Log, file_id: int) -> None:
         self.log = log
-        self.file_id = file_id
+        self.file_id = file_id  # the file's key, files.id
         self._units: dict[str, dict[str, Any]] | None = None
         self._timelines: dict[str, dict[str, Any]] = {}
         self._file: dict[str, list[Any]] | None = None
@@ -327,14 +327,16 @@ class Facts:
             for count, number, label, beats, nth in rows
         }
 
-    def timeline(self, timeline_id: str | None) -> dict[str, Any]:
-        """The fields of a timeline: name, kind, role, author, id, ordinal."""
+    def timeline(self, timeline_id: int | None) -> dict[str, Any]:
+        """The fields of a timeline: name, kind, role, author, id, ordinal.
+        ``id`` is the timeline's id in its file (``timelines.uuid``), not the
+        index's key."""
         if timeline_id is None:
             return {}
         got = self._timelines.get(timeline_id)
         if got is None:
             rows = self.log.execute(
-                "SELECT name, kind, role, author, id, ordinal FROM timelines "
+                "SELECT name, kind, role, author, uuid, ordinal FROM timelines "
                 "WHERE id = ?",
                 (timeline_id,),
             )
@@ -344,10 +346,14 @@ class Facts:
         return got
 
     def file(self) -> dict[str, list[Any]]:
-        """The file's fields, each with its values: ``id`` and those the
-        ``fields`` table holds."""
+        """The file's fields, each with its values: ``id``, the document id
+        the file stores (``files.document_id``), and those the ``fields`` table
+        holds."""
         if self._file is None:
-            got: dict[str, list[Any]] = {"id": [self.file_id]}
+            ids = self.log.execute(
+                "SELECT document_id FROM files WHERE id = ?", (self.file_id,)
+            )
+            got: dict[str, list[Any]] = {"id": [ids[0][0] if ids else None]}
             rows = self.log.execute(
                 "SELECT name, value FROM fields WHERE scope = 'file' "
                 "AND owner_id = ? ORDER BY rowid",
