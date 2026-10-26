@@ -14,6 +14,7 @@ import itertools
 import json
 import threading
 from fractions import Fraction as F
+from time import perf_counter
 
 import pytest
 
@@ -22,6 +23,7 @@ from tilia_core import tla
 from tilia_core.timemap import TimeMap, qstamps, time_map_for
 from tilia_core.timemap import timemap as timemap_module
 from tilia_core.timemap.table import build_rows
+from tilia_core.timemap.units import MAX_DENOMINATOR
 
 # What TiLiA puts on the first beat, which #621's tests edit.
 DEFAULT = {"denominator": 4, "units": "1", "assumed": True}
@@ -529,6 +531,56 @@ def test_rows_give_their_qstamps_as_text_in_json():
     assert (first.qstamp, first.quarters) == (0, 2)
     as_json = json.loads(json.dumps(dataclasses.asdict(second), default=str))
     assert (as_json["qstamp"], as_json["quarters"]) == ("2", "2")
+
+
+def _crafted(measures: int) -> tla.Timeline:
+    """Measures of two taps, a beat every second, measure i's unit a quarter's
+    1/(10**29 + i): as long as a unit may be written, each with a denominator
+    of its own."""
+    units = {2 * i: (4, "1/" + str(10**29 + i)) for i in range(measures)}
+    return _timeline(range(2 * measures), [2], units)
+
+
+def test_a_long_table_of_crafted_units_builds_quickly():
+    # desktop#747's review: the rows' running qstamp is an exact sum, and each
+    # of these units made its denominator about 30 digits longer. 8,000 such
+    # measures took 10 s to build their rows, and 4 s more for the map's
+    # stamps. A unit's denominator is now at most 128, which refuses them
+    # (TimeLineAnnotator/project-management#247).
+    timeline = _crafted(8000)
+    doc = document(timeline)
+
+    start = perf_counter()
+    rows = build_rows(doc, timeline)
+    time_map = time_map_for(doc, timeline.id)
+    assert time_map is not None and time_map.qstamp(rows[-1].start) is not None
+    assert perf_counter() - start < 3
+    assert len(rows) == 8000
+
+
+def test_the_last_row_writes_its_qstamp_as_text():
+    # Python refuses to write an int of more than 4,300 digits as text. From
+    # the 250th crafted measure on, a row's qstamp had a longer denominator,
+    # and its repr and the contract's JSON recipe raised (desktop#747's
+    # review). They work at the end of the long table, and on a table that
+    # uses every denominator a unit may have, 1/1 to 1/128.
+    every = {2 * i: (4, f"1/{i + 1}") for i in range(MAX_DENOMINATOR)}
+    crafted, every_denominator = (
+        build_rows(document(timeline), timeline)[-1]
+        for timeline in (
+            _crafted(8000),
+            _timeline(range(2 * MAX_DENOMINATOR), [2], every),
+        )
+    )
+    # Every unit was read: measure d's two beats are each worth 1/d quarter.
+    assert every_denominator.qstamp == sum(F(2, d) for d in range(1, MAX_DENOMINATOR))
+    assert every_denominator.quarters == F(2, MAX_DENOMINATOR)
+
+    for last in (crafted, every_denominator):
+        assert repr(last.qstamp) in repr(last)
+        as_json = json.loads(json.dumps(dataclasses.asdict(last), default=str))
+        assert F(as_json["qstamp"]) == last.qstamp
+        assert F(as_json["quarters"]) == last.quarters
 
 
 def test_qstamps_are_computed_for_a_folded_table():
