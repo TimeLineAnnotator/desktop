@@ -12,6 +12,7 @@ import sqlite3
 from typing import Any, Callable, Iterator
 
 from tilia_core import derived
+from tilia_core.labels import fold
 
 from . import compile as tql_compile
 from . import sqlfuncs, syntax
@@ -19,6 +20,7 @@ from .explain import explain
 from .lanes import project
 from .result import Component, Match, Result
 from .sequences import Item, find_runs, slots_of
+from .syntax import TQLError
 
 MODES = {None: "any", "STARTS_WITH": "start", "ENDS_WITH": "end", "CONSISTS_OF": "full"}
 
@@ -130,10 +132,13 @@ def run(
     found: dict[tuple[Any, ...], Match] = {}
     order: list[tuple[Any, ...]] = []
     stopped: str | None = None
+    warnings: list[str] = []
+    any_lane = False
     for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
         specs = tql_compile.resolve_lanes(con, file_id, pattern.lane)
         if not specs:
             continue
+        any_lane = True
         if any(s.kind in ("chord", "key") for s in specs) and not all(
             tql_compile.is_wildcard(u) for u in nodes
         ):
@@ -183,17 +188,21 @@ def run(
                 )
                 cur = found.get(key)
                 if cur is None:
-                    found[key] = match
-                    order.append(key)
+                    # the limit is hit by the match it refuses, not by the
+                    # one that reaches it: a complete result is not cut
                     if max_matches is not None and len(order) >= max_matches:
                         stopped = "max_matches"
                         break
+                    found[key] = match
+                    order.append(key)
                 elif (spec.level or 0) > (cur.lane_level or 0):
                     found[key] = match  # the highest reading of the same run
             if stopped:
                 break
         if stopped:
             break
+    if pattern.lane is not None and not any_lane:
+        _no_lane(log, pattern.lane, warnings)
 
     matches = [found[k] for k in order]
     matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
@@ -211,9 +220,58 @@ def run(
         matches=matches,
         explain=explain(query),
         sql="\n\n".join(log.statements),
-        warnings=[],
+        warnings=warnings,
         stopped=stopped,
         generation=index.generation,
+    )
+
+
+ROLE_HINTS = {
+    "form": "IN hierarchies",
+    "cadences": "IN markers",
+    "harmony": "IN chords",
+    "keys": "IN key",
+    "time_map": "IN beats",
+}
+
+
+def _no_lane(log: _Log, lane: syntax.Lane, warnings: list[str]) -> None:
+    """No file of the corpus has a lane ``lane`` names. A role or kind no
+    timeline has is a warning (a role: with the kind to try instead); a word
+    that is neither, nor a timeline or row name, is an error on the name."""
+    if not lane.quoted:
+        word = fold(lane.text.strip())
+        word = tql_compile.ROLE_ALIASES.get(word, word)
+        stored = {
+            r[0]
+            for r in log.execute(
+                "SELECT DISTINCT role FROM timelines WHERE role IS NOT NULL"
+            )
+        }
+        if word in tql_compile.BUILTIN_ROLES:
+            hint = ROLE_HINTS[word]
+            warnings.append(
+                f"no timeline has the role {word!r} - try {hint}, a quoted "
+                '"timeline name", or give a timeline the role: '
+                f'WHERE tl.name ~ /…/ -> SET tl.role = "{word}"'
+            )
+            return
+        if word in stored or word in tql_compile.KIND_WORDS:
+            return
+    if lane.quoted:
+        raise TQLError(
+            f'no timeline or row called "{lane.text}" - a quoted name keeps its '
+            "case; * is a wildcard",
+            lane.pos,
+            lane.pos + len(lane.text) + 2,
+        )
+    raise TQLError(
+        f"no timeline, role or kind called {lane.text!r} - roles: "
+        f"{', '.join(tql_compile.BUILTIN_ROLES)}; kinds: hierarchies, markers, "
+        'ranges, beats, chords, keys; or a quoted "timeline name" (* is a '
+        "wildcard)",
+        lane.pos,
+        lane.pos + len(lane.text),
     )
 
 
@@ -242,9 +300,11 @@ def _extent(m: Match) -> tuple[float, float]:
 def _position(log: _Log, comp: Component | None) -> tuple[Any, Any]:
     if comp is None:
         return None, None
-    rows = log.execute(
+    # not logged: one lookup per target and per step would grow the shown
+    # SQL by several statements per match
+    rows = log.con.execute(
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
-    )
+    ).fetchall()
     return (rows[0][0], rows[0][1]) if rows else (None, None)
 
 

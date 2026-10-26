@@ -226,8 +226,10 @@ def _alt_sql(alt: syntax.Alt, n: int, params: list[Any]) -> str:
         )
     for lit in alt.lits:
         if lit.kind == "exact":
-            tests.append("COALESCE(trim(c.label), '') = ?")
-            params.append(nfc(lit.text))
+            # both sides in NFC and trimmed of spaces: a label stored in NFD
+            # is the same label, and "verse " must find what "verse" finds
+            tests.append("COALESCE(trim(tql_nfc(c.label)), '') = ?")
+            params.append(nfc(lit.text).strip(" "))
         elif lit.kind == "regex":
             tests.append("(c.label IS NOT NULL AND c.label REGEXP ?)")
             params.append(lit.text)
