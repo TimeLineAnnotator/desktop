@@ -169,9 +169,9 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     """The warning, with the timeline's id, that its last beat is at or after
     the end of the media; None when it isn't, or when the table has no rows.
 
-    With more than one beat, the last measure ends one beat after the last
-    beat, its own length at the tempo before it, and the warning says so;
-    with one, it ends on the beat.
+    With more than one beat, the last beat lasts its own length at the tempo
+    of the gap before it, and the warning says the last measure ends one gap
+    after it; with one, it ends on the beat.
     """
     reason, times = _checked(timeline)
     if reason is not None or not times:
@@ -185,7 +185,7 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
         f"the end of the media ({media_length})"
     )
     if gap > 0:
-        warning += "; the last measure ends one beat after it"
+        warning += "; the last measure ends one gap after it"
     return warning
 
 
