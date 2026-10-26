@@ -79,15 +79,31 @@ class Liveness:
             "unavailable": None,
             "last_scan": None,
         }
+        # The counts are left to ``count`` or the first rescan: reading every
+        # file's row here would read them twice when the files route opens the
+        # corpus, since it reads them anyway.
         try:
             state["generation"] = self._backend.generation(handle)
-            state.update(_counts(self._backend.files(handle)))
         except Exception:
             logger.exception("Reading the state of %s failed", corpus.path)
         with self._lock:
             if cid not in self._watched:
                 due = self._clock() + self._interval
                 self._watched[cid] = _Watched(corpus, handle, due, state)
+
+    def count(self, cid: str, rows: list[dict]) -> None:
+        """Count the corpus's files from rows already read, if it has no counts yet.
+
+        Once counted, the rescans keep the counts up to date, so later rows (which
+        a rescan may already have overtaken) change nothing. Unknown ids are
+        ignored.
+        """
+        counts = _counts(rows)
+        with self._lock:
+            watched = self._watched.get(cid)
+            if watched is None or watched.state["files"] is not None:
+                return
+            watched.state.update(counts)
 
     def unwatch(self, cid: str) -> None:
         """Stop rescanning this corpus and forget its state; unknown ids are ignored."""

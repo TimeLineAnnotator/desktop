@@ -60,7 +60,7 @@ def register_all(
         server.liveness = liveness
     handles = CorpusHandles(server.backend, corpora, on_open=liveness.watch)
     library.register(server, corpora, liveness=liveness, handles=handles)
-    files.register(server, corpora, handles)
+    files.register(server, corpora, handles, liveness)
     liveness_api.register(server, corpora, handles, liveness)
     query.register(server, corpora, handles)
 
