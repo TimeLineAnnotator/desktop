@@ -200,8 +200,8 @@ def test_ping_ignores_non_loopback_without_connecting(monkeypatch):
     monkeypatch.setattr(socket, "create_connection", fail)
     monkeypatch.setattr(urllib.request, "build_opener", fail)
     monkeypatch.setattr(urllib.request, "urlopen", fail)
-    assert ping(make_record("http://example.com:8765/")) is None
-    assert ping(make_record("https://127.0.0.1:8765/")) is None
+    assert ping(make_record("http://example.com:14600/")) is None
+    assert ping(make_record("https://127.0.0.1:14600/")) is None
     assert ping(make_record("http://127.0.0.1/")) is None
     assert library_link.PROTOCOL == 1
 
