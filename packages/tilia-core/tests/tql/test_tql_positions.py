@@ -487,10 +487,14 @@ class TestSequenceWithin:
         got = run(UNMAPPED, "v THEN c IN form WITHIN 4 s")
         assert got.rows and got.warnings == []
 
-    def test_a_gap_of_a_tenth_of_a_second_is_no_hole_without_a_map(self):
+    def test_without_a_time_map_a_distance_in_bars_has_no_match(self):
+        # not even across a gap of a tenth of a second, which needs no WITHIN
         fix = fixture(hierarchy("Form (Z)", [["a", 1, 0, 4], ["b", 1, 4.05, 8]]))
         assert units(fix, "a THEN b IN form") == ["a@0|b@4.05"]
-        assert units(fix, "a THEN b IN form WITHIN 1 bar") == ["a@0|b@4.05"]
+        for query in ("a THEN b IN form WITHIN 1 bar", "*+ IN form WITHIN 2 beats"):
+            got = run(fix, query)
+            assert got.rows == [] and got.warnings == [NO_MAP], query
+        assert units(fix, "a THEN b IN form WITHIN 1 s") == ["a@0|b@4.05"]
 
     # P, in another timeline, holds the whole form lane, which keeps its holes;
     # Q starts two seconds into v.

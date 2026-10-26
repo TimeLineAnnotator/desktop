@@ -908,8 +908,9 @@ class Scope:
     ) -> Callable[[float, float], bool] | None:
         """``THEN … WITHIN``: whether the gap between two neighbours of a lane is
         one a ``THEN`` crosses: at most 0.1 s, or at most ``within``. In bars or
-        beats it is counted along the time map; without one, only the 0.1 s
-        gaps cross. None without ``WITHIN``: the default rule."""
+        beats it is counted along the time map (a file without one has no match:
+        see the engine's sequence matches). None without ``WITHIN``: the default
+        rule."""
         if within is None:
             return None
         metric = gap_metric(within, self.time_map)
