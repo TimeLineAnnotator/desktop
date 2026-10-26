@@ -83,6 +83,14 @@ class TestArguments:
         assert "--port must be from 1 to 65535" in err
         assert "Traceback" not in err
 
+    def test_default_port(self):
+        from tilia_library import command
+
+        # 8765 is AnkiConnect's port.
+        assert command.DEFAULT_PORT == 14600
+        assert command.DEFAULT_PORT != 8765
+        assert command.parse_args([]).port == 14600
+
     def test_folder_that_is_not_a_folder(self, env, tmp_path):
         code, out, err = command_runner.run(env.state, env.log, str(tmp_path / "nope"))
         assert code == 1
