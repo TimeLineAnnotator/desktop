@@ -6,6 +6,10 @@ from typing import Any
 
 from tilia_core import tla
 
+# The format requires a beat timeline's height, and has no default for it: TiLiA's
+# comes from each user's settings. This is TiLiA's own default.
+BEAT_TIMELINE_HEIGHT = 35
+
 
 def beat_timeline(
     beats: list[dict[str, Any]],
@@ -32,7 +36,7 @@ def beat_timeline(
         kind="beat",
         ordinal=ordinal,
         metadata=metadata,
-        attrs={"measure_source": measure_source},
+        attrs={"height": BEAT_TIMELINE_HEIGHT, "measure_source": measure_source},
         measures=_table(components, measure_source),
         components=components,
     )
