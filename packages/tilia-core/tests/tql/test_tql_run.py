@@ -275,6 +275,24 @@ class TestLiterals:
         assert matched("bridge") == ["bridge.modern"]
         assert "bridge.modern" not in matched("bridge.classic")
 
+    def test_a_dot_marks_no_subtype_without_a_grammar(self):
+        # "I. Allegro" in a corpus with no label grammar is one category
+        fixture = {
+            "length": 10,
+            "timelines": [
+                {
+                    "name": "Form (A)",
+                    "kind": "hierarchy",
+                    "units": [["I. Allegro", 1, 0, 5], ["bridge.modern", 1, 5, 10]],
+                }
+            ],
+        }
+        index = fixture_index.build_index(fixture)
+        assert tql.run(index, "i IN form").matches == []
+        assert tql.run(index, "bridge IN form").matches == []
+        assert len(tql.run(index, '"I. Allegro" IN form').matches) == 1
+        assert len(tql.run(index, "bridge.modern IN form").matches) == 1
+
     def test_underscore_and_percent_are_not_wildcards(self):
         assert matched("verse_") == ["verse_"]
         assert matched("100%") == ["100%"]

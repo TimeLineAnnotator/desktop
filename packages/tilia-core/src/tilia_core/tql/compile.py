@@ -207,12 +207,15 @@ def is_wildcard(unit: syntax.Unit) -> bool:
 
 
 def _category_test(lit: syntax.Literal, alias: str, params: list[Any]) -> str:
+    """A word: its category, or one its label grammar makes a subtype of it
+    (``bridge`` finds ``bridge.modern``). With no grammar a dot marks no
+    subtype: ``i`` does not find "I. Allegro"."""
     head = fold(lit.text)
     if lit.sub:
         params.append(f"{head}.{fold(lit.sub)}")
         return f"{alias}.category = ?"
-    params.extend((head, len(head) + 1, head + "."))
-    return f"({alias}.category = ? OR substr({alias}.category, 1, ?) = ?)"
+    params.extend((head, head))
+    return f"({alias}.category = ? OR {alias}.supertype = ?)"
 
 
 def _alt_sql(alt: syntax.Alt, n: int, params: list[Any]) -> str:
