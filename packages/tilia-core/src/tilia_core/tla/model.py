@@ -42,6 +42,31 @@ COMPONENT_KINDS: dict[str, str] = {
     "bar_line": "BAR_LINE",
     "score_annotation": "SCORE_ANNOTATION",
 }
+# The component kinds each timeline kind holds, as TiLiA's timelines do. A
+# component of another kind is kept as it is, as one of a kind the core
+# doesn't know, with a warning.
+TIMELINE_COMPONENTS: dict[str, frozenset[str]] = {
+    "slider": frozenset(),
+    "hierarchy": frozenset({"hierarchy"}),
+    "marker": frozenset({"marker"}),
+    "beat": frozenset({"beat"}),
+    "harmony": frozenset({"harmony", "mode"}),
+    "range": frozenset({"range"}),
+    # A legacy score's components (FR-022).
+    "score": frozenset(
+        {
+            "note",
+            "staff",
+            "clef",
+            "key_signature",
+            "time_signature",
+            "bar_line",
+            "score_annotation",
+        }
+    ),
+    "pdf": frozenset({"pdf_marker"}),
+    "audiowave": frozenset(),
+}
 # TiLiA 0.7 reads timeline kinds in any letter case, and component kinds
 # exactly. A file of the current format spells both as the writer writes them.
 _TIMELINE_KINDS_IN_OLD_FILE = {
@@ -61,7 +86,8 @@ class UnknownKind:
     "marker" (TiLiA reads component kinds exactly, and knows "MARKER") isn't
     taken for a marker, and is written back as it was spelled. The writer
     refuses one spelled as the reader reads a known kind: a timeline's
-    "Marker", or a component's "MARKER".
+    "Marker", or a component's "MARKER" in a timeline that holds markers. In
+    another timeline, a component spelled "MARKER" is read as an UnknownKind.
     """
 
     spelling: str

@@ -30,6 +30,7 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     Component,
     Document,
     Score,
@@ -291,21 +292,31 @@ class _Reader:
             name=nfc_value(_or_default(timeline.get("name"), shape.defaults["name"])),
             metadata=self._metadata(timeline, place),
             attrs=_attrs(timeline, shape, _TIMELINE_FIELDS),
-            components=self._components(components, pointer_to(place, "components")),
+            components=self._components(
+                components, pointer_to(place, "components"), TIMELINE_COMPONENTS[kind]
+            ),
             extra=_unknown(timeline, shape.known),
         )
 
-    def _components(self, value: Any, place: str) -> dict[str, Component]:
+    def _components(
+        self, value: Any, place: str, holds: frozenset[str]
+    ) -> dict[str, Component]:
         components = self._object(value, place)
         return {
-            key: self._component(key, components[key], pointer_to(place, key))
+            key: self._component(key, components[key], pointer_to(place, key), holds)
             for key in sorted(components)
         }
 
-    def _component(self, component_id: str, value: Any, place: str) -> Component:
+    def _component(
+        self, component_id: str, value: Any, place: str, holds: frozenset[str]
+    ) -> Component:
+        """A component, of one of the kinds its timeline `holds`, or kept as it
+        is, as one of a kind the core doesn't know."""
         component = self._object(value, place)
         spelling = self._text(self._require(component, "kind", place), place, "kind")
         kind = component_kind_from_file(spelling)
+        if kind not in holds:
+            kind = UnknownKind(spelling)
         metadata = self._metadata(component, place)
         if isinstance(kind, UnknownKind):
             known = UNKNOWN_COMPONENT.known

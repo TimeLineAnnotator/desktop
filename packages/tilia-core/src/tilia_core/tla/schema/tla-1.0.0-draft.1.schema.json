@@ -269,7 +269,7 @@
       }
     },
     "component": {
-      "description": "A component of a known kind is checked against that kind; one of a kind the core doesn't know is kept as it is.",
+      "description": "A component of a known kind is checked against that kind; one of a kind the core doesn't know is kept as it is. So is one of a kind its timeline doesn't hold, such as a range in a marker timeline, with a warning: it is checked against its kind here, but the core doesn't follow its references.",
       "type": "object",
       "required": ["kind"],
       "properties": {

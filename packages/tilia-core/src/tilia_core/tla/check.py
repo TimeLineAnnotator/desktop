@@ -17,7 +17,9 @@ line:
   reference that names nothing.
 
 Kept, with a warning: a timeline's `vocabulary` that isn't a reference to a
-vocabulary (FR-072).
+vocabulary (FR-072); a component of a kind its timeline doesn't hold, kept as
+one of a kind the core doesn't know, its structure checked as its kind's, as
+the schema checks it, but not its references.
 
 A null is a missing key: the schema allows one on every key it doesn't
 require. A number written with a fraction of zero, such as 1.0, is an integer,
@@ -32,6 +34,7 @@ component. Lines are found only when there is something to report.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import re
@@ -43,10 +46,12 @@ from tilia_core.tla.errors import UnreadableFile, printable
 from tilia_core.tla.layout import _SCHEMA, SCORES, _branch, nfc_text
 from tilia_core.tla.model import (
     COMPONENT_KINDS,
+    TIMELINE_COMPONENTS,
     TIMELINE_KINDS,
     Kind,
     ReadWarning,
     UnknownKind,
+    component_kind_from_file,
     timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import lines_of, pointer
@@ -397,6 +402,10 @@ class _Checker:
         # Each timeline and score, with its place, in the file's order.
         self.timelines: list[tuple[Place, str, Kind, dict[str, Any]]] = []
         self.scores: list[tuple[Place, dict[str, Any]]] = []
+        # The timeline whose components are being checked, and the kinds it
+        # holds.
+        self.holder: Mapping[str, Any] = {}
+        self.holds: frozenset[str] = frozenset()
 
     def document(self, content: Mapping[str, Any]) -> None:
         self.value(content, _DOCUMENT, None, None)
@@ -481,6 +490,7 @@ class _Checker:
             self.value(value, _TIMELINE, place, name)
             kind = timeline_kind_from_current_file(value["kind"])
         else:
+            self.holder, self.holds = value, TIMELINE_COMPONENTS[kind]
             self.object(value, _TIMELINES[kind], place)
         # A timeline of a kind the core doesn't know is kept as it is: what
         # it holds isn't looked at, its components included, but for its
@@ -494,8 +504,22 @@ class _Checker:
             spec = _COMPONENTS.get(value["kind"])
         if spec is None:
             self.value(value, _COMPONENT, place, name)
-        else:
+        elif component_kind_from_file(value["kind"]) in self.holds:
             self.object(value, spec, place)
+        else:
+            # Of a kind its timeline doesn't hold: kept as it is, as one of a
+            # kind the core doesn't know, so it is checked on a copy (an
+            # integer written as 1.0 stays so), and its references aren't.
+            self.object(copy.deepcopy(value), spec, place)
+            self.warnings.append(
+                (
+                    place,
+                    f"{_which(self.holder)} holds a component of kind"
+                    f" {_quoted(value['kind'])}, which a timeline of kind"
+                    f" {_quoted(self.holder['kind'])} doesn't have: it is kept as"
+                    " it is",
+                )
+            )
 
     def score(self, value: Any, place: Place, name: str | None) -> None:
         spec = None
@@ -595,15 +619,19 @@ class _Checker:
         vocabulary = metadata["vocabulary"]
         if isinstance(vocabulary, str) and _VOCABULARY.fullmatch(vocabulary):
             return
-        name = timeline.get("name")
-        which = f"the timeline {_quoted(name)}" if name else "a timeline without a name"
         self.warnings.append(
             (
                 ((place, "metadata"), "vocabulary"),
-                f"the vocabulary {_quoted(vocabulary)} of {which} isn't a valid"
-                " reference",
+                f"the vocabulary {_quoted(vocabulary)} of {_which(timeline)} isn't"
+                " a valid reference",
             )
         )
+
+
+def _which(timeline: Mapping[str, Any]) -> str:
+    """A timeline, as a warning names it."""
+    name = timeline.get("name")
+    return f"the timeline {_quoted(name)}" if name else "a timeline without a name"
 
 
 Entry: TypeAlias = "Callable[[_Checker, Any, Place, str | None], None]"

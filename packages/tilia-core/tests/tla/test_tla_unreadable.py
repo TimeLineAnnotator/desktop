@@ -506,6 +506,15 @@ def component(content, name, of):
             "/scores/0/beat_x/0/1",
             'an item of "beat_x" should be a number, not text',
         ),
+        (
+            # A component of a kind its timeline doesn't hold is kept, but its
+            # structure is checked as its kind's, as the schema checks it.
+            lambda c: timeline(c, "cadences")["components"].update(
+                {IDS["nothing"]: {"kind": "RANGE", "end": 2.0, "start": 1.0}}
+            ),
+            "/timelines/{cadences}/components/{nothing}/row_id",
+            '"row_id" is missing',
+        ),
     ],
 )
 def test_a_broken_structure_is_refused_with_its_place(change, where, message):
@@ -660,21 +669,6 @@ def test_a_component_of_a_timeline_of_an_unknown_kind_isnt_checked():
 
     doc = tla.loads(edited(change))
     assert named(doc, "Form").raw["components"]["1"] == {"text": 5}
-
-
-def test_a_range_timeline_holding_a_component_of_another_kind_is_read_or_refused():
-    # Never a crash (FR-050): a range's references are checked on its ranges
-    # only, and a marker has no row.
-    def change(content):
-        components = timeline(content, "texture")["components"]
-        components[IDS["nothing"]] = {"kind": "MARKER", "time": 1}
-
-    try:
-        doc = tla.loads(edited(change))
-    except tla.UnreadableFile as error:
-        assert error.place is not None and error.line is not None
-    else:
-        writer.checked_bytes(doc)  # what reads, writes (FR-034)
 
 
 # A null is a missing key: refused only where the key is required

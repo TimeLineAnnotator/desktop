@@ -166,6 +166,64 @@ def test_a_file_without_problems_has_no_warnings():
     assert tla.loads(file_with(lambda content: None)).warnings == []
 
 
+# A component of a kind its timeline doesn't hold
+
+KEPT = IDS["nothing"]
+
+
+def with_component(component, timeline):
+    def change(content):
+        content["timelines"][IDS[timeline]]["components"][KEPT] = component
+
+    return file_with(change)
+
+
+def test_a_component_of_a_kind_its_timeline_doesnt_hold_reads_with_a_warning():
+    # It isn't read as a range: the row it names isn't looked for.
+    data = with_component(
+        {"kind": "RANGE", "end": 2.0, "row_id": "nope", "start": 1.0}, "cadences"
+    )
+    assert tla.loads(data).warnings == [
+        tla.ReadWarning(
+            place=f"/timelines/{IDS['cadences']}/components/{KEPT}",
+            line=65,
+            message='the timeline "Cadences" holds a component of kind "RANGE", which'
+            ' a timeline of kind "Marker" doesn\'t have: it is kept as it is',
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "timeline, component",
+    [
+        ("texture", {"kind": "MARKER", "time": 1}),
+        ("cadences", {"kind": "RANGE", "end": 2.0, "row_id": "nope", "start": 1.0}),
+        # Its level stays 1.0, which a hierarchy's would not.
+        ("cadences", {"kind": "HIERARCHY", "end": 2.0, "level": 1.0, "start": 0.0}),
+        ("form", {"kind": "MARKER", "metadata": {}, "time": 1.0}),
+        ("beats", {"kind": "MODE", "time": 1.0}),
+        ("score_timeline", {"kind": "BEAT", "time": 1.0}),
+    ],
+)
+def test_a_component_of_a_kind_its_timeline_doesnt_hold_is_kept_as_it_is(
+    timeline, component
+):
+    # As a component of a kind the core doesn't know: its keys as they are,
+    # none filled in, and written back the same.
+    data = with_component(component, timeline)
+    doc = tla.loads(data)
+    kept = doc.timelines[IDS[timeline]].components[KEPT]
+    assert kept.kind == tla.UnknownKind(component["kind"])
+    assert kept.attrs == {}
+    assert {"kind": kept.kind.spelling, "metadata": kept.metadata, **kept.extra} == {
+        "metadata": {},
+        **component,
+    }
+    (warning,) = doc.warnings
+    assert warning.place == f"/timelines/{IDS[timeline]}/components/{KEPT}"
+    assert writer.checked_bytes(doc) == data
+
+
 # Keys the core doesn't know
 
 
