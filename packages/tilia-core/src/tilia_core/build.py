@@ -282,7 +282,7 @@ def find_timeline(
     for timeline_id, timeline in by_ordinal:
         if timeline.name == wanted:
             return timeline_id
-    raise ValueError(f"No timeline found with {name=}")
+    raise ValueError(f"No timeline found with name={name}")
 
 
 def _media_length(value: object) -> float:

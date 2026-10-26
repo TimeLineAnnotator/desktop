@@ -1012,10 +1012,11 @@ def test_an_ordinal_is_used_before_a_name():
 
 
 def test_no_timeline_found():
+    # TiLiA's texts (tilia/ui/cli/timelines/utils.py), which don't quote the name.
     doc = document(timelines=[timeline("marker", name="A", ordinal=1)])
 
-    assert refused(build.find_timeline, doc, name="B") == (
-        "No timeline found with name='B'"
+    assert refused(build.find_timeline, doc, name="Chords") == (
+        "No timeline found with name=Chords"
     )
     assert refused(build.find_timeline, doc, ordinal=2) == (
         "No timeline found with ordinal=2"
