@@ -118,10 +118,15 @@ class FakeTimeMap:
         j = self._bar_index(t)
         return None if j is None else self.numbers[j]
 
-    def end_bar(self, end: float) -> int | None:
+    def end_bar(self, end: float, start: float | None = None) -> int | None:
         """The bar a span ending at ``end`` ends in; an end on a downbeat
-        belongs to the bar before."""
+        belongs to the bar before. A span so short that its end snaps to its
+        ``start`` (or before it) ends in its start's bar (#104, 2026-10-10)."""
         e = self._snapped(end)
+        if start is not None:
+            s = self._snapped(start)
+            if e is not None and s is not None and e <= s:
+                return self.bar(start)
         if e is None or e <= self.start or e > self.end:
             return None
         return self.numbers[bisect.bisect_left(self._downbeats, e) - 1]

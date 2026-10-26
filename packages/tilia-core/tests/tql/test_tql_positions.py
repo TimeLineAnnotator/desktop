@@ -130,6 +130,16 @@ class TestPositionFields:
             "*[bar = 16] IN cadences"
         )
 
+    def test_a_short_unit_ends_in_its_start_s_bar(self):
+        # #104 (2026-10-10): a unit whose end snaps back onto its start's
+        # downbeat ends there, not in the bar before
+        fix = fixture(
+            hierarchy("Form (Z)", [["s0", 1, 0, 0.05], ["s4", 1, 4, 4.05]]), beats(2)
+        )
+        assert units(fix, "*[end_bar = 1] IN form") == ["s0@0"]
+        assert units(fix, "*[end_bar = 2] IN form") == ["s4@4"]
+        assert units(fix, "*[end_bar = *] IN form") == ["s0@0", "s4@4"]
+
     def test_a_position_can_be_asked_for_any(self):
         assert len(sonata("*[bar = *] IN cadences")) == 4
 
