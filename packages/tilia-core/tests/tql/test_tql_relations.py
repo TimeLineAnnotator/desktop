@@ -43,6 +43,10 @@ SPANS = fixture(
 )
 # The same form under a root R, so that a and b are R's grandchildren.
 NESTED = fixture(hierarchy("Form (X)", FORM_UNITS + [["R", 3, 0, 12]]))
+# P's children a and b have a 0.5 s hole between them.
+HOLED = fixture(
+    hierarchy("Form (X)", [["a", 1, 0, 3], ["b", 1, 3.5, 8], ["P", 2, 0, 8]])
+)
 # v starts 0.05 s before b and ends 0.05 s after it.
 TOLERANCE = fixture(
     hierarchy("Form (X)", FORM_UNITS),
@@ -585,6 +589,14 @@ class TestChildren:
     def test_children_in_a_sequence(self):
         assert rows(NESTED, "P THEN Q[c] IN form") == Counter(["P@0 | Q@8"])
         assert not rows(NESTED, "P THEN Q[a] IN form")
+
+    def test_children_ignore_the_gaps_between_them(self):
+        assert lefts(HOLED, "P[a THEN b] IN form") == ["P@0"]
+        assert lefts(HOLED, "P[*{2}] IN form") == ["P@0"]
+        assert lefts(HOLED, "P[a THEN b]") == ["P@0"]
+        assert lefts(HOLED, "*[NOT a THEN b] IN form") == ["a@0", "b@3.5"]
+        # outside brackets, the lane keeps its hole
+        assert not rows(HOLED, "a THEN b IN form")
 
     def test_children_without_in_look_through_every_lane(self):
         assert lefts(NESTED, "P[a THEN b]") == ["P@0"]

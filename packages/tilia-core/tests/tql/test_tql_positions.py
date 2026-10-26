@@ -487,10 +487,14 @@ class TestSequenceWithin:
         got = run(UNMAPPED, "v THEN c IN form WITHIN 4 s")
         assert got.rows and got.warnings == []
 
-    def test_a_gap_of_a_tenth_of_a_second_is_no_hole_without_a_map(self):
+    def test_without_a_time_map_a_distance_in_bars_has_no_match(self):
+        # not even across a gap of a tenth of a second, which needs no WITHIN
         fix = fixture(hierarchy("Form (Z)", [["a", 1, 0, 4], ["b", 1, 4.05, 8]]))
         assert units(fix, "a THEN b IN form") == ["a@0|b@4.05"]
-        assert units(fix, "a THEN b IN form WITHIN 1 bar") == ["a@0|b@4.05"]
+        for query in ("a THEN b IN form WITHIN 1 bar", "*+ IN form WITHIN 2 beats"):
+            got = run(fix, query)
+            assert got.rows == [] and got.warnings == [NO_MAP], query
+        assert units(fix, "a THEN b IN form WITHIN 1 s") == ["a@0|b@4.05"]
 
     # P, in another timeline, holds the whole form lane, which keeps its holes;
     # Q starts two seconds into v.
@@ -638,7 +642,7 @@ class TestRelationWithin:
 class TestOffTheMap:
     """A unit that lies off the time map (the map ends at 32 s, the piece at 60):
     a tolerance or a gap in bars or beats cannot be measured there, so the
-    relation holds of nothing, in SQL and in Python alike."""
+    relation holds of nothing, NOT included, in SQL and in Python alike."""
 
     OFF = fixture(
         hierarchy("Form (Z)", [["a", 1, 28, 31], ["b", 1, 40, 41], ["e", 1, 40, 48]]),
@@ -664,6 +668,40 @@ class TestOffTheMap:
         assert units(self.OFF, "a[BEFORE b WITHIN 10 bars] IN form") == []
         assert units(self.OFF, "a IN form BEFORE b IN form WITHIN 10 bars") == []
         assert units(self.OFF, "a[BEFORE b WITHIN 10 s] IN form") == ["a@28"]
+
+    def test_not_holds_of_no_unit_off_the_map(self):
+        # a time off the map never matches, NOT included: the Python paths
+        assert units(self.OFF, "n[NOT SAME START m WITHIN 1 beat] IN notes") == []
+        query = "e IN form NOT STARTS WITH g IN inner WITHIN 1 beat"
+        assert units(self.OFF, query) == []
+        assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 bars] IN form") == ["a@28"]
+        assert units(
+            self.OFF, "* IN form WHERE NOT SAME START g IN inner WITHIN 1 beat"
+        ) == ["a@28"]
+        # the SQL path agrees
+        query = "* IN notes NOT SAME START m IN notes WITHIN 1 beat"
+        assert units(self.OFF, query) == []
+        assert units(
+            self.OFF, "*[NOT SAME START g IN inner WITHIN 1 beat] IN form"
+        ) == ["a@28"]
+        # in seconds, the map is not read
+        assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 s] IN form") == [
+            "b@40",
+            "e@40",
+        ]
+
+    def test_not_before_holds_of_no_unit_ending_off_the_map(self):
+        # c starts on the map (it ends at 32 s) and ends off it, where BEFORE's
+        # gap begins
+        fix = fixture(
+            hierarchy("Form (Z)", [["c", 1, 30, 34], ["z", 1, 50, 51]]),
+            beats(8),
+            length=60,
+        )
+        assert units(fix, "c[NOT BEFORE z WITHIN 1 bar] IN form") == []
+        assert units(fix, "c IN form NOT BEFORE z IN form WITHIN 1 bar") == []
+        assert units(fix, "c[NOT BEFORE z IN form WITHIN 1 bar] IN form") == []
+        assert units(fix, "c[NOT BEFORE z WITHIN 1 s] IN form") == ["c@30"]
 
     def test_two_positions_compare_only_when_both_are_known(self):
         base = "a IN form BEFORE b IN form WHERE "
@@ -729,6 +767,17 @@ class TestBarsLane:
         assert sonata_bars("*[NOT downbeat] IN bars") == []
         assert sonata_bars("*[beat = 1 AND bar = 40] IN bars") == ["40@156"]
         assert units(DATA["repeat"], "*[bar = 12 AND pass = 2] IN bars") == ["12@76"]
+
+    def test_a_bar_s_pass_is_the_one_measures_records(self):
+        index = index_of(DATA["repeat"])
+        assert units(index, "*[pass = 2] IN bars") == sorted(
+            f"{n}@{t}" for n, t in zip(range(9, 17), range(64, 96, 4), strict=True)
+        )
+        # the index, not the printed numbers, says which pass a bar is
+        index.connection().execute("UPDATE measures SET pass = 3 WHERE count = 17")
+        assert units(index, "*[pass = 3] IN bars") == ["9@64"]
+        got = run(index, "* IN bars WHERE pass = 3")
+        assert [r["label"] for r in got.rows] == ["9"]
 
     def test_a_sequence_of_bars(self):
         assert units(GRID, "3 THEN 4 IN bars") == ["3@8|4@12"]
