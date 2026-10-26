@@ -598,6 +598,20 @@ class TestState:
             "hash": beat_unit.hash,
         }
 
+    def test_duplicate_keeps_beat_units_on_its_own_beats(
+        self, beat_tl, tls, tilia_errors
+    ):
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 4, 8, "3")
+
+        duplicate = tls.duplicate_timeline(beat_tl, "copy")
+
+        tilia_errors.assert_no_error()
+        beat_ids = {beat.id for beat in duplicate}
+        assert all(u.beat_id in beat_ids for u in duplicate.beat_units)
+        assert beat_unit_values(duplicate) == [(0, 4, "1"), (4, 8, "3")]
+        assert [u.assumed for u in duplicate.beat_units] == [True, False]
+
     def test_hash_changes_with_beat_units(self, beat_tl):
         add_beats(beat_tl, 4)
         before = beat_tl.component_manager.hash_components()

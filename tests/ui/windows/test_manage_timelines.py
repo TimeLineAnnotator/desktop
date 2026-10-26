@@ -318,11 +318,24 @@ class TestDeleteTimeline:
 
 
 def get_comparable_state(timeline: Timeline) -> dict:
-    """Timeline state without the attributes a duplicate must not share."""
+    """
+    Timeline state without the attributes a duplicate must not share.
+
+    A duplicate's components get fresh ids, so an id that a component holds
+    (a beat unit's `beat_id`) is compared as the position of the component
+    it names, and the hashes, which include such ids, are left out.
+    """
     state = timeline.get_state()
-    for attr in ("name", "ordinal", "hash"):
+    for attr in ("name", "ordinal", "hash", "components_hash"):
         state.pop(attr, None)
-    state["components"] = list(state["components"].values())
+    positions = {id: i for i, id in enumerate(state["components"])}
+    components = []
+    for data in state["components"].values():
+        data = {attr: value for attr, value in data.items() if attr != "hash"}
+        if "beat_id" in data:
+            data["beat_id"] = positions[data["beat_id"]]
+        components.append(data)
+    state["components"] = components
     return state
 
 

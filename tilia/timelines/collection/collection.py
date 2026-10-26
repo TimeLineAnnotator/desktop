@@ -190,7 +190,9 @@ class Timelines:
         # Serialized components are sorted by id, which reflects creation
         # order. Keep it, as some kinds depend on it (e.g. score notes need
         # their staff to exist).
-        components = {get(Get.ID): data for data in components.values()}
+        new_ids = {id: get(Get.ID) for id in components}
+        components = {new_ids[id]: data for id, data in components.items()}
+        timeline.update_component_references(components, new_ids)
 
         duplicate = self.create_timeline(kind, components=components, **state)
         if not components and len(duplicate):
