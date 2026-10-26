@@ -83,6 +83,29 @@ def listing_index():
     )
 
 
+@pytest.fixture(scope="module")
+def empty_lane_index():
+    """Three files, each with a hierarchy timeline "Empty" that has no units:
+    a name the corpus knows but no file has a lane of."""
+    return fixture_index.build_index(
+        *[
+            {
+                "name": f"e{k:02d}",
+                "length": 10,
+                "timelines": [
+                    {
+                        "name": "Form (X)",
+                        "kind": "hierarchy",
+                        "units": [["a", 1, 0, 10]],
+                    },
+                    {"name": "Empty", "kind": "hierarchy", "units": []},
+                ],
+            }
+            for k in range(3)
+        ]
+    )
+
+
 def keys(result):
     return [m.key for m in result.matches]
 
@@ -287,6 +310,28 @@ class TestCancel:
         cancel.set()
         tql.run(big_index, QUERY, cancel=cancel)
         assert tql.run(big_index, "PAC IN cadences", max_matches=3).stopped
+
+
+class TestAStopBeforeAMissingLane:
+    """A timeline name the corpus knows but no file has a lane of (a hierarchy
+    with no units) is refused once the search has looked at every file. A
+    search stopped before then has not, so the run returns stopped instead."""
+
+    QUERY = 'a IN "Empty"'
+
+    def test_without_a_stop_the_name_is_refused(self, empty_lane_index):
+        with pytest.raises(tql.TQLError, match='no timeline or row called "Empty"'):
+            tql.run(empty_lane_index, self.QUERY)
+
+    def test_a_cancel_set_before_the_run_returns_stopped(self, empty_lane_index):
+        cancel = threading.Event()
+        cancel.set()
+        got = tql.run(empty_lane_index, self.QUERY, cancel=cancel)
+        assert got.stopped == "cancelled" and got.matches == [] and got.rows == []
+
+    def test_a_time_limit_of_zero_returns_stopped(self, empty_lane_index):
+        got = tql.run(empty_lane_index, self.QUERY, time_limit=0)
+        assert got.stopped == "time_limit" and got.matches == [] and got.rows == []
 
 
 class TestRowsAfterAStop:
