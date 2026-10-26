@@ -620,6 +620,7 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(3) == []
         assert beat_tl.get_time_by_measure(3, 0.5) == []
         assert beat_tl.get_time_by_measure(3, 0, True) == []
+        assert beat_tl.get_time_by_measure(6, 0, True) == []
 
     def test_fraction_1_is_next_downbeat_only_if_next_measure_number_follows(self, tls):
         beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 2, 3, 4])
@@ -643,6 +644,11 @@ class TestGetTimeByMeasureEachPass:
         beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 1, 2, 1])
 
         assert beat_tl.get_time_by_measure(3, 0, True) == [5, 11]
+
+    def test_segment_end_on_downbeat_after_passes_with_different_beat_counts(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2, 3, 2], [1, 2, 1, 2, 3])
+
+        assert beat_tl.get_time_by_measure(3, 0, True) == [5, 10]
 
     def test_one_beat(self, tls):
         beat_tl = load_beat_timeline(tls, [1], [0])
