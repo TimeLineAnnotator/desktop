@@ -662,6 +662,21 @@ def test_a_component_of_a_timeline_of_an_unknown_kind_isnt_checked():
     assert named(doc, "Form").raw["components"]["1"] == {"text": 5}
 
 
+def test_a_range_timeline_holding_a_component_of_another_kind_is_read_or_refused():
+    # Never a crash (FR-050): a range's references are checked on its ranges
+    # only, and a marker has no row.
+    def change(content):
+        components = timeline(content, "texture")["components"]
+        components[IDS["nothing"]] = {"kind": "MARKER", "time": 1}
+
+    try:
+        doc = tla.loads(edited(change))
+    except tla.UnreadableFile as error:
+        assert error.place is not None and error.line is not None
+    else:
+        writer.checked_bytes(doc)  # what reads, writes (FR-034)
+
+
 # A null is a missing key: refused only where the key is required
 
 
