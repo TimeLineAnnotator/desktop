@@ -595,3 +595,15 @@ def test_digits_of_other_scripts_stay_in_labels():
     assert first_cond('*[label = "١٢"]').value.value == "١٢"
     lit = parse("فصل١ THEN x").pattern.seq.steps[0].item.term
     assert lit.alts[0].lits[0].text == "فصل١"
+
+
+@pytest.mark.parametrize(
+    "text", ["verse -- a comment", "verse -- -> no action", "verse -- > a note", "verse --"]
+)
+def test_comments_other_than_an_arrow_stay_comments(text):
+    assert parse(text).action is None
+
+
+def test_dashes_inside_a_label_or_string_are_no_comment():
+    assert parse("a--b THEN c").pattern.seq.steps[0].item.term.alts[0].lits[0].text == "a--b"
+    assert first_cond('x[label = "-->"]').value.value == "-->"

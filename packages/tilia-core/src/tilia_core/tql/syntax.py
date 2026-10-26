@@ -58,7 +58,8 @@ Lexical rules:
   (after ``[``, ``(``, an operator or a keyword) and means "and" between two
   literals otherwise, so ``verse/chorus`` and ``NOT /^_/`` both read as meant.
 * ``"…"`` is a string (``\\"`` and ``\\\\`` escape); ``-- …`` to the end of a
-  line is a comment.
+  line is a comment. ``-->`` is refused: it is a mistyped ``->``, and as a
+  comment it would turn an edit into a read.
 * Text in any script: words, strings and regular expressions are read in one
   Unicode normal form (NFC), and keywords are ASCII. Error offsets count the
   characters as typed.
@@ -217,6 +218,18 @@ def lex(text: str) -> list[Tok]:
         # `-- comment` to the end of the line (only at a token boundary, so a
         # label such as `a--b` keeps its dashes)
         if text.startswith("--", i) and (i == 0 or text[i - 1].isspace()):
+            # ... except `-->` (or `--->`): a mistyped `->` that would turn the
+            # action into a comment, and an edit into a read
+            k = i
+            while k < n and text[k] == "-":
+                k += 1
+            if k < n and text[k] == ">":
+                raise TQLError(
+                    f"{text[i:k + 1]} is no arrow - an action starts with ->, "
+                    "a comment with -- and no > after it",
+                    i,
+                    k + 1,
+                )
             j = text.find("\n", i)
             i = n if j < 0 else j
             continue
