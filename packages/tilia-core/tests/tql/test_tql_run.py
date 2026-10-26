@@ -146,12 +146,44 @@ class TestLanes:
         got = tql.run(index, "verse IN form")
         assert got.matches == []
         assert len(got.warnings) == 1
-        assert "no timeline has the role 'form'" in got.warnings[0]
+        assert got.warnings[0].startswith("this corpus has no roles")
         assert "IN hierarchies" in got.warnings[0]
         assert "IN markers" in tql.run(index, "PAC IN cadence").warnings[0]
         assert tql.run(index, 'verse IN "Form"').warnings == []
         assert len(tql.run(index, 'verse IN "Form"').matches) == 1
         assert tql.run(index_of("pop"), "verse IN form").warnings == []
+
+    def test_a_corpus_without_roles_warns_once(self):
+        # three files, none with a role: one warning for the call
+        def song(n):
+            return {
+                "length": 10,
+                "timelines": [
+                    {"name": f"Analysis {n}", "kind": "hierarchy",
+                     "units": [["phrase", 1, 0, 10]]},
+                    {"name": "Marks", "kind": "marker", "units": [["PAC", 9]]},
+                ],
+            }
+
+        index = fixture_index.build_index(song(1), song(2), song(3))
+        got = tql.run(index, "phrase IN form")
+        assert got.warnings == [
+            'this corpus has no roles - try IN hierarchies or a quoted "timeline name"'
+        ]
+
+    def test_a_role_others_have_is_named_in_the_warning(self):
+        # the corpus has roles, only not this one
+        fixture = {
+            "length": 10,
+            "timelines": [
+                {"name": "Form", "kind": "hierarchy", "units": [["verse", 1, 0, 10]]},
+                {"name": "Cadences", "kind": "marker", "units": [["PAC", 9]]},
+            ],
+        }
+        got = tql.run(fixture_index.build_index(fixture), "verse IN form")
+        assert len(got.warnings) == 1
+        assert "no timeline has the role 'form'" in got.warnings[0]
+        assert "IN hierarchies" in got.warnings[0]
 
     def test_brackets_and_question_mark_in_a_name_are_literal(self):
         fixture = {

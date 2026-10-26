@@ -237,8 +237,9 @@ ROLE_HINTS = {
 
 def _no_lane(log: _Log, lane: syntax.Lane, warnings: list[str]) -> None:
     """No file of the corpus has a lane ``lane`` names. A role or kind no
-    timeline has is a warning (a role: with the kind to try instead); a word
-    that is neither, nor a timeline or row name, is an error on the name."""
+    timeline has is a warning (a role: with the kind to try instead; in a
+    corpus with no roles at all, that it has none); a word that is neither, nor
+    a timeline or row name, is an error on the name."""
     if not lane.quoted:
         word = fold(lane.text.strip())
         word = tql_compile.ROLE_ALIASES.get(word, word)
@@ -248,6 +249,13 @@ def _no_lane(log: _Log, lane: syntax.Lane, warnings: list[str]) -> None:
                 "SELECT DISTINCT role FROM timelines WHERE role IS NOT NULL"
             )
         }
+        if word in tql_compile.BUILTIN_ROLES and not stored:
+            # one warning for the whole corpus, not one per role or file
+            warnings.append(
+                f"this corpus has no roles - try {ROLE_HINTS[word]} or a quoted "
+                '"timeline name"'
+            )
+            return
         if word in tql_compile.BUILTIN_ROLES:
             hint = ROLE_HINTS[word]
             warnings.append(
