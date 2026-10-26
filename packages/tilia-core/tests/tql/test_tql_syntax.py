@@ -496,7 +496,6 @@ def test_at_with_a_tag_action():
         ("*[end <= 67.5%]", ("number", 67.5, "%")),
         ("*[time > .5%]", ("number", 0.5, "%")),
         ("*[start = 25%..75%]", ("range", (25.0, 75.0), "%")),
-        ("*[start = 25..75%]", ("range", (25.0, 75.0), "%")),
     ],
 )
 def test_percentages_of_the_piece(text, want):

@@ -1327,7 +1327,18 @@ class _Parser:
                     pos + len(raw),
                 )
             unit = lo[1] or hi[1]  # 7..9bars: the unit may come once, at the end
-            for (_, u), side in ((lo, lo_t), (hi, hi_t)):
+            sides = ((lo, lo_t), (hi, hi_t))
+            if unit == "%" and any(
+                u is None and _NUM_RE.match(side.strip()) for (_, u), side in sides
+            ):
+                # unlike 7..9bars, 25..75% would read 25 as seconds
+                bare = [side.strip().rstrip("%") for side in (lo_t, hi_t)]
+                raise TQLError(
+                    f"range {raw} mixes units - write {bare[0]}%..{bare[1]}%",
+                    pos,
+                    pos + len(raw),
+                )
+            for (_, u), side in sides:
                 if (
                     unit
                     and u != unit

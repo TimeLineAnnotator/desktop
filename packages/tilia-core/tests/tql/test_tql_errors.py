@@ -116,6 +116,8 @@ BAD = {
     "*[file.duration = 50%]": "percentage of the piece",
     "*[start ~ 50%]": "regular expression",
     "*[start = 1:00..50%]": "mixes units",
+    "*[start = 25..75%]": "mixes units - write 25%..75%",
+    "*[start = 25%..75]": "mixes units - write 25%..75%",
     "*[start = 50%..2 bars]": "range",
     "*[start >= 50 %]": "without a space",
 }
