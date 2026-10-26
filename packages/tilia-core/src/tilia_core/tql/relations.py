@@ -420,6 +420,11 @@ def _single(seq: syntax.Seq) -> syntax.Unit:
     return step.item
 
 
+def _parts(_end: float, _start: float) -> bool:
+    """``joins`` for a unit's children: each follows the one before, gap or not."""
+    return True
+
+
 class Scope:
     """One file as the relations read it: its timelines' components, the lanes
     built from them, the hierarchy's parents, and the components each unit of
@@ -645,9 +650,11 @@ class Scope:
         if isinstance(cond, syntax.Children):
             if comp.kind != "hierarchy":
                 return cond.negate
+            # A unit's children are its parts: consecutive in start order
+            # whatever the gaps between them, so no hole breaks a run of them.
             items: list[Item] = [(c, c.start, c.end) for c in self.children(comp)]
             found = bool(items) and bool(
-                find_runs(cond.seq, items, "any", False, self.fits)
+                find_runs(cond.seq, items, "any", False, self.fits, joins=_parts)
             )
             return found != cond.negate
         if isinstance(cond, syntax.Downbeat):
@@ -705,14 +712,19 @@ class Scope:
             return "unit"
         return "tl" if f.name in names.TIMELINE_FIELDS else "file"
 
-    def field_values(self, f: syntax.FieldRef, subject: values.Subject) -> list[Any]:
+    def field_values(
+        self, f: syntax.FieldRef, subject: values.Subject, open_if_missing: bool = True
+    ) -> list[Any]:
         """The values of field ``f``, one per unit (or timeline) it reads; a list
-        field such as ``tags`` gives all its values."""
+        field such as ``tags`` gives all its values. A file without ``f`` is
+        noted in ``missing``, to warn that it could not answer, unless
+        ``open_if_missing`` is false: the comparison's answer is definite."""
         where = self.place(f, subject)
         if where == "file":
             got = self.facts.file().get(f.name)
             if got is None:
-                self.missing.add(f.name)
+                if open_if_missing:
+                    self.missing.add(f.name)
                 return []
             return list(got)
         out: list[Any] = []
@@ -867,9 +879,14 @@ class Scope:
                 self.parent(u) for u in self.subject_units(f, subject)
             ]
             return self.step_ok(cond, parents, subject.bracket)
-        lhs = self.field_values(f, subject)
+        # A file without the field answers `!=` and `NOT … =` (#104, R2): no
+        # warning that it could not.
+        open_ = not (
+            (cond.op == "!=" and not cond.negate) or (cond.op == "=" and cond.negate)
+        )
+        lhs = self.field_values(f, subject, open_)
         if v.kind == "ref":
-            rhs = self.field_values(v.value, subject)
+            rhs = self.field_values(v.value, subject, open_)
             if (_is_position(f) and not _known(lhs)) or (
                 _is_position(v.value) and not _known(rhs)
             ):
