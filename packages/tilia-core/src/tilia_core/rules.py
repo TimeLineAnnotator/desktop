@@ -725,11 +725,16 @@ def _is_row_id(value: Any) -> bool:
 
 def _shown(value: Any) -> str:
     """`value` as a reason shows it. An integer Python won't turn into text, one
-    of more than 4,300 digits unless set otherwise, is named instead."""
+    of more than 4,300 digits unless set otherwise, is named instead, and so is a
+    value holding one, by its type: "a list that can't be shown"."""
     try:
         return f"{value}"
     except ValueError:
-        return "an integer too long to show"
+        if isinstance(value, int):
+            return "an integer too long to show"
+        name = type(value).__name__
+        article = "an" if name[:1].lower() in "aeiou" else "a"
+        return f"{article} {name} that can't be shown"
 
 
 def _broken(reason: str) -> Outcome:
