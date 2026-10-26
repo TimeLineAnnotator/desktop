@@ -116,13 +116,14 @@ def compare(
 ) -> bool:
     """Whether the values ``lhs`` stand in ``op`` to the values ``rhs`` (a field
     against a field, ``$1.label != $2.label``): some pair does, and for ``!=``
-    no pair is equal. A side without a value never holds."""
+    no pair is equal. A side without a value satisfies nothing but ``!=``,
+    which is ``NOT =`` (#104, R2)."""
     left = [x for x in lhs if x is not None]
     right = [x for x in rhs if x is not None]
-    if not left or not right:
-        return False
     if op == "!=":
         return not any(_pair("=", a, b, fname, caps) for a in left for b in right)
+    if not left or not right:
+        return False
     return any(_pair(op, a, b, fname, caps) for a in left for b in right)
 
 
@@ -167,15 +168,13 @@ def compare_value(
     caps: list[str] | None = None,
 ) -> bool:
     """Whether the values ``lhs`` of a field stand in ``op`` to the literal
-    ``v``: some value does; for ``!=`` none is equal. ``*`` asks whether the
-    field has one (``!=``: has none); a unit without a value never matches
-    anything else."""
+    ``v``: some value does; for ``!=`` none is equal, so a unit without a value
+    satisfies ``!=`` and nothing else: ``x != v`` is ``NOT x = v`` (#104, R2).
+    ``*`` asks whether the field has one (``!=``: has none)."""
     if v.kind == "any":
         present = any(x is not None and x != "" for x in lhs)
         return not present if op == "!=" else present
     values = [x for x in lhs if x is not None]
-    if not values:
-        return False
     if op == "!=":
         return not any(_one("=", x, v, fname, caps) for x in values)
     return any(_one(op, x, v, fname, caps) for x in values)

@@ -362,13 +362,15 @@ def compare_in_sql(cond: syntax.Compare) -> bool:
 
 def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
     """The condition ``cond`` (see :func:`compare_in_sql`) on component ``comp``.
-    A unit without the value never satisfies a comparison, ``NOT`` included, as in
-    Python: the test is 0 then, not NULL."""
+    A unit without the value never satisfies ``=`` or an ordered comparison (the
+    test is 0 then, not NULL), so it satisfies ``!=`` and ``NOT``, as in Python:
+    ``x != v`` is ``NOT x = v`` (#104, R2)."""
     f, v = cond.field, cond.value
     if f.name == "color":
         col = f"tql_color({comp}.color)"
     else:
         col = STORED_NUMBERS[f.name].format(c=comp)
+    negate = cond.negate
     if v.kind == "any":
         empty = (
             f"({col} IS NULL OR {col} = '')" if f.name == "color" else f"{col} IS NULL"
@@ -377,17 +379,20 @@ def compare_sql(cond: syntax.Compare, comp: str, bld: SqlBuilder) -> str:
     elif v.kind == "range":
         lo, hi = v.value
         bld.params.extend((lo - 1e-9, hi + 1e-9))
-        between = "NOT BETWEEN" if cond.op == "!=" else "BETWEEN"
-        test = f"{col} {between} ? AND ?"
+        test = f"{col} BETWEEN ? AND ?"
+        negate = negate != (cond.op == "!=")
     elif f.name == "color":
         raw = v.raw if v.kind == "number" else v.value
         bld.params.append(derived.color(str(raw)))
-        test = f"{col} {ORDER_OPS[cond.op]} ?"
+        test = f"{col} = ?"
+        negate = negate != (cond.op == "!=")
     else:
         bld.params.append(float(v.value))
-        test = f"{col} {ORDER_OPS[cond.op]} ?"
+        op = "=" if cond.op == "!=" else ORDER_OPS[cond.op]
+        test = f"{col} {op} ?"
+        negate = negate != (cond.op == "!=")
     test = f"COALESCE(({test}), 0)"
-    return f"NOT {test}" if cond.negate else test
+    return f"NOT {test}" if negate else test
 
 
 def split_conds(
