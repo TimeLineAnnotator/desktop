@@ -41,12 +41,14 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     Component,
     Document,
     Kind,
     Score,
     Timeline,
     UnknownKind,
+    component_kind_from_file,
     component_kind_to_file,
     timeline_kind_to_file,
 )
@@ -231,8 +233,18 @@ def _lines(value: Any, parent: str, key: str | int) -> Any:
     ]
 
 
-def _component(component: Component, place: str) -> dict[str, Any]:
-    kind = _spelling(component_kind_to_file, component.kind, place)
+def _component(
+    component: Component, place: str, holds: frozenset[str]
+) -> dict[str, Any]:
+    """A component of a timeline that holds the kinds `holds`."""
+    if isinstance(component.kind, UnknownKind) and (
+        component_kind_from_file(component.kind.spelling) not in holds
+    ):
+        # Read back as it is spelled, as an UnknownKind: of a kind the core
+        # doesn't know, or of one its timeline doesn't hold.
+        kind = component.kind.spelling
+    else:
+        kind = _spelling(component_kind_to_file, component.kind, place)
     value = _merged(
         place,
         (
@@ -252,10 +264,12 @@ def _component(component: Component, place: str) -> dict[str, Any]:
     return _object(value, shape, place, writers=writers)
 
 
-def _components(components: dict[str, Component], place: str) -> dict[str, Any]:
+def _components(
+    components: dict[str, Component], place: str, holds: frozenset[str]
+) -> dict[str, Any]:
     """A timeline's components, in id order."""
     return {
-        key: _component(component, pointer_to(place, key))
+        key: _component(component, pointer_to(place, key), holds)
         for key, component in _entries(components, place)
     }
 
@@ -300,10 +314,13 @@ def _raw_timeline(
     return _object(value, UNKNOWN_TIMELINE, place)
 
 
-def _components_writer(item: Any, parent: str, key: str | int) -> Any:
-    if not isinstance(item, dict):
-        return _value(item, parent, key)
-    return _components(item, pointer_to(parent, key))
+def _components_writer(holds: frozenset[str]) -> Writer:
+    def write(item: Any, parent: str, key: str | int) -> Any:
+        if not isinstance(item, dict):
+            return _value(item, parent, key)
+        return _components(item, pointer_to(parent, key), holds)
+
+    return write
 
 
 def _timeline(timeline: Timeline, place: str) -> dict[str, Any]:
@@ -324,7 +341,8 @@ def _timeline(timeline: Timeline, place: str) -> dict[str, Any]:
         ("extra", timeline.extra),
     )
     shape = TIMELINE_SHAPES.get(timeline.kind, UNKNOWN_TIMELINE)
-    writers: dict[str, Writer] = {"components": _components_writer}
+    holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+    writers: dict[str, Writer] = {"components": _components_writer(holds)}
     if timeline.kind == "range":
         writers["rows"] = _rows
     return _object(value, shape, place, writers=writers)
