@@ -631,8 +631,21 @@ def test_set_color_takes_hex_a_css_name_or_a_units_colour(value):
     parse(f"a THEN b -> SET $1.color = {value}")
 
 
+def test_set_color_to_an_empty_string_removes_the_colour():
+    (assign,) = parse('verse -> SET color = ""').action.assigns
+    assert (assign.field.name, assign.value.kind, assign.value.value) == (
+        "color",
+        "string",
+        "",
+    )
+    with pytest.raises(TQLError, match="SET color takes"):
+        parse('verse -> SET color = "nope"')
+    with pytest.raises(TQLError, match="COLOR takes"):
+        parse('verse -> GROUP AS "x" COLOR ""')  # only SET removes a colour
+
+
 @pytest.mark.parametrize(
-    "value", ['"#ff  00"', '"#fff"', "808080", '""', "rosa", '" pink"', "12"]
+    "value", ['"#ff  00"', '"#fff"', "808080", '" "', "rosa", '" pink"', "12", '"nope"']
 )
 def test_set_color_refuses_anything_else(value):
     with pytest.raises(TQLError, match="SET color takes"):
