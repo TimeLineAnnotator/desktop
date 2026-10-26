@@ -18,7 +18,6 @@ from tilia_core.timemap._rows import _beat_unit, _dict
 from tilia_core.timemap.table import MeasureRow, build_rows, find_rows
 from tilia_core.timemap.units import (
     MAX_DENOMINATOR,
-    MAX_UNIT_LENGTH,
     format_units,
     parse_units,
     validate_denominator,
@@ -40,30 +39,24 @@ class TimeSignature:
     denominator: int
 
     def __post_init__(self) -> None:
-        if any(
-            isinstance(part, bool) or not isinstance(part, (int, Fraction))
-            for part in self.parts
-        ):
+        # The parts are units, so units.py says which are allowed.
+        readable = parse_units(format_units(self.parts))
+        if not readable.is_valid:
+            raise ValueError(
+                f"A time signature's parts must be units: {readable.error}"
+            )
+        # Text such as "12" is written as "1+2", and reads back as two parts.
+        if readable.units != list(self.parts):
             raise ValueError(
                 "A time signature's parts must be whole numbers or fractions,"
                 f" not {self.parts!r}."
-            )
-        parts = tuple(Fraction(part) for part in self.parts)
-        if not parts or any(part <= 0 for part in parts):
-            raise ValueError(
-                f"A time signature's parts must be greater than 0, not {self.parts!r}."
-            )
-        if any(len(str(part)) > MAX_UNIT_LENGTH for part in parts):
-            raise ValueError(
-                f"A time signature's parts can be at most {MAX_UNIT_LENGTH}"
-                " characters long, as units can."
             )
         if not validate_denominator(self.denominator):
             raise ValueError(
                 f"A time signature's denominator must be from 1 to {MAX_DENOMINATOR},"
                 f" not {self.denominator!r}."
             )
-        object.__setattr__(self, "parts", parts)
+        object.__setattr__(self, "parts", tuple(readable.units))
 
     @classmethod
     def parse(cls, text: str) -> TimeSignature:
