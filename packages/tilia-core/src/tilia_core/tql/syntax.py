@@ -70,6 +70,7 @@ Lexical rules:
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Union
 
@@ -135,12 +136,13 @@ _RESOLUTIONS = ("INSERT", "ADD-CATEGORY", "SKIP")
 SEQ_RELATIONS = frozenset({"CONTAINS", "STARTS_WITH", "ENDS_WITH", "CONSISTS_OF"})
 
 _STOP = set('[](){}",=<>!~/$@')
-_COUNT_RE = re.compile(r"\{\s*(\d+)\s*(?:(,)\s*(\d*)\s*)?\}")
-_REF_RE = re.compile(r"\$(-?\d+)((?:\.[A-Za-z_][A-Za-z_0-9]*)*)")
-_NUM_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)$")
-_NUM_UNIT_RE = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+))([A-Za-z]+)$")
-_TIME_RE = re.compile(r"^(\d+):(\d{1,2}(?:\.\d+)?)$")
-_PERCENT_RE = re.compile(r"^(\d+\.?\d*|\.\d+)%$")  # of the piece's length
+# Numbers take the digits 0-9 only (re.ASCII): \d alone would read ١٢ as 12.
+_COUNT_RE = re.compile(r"\{\s*(\d+)\s*(?:(,)\s*(\d*)\s*)?\}", re.ASCII)
+_REF_RE = re.compile(r"\$(-?\d+)((?:\.[A-Za-z_][A-Za-z_0-9]*)*)", re.ASCII)
+_NUM_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)$", re.ASCII)
+_NUM_UNIT_RE = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+))([A-Za-z]+)$", re.ASCII)
+_TIME_RE = re.compile(r"^(\d+):(\d{1,2}(?:\.\d+)?)$", re.ASCII)
+_PERCENT_RE = re.compile(r"^(\d+\.?\d*|\.\d+)%$", re.ASCII)  # of the piece's length
 _UNITS = {
     "s": "s",
     "sec": "s",
@@ -1752,15 +1754,17 @@ def _string(args: list[Tok], rest: str, what: str) -> str:
     return args[0].value
 
 
-_HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$")
+_HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$", re.ASCII)
 
 
 def _refuse_hms_and_ms(text: str, pos: int, ms: bool = True) -> None:
     """Raise for ``text`` written as hours:minutes:seconds or, when ``ms`` is
     true, in milliseconds: TQL v0.1.0 has neither as a value. Raise too for a
-    ``m:ss`` time whose seconds are 60 or more (``1:75``)."""
+    ``m:ss`` time whose seconds are 60 or more (``1:75``), and for a number
+    written with digits other than 0-9 (``١٢``, ``１２``)."""
     t = text.strip()
     pos += len(text) - len(text.lstrip())
+    _refuse_other_digits(t, pos)
     if _HMS_RE.match(t):
         raise _not_in_v01(t, pos, pos + len(t))
     m = _TIME_RE.match(t)
@@ -1776,6 +1780,21 @@ def _refuse_hms_and_ms(text: str, pos: int, ms: bool = True) -> None:
     m = _NUM_UNIT_RE.match(t)
     if ms and m and _UNITS.get(m.group(2).lower()) == "ms":
         raise _not_in_v01(t, pos, pos + len(t))
+
+
+def _refuse_other_digits(t: str, pos: int) -> None:
+    """Raise for ``t`` when it would be a number, a time or a length if its
+    digits from other scripts were 0-9."""
+    if t.isascii() or not any(c.isdecimal() for c in t):
+        return
+    ascii_t = "".join(str(unicodedata.decimal(c)) if c.isdecimal() else c for c in t)
+    if ascii_t.isascii() and (_amount(ascii_t) is not None or _HMS_RE.match(ascii_t)):
+        raise TQLError(
+            f"write numbers with the digits 0-9: {ascii_t}, not {t!r} "
+            f'(a label is quoted: "{t}")',
+            pos,
+            pos + len(t),
+        )
 
 
 def _scalar(text: str) -> float | None:

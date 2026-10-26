@@ -587,3 +587,11 @@ def test_group_color_refuses_anything_else(color):
 def test_a_time_takes_seconds_up_to_59():
     assert parse("* WHERE start > 1:59.5").where[0].value.value == 119.5
     assert parse("* WHERE start > 0:00").where[0].value.value == 0
+
+
+def test_digits_of_other_scripts_stay_in_labels():
+    # only a number must be written with 0-9; a label may hold any digits
+    assert first_cond("*[label = فصل١]").value.kind == "word"
+    assert first_cond('*[label = "١٢"]').value.value == "١٢"
+    lit = parse("فصل١ THEN x").pattern.seq.steps[0].item.term
+    assert lit.alts[0].lits[0].text == "فصل١"
