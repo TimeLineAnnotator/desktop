@@ -340,9 +340,9 @@ def join_statement(
         "FROM components a JOIN components b ON "
         f"a.file_id = b.file_id AND a.id <> b.id AND {timing_sql(rel, 'a', 'b')} "
         f'WHERE {where} ORDER BY a.start, a."end", '
-        "COALESCE(a.label_folded, ''), a.id, "
+        "COALESCE(tql_fold(a.label), ''), a.id, "
         'b.start, b."end", '
-        "COALESCE(b.label_folded, ''), b.id"
+        "COALESCE(tql_fold(b.label), ''), b.id"
     )
     return sql, bld.params
 
@@ -464,7 +464,7 @@ class Scope:
             "LEFT JOIN ranges r ON r.component_id = c.id "
             "WHERE c.file_id = ? AND c.timeline_id = ? "
             'ORDER BY c.start, c."end", '
-            "COALESCE(c.label_folded, ''), c.id",
+            "COALESCE(tql_fold(c.label), ''), c.id",
             (self.file_id, timeline_id),
         )
         comps = []
