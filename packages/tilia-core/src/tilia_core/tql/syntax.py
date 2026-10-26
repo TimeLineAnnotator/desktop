@@ -155,6 +155,7 @@ _UNITS = {
     "measure": "bar",
     "measures": "bar",
 }
+_UNIT_NAMES = ", ".join(_UNITS)  # for the errors: the aliases are units too
 _BAR_NUMBERS = ("bar", "end_bar", "bar.count", "bar.label", "pass")
 
 
@@ -994,14 +995,14 @@ class _Parser:
             u = self.peek()
             if u.type != "WORD" or u.text.lower() not in _UNITS:
                 raise self.err(
-                    "WITHIN needs a unit after the amount: s, ms, beats " "or bars", u
+                    f"WITHIN needs a unit after the amount, one of {_UNIT_NAMES}", u
                 )
             self.next()
             unit = u.text.lower()
         else:
             raise self.err(f"WITHIN needs a number, found {t.text!r}", t)
         if unit not in _UNITS:
-            raise self.err(f"unknown unit {unit!r} - one of s, ms, beats, bars", t)
+            raise self.err(f"unknown unit {unit!r} - one of {_UNIT_NAMES}", t)
         if amount < 0:
             raise self.err("WITHIN needs a positive amount", t)
         return Within(amount, _UNITS[unit], kw.pos)
@@ -1268,7 +1269,7 @@ class _Parser:
             amount, unit = float(m.group(1)), _UNITS.get(m.group(2).lower())
             if unit is None:
                 raise TQLError(
-                    f"unknown unit {m.group(2)!r} - one of s, ms, beats, bars",
+                    f"unknown unit {m.group(2)!r} - one of {_UNIT_NAMES}",
                     a_pos,
                     a_end,
                 )
@@ -1285,7 +1286,7 @@ class _Parser:
             if _NUM_RE.match(text) and u.type == "WORD" and u.upper not in KEYWORDS:
                 if u.text.lower() not in _UNITS:
                     raise self.err(
-                        f"unknown unit {u.text!r} - one of s, ms, beats, bars", u
+                        f"unknown unit {u.text!r} - one of {_UNIT_NAMES}", u
                     )
                 self.next()
                 unit, a_end = _UNITS[u.text.lower()], u.end

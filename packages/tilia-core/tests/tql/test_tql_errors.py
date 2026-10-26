@@ -200,3 +200,30 @@ def test_forms_left_to_the_prototype(text, form):
         parse(text)
     assert exc.value.msg == f"{form} is not part of TQL v0.1.0"
     assert text[exc.value.pos : exc.value.end] == form
+
+
+UNIT_NAMES = "s sec secs second seconds ms beat beats bar bars measure measures"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a THEN b WHERE $1.start >= $2.start + 2 parsecs",
+        "a THEN b WHERE $1.start >= $2.start + 2parsecs",
+        "a THEN b WITHIN 2x",
+        "a THEN b WITHIN 2 x",
+    ],
+)
+def test_an_unknown_unit_lists_every_unit_and_alias(text):
+    with pytest.raises(TQLError) as exc:
+        parse(text)
+    names = exc.value.msg.rpartition("one of ")[2].split(", ")
+    assert names == UNIT_NAMES.split(), exc.value.msg
+
+
+@pytest.mark.parametrize("unit", UNIT_NAMES.split())
+def test_every_unit_and_alias_is_read(unit):
+    if unit == "ms":
+        return  # not part of TQL v0.1.0 as a value
+    q = parse(f"a THEN b WITHIN 2 {unit}")
+    assert q.pattern.within.amount == 2
