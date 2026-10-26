@@ -70,9 +70,12 @@ _NO_INVERSION_QUALITIES = frozenset(
     {"Italian", "French", "German", "Neapolitan", "Tristan", "power"}
 )
 
-# Hierarchy boundaries less than this far apart count as the same, as TiLiA's
-# `get_boundary_conflicts` compares them since `dev`'s 2ceec157: files TiLiA saved
-# before then hold boundaries a few ulps apart where they should meet.
+# Two hierarchy boundaries count as the same when they are within 1e-9 s of each
+# other, or within a billionth of the larger, whichever is more: `math.isclose`
+# with this `abs_tol` and its default `rel_tol` of 1e-9, as TiLiA's
+# `get_boundary_conflicts` compares them since `dev`'s 2ceec157. So below 1 s they
+# meet within 1e-9 s, and at an hour within 3.6e-6 s. Files TiLiA saved before then
+# hold boundaries a few ulps apart where they should meet.
 _TIME_ABS_TOL = 1e-9
 
 # The names TiLiA's reasons give the point kinds (their `frontend_name`).
@@ -559,7 +562,8 @@ def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bo
     """Whether two hierarchies overlap, and neither lies inside the other, lower.
 
     This is when TiLiA's `get_boundary_conflicts` finds a conflict between them, as
-    `dev` has it since 2ceec157: times less than 1e-9 apart count as the same.
+    `dev` has it since 2ceec157: two boundaries `_times_close` finds close count as
+    the same.
     """
     other_start, other_end = other.get("start"), other.get("end")
     other_level = other.get("level")
@@ -577,7 +581,8 @@ def _cross(start: float, end: float, level: int, other: Mapping[str, Any]) -> bo
 
 
 def _times_close(a: float, b: float) -> bool:
-    """Whether two times count as the same, as TiLiA's `_times_close` says."""
+    """Whether two times count as the same, as TiLiA's `_times_close` says: within
+    `_TIME_ABS_TOL`, or within a billionth of the larger, whichever is more."""
     try:
         return math.isclose(a, b, abs_tol=_TIME_ABS_TOL)
     except OverflowError:  # an integer too large for a float is close only to itself

@@ -152,8 +152,9 @@ def tilia_creates_range(
     return True
 
 
-# `dev`'s comparisons of hierarchy boundaries since 2ceec157: times less than
-# 1e-9 apart count as the same.
+# `dev`'s comparisons of hierarchy boundaries since 2ceec157: two times count as
+# the same when they are within 1e-9 of each other, or within a billionth of the
+# larger, whichever is more (`math.isclose`'s default `rel_tol` is 1e-9).
 
 
 def _times_close(a, b):
@@ -1030,27 +1031,63 @@ class TestHierarchy:
             conflicts = tilia_boundary_conflicts([existing, candidate])
             assert outcome.ok is not bool(conflicts), (existing, candidate)
 
-    def test_boundaries_a_few_ulps_apart_meet(self):
-        # As in files TiLiA saved before it rescaled subtrees in one step.
-        others = [hierarchy(0.0, 1.0, 1)]
+    @pytest.mark.parametrize(
+        "existing, candidate",
+        [
+            # As in files TiLiA saved before it rescaled subtrees in one step.
+            ((0.0, 1.0, 1), (1.0 - 1e-13, 2.0, 1)),
+            # Below 1 s, boundaries within 1e-9 meet.
+            ((1e-13, 1.0, 2), (0.0, 1.0, 1)),
+            ((0.0, 0.5, 1), (0.5 - 9e-10, 1.0, 1)),
+            # Above it, boundaries within a billionth of the larger.
+            ((0.0, 3600.0, 1), (3600.0 - 2e-6, 3601.0, 1)),
+        ],
+    )
+    def test_close_boundaries_meet(self, existing, candidate):
+        start, end, level = candidate
+        others = [hierarchy(*existing)]
 
-        assert check("hierarchy", others, start=1.0 - 1e-13, end=2.0, level=1) == OK
+        outcome = check(
+            "hierarchy", others, media_length=7200.0, start=start, end=end, level=level
+        )
+
+        assert outcome == OK
+
+    @pytest.mark.parametrize(
+        "existing, candidate",
+        [
+            ((0.0, 0.5, 1), (0.5 - 2e-9, 1.0, 1)),
+            ((0.0, 3600.0, 1), (3600.0 - 5e-6, 3601.0, 1)),
+        ],
+    )
+    def test_boundaries_further_apart_cross(self, existing, candidate):
+        start, end, level = candidate
+        others = [hierarchy(*existing)]
+
+        outcome = check(
+            "hierarchy", others, media_length=7200.0, start=start, end=end, level=level
+        )
+
+        assert outcome == (False, "Component would overlap with existing component.")
 
     def test_nesting_with_float_noise_is_tilias_boundary_conflicts(self):
-        # Every pair of spans from 1 to 4 s at levels 1 to 3, with each boundary
-        # moved by up to 1e-13.
+        # Every pair of spans with boundaries from 0 to 4 s at levels 1 to 3, with
+        # each boundary moved by up to 2e-9, and none before 0. Below 1 s, 1e-9 is
+        # more than a billionth of a time, and above it less, so the sweep compares
+        # both parts of the tolerance.
         noise = random.Random(2026)
+        moves = (0, 1e-13, -1e-13, 5e-10, -5e-10, 2e-9, -2e-9)
         spans = [
             (start, end, level)
-            for start, end in itertools.combinations(range(1, 5), 2)
+            for start, end in itertools.combinations((0.0, 0.25, 0.5, 1.0, 2.0, 4.0), 2)
             for level in (1, 2, 3)
         ]
         for existing, candidate in itertools.product(spans, repeat=2):
             for _ in range(4):
                 moved = [
                     (
-                        start + noise.choice((-1e-13, 0, 1e-13)),
-                        end + noise.choice((-1e-13, 0, 1e-13)),
+                        max(0.0, start + noise.choice(moves)),
+                        end + noise.choice(moves),
                         level,
                     )
                     for start, end, level in (existing, candidate)
