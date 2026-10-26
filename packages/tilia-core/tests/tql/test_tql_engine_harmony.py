@@ -145,6 +145,9 @@ class TestChordLiterals:
 
     def test_a_label_wildcard_still_takes_any_chord(self):
         assert len(run(HARMONY, "* IN harmony").matches) == 14
+        # [label = *] is allowed on chords and keys, unlike [label = V7]
+        assert len(run(HARMONY, "*[label = *] IN harmony").matches) == 14
+        assert len(run(HARMONY, "*[label = *] IN keys").matches) == 3
 
 
 class TestKeyLiterals:
@@ -172,6 +175,13 @@ class TestWarnings:
 
     def test_a_good_query_does_not_warn(self):
         assert run(HARMONY, "V7 IN harmony").warnings == []
+
+    def test_a_regular_expression_beside_another_literal_warns(self):
+        message = "a regular expression in a harmony lane must stand alone"
+        for text in ("V7//x/ IN harmony", "/x//y IN harmony", "/x//y IN keys"):
+            got = run(HARMONY, text)
+            assert got.matches == [], text
+            assert got.warnings == [message], text
 
     def test_warnings_do_not_carry_over_between_runs(self):
         index = fixture_index.build_index(HARMONY)
@@ -319,3 +329,11 @@ class TestFieldsAsMusic:
     def test_two_units_compare_as_music(self):
         got = run(HARMONY, "* THEN * IN keys WHERE $1.key != $2.key")
         assert len(got.matches) == 2
+        # one key spelled two ways: the index never writes "Cm", so put it there
+        fix = harmony_fixture([[0, "C", "minor"], [5, "C", "minor"]], [])
+        index = fixture_index.build_index(fix)
+        con = index.connection()
+        con.execute("UPDATE keys SET key = 'Cm' WHERE component_id LIKE '%k2'")
+        assert [r[0] for r in con.execute("SELECT key FROM keys")] == ["c", "Cm"]
+        assert len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
+        assert tql.run(index, "* THEN * IN keys WHERE $1.key != $2.key").matches == []
