@@ -146,12 +146,44 @@ class TestLanes:
         got = tql.run(index, "verse IN form")
         assert got.matches == []
         assert len(got.warnings) == 1
-        assert "no timeline has the role 'form'" in got.warnings[0]
+        assert got.warnings[0].startswith("this corpus has no roles")
         assert "IN hierarchies" in got.warnings[0]
         assert "IN markers" in tql.run(index, "PAC IN cadence").warnings[0]
         assert tql.run(index, 'verse IN "Form"').warnings == []
         assert len(tql.run(index, 'verse IN "Form"').matches) == 1
         assert tql.run(index_of("pop"), "verse IN form").warnings == []
+
+    def test_a_corpus_without_roles_warns_once(self):
+        # three files, none with a role: one warning for the call
+        def song(n):
+            return {
+                "length": 10,
+                "timelines": [
+                    {"name": f"Analysis {n}", "kind": "hierarchy",
+                     "units": [["phrase", 1, 0, 10]]},
+                    {"name": "Marks", "kind": "marker", "units": [["PAC", 9]]},
+                ],
+            }
+
+        index = fixture_index.build_index(song(1), song(2), song(3))
+        got = tql.run(index, "phrase IN form")
+        assert got.warnings == [
+            'this corpus has no roles - try IN hierarchies or a quoted "timeline name"'
+        ]
+
+    def test_a_role_others_have_is_named_in_the_warning(self):
+        # the corpus has roles, only not this one
+        fixture = {
+            "length": 10,
+            "timelines": [
+                {"name": "Form", "kind": "hierarchy", "units": [["verse", 1, 0, 10]]},
+                {"name": "Cadences", "kind": "marker", "units": [["PAC", 9]]},
+            ],
+        }
+        got = tql.run(fixture_index.build_index(fixture), "verse IN form")
+        assert len(got.warnings) == 1
+        assert "no timeline has the role 'form'" in got.warnings[0]
+        assert "IN hierarchies" in got.warnings[0]
 
     def test_brackets_and_question_mark_in_a_name_are_literal(self):
         fixture = {
@@ -242,6 +274,24 @@ class TestLiterals:
     def test_supertype_does_not_match_subtype_only_label(self):
         assert matched("bridge") == ["bridge.modern"]
         assert "bridge.modern" not in matched("bridge.classic")
+
+    def test_a_dot_marks_no_subtype_without_a_grammar(self):
+        # "I. Allegro" in a corpus with no label grammar is one category
+        fixture = {
+            "length": 10,
+            "timelines": [
+                {
+                    "name": "Form (A)",
+                    "kind": "hierarchy",
+                    "units": [["I. Allegro", 1, 0, 5], ["bridge.modern", 1, 5, 10]],
+                }
+            ],
+        }
+        index = fixture_index.build_index(fixture)
+        assert tql.run(index, "i IN form").matches == []
+        assert tql.run(index, "bridge IN form").matches == []
+        assert len(tql.run(index, '"I. Allegro" IN form').matches) == 1
+        assert len(tql.run(index, "bridge.modern IN form").matches) == 1
 
     def test_underscore_and_percent_are_not_wildcards(self):
         assert matched("verse_") == ["verse_"]
@@ -588,6 +638,30 @@ class TestSql:
         assert len(many.matches) > len(few.matches) >= 1
         assert many.sql.count(";") == few.sql.count(";")
         assert "positions" not in many.sql
+
+    def test_lane_lookups_search_the_timeline_index(self):
+        # the levels and rows of a timeline are read through
+        # components_by_timeline (file_id, timeline_id, start), not a scan
+        con = index_of("pop").connection()
+        seen = []
+        con.set_trace_callback(seen.append)
+        try:
+            specs = tql_compile.resolve_lanes(con, "f1", None)
+        finally:
+            con.set_trace_callback(None)
+        assert {s.kind for s in specs} >= {"hierarchy", "range"}
+        lookups = [
+            q for q in seen if "FROM hierarchies h" in q or "FROM ranges r" in q
+        ]
+        assert any("hierarchies" in q for q in lookups)
+        assert any("ranges" in q for q in lookups)
+        for q in lookups:
+            plan = [r[-1] for r in con.execute("EXPLAIN QUERY PLAN " + q)]
+            assert any(
+                p.startswith("SEARCH c USING INDEX components_by_timeline")
+                for p in plan
+            ), (q, plan)
+            assert not any(p.startswith("SCAN c") for p in plan), (q, plan)
 
     def test_numbers_and_null_are_written_as_they_are(self):
         from tilia_core.tql.engine import sql_literal

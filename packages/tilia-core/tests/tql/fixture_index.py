@@ -11,7 +11,7 @@ from tilia_core import derived, index_schema, labels
 
 _NOTES = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 _FORM = re.compile(r"Form \((.+)\)$")
-_INSERT_COMPONENT = "INSERT INTO components VALUES (?,?,?,?,?,?,?,?,?,?)"
+_INSERT_COMPONENT = "INSERT INTO components VALUES (?,?,?,?,?,?,?,?,?)"
 
 
 def _spell(name: str) -> tuple[int, int]:
@@ -76,7 +76,6 @@ class _Builder:
                 start,
                 end,
                 label,
-                labels.fold(label),
                 derived.color(colour),
                 "",
             ),
@@ -132,7 +131,10 @@ class _Builder:
     def _categorise(self, cid: str, label: str, grammar: Any) -> None:
         if label:
             for category in derived.categories(label, grammar):
-                self.con.execute("INSERT INTO categories VALUES (?,?)", (cid, category))
+                self.con.execute(
+                    "INSERT INTO categories VALUES (?,?,?)",
+                    (cid, category, grammar.supertype(category)),
+                )
 
     def _add_hierarchy(
         self, fid: str, tid: str, tl: dict, length: float, grammar: Any

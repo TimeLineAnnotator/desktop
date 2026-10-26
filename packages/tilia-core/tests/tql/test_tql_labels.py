@@ -38,3 +38,11 @@ def test_whole_label_categories():
 
 def test_whole_label_group():
     assert WholeLabel().group("x") is None
+
+
+def test_whole_label_dot_marks_no_subtype():
+    # With no grammar a dot is part of the label: "I. Allegro" is one
+    # category, and no subtype of "i".
+    assert WholeLabel().categories("I. Allegro") == ("i. allegro",)
+    assert WholeLabel().supertype("i. allegro") is None
+    assert WholeLabel().supertype("bridge.modern") is None
