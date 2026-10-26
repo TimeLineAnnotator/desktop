@@ -1,7 +1,7 @@
 """The SQL functions TQL's statements call, registered on a connection.
 
-``text REGEXP pattern`` is ``regexp(pattern, text)``; ``tql_fold`` and
-``tql_color`` compare labels and colours the way the language does.
+``text REGEXP pattern`` is ``regexp(pattern, text)``; ``tql_fold``, ``tql_nfc``
+and ``tql_color`` compare labels and colours the way the language does.
 ``tql_chord`` and ``tql_key`` read a literal as a chord or a key and ask whether
 the columns of a ``chords`` or ``keys`` row match it (a literal that is none
 matches nothing).
@@ -34,6 +34,11 @@ def regexp(pattern: str | None, text: str | None) -> int:
 def tql_fold(text: str | None) -> str | None:
     """``text`` folded for comparing words and labels."""
     return None if text is None else fold(str(text))
+
+
+def tql_nfc(text: str | None) -> str | None:
+    """``text`` in NFC, for comparing an exact label with its case kept."""
+    return None if text is None else nfc(str(text))
 
 
 def tql_color(text: str | None) -> str | None:
@@ -181,6 +186,7 @@ def register(con: sqlite3.Connection, index: Any = None) -> None:
         pass
     con.create_function("regexp", 2, regexp, deterministic=True)
     con.create_function("tql_fold", 1, tql_fold, deterministic=True)
+    con.create_function("tql_nfc", 1, tql_nfc, deterministic=True)
     con.create_function("tql_color", 1, tql_color, deterministic=True)
     con.create_function("tql_chord", 9, tql_chord, deterministic=True)
     con.create_function("tql_key", 4, tql_key, deterministic=True)

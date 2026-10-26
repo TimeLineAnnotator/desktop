@@ -273,6 +273,42 @@ def test_a_string_holding_on_is_not_an_on_clause():
     assert q.action.label == "turn on" and q.action.on == []
 
 
+def test_edit_strings_keep_their_whitespace():
+    # the verbs read their strings from the lexer, as SET and labels do: two
+    # spaces, a tab or a newline inside the quotes reach the planned write as typed
+    assert parse('verse -> GROUP AS "Chorus  2"').action.label == "Chorus  2"
+    a = parse('verse -> GROUP AS " x " COLOR "#ff  00"').action
+    assert (a.label, a.color) == (" x ", "#ff  00")
+    assert parse('verse -> TAG "a\tb"').action.tag == "a\tb"
+    assert parse('verse -> UNTAG "x   y"').action.tag == "x   y"
+    assert parse('a THEN b -> TAG $1 "p\nq"').action.tag == "p\nq"
+    q = parse('verse -> GROUP AS "x" ON free -> SKIP TAG "p  q" crossing -> INSERT')
+    assert [r.tag for r in q.action.on] == ["p  q", None]
+    assert parse('verse -> SET label = "Chorus  2"').action.assigns[0].value.value == "Chorus  2"
+
+
+def test_a_string_ending_in_a_backslash_may_be_followed_by_a_comment():
+    # `"x\\"` is a string holding one backslash; the `--` after it is a comment
+    q = parse('verse -> TAG "x\\\\" -- note')
+    assert q.action.tag == "x\\" and q.action.text == 'TAG "x\\\\"'
+    q = parse('verse -> GROUP AS "x\\\\" -- note')
+    assert q.action.label == "x\\" and q.action.text == 'GROUP AS "x\\\\"'
+    assert parse('verse -> UNTAG "\\\\" --').action.tag == "\\"
+
+
+def test_two_regular_expressions_on_one_unit():
+    # alt := literal ('/' literal)*: after a joining '/' the next literal starts,
+    # so a '/' there opens a regular expression
+    for text in ("/a/ / /b/", "/a///b/"):
+        lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
+        assert [(lit.kind, lit.text) for lit in lits] == [("regex", "a"), ("regex", "b")]
+    for text in ("verse//^c/", "verse / /^c/"):
+        lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
+        assert [(lit.kind, lit.text) for lit in lits] == [("word", "verse"), ("regex", "^c")]
+    lits = parse("/^v/ / chorus").pattern.seq.steps[0].item.term.alts[0].lits
+    assert [(lit.kind, lit.text) for lit in lits] == [("regex", "^v"), ("word", "chorus")]
+
+
 @pytest.mark.parametrize(
     "text, want",
     [
@@ -492,6 +528,16 @@ def test_error_offsets_count_characters_as_typed():
     with pytest.raises(TQLError) as exc:
         parse("Sätze THEN")
     assert exc.value.pos == len("Sätze THEN")
+    # the culprit is the decomposed word itself: 7 characters as typed, 6 in NFC
+    text = "Sa\u0308tze."
+    assert len(text) == 7
+    with pytest.raises(TQLError) as exc:
+        parse(text)
+    assert "missing subtype" in exc.value.msg
+    assert (exc.value.pos, exc.value.end) == (0, 7)
+    with pytest.raises(TQLError) as exc:
+        parse("Sa\u0308tze THEN THEN x")
+    assert (exc.value.pos, exc.value.end) == (12, 16)
 
 
 def test_deep_nesting_is_an_error():

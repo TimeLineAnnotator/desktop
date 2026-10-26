@@ -77,7 +77,19 @@ BAD = {
     "a THEN b WHERE $1.start >= $2.start + 2parsecs": "unknown unit",
     "a THEN b WHERE $1.start >= $2.start + -2 bars": "sign once",
     "a THEN b WHERE $1.start ~ $2.start + 2 bars": "not a time",
-    "a THEN b -> SET $1.label = $2.start + 2 bars": "unexpected",
+    "a THEN b -> SET $1.label = $2.start + 2 bars": "SET takes no distance",
+    "verse -> SET duration = 8 bars": "SET takes no length",
+    "verse -> SET duration = 8bars": "SET takes no length",
+    "verse -> SET label != x": "SET assigns with '='",
+    "a THEN b WITHIN -2 bars": "positive amount",
+    "a THEN b WITHIN 2x": "unknown unit",
+    "verse{2}+": "one quantifier per step",
+    "a}": "unmatched '}'",
+    "   ": "empty query",
+    "-- only a comment": "empty query",
+    "* WHERE label = then": "keyword THEN",
+    "*[label = AND]": "keyword AND",
+    "verse -> SET label = where": "keyword WHERE",
     "A ENDS BEFORE B": "not a relation",
     "A ENDS AFTER B": "not a relation",
     "STARTS AFTER B": "cannot start with",
@@ -122,6 +134,22 @@ def test_bad_query_raises_with_a_position(text, fragment):
     assert exc.value.pos is not None
     assert 0 <= exc.value.pos <= max(len(text), 1)
     assert exc.value.pos <= exc.value.end
+
+
+def test_no_text_is_an_empty_query():
+    # `parse` refuses None and blank text itself, before the lexer sees it
+    for text in (None, "", " \n\t"):
+        with pytest.raises(TQLError) as exc:
+            parse(text)
+        assert exc.value.msg == "empty query" and exc.value.pos == 0
+
+
+def test_an_error_at_the_end_of_the_query_stays_inside_the_text():
+    # the end of the query has no character to underline: pos == end == len(text)
+    for text in ("verse THEN", "WHERE", "ST[", "a THEN b WITHIN"):
+        with pytest.raises(TQLError) as exc:
+            parse(text)
+        assert exc.value.pos == exc.value.end == len(text)
 
 
 @pytest.mark.parametrize(

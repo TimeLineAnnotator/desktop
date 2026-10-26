@@ -13,7 +13,8 @@ class FakeTimeMap:
     """One bar per printed number in playing order, each ``beats_per_bar``
     beats of ``every`` seconds from ``start``. The map ends at
     ``start + len(numbers) * beats_per_bar * every``. A time within 0.1 s of a
-    beat or of the map's end counts as on it; off the map, answers are None."""
+    beat or of the map's end counts as on it; a start just before the end lies
+    in the last beat; off the map, answers are None."""
 
     def __init__(
         self, start: float, every: float, beats_per_bar: int, numbers: Sequence[int]
@@ -58,10 +59,15 @@ class FakeTimeMap:
         return best
 
     def _locate(self, t: float | None) -> tuple[int, float] | None:
+        raw = t
         t = self._snapped(t)
         s = self._slots
-        if t is None or t < s[0] or t >= s[-1]:
+        if t is None or t < s[0] or t > s[-1]:
             return None
+        if t == s[-1]:
+            # A start just before the map's end snaps to it but lies in the
+            # last beat; the end itself is off the map.
+            return (len(s) - 2, 1.0) if raw < s[-1] else None
         i = bisect.bisect_right(s, t) - 1
         return i, (t - s[i]) / (s[i + 1] - s[i])
 
@@ -112,10 +118,15 @@ class FakeTimeMap:
         j = self._bar_index(t)
         return None if j is None else self.numbers[j]
 
-    def end_bar(self, end: float) -> int | None:
+    def end_bar(self, end: float, start: float | None = None) -> int | None:
         """The bar a span ending at ``end`` ends in; an end on a downbeat
-        belongs to the bar before."""
+        belongs to the bar before. A span so short that its end snaps to its
+        ``start`` (or before it) ends in its start's bar (#104, 2026-10-10)."""
         e = self._snapped(end)
+        if start is not None:
+            s = self._snapped(start)
+            if e is not None and s is not None and e <= s:
+                return self.bar(start)
         if e is None or e <= self.start or e > self.end:
             return None
         return self.numbers[bisect.bisect_left(self._downbeats, e) - 1]
