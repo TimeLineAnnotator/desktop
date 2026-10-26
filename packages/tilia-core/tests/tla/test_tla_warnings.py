@@ -224,6 +224,28 @@ def test_a_component_of_a_kind_its_timeline_doesnt_hold_is_kept_as_it_is(
     assert writer.checked_bytes(doc) == data
 
 
+@pytest.mark.parametrize("kind", ["Slider", "AudioWave"])
+def test_a_timeline_that_holds_no_components_keeps_any_with_a_warning(kind):
+    # A slider has none, and an AudioWave timeline's aren't stored.
+    marker = make_broken.make_id(100)
+
+    def change(content):
+        content["timelines"][KEPT] = {
+            "kind": kind,
+            "name": kind,
+            "ordinal": 6,
+            "height": 40,
+            "components": {marker: {"kind": "MARKER", "time": 1.0}},
+        }
+
+    data = file_with(change)
+    doc = tla.loads(data)
+    assert doc.timelines[KEPT].components[marker].kind == tla.UnknownKind("MARKER")
+    (warning,) = doc.warnings
+    assert warning.place == f"/timelines/{KEPT}/components/{marker}"
+    assert writer.checked_bytes(doc) == data
+
+
 # Keys the core doesn't know
 
 
