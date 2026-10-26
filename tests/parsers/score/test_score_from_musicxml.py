@@ -679,6 +679,55 @@ def test_notes_in_a_measure_the_beat_timeline_skips_are_not_imported(
     assert [bar_line.get_data("time") for bar_line in bar_lines] == [1, 2]
 
 
+def test_a_measure_before_a_repeat_ends_with_a_bar_line(score_tl, beat_tl, tmp_path):
+    # Each pass through a measure ends with a bar line, whatever measure
+    # follows it.
+    beat_tl.set_data("beat_pattern", [1])
+    for i in range(4):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [1, 2, 1, 2]
+    beat_tl.recalculate_measures()
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(
+            _measure("".join(SCORE_ATTRIBUTES.values())), _measure("")
+        ),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == []
+    bar_lines = _get_components_by_kind(score_tl, ComponentKind.BAR_LINE)
+    assert [bar_line.get_data("time") for bar_line in bar_lines] == [1, 2, 3, 4]
+
+
+def test_the_last_measure_ends_with_a_bar_line(score_tl, beat_tl, tmp_path):
+    # Past the last beat, the last measure lasts as long as the one before
+    # it, and its notes end there too.
+    beat_tl.set_data("beat_pattern", [1])
+    for i in range(3):
+        beat_tl.create_beat(i)
+    beat_tl.recalculate_measures()
+
+    success, errors = _import_with_patch(
+        score_tl,
+        beat_tl,
+        _score_with_measures(
+            _measure("".join(SCORE_ATTRIBUTES.values())), _measure(""), _measure("")
+        ),
+        tmp_path,
+    )
+
+    assert success
+    assert errors == []
+    notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+    assert notes[-1].get_data("end") == 3
+    bar_lines = _get_components_by_kind(score_tl, ComponentKind.BAR_LINE)
+    assert [bar_line.get_data("time") for bar_line in bar_lines] == [1, 2, 3]
+
+
 @pytest.mark.parametrize(
     "time, written",
     [

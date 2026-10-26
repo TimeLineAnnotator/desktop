@@ -504,8 +504,9 @@ def notes_from_musicXML(
                 # The beat timeline skips this measure: it gets no bar line,
                 # as it gets no notes.
                 continue
+            # Where each pass through the measure ends, whatever follows it.
             times = _metric_to_time(
-                metric_division.measure_num, metric_division.div_position[1]
+                metric_division.measure_num, metric_division.div_position[1], True
             )
             for time in times:
                 _create_component(
