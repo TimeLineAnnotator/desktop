@@ -22,7 +22,7 @@ from tilia_library.backend import CoreBackend
 from tilia_library.corpora import Corpora
 from tilia_library.server import LibraryServer
 
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 14600
 PORT_TRIES = 50
 OPEN_NAME = "open.html"
 LOCK_NAME = "start.lock"
