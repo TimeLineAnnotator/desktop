@@ -82,6 +82,15 @@ class RangeTimelineUI(TimelineUI):
     ELEMENT_CLASS = RangeUI
     ACCEPTS_HORIZONTAL_ARROWS = True
     ACCEPTS_VERTICAL_ARROWS = True
+    ARROW_TEXTS = {
+        **TimelineUI.ARROW_TEXTS,
+        "up": "Select a range in the row above",
+        "down": "Select a range in the row below",
+    }
+    CTRL_ARROW_COMMANDS = {
+        "up": "timeline.range.move_to_row_above",
+        "down": "timeline.range.move_to_row_below",
+    }
     timeline_class = RangeTimeline
     menu_class = RangeMenu
     CONTEXT_MENU_CLASS = RangeTimelineContextMenu
@@ -904,12 +913,10 @@ class RangeTimelineUI(TimelineUI):
         self._handle_arrow_navigation(arrow)
 
     def on_ctrl_vertical_arrow_press(self, direction: str) -> None:
-        cmd = (
-            "timeline.range.move_to_row_above"
-            if direction == "up"
-            else "timeline.range.move_to_row_below"
-        )
-        commands.execute(cmd)
+        if (command := self.CTRL_ARROW_COMMANDS.get(direction)) is None:
+            logger.error("RangeTimelineUI: invalid vertical arrow %r.", direction)
+            return
+        commands.execute(command)
 
     def _handle_arrow_navigation(self, arrow: str) -> None:
         selection = self.selected_components
