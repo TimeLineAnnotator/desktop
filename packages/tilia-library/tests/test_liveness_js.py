@@ -21,7 +21,7 @@ def shown():
     if node is None:
         pytest.skip("node is not installed")
     run = subprocess.run(
-        [node, str(HARNESS), str(JS)], capture_output=True, text=True, timeout=30
+        [node, str(HARNESS), str(JS)], capture_output=True, text=True, encoding="utf-8", timeout=30
     )
     assert run.returncode == 0, run.stderr
     return json.loads(run.stdout)
