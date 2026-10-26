@@ -9,6 +9,12 @@ One row of ``components`` per hierarchy unit, marker, range, chord, key or
 beat; the tables named after a kind (``hierarchies``, ``ranges``, ``chords``,
 ``keys``) hold what only that kind has, ``positions`` and ``measures`` what the
 file's time map gives, and ``fields`` the user-set fields of files and others.
+
+``measures`` holds one row per bar in playing order: its place in that order
+(``count``), its printed ``number`` and ``label``, its ``start`` and ``end``,
+its ``beats`` and its ``pass``, which pass through a repeat it belongs to: 1 for
+a bar played once or the first time, 2 the second time, and so on. A file
+without repeats has pass 1 throughout.
 ``categories`` holds each component's categories under its corpus's label
 grammar, each with the category it is a subtype of (``supertype``), which only
 a grammar with subtypes gives: with none, a dot is part of the label.
@@ -111,7 +117,8 @@ CREATE TABLE measures (
     label TEXT,
     start REAL,
     "end" REAL,
-    beats INTEGER
+    beats INTEGER,
+    pass INTEGER
 );
 
 CREATE TABLE fields (
