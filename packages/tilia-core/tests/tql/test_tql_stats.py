@@ -149,6 +149,16 @@ class TestCounts:
         table = result.stats("counts", "category", fold_subtypes=True)
         assert table.rows == [("bridge", 3, 1)]
 
+    def test_fold_subtypes_without_a_grammar_keeps_the_dot(self):
+        # with no label grammar "I. Allegro" is no subtype of "i"
+        fixture = {**SUBTYPES, "timelines": [
+            {"name": "Form (A)", "kind": "hierarchy",
+             "units": [["I. Allegro", 1, 0, 20], ["II. Adagio", 1, 20, 40]]}]}
+        del fixture["grammar"]
+        result = tql.run(fixture_index.build_index(fixture), "* IN form")
+        table = result.stats("counts", "category", fold_subtypes=True)
+        assert table.rows == [("i. allegro", 1, 1), ("ii. adagio", 1, 1)]
+
     def test_only_targets_are_counted(self):
         table = run("pop", "verse THEN @chorus IN form").stats("counts")
         assert table.rows == [("chorus", 3, 1)]
