@@ -293,6 +293,39 @@ def test_setting_the_same_length_again_isnt_a_change():
     assert doc.media_length == 60.0
 
 
+# Within a millisecond, the precision of TiLiA's player, a length is the same
+# one, and the known length stays: the components were checked against it
+# (TimeLineAnnotator/project-management#327 (a media length within a
+# millisecond)).
+
+
+@pytest.mark.parametrize("seconds", [3.124716553287982, 3.1241, 3.1259])
+def test_a_length_less_than_a_millisecond_from_the_known_one_isnt_a_change(seconds):
+    doc = with_a_marker(3.125)
+
+    build.set_media_length(doc, seconds)
+
+    assert doc.media_length == 3.125
+
+
+@pytest.mark.parametrize("seconds", [3.124, 3.126, 3.2, 1.5])
+def test_a_length_a_millisecond_or_more_from_the_known_one_is_a_change(seconds):
+    # 3.126 - 3.125 and 3.125 - 3.124 compute as a little under 0.001.
+    doc = with_a_marker(3.125)
+    before = copy.deepcopy(doc)
+
+    assert refused(build.set_media_length, doc, seconds) == HAS_COMPONENTS
+    assert doc == before
+
+
+def test_without_components_a_length_within_a_millisecond_is_set_as_given():
+    doc = document(media_length=3.125, timelines=[timeline("marker")])
+
+    build.set_media_length(doc, 3.124716553287982)
+
+    assert doc.media_length == 3.124716553287982
+
+
 def test_a_first_length_is_set_although_timelines_have_components():
     doc = with_a_marker(None)
 
@@ -599,6 +632,43 @@ def test_media_with_a_first_length_is_loaded_although_timelines_have_components(
     build.load_media(doc, wav)
 
     assert doc.media_length == 1.5
+
+
+def tilias_wav(path: Path) -> Path:
+    """137,800 frames at 44.1 kHz: 3.124716553287982 s from its header, and
+    3.125 s to TiLiA's player, which counts whole milliseconds."""
+    return pcm16_wav(path, rate=44100, channels=1, frames=137800)
+
+
+def test_a_wav_within_a_millisecond_is_loaded_with_the_known_length(tmp_path):
+    # A file TiLiA saved, with components, given its WAV again
+    # (TimeLineAnnotator/project-management#327).
+    doc = with_a_marker(3.125)
+    wav = tilias_wav(tmp_path / "rec.wav")
+    assert build.wav_length(wav) == 3.124716553287982
+
+    assert build.load_media(doc, wav) == 3.125
+    assert doc.media_path == stored(wav)
+    assert doc.media_length == 3.125
+
+
+# 3.126 s and 3.124 s at 8 kHz.
+@pytest.mark.parametrize("frames", [25008, 24992])
+def test_a_wav_a_millisecond_from_the_known_length_is_refused(tmp_path, frames):
+    doc = with_a_marker(3.125)
+    before = copy.deepcopy(doc)
+    wav = pcm16_wav(tmp_path / "b.wav", rate=8000, channels=1, frames=frames)
+
+    assert refused(build.load_media, doc, wav) == HAS_COMPONENTS
+    assert doc == before
+
+
+def test_without_components_a_wav_within_a_millisecond_keeps_its_length(tmp_path):
+    doc = document(media_length=3.125, timelines=[timeline("marker")])
+    wav = tilias_wav(tmp_path / "rec.wav")
+
+    assert build.load_media(doc, wav) == 3.124716553287982
+    assert doc.media_length == 3.124716553287982
 
 
 # Adding timelines (FR-055, FR-060)
