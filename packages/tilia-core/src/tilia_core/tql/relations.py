@@ -307,6 +307,11 @@ def _single(seq: syntax.Seq) -> syntax.Unit:
     return step.item
 
 
+def _parts(_end: float, _start: float) -> bool:
+    """``joins`` for a unit's children: each follows the one before, gap or not."""
+    return True
+
+
 class Scope:
     """One file as the relations read it: its timelines' components, the lanes
     built from them, the hierarchy's parents, and the components each unit of
@@ -476,9 +481,11 @@ class Scope:
         if isinstance(cond, syntax.Children):
             if comp.kind != "hierarchy":
                 return cond.negate
+            # A unit's children are its parts: consecutive in start order
+            # whatever the gaps between them, so no hole breaks a run of them.
             items: list[Item] = [(c, c.start, c.end) for c in self.children(comp)]
             found = bool(items) and bool(
-                find_runs(cond.seq, items, "any", False, self.fits)
+                find_runs(cond.seq, items, "any", False, self.fits, joins=_parts)
             )
             return found != cond.negate
         if isinstance(cond, syntax.RelCond):
