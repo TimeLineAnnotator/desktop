@@ -25,8 +25,13 @@ class LabelGrammar(Protocol):
     """How a corpus's labels split into categories."""
 
     def categories(self, label: str) -> tuple[str, ...]:
-        """The label's categories as folded strings; a dot inside a category
-        marks a subtype. Empty for an empty label."""
+        """The label's categories as folded strings. Empty for an empty label."""
+        ...
+
+    def supertype(self, category: str) -> str | None:
+        """The category that ``category`` is a subtype of, or None. A grammar
+        that has subtypes marks them with a dot (``bridge.modern`` is a
+        subtype of ``bridge``) and returns the part before the first one."""
         ...
 
     def group(self, category: str) -> str | None:
@@ -36,11 +41,16 @@ class LabelGrammar(Protocol):
 
 class WholeLabel:
     """The rule when a corpus names no label grammar: the whole label, folded,
-    is its one category, and there are no groups."""
+    is its one category, and there are no groups and no subtypes. A dot is
+    part of the label: "I. Allegro" is the category "i. allegro", not a
+    subtype of "i"."""
 
     def categories(self, label: str) -> tuple[str, ...]:
         stripped = label.strip()
         return (fold(stripped),) if stripped else ()
+
+    def supertype(self, category: str) -> str | None:
+        return None
 
     def group(self, category: str) -> str | None:
         return None

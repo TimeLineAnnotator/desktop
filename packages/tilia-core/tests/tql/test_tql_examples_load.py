@@ -30,3 +30,8 @@ def test_first_example():
 
 def test_some_example_writes():
     assert any(e.writes for e in examples.load()["examples"])
+
+
+def test_examples_are_the_planning_repos_copy():
+    # examples.toml is pinned to TQL 0.1.0's list in project-management.
+    assert examples.sha256() == examples.EXAMPLES_SHA256
