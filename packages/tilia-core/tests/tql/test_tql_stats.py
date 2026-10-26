@@ -492,7 +492,8 @@ class TestTransitions:
             for n, label in enumerate(("a", "b", "c"))
         ]
         matches = [tql.Match([[c]], "level 1") for c in reversed(units)]
-        result = tql.Result("match", [], matches, "", "", [], None, 0, _index=index)
+        # made of the generation the index has: no unit of it is left out
+        result = tql.Result("match", [], matches, "", "", [], None, 1, _index=index)
         assert result.stats("transitions").rows == [("a", "b", 1), ("b", "c", 1)]
 
     def test_chords_and_keys_are_lanes_of_their_own(self):

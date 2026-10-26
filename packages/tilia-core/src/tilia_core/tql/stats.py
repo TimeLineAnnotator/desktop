@@ -21,6 +21,7 @@ from tilia_core.labels import fold, nfc
 
 from . import names
 from .inuse import in_use
+from .lanes import BAR_KIND
 
 if TYPE_CHECKING:
     from .result import Component, Result
@@ -93,16 +94,16 @@ def _row_key(values: Sequence[Any]) -> list[tuple[int, int, Any]]:
 
 
 class _Reader:
-    """The index reads the tables need, for the targets of one result."""
+    """The index reads the tables need, for the targets of one result, inside
+    one read of the index (``reading``)."""
 
-    def __init__(self, result: Result) -> None:
-        index = result._index
-        if index is None:
-            raise ValueError("this result has no index to read statistics from")
-        self.index = index
-        self.con = index.connection()
+    def __init__(self, result: Result, reading: Any) -> None:
+        self.index = result._index
+        self.reading = reading
+        self.con = reading.connection
         self.result = result
         self._facts: dict[str, Facts] = {}
+        self._targets: list[Component] | None = None
 
     def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
         """What :class:`~tilia_core.tql.values.Facts` runs statements with."""
@@ -118,14 +119,41 @@ class _Reader:
         return got
 
     def targets(self) -> list[Component]:
-        """The distinct target units of the matches, in order of appearance."""
-        seen: dict[str, Component] = {}
+        """The distinct target units of the matches, in order of appearance.
+        When the index has changed since the result was made, the units of
+        changed files have new keys: those whose keys are gone are left out,
+        with a warning on the result."""
+        if self._targets is not None:
+            return self._targets
+        seen: dict[Any, Component] = {}
         for m in self.result.matches:
             for n, slot in enumerate(m.slots, 1):
                 for k, comp in enumerate(slot):
                     if m.is_target(n, k) and comp.id not in seen:
                         seen[comp.id] = comp
-        return list(seen.values())
+        found = list(seen.values())
+        if self.reading.generation != self.result.generation:
+            kept = [c for c in found if self._still_there(c)]
+            gone = len(found) - len(kept)
+            if gone:
+                _warn(
+                    self.result,
+                    f"files changed since this result; {gone} of its units "
+                    f"{'were' if gone != 1 else 'was'} left out; run it again",
+                )
+            found = kept
+        self._targets = found
+        return found
+
+    def _still_there(self, comp: Component) -> bool:
+        """Whether the index still holds ``comp`` under its key."""
+        if comp.kind == BAR_KIND:
+            count = str(comp.id).rpartition(":")[2]
+            sql = "SELECT 1 FROM measures WHERE file_id = ? AND count = ?"
+            found = self.con.execute(sql, (comp.file_id, int(count))).fetchone()
+            return found is not None
+        sql = "SELECT 1 FROM components WHERE id = ? AND file_id = ?"
+        return self.con.execute(sql, (comp.id, comp.file_id)).fetchone() is not None
 
     def one(self, sql: str, params: tuple[Any, ...]) -> Any:
         row = self.con.execute(sql, params).fetchone()
@@ -298,7 +326,7 @@ def _durations(reader: _Reader, key: str, fold: bool) -> Table:
         seconds = [c.end - c.start for c in spans]
         bars: list[float] = []
         for c in spans:
-            tmap = reader.index.time_map(c.file_id)
+            tmap = reader.reading.time_map(c.file_id)
             if tmap is None:
                 no_map.add(c.file_id)
                 continue
@@ -333,7 +361,9 @@ def _durations(reader: _Reader, key: str, fold: bool) -> Table:
 def _positions(reader: _Reader, key: str, fold: bool) -> Table:
     lengths = {
         fid: length
-        for fid, length in reader.con.execute("SELECT id, media_length FROM files")
+        for fid, length in reader.con.execute(
+            "SELECT id, media_length FROM files WHERE state = 'readable'"
+        )
     }
     no_length: set[str] = set()
     outside: set[str] = set()
@@ -411,9 +441,13 @@ def compute(
             f"this result lists {result.grain}s, not units; statistics are of "
             "the units a query matched, so it must name one or a lane"
         )
-    reader = _Reader(result)
-    with in_use(reader.con):
-        table = _compute_on(reader, name, by, fold_subtypes)
+    index = result._index
+    if index is None:
+        raise ValueError("this result has no index to read statistics from")
+    with index.reading() as reading:
+        reader = _Reader(result, reading)
+        with in_use(reader.con):
+            table = _compute_on(reader, name, by, fold_subtypes)
     table.stopped = result.stopped
     return table
 

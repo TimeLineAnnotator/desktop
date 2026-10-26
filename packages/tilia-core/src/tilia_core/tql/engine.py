@@ -31,6 +31,37 @@ from .syntax import TQLError
 
 MODES = {None: "any", "STARTS_WITH": "start", "ENDS_WITH": "end", "CONSISTS_OF": "full"}
 
+# Queries and statistics go over readable files only: an unreadable or
+# unavailable file has no rows outside ``files`` and is never a match (FR-044).
+READABLE_FILES = "SELECT id FROM files WHERE state = 'readable' ORDER BY id"
+
+
+def left_out_warnings(con: sqlite3.Connection, available: bool) -> list[str]:
+    """The warnings about what a result could not read: the files left out,
+    unreadable or unavailable (TimeLineAnnotator/project-management#123), and
+    a corpus folder that can't be reached (FR-021)."""
+    out = []
+    # a lookup, not a search statement: kept out of the SQL a result shows
+    counts = dict(
+        con.execute(
+            "SELECT state, count(*) FROM files WHERE state <> 'readable' "
+            "GROUP BY state"
+        ).fetchall()
+    )
+    if counts:
+        n = sum(counts.values())
+        first = ("unreadable", "unavailable")
+        order = [*first, *sorted(s for s in counts if s not in first)]
+        kinds = ", ".join(f"{counts[s]} {s}" for s in order if s in counts)
+        verb = "were" if n != 1 else "was"
+        out.append(f"{n} file{'s' if n != 1 else ''} {verb} left out: {kinds}")
+    if not available:
+        out.append(
+            "the corpus folder can't be reached; these results come from the "
+            "files as last read"
+        )
+    return out
+
 
 def _sequence_matches(
     scope: relations.Scope,
@@ -153,6 +184,11 @@ def run(
     ``"cancelled"``). Nothing is kept between calls. Raises ``RuntimeError``
     when another thread is running on the connection the index gives.
 
+    The whole run reads inside one ``index.reading()``, so it sees one
+    generation of the index from start to end, and goes over readable files
+    only; the result's warnings count the files it left out
+    (contracts/index-reader.md).
+
     With the ``regex`` package installed (``pip install "tilia-core[regex]"``)
     a regular expression is bounded by ``time_limit``, though not to the
     instant: the bound is approximate. ``cancel`` cannot interrupt a regular
@@ -161,20 +197,23 @@ def run(
     and a pattern that backtracks badly can hold the whole process."""
     if isinstance(query, str):
         query = syntax.parse(query)
-    con = index.connection()
-    with in_use(con):
-        return _run_on(index, con, query, max_matches, time_limit, cancel)
+    with index.reading() as reading:
+        con = reading.connection
+        with in_use(con):
+            return _run_on(index, reading, con, query, max_matches, time_limit, cancel)
 
 
 def _run_on(
     index: Any,
+    reading: Any,
     con: sqlite3.Connection,
     query: syntax.Query,
     max_matches: int | None,
     time_limit: float | None,
     cancel: threading.Event | None,
 ) -> Result:
-    """:func:`run` on the connection ``con``, which the caller has marked."""
+    """:func:`run` on the connection ``con`` of ``reading``, which the caller
+    has marked."""
     pattern = query.pattern
     sqlfuncs.register(con, index)
     log = Recorder(con)
@@ -191,11 +230,11 @@ def _run_on(
         with regexes.within(limits):
             if pattern is None:
                 grain, matches, extra, stopped = _where_only(
-                    index, log, catalogue, query, warn, max_matches, limits
+                    reading, log, catalogue, query, warn, max_matches, limits
                 )
             else:
                 matches, stopped = _pattern_matches(
-                    index, log, query, pattern, max_matches, warn, limits
+                    reading, log, query, pattern, max_matches, warn, limits
                 )
     finally:
         con.set_progress_handler(None, 0)
@@ -237,9 +276,9 @@ def _run_on(
         matches=matches,
         explain=explain(query),
         sql_blocks=log.blocks,
-        warnings=warn.messages(),
+        warnings=warn.messages() + left_out_warnings(log.con, reading.available),
         stopped=stopped,
-        generation=index.generation,
+        generation=reading.generation,
         columns=_columns(grain, query, extra),
         _index=index,
     )
@@ -345,7 +384,7 @@ def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> lis
 
     out: list[str] = []
     # lookups, not search statements: kept out of the SQL a result shows
-    for (file_id,) in log.con.execute("SELECT id FROM files ORDER BY id"):
+    for (file_id,) in log.con.execute(READABLE_FILES):
         if limits.check():
             break
         kinds_of: dict[int, tuple[str, ...]] = {}
@@ -428,7 +467,7 @@ def _lanes_in_play(
 
 
 def _pattern_matches(
-    index: Any,
+    reading: Any,
     log: Recorder,
     query: syntax.Query,
     pattern: syntax.SeqPattern | syntax.RelPattern,
@@ -451,10 +490,10 @@ def _pattern_matches(
     any_lane = False
     try:
         limits.ensure()
-        for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+        for (file_id,) in log.execute(READABLE_FILES):
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, index.time_map(file_id), labels, limits.ensure
+                log, file_id, reading.time_map(file_id), labels, limits.ensure
             )
             specs = scope.lanes(pattern.lane)
             if not specs:
@@ -516,7 +555,7 @@ def _is_join(pattern: syntax.SeqPattern | syntax.RelPattern) -> bool:
 
 
 def _where_only(
-    index: Any,
+    reading: Any,
     log: Recorder,
     cat: names.Catalogue,
     query: syntax.Query,
@@ -553,12 +592,10 @@ def _where_only(
 
     try:
         limits.ensure()
-        for (file_id,) in log.execute(
-            "SELECT id FROM files ORDER BY id", part=files_part
-        ):
+        for (file_id,) in log.execute(READABLE_FILES, part=files_part):
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, index.time_map(file_id), labels, limits.ensure
+                log, file_id, reading.time_map(file_id), labels, limits.ensure
             )
             timelines = log.execute(
                 "SELECT t.id, t.name FROM timelines t JOIN files f ON "

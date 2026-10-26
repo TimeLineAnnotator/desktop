@@ -8,6 +8,8 @@ The index's keys are integers from one counter, as a corpus's are
 
 import re
 import sqlite3
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from fake_timemap import FakeTimeMap
@@ -59,12 +61,36 @@ def _in_lane_order(keys: list, chords: list) -> tuple[list, list]:
     return keys, [chords[i] for i in order]
 
 
+class FixtureReading:
+    """A read of an index that never changes: its one connection, generation
+    1, and a corpus folder that can always be reached."""
+
+    def __init__(self, con: sqlite3.Connection, time_map: Callable[[int], Any]) -> None:
+        self.connection = con
+        self.generation = 1
+        self.available = True
+        self.time_map = time_map
+
+
+@contextmanager
+def reading_of(
+    con: sqlite3.Connection, time_map: Callable[[int], Any]
+) -> Iterator[FixtureReading]:
+    """``reading()`` for a test's index reader: a read of ``con``."""
+    yield FixtureReading(con, time_map)
+
+
 class FixtureIndex:
     """An index in memory, and the time maps of its files."""
 
     def __init__(self, con: sqlite3.Connection, maps: dict[int, FakeTimeMap]) -> None:
         self._con = con
         self._maps = maps
+
+    def reading(self):
+        """A read: the index's one connection, generation 1, always available
+        (contracts/index-reader.md)."""
+        return reading_of(self._con, self.time_map)
 
     def connection(self) -> sqlite3.Connection:
         return self._con
