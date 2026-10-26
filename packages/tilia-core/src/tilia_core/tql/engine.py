@@ -194,6 +194,7 @@ def run(
         warnings=warn.messages(),
         stopped=stopped,
         generation=index.generation,
+        columns=_columns(grain, query, extra),
         _index=index,
     )
 
@@ -521,6 +522,27 @@ def _position(log: _Log, comp: Component | None) -> tuple[Any, Any]:
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
     ).fetchall()
     return (rows[0][0], rows[0][1]) if rows else (None, None)
+
+
+RESULT_COLUMNS = ("file", "title", "timeline", "lane", "ids", "label")
+RESULT_COLUMNS += ("start", "end", "bar", "beat")
+STEP_COLUMNS = ("label", "timeline", "start", "end", "bar", "ids")
+TIMELINE_COLUMNS = ("file", "title", "timeline", "kind", "role", "author")
+
+
+def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[str]:
+    """The columns of the result table (tql.md §10), as ``_row``,
+    ``_timeline_row`` and ``_file_row`` write them; a query of only ``WHERE``
+    that lists units has the one numbered unit each match holds."""
+    if grain == "timeline":
+        return list(TIMELINE_COLUMNS)
+    if grain == "file":
+        return ["file", "title", *(f for f in file_fields if f not in ("file", "title"))]
+    steps = query.slot_count if query.pattern is not None else 1
+    return [
+        *RESULT_COLUMNS,
+        *(f"${n}.{c}" for n in range(1, steps + 1) for c in STEP_COLUMNS),
+    ]
 
 
 def _lane_column(m: Match) -> str | None:
