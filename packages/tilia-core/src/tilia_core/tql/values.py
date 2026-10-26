@@ -7,9 +7,9 @@ the others hold when one value satisfies them, ``!=`` when none satisfies ``=``.
 :class:`Facts` reads the stored values of one file's units, timelines and file
 fields.
 
-Case rules (Q25): a quoted value keeps its case, a bare word ignores it, and two
-units' fields compare ignoring it. ``key``, ``roman``, ``symbol`` and regular
-expressions keep case anyway. Colours compare as colours. Chords and keys are
+Case rules (Q25): a quoted value keeps its case, a bare word ignores it (after
+``~`` too), and two units' fields compare ignoring it. ``key``, ``roman``,
+``symbol`` and regular expressions keep case anyway. Colours compare as colours. Chords and keys are
 compared as stored text here; reading them as music is for the harmony part.
 """
 
@@ -140,6 +140,8 @@ def _one(
         return inside if op == "=" else not inside
     if v.kind == "regex" or op == "~":
         pattern = v.value if v.kind == "regex" else text(v.value)
+        if v.kind == "word":  # a bare word ignores case in every condition (Q25)
+            pattern = "(?i)" + pattern
         if op not in ("=", "~"):
             raise ValueError(f"a regular expression goes with ~ or =, not {op}")
         return _search(pattern, text(lhs), caps)
