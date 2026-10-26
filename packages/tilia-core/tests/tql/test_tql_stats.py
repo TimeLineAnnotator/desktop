@@ -255,6 +255,27 @@ class TestKeys:
         with pytest.raises(ValueError, match="unknown key 'parent'"):
             result.stats("counts", "parent")
 
+    def test_tags_count_one_row_per_tag(self):
+        # as categories do: a unit tagged fast and loud counts under each, and
+        # a tag set twice once
+        index = index_of("pop")
+        ids = [m.slots[0][0].id for m in tql.run(index, "chorus IN form").matches]
+        index.connection().executemany(
+            "INSERT INTO fields VALUES ('component', ?, 'tags', ?)",
+            [(ids[0], "fast"), (ids[0], "loud"), (ids[1], "fast"), (ids[1], "fast")],
+        )
+        result = tql.run(index, "chorus IN form")
+        assert result.stats("counts", "tags").rows == [
+            ("fast", 2, 1),
+            ("loud", 1, 1),
+            (None, 3, 1),
+        ]
+        assert [r[:2] for r in result.stats("durations", "tags").rows] == [
+            ("fast", 2),
+            ("loud", 1),
+            (None, 3),
+        ]
+
     def test_unknown_name_is_refused(self):
         result = run("pop", "chorus IN form")
         with pytest.raises(ValueError, match="counts.*durations.*positions"):

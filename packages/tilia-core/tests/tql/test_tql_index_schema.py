@@ -54,7 +54,16 @@ COLUMNS = {
         "bar_beat_count",
         "downbeat",
     ],
-    "measures": ["file_id", "count", "number", "label", "start", "end", "beats"],
+    "measures": [
+        "file_id",
+        "count",
+        "number",
+        "label",
+        "start",
+        "end",
+        "beats",
+        "pass",
+    ],
     "fields": ["scope", "owner_id", "name", "value"],
 }
 
