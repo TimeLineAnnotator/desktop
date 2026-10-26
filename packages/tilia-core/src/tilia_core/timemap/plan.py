@@ -15,7 +15,12 @@ from typing import Any
 
 from tilia_core import tla
 from tilia_core.timemap._rows import _beat_unit, _dict
-from tilia_core.timemap.table import MeasureRow, build_rows, find_rows
+from tilia_core.timemap.table import (
+    MeasureRow,
+    build_rows,
+    find_rows,
+    format_time_signature,
+)
 from tilia_core.timemap.units import (
     MAX_DENOMINATOR,
     format_units,
@@ -264,8 +269,11 @@ def _unit_changes(
             units = format_units(unit[1])
             readable = parse_units(units)
             if not readable.is_valid:
+                written = format_time_signature(
+                    time_signature.parts, time_signature.denominator
+                )
                 raise ValueError(
-                    f"Measure {row.label}: {time_signature} over {row.beats} taps"
+                    f"Measure {row.label}: {written} over {row.beats} taps"
                     f" gives units that can't be read back: {readable.error}"
                 )
             beat_id = own or row.id
