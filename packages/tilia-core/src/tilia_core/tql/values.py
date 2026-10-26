@@ -90,19 +90,24 @@ def _ordered(op: str, a: Any, b: Any) -> bool:
 
 
 def _search(
-    pattern: str, subject: str, caps: list[str] | None, literal: bool = False
+    pattern: str,
+    subject: str,
+    caps: list[str] | None,
+    literal: bool = False,
+    ignore_case: bool = False,
 ) -> bool:
     """Whether ``pattern`` is found in ``subject`` (NFC, case-sensitive unless
-    the pattern starts with ``(?i)``). The groups it captures go to ``caps``.
-    ``literal`` reads a pattern that is another unit's data, and so no query's
-    to get right, as text when it is no regular expression."""
+    the pattern starts with ``(?i)`` or ``ignore_case``). The groups it captures
+    go to ``caps``. ``literal`` reads a pattern that is another unit's data, and
+    so no query's to get right, as text when it is no regular expression."""
     subject = nfc(subject)
+    flags = re.IGNORECASE if ignore_case else 0
     try:
-        found = re.search(pattern, subject)
+        found = re.search(pattern, subject, flags)
     except re.error:
         if not literal:
             raise
-        found = re.search(re.escape(pattern), subject)
+        found = re.search(re.escape(pattern), subject, flags)
     if found and caps is not None:
         caps[:] = [g if g is not None else "" for g in found.groups()]
     return bool(found)
@@ -123,8 +128,14 @@ def _pair(op: str, lhs: Any, rhs: Any, fname: str, caps: list[str] | None) -> bo
     both_text = isinstance(lhs, str) and isinstance(rhs, str)
     if a is not None and b is not None and not (both_text and fname in LABELS):
         return _ordered(op, a, b)
-    if op == "~":
-        return _search(nfc(text(rhs)), text(lhs), caps, literal=True)
+    if op == "~":  # two units' fields ignore case, `~` included (Q25)
+        return _search(
+            nfc(text(rhs)),
+            text(lhs),
+            caps,
+            literal=True,
+            ignore_case=fname not in CASE_SENSITIVE,
+        )
     if fname in CASE_SENSITIVE:
         have, want = nfc(text(lhs)), nfc(text(rhs))
         same = same_harmony(fname, have.strip(), want.strip())
