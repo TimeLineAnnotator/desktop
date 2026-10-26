@@ -14,7 +14,7 @@ pip install tilia-library
 tilia library [FOLDER] [--port N] [--no-browser]
 ```
 
-Starts the library on 127.0.0.1, on port 8765 or the first free one after it (`--port N` starts from N), prints its address, and opens it in your browser (`--no-browser` doesn't). `FOLDER` is added to the library if it is new. If a library is already running, the command adds `FOLDER` to it and opens the browser there instead of starting a second one.
+Starts the library on 127.0.0.1, on port 14600 or the first free one after it (`--port N` starts from N), prints its address, and opens it in your browser (`--no-browser` doesn't). `FOLDER` is added to the library if it is new. If a library is already running, the command adds `FOLDER` to it and opens the browser there instead of starting a second one.
 
 ## Panels
 
