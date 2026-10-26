@@ -74,7 +74,7 @@ def project(units: Sequence[U], level: int) -> list[tuple[U, float, float]]:
                 rep = u
         if rep is None:
             continue
-        if rep.level > level and b - a <= GAP_EPS + LEAF_EPS:
+        if rep.level > level and b - a <= GAP_EPS + SLACK:
             continue  # a gap THEN crosses, not an item
         if segs and segs[-1][0] is rep and abs(segs[-1][2] - a) <= LEAF_EPS:
             segs[-1][2] = b
