@@ -12,6 +12,7 @@ import pytest
 
 from tilia_core import tql
 from tilia_core.tql import sqlfuncs
+from tilia_core.tql.syntax import TQLError
 
 DATA = examples.load()["fixtures"]
 NO_MAP = "1 file without a time map could not answer"
@@ -141,6 +142,31 @@ class TestDownbeat:
     def test_not_downbeat(self):
         assert sonata("*[NOT downbeat] IN cadences") == ["PAC@157"]
         assert sonata("* IN cadences WHERE NOT downbeat") == ["PAC@157"]
+
+    def test_in_a_sequence_a_bare_downbeat_in_where_is_ambiguous(self):
+        # a unit's position, as beat is (tql.md §7.1): it needs its step
+        text = "HC THEN PAC IN cadences WHERE downbeat"
+        with pytest.raises(TQLError) as info:
+            run(DATA["sonata"], text)
+        assert "in a sequence, 'downbeat' is ambiguous" in info.value.msg
+        assert "$1.beat = 1" in info.value.msg
+        assert (info.value.pos, info.value.end) == (text.index("downbeat"), len(text))
+        text = "HC THEN PAC IN cadences WHERE NOT downbeat AND tl.name = Cadences"
+        with pytest.raises(TQLError) as info:
+            run(DATA["sonata"], text)
+        assert (info.value.pos, info.value.end) == (
+            text.index("NOT"),
+            text.index(" AND"),
+        )
+        assert sonata("HC THEN PAC[downbeat] IN cadences") == []
+        assert sonata("HC THEN PAC IN cadences WHERE $2.beat = 2") == ["HC@128|PAC@157"]
+
+    def test_on_one_step_it_is_the_unit_s(self):
+        assert len(run(DATA["sonata"], "*+ IN cadences WHERE downbeat").rows) == 1
+        assert sonata("*+ IN cadences WHERE NOT downbeat") == []
+        assert sonata("* IN cadences DURING ST IN form WHERE downbeat") == [
+            "HC@128|ST@96"
+        ]
 
 
 class TestRepeats:

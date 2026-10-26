@@ -326,6 +326,14 @@ def check(cat: Catalogue, query: syntax.Query) -> None:
             _check_value(cond)
             if cond.value.kind == "ref":
                 _check_field(cat, cond.value.value, ctx, single)
+        elif isinstance(cond, syntax.Downbeat) and ctx == "where" and not single:
+            # a unit's position, as ``beat`` is: in a sequence it needs a step
+            raise TQLError(
+                "in a sequence, 'downbeat' is ambiguous - put it in brackets on "
+                "its step, or write $1.beat = 1",
+                cond.pos,
+                cond.end,
+            )
 
 
 def time_needs(query: syntax.Query) -> tuple[bool, bool]:
