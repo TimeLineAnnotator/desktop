@@ -173,6 +173,25 @@ class TestShownStatementsRun:
         assert "FROM positions" not in got.sql
         assert "FROM fields" not in got.sql
 
+    @pytest.mark.parametrize(
+        "fixture, query, warns",
+        [
+            ("pop", "PAC IN cadences", True),  # a role no timeline has
+            ("pop", "verse IN markers", False),  # a kind no file has: no error
+        ],
+    )
+    def test_the_lookup_for_a_lane_no_file_has_is_not_shown(
+        self, fixture, query, warns
+    ):
+        got = tql.run(index_of(fixture), query)
+        assert got.matches == []
+        assert bool(got.warnings) == warns
+        lookup = "SELECT DISTINCT role FROM timelines"
+        assert lookup not in got.sql
+        assert all(
+            lookup not in (b.statement or "") for b in got.sql_blocks
+        ), got.sql_blocks
+
 
 class TestWhereOnly:
     """A query of only WHERE shows the statement it ran, like any other."""
