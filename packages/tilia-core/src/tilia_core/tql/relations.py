@@ -662,7 +662,7 @@ class Scope:
                 return cond.negate
             items: list[Item] = [(c, c.start, c.end) for c in self.children(comp)]
             found = bool(items) and bool(
-                find_runs(cond.seq, items, "any", False, self.fits)
+                find_runs(cond.seq, items, "any", False, self.fits, check=self.check)
             )
             return found != cond.negate
         if isinstance(cond, syntax.Downbeat):
@@ -997,6 +997,7 @@ class Scope:
                     spec.point,
                     self.fits,
                     joins=joins,
+                    check=self.check,
                 ):
                     slots = slots_of(inner, i, j, assign, n_steps)
                     key = tuple(tuple(it[0].id for it in s) for s in slots)

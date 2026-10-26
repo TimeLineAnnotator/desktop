@@ -560,3 +560,42 @@ class TestSql:
     def test_a_statement_that_fails_still_raises(self, big_index):
         with pytest.raises(tql.TQLError):
             tql.sql(big_index, "SELECT * FROM nope", time_limit=5)
+
+
+class CancelAt:
+    """A cancel that is set from its ``n``-th look on, in the run's thread."""
+
+    def __init__(self, n):
+        self.n, self.looks = n, 0
+
+    def is_set(self):
+        self.looks += 1
+        return self.looks >= self.n
+
+
+@pytest.fixture(scope="module")
+def parent_index():
+    units = [["P", 2, 0, 300]] + [["a", 1, i, i + 1] for i in range(300)]
+    return fixture_index.build_index(
+        {
+            "length": 300,
+            "timelines": [{"name": "Form (A)", "kind": "hierarchy", "units": units}],
+        }
+    )
+
+
+class TestLongWalksInsideAUnit:
+    # one parent over 300 children: a children test or a sequence relation
+    # whose walk is long though it tests few units; only the walk's own
+    # checks look at the cancel often enough (about 400 looks, 58 without)
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "P[(*+ THEN *+)+ THEN b] IN form",
+            "P[CONTAINS (*+ THEN *+)+ THEN b IN form]",
+        ],
+        ids=["children test", "relation target"],
+    )
+    def test_a_cancel_stops_it(self, parent_index, query):
+        assert tql.run(parent_index, query).stopped is None
+        assert tql.run(parent_index, query, cancel=CancelAt(200)).stopped == "cancelled"
