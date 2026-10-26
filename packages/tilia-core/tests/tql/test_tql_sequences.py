@@ -362,6 +362,43 @@ class TestProject:
     def test_empty(self):
         assert lanes.project([], 1) == []
 
+    def test_sliver_of_the_parent_is_a_gap(self):
+        # a 1 ms piece of the parent between two children is a gap THEN
+        # crosses, not an item standing between them
+        first = FakeUnit("FirstGroup", 0.949, 23.335, 1)
+        trans = FakeUnit("Transition", 23.336, 32.322, 1)
+        parent = FakeUnit("Exposition", 0, 60, 2)
+        items = lanes.project([first, trans, parent], 1)
+        assert items == [
+            (parent, 0, 0.949),
+            (first, 0.949, 23.335),
+            (trans, 23.336, 32.322),
+            (parent, 32.322, 60),
+        ]
+        assert spans_of("FirstGroup THEN Transition", items) == [(1, 3)]
+
+    def test_short_piece_of_a_unit_on_the_level_stays(self):
+        # only a higher unit's sliver is a gap; one on the lane's own level is
+        # an item, however short
+        long = FakeUnit("long", 0, 10, 1)
+        short = FakeUnit("short", 2, 9.95, 1)
+        assert lanes.project([long, short], 1)[-1] == (long, 9.95, 10)
+
+    def test_longer_hole_shows_the_parent(self):
+        first = FakeUnit("FirstGroup", 0.949, 23.335, 1)
+        trans = FakeUnit("Transition", 23.535, 32.322, 1)
+        parent = FakeUnit("Exposition", 0, 60, 2)
+        items = lanes.project([first, trans, parent], 1)
+        assert [(u.label, a, b) for u, a, b in items][1:4] == [
+            ("FirstGroup", 0.949, 23.335),
+            ("Exposition", 23.335, 23.535),
+            ("Transition", 23.535, 32.322),
+        ]
+        assert spans_of("FirstGroup THEN Transition", items) == []
+        assert spans_of("FirstGroup THEN Exposition THEN Transition", items) == [
+            (1, 4)
+        ]
+
 
 class TestFastPath:
     @pytest.mark.parametrize("q", ["verse+", "verse{2}", "verse{1,2}", "verse*", "*"])
