@@ -44,6 +44,7 @@ def _in_lane_order(keys: list, chords: list) -> tuple[list, list]:
             "quality": quality,
             "inversion": rest[0] if rest else 0,
             "applied_to": rest[1] if len(rest) > 1 else 0,
+            "display_mode": "roman",  # the label the builder stores
         }
         props = derived.chord_fields(data, None if k is None else modes[k])
         chord_labels.append(props["label"])

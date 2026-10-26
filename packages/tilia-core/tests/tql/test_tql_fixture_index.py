@@ -364,3 +364,25 @@ def test_fixture_name_is_the_file_id():
     index = fixture_index.build_index({**FIXTURES["recipe"], "name": "song"})
     assert one(index, "SELECT id, path FROM files") == ("song", "song.tla")
     assert one(index, "SELECT COUNT(*) FROM components WHERE id LIKE 'song:%'") == (5,)
+
+
+def test_chords_at_one_time_are_ordered_by_the_label_stored():
+    # C (I) and B diminished (vii°) at 0: by the Roman labels the builder
+    # stores, I comes first and ends where it starts, and vii° lasts; by the
+    # letter labels (Bdim before C) it would be the other way round
+    fixture = {
+        "length": 4,
+        "timelines": [
+            {
+                "name": "Harmony",
+                "kind": "harmony",
+                "keys": [[0, "C", "major"]],
+                "chords": [[0, "C", "major"], [0, "B", "diminished"]],
+            }
+        ],
+    }
+    index = fixture_index.build_index(fixture)
+    assert rows(
+        index, "SELECT label, start, \"end\" FROM components WHERE kind = 'chord' "
+        "ORDER BY \"end\""
+    ) == [("I", 0, 0), ("vii°", 0, 4)]
