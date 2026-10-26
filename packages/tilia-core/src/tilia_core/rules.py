@@ -469,18 +469,26 @@ def _mode_type(music21: ModuleType, attrs: Mapping[str, Any]) -> Outcome | None:
 
 
 def _hierarchy_times(start: float, end: float, media_length: float) -> Outcome | None:
-    # TiLiA shows these as floats, whatever they were given as.
-    start, end, media_length = float(start), float(end), float(media_length)
+    # The values are compared as they are given, as `_point` compares them, so a
+    # media length too large for a float is longer than any time. TiLiA shows them
+    # as floats, and so do the reasons.
     if start > media_length:
         return _broken(
-            f"Start time '{start}' is bigger than media time '{media_length}'"
+            f"Start time '{float(start)}' is bigger than media time"
+            f" '{float(media_length)}'"
         )
     if end > media_length:
-        return _broken(f"End time '{end}' is bigger than media time '{media_length}'")
+        return _broken(
+            f"End time '{float(end)}' is bigger than media time"
+            f" '{float(media_length)}'"
+        )
     if start < 0:
-        return _broken(f"Start time can't be negative. Got '{start}'")
+        return _broken(f"Start time can't be negative. Got '{float(start)}'")
     if end <= start:
-        return _broken(f"End time '{end}' should be bigger than start time '{start}'")
+        return _broken(
+            f"End time '{float(end)}' should be bigger than start time"
+            f" '{float(start)}'"
+        )
     return None
 
 
