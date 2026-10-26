@@ -288,11 +288,19 @@ class BeatTimeline(Timeline):
         self, number: int, fraction: float = 0, is_segment_end: bool = False
     ) -> list[float]:
         """
-        Given the measure index, returns the start time of the measure.
-        If fraction is supplied, returns interpolated time between measure's beats.
+        Returns the times at `fraction` (0 to 1, counted in beats) of each
+        measure numbered `number`: one time per pass through it, in time order.
+        Between two beats, the time is interpolated. A fraction that, rounded to
+        3 decimals, is a beat's (0.333 of three beats) gives that beat's time.
 
-        `is_segment_end` should be set to `True` on the end of any segment-like components.
-        Searches for end points from the previous known beat even if the end point already exists in `metric_fraction_to_time`, since the actual end point might have a non-consecutive measure number to the start point.
+        Fraction 1 gives the next measure's start if that measure is numbered
+        `number + 1`, and no time otherwise. Past the last beat, the last
+        measure lasts as long as the measure before it.
+
+        `is_segment_end` should be set to `True` on the end of any segment-like
+        components. Fraction 1 then gives where the measure ends, whatever
+        follows it, and fraction 0 also gives where each pass of the measure
+        numbered just below `number` ends.
         """
 
         if not self.measure_count:
@@ -302,88 +310,119 @@ class BeatTimeline(Timeline):
             tilia.errors.display(tilia.errors.INVALID_MEASURE_FRACTION, fraction)
             return []
 
-        metric_fraction = round(number + fraction, 3)
-        keys = list(self.metric_fraction_to_beat_dict.keys())
-
-        # make sure metric_fraction is within available beats
-        if min(keys) > metric_fraction or max(keys) < (
-            metric_fraction // 1 if not is_segment_end else metric_fraction - 1
+        beats = self.components
+        measure_indices = [i for i, n in enumerate(self.measure_numbers) if n == number]
+        times = [
+            time
+            for i in measure_indices
+            if (time := self._get_time_in_measure(beats, i, fraction, is_segment_end))
+            is not None
+        ]
+        if (
+            is_segment_end
+            and measure_indices
+            and round(number + fraction, 3) == round(number, 3)
         ):
-            return []
+            times += self._get_ends_of_measures_before(beats, number)
 
-        idx = bisect(keys, metric_fraction)
-        if idx == 0:
-            return []
-
-        times = []
-        if beats := self.metric_fraction_to_time.get(metric_fraction):
-            # check if the given metric_fraction has already been memoised
-            # if found and is segment-like start, or point-like time, return because a second search will produce duplicates that should not be considered.
-            # if found and idx == 1, given metric_fraction is equal to min metric_position of beats. return because no other times will be found through iteration.
-
-            # otherwise, if the metric_fraction already exists, push idx back by one to do a second search.
-            if idx == 1 or not is_segment_end:
-                return beats
-            if keys[idx - 1] == metric_fraction:
-                idx -= 1
-
-            times.extend(beats)
-
-        starts = self.metric_fraction_to_beat_dict[keys[idx - 1]]
-        start_measure = keys[idx - 1] // 1
-        start_metric_fraction = keys[idx - 1] % 1
-        for start in starts:
-            if next_comp := self.get_next_component(start.id):
-                end_time = next_comp.time
-                end_metric_fraction = (
-                    1.0
-                    if (mp := next_comp.metric_position).measure < start_measure
-                    else (
-                        (mp.beat - 1) / mp.measure_beat_count
-                        + (mp.measure - start_measure)
-                    )
-                )
-            elif start == self.components[-1]:
-                # If getting time for the last component, there is no next component to interpolate with.
-                # So, we interpolate with a projected next measure, assuming the same duration as the last.
-                prev_measure_number = start.metric_position.measure - 1
-                prev_measure_starts = self.get_time_by_measure(prev_measure_number)
-                if not prev_measure_starts:
-                    continue
-                else:
-                    prev_measure_start = prev_measure_starts[0]
-                cur_measure_start = self.get_time_by_measure(
-                    start.metric_position.measure
-                )[0]
-                prev_measure_duration = cur_measure_start - prev_measure_start
-                end_time = cur_measure_start + prev_measure_duration
-                end_metric_fraction = 0
-
-            metric_fraction_diff = (end_metric_fraction - start_metric_fraction) % 1
-
-            # interpolate between beats to get new time
-            new_time = start.time + (metric_fraction - keys[idx - 1]) / (
-                metric_fraction_diff
-                if not isclose(metric_fraction_diff, 0, abs_tol=0.001)
-                else 1
-            ) * (end_time - start.time)
-
-            index = bisect(times, new_time)
-            # if new_time is close to its neighbours, don't add to list. otherwise, insert in sorted order.
-            if not (
-                (index != 0 and isclose(new_time, times[index - 1]))
-                or (index != len(times) and isclose(new_time, times[index]))
-            ):
-                times.insert(index, new_time)
+        times = sorted(times)
+        times = [
+            time
+            for i, time in enumerate(times)
+            if i == 0 or not isclose(time, times[i - 1])
+        ]
 
         if not is_segment_end:
-            # don't memoise if not is_segment_end - interpolated times will contain beat numbers that don't actually exist.
-            self.metric_fraction_to_time[metric_fraction] = times
-            for o in times:
-                self.time_to_metric_fraction[o] = metric_fraction
-            self.__sort_metric_to_time()
+            # get_metric_fraction_by_time interpolates between these times.
+            # Interpolated end times aren't stored: an end point on a downbeat
+            # belongs to the measure before it.
+            metric_fraction = round(number + fraction, 3)
+            for time in times:
+                self.time_to_metric_fraction[time] = metric_fraction
             self.__sort_time_to_metric()
-        return sorted(times)
+        return times
+
+    def _get_time_in_measure(
+        self,
+        beats: list[Beat],
+        measure_index: int,
+        fraction: float,
+        is_segment_end: bool,
+    ) -> float | None:
+        number = self.measure_numbers[measure_index]
+        beat_count = self.beats_in_measure[measure_index]
+        first = self.beats_that_start_measures[measure_index]
+
+        beat = self._get_beat_at_fraction(number, fraction, beat_count)
+        if beat == beat_count:
+            if is_segment_end:
+                return self._get_measure_end(beats, measure_index)
+            next_index = measure_index + 1
+            if (
+                next_index < self.measure_count
+                and self.measure_numbers[next_index] == number + 1
+            ):
+                return beats[first + beat_count].time
+            return None
+        if beat is not None:
+            return beats[first + beat].time
+
+        position = fraction * beat_count
+        k = int(position)  # below beat_count: a fraction this close to 1 is at 1
+        start = beats[first + k].time
+        if k + 1 < beat_count:
+            end = beats[first + k + 1].time
+        else:
+            end = self._get_measure_end(beats, measure_index)
+            if end is None:
+                return None
+        return start + (position - k) * (end - start)
+
+    @staticmethod
+    def _get_beat_at_fraction(
+        number: int, fraction: float, beat_count: int
+    ) -> int | None:
+        """
+        The index in its measure of the beat at `fraction`, `beat_count` for
+        fraction 1, or None between beats. Compared at 3 decimals, so that 0.333
+        is the second of three beats.
+        """
+        target = round(number + fraction, 3)
+        if target == number + 1:
+            return beat_count
+        for k in range(beat_count):
+            if target == round(number + k / beat_count, 3):
+                return k
+        return None
+
+    def _get_measure_end(self, beats: list[Beat], measure_index: int) -> float | None:
+        """
+        The next measure's start. The last measure is projected to last as long
+        as the measure before it in the timeline; with no measure before it,
+        there is nothing to project from.
+        """
+        if measure_index + 1 < self.measure_count:
+            return beats[self.beats_that_start_measures[measure_index + 1]].time
+        if measure_index == 0:
+            return None
+        start = beats[self.beats_that_start_measures[measure_index]].time
+        previous_start = beats[self.beats_that_start_measures[measure_index - 1]].time
+        return start + (start - previous_start)
+
+    def _get_ends_of_measures_before(
+        self, beats: list[Beat], number: int
+    ) -> list[float]:
+        """Where each pass of the measure numbered just below `number` ends."""
+        numbers_below = [n for n in self.measure_numbers if n < number]
+        if not numbers_below:
+            return []
+        number_before = max(numbers_below)
+        return [
+            end
+            for i, n in enumerate(self.measure_numbers)
+            if n == number_before
+            and (end := self._get_measure_end(beats, i)) is not None
+        ]
 
     def get_metric_fraction_by_time(self, time: float) -> float:
         if mf := self.time_to_metric_fraction.get(time):
