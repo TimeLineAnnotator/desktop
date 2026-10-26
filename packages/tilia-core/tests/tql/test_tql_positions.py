@@ -456,6 +456,60 @@ class TestSequenceWithin:
         assert units(fix, "a THEN b IN form") == ["a@0|b@4.05"]
         assert units(fix, "a THEN b IN form WITHIN 1 bar") == ["a@0|b@4.05"]
 
+    # P, in another timeline, holds the whole form lane, which keeps its holes;
+    # Q starts two seconds into v.
+    OUTER = fixture(
+        *GRID["timelines"],
+        hierarchy("Outer", [["P", 1, 0, 32]]),
+        hierarchy("Outer2", [["Q", 1, 2, 32]]),
+    )
+
+    def test_a_relation_s_sequence_target_crosses_holes_too(self):
+        outer = self.OUTER
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form") == []
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 1 bar") == [
+            "P@0|v@0|c@12"
+        ]
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 4 s") == [
+            "P@0|v@0|c@12"
+        ]
+        assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 3 beats") == []
+        assert units(
+            outer, "P IN outer STARTS WITH v THEN c IN form WITHIN 1 bar"
+        ) == ["P@0|v@0|c@12"]
+        assert units(
+            outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 2 beats"
+        ) == ["P@0|c@12|d@22"]
+        assert units(outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 1 beat") == []
+        assert units(
+            outer, "P IN outer CONSISTS OF v THEN c THEN d IN form WITHIN 1 bar"
+        ) == ["P@0|v@0|c@12|d@22"]
+        assert units(outer, "P[CONTAINS v THEN c IN form WITHIN 1 bar] IN outer") == [
+            "P@0"
+        ]
+        assert units(outer, "P[CONTAINS v THEN c IN form] IN outer") == []
+
+    def test_the_same_within_is_the_relation_s_tolerance_too(self):
+        outer = self.OUTER
+        assert units(outer, "Q IN outer2 CONTAINS v IN form") == []
+        assert units(outer, "Q IN outer2 CONTAINS v IN form WITHIN 1 bar") == [
+            "Q@2|v@0"
+        ]
+        assert units(outer, "Q IN outer2 CONTAINS v THEN c IN form WITHIN 1 bar") == [
+            "Q@2|v@0|c@12"
+        ]
+
+    def test_without_a_time_map_a_relation_s_target_crosses_nothing(self):
+        fix = fixture(*UNMAPPED["timelines"], hierarchy("Outer", [["P", 1, 0, 32]]))
+        for query in (
+            "P IN outer CONTAINS v THEN c IN form WITHIN 1 bar",
+            "P[CONTAINS v THEN c IN form WITHIN 1 bar] IN outer",
+        ):
+            got = run(fix, query)
+            assert got.rows == [] and got.warnings == [NO_MAP], query
+        got = run(fix, "P IN outer CONTAINS v THEN c IN form WITHIN 4 s")
+        assert len(got.rows) == 1 and got.warnings == []
+
 
 # --------------------------------------------------------------------------- #
 # Relations' WITHIN

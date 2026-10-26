@@ -948,12 +948,20 @@ class Scope:
         if r in SEQUENCE_MODES:
             n_steps = len(rel.target.steps)
             seen: set[tuple[tuple[str, ...], ...]] = set()
+            # the WITHIN after the target's IN lets its THENs cross holes, as
+            # after any IN (tql.md §6.1), besides setting the tolerance (§8)
+            joins = self.joiner(rel.within)
             for spec in specs:
                 inner = self.inside_items(self.lane_items(spec), a, metric, own)
                 if not inner:
                     continue
                 for i, j, assign, _ in find_runs(
-                    rel.target, inner, SEQUENCE_MODES[r], spec.point, self.fits
+                    rel.target,
+                    inner,
+                    SEQUENCE_MODES[r],
+                    spec.point,
+                    self.fits,
+                    joins=joins,
                 ):
                     slots = slots_of(inner, i, j, assign, n_steps)
                     key = tuple(tuple(it[0].id for it in s) for s in slots)
