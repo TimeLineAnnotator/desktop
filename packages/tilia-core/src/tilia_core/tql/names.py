@@ -191,13 +191,16 @@ def _check_lane(cat: Catalogue, lane: syntax.Lane | None) -> None:
     end = lane.pos + len(lane.text) + (2 if lane.quoted else 0)
     if lane.quoted:  # a quoted name keeps its case: say so where only case differs
         near = lane_names(cat, lane, fold_case=True)
-        if near:
-            raise TQLError(
-                f'no timeline or row called "{lane.text}" - a quoted name keeps '
-                f'its case: "{sorted(set(near))[0]}"?',
-                lane.pos,
-                end,
-            )
+        hint = (
+            f'its case: "{sorted(set(near))[0]}"?'
+            if near
+            else "its case; * is a wildcard"
+        )
+        raise TQLError(
+            f'no timeline or row called "{lane.text}" - a quoted name keeps {hint}',
+            lane.pos,
+            end,
+        )
     raise TQLError(
         f"no timeline, role or kind called {lane.text!r} - roles: "
         f"{', '.join(sorted(tql_compile.BUILTIN_ROLES))}; kinds: {KIND_NAMES}; or a "

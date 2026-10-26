@@ -736,9 +736,10 @@ class Scope:
             for b in self.candidates(target, specs):
                 if b.id == a.id:
                     continue
-                inner = self.inside_items(
-                    items, b, metric, home.timeline_id == b.timeline_id
-                )
+                # A STARTS B is B STARTS WITH A: with IN, time decides what
+                # lies in B, as it does for STARTS WITH; without IN, B's
+                # descendants, as for every order relation
+                inner = self.inside_items(items, b, metric, own)
                 if not inner:
                     continue
                 edge = inner[0] if r == "STARTS" else inner[-1]
