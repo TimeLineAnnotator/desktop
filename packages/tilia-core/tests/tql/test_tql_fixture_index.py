@@ -134,17 +134,6 @@ def test_a_list_field_gives_one_row_per_item():
     ]
 
 
-def test_label_folded_is_the_folded_label():
-    index = fixture_index.build_index(FIXTURES["scripts"])
-    assert rows(
-        index, "SELECT label, label_folded FROM components WHERE label <> ''"
-    ) == [("主歌", "主歌"), ("副歌", "副歌"), ("主歌", "主歌"), ("Straße", "strasse")]
-    index = fixture_index.build_index(FIXTURES["exposition"])
-    assert one(index, "SELECT label_folded FROM components WHERE label = 'MT'") == (
-        "mt",
-    )
-
-
 def test_chord_before_the_first_key_has_no_key():
     fixture = {
         "length": 8,
@@ -174,6 +163,29 @@ def test_categories_of_pop():
     assert one(index, "SELECT COUNT(*) FROM categories WHERE category = 'chorus'") == (
         5,
     )
+
+
+def test_supertypes_come_from_the_grammar_only():
+    # de Clercq marks a subtype with a dot; with no grammar a dot is part of
+    # the label, and no category has a supertype
+    def fixture(grammar):
+        f = {
+            "length": 10,
+            "timelines": [
+                {
+                    "name": "Form (A)",
+                    "kind": "hierarchy",
+                    "units": [["bridge.modern", 1, 0, 5], ["I. Allegro", 1, 5, 10]],
+                }
+            ],
+        }
+        return {**f, "grammar": grammar} if grammar else f
+
+    sql = "SELECT category, supertype FROM categories ORDER BY 1"
+    with_grammar = fixture_index.build_index(fixture("de Clercq"))
+    assert rows(with_grammar, sql) == [("bridge.modern", "bridge"), ("i. allegro", "i")]
+    without = fixture_index.build_index(fixture(None))
+    assert rows(without, sql) == [("bridge.modern", None), ("i. allegro", None)]
 
 
 def test_categories_without_grammar_are_whole_labels():

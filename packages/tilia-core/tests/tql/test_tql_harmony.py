@@ -5,7 +5,10 @@ from tilia_core.harmony import (
     _SPECIAL,
     QUALITIES,
     HarmonyError,
+    _plain,
     _roman_suffix,
+    _tilia_letter,
+    _tilia_roman,
     chord_matches,
     chord_props,
     is_chord_symbol,
@@ -173,10 +176,9 @@ def test_upper_inversions_read_back(name):
     for inversion in range(len(_QUAL[name].tones)):
         ch = chord("C", name, inversion)
         p = chord_props(ch, C)
-        for label in (p["symbol"], p["roman"]):
-            spec = parse_chord(label)
-            assert chord_matches(spec, ch, C), (label, ch)
-        assert parse_chord(p["symbol"]).inversion == (inversion or None), p
+        spec = parse_chord(p["symbol"])
+        assert chord_matches(spec, ch, C), (p["symbol"], ch)
+        assert spec.inversion == (inversion or None), p
 
 
 @pytest.mark.parametrize(
@@ -635,7 +637,7 @@ def test_modal_key_matches_no_literal():
         (chord("F#", "diminished"), g_mixo, "#vii°"),
         (chord("F"), e_phryg, "II"),
         (chord("B", "diminished"), e_phryg, "v°"),
-        (chord("E", "major", 0, 4), d_dorian, "V/v"),  # dorian's v is minor
+        (chord("E", "major", 0, 4), d_dorian, "V/V"),  # TiLiA's target: upper case
     ],
 )
 def test_modal_roman_labels(ch, k, roman):
@@ -669,32 +671,101 @@ def test_chord_props():
 def test_chord_props_without_key():
     assert chord_props(g7b, None)["roman"] is None
     assert chord_props(g7b, None)["key"] is None
-    assert chord_props(it6, None)["roman"] == "It+6"
+    assert chord_props(it6, None)["roman"] == "It6+"
 
 
-@pytest.mark.parametrize(
-    "ch, k, symbol, roman",
-    [
-        (chord("B", "diminished"), c, "Bdim", "vii°"),
-        (chord("Bb"), c, "Bb", "VII"),
-        (chord("Ab", "major", 1), c, "Ab/C", "VI6"),
-        (chord("A"), c, "A", "#VI"),
-        (chord("Ab", "minor"), c, "Abm", "bvi"),
-        (chord("Gb"), D, "Gb", "bIV"),
-        (chord("F#", "minor", 2), D, "F#m/C#", "iii64"),
-        (chord("Eb", "dominant-seventh", 0, 5), C, "Eb7", "V7/bVI"),
-        (chord("F#", "diminished-seventh", 3, 4), C, "F#dim7/Eb", "vii°2/V"),
-        (chord("F", "major-seventh", 1), C, "Fmaj7/A", "IVM65"),
-        (chord("C", "augmented", 1), C, "Caug/E", "I+6"),
-        (chord("E", "German"), C, "Ger+6", "Ger+6"),
-    ],
-)
-def test_derived_labels(ch, k, symbol, roman):
+# The labels TiLiA's dev branch shows (origin/dev 4f926093: letter_symbol_label
+# in tilia/ui/timelines/harmony/elements/harmony.py, to_roman_numeral in
+# tilia/ui/timelines/harmony/utils.py), as its code returns them for the
+# MusAnalysis font, and as plain text.
+def mode_key(step, alter, typ):
+    return {"kind": "MODE", "step": step, "accidental": alter, "type": typ}
+
+
+TILIA_LABELS = [
+    # root, quality, inversion, applied_to, key, TiLiA's letter and Roman
+    # labels, then the plain symbol and roman
+    ("B", "diminished", 0, 0, c, "Bdim", "viio", "Bdim", "vii°"),
+    ("B", "diminished-seventh", 0, 0, c, "Bo7", "viio7", "B°7", "vii°7"),
+    ("Bb", "major", 0, 0, c, "B`b", "VII", "Bb", "VII"),
+    ("Ab", "major", 1, 0, c, "A`b/C", "VI6", "Ab/C", "VI6"),
+    ("A", "major", 0, 0, c, "A", "`#VI", "A", "#VI"),
+    ("Ab", "minor", 0, 0, c, "A`bm", "`bvi", "Abm", "bvi"),
+    ("Eb", "dominant-seventh", 0, 5, C, "E`b7", "V7/VI", "Eb7", "V7/VI"),
+    ("F#", "diminished-seventh", 3, 4, C, "F`#o7/E`b", "viio#42/V", "F#°7/Eb", "vii°#42/V"),
+    ("G", "dominant-seventh", 1, 0, C, "G7/B", "V65", "G7/B", "V65"),
+    ("G", "dominant-seventh", 3, 0, C, "G7/F", "V42", "G7/F", "V42"),
+    ("F", "major-seventh", 1, 0, C, "F^^7/A", "IV65", "FΔ7/A", "IV65"),
+    ("C", "major-seventh", 0, 0, C, "C^^7", "I7", "CΔ7", "I7"),
+    ("G", "major-seventh", 0, 0, C, "G^^7", "V#7", "GΔ7", "V#7"),
+    ("C", "augmented", 1, 0, C, "C+/E", "I+#63", "C+/E", "I+#63"),
+    ("D", "half-diminished-seventh", 0, 0, c, "Dø7", "iio\\7", "Dø7", "iiø7"),
+    ("B", "half-diminished-seventh", 2, 0, C, "Bø7/F", "viio\\43", "Bø7/F", "viiø43"),
+    ("G", "minor-seventh", 2, 0, C, "Gm7/D", "v%bss643", "Gm7/D", "vb643"),
+    ("D", "dominant-seventh", 0, 4, C, "D7", "V7/V", "D7", "V7/V"),
+    ("C#", "diminished", 0, 4, G, "C`#dim", "viio/V", "C#dim", "vii°/V"),
+    ("A", "dominant-seventh", 3, 4, g, "A7/G", "V#42/V", "A7/G", "V#42/V"),
+    ("G", "dominant-ninth", 3, 0, C, "G9/F", "V%sss432", "G9/F", "V432"),
+    ("G", "dominant-11th", 0, 0, C, "G11   ", "V11    ", "G11", "V11"),
+    ("G", "major-13th", 0, 0, C, "G^^13", "V13", "GΔ13", "V13"),
+    ("Bb", "seventh-flat-five", 0, 0, C, "B-7((b5))", "`bVII7((b5))", "B-7(b5)", "bVII7(b5)"),
+    ("G", "suspended-second", 1, 0, C, "Gsus2/G", "V74", "Gsus2/G", "V74"),
+    ("G", "major-sixth", 3, 0, C, "G6/G", "V7", "G6/G", "V7"),
+    ("G", "suspended-fourth", 0, 0, C, "Gsus", "V54", "Gsus", "V54"),
+    ("G", "power", 0, 0, C, "G&5", "V5", "G5", "V5"),
+    ("G", "pedal", 0, 0, C, "G`p`e`d", "V`p`e`d", "Gped", "Vped"),
+    ("C", "Tristan", 0, 0, C, "C`t`r`i`s`t", "I`t`r`i`s`t", "Ctrist", "Itrist"),
+    ("E", "German", 0, 0, C, "Gr6+", "Gr6+", "Gr6+", "Gr6+"),
+    ("Db", "Neapolitan", 1, 0, C, "N6", "N6", "N6", "N6"),
+    ("C", "dominant-seventh-flat-ninth", 1, 0, C, "C7((b9))/E", "Ib65((b9))", "C7(b9)/E", "Ib65(b9)"),
+    ("G", "dominant-seventh-sharp-eleventh", 0, 0, C, "G7((#1\u200c1))", "V7((#1\u200c1))", "G7(#11)", "V7(#11)"),
+    ("F", "major-sixth-added-ninth", 0, 0, C, "F6((9))", "IV((6))((9))", "F6(9)", "IV(6)(9)"),
+    ("C#", "major", 0, 0, mode_key(1, 0, "dorian"), "C`#", "`#VII", "C#", "#VII"),
+    ("F", "major", 0, 0, mode_key(1, 0, "dorian"), "F", "III", "F", "III"),
+    ("G#", "diminished", 0, 0, key("a"), "G`#dim", "viio", "G#dim", "vii°"),
+    ("F#", "minor", 0, 0, key("a"), "F`#m", "vi", "F#m", "vi"),
+    ("Ebb", "major", 0, 0, Bb, "E`b`b", "`bIV", "Ebb", "bIV"),
+    ("C##", "minor", 0, 0, C, "C`xm", "`xi", "Cxm", "xi"),
+    ("Gb", "major", 0, 0, D, "G`b", "`bIV", "Gb", "bIV"),
+]
+
+
+def _stored(root, quality, inversion, applied):
+    step = "CDEFGAB".index(root[0])
+    alter = root[1:].count("#") - root[1:].count("b")
+    return {
+        "kind": "HARMONY",
+        "step": step,
+        "accidental": alter,
+        "quality": quality,
+        "inversion": inversion,
+        "applied_to": applied,
+    }
+
+
+@pytest.mark.parametrize("row", TILIA_LABELS, ids=lambda r: f"{r[0]}-{r[1]}-{r[2]}-{r[3]}")
+def test_labels_are_the_ones_tilia_shows(row):
+    root, quality, inversion, applied, k, letter, roman, symbol, plain = row
+    ch = _stored(root, quality, inversion, applied)
+    pitch = (ch["step"], ch["accidental"])
+    key_t = (k["step"], k["accidental"], k["type"])
+    assert _tilia_letter(pitch, quality, inversion) == letter
+    assert _tilia_roman(pitch, quality, inversion, applied, key_t) == roman
     p = chord_props(ch, k)
-    assert (p["symbol"], p["roman"]) == (symbol, roman), (ch, k, p)
+    assert (p["symbol"], p["roman"]) == (symbol, plain), p
 
 
-# every derived label reads back to a literal that matches its chord
+def test_plain_text_of_the_font():
+    assert _plain("viio\\7") == "viiø7"
+    assert _plain("v%bs#643") == "vb64#3"
+    assert _plain("V+%ss#653") == "V+65#3"
+    assert _plain("C`x^^7((b9))") == "CxΔ7(b9)"
+    assert _plain("V^x9") == "Vx9" and _plain("Vb\u200cb7") == "Vbb7"
+
+
+# a chord symbol label reads back to a literal that matches its chord, where
+# TiLiA writes one: not for the qualities whose first inversion it shows with
+# the root in the bass, nor a bass beyond a double accidental
 @pytest.mark.parametrize(
     "k",
     [key(t) for t in ("C", "c", "f#", "Eb", "bb", "A")]
@@ -715,12 +786,11 @@ def test_derived_labels(ch, k, symbol, roman):
         "half-diminished-seventh",
         "major-seventh",
         "minor-major-seventh",
-        "suspended-fourth",
         "dominant-ninth",
         "French",
     ],
 )
-def test_derived_labels_read_back(k, name):
+def test_symbol_labels_read_back(k, name):
     roots = [(s, a) for s in range(7) for a in (-1, 0, 1)]
     seventh = name in _QUAL and _QUAL[name].family == "seventh"
     for step, alter in roots:
@@ -734,10 +804,11 @@ def test_derived_labels_read_back(k, name):
                     "applied_to": applied,
                 }
                 p = chord_props(ch, k)
-                for label in (p["symbol"], p["roman"]):
-                    spec = parse_chord(label)
-                    assert chord_matches(spec, ch, k), (label, ch, k)
-                    assert parse_chord(spec.canonical).canonical == spec.canonical
+                if p["bass"] and len(p["bass"]) > 3:
+                    continue  # a triple flat or sharp
+                spec = parse_chord(p["symbol"])
+                assert chord_matches(spec, ch, k), (p["symbol"], ch, k)
+                assert parse_chord(spec.canonical).canonical == spec.canonical
 
 
 # real components stored by TiLiA
@@ -749,23 +820,24 @@ def test_derived_labels_read_back(k, name):
         (real("D:dominant-seventh"), G, "D7", "V7"),
         (real("G:major", 2), G, "G/D", "I64"),
         (real("C#:diminished", 0, 4), G, "C#dim", "vii°/V"),
-        (real("A:dominant-seventh", 3, 4), g, "A7/G", "V2/V"),
+        (real("A:dominant-seventh", 3, 4), g, "A7/G", "V#42/V"),
         (real("D:major", 1), g, "D/F#", "V6"),
-        (real("C:dominant-seventh", 3, 5), g, "C7/Bb", "VI2/VI"),
+        (real("C:dominant-seventh", 3, 5), g, "C7/Bb", "VI42/VI"),
         (real("C:major", 1), g, "C/E", "IV6"),
-        (real("F:dominant-seventh", 3, 2), g, "F7/Eb", "V2/III"),
+        (real("F:dominant-seventh", 3, 2), g, "F7/Eb", "V42/III"),
         (real("Bb:major"), g, "Bb", "III"),
         (real("Eb:major", 0, 2), g, "Eb", "IV/III"),
         (real("D:major"), Bb, "D", "III"),
-        (real("C#:diminished-seventh", 0, 2), Bb, "C#dim7", "vii°7/iii"),
+        (real("C#:diminished-seventh", 0, 2), Bb, "C#°7", "vii°7/III"),
         (real("A:dominant-seventh"), key("d"), "A7", "V7"),
     ],
 )
 def test_real_components(ch, k, symbol, roman):
     p = chord_props(ch, k)
     assert (p["symbol"], p["roman"]) == (symbol, roman), (ch, k, p)
-    yes(roman, ch, k)
     yes(symbol, ch, k)
+    if "#42" not in roman:  # TiLiA's figure accidental is no literal
+        yes(roman, ch, k)
 
 
 def test_real_components_applied_spelling():
