@@ -116,6 +116,25 @@ BAD = {
     "*[file.duration = 50%]": "percentage of the piece",
     "*[start ~ 50%]": "regular expression",
     "*[start = 1:00..50%]": "mixes units",
+    "*[start = 1:75]": "write 2:15",
+    "verse --> DELETE": "--> is no arrow",
+    "verse ---> DELETE": "---> is no arrow",
+    'verse THEN chorus\n--> TAG "x"': "--> is no arrow",
+    "*[bar = ١٢]": "digits 0-9: 12",
+    "*[bar = １２]": "digits 0-9: 12",
+    "*[start = ١:٣٠]": "digits 0-9: 1:30",
+    "*[start = ٢٥%]": "digits 0-9: 25%",
+    "*[bar = 1..١٢]": "digits 0-9: 12",
+    "x[duration = ٨ bars]": "digits 0-9: 8",
+    "a THEN b WHERE $2.start >= $1.start + ٢ bars": "digits 0-9: 2",
+    "a THEN b WITHIN ٢ s": "WITHIN needs a number",
+    "v{٢}": "starts a count",
+    "a THEN b WHERE $١.start > 0": "must be followed by a number",
+    "*[start = 0:60.5]": "write 1:00.5",
+    "*[start = 0:30..1:99]": "write 2:39",
+    "a THEN b WHERE $2.start >= $1.start + 1:60": "write 2:00",
+    "*[start = 25..75%]": "mixes units - write 25%..75%",
+    "*[start = 25%..75]": "mixes units - write 25%..75%",
     "*[start = 50%..2 bars]": "range",
     "*[start >= 50 %]": "without a space",
 }
@@ -198,3 +217,30 @@ def test_forms_left_to_the_prototype(text, form):
         parse(text)
     assert exc.value.msg == f"{form} is not part of TQL v0.1.0"
     assert text[exc.value.pos : exc.value.end] == form
+
+
+UNIT_NAMES = "s sec secs second seconds ms beat beats bar bars measure measures"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a THEN b WHERE $1.start >= $2.start + 2 parsecs",
+        "a THEN b WHERE $1.start >= $2.start + 2parsecs",
+        "a THEN b WITHIN 2x",
+        "a THEN b WITHIN 2 x",
+    ],
+)
+def test_an_unknown_unit_lists_every_unit_and_alias(text):
+    with pytest.raises(TQLError) as exc:
+        parse(text)
+    names = exc.value.msg.rpartition("one of ")[2].split(", ")
+    assert names == UNIT_NAMES.split(), exc.value.msg
+
+
+@pytest.mark.parametrize("unit", UNIT_NAMES.split())
+def test_every_unit_and_alias_is_read(unit):
+    if unit == "ms":
+        return  # not part of TQL v0.1.0 as a value
+    q = parse(f"a THEN b WITHIN 2 {unit}")
+    assert q.pattern.within.amount == 2
