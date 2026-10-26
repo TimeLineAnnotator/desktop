@@ -316,6 +316,10 @@ class TestEveryKind:
         assert check("marker", time=huge) == (False, f"{huge} is not a valid time.")
         assert check("hierarchy", end=huge) == (False, f"{huge} is not a valid end.")
 
+    @pytest.mark.parametrize("kind", [*POINT_KINDS, "hierarchy", "range"])
+    def test_a_media_length_too_large_for_a_float(self, kind):
+        assert check(kind, media_length=10**400) == OK
+
     def test_an_integer_too_long_to_show(self):
         if not hasattr(sys, "set_int_max_str_digits"):
             pytest.skip("this Python shows integers of any length")
@@ -850,10 +854,19 @@ class TestHierarchy:
             f"End time '{end}' should be bigger than start time '2.0'",
         )
 
-    def test_numbers_given_as_integers_read_as_tilias_floats(self):
-        assert check("hierarchy", start=61, end=62, media_length=60) == (
+    @pytest.mark.parametrize(
+        "start, end, reason",
+        [
+            (61, 62, "Start time '61.0' is bigger than media time '60.0'"),
+            (1, 61, "End time '61.0' is bigger than media time '60.0'"),
+            (-1, 2, "Start time can't be negative. Got '-1.0'"),
+            (2, 1, "End time '1.0' should be bigger than start time '2.0'"),
+        ],
+    )
+    def test_numbers_given_as_integers_read_as_tilias_floats(self, start, end, reason):
+        assert check("hierarchy", start=start, end=end, media_length=60) == (
             False,
-            "Start time '61.0' is bigger than media time '60.0'",
+            reason,
         )
 
     @pytest.mark.parametrize("level", [0, -1])
