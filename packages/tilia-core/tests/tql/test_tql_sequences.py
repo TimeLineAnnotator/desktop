@@ -359,6 +359,13 @@ class TestProject:
         ]
         assert spans_of("FirstGroup THEN Transition", items) == [(1, 3)]
 
+    def test_short_piece_of_a_unit_on_the_level_stays(self):
+        # only a higher unit's sliver is a gap; one on the lane's own level is
+        # an item, however short
+        long = FakeUnit("long", 0, 10, 1)
+        short = FakeUnit("short", 2, 9.95, 1)
+        assert lanes.project([long, short], 1)[-1] == (long, 9.95, 10)
+
     def test_longer_hole_shows_the_parent(self):
         first = FakeUnit("FirstGroup", 0.949, 23.335, 1)
         trans = FakeUnit("Transition", 23.535, 32.322, 1)
