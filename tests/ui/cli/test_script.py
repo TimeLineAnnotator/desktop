@@ -1,5 +1,9 @@
 from pathlib import Path
 
+import pytest
+
+from tilia.ui.cli.script import split_commands
+
 
 def run_script(cli, path):
     cli.parse_and_run(f'script "{str(path.resolve())}"')
@@ -52,3 +56,31 @@ def test_different_encoding(cli, tls, tmp_path, tilia_errors):
 
     tilia_errors.assert_no_error()
     assert len(tls) == 1
+
+
+def test_commands_separated_by_semicolons(cli, tls, tmp_path, tilia_errors):
+    path = write_script(tmp_path, "timelines add hierarchy; timelines add hierarchy")
+    run_script(cli, path)
+
+    tilia_errors.assert_no_error()
+    assert len(tls) == 2
+
+
+@pytest.mark.parametrize(
+    "text,commands",
+    [
+        ("a", ["a"]),
+        ("a;b", ["a", "b"]),
+        ("a\nb", ["a", "b"]),
+        ("a\r\nb", ["a", "b"]),
+        ("a ; b ;", ["a", "b"]),
+        ("a;;b", ["a", "b"]),
+        ('a "x;y" b;c', ['a "x;y" b', "c"]),
+        ('a "x\ny"', ['a "x\ny"']),
+        ("# comment\na", ["a"]),
+        ("# comment;a", ["a"]),
+        ("", []),
+    ],
+)
+def test_split_commands(text, commands):
+    assert split_commands(text) == commands

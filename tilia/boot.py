@@ -18,6 +18,7 @@ from tilia.file.autosave import AutoSaver
 from tilia.file.file_manager import FileManager
 from tilia.log import logger
 from tilia.media.player import QtAudioPlayer
+from tilia.settings import settings
 from tilia.undo_manager import UndoManager
 
 app = None
@@ -126,13 +127,15 @@ def boot():
         init()
 
     args = setup_parser()
+    if args.command is not None:
+        settings.detach()
     setup_dirs()
     logger.setup()
     q_application = TiliaApplication(sys.argv)
     qInstallMessageHandler(handle_qt_log_message)
     global app, ui
     app = setup_logic()
-    ui = setup_ui(q_application, args.user_interface)
+    ui = setup_ui(q_application, args.user_interface, interactive=args.command is None)
     q_application.set_file_open_callback(app.on_open)
     logger.debug("INITIALISED")
     if os.environ.get("ENVIRONMENT") == "dev":
@@ -150,17 +153,34 @@ def boot():
         app.on_open(args.file)
     app.setup_file()
 
+    if args.command is not None:
+        sys.exit(ui.run_non_interactive(args.command))
+
     ui.launch()
 
 
 def setup_parser():
     parser = argparse.ArgumentParser(
-        exit_on_error=False, usage="%(prog)s [--user-interface {qt,cli}] [tilia_file]"
+        exit_on_error=False,
+        usage="%(prog)s [--user-interface {qt,cli}] [--command COMMANDS] [tilia_file]",
     )
     parser.register("type", "tilia file", lambda f: get_initial_file(f, parser.error))
     parser.add_argument("file", type="tilia file", nargs="?", default="")
     parser.add_argument("--user-interface", "-i", choices=["qt", "cli"], default="qt")
-    return parser.parse_args()
+    parser.add_argument(
+        "--command",
+        "-c",
+        metavar="COMMANDS",
+        help=(
+            'Run CLI commands, separated by ";" or newlines, then exit. '
+            "Fails instead of asking for input. Changes to settings are not "
+            "saved. Requires --user-interface cli."
+        ),
+    )
+    args = parser.parse_args()
+    if args.command is not None and args.user_interface != "cli":
+        parser.error("--command requires --user-interface cli")
+    return args
 
 
 def setup_logic(autosaver=True):
@@ -182,7 +202,7 @@ def setup_logic(autosaver=True):
     return _app
 
 
-def setup_ui(q_application: QApplication, interface: str):
+def setup_ui(q_application: QApplication, interface: str, interactive: bool = True):
     if interface == "qt":
         from tilia.ui.qtui import QtUI, TiliaMainWindow
 
@@ -192,7 +212,7 @@ def setup_ui(q_application: QApplication, interface: str):
     elif interface == "cli":
         from tilia.ui.cli.ui import CLI
 
-        return CLI()
+        return CLI(interactive=interactive)
 
 
 def get_initial_file(file: str, error: Callable[[str], NoReturn]) -> str:

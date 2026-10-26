@@ -10,6 +10,11 @@ def setup_parser(subparsers):
     )
 
     parser.add_argument("path", help="Path to TiLiA file", type=str)
+    parser.add_argument(
+        "--no-media",
+        action="store_true",
+        help="Don't load the file's media",
+    )
 
     parser.set_defaults(func=open)
 
@@ -18,4 +23,6 @@ def open(namespace):
     path = Path(namespace.path)
     path = ensure_tla_extension(path)
 
-    commands.execute("file.open", str(path.resolve()))
+    commands.execute(
+        "file.open", str(path.resolve()), load_media=not namespace.no_media
+    )
