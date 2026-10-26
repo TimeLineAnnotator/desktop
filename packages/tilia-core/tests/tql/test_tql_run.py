@@ -631,6 +631,30 @@ class TestSql:
         assert many.sql.count(";") == few.sql.count(";")
         assert "positions" not in many.sql
 
+    def test_lane_lookups_search_the_timeline_index(self):
+        # the levels and rows of a timeline are read through
+        # components_by_timeline (file_id, timeline_id, start), not a scan
+        con = index_of("pop").connection()
+        seen = []
+        con.set_trace_callback(seen.append)
+        try:
+            specs = tql_compile.resolve_lanes(con, "f1", None)
+        finally:
+            con.set_trace_callback(None)
+        assert {s.kind for s in specs} >= {"hierarchy", "range"}
+        lookups = [
+            q for q in seen if "FROM hierarchies h" in q or "FROM ranges r" in q
+        ]
+        assert any("hierarchies" in q for q in lookups)
+        assert any("ranges" in q for q in lookups)
+        for q in lookups:
+            plan = [r[-1] for r in con.execute("EXPLAIN QUERY PLAN " + q)]
+            assert any(
+                p.startswith("SEARCH c USING INDEX components_by_timeline")
+                for p in plan
+            ), (q, plan)
+            assert not any(p.startswith("SCAN c") for p in plan), (q, plan)
+
     def test_numbers_and_null_are_written_as_they_are(self):
         from tilia_core.tql.engine import sql_literal
 
