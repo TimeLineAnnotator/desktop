@@ -2,3 +2,7 @@
 
 This package must never import PySide6 or the TiLiA app (``tilia``).
 """
+
+from .corpus import open_corpus
+
+__all__ = ["open_corpus"]
