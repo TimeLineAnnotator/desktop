@@ -385,6 +385,14 @@ class TestACadenzaBelongsToTheBarBeforeIt:
 
         assert last.times_of(3, segment_end=True) == [5.0]
 
+    def test_nor_one_that_ends_a_movement(self):
+        # 1, 2, 2c, then a second song 1, 2, 3: the first song's bar 2 and
+        # its cadenza lead into the second song's bar 1, at 7 s.
+        songs = time_map((1, 2), (2, 2), (C2, 2), (restart(1), 2), (2, 2), (3, 2))
+
+        assert songs.times_of(3, segment_end=True) == [11.0]
+        assert songs.times_of(2, 1.0, segment_end=True) == [7.0, 11.0]
+
     def test_a_pass_across_a_repeat(self):
         # 1, 2, 3, 1, 2, 2c, 3: the cadenza comes the second time only;
         # bar 3 starts at 5 and 13 s.
