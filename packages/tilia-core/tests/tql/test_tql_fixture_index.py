@@ -283,6 +283,11 @@ def test_fake_timemap_of_repeat():
     assert tm.end_bar(8.0) == 2
     assert tm.end_bar(96.0) == 16
     assert tm.end_bar(0.0) is None
+    assert tm.end_bar(8.0, 4.0) == 2
+    # a span whose end snaps back onto its start's downbeat ends in its
+    # start's bar (#104, 2026-10-10), the first bar included
+    assert tm.end_bar(8.05, 8.0) == 3
+    assert tm.end_bar(0.05, 0.0) == 1
     assert tm.measures()[16] == (64.0, 68.0, 9, "9")
 
 

@@ -269,7 +269,7 @@ class _Builder:
                 (
                     cid,
                     bar,
-                    bar if start == end else tmap.end_bar(end),
+                    bar if start == end else tmap.end_bar(end, start),
                     tmap.beat(start),
                     tmap.pass_of(start),
                     tmap.bar_count(start),

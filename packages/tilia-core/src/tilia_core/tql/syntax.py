@@ -487,6 +487,7 @@ class Compare:
 class Downbeat:
     pos: int = 0
     negate: bool = False
+    end: int = 0  # the offset after the word ``downbeat``
 
 
 @dataclass
@@ -1089,8 +1090,8 @@ class _Parser:
                 return c
             if self.at_downbeat(1):
                 self.next()
-                self.next()
-                return Downbeat(t.pos, True)
+                w = self.next()
+                return Downbeat(t.pos, True, w.pos + len(w.text))
             self.next()
             return Children(self.seq(), True, t.pos)
         if self.at_kw(*RELATION_HEADS):
@@ -1099,7 +1100,7 @@ class _Parser:
             return self.compare()
         if self.at_downbeat():
             self.next()
-            return Downbeat(t.pos)
+            return Downbeat(t.pos, False, t.pos + len(t.text))
         if t.type in ("EOF", "]", "ARROW"):
             raise self.err(f"expected a condition, found {self.describe(t)}", t)
         seq = self.seq()

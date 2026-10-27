@@ -20,6 +20,7 @@ from tilia_core.labels import fold
 from . import compile as tql_compile
 from . import names, relations, sqlfuncs, syntax, values
 from .explain import explain
+from .lanes import BAR_KIND
 from .result import Component, Match, Result
 from .sequences import find_runs, slots_of
 from .syntax import TQLError
@@ -53,20 +54,17 @@ class _Log:
         return self.con.execute(sql, params).fetchall()
 
 
-def _check(query: syntax.Query) -> syntax.SeqPattern | syntax.RelPattern | None:
-    p = query.pattern
-    if isinstance(p, syntax.SeqPattern) and p.within is not None:
-        raise NotImplementedError("WITHIN is not available yet (within)")
-    return p
-
-
 def _sequence_matches(
     scope: relations.Scope,
     pattern: syntax.SeqPattern,
     specs: list[tql_compile.LaneSpec],
     marked: bool,
 ) -> Iterator[Match]:
-    """The matches of a sequence pattern in the lanes ``specs`` of one file."""
+    """The matches of a sequence pattern in the lanes ``specs`` of one file.
+    ``THEN … WITHIN`` in bars or beats on a file without a time map has none:
+    the file could not answer."""
+    if relations.uses_map(pattern.within) and scope.time_map is None:
+        return
     mode = MODES[pattern.order]
     n_steps = len(pattern.seq.steps)
     tql_compile.check_labels(specs, relations.units_of(pattern.seq))
@@ -77,7 +75,13 @@ def _sequence_matches(
         if not items:
             continue
         for i, j, assign, flags in find_runs(
-            pattern.seq, items, mode, spec.point, scope.fits, marks=marked
+            pattern.seq,
+            items,
+            mode,
+            spec.point,
+            scope.fits,
+            joins=scope.joiner(pattern.within),
+            marks=marked,
         ):
             if flags is not None and not any(flags):
                 continue  # @ took nothing here: no result
@@ -153,9 +157,9 @@ def run(
     ``index``. ``time_limit`` and ``cancel`` are accepted for a later part."""
     if isinstance(query, str):
         query = syntax.parse(query)
-    pattern = _check(query)
+    pattern = query.pattern
     con = index.connection()
-    sqlfuncs.register(con)
+    sqlfuncs.register(con, index)
     log = _Log(con)
     catalogue = names.read(log)
     names.check(catalogue, query)
@@ -163,12 +167,14 @@ def run(
     extra: list[str] = []
     stopped: str | None = None
     if pattern is None:
-        grain, matches, extra = _where_only(log, catalogue, query, warn)
+        grain, matches, extra = _where_only(index, log, catalogue, query, warn)
         if max_matches is not None and len(matches) > max_matches:
             matches, stopped = matches[:max_matches], "max_matches"
     else:
         grain = "match"
-        matches, stopped = _pattern_matches(log, query, pattern, max_matches, warn)
+        matches, stopped = _pattern_matches(
+            index, log, query, pattern, max_matches, warn
+        )
         warn.words.update(dict.fromkeys(_harmony_warnings(log, query)))
     titles: dict[str, str | None] = {}
     rows = []
@@ -204,7 +210,23 @@ class _Warnings:
         self.other: list[str] = []
 
     def file_lacks(self, field_name: str, file_id: str) -> None:
-        self.files.setdefault(f"the file field {field_name!r}", set()).add(file_id)
+        self.file_without(f"the file field {field_name!r}", file_id)
+
+    def file_without(self, what: str, file_id: str) -> None:
+        """File ``file_id`` lacks ``what`` (a time map, a media length, …)."""
+        self.files.setdefault(what, set()).add(file_id)
+
+    def scope_lacks(
+        self, scope: relations.Scope, needs: tuple[bool, bool], file_id: str
+    ) -> None:
+        """What ``scope``'s file lacked of what the query needed of it."""
+        for name in sorted(scope.missing):
+            self.file_lacks(name, file_id)
+        needs_map, needs_length = needs
+        if needs_map and scope.time_map is None:
+            self.file_without("a time map", file_id)
+        if needs_length and (scope.no_length or scope.facts.media_length() is None):
+            self.file_without("a media length", file_id)
 
     def messages(self) -> list[str]:
         out = list(self.other)
@@ -308,6 +330,7 @@ def _lanes_with_labels_and_more(
 
 
 def _pattern_matches(
+    index: Any,
     log: _Log,
     query: syntax.Query,
     pattern: syntax.SeqPattern | syntax.RelPattern,
@@ -318,12 +341,13 @@ def _pattern_matches(
     meet ``WHERE`` only, in file and time order."""
     marked = query.has_target
     single = names.is_single(query)
+    needs = names.time_needs(query)
     found: dict[tuple[Any, ...], Match] = {}
     order: list[tuple[Any, ...]] = []
     stopped: str | None = None
     any_lane = False
     for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
-        scope = relations.Scope(log, file_id)
+        scope = relations.Scope(log, file_id, index.time_map(file_id))
         specs = scope.lanes(pattern.lane)
         if not specs:
             continue
@@ -352,8 +376,7 @@ def _pattern_matches(
                 order.append(key)
             elif (match.lane_level or 0) > (cur.lane_level or 0):
                 found[key] = match  # the highest reading of the same run
-        for name in sorted(scope.missing):
-            warn.file_lacks(name, file_id)
+        warn.scope_lacks(scope, needs, file_id)
         if stopped:
             break
     if pattern.lane is not None and not any_lane:
@@ -365,16 +388,17 @@ def _pattern_matches(
 
 
 def _where_only(
-    log: _Log, cat: names.Catalogue, query: syntax.Query, warn: _Warnings
+    index: Any, log: _Log, cat: names.Catalogue, query: syntax.Query, warn: _Warnings
 ) -> tuple[str, list[Match], list[str]]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
     for the columns of a file row."""
     grain = names.where_grain(cat, query)
     harmony = names.asks_about_harmony(query)
+    needs = names.time_needs(query)
     matches: list[Match] = []
     for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
-        scope = relations.Scope(log, file_id)
+        scope = relations.Scope(log, file_id, index.time_map(file_id))
         timelines = log.execute(
             "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
             (file_id,),
@@ -404,8 +428,7 @@ def _where_only(
                         match = scope.match(comp, [])
                         match.captures = caps
                         matches.append(match)
-        for name in sorted(scope.missing):
-            warn.file_lacks(name, file_id)
+        warn.scope_lacks(scope, needs, file_id)
     if grain == "match":
         matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
     return grain, matches, names.named_file_fields(cat, query)
@@ -449,7 +472,11 @@ def _no_lane(log: _Log, lane: syntax.Lane, warnings: list[str]) -> None:
                 f'WHERE tl.name ~ /…/ -> SET tl.role = "{word}"'
             )
             return
-        if word in stored or word in tql_compile.KIND_WORDS:
+        if (
+            word in stored
+            or word in tql_compile.KIND_WORDS
+            or word in tql_compile.BAR_WORDS
+        ):
             return
     if lane.quoted:
         raise TQLError(
@@ -461,7 +488,7 @@ def _no_lane(log: _Log, lane: syntax.Lane, warnings: list[str]) -> None:
     raise TQLError(
         f"no timeline, role or kind called {lane.text!r} - roles: "
         f"{', '.join(tql_compile.BUILTIN_ROLES)}; kinds: hierarchies, markers, "
-        'ranges, beats, chords, keys; or a quoted "timeline name" (* is a '
+        'ranges, beats, bars, chords, keys; or a quoted "timeline name" (* is a '
         "wildcard)",
         lane.pos,
         lane.pos + len(lane.text),
@@ -495,6 +522,12 @@ def _position(log: _Log, comp: Component | None) -> tuple[Any, Any]:
         return None, None
     # not logged: one lookup per target and per step would grow the shown
     # SQL by several statements per match
+    if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
+        rows = log.con.execute(
+            "SELECT number FROM measures WHERE file_id = ? AND start = ?",
+            (comp.file_id, comp.start),
+        ).fetchall()
+        return (rows[0][0], 1.0) if rows else (None, None)
     rows = log.con.execute(
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
     ).fetchall()
