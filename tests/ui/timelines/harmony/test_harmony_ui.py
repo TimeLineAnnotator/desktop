@@ -471,6 +471,7 @@ class TestAddedToneQualities:
             ),
             ("dominant-ninth-sharp-eleventh", "dominant-ninth", 4),
             ("major-added-ninth", "major", 2),
+            ("cadential-six-four", "major-added-ninth", 0),
         ],
     )
     def test_inspector_offers_it_after_its_base(
@@ -515,3 +516,55 @@ class TestAddedToneQualities:
         assert harmony.get_data("quality") == quality
         assert harmony.get_data("inversion") == 1
         assert harmony.label == label
+
+
+class TestCadentialSixFour:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, harmony_ui, qtui):
+        click_harmony_ui(harmony_ui)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    def test_choosing_it_puts_the_root_in_the_bass(self, qtui, harmony_tlui):
+        add_harmony(step=4, quality="major", inversion=2)
+        harmony = harmony_tlui.harmonies()[0]
+        self.open_inspector_for(harmony, qtui)
+
+        with undoable():
+            post(
+                Post.INSPECTOR_FIELD_EDITED,
+                "Quality",
+                "cadential-six-four",
+                harmony.id,
+                0,
+            )
+
+        assert harmony.get_data("quality") == "cadential-six-four"
+        assert harmony.get_data("inversion") == 0
+        assert harmony.label == "V(64)"
+
+    def test_inversion_is_refused(self, qtui, harmony_tlui):
+        add_harmony(step=4, quality="cadential-six-four")
+        harmony = harmony_tlui.harmonies()[0]
+        self.open_inspector_for(harmony, qtui)
+
+        # The Inversion combo lists only root position, so a user can't pick
+        # another. Post the event the widget would send if it could.
+        post(Post.INSPECTOR_FIELD_EDITED, "Inversion", 2, harmony.id, 0)
+
+        assert harmony.get_data("inversion") == 0
+        assert harmony.label == "V(64)"
+
+    def test_survives_save_and_reopen(self, harmony_tlui, tluis, tmp_path):
+        add_harmony(step=4, quality="cadential-six-four")
+
+        save_and_reopen(tmp_path)
+
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        harmony = reloaded_tlui.harmonies()[0]
+        assert harmony.get_data("quality") == "cadential-six-four"
+        assert harmony.label == "V(64)"
