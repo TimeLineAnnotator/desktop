@@ -126,7 +126,7 @@ class Store:
         self._reads: dict[int, tuple[Reading, int]] = {}  # thread -> (read, depth)
         self._writer_thread: int | None = None
         self._waiting: dict[int, float] = {}  # a waiting change's thread -> since
-        self._generation = 1
+        self._generation = 0
         self._time_maps: dict[int, TimeMap] = {}
         self._closed = False
         self.available = True
@@ -136,7 +136,7 @@ class Store:
     # -- reads ---------------------------------------------------------------- #
     @property
     def generation(self) -> int:
-        """The generation of the index: 1 when it opens, one more with every
+        """The generation of the index: 0 while it is empty, one more with every
         change that changed something."""
         return self._generation
 

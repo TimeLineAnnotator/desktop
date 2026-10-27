@@ -32,18 +32,18 @@ def rows_of(next_key, name="a", label="x"):
     return build.rows(doc, NoSettings(), next_key).at(f"{name}.tla", None)
 
 
-def test_a_new_store_is_empty_at_generation_1():
+def test_a_new_store_is_empty_at_generation_0():
     s = Store()
     with s.reading() as r:
-        assert r.generation == 1 and count(r, "files") == 0
+        assert r.generation == 0 and count(r, "files") == 0
     s.apply([], [rows_of(keys())])
-    assert s.generation == 2
+    assert s.generation == 1
     s.close()
 
 
 @pytest.fixture
 def filled():
-    """A store holding one file (generation 2), and its key counter."""
+    """A store holding one file (generation 1), and its key counter."""
     s = Store()
     next_key = keys()
     assert s.apply([], [rows_of(next_key)]) is None
@@ -110,9 +110,9 @@ def test_a_read_sees_one_generation_while_another_thread_applies_a_change(filled
     go_on.set()
     reader.finish()
     assert change.finish() is None
-    assert seen == [(2, 2), (2, 2)]
+    assert seen == [(1, 2), (1, 2)]
     with s.reading() as r:
-        assert (r.generation, count(r)) == (3, 4)
+        assert (r.generation, count(r)) == (2, 4)
 
 
 def test_two_reads_run_at_once_each_on_its_own_connection_and_handler(filled):
@@ -157,29 +157,29 @@ def test_a_change_waits_for_a_running_read(filled):
     change = started(lambda: s.apply([], [rows_of(next_key, "b")]))
     change.join(0.3)
     assert change.is_alive()
-    assert s.generation == 2
+    assert s.generation == 1
     go_on.set()
     reader.finish()
     change.finish()
-    assert s.generation == 3
+    assert s.generation == 2
 
 
 def test_the_generation_moves_only_when_apply_changed_something(filled):
     s, next_key = filled
-    assert s.generation == 2
+    assert s.generation == 1
     assert s.apply([], []) is None
-    assert s.generation == 2
+    assert s.generation == 1
     assert s.apply([999], []) is None  # no such file
-    assert s.generation == 2
+    assert s.generation == 1
     with s.reading() as r:
         (fid,) = r.connection.execute("SELECT id FROM files").fetchone()
     assert s.apply([fid], []) is None
-    assert s.generation == 3
+    assert s.generation == 2
     with s.reading() as r:
         for table in ("files", "timelines", "components", "categories", "fields"):
             assert count(r, table) == 0, table
     assert s.apply([], [rows_of(next_key)]) is None
-    assert s.generation == 4
+    assert s.generation == 3
 
 
 def test_apply_deletes_every_row_of_a_file_and_only_its():
@@ -257,9 +257,9 @@ def test_new_reads_wait_only_once_a_change_has_waited_too_long(
     holder.finish()
     change.finish()
     if waits:
-        assert newcomer.finish() == 3  # it read after the change
+        assert newcomer.finish() == 2  # it read after the change
     else:
-        assert newcomer.finish() == 2
+        assert newcomer.finish() == 1
 
 
 def test_connection_raises_outside_reading(filled):
@@ -334,10 +334,10 @@ def test_a_cursor_left_open_fails_a_change_cleanly_and_not_for_good(filled, capl
     assert any("couldn't be changed" in m for m in caplog.messages)
     cursor.close()
     assert snapshot(s) == before
-    assert s.generation == 2
+    assert s.generation == 1
     # nothing stays broken: the same change applies once the cursor is closed
     assert s.apply([fid], [rows_of(next_key, "b")]) is None
-    assert s.generation == 3
+    assert s.generation == 2
 
 
 def test_a_cursor_closed_while_apply_retries_lets_it_through(filled):
@@ -349,7 +349,7 @@ def test_a_cursor_closed_while_apply_retries_lets_it_through(filled):
     assert s.apply([], [rows_of(next_key, "b")]) is None
     assert 0.4 <= time.monotonic() - started_at < 2.0
     closer.join()
-    assert s.generation == 3
+    assert s.generation == 2
 
 
 # --------------------------------------------------------------------------- #
