@@ -1,6 +1,6 @@
 import { closest, evTarget, q, qa } from './lib/dom.js';
 import { panelSection } from './panels.js';
-import { cards, markError, paintStrips, run, renderResults, showError, clearError, boxText } from './query.js';
+import { cards, markError, paintStrips, run, runText, renderResults, showError, clearError, boxText } from './query.js';
 import { edit, query } from './state.js';
 import { errMsg, escapeHtml } from './util.js';
 
@@ -204,6 +204,13 @@ function setLive(data) {
   listSkipped(data.skipped_files || []);
   renderResults();
   renderBar();
+}
+
+/** Show an answer of another panel's edit on the query results, as if the box's Preview had made it. */
+export async function openPreview(answer) {
+  await runText(answer.statement);
+  if (boxText() !== answer.statement || !query.result) return;   // the run failed or was overtaken
+  setLive(answer);
 }
 
 /** End the live preview. The user's ticks stay, by key. */

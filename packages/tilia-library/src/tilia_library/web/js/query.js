@@ -172,6 +172,15 @@ export async function run() {
   noteGeneration("query", data.generation);
 }
 
+/** Put text in the box, as typing does, and run it at once; resolves when the answer is drawn. */
+export async function runText(text) {
+  box().value = text;
+  remember(text);
+  setMarks(null);
+  textChanged();
+  await run();
+}
+
 async function stop() {
   const r = await post("/api/ql-stop", { tab: query.tab });
   if (!r.ok) setStatus(errMsg(r.status, await r.json().catch(() => null)), "error");

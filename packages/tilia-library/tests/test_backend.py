@@ -213,7 +213,7 @@ def test_fixture_shapes():
     assert keys(stats) == {"generation", "tables", "warnings"}
     assert keys(stats["tables"][0]) == {"name", "title", "columns", "rows"}
     cats = b.categories(corpus, False)
-    assert keys(cats) == {"generation", "categories"}
+    assert keys(cats) == {"generation", "grammar", "categories"}
     assert keys(cats["categories"][0]) == {"category", "group", "n"}
     plan = b.plan(corpus, "s", set())
     assert keys(plan) == {
