@@ -64,12 +64,23 @@ def test_every_column_and_type_is_on_the_page_in_order_and_no_other():
         assert page[table] == columns, table
 
 
-def test_every_section_has_the_pages_header():
+def test_every_tables_section_has_the_pages_header():
     text = PAGE.read_text(encoding="utf-8")
-    sections = text.split("\n## ")[1:]
-    assert sections
+    sections = [s for s in text.split("\n## ")[1:] if s.startswith("`")]
+    assert len(sections) == len(in_the_schema())
     for section in sections:
         assert HEADER in section, section.splitlines()[0]
+
+
+def test_the_page_lists_the_indexes_of_the_schema():
+    con = sqlite3.connect(":memory:")
+    create_schema(con)
+    text = PAGE.read_text(encoding="utf-8").split("\n## Indexes\n", 1)[1]
+    for table, sql in con.execute(
+        "SELECT tbl_name, sql FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL"
+    ):
+        columns = sql[sql.index("(") + 1 : sql.rindex(")")]
+        assert f"`{table} ({columns})`" in text, sql
 
 
 def test_the_page_says_reads_run_side_by_side():
