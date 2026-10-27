@@ -94,6 +94,8 @@ testpaths = ["tests"]
 env = [
     "ENVIRONMENT=test",
     "QT_QPA_PLATFORM=offscreen",
+    # Empty, not "0": tilia/requests/post.py treats any non-empty value as on.
+    "LOG_REQUESTS=",
 ]
 markers = [
     "draws_scores: imported scores are drawn by OSMD, as in the app (see the no_score_drawing fixture)",
