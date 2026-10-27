@@ -90,6 +90,7 @@ report = "compilation-report.xml"
 deployment = true
 
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 env = [
     "ENVIRONMENT=test",
     "QT_QPA_PLATFORM=offscreen",
