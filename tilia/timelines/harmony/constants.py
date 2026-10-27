@@ -10,6 +10,7 @@ FONT_TYPES = ["analytic", "normal"]
 # fifth and third. Its sixth and fourth are not added tones, but it is written
 # and typed as if they were, on the major triad: "V(64)".
 CADENTIAL_SIX_FOUR = "cadential-six-four"
+CADENTIAL_SIX_FOUR_TONE = "64"
 
 # Qualities that music21 has no chord type for, each a chord type it has plus
 # one added tone. The tone is spelled as in a chord symbol, from the root: the
@@ -26,7 +27,7 @@ ADDED_TONE_QUALITIES = {
     "major-sixth-added-ninth": ("major-sixth", "9"),
     "minor-sixth-added-ninth": ("minor-sixth", "9"),
     "major-added-ninth": ("major", "9"),
-    CADENTIAL_SIX_FOUR: ("major", "64"),
+    CADENTIAL_SIX_FOUR: ("major", CADENTIAL_SIX_FOUR_TONE),
     "minor-added-ninth": ("minor", "9"),
     "minor-seventh-added-eleventh": ("minor-seventh", "11"),
 }

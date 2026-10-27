@@ -257,6 +257,7 @@ class TestChordSymbolParsing:
             ("major-added-ninth", "major", "Cadd9", 2),
             ("minor-added-ninth", "minor", "Cmadd9", 2),
             ("minor-seventh-added-eleventh", "minor-seventh", "Cm7add11", 3),
+            ("cadential-six-four", "major-added-ninth", "C(64)", 0),
         ],
     )
     def test_added_tone_quality_is_offered_after_its_base(
@@ -270,7 +271,7 @@ class TestChordSymbolParsing:
         combobox.setCurrentIndex(index)
 
         assert dialog.line_edit.text() == text
-        # The base quality's inversions, plus root position.
+        # Root position, plus the inversions the quality allows.
         assert dialog.inversion_combobox.count() == inversions + 1
         assert dialog.populate_from_text()
         assert dialog.get_result()["quality"] == quality
@@ -436,14 +437,3 @@ class TestCadentialSixFourParsing:
     )
     def test_is_refused(self, key, text, qtui):
         assert is_refused(type_text(text, music21.key.Key(key)))
-
-    def test_is_offered_with_no_inversion(self, qtui):
-        dialog = SelectHarmonyParams()
-        combobox = dialog.quality_combobox
-
-        combobox.setCurrentIndex(combobox.findData("cadential-six-four"))
-
-        assert dialog.line_edit.text() == "C(64)"
-        assert dialog.inversion_combobox.count() == 1  # root position
-        assert dialog.populate_from_text()
-        assert dialog.get_result()["quality"] == "cadential-six-four"

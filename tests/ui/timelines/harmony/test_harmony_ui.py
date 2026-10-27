@@ -473,6 +473,7 @@ class TestAddedToneQualities:
             ),
             ("dominant-ninth-sharp-eleventh", "dominant-ninth", 4),
             ("major-added-ninth", "major", 2),
+            ("cadential-six-four", "major-added-ninth", 0),
         ],
     )
     def test_inspector_offers_it_after_its_base(
@@ -525,22 +526,15 @@ class TestCadentialSixFour:
         yield
         post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
 
-    def open_inspector(self, harmony_tlui, qtui):
-        click_harmony_ui(harmony_tlui.harmonies()[0])
+    def open_inspector_for(self, harmony_ui, qtui):
+        click_harmony_ui(harmony_ui)
         commands.execute("timeline.element.inspect")
         return qtui._windows[WindowKind.INSPECT]
-
-    def test_inspector_offers_no_inversion(self, qtui, harmony_tlui):
-        add_harmony(step=4, quality="cadential-six-four")
-        inspector = self.open_inspector(harmony_tlui, qtui)
-
-        inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
-        assert inversion_combo.count() == 1  # root position
 
     def test_choosing_it_puts_the_root_in_the_bass(self, qtui, harmony_tlui):
         add_harmony(step=4, quality="major", inversion=2)
         harmony = harmony_tlui.harmonies()[0]
-        self.open_inspector(harmony_tlui, qtui)
+        self.open_inspector_for(harmony, qtui)
 
         with undoable():
             post(
@@ -558,7 +552,7 @@ class TestCadentialSixFour:
     def test_inversion_is_refused(self, qtui, harmony_tlui):
         add_harmony(step=4, quality="cadential-six-four")
         harmony = harmony_tlui.harmonies()[0]
-        self.open_inspector(harmony_tlui, qtui)
+        self.open_inspector_for(harmony, qtui)
 
         # The Inversion combo lists only root position, so a user can't pick
         # another. Post the event the widget would send if it could.

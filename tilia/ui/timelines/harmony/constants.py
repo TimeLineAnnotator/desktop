@@ -1,7 +1,10 @@
 import music21.harmony
 import music21.pitch
 
-from tilia.timelines.harmony.constants import ADDED_TONE_QUALITIES
+from tilia.timelines.harmony.constants import (
+    ADDED_TONE_QUALITIES,
+    CADENTIAL_SIX_FOUR_TONE,
+)
 
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 
@@ -64,8 +67,8 @@ def _added_tone_abbreviation(tone: str) -> str:
     """
     if tone.startswith(("b", "#")):
         return tone
-    if tone == "64":
-        return "(64)"
+    if tone == CADENTIAL_SIX_FOUR_TONE:
+        return f"({tone})"
     return "add" + tone
 
 
