@@ -38,10 +38,7 @@ out_filename = ""
 if not toml_file.exists():
     options = {}
 else:
-    if sys.version_info >= (3, 11):
-        from tomllib import load
-    else:
-        from tomli import load
+    from tomllib import load
 
     with open(toml_file, "rb") as f:
         options = load(f)

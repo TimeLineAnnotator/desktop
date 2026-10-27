@@ -3,12 +3,7 @@ from importlib import metadata
 from pathlib import Path
 
 if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
-    import sys
-
-    if sys.version_info >= (3, 11):
-        from tomllib import load
-    else:
-        from tomli import load
+    from tomllib import load
 
     with open(toml, "rb") as f:
         setupcfg = load(f).get("project", {})

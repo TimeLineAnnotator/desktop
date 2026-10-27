@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.10–3.12 (3.13 is flaky due to PySide dependencies).
+TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.12–3.14.
 
 ## Environment
 

@@ -53,7 +53,7 @@ TiLiA can also be run and built from source.
 ### Prerequisites
 
 Before you start, you will need:
-- Python 3.10 - 3.12. Download from the [Python website](https://www.python.org/downloads/). (Support for Python 3.13 is variable due to the dependencies used.)
+- Python 3.12 - 3.14. Download from the [Python website](https://www.python.org/downloads/).
 - <details>
   <summary>Other pre-requisites</summary>
 
