@@ -9,8 +9,8 @@ from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add
 from tests.ui.timelines.interact import click_timeline_ui
 from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
 from tilia.requests import Post, post
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui import commands
-from tilia.ui.timelines.harmony import HarmonyTimelineUI
 
 
 @pytest.fixture
@@ -246,7 +246,7 @@ class TestChordFieldInspectorEdit:
         assert harmony.body.toPlainText() != text_before
 
         save_and_reopen(tmp_path)
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         assert reloaded_tlui.harmonies()[0].get_data(attr) == new_value
 
     @pytest.mark.parametrize(
@@ -286,7 +286,7 @@ class TestChordFieldInspectorEdit:
         assert (harmony.body.toPlainText() == "my custom text") == expect_custom_text
 
         save_and_reopen(tmp_path)
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         assert reloaded_tlui.harmonies()[0].get_data("display_mode") == new_display_mode
 
     @pytest.mark.parametrize(
@@ -330,7 +330,7 @@ class TestChordFieldInspectorEdit:
         assert harmony.body.font().family() == expected_family
 
         save_and_reopen(tmp_path)
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         reloaded_harmony = reloaded_tlui.harmonies()[0]
         assert reloaded_harmony.get_data("custom_text") == "new custom text"
         assert reloaded_harmony.body.toPlainText() == "new custom text"
@@ -355,7 +355,7 @@ class TestChordFieldInspectorEdit:
         assert harmony.body.font().family() == "Arial"
 
         save_and_reopen(tmp_path)
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         assert (
             reloaded_tlui.harmonies()[0].get_data("custom_text_font_type") == "normal"
         )
@@ -433,7 +433,7 @@ class TestDominantSeventhFlatNinth:
 
         save_and_reopen(tmp_path)
 
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         harmony = reloaded_tlui.harmonies()[0]
         assert harmony.get_data("quality") == "dominant-seventh-flat-ninth"
         assert harmony.get_data("inversion") == 3
@@ -489,7 +489,7 @@ class TestAddedToneQualities:
 
         save_and_reopen(tmp_path)
 
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         harmony = reloaded_tlui.harmonies()[0]
         assert harmony.get_data("quality") == quality
         assert harmony.get_data("inversion") == 1
@@ -534,7 +534,7 @@ class TestCadentialSixFour:
 
         save_and_reopen(tmp_path)
 
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         harmony = reloaded_tlui.harmonies()[0]
         assert harmony.get_data("quality") == "cadential-six-four"
         assert harmony.label == "V(64)"
@@ -562,7 +562,7 @@ class TestUnknownQualityInFile:
         commands.execute("file.open", path=path)
 
     def test_rest_of_file_loads(self, open_file_with_unknown_quality, tluis):
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         harmonies = reloaded_tlui.harmonies()
         assert sorted(h.get_data("time") for h in harmonies) == [1, 3]
         assert [h.label for h in harmonies] == ["I", "I"]
