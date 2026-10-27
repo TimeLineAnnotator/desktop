@@ -60,7 +60,7 @@ def test_markers_by_measure_from_csv_multiple_measures_with_number(
     beat_tlui.create_beat(time=2)
     beat_tlui.create_beat(time=3)
 
-    beat_tl.measure_numbers = [1, 1, 1]
+    beat_tl.set_measure_numbers([1, 1, 1])
 
     beat_tl.recalculate_measures()
 

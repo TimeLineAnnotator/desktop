@@ -31,7 +31,7 @@ class TestInsertMeasureZero:
         assert len(time_signatures) == 1
 
         assert beat_tl.measure_numbers[0] == 0
-        assert beat_tl._beats_in_measure[0] == 1
+        assert beat_tl.beats_in_measure[0] == 1
 
     def test_user_accepts_but_no_space_for_measure(
         self, qtui, score_tlui, beat_tl, tmp_path, tilia_state

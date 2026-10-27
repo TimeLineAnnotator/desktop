@@ -6,6 +6,7 @@ from tilia.parsers.csv.base import (
     get_column_not_found_error_message,
     get_params_indices,
 )
+from tilia.timelines.beat.measures import get_extension_from_beat_pattern
 from tilia.timelines.beat.pattern import format_bars
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.beat.units import (
@@ -40,6 +41,7 @@ def beats_from_csv(
     """
 
     errors = []
+    measure_marks = None
     params = ["is_first_in_measure", "measure", "time"]
     optional_params = ["is_first_in_measure", "measure"]
     parsers = [str, int, float]
@@ -134,44 +136,78 @@ def beats_from_csv(
             beats_in_measure.append(current_beat)
             measure_numbers.append(current_measure)
             timeline.set_data("beat_pattern", format_bars(beats_in_measure))
-            timeline.set_data("measure_numbers", measure_numbers)
-            timeline.set_data("measures_to_force_display", measures_to_force_display)
+            measure_marks = _get_measure_marks(
+                beats_in_measure, measure_numbers, measures_to_force_display
+            )
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
         beat_unit_indices = get_params_indices(["denominator", "units"], next(reader))
-        denominator, units = DEFAULT_DENOMINATOR, DEFAULT_UNITS
-        for row in reader:
-            if not row:
-                continue
+        rows = [row for row in reader if row]
 
-            constructor_kwargs = {}
-            index = params_to_indices["time"]
-            constructor_kwargs["time"] = float(row[index])
+    if measure_marks is None:
+        counts = get_extension_from_beat_pattern(timeline.beat_pattern_bars, len(rows))
+        measure_marks = _get_measure_marks(counts, list(range(1, len(counts) + 1)), [])
 
+    created = []
+    with timeline.component_manager.bulk():
+        for row_index, row in enumerate(rows):
+            override, always_shown = measure_marks.get(row_index, (None, False))
             component, fail_reason = timeline.create_component(
-                ComponentKind.BEAT, **constructor_kwargs
+                ComponentKind.BEAT,
+                time=float(row[params_to_indices["time"]]),
+                is_first_in_measure=row_index in measure_marks,
+                measure_number_override=override,
+                measure_number_always_shown=always_shown,
             )
-            if not component:
+            if component:
+                created.append((component, row))
+            else:
                 errors.append(fail_reason)
+    # Gives the first beat its default beat unit, which a row of the file can
+    # then edit.
+    timeline.refresh_measures()
 
-            timeline.recalculate_measures()
+    denominator, units = DEFAULT_DENOMINATOR, DEFAULT_UNITS
+    for component, row in created:
+        row_values = {
+            param: row[index].strip()
+            for param, index in beat_unit_indices.items()
+            if index < len(row) and row[index].strip()
+        }
+        if not row_values:
+            continue
+        beat_unit_values, error = _parse_beat_unit_values(
+            row_values, denominator, units
+        )
+        if error:
+            errors.append(f"{row}: {error}")
+            continue
+        denominator, units = beat_unit_values
+        timeline.put_beat_unit_on_beat(component.id, denominator, units)
 
-            row_values = {
-                param: row[index].strip()
-                for param, index in beat_unit_indices.items()
-                if index < len(row) and row[index].strip()
-            }
-            if component and row_values:
-                beat_unit_values, error = _parse_beat_unit_values(
-                    row_values, denominator, units
-                )
-                if error:
-                    errors.append(f"{row}: {error}")
-                    continue
-                denominator, units = beat_unit_values
-                # The first beat already has a beat unit of its own.
-                timeline.put_beat_unit_on_beat(component.id, denominator, units)
-        return True, errors
+    return True, errors
+
+
+def _get_measure_marks(
+    beats_in_measure: list[int],
+    measure_numbers: list[int],
+    measures_to_force_display: list[int],
+) -> dict[int, tuple[int | None, bool]]:
+    """
+    The rows that start measures, with the number each of them gets where it
+    isn't the previous measure's plus one, and whether it is always shown.
+    """
+    marks = {}
+    row_index = 0
+    for measure_index, count in enumerate(beats_in_measure):
+        number = measure_numbers[measure_index]
+        expected = measure_numbers[measure_index - 1] + 1 if measure_index else 1
+        marks[row_index] = (
+            None if number == expected else number,
+            measure_index in measures_to_force_display,
+        )
+        row_index += count
+    return marks
 
 
 def _parse_beat_unit_values(
