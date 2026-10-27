@@ -284,7 +284,10 @@ def test_edit_strings_keep_their_whitespace():
     assert parse('a THEN b -> TAG $1 "p\nq"').action.tag == "p\nq"
     q = parse('verse -> GROUP AS "x" ON free -> SKIP TAG "p  q" crossing -> INSERT')
     assert [r.tag for r in q.action.on] == ["p  q", None]
-    assert parse('verse -> SET label = "Chorus  2"').action.assigns[0].value.value == "Chorus  2"
+    assert (
+        parse('verse -> SET label = "Chorus  2"').action.assigns[0].value.value
+        == "Chorus  2"
+    )
 
 
 def test_a_string_ending_in_a_backslash_may_be_followed_by_a_comment():
@@ -301,12 +304,21 @@ def test_two_regular_expressions_on_one_unit():
     # so a '/' there opens a regular expression
     for text in ("/a/ / /b/", "/a///b/"):
         lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
-        assert [(lit.kind, lit.text) for lit in lits] == [("regex", "a"), ("regex", "b")]
+        assert [(lit.kind, lit.text) for lit in lits] == [
+            ("regex", "a"),
+            ("regex", "b"),
+        ]
     for text in ("verse//^c/", "verse / /^c/"):
         lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
-        assert [(lit.kind, lit.text) for lit in lits] == [("word", "verse"), ("regex", "^c")]
+        assert [(lit.kind, lit.text) for lit in lits] == [
+            ("word", "verse"),
+            ("regex", "^c"),
+        ]
     lits = parse("/^v/ / chorus").pattern.seq.steps[0].item.term.alts[0].lits
-    assert [(lit.kind, lit.text) for lit in lits] == [("regex", "^v"), ("word", "chorus")]
+    assert [(lit.kind, lit.text) for lit in lits] == [
+        ("regex", "^v"),
+        ("word", "chorus"),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -592,7 +604,8 @@ def test_group_color_takes_hex_or_a_css_name(color):
 
 
 @pytest.mark.parametrize(
-    "color", ["#ff  00", "#fff", "ff0000", "#ff00000", "rgb(255,0,0)", "", " pink", "rosa"]
+    "color",
+    ["#ff  00", "#fff", "ff0000", "#ff00000", "rgb(255,0,0)", "", " pink", "rosa"],
 )
 def test_group_color_refuses_anything_else(color):
     with pytest.raises(TQLError, match="COLOR takes"):
@@ -613,14 +626,18 @@ def test_digits_of_other_scripts_stay_in_labels():
 
 
 @pytest.mark.parametrize(
-    "text", ["verse -- a comment", "verse -- -> no action", "verse -- > a note", "verse --"]
+    "text",
+    ["verse -- a comment", "verse -- -> no action", "verse -- > a note", "verse --"],
 )
 def test_comments_other_than_an_arrow_stay_comments(text):
     assert parse(text).action is None
 
 
 def test_dashes_inside_a_label_or_string_are_no_comment():
-    assert parse("a--b THEN c").pattern.seq.steps[0].item.term.alts[0].lits[0].text == "a--b"
+    assert (
+        parse("a--b THEN c").pattern.seq.steps[0].item.term.alts[0].lits[0].text
+        == "a--b"
+    )
     assert first_cond('x[label = "-->"]').value.value == "-->"
 
 

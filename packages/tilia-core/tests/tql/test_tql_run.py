@@ -155,7 +155,9 @@ class TestLanes:
     def test_unknown_lane_is_refused(self):
         # FR-020: a lane no file has is an error positioned on the name
         index = index_of("pop")
-        with pytest.raises(TQLError, match="no timeline, role or kind called 'nothing'") as e:
+        with pytest.raises(
+            TQLError, match="no timeline, role or kind called 'nothing'"
+        ) as e:
             tql.run(index, "verse IN nothing")
         assert (e.value.pos, e.value.end) == (9, 16)
         with pytest.raises(TQLError, match='no timeline or row called "Nothing"') as e:
@@ -188,8 +190,11 @@ class TestLanes:
             return {
                 "length": 10,
                 "timelines": [
-                    {"name": f"Analysis {n}", "kind": "hierarchy",
-                     "units": [["phrase", 1, 0, 10]]},
+                    {
+                        "name": f"Analysis {n}",
+                        "kind": "hierarchy",
+                        "units": [["phrase", 1, 0, 10]],
+                    },
                     {"name": "Marks", "kind": "marker", "units": [["PAC", 9]]},
                 ],
             }
@@ -510,7 +515,11 @@ class TestRun:
                     "name": "Instr",
                     "kind": "range",
                     "rows": ["solo", "duo"],
-                    "units": [["solo", "a", 0, 4], ["duo", "b", 4, 8], ["solo", "c", 8, 12]],
+                    "units": [
+                        ["solo", "a", 0, 4],
+                        ["duo", "b", 4, 8],
+                        ["solo", "c", 8, 12],
+                    ],
                 }
             ],
         }
@@ -718,9 +727,7 @@ class TestSql:
         finally:
             con.set_trace_callback(None)
         assert {s.kind for s in specs} >= {"hierarchy", "range"}
-        lookups = [
-            q for q in seen if "FROM hierarchies h" in q or "FROM ranges r" in q
-        ]
+        lookups = [q for q in seen if "FROM hierarchies h" in q or "FROM ranges r" in q]
         assert any("hierarchies" in q for q in lookups)
         assert any("ranges" in q for q in lookups)
         for q in lookups:

@@ -14,6 +14,13 @@ from them (research R6, R8; data-model.md, "The file record").
 - **The build** (:meth:`Scanner.build`) reads the files in sorted path order,
   so a fresh build of the same folder gives the same keys, and inserts their
   rows through :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`.
+- **The scan** (:meth:`Scanner.scan`; research R7-R9; data-model.md, "File
+  states") reads again the files whose size or date differ, racy files and
+  files that couldn't be opened; compares them by fingerprint; recognises
+  moves and copies by document id; and marks missing files unavailable. The
+  change goes through one ``Store.apply``, and the records follow only once it
+  is applied. A corpus folder that can't be reached changes nothing (FR-021).
+  Scans take turns under :attr:`Scanner.turn`, the change mutex.
 
 Nothing here writes to the corpus folder (FR-072).
 """
@@ -25,10 +32,11 @@ import logging
 import os
 import stat
 import sys
+import threading
 import time
 import unicodedata
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import TracebackType
 
@@ -50,6 +58,9 @@ sleep: Callable[[float], None] = time.sleep
 
 now_ns: Callable[[], int] = time.time_ns
 """The wall clock a file's ``read_at_ns`` comes from (tests replace it)."""
+
+clock: Callable[[], float] = time.monotonic
+"""The clock that dates scans (tests replace it)."""
 
 
 def _no_time_map(document: Document, roles: object) -> None:
@@ -319,6 +330,81 @@ def shared_ids(records: dict[str, FileRecord]) -> list[tuple[str, ...]]:
     return sorted(tuple(g) for g in groups.values() if len(g) > 1)
 
 
+RACY_NS = 2_000_000_000
+"""A file whose modification time lies within this many nanoseconds of its
+latest read, in either direction, is read again at the next scan (research
+R7)."""
+
+
+def is_racy(record: FileRecord) -> bool:
+    """Whether ``record``'s modification time lies within 2 s of its latest
+    read: then a change within the file system's time resolution could hide
+    behind an unchanged size and date."""
+    if record.mtime_ns is None or record.read_at_ns is None:
+        return False
+    return abs(record.mtime_ns - record.read_at_ns) <= RACY_NS
+
+
+def needs_reading(record: FileRecord | None, found: Found) -> bool:
+    """Whether a scan reads ``found`` again: a new file, one that couldn't be
+    opened or read (``os_error``), a racy one, and any whose size or
+    modification time differ, newer or older; so one unavailable until now,
+    whose record has neither."""
+    if record is None or record.os_error:
+        return True
+    if (record.size, record.mtime_ns) != (found.size, found.mtime_ns):
+        return True
+    return is_racy(record)
+
+
+class Turn:
+    """A re-entrant mutex that knows its holder and how many wait for it."""
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition(threading.Lock())
+        self._owner: int | None = None
+        self._depth = 0
+        self.waiting = 0
+        """How many threads wait to take it."""
+
+    def held_by_me(self) -> bool:
+        with self._cond:
+            return self._owner == threading.get_ident()
+
+    def __enter__(self) -> Turn:
+        me = threading.get_ident()
+        with self._cond:
+            if self._owner == me:
+                self._depth += 1
+                return self
+            self.waiting += 1
+            try:
+                while self._owner is not None:
+                    self._cond.wait()
+            finally:
+                self.waiting -= 1
+            self._owner, self._depth = me, 1
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        with self._cond:
+            self._depth -= 1
+            if self._depth == 0:
+                self._owner = None
+                self._cond.notify()
+
+
+class _Job:
+    """A running scan, which other threads' calls share."""
+
+    def __init__(self, thread: int) -> None:
+        self.thread = thread
+        self.done = threading.Event()
+        self.report: ScanReport | None = None
+        self.error: BaseException | None = None
+        self.waiters = 0
+
+
 # --------------------------------------------------------------------------- #
 # The scanner
 # --------------------------------------------------------------------------- #
@@ -340,6 +426,13 @@ class Scanner:
         self.time_map_of: TimeMapOf = time_map_of or _no_time_map
         self.records: dict[str, FileRecord] = {}
         self._counter = itertools.count(1)
+        self.turn = Turn()
+        """The change mutex: scans take turns with each other, and with
+        rereads and the core's own writes (research R2)."""
+        self.last_scan: float | None = None
+        """When the last scan began, by :data:`clock`."""
+        self._jobs = threading.Lock()
+        self._job: _Job | None = None
 
     def _readable(
         self, outcome: Outcome, key: int, replay: tuple[int, ...] = ()
@@ -393,43 +486,254 @@ class Scanner:
 
     def build(self) -> ScanReport:
         """Read every file of the folder and fill the empty index with their
-        rows: the index's first generation, 1 (0 while it is empty). Listing the corpus
+        rows: its first generation, 1 (0 while it is empty). Listing the corpus
         folder itself may raise ``OSError``; nothing inside it does."""
-        found = walk(self.root, self.reader, self.settings)
+        with self.turn:
+            self.last_scan = clock()
+            return self._refresh(walk(self.root, self.reader, self.settings))
+
+    # -- scans ---------------------------------------------------------------- #
+    def scan(self) -> ScanReport:
+        """Bring the index in line with the folder, and say what changed.
+
+        Calls from several threads at once share one scan: a call that finds
+        another thread's scan running waits for it and returns its report."""
+        me = threading.get_ident()
+        with self._jobs:
+            job = self._job
+            if job is not None and job.thread != me and not self.turn.held_by_me():
+                job.waiters += 1
+                shared: _Job | None = job
+            else:
+                shared = None
+                if job is None:
+                    job = self._job = _Job(me)
+                else:
+                    job = None  # this thread's own turn, nested
+        if shared is not None:
+            shared.done.wait()
+            if shared.error is not None:
+                raise shared.error
+            assert shared.report is not None
+            return shared.report
+        try:
+            with self.turn:
+                report = self._scan()
+            if job is not None:
+                job.report = report
+            return report
+        except BaseException as err:
+            if job is not None:
+                job.error = err
+            raise
+        finally:
+            if job is not None:
+                with self._jobs:
+                    self._job = None
+                job.done.set()
+
+    def _scan(self) -> ScanReport:
+        """One scan, under the change mutex."""
+        self.last_scan = clock()
+        try:
+            found = walk(self.root, self.reader, self.settings)
+        except OSError as err:
+            # the corpus folder itself can't be reached: change nothing (FR-021)
+            if self.store.available:
+                LOG.warning("the corpus folder %s can't be reached: %s", self.root, err)
+            self.store.available = False
+            generation = self.store.generation
+            return ScanReport((), (), (), (), (), (), (), generation, generation)
+        if not self.store.available:
+            LOG.warning("the corpus folder %s can be reached again", self.root)
+        self.store.available = True
+        return self._refresh(found)
+
+    def _refresh(
+        self,
+        found: list[Found],
+        scope: set[str] | None = None,
+        force: frozenset[str] = frozenset(),
+    ) -> ScanReport:
+        """Bring the records and the index in line with ``found``: the whole
+        folder, or, with ``scope``, only those paths. Files in ``force`` are
+        read whatever their size and date. The records change only once the
+        change is applied (research R2)."""
         before = self.store.generation
-        records: dict[str, FileRecord] = {}
+        old = self.records
+        here = {f.path: f for f in found}
+        outcomes = {
+            f.path: read_file(self.reader, f)
+            for f in found
+            if f.path in force or needs_reading(old.get(f.path), f)
+        }
+        vanished = [
+            rec
+            for path, rec in sorted(old.items())
+            if path not in here
+            and rec.state != "unavailable"
+            and (scope is None or path in scope)
+        ]
+        new = dict(old)
+        deletes: list[int] = []
         inserts: list[Rows] = []
         maps: dict[int, TimeMap | None] = {}
+        added: list[str] = []
+        changed: list[str] = []
+        moved: list[tuple[str, str]] = []
+        gone: list[str] = []
+        back: list[str] = []
         unreadable: list[tuple[str, int | None, str]] = []
-        for f in found:  # sorted by path: the same folder gives the same keys
-            outcome = read_file(self.reader, f)
-            key = next(self._counter)
-            if outcome.readable:
-                record, rows = self._readable(outcome, key)
-                maps[key] = record.time_map
-            else:
-                record, rows = self._unreadable(outcome, key)
-                unreadable.append((f.path, outcome.line, outcome.reason or ""))
-                LOG.warning("%s is unreadable: %s", f.native, outcome.reason)
-            records[f.path] = record
+
+        def put(record: FileRecord, rows: Rows, replaces: FileRecord | None) -> None:
+            if replaces is not None:
+                deletes.append(replaces.key)
+                if replaces.path != record.path:
+                    new.pop(replaces.path, None)
+            new[record.path] = record
             inserts.append(rows)
-        error = None
-        if inserts:
-            err = self.store.apply([], inserts, maps)
-            error = None if err is None else str(err)
-        if error is None:
-            self.records = records
-        else:
-            records, unreadable = {}, []
+            maps[record.key] = record.time_map
+
+        # moves: a vanished file whose document id a new file has (research R9)
+        fresh = [p for p in sorted(outcomes) if p not in old]
+        claims: dict[str, FileRecord] = {}
+
+        def claim(records: list[FileRecord]) -> None:
+            for rec in records:
+                if rec.document_id is None:
+                    continue
+                same_id = [
+                    p
+                    for p in fresh
+                    if p not in claims
+                    and outcomes[p].document is not None
+                    and outcomes[p].document.document_id == rec.document_id
+                ]
+                same_content = [
+                    p for p in same_id if outcomes[p].fingerprint == rec.fingerprint
+                ]
+                if same_id:
+                    claims[(same_content or same_id)[0]] = rec
+
+        claim([r for r in vanished if r.state == "readable"])
+        if scope is None:  # unavailable files found again elsewhere
+            claim(
+                [
+                    r
+                    for path, r in sorted(old.items())
+                    if r.state == "unavailable" and path not in here
+                ]
+            )
+
+        for path in sorted(outcomes):  # new keys in path order
+            o = outcomes[path]
+            rec = claims.get(path) or old.get(path)
+            if rec is None:
+                key = next(self._counter)
+                if o.readable:
+                    put(*self._readable(o, key), None)
+                else:
+                    put(*self._unreadable(o, key), None)
+                    unreadable.append((path, o.line, o.reason or ""))
+                    LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
+                added.append(path)
+                continue
+            is_move = path in claims
+            if is_move:
+                moved.append((rec.path, path))
+            if rec.state == "unavailable":
+                back.append(path)
+            if o.readable:
+                assert o.document is not None
+                same = rec.state == "readable" and o.fingerprint == rec.fingerprint
+                newer = o.document.format_version != rec.format_version
+                if same and not newer and not is_move:
+                    new[path] = replace(
+                        rec,
+                        native=o.found.native,
+                        size=o.found.size,
+                        mtime_ns=o.found.mtime_ns,
+                        read_at_ns=o.read_at_ns,
+                        os_error=False,
+                    )
+                    continue
+                # the same content keeps its rows' keys
+                put(*self._readable(o, rec.key, rec.keys if same else ()), rec)
+                if rec.state != "unavailable" and (not same or newer):
+                    changed.append(path)
+            else:
+                if rec.state == "unreadable" and rec.reason == o.reason:
+                    new[path] = replace(
+                        rec,
+                        native=o.found.native,
+                        size=o.found.size,
+                        mtime_ns=o.found.mtime_ns,
+                        read_at_ns=o.read_at_ns,
+                        os_error=o.os_error,
+                    )
+                    continue
+                put(*self._unreadable(o, rec.key), rec)
+                unreadable.append((path, o.line, o.reason or ""))
+                LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
+
+        taken = {r.path for r in claims.values()}
+        for rec in vanished:
+            if rec.path in taken:
+                continue
+            if rec.state == "readable":
+                # a copy indexed earlier, and the original gone: moved onto it
+                targets = [
+                    p
+                    for p, r in sorted(new.items())
+                    if p in old
+                    and p in here
+                    and r.state == "readable"
+                    and r.document_id == rec.document_id
+                ]
+                if targets:
+                    same_content = [
+                        p for p in targets if new[p].fingerprint == rec.fingerprint
+                    ]
+                    new.pop(rec.path)
+                    deletes.append(rec.key)
+                    maps[rec.key] = None
+                    moved.append((rec.path, (same_content or targets)[0]))
+                    continue
+            kept = rec if rec.state == "readable" else None
+            record = FileRecord(
+                key=rec.key,
+                path=rec.path,
+                native=rec.native,
+                size=None,
+                mtime_ns=None,
+                read_at_ns=rec.read_at_ns,
+                state="unavailable",
+                fingerprint=kept.fingerprint if kept else None,
+                document_id=kept.document_id if kept else None,
+                format_version=kept.format_version if kept else None,
+                media_length=kept.media_length if kept else None,
+                time_unit=kept.time_unit if kept else None,
+                keys=(rec.key,),
+            )
+            put(record, file_row(rec.key, rec.path, "unavailable", None, kept), rec)
+            gone.append(rec.path)
+            LOG.warning("%s is unavailable", rec.native)
+
+        if deletes or inserts:
+            err = self.store.apply(deletes, inserts, maps)
+            if err is not None:
+                after = self.store.generation
+                return ScanReport((), (), (), (), (), (), (), before, after, str(err))
+        self.records = new
+        new_paths = set(added)
         return ScanReport(
-            added=tuple(records),
-            changed=(),
-            moved=(),
-            unavailable=(),
-            back=(),
+            added=tuple(added),
+            changed=tuple(sorted(changed)),
+            moved=tuple(sorted(moved)),
+            unavailable=tuple(gone),
+            back=tuple(sorted(back)),
             unreadable=tuple(unreadable),
-            shared_ids=tuple(shared_ids(records)),
+            shared_ids=tuple(g for g in shared_ids(new) if new_paths.intersection(g)),
             generation_before=before,
             generation_after=self.store.generation,
-            error=error,
         )

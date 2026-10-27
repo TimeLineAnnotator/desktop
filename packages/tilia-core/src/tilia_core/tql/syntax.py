@@ -1301,9 +1301,7 @@ class _Parser:
             u = self.peek()
             if _NUM_RE.match(text) and u.type == "WORD" and u.upper not in KEYWORDS:
                 if u.text.lower() not in _UNITS:
-                    raise self.err(
-                        f"unknown unit {u.text!r} - one of {_UNIT_NAMES}", u
-                    )
+                    raise self.err(f"unknown unit {u.text!r} - one of {_UNIT_NAMES}", u)
                 self.next()
                 unit, a_end = _UNITS[u.text.lower()], u.end
         if unit == "ms":
@@ -1443,7 +1441,8 @@ class _Parser:
             if verb == "GROUP":
                 shape = [a.type for a in args]
                 if (
-                    shape not in (["WORD", "STRING"], ["WORD", "STRING", "WORD", "STRING"])
+                    shape
+                    not in (["WORD", "STRING"], ["WORD", "STRING", "WORD", "STRING"])
                     or args[0].upper != "AS"
                     or (len(args) == 4 and args[2].upper != "COLOR")
                 ):
@@ -1555,7 +1554,11 @@ class _Parser:
             and u.type == "WORD"
             and u.text.lower() in _UNITS
         ):
-            end = u.end if u.type == "WORD" and u.text.lower() in _UNITS else v.pos + len(v.raw)
+            end = (
+                u.end
+                if u.type == "WORD" and u.text.lower() in _UNITS
+                else v.pos + len(v.raw)
+            )
             raise TQLError(
                 f"SET takes no length - {self.text[v.pos:end]} measures a "
                 "duration, which is not writable; SET writes text, a number "
