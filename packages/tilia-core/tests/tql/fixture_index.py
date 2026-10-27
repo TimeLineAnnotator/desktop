@@ -271,9 +271,6 @@ class _Builder:
                 "quality": quality,
                 "inversion": inversion,
                 "applied_to": applied_to,
-                # The examples print chords as Roman numerals (examples.toml,
-                # "a chord or a key goes by its label as TiLiA shows it").
-                "display_mode": "roman",
             }
             cid = f"{tid}:c{n}"
             props = derived.chord_fields(data, None if k is None else modes[k])
