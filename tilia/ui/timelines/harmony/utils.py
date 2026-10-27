@@ -134,6 +134,11 @@ def format_added_tone(tone: str) -> str:
     """
     if not tone:
         return ""
+    if tone == "64":
+        # Raised parentheses hold one figure, so "((64))" leaves the 4 out.
+        # MusAnalysis stacks the cadential six-four's 6 over its 4 in plain
+        # parentheses, as "(64)".
+        return "(64)"
     # In raised parentheses, MusAnalysis draws "11" over the closing
     # parenthesis. A zero-width non-joiner between the two 1s keeps them apart.
     return "((" + tone.replace("11", "1\u200c1") + "))"

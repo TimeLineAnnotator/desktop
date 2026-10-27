@@ -60,6 +60,8 @@ class TestByTime:
             ("C6/9", 0, 0, "major-sixth-added-ninth"),
             ("Dm7(11)", 1, 0, "minor-seventh-added-eleventh"),
             ("Iadd9", 0, 0, "major-added-ninth"),
+            ("V(64)", 4, 0, "cadential-six-four"),
+            ("Cad64", 4, 0, "cadential-six-four"),
         ],
     )
     def test_harmony_by_time(self, symbol, step, accidental, quality, harmony_tl):

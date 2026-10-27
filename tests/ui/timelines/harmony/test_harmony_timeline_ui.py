@@ -1045,3 +1045,39 @@ class TestAddedToneLabel:
         )
 
         assert harmony_tlui.harmonies()[0].label == "C`#7((#9))"
+
+
+class TestCadentialSixFourLabel:
+    # Labelled as the dominant it resolves to, with the 6 stacked over the 4 in
+    # parentheses that enclose both.
+    def test_roman(self, harmony_tlui):
+        add_harmony(step=4, quality="cadential-six-four")
+
+        assert harmony_tlui.harmonies()[0].label == "V(64)"
+
+    def test_roman_in_minor(self, harmony_tlui):
+        # In A minor, as in major, the dominant is major: E with C and A over it.
+        add_mode(**MINOR)
+        add_harmony(1, step=2, quality="cadential-six-four")
+
+        assert harmony_tlui.harmonies()[0].label == "V(64)"
+
+    def test_roman_applied(self, harmony_tlui):
+        add_harmony(step=1, quality="cadential-six-four", applied_to=4)
+
+        assert harmony_tlui.harmonies()[0].label == "V(64)/V"
+
+    def test_letter(self, harmony_tlui):
+        add_harmony(display_mode="letter", step=4, quality="cadential-six-four")
+
+        assert harmony_tlui.harmonies()[0].label == "G(64)"
+
+    def test_letter_on_flat_root(self, harmony_tlui):
+        add_harmony(
+            display_mode="letter",
+            step=6,
+            accidental=-1,
+            quality="cadential-six-four",
+        )
+
+        assert harmony_tlui.harmonies()[0].label == "B`b(64)"

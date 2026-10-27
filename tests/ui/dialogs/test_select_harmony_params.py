@@ -381,3 +381,69 @@ class TestRomanNumeralParsing:
         # TiLiA has no quality for these. A minor seventh with a flat ninth,
         # say, is not read as a minor seventh.
         assert is_refused(type_text(text))
+
+
+class TestCadentialSixFourParsing:
+    @pytest.mark.parametrize(
+        "key, text, step, applied_to",
+        [
+            ("C", "V(64)", 4, 0),
+            ("C", "Vadd64", 4, 0),
+            ("C", "Cad64", 4, 0),
+            ("C", "cad64", 4, 0),
+            ("C", "V(64)/V", 1, 4),
+            ("C", "Cad64/V", 1, 4),
+            ("a", "V(64)", 2, 0),
+            ("a", "Cad64", 2, 0),
+        ],
+    )
+    def test_roman_numeral(self, key, text, step, applied_to, qtui):
+        params = parse_text(text, music21.key.Key(key))
+        assert params["quality"] == "cadential-six-four"
+        assert params["step"] == step
+        assert params["accidental"] == 0
+        assert params["inversion"] == 0
+        assert params["applied_to"] == applied_to
+
+    @pytest.mark.parametrize(
+        "text, step, accidental",
+        [("G(64)", 4, 0), ("Gadd64", 4, 0), ("Bb(64)", 6, -1), ("F#(64)", 3, 1)],
+    )
+    def test_chord_symbol(self, text, step, accidental, qtui):
+        params = parse_text(text)
+        assert params["quality"] == "cadential-six-four"
+        assert params["step"] == step
+        assert params["accidental"] == accidental
+        assert params["inversion"] == 0
+
+    def test_six_four_without_parentheses_is_the_second_inversion(self, qtui):
+        params = parse_text("V64", music21.key.Key("C"))
+        assert params["quality"] == "major"
+        assert params["inversion"] == 2
+
+    @pytest.mark.parametrize(
+        "key, text",
+        [
+            # Its root is in the bass by definition.
+            ("C", "V6(64)"),
+            ("C", "G(64)/B"),
+            ("C", "G(64)/D"),
+            # Only a major triad has one.
+            ("C", "V7(64)"),
+            ("a", "v(64)"),
+            ("C", "Gm(64)"),
+        ],
+    )
+    def test_is_refused(self, key, text, qtui):
+        assert is_refused(type_text(text, music21.key.Key(key)))
+
+    def test_is_offered_with_no_inversion(self, qtui):
+        dialog = SelectHarmonyParams()
+        combobox = dialog.quality_combobox
+
+        combobox.setCurrentIndex(combobox.findData("cadential-six-four"))
+
+        assert dialog.line_edit.text() == "C(64)"
+        assert dialog.inversion_combobox.count() == 1  # root position
+        assert dialog.populate_from_text()
+        assert dialog.get_result()["quality"] == "cadential-six-four"
