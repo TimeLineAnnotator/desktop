@@ -330,6 +330,10 @@ def shared_ids(records: dict[str, FileRecord]) -> list[tuple[str, ...]]:
     return sorted(tuple(g) for g in groups.values() if len(g) > 1)
 
 
+RESCAN_AFTER = 2.0
+"""Seconds after which a read rescans first, in a corpus that rescans before
+reads (FR-024; research R10)."""
+
 RACY_NS = 2_000_000_000
 """A file whose modification time lies within this many nanoseconds of its
 latest read, in either direction, is read again at the next scan (research
@@ -493,11 +497,14 @@ class Scanner:
             return self._refresh(walk(self.root, self.reader, self.settings))
 
     # -- scans ---------------------------------------------------------------- #
-    def scan(self) -> ScanReport:
+    def scan(self, older_than: float | None = None) -> ScanReport | None:
         """Bring the index in line with the folder, and say what changed.
 
         Calls from several threads at once share one scan: a call that finds
-        another thread's scan running waits for it and returns its report."""
+        another thread's scan running waits for it and returns its report.
+        With ``older_than``, a call that finds no scan running scans only if
+        the last one began more than that many seconds ago, and returns None
+        otherwise (the rescan before a read, FR-024)."""
         me = threading.get_ident()
         with self._jobs:
             job = self._job
@@ -506,6 +513,12 @@ class Scanner:
                 shared: _Job | None = job
             else:
                 shared = None
+                if (
+                    older_than is not None
+                    and self.last_scan is not None
+                    and clock() - self.last_scan <= older_than
+                ):
+                    return None
                 if job is None:
                     job = self._job = _Job(me)
                 else:
@@ -531,6 +544,23 @@ class Scanner:
                 with self._jobs:
                     self._job = None
                 job.done.set()
+
+    def reread(self, path: str, native: Path) -> ScanReport:
+        """Read the file at ``path`` (relative, in NFC; ``native`` to open) at
+        once, whatever its size and date, and bring its record and rows in
+        line with it: a new file is added, a missing one becomes unavailable.
+        It takes the change mutex, so it never works from the same records as
+        a running scan (FR-020)."""
+        with self.turn:
+            try:
+                info = os.stat(native)
+            except FileNotFoundError:
+                found = []
+            except OSError:
+                found = [Found(path, native, None, None)]  # reading will say why
+            else:
+                found = [Found(path, native, info.st_size, info.st_mtime_ns)]
+            return self._refresh(found, scope={path}, force=frozenset({path}))
 
     def _scan(self) -> ScanReport:
         """One scan, under the change mutex."""
