@@ -98,11 +98,12 @@ def entry_url(tmp_path, opener):
 
 
 @pytest.fixture(scope="module")
-def browser():
-    with sync_api.sync_playwright() as p:
-        browser = p.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
-        yield browser
-        browser.close()
+def browser(playwright):
+    browser = playwright.chromium.launch(
+        args=["--autoplay-policy=no-user-gesture-required"]
+    )
+    yield browser
+    browser.close()
 
 
 @pytest.fixture

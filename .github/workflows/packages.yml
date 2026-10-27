@@ -38,3 +38,24 @@ jobs:
 
     - name: Check packages
       run: python scripts/check_packages.py
+
+  browser:
+    name: library in the browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install the packages and Playwright
+      run: python -m pip install ./packages/tilia-core && python -m pip install ./packages/tilia-library pytest "playwright>=1.40"
+
+    - name: Install Chromium
+      run: python -m playwright install --with-deps chromium
+
+    - name: Run the browser tests
+      working-directory: packages/tilia-library
+      run: python -m pytest tests/browser

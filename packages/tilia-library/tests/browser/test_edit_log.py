@@ -26,14 +26,6 @@ class RecordingBackend(FixtureBackend):
         return super().undo(corpus, entry, skip_files)
 
 
-@pytest.fixture(scope="module")
-def browser():
-    with sync_api.sync_playwright() as p:
-        browser = p.chromium.launch()
-        yield browser
-        browser.close()
-
-
 @pytest.fixture
 def backend():
     return RecordingBackend()

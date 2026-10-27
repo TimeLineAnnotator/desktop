@@ -20,6 +20,8 @@ const STOPPED = {
 };
 const NOUNS = { match: ["match", "matches"], timeline: ["timeline", "timelines"], file: ["file", "files"] };
 
+const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
 const section = () => panelSection("query");
 const box = () => qArea(section(), "#ql-box");
 export const boxText = () => box().value;
@@ -162,6 +164,10 @@ export async function run() {
   if (status === 501) { notAvailable(section(), data && data.needs); return; }
   if (status !== 200) { showError(text, data); return; }
   clearError();
+  if (query.result && data.columns.join("\n") !== query.result.columns.join("\n")) {
+    query.sortCol = null;
+    query.sortDir = 1;
+  }
   if (data.generation !== query.contextsGeneration) {
     query.contexts.clear();
     query.contextsGeneration = data.generation;
@@ -359,14 +365,42 @@ export async function paintStrips(i) {
 
 // ---- tables ------------------------------------------------------------------ //
 
-/** `extra`, when given, adds a first column: {head, cell(i) -> html, off(i) -> bool for a dimmed row}. */
-function tableHtml(columns, rows, id, valueOf, extra = null) {
-  const head = (extra ? `<th>${escapeHtml(extra.head)}</th>` : "") + columns.map(c => `<th>${escapeHtml(c)}</th>`).join("");
-  const body = rows.slice(0, ROW_CAP).map((row, n) =>
-    `<tr${extra && extra.off(n) ? ' class="run-off"' : ""}>` + (extra ? `<td>${extra.cell(n)}</td>` : "") + columns.map((c, i) => {
+const isEmpty = v => v == null || v === "";
+
+/** The indices of `rows` in the order the table shows them: sorted by `col`, or the server's order. */
+function sortedOrder(rows, col, dir) {
+  const order = rows.map((_, i) => i);
+  if (col === null) return order;
+  const cmp = (a, b) => {
+    const [x, y] = [rows[a][col], rows[b][col]];
+    if (isEmpty(x) || isEmpty(y)) return isEmpty(x) - isEmpty(y);   // empty values last, either way
+    const c = typeof x === "number" && typeof y === "number" ? x - y : collator.compare(String(x), String(y));
+    return c * dir;
+  };
+  return order.sort(cmp);   // stable: ties keep the server's order
+}
+
+function headHtml(col) {
+  const arrow = query.sortCol === col ? (query.sortDir === 1 ? " ▲" : " ▼") : "";
+  return `<th><button type="button" class="ql-sort" data-col="${escapeHtml(col)}">${escapeHtml(col)}${arrow}</button></th>`;
+}
+
+/**
+ * `extra`, when given, adds a first column: {head, cell(i) -> html, off(i) -> bool for a dimmed row}, where i is
+ * the row's index in `rows`. `sortable` makes the column heads buttons that sort the table.
+ */
+function tableHtml(columns, rows, id, valueOf, extra = null, sortable = false) {
+  const col = sortable && columns.includes(query.sortCol) ? query.sortCol : null;
+  const order = sortedOrder(rows, col, query.sortDir);
+  const head = (extra ? `<th>${escapeHtml(extra.head)}</th>` : "") +
+    columns.map(c => (sortable ? headHtml(c) : `<th>${escapeHtml(c)}</th>`)).join("");
+  const body = order.slice(0, ROW_CAP).map(n => {
+    const row = rows[n];
+    return `<tr data-i="${n}"${extra && extra.off(n) ? ' class="run-off"' : ""}>` + (extra ? `<td>${extra.cell(n)}</td>` : "") + columns.map((c, i) => {
       const v = valueOf(row, c, i);
       return `<td dir="auto">${v == null ? "" : escapeHtml(v)}</td>`;
-    }).join("") + "</tr>").join("");
+    }).join("") + "</tr>";
+  }).join("");
   const note = rows.length > ROW_CAP
     ? `<div class="seq-empty">Showing the first ${ROW_CAP.toLocaleString("en-US")} rows; the CSV has all ${rows.length}.</div>` : "";
   return `<table class="ql-table"${id ? ` id="${id}"` : ""}><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${note}`;
@@ -383,7 +417,7 @@ function renderTable() {
     cell: n => edits[n] ? edits[n].pick + edits[n].diff : "",
     off: n => !!edits[n] && edits[n].off,
   };
-  results().innerHTML = tableHtml(d.columns, d.rows, "ql-grid", (row, c) => row[c], extra);
+  results().innerHTML = tableHtml(d.columns, d.rows, "ql-grid", (row, c) => row[c], extra, true);
 }
 
 // ---- CSV ---------------------------------------------------------------------- //
@@ -470,6 +504,14 @@ const finite = list => list.filter(Number.isFinite);
 
 function onResultsClick(e) {
   const target = evTarget(e);
+  const sort = closest(target, "button.ql-sort");
+  if (sort) {
+    const col = sort.dataset.col;
+    query.sortDir = query.sortCol === col ? -query.sortDir : 1;
+    query.sortCol = col;
+    renderResults();
+    return;
+  }
   const more = closest(target, "button.ql-more");
   if (more) {
     query.expanded.add(cards[Number(more.dataset.i)].fileId);
@@ -494,7 +536,7 @@ function onResultsDblClick(e) {
   const row = closest(target, "#ql-grid tbody tr");
   let m = null, start, end;
   if (row && d && d.matches) {
-    m = d.matches[row.sectionRowIndex];
+    m = d.matches[Number(row.dataset.i)];
   } else if (closest(target, ".ql-run")) {
     const c = cards[Number(closest(target, ".ql-card").dataset.i)];
     m = c && c.matches[Number(closest(target, ".ql-run").dataset.n)];

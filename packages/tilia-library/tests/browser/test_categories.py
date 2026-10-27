@@ -16,14 +16,6 @@ from tilia_library.api import register_all  # noqa: E402
 from tilia_library.server import LibraryServer  # noqa: E402
 
 
-@pytest.fixture(scope="module")
-def browser():
-    with sync_api.sync_playwright() as p:
-        browser = p.chromium.launch()
-        yield browser
-        browser.close()
-
-
 @pytest.fixture
 def entry_url(tmp_path):
     server = LibraryServer(FixtureBackend())
