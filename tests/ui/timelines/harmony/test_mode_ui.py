@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.ui.timelines.harmony.interact import click_mode_ui
+from tests.ui.timelines.harmony.interact import click_mode_ui, open_inspector_for
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_mode
 from tests.ui.timelines.interact import click_timeline_ui
 from tests.utils import save_and_reopen, undoable
@@ -15,6 +15,12 @@ from tilia.ui.windows.kinds import WindowKind
 @pytest.fixture
 def tlui(harmony_tlui):
     return harmony_tlui
+
+
+@pytest.fixture(autouse=True)
+def close_inspector():
+    yield
+    post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
 
 
 class TestRightClick:
@@ -111,16 +117,6 @@ class TestCopyPaste:
 
 
 class TestModeFieldInspectorEdit:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def open_inspector_for(self, mode_ui, qtui):
-        click_mode_ui(mode_ui)
-        commands.execute("timeline.element.inspect")
-        return qtui._windows[WindowKind.INSPECT]
-
     @pytest.mark.parametrize(
         "field_name, attr, new_value",
         [
@@ -151,7 +147,7 @@ class TestModeFieldInspectorEdit:
     ):
         add_mode(step=0, accidental=0, type="major")
         mode = harmony_tlui.modes()[0]
-        inspector = self.open_inspector_for(mode, qtui)
+        inspector = open_inspector_for(mode, qtui)
         combo = inspector.field_name_to_widgets[field_name][1]
         text_before = mode.body.toPlainText()
 
