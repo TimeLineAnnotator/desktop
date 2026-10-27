@@ -1,10 +1,6 @@
 from tilia.timelines.beat.pattern import parse
 
 
-def validate_integer_list(value):
-    return all([isinstance(x, int) for x in value])
-
-
 def validate_beat_pattern(value: str | list[int]) -> bool:
     """
     Accepts pattern text, or a list of bar lengths as stored by files and

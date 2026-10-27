@@ -48,6 +48,61 @@ from tilia.ui.timelines.beat.time_signature import (
 from tilia.ui.windows import WindowKind
 
 
+def save_as_file_with_measure_lists(
+    tmp_path,
+    beats_in_measure: list[int] | None = None,
+    measure_numbers: list[int] | None = None,
+    measures_to_force_display: list[int] | None = None,
+) -> str:
+    """
+    Saves the current state as a file from before measures were marked on
+    their beats, which kept them in lists by measure on the beat timeline. A
+    list left out is written as the measures the timeline has now.
+    """
+    path = save_tilia_to_tmp_path(tmp_path, "measure_lists")
+    with open(path, encoding="utf-8") as file:
+        data = json.load(file)
+    for timeline in data["timelines"].values():
+        if timeline["kind"] != "BEAT_TIMELINE" and timeline["kind"] != "Beat":
+            continue
+        starts, numbers, always_shown = [], [], []
+        for component in timeline["components"].values():
+            if component["kind"] != "BEAT":
+                continue
+            if component.pop("is_first_in_measure"):
+                starts.append(component["time"])
+                override = component["measure_number_override"]
+                numbers.append(
+                    override if override is not None else (numbers or [0])[-1] + 1
+                )
+                if component["measure_number_always_shown"]:
+                    always_shown.append(len(numbers) - 1)
+            component.pop("measure_number_override")
+            component.pop("measure_number_always_shown")
+        times = sorted(
+            c["time"] for c in timeline["components"].values() if c["kind"] == "BEAT"
+        )
+        indices = [times.index(t) for t in starts] + [len(times)]
+        counts = [
+            end - start for start, end in zip(indices[:-1], indices[1:], strict=True)
+        ]
+        timeline["beats_in_measure"] = (
+            counts if beats_in_measure is None else beats_in_measure
+        )
+        timeline["measure_numbers"] = (
+            numbers if measure_numbers is None else measure_numbers
+        )
+        timeline["measures_to_force_display"] = (
+            always_shown
+            if measures_to_force_display is None
+            else measures_to_force_display
+        )
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(data, file)
+    post(Post.APP_CLEAR)
+    return path
+
+
 def get_displayed_measure_number(beat_ui):
     if beat_ui.label.isVisible():
         return beat_ui.label.toPlainText()
@@ -88,13 +143,10 @@ class TestLoadFromFile:
         for i in range(8):
             beat_tlui.create_beat(i)
 
-        beat_tlui.timeline.measures_to_force_display = [1, 3, 5, 7]
+        for i in [1, 3, 5, 7]:
+            beat_tlui.timeline.force_display_measure_number(i)
 
-        tmp_file = tmp_path / "test.tla"
-
-        post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
-
-        commands.execute("file.open", tmp_file)
+        save_and_reopen(tmp_path)
 
         assert [x.label.toPlainText() for x in tluis[0]] == [
             "1",
@@ -110,18 +162,17 @@ class TestLoadFromFile:
     def test_duplicate_and_out_of_range_forced_measures_are_dropped(
         self, beat_tlui, tluis, tmp_path
     ):
-        # Earlier versions could save such a list; the current one can't
-        # produce it, so it is set directly.
+        # Files from before measures were marked on their beats could save
+        # such a list.
         settings.set("beat_timeline", "display_measure_periodicity", 4)
         beat_tlui.timeline.beat_pattern = [1]
         for i in range(4):
             commands.execute("media.seek", i)
             commands.execute("timeline.beat.add")
-        beat_tlui.timeline.measures_to_force_display = [1, 6, 1, 2]
-
-        tmp_file = tmp_path / "test.tla"
-        post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
-        commands.execute("file.open", tmp_file)
+        path = save_as_file_with_measure_lists(
+            tmp_path, measures_to_force_display=[1, 6, 1, 2]
+        )
+        commands.execute("file.open", path)
 
         reopened = tluis[0]
         reopened.select_element(reopened[1])
@@ -134,6 +185,110 @@ class TestLoadFromFile:
             commands.execute("timeline.beat.add")
         # An out-of-range index would force measure 7's label once it exists.
         assert get_displayed_measure_number(reopened[6]) == ""
+
+
+class TestFileWithMeasureLists:
+    """Files from before measures were marked on their beats keep them in
+    lists by measure, fitted to the beats when the file is opened."""
+
+    @staticmethod
+    def open_file_with(tmp_path, times, **lists):
+        for time in times:
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+        commands.execute(
+            "file.open", save_as_file_with_measure_lists(tmp_path, **lists)
+        )
+
+    def test_measures_are_marked_on_their_first_beats(self, beat_tlui, tluis, tmp_path):
+        self.open_file_with(
+            tmp_path, range(8), beats_in_measure=[3, 3, 2], measure_numbers=[1, 2, 3]
+        )
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [3, 3, 2]
+        assert [b.is_first_in_measure for b in timeline] == [
+            True,
+            False,
+            False,
+            True,
+            False,
+            False,
+            True,
+            False,
+        ]
+
+    def test_numbers_that_break_the_count_are_kept(self, beat_tlui, tluis, tmp_path):
+        self.open_file_with(
+            tmp_path,
+            range(6),
+            beats_in_measure=[2, 2, 2],
+            measure_numbers=[1, 2, 1],
+        )
+
+        timeline = tluis[0].timeline
+        assert timeline.measure_numbers == [1, 2, 1]
+        assert [b.measure_number_override for b in timeline] == [
+            None,
+            None,
+            None,
+            None,
+            1,
+            None,
+        ]
+
+    def test_missing_measures_are_made_from_the_pattern(
+        self, beat_tlui, tluis, tmp_path
+    ):
+        self.open_file_with(
+            tmp_path, range(10), beats_in_measure=[3], measure_numbers=[5]
+        )
+
+        timeline = tluis[0].timeline
+        # The incomplete last measure is filled first.
+        assert timeline.beats_in_measure == [4, 4, 2]
+        assert timeline.measure_numbers == [5, 6, 7]
+
+    def test_surplus_measures_are_dropped(self, beat_tlui, tluis, tmp_path):
+        self.open_file_with(
+            tmp_path,
+            range(5),
+            beats_in_measure=[4, 4, 4],
+            measure_numbers=[1, 2, 3],
+        )
+
+        assert tluis[0].timeline.beats_in_measure == [4, 1]
+
+    def test_forced_display_is_kept(self, beat_tlui, tluis, tmp_path):
+        settings.set("beat_timeline", "display_measure_periodicity", 10)
+        self.open_file_with(
+            tmp_path,
+            range(4),
+            beats_in_measure=[1, 1, 1, 1],
+            measure_numbers=[1, 2, 3, 4],
+            measures_to_force_display=[2],
+        )
+
+        assert [get_displayed_measure_number(b) for b in tluis[0]] == [
+            "1",
+            "",
+            "3",
+            "",
+        ]
+
+    def test_saving_again_keeps_the_measures(self, beat_tlui, tluis, tmp_path):
+        self.open_file_with(
+            tmp_path,
+            range(6),
+            beats_in_measure=[1, 3, 2],
+            measure_numbers=[0, 1, 2],
+        )
+
+        save_and_reopen(tmp_path)
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [1, 3, 2]
+        assert timeline.measure_numbers == [0, 1, 2]
 
 
 def add_beat_timeline_with_pattern(pattern: str) -> None:
@@ -363,7 +518,7 @@ class TestCreateDeleteBeat:
 
     def test_delete_update_next_measures_numbers(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [1]
-        beat_tlui.timeline.measures_to_force_display = [0, 1, 2]
+        settings.set("beat_timeline", "display_measure_periodicity", 1)
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(1)
         beat_tlui.create_beat(2)
@@ -374,9 +529,9 @@ class TestCreateDeleteBeat:
         assert get_displayed_measure_number(beat_tlui[0]) == "1"
         assert get_displayed_measure_number(beat_tlui[1]) == "2"
 
-    def test_create_update_next_measures_numbers(self, beat_tlui):
+    def test_create_in_a_measure_keeps_the_next_measures_numbers(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [1]
-        beat_tlui.timeline.measures_to_force_display = [0, 1, 2, 3]
+        settings.set("beat_timeline", "display_measure_periodicity", 1)
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(1)
         beat_tlui.create_beat(2)
@@ -386,9 +541,24 @@ class TestCreateDeleteBeat:
 
         assert [get_displayed_measure_number(beat) for beat in beat_tlui] == [
             "1",
+            "",
             "2",
             "3",
-            "4",
+        ]
+
+    def test_create_after_the_last_beat_numbers_the_new_measure(self, beat_tlui):
+        beat_tlui.timeline.beat_pattern = [1]
+        settings.set("beat_timeline", "display_measure_periodicity", 1)
+        beat_tlui.create_beat(0)
+        beat_tlui.create_beat(1)
+
+        commands.execute("media.seek", 2)
+        commands.execute("timeline.beat.add")
+
+        assert [get_displayed_measure_number(beat) for beat in beat_tlui] == [
+            "1",
+            "2",
+            "3",
         ]
 
 
@@ -842,7 +1012,7 @@ class TestSetBeatAmountInMeasure:
 
     def test_updates_measure_numbers(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [1]
-        beat_tlui.timeline.measures_to_force_display = [0, 1, 2]
+        settings.set("beat_timeline", "display_measure_periodicity", 1)
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(1)
         beat_tlui.create_beat(2)
@@ -998,7 +1168,7 @@ class TestUndoRedo:
 
     def test_undo_redo_updates_displayed_measure_numbers(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [1]
-        beat_tlui.timeline.measures_to_force_display = [0, 1, 2]
+        settings.set("beat_timeline", "display_measure_periodicity", 1)
         beat_tlui.create_beat(0)
         beat_tlui.create_beat(1)
         beat_tlui.create_beat(2)
@@ -2194,15 +2364,17 @@ class TestAssumedBeatUnits:
 class TestConflictingBeatUnits:
     @staticmethod
     def make_conflict(tluis):
-        """Two beat units end up in one measure after a beat is deleted."""
+        """
+        Two beat units in one measure, as a CSV import that gives a beat unit
+        to a beat that doesn't start a measure leaves them.
+        """
         add_beat_timeline_with_pattern("2")
         add_beats(range(6))
         set_beat_unit(tluis[0], 0, 8, "1")
-        set_beat_unit(tluis[0], 1, 2, "1")
-        tluis[0].select_element(tluis[0][1])
-        commands.execute("timeline.component.delete")
-        tluis[0].deselect_all_elements()
-        assert tluis[0].timeline.get_measure_meter(0).is_conflicting
+        timeline = tluis[0].timeline
+        timeline.put_beat_unit_on_beat(timeline[1].id, 2, "1")
+        post(Post.APP_STATE_RECORD, "conflicting beat units")
+        assert timeline.get_measure_meter(0).is_conflicting
 
     @staticmethod
     def right_click_label(timeline_ui, label):

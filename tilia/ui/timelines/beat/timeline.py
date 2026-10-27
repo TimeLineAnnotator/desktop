@@ -57,10 +57,6 @@ class BeatTimelineUI(TimelineUI):
     ACCEPTS_HORIZONTAL_ARROWS = True
     UPDATE_TRIGGERS = TimelineUI.UPDATE_TRIGGERS + [
         "beat_pattern",
-        "measure_numbers",
-        "beats_that_start_measures",
-        "measures_to_force_display",
-        "beats_in_measure",
         "show_time_signatures",
     ]
     timeline_class = BeatTimeline
@@ -501,9 +497,7 @@ class BeatTimelineUI(TimelineUI):
         if time is None:
             time = get(Get.SELECTED_TIME)
 
-        self.timeline_ui: BeatTimelineUI
         component, _ = self.timeline.create_component(ComponentKind.BEAT, time)
-        self.timeline.recalculate_measures()
         return False if component is None else True
 
     @staticmethod
@@ -565,6 +559,9 @@ class BeatTimelineUI(TimelineUI):
                 self.element_manager.deselect_element(element)
 
     def should_display_measure_number(self, beat_ui):
+        if self.timeline.component_manager.is_bulk:
+            # Beats are relabelled once the bulk change is done.
+            return False
         beat = self.timeline.get_component(beat_ui.id)
         beat_index = self.timeline.components.index(beat)
         measure_index, _ = self.timeline.get_measure_index(beat_index)
@@ -646,28 +643,3 @@ class BeatTimelineUI(TimelineUI):
 
     def update_beat_pattern(self):
         pass  # not implemented
-
-    def update_measure_numbers(self):
-        for beat_ui in self:
-            try:
-                beat_ui.update_label()
-            except IndexError:
-                # State is being restored and
-                # beats in measure has not been
-                # updated yet. This is a dangerous
-                # workaround, as it might conceal
-                # other exceptions. Let's fix this ASAP.
-                continue
-
-    def update_measures_to_force_display(self):
-        for beat_ui in self:
-            beat_ui.update_label()
-
-    def update_beats_in_measure(self):
-        for beat_ui in self:
-            beat_ui.update_is_first_in_measure()
-        self.update_time_signatures()
-
-    def beats_that_start_measures(self):
-        for beat_ui in self:
-            beat_ui.update_is_first_in_measure()
