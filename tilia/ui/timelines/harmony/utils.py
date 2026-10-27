@@ -1,4 +1,4 @@
-from functools import cache
+from functools import cache, lru_cache
 from typing import NamedTuple
 
 import music21
@@ -29,6 +29,19 @@ def _scale_degrees(tonic: str, mode: str) -> tuple[_ScaleDegree, ...]:
         _ScaleDegree(p.step, p.alter, p.pitchClass)
         for p in music21.key.Key(tonic, mode=mode).pitches
     )
+
+
+@lru_cache(maxsize=256)
+def _chord_symbol(
+    figure: str, inversion: int | None = None
+) -> music21.harmony.ChordSymbol:
+    """
+    The chord symbol for a figure and inversion. Building one takes music21 a
+    few milliseconds, and labels build the same few over and over: a chord's
+    label in every key, or a label redrawn. The symbols are shared, so they are
+    only read, and only in this module.
+    """
+    return music21.harmony.ChordSymbol(figure, inversion=inversion)
 
 
 def _key_scale_degrees(key: music21.key.Key) -> tuple[_ScaleDegree, ...]:
@@ -145,7 +158,7 @@ def _root_position_suffix(
     if applied_to or quality == "diminished-seventh":
         return prefix + str(number)
 
-    sym = music21.harmony.ChordSymbol(note_name + QUALITY_TO_ABBREVIATION[quality])
+    sym = _chord_symbol(note_name + QUALITY_TO_ABBREVIATION[quality])
     figures = _get_figures(sym, key, quality)
     idx = _figure_index_for_pitch(figures, sym.getChordStep(number), sym.bass())
     modifier = figures[idx][1] if idx is not None else None
@@ -354,7 +367,7 @@ def _compute_quality_suffix(
         if inversion > max_inv:
             return None
     abbrev = QUALITY_TO_ABBREVIATION[quality]
-    sym = music21.harmony.ChordSymbol(note_name + abbrev, inversion=inversion)
+    sym = _chord_symbol(note_name + abbrev, inversion)
     return _get_inv_prefix(quality) + _chord_fb(sym, key, quality)
 
 
