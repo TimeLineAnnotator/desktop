@@ -839,6 +839,22 @@ class TestWarnings:
                 "1 file without the file field 'composer' could not answer"
             ], text
 
+    def test_no_warning_for_has_one_where_a_file_lacks_the_field(self):
+        # `= *` asks whether the field has a value: a file without it answers
+        # (no), in every form (sheet I4, 2026-10-27)
+        for text, files in (
+            ("WHERE composer = *", ["other", "song"]),
+            ("WHERE NOT composer != *", ["other", "song"]),
+            ("WHERE composer != *", ["bare"]),
+            ("WHERE NOT composer = *", ["bare"]),
+        ):
+            got = run(text, SONG, OTHER, BARE)
+            assert got.warnings == [], text
+            assert sorted(r["file"] for r in got.rows) == files, text
+        got = run("* IN form WHERE file.composer = *", SONG, OTHER, BARE)
+        assert got.warnings == []
+        assert got.matches
+
     def test_no_warning_when_every_file_has_it(self):
         assert run("* IN form WHERE composer = Mozart", SONG, OTHER).warnings == []
         assert run("*[level = 1] IN form", SONG, OTHER, BARE).warnings == []
