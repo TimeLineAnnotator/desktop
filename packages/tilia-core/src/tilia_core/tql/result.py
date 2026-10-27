@@ -29,7 +29,9 @@ class Match:
     ``marks`` says, per slot and unit, whether a step marked ``@`` took it
     (None without ``@``). ``segments`` holds the time each unit fills in the
     lane the match was found in; ``lane_level`` and ``lane_row`` say which
-    level or range row that lane is."""
+    level or range row that lane is. ``slot_lanes``, when the steps lie in
+    different lanes (a relation), names each step's lane; ``lane`` is then the
+    first one's."""
 
     slots: list[list[Component]]
     lane: str
@@ -38,6 +40,7 @@ class Match:
     segments: list[list[tuple[float, float]]] = field(default_factory=list)
     lane_level: int | None = None
     lane_row: str | None = None
+    slot_lanes: list[str] = field(default_factory=list)
 
     def is_target(self, n: int, k: int) -> bool:
         """Whether unit ``k`` (from 0) of step ``n`` (``$n``, from 1) is the
