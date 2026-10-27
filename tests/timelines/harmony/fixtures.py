@@ -1,10 +1,13 @@
 import pytest
 
+from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia.ui import commands
 from tilia.ui.timelines.harmony import HarmonyTimelineUI, HarmonyUI, ModeUI
+from tilia.ui.windows.kinds import WindowKind
 
 
 class TestHarmonyTimelineUI(HarmonyTimelineUI):
@@ -29,6 +32,19 @@ def harmony_tlui(harmony_tl, tluis) -> TestHarmonyTimelineUI:
     ui.create_component = harmony_tl.create_component
 
     yield ui  # will be deleted by tls
+
+
+@pytest.fixture
+def open_inspector_for(qtui):
+    """Inspect a harmony or mode and return the Inspector, which closes after the test."""
+
+    def _open(element_ui):
+        click_harmony_ui(element_ui)  # modes are clicked the same way
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    yield _open
+    post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
 
 
 @pytest.fixture

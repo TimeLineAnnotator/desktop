@@ -11,7 +11,6 @@ from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.timelines.harmony import HarmonyTimelineUI
-from tilia.ui.windows.kinds import WindowKind
 
 
 @pytest.fixture
@@ -159,33 +158,29 @@ class TestDoubleClick:
 
 
 class TestInversionInspectorItems:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def open_inspector_for(self, harmony_ui, qtui):
-        click_harmony_ui(harmony_ui)
-        commands.execute("timeline.element.inspect")
-        return qtui._windows[WindowKind.INSPECT]
-
-    def test_major_triad_has_three_inversion_choices(self, qtui, harmony_tlui):
+    def test_major_triad_has_three_inversion_choices(
+        self, open_inspector_for, harmony_tlui
+    ):
         add_harmony(quality="major")
-        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+        inspector = open_inspector_for(harmony_tlui.harmonies()[0])
 
         inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
         assert inversion_combo.count() == 3  # inversions 0, 1, 2
 
-    def test_ninth_chord_has_five_inversion_choices(self, qtui, harmony_tlui):
+    def test_ninth_chord_has_five_inversion_choices(
+        self, open_inspector_for, harmony_tlui
+    ):
         add_harmony(quality="dominant-ninth")
-        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+        inspector = open_inspector_for(harmony_tlui.harmonies()[0])
 
         inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
         assert inversion_combo.count() == 5  # inversions 0, 1, 2, 3, 4
 
-    def test_inversion_choices_update_when_quality_changes(self, qtui, harmony_tlui):
+    def test_inversion_choices_update_when_quality_changes(
+        self, open_inspector_for, harmony_tlui
+    ):
         add_harmony(quality="major")
-        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+        inspector = open_inspector_for(harmony_tlui.harmonies()[0])
 
         inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
         quality_combo = inspector.field_name_to_widgets["Quality"][1]
@@ -196,10 +191,10 @@ class TestInversionInspectorItems:
         assert inversion_combo.count() == 5  # dominant-ninth: inversions 0, 1, 2, 3, 4
 
     def test_inversion_clamped_to_max_when_quality_reduces_range(
-        self, qtui, harmony_tlui
+        self, open_inspector_for, harmony_tlui
     ):
         add_harmony(quality="dominant-ninth", inversion=4)
-        inspector = self.open_inspector_for(harmony_tlui.harmonies()[0], qtui)
+        inspector = open_inspector_for(harmony_tlui.harmonies()[0])
 
         inversion_combo = inspector.field_name_to_widgets["Inversion"][1]
         quality_combo = inspector.field_name_to_widgets["Quality"][1]
@@ -212,16 +207,6 @@ class TestInversionInspectorItems:
 
 
 class TestChordFieldInspectorEdit:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def open_inspector_for(self, harmony_ui, qtui):
-        click_harmony_ui(harmony_ui)
-        commands.execute("timeline.element.inspect")
-        return qtui._windows[WindowKind.INSPECT]
-
     @pytest.mark.parametrize(
         "field_name, attr, new_value",
         [
@@ -236,14 +221,21 @@ class TestChordFieldInspectorEdit:
         ],
     )
     def test_combo_field_edit_changes_component_and_ui(
-        self, qtui, harmony_tlui, tluis, tmp_path, field_name, attr, new_value
+        self,
+        open_inspector_for,
+        harmony_tlui,
+        tluis,
+        tmp_path,
+        field_name,
+        attr,
+        new_value,
     ):
         # Editing the field through the inspector (not set_component_data)
         # changes the component, changes what the body shows, is undoable,
         # and survives save/reopen.
         add_harmony()
         harmony = harmony_tlui.harmonies()[0]
-        inspector = self.open_inspector_for(harmony, qtui)
+        inspector = open_inspector_for(harmony)
         combo = inspector.field_name_to_widgets[field_name][1]
         text_before = harmony.body.toPlainText()
 
@@ -266,7 +258,7 @@ class TestChordFieldInspectorEdit:
     )
     def test_display_mode_custom_transitions(
         self,
-        qtui,
+        open_inspector_for,
         harmony_tlui,
         tluis,
         tmp_path,
@@ -284,7 +276,7 @@ class TestChordFieldInspectorEdit:
         # tests/ui/timelines/range/test_range_timeline_ui.py).
         add_harmony(display_mode=initial_display_mode, custom_text="my custom text")
         harmony = harmony_tlui.harmonies()[0]
-        inspector = self.open_inspector_for(harmony, qtui)
+        inspector = open_inspector_for(harmony)
         display_combo = inspector.field_name_to_widgets["Display mode"][1]
 
         with undoable():
@@ -309,7 +301,13 @@ class TestChordFieldInspectorEdit:
         ],
     )
     def test_custom_text_edit_under_font(
-        self, qtui, harmony_tlui, tluis, tmp_path, font_type, expected_family
+        self,
+        open_inspector_for,
+        harmony_tlui,
+        tluis,
+        tmp_path,
+        font_type,
+        expected_family,
     ):
         # "font 'regular'" in the checklist is FONT_TYPES's "normal" value
         # (tilia/timelines/harmony/constants.py); the combo has no entry
@@ -320,7 +318,7 @@ class TestChordFieldInspectorEdit:
             custom_text="old text",
         )
         harmony = harmony_tlui.harmonies()[0]
-        inspector = self.open_inspector_for(harmony, qtui)
+        inspector = open_inspector_for(harmony)
         custom_label_edit = inspector.field_name_to_widgets["Custom label"][1]
         assert harmony.body.font().family() == expected_family
 
@@ -338,7 +336,7 @@ class TestChordFieldInspectorEdit:
         assert reloaded_harmony.body.toPlainText() == "new custom text"
 
     def test_custom_label_font_combo_changes_body_font(
-        self, qtui, harmony_tlui, tluis, tmp_path
+        self, open_inspector_for, harmony_tlui, tluis, tmp_path
     ):
         add_harmony(
             display_mode="custom",
@@ -346,7 +344,7 @@ class TestChordFieldInspectorEdit:
             custom_text="styled text",
         )
         harmony = harmony_tlui.harmonies()[0]
-        inspector = self.open_inspector_for(harmony, qtui)
+        inspector = open_inspector_for(harmony)
         font_combo = inspector.field_name_to_widgets["Custom label font"][1]
         assert harmony.body.font().family() == "MusAnalysis"
 
@@ -364,16 +362,6 @@ class TestChordFieldInspectorEdit:
 
 
 class TestInvalidInversionInspectorEdit:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def open_inspector_for(self, harmony_ui, qtui):
-        click_harmony_ui(harmony_ui)
-        commands.execute("timeline.element.inspect")
-        return qtui._windows[WindowKind.INSPECT]
-
     @pytest.mark.xfail(
         strict=True,
         reason=(
@@ -387,11 +375,11 @@ class TestInvalidInversionInspectorEdit:
         ),
     )
     def test_invalid_inversion_is_refused_with_error(
-        self, qtui, harmony_tlui, tilia_errors
+        self, open_inspector_for, harmony_tlui, tilia_errors
     ):
         add_harmony(quality="major", inversion=0)  # major: valid inversions 0-2
         harmony = harmony_tlui.harmonies()[0]
-        self.open_inspector_for(harmony, qtui)
+        open_inspector_for(harmony)
 
         # The Inversion combo only ever lists valid choices for the current
         # quality, so a real user can't pick an invalid one through it.
@@ -413,11 +401,11 @@ class TestInvalidInversionInspectorEdit:
         ),
     )
     def test_invalid_inversion_error_mentions_chord_quality(
-        self, qtui, harmony_tlui, tilia_errors
+        self, open_inspector_for, harmony_tlui, tilia_errors
     ):
         add_harmony(quality="major", inversion=0)
         harmony = harmony_tlui.harmonies()[0]
-        self.open_inspector_for(harmony, qtui)
+        open_inspector_for(harmony)
 
         post(Post.INSPECTOR_FIELD_EDITED, "Inversion", 9, harmony.id, 0)
 
@@ -426,16 +414,11 @@ class TestInvalidInversionInspectorEdit:
 
 
 class TestDominantSeventhFlatNinth:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def test_inspector_offers_it_after_dominant_seventh(self, qtui, harmony_tlui):
+    def test_inspector_offers_it_after_dominant_seventh(
+        self, open_inspector_for, harmony_tlui
+    ):
         add_harmony(quality="dominant-seventh-flat-ninth")
-        click_harmony_ui(harmony_tlui.harmonies()[0])
-        commands.execute("timeline.element.inspect")
-        inspector = qtui._windows[WindowKind.INSPECT]
+        inspector = open_inspector_for(harmony_tlui.harmonies()[0])
 
         quality_combo = inspector.field_name_to_widgets["Quality"][1]
         index = quality_combo.findData("dominant-seventh-flat-ninth")
@@ -458,11 +441,6 @@ class TestDominantSeventhFlatNinth:
 
 
 class TestAddedToneQualities:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
     @pytest.mark.parametrize(
         "quality, listed_after, inversions",
         [
@@ -477,12 +455,10 @@ class TestAddedToneQualities:
         ],
     )
     def test_inspector_offers_it_after_its_base(
-        self, quality, listed_after, inversions, qtui, harmony_tlui
+        self, quality, listed_after, inversions, open_inspector_for, harmony_tlui
     ):
         add_harmony(quality=quality)
-        click_harmony_ui(harmony_tlui.harmonies()[0])
-        commands.execute("timeline.element.inspect")
-        inspector = qtui._windows[WindowKind.INSPECT]
+        inspector = open_inspector_for(harmony_tlui.harmonies()[0])
 
         quality_combo = inspector.field_name_to_widgets["Quality"][1]
         index = quality_combo.findData(quality)
@@ -521,20 +497,12 @@ class TestAddedToneQualities:
 
 
 class TestCadentialSixFour:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def open_inspector_for(self, harmony_ui, qtui):
-        click_harmony_ui(harmony_ui)
-        commands.execute("timeline.element.inspect")
-        return qtui._windows[WindowKind.INSPECT]
-
-    def test_choosing_it_puts_the_root_in_the_bass(self, qtui, harmony_tlui):
+    def test_choosing_it_puts_the_root_in_the_bass(
+        self, open_inspector_for, harmony_tlui
+    ):
         add_harmony(step=4, quality="major", inversion=2)
         harmony = harmony_tlui.harmonies()[0]
-        self.open_inspector_for(harmony, qtui)
+        open_inspector_for(harmony)
 
         with undoable():
             post(
@@ -549,10 +517,10 @@ class TestCadentialSixFour:
         assert harmony.get_data("inversion") == 0
         assert harmony.label == "V(64)"
 
-    def test_inversion_is_refused(self, qtui, harmony_tlui):
+    def test_inversion_is_refused(self, open_inspector_for, harmony_tlui):
         add_harmony(step=4, quality="cadential-six-four")
         harmony = harmony_tlui.harmonies()[0]
-        self.open_inspector_for(harmony, qtui)
+        open_inspector_for(harmony)
 
         # The Inversion combo lists only root position, so a user can't pick
         # another. Post the event the widget would send if it could.

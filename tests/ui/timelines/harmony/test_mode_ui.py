@@ -9,7 +9,6 @@ from tests.utils import save_and_reopen, undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.timelines.harmony import HarmonyTimelineUI
-from tilia.ui.windows.kinds import WindowKind
 
 
 @pytest.fixture
@@ -111,16 +110,6 @@ class TestCopyPaste:
 
 
 class TestModeFieldInspectorEdit:
-    @pytest.fixture(autouse=True)
-    def close_inspector(self):
-        yield
-        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
-
-    def open_inspector_for(self, mode_ui, qtui):
-        click_mode_ui(mode_ui)
-        commands.execute("timeline.element.inspect")
-        return qtui._windows[WindowKind.INSPECT]
-
     @pytest.mark.parametrize(
         "field_name, attr, new_value",
         [
@@ -147,11 +136,18 @@ class TestModeFieldInspectorEdit:
         ],
     )
     def test_combo_field_edit_changes_component_and_ui(
-        self, qtui, harmony_tlui, tluis, tmp_path, field_name, attr, new_value
+        self,
+        open_inspector_for,
+        harmony_tlui,
+        tluis,
+        tmp_path,
+        field_name,
+        attr,
+        new_value,
     ):
         add_mode(step=0, accidental=0, type="major")
         mode = harmony_tlui.modes()[0]
-        inspector = self.open_inspector_for(mode, qtui)
+        inspector = open_inspector_for(mode)
         combo = inspector.field_name_to_widgets[field_name][1]
         text_before = mode.body.toPlainText()
 
