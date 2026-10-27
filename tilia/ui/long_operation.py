@@ -1,40 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QCoreApplication, QElapsedTimer, QEvent, QObject, Qt
+from PySide6.QtGui import QWindow
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QProgressBar, QToolBar
 
 from tilia.requests import Get, LongOperation, Post, get, listen
 
 _PROGRESS_THROTTLE_MS = 100
-
-
-class _DialogCursorFilter(QObject):
-    """Restores the application override cursor while any QDialog is visible,
-    then re-sets it when all dialogs close.  Installed on QApplication while a
-    long operation is running and removed when the operation finishes."""
-
-    def __init__(self, stack: list[str]) -> None:
-        super().__init__()
-        self._stack = stack
-        self._open_count = 0
-
-    def reset(self) -> None:
-        self._open_count = 0
-
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if not isinstance(obj, QDialog):
-            return False
-
-        if event.type() == QEvent.Type.Show:
-            if self._open_count == 0 and QApplication.overrideCursor():
-                QApplication.restoreOverrideCursor()
-            self._open_count += 1
-        elif event.type() == QEvent.Type.Hide:
-            self._open_count = max(0, self._open_count - 1)
-            if self._open_count == 0 and self._stack:
-                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        return False
-
 
 _BLOCKED_MOUSE_EVENTS = {
     QEvent.Type.MouseButtonPress,
@@ -43,14 +17,36 @@ _BLOCKED_MOUSE_EVENTS = {
 }
 
 
-class _InputBlockFilter(QObject):
-    """Swallows mouse button events while the application override cursor is set."""
+class _WindowFilter(QObject):
+    """Installed on the application's windows while a long operation runs.
 
-    def eventFilter(self, _: QObject, event: QEvent) -> bool:
-        return (
-            event.type() in _BLOCKED_MOUSE_EVENTS
-            and QApplication.overrideCursor() is not None
-        )
+    Swallows their mouse button events while `is_blocking_input()` is true,
+    and calls `on_blocked_changed(window, blocked)` when a modal dialog blocks
+    or unblocks one of them.
+
+    It goes on each window rather than on the application: an application
+    filter written in Python makes PySide handle every event sent to every
+    object, and doing that inside processEvents() corrupts the heap (#694).
+    """
+
+    def __init__(
+        self,
+        is_blocking_input: Callable[[], bool],
+        on_blocked_changed: Callable[[QWindow, bool], None],
+    ) -> None:
+        super().__init__()
+        self._is_blocking_input = is_blocking_input
+        self._on_blocked_changed = on_blocked_changed
+
+    def eventFilter(self, window: QObject, event: QEvent) -> bool:
+        match event.type():
+            case QEvent.Type.WindowBlocked:
+                self._on_blocked_changed(window, True)
+            case QEvent.Type.WindowUnblocked:
+                self._on_blocked_changed(window, False)
+            case event_type if event_type in _BLOCKED_MOUSE_EVENTS:
+                return self._is_blocking_input()
+        return False
 
 
 class LongOperationToolbar(QToolBar):
@@ -74,9 +70,14 @@ class LongOperationToolbar(QToolBar):
 
         self._stack: list[str] = []
         self._progress_timer = QElapsedTimer()
-        self._dialog_cursor_filter = _DialogCursorFilter(self._stack)
-        self._input_block_filter = _InputBlockFilter()
-        self._app: QApplication = QApplication.instance()  # type: ignore[assignment]
+        self._window_filter = _WindowFilter(
+            lambda: self._is_wait_cursor_set, self._on_window_blocked_changed
+        )
+        self._filtered_windows: list[QWindow] = []
+        # Filtered windows that a modal dialog blocks. The wait cursor is
+        # lifted while there are any, so that the dialog gets a normal one.
+        self._blocked_windows: set[QWindow] = set()
+        self._is_wait_cursor_set = False
 
         listen(self, Post.LONG_OPERATION, self._on_long_operation)
 
@@ -103,13 +104,60 @@ class LongOperationToolbar(QToolBar):
         else:
             QApplication.processEvents()
 
+    def _install_window_filter(self) -> None:
+        windows = [
+            window
+            for widget in QApplication.topLevelWidgets()
+            if widget.isVisible()
+            and not isinstance(widget, QDialog)
+            and (window := widget.windowHandle()) is not None
+        ]
+        self._filtered_windows = []
+        for window in windows:
+            try:
+                window.installEventFilter(self._window_filter)
+            except RuntimeError:
+                # Already deleted. A widget that recreates its native window,
+                # as the video window does, can hand back the wrapper of a
+                # deleted one, and the garbage collector can delete a window
+                # between any two lines here, so checking first wouldn't do.
+                continue
+            self._filtered_windows.append(window)
+        if QApplication.activeModalWidget() is not None:
+            # Qt only reports changes, so windows that an open modal dialog
+            # blocks already would never be reported blocked.
+            self._blocked_windows = set(self._filtered_windows)
+
+    def _remove_window_filter(self) -> None:
+        for window in self._filtered_windows:
+            try:
+                window.removeEventFilter(self._window_filter)
+            except RuntimeError:
+                pass  # Deleted during the operation, and its filter with it.
+        self._filtered_windows = []
+        self._blocked_windows = set()
+
+    def _on_window_blocked_changed(self, window: QWindow, blocked: bool) -> None:
+        if blocked:
+            self._blocked_windows.add(window)
+        else:
+            self._blocked_windows.discard(window)
+        self._update_wait_cursor()
+
+    def _update_wait_cursor(self) -> None:
+        should_be_set = bool(self._stack) and not self._blocked_windows
+        if should_be_set and not self._is_wait_cursor_set:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        elif not should_be_set and self._is_wait_cursor_set:
+            QApplication.restoreOverrideCursor()
+        self._is_wait_cursor_set = should_be_set
+
     def _on_started(self, label: str) -> None:
         self._stack.append(label)
         self._show_current()
         if len(self._stack) == 1:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            self._app.installEventFilter(self._dialog_cursor_filter)
-            self._app.installEventFilter(self._input_block_filter)
+            self._install_window_filter()
+            self._update_wait_cursor()
         self._progress_timer.start()
         self._pump()
 
@@ -135,7 +183,5 @@ class LongOperationToolbar(QToolBar):
             self._label.setText("")
             self._bar.setMaximum(0)
             self._bar.setValue(0)
-            self._app.removeEventFilter(self._dialog_cursor_filter)
-            self._app.removeEventFilter(self._input_block_filter)
-            self._dialog_cursor_filter.reset()
-            QApplication.restoreOverrideCursor()
+            self._remove_window_filter()
+            self._update_wait_cursor()
