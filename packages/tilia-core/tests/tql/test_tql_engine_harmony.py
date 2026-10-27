@@ -190,7 +190,8 @@ class TestLabelConditions:
     def test_the_custom_text_is_a_label_too(self):
         index = fixture_index.build_index(HARMONY)
         index.connection().execute(
-            "UPDATE chords SET custom_text = 'dom' WHERE component_id LIKE '%c2'"
+            "UPDATE chords SET custom_text = 'dom' WHERE component_id = "
+            "(SELECT id FROM components WHERE kind = 'chord' AND start = 1)"
         )
         got = tql.run(index, "*[label ~ dom] IN harmony")
         assert [c.start for m in got.matches for c in m.slots[0]] == [1]
