@@ -134,9 +134,9 @@ class TestKinds:
         assert keys[g_minor[0]] == (4, 0, "minor", "G", "g")
         one, five, five_minor = (by_uuid(self.rows, f"t4:c{n}") for n in (1, 2, 3))
         assert [r[4:8] for r in (one, five, five_minor)] == [
-            ("chord", 0.0, 5.0, "I"),
-            ("chord", 5.0, 10.0, "V65"),
-            ("chord", 10.0, 60.0, "i"),
+            ("chord", 0.0, 5.0, "C"),
+            ("chord", 5.0, 10.0, "G7/B"),
+            ("chord", 10.0, 60.0, "Gm"),
         ]
         chords = {r[0]: r[1:] for r in self.rows.chords}
         assert chords[five[0]][:7] == (4, 0, "dominant-seventh", 1, 0, None, c_major[0])
@@ -433,17 +433,18 @@ def test_an_unindexed_timelines_fields_are_not_stored():
 
 
 def test_chords_at_one_time_are_spanned_in_lane_order_not_file_order():
-    # the file lists vii° before I at 0; by label, I comes first, so I ends
-    # where it starts and vii° lasts until the next chord (lanes.lane_order)
+    # the file lists Bdim before C at 0, and by label (the symbol, sheet I6)
+    # Bdim comes first too; the file is given C first here, so Bdim ends where
+    # it starts and C lasts until the next chord (lanes.lane_order)
     tl = corpus_docs.harmony(
         [[0, "C", "major"]],
-        [[0, "B", "diminished"], [0, "C", "major"], [4, "G", "major"]],
+        [[0, "C", "major"], [0, "B", "diminished"], [4, "G", "major"]],
         tid="h",
         ordinal=1,
     )
     rows = rows_of(corpus_docs.document(tl, media_length=8.0))
     spans = {r[7]: (r[5], r[6]) for r in rows.components if r[4] == "chord"}
-    assert spans == {"I": (0.0, 0.0), "vii°": (0.0, 4.0), "V": (4.0, 8.0)}
+    assert spans == {"Bdim": (0.0, 0.0), "C": (0.0, 4.0), "G": (4.0, 8.0)}
 
 
 def test_a_subtype_has_its_supertype_under_a_grammar_with_subtypes():
