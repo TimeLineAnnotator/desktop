@@ -260,6 +260,17 @@ class CorpusHandles:
             self._on_open(cid, corpus, handle)
         return corpus, handle
 
+    def opened(self) -> list[tuple[str, Corpus, object]]:
+        """The corpora opened so far, with their handles; opens nothing."""
+        with self._lock:
+            handles = list(self._handles.items())
+        found = []
+        for cid, handle in handles:
+            corpus = self._corpora.get(cid)
+            if corpus is not None:
+                found.append((cid, corpus, handle))
+        return found
+
     def drop(self, cid: str) -> None:
         """Forget the corpus's handle; the next ``get`` opens it again."""
         with self._lock:

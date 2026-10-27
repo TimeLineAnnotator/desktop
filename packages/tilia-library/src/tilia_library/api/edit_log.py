@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
@@ -23,8 +24,10 @@ def register(
     handles: CorpusHandles,
     liveness: Liveness,
     skip_files: Callable[[str], set[Path]] = lambda cid: set(),
+    on_written: Callable[[str, list[str], str], None] | None = None,
 ) -> None:
     """Add the edit log routes to the server."""
+    undo_lock = threading.Lock()  # one undo at a time, so an entry is undone once
 
     def handle_of(request: Request) -> object:
         try:
@@ -55,6 +58,10 @@ def register(
 
     def post_undo(request: Request) -> Response:
         handle = handle_of(request)
+        with undo_lock:
+            return undo_entry(request, handle)
+
+    def undo_entry(request: Request, handle: object) -> Response:
         cid = request.params["cid"]
         entry_id = request.params["entry"]
         found = [e for e in server.backend.edit_log(handle) if e["entry"] == entry_id]
@@ -67,6 +74,8 @@ def register(
         except KeyError:
             return error_response(404, "unknown edit")
         liveness.poke(cid)
+        if on_written is not None:
+            on_written(cid, list(result["restored"]), entry_id)
         mentioned = (
             result["restored"]
             + [r["file_id"] for r in result["refused"]]
