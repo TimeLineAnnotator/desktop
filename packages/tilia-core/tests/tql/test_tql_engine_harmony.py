@@ -163,6 +163,46 @@ class TestChordLiterals:
         assert len(run(HARMONY, "*[label = *] IN keys").matches) == 3
 
 
+class TestLabelConditions:
+    """A label condition on chords tests the symbol, the Roman numeral and the
+    custom text alike, whatever the chord's display_mode (Felipe, 2026-10-27)."""
+
+    def test_a_regular_expression_on_the_label_finds_symbol_and_numeral(self):
+        assert starts(HARMONY, "*[label ~ /^V7$/] IN harmony") == [1, 9, 17]
+        assert starts(HARMONY, "*[label ~ /^G7/] IN harmony") == [1, 3, 9]
+        assert starts(HARMONY, "* IN harmony WHERE label = /^V65$/") == [3]
+        assert starts(HARMONY, "* IN harmony WHERE label = /^G7\\/B$/") == [3]
+
+    def test_not_equal_holds_where_none_of_the_three_matches(self):
+        # Eb@16 and Eb@18 are I in E-flat major: their numeral matches
+        assert starts(HARMONY, "*[label != /^(I|C)$/] IN harmony") == [
+            1,
+            3,
+            6,
+            8,
+            9,
+            14,
+            17,
+        ]
+
+    def test_the_custom_text_is_a_label_too(self):
+        index = fixture_index.build_index(HARMONY)
+        index.connection().execute(
+            "UPDATE chords SET custom_text = 'dom' WHERE component_id LIKE '%c2'"
+        )
+        got = tql.run(index, "*[label ~ dom] IN harmony")
+        assert [c.start for m in got.matches for c in m.slots[0]] == [1]
+
+    def test_the_display_mode_plays_no_part(self):
+        index = fixture_index.build_index(HARMONY)
+        con = index.connection()
+        con.execute("UPDATE components SET label = 'shown' WHERE kind = 'chord'")
+        got = tql.run(index, "*[label ~ /^(V7|Bb7)$/] IN harmony")
+        assert [c.start for m in got.matches for c in m.slots[0]] == [1, 9, 17]
+        got = tql.run(index, "V7 IN harmony WHERE $1.label ~ /shown/")
+        assert got.matches == []
+
+
 class TestKeyLiterals:
     def test_lower_case_is_minor(self):
         assert starts(HARMONY, "c IN keys") == [8]

@@ -501,8 +501,11 @@ class Scope:
 
     # -- fields -------------------------------------------------------------- #
     def unit_value(self, name: str, comp: Component) -> Any:
-        """One field of a unit; None when its kind has none."""
+        """One field of a unit; None when its kind has none. A chord's
+        ``label`` is its symbol, Roman numeral and custom text alike (a list)."""
         if name == "label":
+            if comp.kind == "chord":
+                return self.facts.chord_labels(comp.id) or [comp.label]
             return comp.label
         if name in ("start", "time"):
             return comp.start
