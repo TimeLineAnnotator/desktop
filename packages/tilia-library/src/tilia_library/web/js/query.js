@@ -505,9 +505,12 @@ function onResultsDblClick(e) {
 /** Build the panel the first time it is shown. */
 export function loadQuery() {
   if (!section().querySelector("#ql-box")) buildShell();
-  if (!query.restored) {
+  // The text is remembered per corpus, so it is put back only once the corpus is
+  // known: the tab can be clicked while the page is still booting, and main.js
+  // shows the panel again when it has booted. Text typed meanwhile is kept.
+  if (!query.restored && CORPUS) {
     query.restored = true;
-    box().value = remembered();
+    if (!box().value) box().value = remembered();
     setMarks(null);
   }
 }
