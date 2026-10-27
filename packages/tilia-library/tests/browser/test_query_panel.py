@@ -151,6 +151,47 @@ def test_text_is_remembered_per_corpus(page):
     assert page.input_value("#ql-box") == "remember me"
 
 
+def open_query_while_booting(page):
+    """Reload, and open the Query tab before /api/library has answered.
+
+    Returns the held request; continuing it lets the page finish booting.
+    """
+    held = []
+    page.route("**/api/library", lambda route: held.append(route))
+    page.reload()
+    page.click('#tabs button[data-panel="query"]')
+    page.wait_for_selector("#ql-box")
+    for _ in range(500):
+        if held:
+            break
+        page.wait_for_timeout(10)
+    assert len(held) == 1
+    return held[0]
+
+
+def finish_booting(page, held):
+    held.continue_()
+    page.wait_for_function(
+        "() => document.getElementById('corpus-path').textContent !== ''"
+    )
+
+
+def test_text_is_remembered_when_query_is_opened_while_the_page_boots(page):
+    page.fill("#ql-box", "remember me")
+    held = open_query_while_booting(page)
+    assert page.input_value("#ql-box") == ""
+    finish_booting(page, held)
+    assert page.input_value("#ql-box") == "remember me"
+
+
+def test_text_typed_while_the_page_boots_is_kept(page):
+    page.fill("#ql-box", "remember me")
+    held = open_query_while_booting(page)
+    page.evaluate("() => { document.getElementById('ql-box').value = 'typed early'; }")
+    finish_booting(page, held)
+    assert page.input_value("#ql-box") == "typed early"
+
+
 def test_strips_are_redrawn_from_fresh_contexts_after_the_files_change(
     browser, tmp_path
 ):

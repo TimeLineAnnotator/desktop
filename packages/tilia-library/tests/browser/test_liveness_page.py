@@ -16,6 +16,12 @@ SERVE = Path(__file__).resolve().parents[1] / "support" / "serve_fixtures.py"
 RESCANNING = "Rescanning…"
 STATE = re.compile(r"/api/[^/?]+/state$")
 FILES = re.compile(r"/api/[^/?]+/files$")
+LATE_LIBRARY = """{
+    const fetch = window.fetch;
+    window.fetch = (url, opts) => url === "/api/library"
+        ? new Promise(done => setTimeout(done, 300)).then(() => fetch(url, opts))
+        : fetch(url, opts);
+}"""
 
 
 @contextlib.contextmanager
@@ -78,12 +84,17 @@ class Liveness:
         self.polls = 0
         # The test asks for every poll itself (see ``poll``), never a timer.
         page.add_init_script("window.setInterval = () => 0;")
+        # The library answers late, as it can on a slow machine, so the page is
+        # still booting, with no files panel yet, when the wait below starts.
+        page.add_init_script(LATE_LIBRARY)
         page.route(STATE, self._state)
         page.route(FILES, self._files)
         page.goto(url)
-        # The files panel notes its generation in the same step as it fills the count.
+        # The files panel notes its generation in the same step as it fills the count;
+        # the panel is built only once the library has answered.
         page.wait_for_function(
-            "() => document.getElementById('files-count').textContent !== ''"
+            "() => { const c = document.getElementById('files-count');"
+            " return c !== null && c.textContent !== ''; }"
         )
         self.poll()
 
