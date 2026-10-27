@@ -11,7 +11,9 @@ from tests.mock import Serve, patch_ask_for_int_dialog, patch_yes_or_no_dialog
 from tests.ui.timelines.beat.interact import (
     click_beat_ui,
     click_time_signature_label,
+    edit_bars_dialog_cell,
     hover_time_signature_label,
+    patch_bars_dialog,
     patch_beat_pattern_dialog,
     patch_beat_unit_dialog,
     patch_beat_unit_scope_prompt,
@@ -47,6 +49,11 @@ from tilia.ui.timelines.beat.time_signature import (
     LabelState,
 )
 from tilia.ui.windows import WindowKind
+from tilia.ui.windows.beat_pattern import (
+    BARS_COLUMN,
+    TAPS_COLUMN,
+    TIME_SIGNATURE_COLUMN,
+)
 
 
 def save_as_file_with_measure_lists(
@@ -394,12 +401,15 @@ class TestBeatPattern:
         seen = {}
 
         def record(dialog):
-            seen["preview"] = dialog.preview.footer.text()
+            seen["text"] = dialog.text
+            seen["footer"] = dialog.footer.text()
 
-        with patch_beat_pattern_dialog("4", on_exec=record):
+        with patch_bars_dialog(record):
             commands.execute("timeline.beat.set_pattern", tluis[0])
 
-        assert seen["preview"].endswith("5 beats tapped.")
+        assert seen["text"] == "2[3] 4"
+        assert seen["footer"].endswith("5 beats tapped, in 2 bars.")
+        assert tluis[0].timeline.beats_in_measure == [3, 2]
 
     def test_cancel_dialog_changes_nothing(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -457,22 +467,23 @@ class TestBeatPattern:
         assert timeline_ui.timeline.beat_pattern == "4 3"
         assert timeline_ui.timeline.beats_in_measure == [4, 3, 4, 1]
 
-    def test_dialog_preview_lists_bars_to_overwrite(self, tluis):
+    def test_dialog_highlights_bars_that_change(self, tluis):
         add_beat_timeline_with_pattern("4")
         add_beats(range(12))
         self._set_second_bar_to_three_beats(tluis[0])
         seen = {}
 
         def record(dialog):
-            seen["preview"] = dialog.preview.footer.text()
+            seen["rows"] = dialog.get_table_rows()
+            seen["highlighted"] = dialog.get_highlighted_rows()
 
         with patch_beat_pattern_dialog("4", on_exec=record):
-            with patch_yes_or_no_dialog(False):
-                commands.execute("timeline.beat.set_pattern", tluis[0])
+            commands.execute("timeline.beat.set_pattern", tluis[0])
 
-        assert seen["preview"].endswith(
-            "Bar 2 was set by hand and will be overwritten."
-        )
+        assert seen["rows"][0][0] == "1–3"
+        assert seen["highlighted"] == {0}
+        # What the dialog showed is applied, with no question asked.
+        assert tluis[0].timeline.beats_in_measure == [4, 4, 4]
 
     def test_context_menu_has_set_pattern(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -501,6 +512,118 @@ def time_signatures(timeline):
         (format_units([meter.numerator]), meter.denominator)
         for meter in timeline.measure_meters
     ]
+
+
+class TestEditBarsDialog:
+    @staticmethod
+    def edit_bars(timeline_ui, edit):
+        with patch_bars_dialog(edit):
+            commands.execute("timeline.beat.set_pattern", timeline_ui)
+
+    def test_a_bar_with_another_number_of_beats_has_a_row_of_its_own(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(12))
+        tluis[0].select_element(tluis[0][5])
+        commands.execute("timeline.component.delete")
+        seen = {}
+
+        def record(dialog):
+            seen["rows"] = dialog.get_table_rows()
+            seen["text"] = dialog.text
+
+        self.edit_bars(tluis[0], record)
+
+        assert seen["rows"] == [
+            ("1", "4/4", "1 1 1 1"),
+            ("2", "3/4", "1 1 1"),
+            ("3", "4/4", "1 1 1 1"),
+        ]
+        assert seen["text"] == "4/4 3/4 4/4"
+        # Pressing OK on what is shown changes nothing.
+        assert tluis[0].timeline.beats_in_measure == [4, 3, 4]
+
+    def test_correcting_a_bar_moves_the_later_bars(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(12))
+        # A tap too many in the first bar.
+        add_beats([0.5])
+        assert tluis[0].timeline.beats_in_measure == [5, 4, 4]
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(dialog, 0, TAPS_COLUMN, "1 1 1 1"),
+            )
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4, 4, 4, 1]
+        assert timeline.beat_pattern == "3[4/4]"
+
+    def test_changing_a_time_signature(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(12))
+
+        def edit(dialog):
+            edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1")
+            edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "6/8(3 3)")
+
+        with undoable():
+            self.edit_bars(tluis[0], edit)
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [2, 2, 2, 2, 2, 2]
+        assert time_signatures(timeline) == [("6", 8)] * 6
+
+    def test_numbering_a_repeat(self, tluis, tmp_path):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(24))
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(
+                    dialog, 0, BARS_COLUMN, "1-3, 1-3"
+                ),
+            )
+
+        assert tluis[0].timeline.measure_numbers == [1, 2, 3, 1, 2, 3]
+        save_and_reopen(tmp_path)
+        assert tluis[0].timeline.measure_numbers == [1, 2, 3, 1, 2, 3]
+
+    def test_rows_reflect_the_numbers(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(16))
+        tluis[0].timeline.set_measure_numbers([1, 2, 1, 2])
+        seen = {}
+
+        self.edit_bars(
+            tluis[0], lambda dialog: seen.update(rows=dialog.get_table_rows())
+        )
+
+        assert [row[0] for row in seen["rows"]] == ["1–2", "1–2"]
+        assert tluis[0].timeline.measure_numbers == [1, 2, 1, 2]
+
+    def test_bars_not_tapped_yet_are_listed(self, tluis):
+        add_beat_timeline_with_pattern("2[4/4] 3/4 2/4")
+        add_beats(range(5))
+        seen = {}
+
+        def record(dialog):
+            seen["tapped"] = [row.is_tapped for row in dialog.rows]
+            seen["text"] = dialog.text
+
+        self.edit_bars(tluis[0], record)
+
+        assert seen["tapped"] == [True, False, False]
+        assert seen["text"] == "2[4/4] 3/4 2/4"
+
+    def test_assumed_time_signatures_stay_assumed(self, tluis):
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(8))
+
+        self.edit_bars(tluis[0], lambda dialog: None)
+
+        assert all(m.is_assumed for m in tluis[0].timeline.measure_meters)
 
 
 class TestPatternWithTimeSignatures:
