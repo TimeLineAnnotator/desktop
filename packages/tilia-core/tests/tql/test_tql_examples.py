@@ -26,16 +26,31 @@ def _pending() -> dict[int, str]:
 PENDING = _pending()
 
 
-def _unit(component, marked: bool) -> str:
-    text = f"{component.label}@{component.start:g}"
+def _unit(index, component, marked: bool) -> str:
+    text = f"{_label(index, component)}@{component.start:g}"
     return f"[{text}]" if marked else text
 
 
-def _row(match: tql.Match, has_target: bool) -> str:
+def _label(index, component) -> str:
+    """The examples write a chord as TiLiA shows it with Roman numerals on, by
+    its Roman numeral. The index labels a chord by its symbol, TiLiA's default,
+    whatever its display_mode (Felipe, 2026-10-27), so the Roman numeral comes
+    from the chord's own field."""
+    if component.kind != "chord":
+        return component.label
+    (roman,) = (
+        index.connection()
+        .execute("SELECT roman FROM chords WHERE component_id = ?", (component.id,))
+        .fetchone()
+    )
+    return roman
+
+
+def _row(index, match: tql.Match, has_target: bool) -> str:
     steps = []
     for n, slot in enumerate(match.slots):
         units = [
-            _unit(c, has_target and match.is_target(n + 1, k))
+            _unit(index, c, has_target and match.is_target(n + 1, k))
             for k, c in enumerate(slot)
         ]
         if units:
@@ -43,11 +58,11 @@ def _row(match: tql.Match, has_target: bool) -> str:
     return " | ".join(steps)
 
 
-def _rows(result: tql.Result, has_target: bool) -> list[str]:
+def _rows(index, result: tql.Result, has_target: bool) -> list[str]:
     """A query of only WHERE lists timelines by name; the rest by their units."""
     if result.grain == "timeline":
         return [r["timeline"] for r in result.rows]
-    return [_row(m, has_target) for m in result.matches]
+    return [_row(index, m, has_target) for m in result.matches]
 
 
 def _params():
@@ -70,5 +85,5 @@ def test_example(example):
     index = fixture_index.build_index(DATA["fixtures"][example.fixture])
     result = tql.run(index, example.query)
     has_target = tql.parse(example.query).has_target
-    got = Counter(_rows(result, has_target))
+    got = Counter(_rows(index, result, has_target))
     assert got == Counter(example.rows)
