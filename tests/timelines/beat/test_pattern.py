@@ -1,11 +1,16 @@
+from fractions import Fraction as F
+
 import pytest
 
 from tilia.timelines.beat.pattern import (
     MAX_BARS,
+    MAX_BEATS_PER_BAR,
     MAX_DEPTH,
     MAX_DIGITS,
     BarRun,
     ParseStatus,
+    PlannedBar,
+    format_planned_bars,
     group_runs,
     parse,
 )
@@ -70,8 +75,8 @@ class TestInvalid:
             ("4 a", 2, "Unexpected 'a'."),
             ("4, 4", 1, "Unexpected ','."),
             ("-4", 0, "Unexpected '-'."),
-            ("0", 0, "Bar lengths must be at least 1."),
-            ("4 0", 2, "Bar lengths must be at least 1."),
+            ("0", 0, "Bars must have at least 1 beat."),
+            ("4 0", 2, "Bars must have at least 1 beat."),
             ("0[4]", 0, "Repeat count must be at least 1."),
             ("2[]", 1, "Empty group '[]'."),
             ("2[ ]", 1, "Empty group '[]'."),
@@ -144,3 +149,144 @@ class TestGroupRuns:
             BarRun(1, 1, 3),
             BarRun(2, 1, 4),
         ]
+
+
+def bar_values(text):
+    return [
+        (bar.beat_count, bar.denominator, bar.units, bar.assumed)
+        for bar in parse(text).planned_bars
+    ]
+
+
+class TestTimeSignatures:
+    @pytest.mark.parametrize(
+        "text, bars",
+        [
+            # A number of beats alone assumes quarter notes.
+            ("3", [(3, 4, (F(1),), True)]),
+            ("4/4", [(4, 4, (F(1),), False)]),
+            ("6/8", [(6, 8, (F(1),), False)]),
+            ("2/2", [(2, 2, (F(1),), False)]),
+            # An added numerator is tapped once per part.
+            ("2+3/8", [(2, 8, (F(2), F(3)), False)]),
+            ("3+3+2/8", [(3, 8, (F(3), F(3), F(2)), False)]),
+            # Taps say what each beat is worth.
+            ("6/8(3 3)", [(2, 8, (F(3),), False)]),
+            ("3/4(3)", [(1, 4, (F(3),), False)]),
+            ("4/4(3/2 3/2 1)", [(3, 4, (F(3, 2), F(3, 2), F(1)), False)]),
+            ("4/4(1 2 1)", [(3, 4, (F(1), F(2), F(1)), False)]),
+            ("4/4(2 2)", [(2, 4, (F(2),), False)]),
+            ("4/4(1+1+1+1)", [(4, 4, (F(1),), False)]),
+            ("8/8(1 2 1 2 2)", [(5, 8, (F(1), F(2), F(1), F(2), F(2)), False)]),
+            # A fractional numerator, with its taps.
+            (
+                "11/2/4(3/2 3/2 1 3/2)",
+                [(4, 4, (F(3, 2), F(3, 2), F(1), F(3, 2)), False)],
+            ),
+            # Spaces around the operators.
+            ("4 / 4", [(4, 4, (F(1),), False)]),
+            ("2 + 3 / 8 (2 3)", [(2, 8, (F(2), F(3)), False)]),
+        ],
+    )
+    def test_bars(self, text, bars):
+        result = parse(text)
+        assert result.is_complete, result.error
+        assert bar_values(text) == bars
+
+    def test_groups_of_time_signatures(self):
+        assert parse("4[4/4] 3/4 3[4/4]").bars == [4, 4, 4, 4, 3, 4, 4, 4]
+        assert [bar.numerator for bar in parse("2[4/4 3/4]").planned_bars] == [
+            4,
+            3,
+            4,
+            3,
+        ]
+
+    def test_values_and_numerator(self):
+        (bar,) = parse("4/4(3/2 3/2 1)").planned_bars
+        assert bar.values == [F(3, 2), F(3, 2), F(1)]
+        assert bar.numerator == 4
+        assert bar.units_text == "3/2+3/2+1"
+
+    @pytest.mark.parametrize(
+        "text, position",
+        [
+            ("4/", 2),
+            ("4/ ", 3),
+            ("2+", 2),
+            ("2+3", 3),
+            ("4/4(", 3),
+            ("4/4(1 1", 3),
+            ("2[4/", 4),
+        ],
+    )
+    def test_incomplete(self, text, position):
+        result = parse(text)
+        assert result.status == ParseStatus.INCOMPLETE
+        assert result.position == position
+
+    @pytest.mark.parametrize(
+        "text, message",
+        [
+            ("4/4(1 1 1)", "The taps add up to 3, not 4."),
+            ("6/8(3 2)", "The taps add up to 5, not 6."),
+            ("4/0", "Denominators go from 1 to 128."),
+            ("4/129", "Denominators go from 1 to 128."),
+            ("0/4", "Numerators must be greater than 0."),
+            ("3/2/4", "Give the taps of a fractional numerator."),
+            ("4/4()", "Empty taps '()'."),
+            ("4/4(1 0 3)", "Units must be greater than 0."),
+            ("4/4(a)", "'a' is not a whole number or fraction such as 1/2."),
+            ("4/a", "Unexpected 'a'."),
+            (
+                f"{MAX_BEATS_PER_BAR + 1}/4",
+                f"Bars can have at most {MAX_BEATS_PER_BAR} beats.",
+            ),
+            (
+                f"{MAX_BEATS_PER_BAR + 1}",
+                f"Bars can have at most {MAX_BEATS_PER_BAR} beats.",
+            ),
+        ],
+    )
+    def test_invalid(self, text, message):
+        result = parse(text)
+        assert result.status == ParseStatus.INVALID
+        assert result.error == message
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "4",
+            "4 4 3",
+            "4/4",
+            "4[4/4] 3/4 3[4/4]",
+            "6/8(3 3)",
+            "3/4(3)",
+            "2+3/8",
+            "4/4(3/2 3/2 1)",
+            "11/2/4(3/2 3/2 1 3/2)",
+            "2[4/4 3[3/4]]",
+            "12/8(3 3 3 3) 4 2/2",
+        ],
+    )
+    def test_formatting_reads_back_as_the_same_bars(self, text):
+        bars = parse(text).planned_bars
+        assert parse(format_planned_bars(bars)).planned_bars == bars
+
+    @pytest.mark.parametrize(
+        "text, formatted",
+        [
+            ("4 4 4 3", "3[4] 3"),
+            ("4/4 4/4 3/4", "2[4/4] 3/4"),
+            ("8/8(1 1 1 1 1 1 1 1)", "8/8"),
+            ("6/8(3 3)", "6/8(3 3)"),
+            ("8/8(3 3 2)", "3+3+2/8"),
+        ],
+    )
+    def test_formatting(self, text, formatted):
+        assert format_planned_bars(parse(text).planned_bars) == formatted
+
+    def test_planned_bar_from_values_finds_the_repeating_units(self):
+        bar = PlannedBar.from_values([F(1), F(2)] * 3, 8)
+        assert bar.units == (F(1), F(2))
+        assert bar.beat_count == 6

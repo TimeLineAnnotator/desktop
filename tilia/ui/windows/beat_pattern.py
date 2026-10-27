@@ -18,7 +18,7 @@ from tilia.requests import Get, get
 from tilia.timelines.beat.pattern import BarRun, ParseResult, group_runs, parse
 from tilia.ui.windows.pattern_preview import PatternPreview, PreviewContent
 
-_PATTERN_CHARACTERS = set("0123456789[]")
+_PATTERN_CHARACTERS = set("0123456789[]/+()")
 
 
 class BeatPatternValidator(QValidator):

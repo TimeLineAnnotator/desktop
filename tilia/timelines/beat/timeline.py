@@ -31,7 +31,7 @@ from tilia.timelines.beat.measures import (
     fit_legacy_lists,
     get_extension_from_beat_pattern,
 )
-from tilia.timelines.beat.pattern import parse
+from tilia.timelines.beat.pattern import PlannedBar, parse
 from tilia.timelines.beat.units import (
     DEFAULT_DENOMINATOR,
     DEFAULT_UNITS,
@@ -414,7 +414,7 @@ class BeatTimeline(Timeline):
 
     @property
     def beat_pattern(self) -> str:
-        """The pattern as the user wrote it, e.g. "10[4] 3"."""
+        """The pattern as the user wrote it, e.g. "10[4/4] 3/4"."""
         return self._beat_pattern
 
     @beat_pattern.setter
@@ -431,12 +431,29 @@ class BeatTimeline(Timeline):
             text = DEFAULT_BEAT_PATTERN
             result = parse(text)
         self._beat_pattern = text
-        self._beat_pattern_bars = result.bars
+        self._planned_bars = result.planned_bars
 
     @property
     def beat_pattern_bars(self) -> list[int]:
         """The bar lengths the pattern expands to."""
-        return self._beat_pattern_bars
+        return [bar.beat_count for bar in self._planned_bars]
+
+    @property
+    def planned_bars(self) -> list[PlannedBar]:
+        """The bars the pattern expands to."""
+        return self._planned_bars
+
+    @property
+    def plans_time_signatures(self) -> bool:
+        """
+        Whether the pattern gives time signatures, rather than only the number
+        of beats in each bar, as patterns from before time signatures did.
+        """
+        return any(not bar.assumed for bar in self._planned_bars)
+
+    def get_planned_bar(self, measure_index: int) -> PlannedBar:
+        """The bar the pattern plans for a measure, repeating from its start."""
+        return self._planned_bars[measure_index % len(self._planned_bars)]
 
     @property
     def default_height(self):
@@ -889,6 +906,7 @@ class BeatTimeline(Timeline):
         index = self.get_beat_index(beat)
         if len(self) == 1:
             self.set_component_data(beat.id, "is_first_in_measure", True)
+            self.lay_planned_beat_units(0)
         elif index == 0:
             old_first = self[1]
             number = (
@@ -905,9 +923,44 @@ class BeatTimeline(Timeline):
             measures = self.measures
             last_measure = measures.count - 1
             beats_before = measures.counts[last_measure] - 1
-            pattern = self.beat_pattern_bars
-            if beats_before >= pattern[last_measure % len(pattern)]:
+            if beats_before >= self.get_planned_bar(last_measure).beat_count:
                 self.set_component_data(beat.id, "is_first_in_measure", True)
+                self.lay_planned_beat_units(last_measure + 1)
+
+    def lay_planned_beat_units(self, from_measure: int) -> None:
+        """
+        Gives the measures from `from_measure` on the beat units the pattern
+        plans for them, replacing theirs: one on the first beat of each
+        measure whose planned time signature differs from the one before.
+        Does nothing when the pattern gives no time signatures.
+        """
+        measures = self.measures
+        if not self.plans_time_signatures or from_measure >= measures.count:
+            return
+
+        previous = None
+        if from_measure:
+            meter = self.get_measure_meter(from_measure - 1)
+            previous = (meter.denominator, meter.units, meter.is_assumed)
+
+        beats = self.components
+        with self.component_manager.bulk():
+            for beat_unit in self.beat_units:
+                beat_index = self.get_beat_index(self.get_component(beat_unit.beat_id))
+                if measures.measure_of_beat[beat_index] >= from_measure:
+                    self.component_manager.delete_component(beat_unit)
+
+            for measure_index in range(from_measure, measures.count):
+                bar = self.get_planned_bar(measure_index)
+                meter = (bar.denominator, bar.units, bar.assumed)
+                if meter != previous:
+                    self.put_beat_unit_on_beat(
+                        beats[measures.starts[measure_index]].id,
+                        bar.denominator,
+                        bar.units_text,
+                        assumed=bar.assumed,
+                    )
+                previous = meter
 
     def ensure_first_beat_starts_measure(self) -> None:
         if len(self) and not self[0].is_first_in_measure:
@@ -1250,8 +1303,9 @@ class BeatTimeline(Timeline):
     def set_beat_pattern(self, pattern: str) -> bool:
         """
         Sets the pattern and remeasures every beat from it, discarding bars
-        set by hand. Each measure keeps its number, display and beat unit by
-        position.
+        set by hand. Each measure keeps its number and display by position.
+        A pattern with time signatures gives every measure its beat unit; one
+        with only numbers of beats leaves each measure the beat unit it had.
         """
         _, success = self.set_data("beat_pattern", pattern)
         if not success:
@@ -1261,6 +1315,8 @@ class BeatTimeline(Timeline):
             self._remeasure(
                 get_extension_from_beat_pattern(self.beat_pattern_bars, len(self)), 0
             )
+            self.lay_planned_beat_units(0)
+            self.refresh_measures()
         return True
 
     def delete_components(self, components: list[TC]) -> None:
@@ -1308,6 +1364,7 @@ class BeatTimeline(Timeline):
                     ComponentKind.BEAT, time, is_first_in_measure=i in starts
                 )
                 post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, len(times))
+            self.lay_planned_beat_units(0)
 
         self.refresh_measures()
 
