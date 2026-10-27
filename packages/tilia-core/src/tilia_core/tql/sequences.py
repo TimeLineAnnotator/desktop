@@ -17,6 +17,15 @@ Item = tuple[Any, float, float]
 Run = tuple[int, int, list[int], "list[bool] | None"]
 
 
+def nullable(item: Unit | Group) -> bool:
+    """Whether ``item`` can match nothing: a group with an option whose every
+    step may take nothing (``(c*)``, ``(a? THEN (b?))``). A unit never can."""
+    return isinstance(item, Group) and any(
+        all(st.lo == 0 or nullable(st.item) for st in opt.steps)
+        for opt in item.options
+    )
+
+
 class Runs:
     """Matches a :class:`~tilia_core.tql.syntax.Seq` inside one contiguous block
     of items.
@@ -72,7 +81,11 @@ class Runs:
         if hit is not None:
             return hit
         lo, hi = step.lo, step.hi
-        result: set[int] = {pos} if lo == 0 else set()
+        # A group that can match nothing fills any missing repetition with an
+        # empty one, so its lower bound is as good as zero (tql.md §6.2: x*
+        # and x? count zero); the loop below still takes an item per round.
+        empty = lo == 0 or nullable(step.item)
+        result: set[int] = {pos} if empty else set()
         frontier, count = {pos}, 0
         reuse = hi is None and lo <= 1  # an unbounded step restarts from any end
         while frontier and (hi is None or count < hi):
@@ -83,7 +96,7 @@ class Runs:
                     nxt |= self.m_step[id(step), p]  # later starts come first
                     continue
                 nxt |= {e for e in self.ends_item(step.item, p) if e > p}
-            if count >= lo:
+            if count >= lo or empty:
                 fresh = nxt - result
                 result |= nxt
                 if hi is None:
@@ -152,7 +165,7 @@ class Runs:
                 return memo[p, k]
             out: list[int] | None = None
             if p == end:
-                out = [] if k >= st.lo else None
+                out = [] if k >= st.lo or nullable(item) else None
             elif st.hi is None or k < st.hi:
                 for q in sorted(
                     (e for e in self.ends_item(item, p) if p < e <= end),
