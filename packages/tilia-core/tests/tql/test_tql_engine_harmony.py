@@ -43,7 +43,19 @@ def run(fix, text):
 
 
 def labels(fix, text):
-    return [tuple(c.label for s in m.slots for c in s) for m in run(fix, text).matches]
+    """Each match's units by name: a chord by its Roman numeral, as the
+    prototype's checks print it (its label is its symbol), a key by its label."""
+    index = fixture_index.build_index(fix)
+    con = index.connection()
+
+    def name(c):
+        if c.kind != "chord":
+            return c.label
+        sql = "SELECT roman FROM chords WHERE component_id = ?"
+        return con.execute(sql, (c.id,)).fetchone()[0]
+
+    got = tql.run(index, text).matches
+    return [tuple(name(c) for s in m.slots for c in s) for m in got]
 
 
 def starts(fix, text):
