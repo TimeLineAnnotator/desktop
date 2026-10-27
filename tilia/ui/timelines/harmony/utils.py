@@ -1,3 +1,6 @@
+from functools import cache, lru_cache
+from typing import NamedTuple
+
 import music21
 
 from tilia.timelines.harmony.constants import (
@@ -7,6 +10,42 @@ from tilia.timelines.harmony.constants import (
     split_added_tone,
 )
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
+
+
+class _ScaleDegree(NamedTuple):
+    step: str
+    alter: float
+    pitch_class: int
+
+
+@cache
+def _scale_degrees(tonic: str, mode: str) -> tuple[_ScaleDegree, ...]:
+    """
+    The steps, alterations and pitch classes of a key's scale, by tonic name
+    and mode. music21 realizes `Key.pitches` anew on every read, which is most
+    of a label's cost, so they are kept here, as values no caller can change.
+    """
+    return tuple(
+        _ScaleDegree(p.step, p.alter, p.pitchClass)
+        for p in music21.key.Key(tonic, mode=mode).pitches
+    )
+
+
+@lru_cache(maxsize=256)
+def _chord_symbol(
+    figure: str, inversion: int | None = None
+) -> music21.harmony.ChordSymbol:
+    """
+    The chord symbol for a figure and inversion. Building one takes music21 a
+    few milliseconds, and labels build the same few over and over: a chord's
+    label in every key, or a label redrawn. The symbols are shared, so they are
+    only read, and only in this module.
+    """
+    return music21.harmony.ChordSymbol(figure, inversion=inversion)
+
+
+def _key_scale_degrees(key: music21.key.Key) -> tuple[_ScaleDegree, ...]:
+    return _scale_degrees(key.tonic.name, key.mode)
 
 
 def _handle_special_qualities(quality: str) -> str | None:
@@ -119,7 +158,7 @@ def _root_position_suffix(
     if applied_to or quality == "diminished-seventh":
         return prefix + str(number)
 
-    sym = music21.harmony.ChordSymbol(note_name + QUALITY_TO_ABBREVIATION[quality])
+    sym = _chord_symbol(note_name + QUALITY_TO_ABBREVIATION[quality])
     figures = _get_figures(sym, key, quality)
     idx = _figure_index_for_pitch(figures, sym.getChordStep(number), sym.bass())
     modifier = figures[idx][1] if idx is not None else None
@@ -203,8 +242,9 @@ def _raised_minor_tones(
     """
     if key.mode != "minor":
         return set()
-    natural = {p.step: p.alter for p in key.pitches[:7]}
-    sixth_and_seventh = {key.pitches[5].step, key.pitches[6].step}
+    key_pitches = _key_scale_degrees(key)
+    natural = {p.step: p.alter for p in key_pitches[:7]}
+    sixth_and_seventh = {key_pitches[5].step, key_pitches[6].step}
     tones = [sym.root(), sym.third, sym.fifth]
     if quality == "half-diminished-seventh":
         tones.append(sym.seventh)
@@ -230,7 +270,7 @@ def _get_figures(
     half-diminished seventh's seventh.
     """
     bass = sym.bass()
-    key_pitches = key.pitches
+    key_pitches = _key_scale_degrees(key)
     key_steps = [p.step for p in key_pitches]
     try:
         bass_idx = key_steps.index(bass.step)
@@ -327,12 +367,12 @@ def _compute_quality_suffix(
         if inversion > max_inv:
             return None
     abbrev = QUALITY_TO_ABBREVIATION[quality]
-    sym = music21.harmony.ChordSymbol(note_name + abbrev, inversion=inversion)
+    sym = _chord_symbol(note_name + abbrev, inversion)
     return _get_inv_prefix(quality) + _chord_fb(sym, key, quality)
 
 
 def _get_note_degree(key: music21.key.Key, note):
-    steps = [p.step for p in key.pitches]
+    steps = [p.step for p in _key_scale_degrees(key)]
     return (
         steps.index(note.step) + 1
     )  # +1 is needed because music21's degrees are 1-based
@@ -358,7 +398,7 @@ def _get_roman_numeral_accidental(
         return note.pitch.alter - (natural_alter + (1 if is_lower_case else 0))
 
     is_diatonic = (note.step, note.pitch.pitchClass) in (
-        (p.step, p.pitchClass) for p in key.pitches
+        (p.step, p.pitch_class) for p in _key_scale_degrees(key)
     )
     if is_diatonic:
         return 0
@@ -378,6 +418,32 @@ def to_roman_numeral(
     applied_to: int,
     inversion: int,
 ) -> str:
+    return _to_roman_numeral(
+        step, accidental, quality, key.tonic.name, key.mode, applied_to, inversion
+    )
+
+
+@cache
+def _key(tonic: str, mode: str) -> music21.key.Key:
+    """A key, shared, so only read, and only in this module."""
+    return music21.key.Key(tonic, mode=mode)
+
+
+@lru_cache(maxsize=4096)
+def _to_roman_numeral(
+    step: int,
+    accidental: int,
+    quality: str,
+    tonic: str,
+    mode: str,
+    applied_to: int,
+    inversion: int,
+) -> str:
+    """
+    A label depends on its key only through the key's tonic and mode, so labels
+    are kept by those: a timeline draws the same labels again on every redraw.
+    """
+    key = _key(tonic, mode)
     # A quality with an added tone is written as its base quality, then the tone.
     quality, added_tone = split_added_tone(quality)
     if result := _handle_special_qualities(quality):
