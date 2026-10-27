@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from . import stats
+from .showsql import SqlBlock, render
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,14 @@ class Match:
 class Result:
     """The matches of a query, as rows of the result table (tql.md §10).
 
+    ``sql_blocks`` are the statements the run executed, in order: each
+    :class:`~tilia_core.tql.showsql.SqlBlock` holds a comment naming the part
+    of the query it answers, and the statement with its values written in, or
+    None where Python takes over. ``sql`` shows them as text. Each statement
+    runs on its own through :func:`tilia_core.tql.sql`, which registers TiLiA's
+    SQL functions (:mod:`tilia_core.tql.sqlfuncs`); a plain SQLite client lacks
+    them.
+
     ``columns`` are the table's columns in order, which the query decides (its
     grain and how many numbered units a match has), so a result with no rows
     still has them."""
@@ -85,12 +94,22 @@ class Result:
     rows: list[dict[str, Any]]
     matches: list[Match]
     explain: str
-    sql: str
+    sql_blocks: list[SqlBlock]
     warnings: list[str]
     stopped: str | None
     generation: int
     columns: list[str] = field(default_factory=list)
     _index: Any = field(default=None, repr=False, compare=False)
+
+    @property
+    def sql(self) -> str:
+        """The blocks of ``sql_blocks`` as text: each a ``--`` comment line,
+        then its statement unless Python takes over there, with a blank line
+        between two blocks. The string is for reading only: a value may hold
+        a blank line too, so to take it apart split ``sql_blocks`` rather than
+        this text. The shown SQL may change, and nothing in it is promised
+        yet."""
+        return render(self.sql_blocks)
 
     def to_csv(self, path: str | Path) -> None:
         """Write the table of ``rows`` as CSV: a header of the columns, then a

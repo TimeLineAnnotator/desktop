@@ -11,47 +11,21 @@ never creates a table.
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Callable, Iterator
 
 from tilia_core import derived
 from tilia_core.labels import fold
 
 from . import compile as tql_compile
-from . import names, relations, sqlfuncs, syntax, values
+from . import names, relations, showsql, sqlfuncs, syntax, values
 from .explain import explain
 from .lanes import BAR_KIND
 from .result import Component, Match, Result
 from .sequences import find_runs, slots_of
+from .showsql import Recorder
 from .syntax import TQLError
 
 MODES = {None: "any", "STARTS_WITH": "start", "ENDS_WITH": "end", "CONSISTS_OF": "full"}
-
-
-def sql_literal(value: Any) -> str:
-    """``value`` written as an SQL literal."""
-    if value is None:
-        return "NULL"
-    if isinstance(value, (int, float)):
-        return repr(value)
-    return "'" + str(value).replace("'", "''") + "'"
-
-
-class _Log:
-    """Executes statements on a connection and remembers them, with their
-    parameters written in."""
-
-    def __init__(self, con: sqlite3.Connection) -> None:
-        self.con = con
-        self.statements: list[str] = []
-
-    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
-        parts = sql.split("?")
-        text = parts[0] + "".join(
-            sql_literal(p) + rest for p, rest in zip(params, parts[1:], strict=True)
-        )
-        self.statements.append(text.strip().rstrip(";") + ";")
-        return self.con.execute(sql, params).fetchall()
 
 
 def _sequence_matches(
@@ -98,7 +72,7 @@ def _sequence_matches(
             )
 
 
-def _timeline_row(log: _Log, m: Match, title: str | None) -> dict[str, Any]:
+def _timeline_row(log: Recorder, m: Match, title: str | None) -> dict[str, Any]:
     """A row of a query of only ``WHERE`` that lists timelines."""
     name, kind, role, author = log.execute(
         "SELECT name, kind, role, author FROM timelines WHERE id = ?",
@@ -115,7 +89,7 @@ def _timeline_row(log: _Log, m: Match, title: str | None) -> dict[str, Any]:
 
 
 def _file_row(
-    log: _Log, m: Match, title: str | None, file_fields: list[str]
+    log: Recorder, m: Match, title: str | None, file_fields: list[str]
 ) -> dict[str, Any]:
     """A row of a query of only ``WHERE`` that lists files: ``file``, ``title``
     and a column for each file field the query names (several values joined by
@@ -136,7 +110,7 @@ def _file_row(
     return row
 
 
-def _file_title(log: _Log, file_id: str) -> str | None:
+def _file_title(log: Recorder, file_id: str) -> str | None:
     rows = log.execute(
         "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
         "AND name = ?",
@@ -160,7 +134,7 @@ def run(
     pattern = query.pattern
     con = index.connection()
     sqlfuncs.register(con, index)
-    log = _Log(con)
+    log = Recorder(con)
     catalogue = names.read(log)
     names.check(catalogue, query)
     warn = _Warnings()
@@ -194,7 +168,7 @@ def run(
         rows=rows,
         matches=matches,
         explain=explain(query),
-        sql="\n\n".join(log.statements),
+        sql_blocks=log.blocks,
         warnings=warn.messages(),
         stopped=stopped,
         generation=index.generation,
@@ -276,7 +250,7 @@ def _unit_units(
             yield from _seq_units(rel.target, rel.lane or lane)
 
 
-def _harmony_warnings(log: _Log, query: syntax.Query) -> list[str]:
+def _harmony_warnings(log: Recorder, query: syntax.Query) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
     neither, in the chords and keys lanes they are looked for in, warn. Only
     a unit with a literal that is no chord or no key can warn, so the lanes
@@ -333,7 +307,7 @@ def _lanes_with_labels_and_more(
 
 def _pattern_matches(
     index: Any,
-    log: _Log,
+    log: Recorder,
     query: syntax.Query,
     pattern: syntax.SeqPattern | syntax.RelPattern,
     max_matches: int | None,
@@ -347,15 +321,17 @@ def _pattern_matches(
     found: dict[tuple[Any, ...], Match] = {}
     order: list[tuple[Any, ...]] = []
     stopped: str | None = None
+    labels = showsql.describe_units(query)
     any_lane = False
     for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
-        scope = relations.Scope(log, file_id, index.time_map(file_id))
+        scope = relations.Scope(log, file_id, index.time_map(file_id), labels)
         specs = scope.lanes(pattern.lane)
         if not specs:
             continue
         any_lane = True
         if isinstance(pattern, syntax.RelPattern):
-            found_here = relations.matches(scope, pattern, specs)
+            part = showsql.relation_part(query)
+            found_here = relations.matches(scope, pattern, specs, part)
         else:
             found_here = _sequence_matches(scope, pattern, specs, marked)
         for match in found_here:
@@ -378,6 +354,10 @@ def _pattern_matches(
                 order.append(key)
             elif (match.lane_level or 0) > (cur.lane_level or 0):
                 found[key] = match  # the highest reading of the same run
+        if not _is_join(pattern):
+            log.note(showsql.python_stage(query))
+        if query.where:
+            log.note(f"{showsql.where_text(query)}: tested in Python on each match.")
         warn.scope_lacks(scope, needs, file_id)
         if stopped:
             break
@@ -389,8 +369,23 @@ def _pattern_matches(
     return matches, stopped
 
 
+def _is_join(pattern: syntax.SeqPattern | syntax.RelPattern) -> bool:
+    """Whether SQL alone matches ``pattern``: a sentence-form timing relation,
+    one join."""
+    return (
+        isinstance(pattern, syntax.RelPattern)
+        and not pattern.relation.negate
+        and relations.joins(pattern.relation)
+        and not tql_compile.on_bars(pattern.lane)
+    )
+
+
 def _where_only(
-    index: Any, log: _Log, cat: names.Catalogue, query: syntax.Query, warn: _Warnings
+    index: Any,
+    log: Recorder,
+    cat: names.Catalogue,
+    query: syntax.Query,
+    warn: _Warnings,
 ) -> tuple[str, list[Match], list[str]]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
@@ -398,12 +393,20 @@ def _where_only(
     grain = names.where_grain(cat, query)
     harmony = names.asks_about_harmony(query)
     needs = names.time_needs(query)
+    log.note(
+        f"{showsql.where_text(query)}: tested in Python on each {'unit' if grain == 'match' else grain}."
+    )
     matches: list[Match] = []
-    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+    where = showsql.where_text(query)
+    files_part = f"{where}: the files" if grain == "file" else None
+    for (file_id,) in log.execute("SELECT id FROM files ORDER BY id", part=files_part):
         scope = relations.Scope(log, file_id, index.time_map(file_id))
         timelines = log.execute(
             "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
             (file_id,),
+            part=f"{where}: the timelines of {file_id}"
+            if grain == "timeline"
+            else None,
         )
         if grain == "file":
             ok, caps = scope.where_ok(query.where, values.Subject([], None))
@@ -445,7 +448,7 @@ ROLE_HINTS = {
 }
 
 
-def _no_lane(log: _Log, lane: syntax.Lane, warnings: list[str]) -> None:
+def _no_lane(log: Recorder, lane: syntax.Lane, warnings: list[str]) -> None:
     """No file of the corpus has a lane ``lane`` names. A role or kind no
     timeline has is a warning (a role: with the kind to try instead; in a
     corpus with no roles at all, that it has none); a word that is neither, nor
@@ -519,7 +522,7 @@ def _extent(m: Match) -> tuple[float, float]:
     return min(x[1] for x in t), max(x[2] for x in t)
 
 
-def _position(log: _Log, comp: Component | None) -> tuple[Any, Any]:
+def _position(log: Recorder, comp: Component | None) -> tuple[Any, Any]:
     if comp is None:
         return None, None
     # not logged: one lookup per target and per step would grow the shown
@@ -557,7 +560,7 @@ def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[st
     ]
 
 
-def _chord_names(log: _Log, comps: list[Component]) -> dict[str, str | None]:
+def _chord_names(log: Recorder, comps: list[Component]) -> dict[str, str | None]:
     """The ``symbol`` and ``roman`` columns: a chord result's symbols and Roman
     numerals, joined as its labels are; None for a result without chords. The
     ``label`` of a chord is its symbol, whatever its ``display_mode``: which of
@@ -587,7 +590,7 @@ def _lane_column(m: Match) -> str | None:
 
 
 def _row(
-    log: _Log, m: Match, names: dict[str, str], title: str | None
+    log: Recorder, m: Match, names: dict[str, str], title: str | None
 ) -> dict[str, Any]:
     targets = _targets(m)
     first = targets[0][0]

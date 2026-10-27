@@ -15,9 +15,16 @@ file's time map gives, and ``fields`` the user-set fields of files and others.
 its ``beats`` and its ``pass``, which pass through a repeat it belongs to: 1 for
 a bar played once or the first time, 2 the second time, and so on. A file
 without repeats has pass 1 throughout.
+
 ``categories`` holds each component's categories under its corpus's label
 grammar, each with the category it is a subtype of (``supertype``), which only
 a grammar with subtypes gives: with none, a dot is part of the label.
+
+``PRAGMA user_version`` is 1: the version of these names. They are a stand-in
+that WP12's index will own. They, the SQL that ``show SQL`` prints and the
+``tql_*`` functions of :mod:`tilia_core.tql.sqlfuncs` may change, and nothing
+in them is promised yet. Tests pin the names, and any change to a name that SQL
+can see raises the version, so that a change is deliberate.
 """
 
 import sqlite3
@@ -131,6 +138,8 @@ CREATE TABLE fields (
 CREATE INDEX components_by_timeline ON components (file_id, timeline_id, start);
 CREATE INDEX categories_by_category ON categories (category);
 CREATE INDEX categories_by_component ON categories (component_id);
+
+PRAGMA user_version = 1;
 """
 
 
