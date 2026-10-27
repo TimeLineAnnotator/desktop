@@ -22,7 +22,7 @@ EXAMPLES = DATA["examples"]
 
 def rows_of(index, example):
     result = tql.run(index, example.query)
-    return Counter(_rows(result, tql.parse(example.query).has_target))
+    return Counter(_rows(index, result, tql.parse(example.query).has_target))
 
 
 def own_indexes():
