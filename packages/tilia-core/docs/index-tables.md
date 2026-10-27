@@ -60,7 +60,7 @@ One row per unit a query can find: hierarchy units, markers, ranges, chords, key
 | `kind` | TEXT | `hierarchy`, `marker`, `range`, `chord`, `key` or `beat` | the file |
 | `start` | REAL | where it starts. A chord or a key starts at its time | the file |
 | `end` | REAL | where it ends. For a marker or a beat, its time again; a chord or a key lasts until the next one of its kind in the timeline, the last one until the end of the media. `end` is an SQL keyword: write it `"end"` | the file; computed for chords and keys |
-| `label` | TEXT | the unit's label. For a chord or a key, the text TiLiA shows for it; empty for a beat | the file; computed for chords and keys |
+| `label` | TEXT | the unit's label. For a chord, its symbol, such as `G7/B`, as TiLiA's default (letter) display shows it, whatever the chord's display mode; for a key, the text TiLiA shows for it; empty for a beat | the file; computed for chords and keys |
 | `color` | TEXT | its colour as `#rrggbb`, in lower case; empty without one | the file |
 | `comments` | TEXT | its comments; empty without any | the file |
 
