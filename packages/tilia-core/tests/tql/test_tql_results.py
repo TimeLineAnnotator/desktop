@@ -56,6 +56,25 @@ def test_columns_are_the_rows_keys():
             assert list(row) == result.columns, query
 
 
+def test_a_chord_row_carries_its_symbol_and_its_roman_numeral():
+    # Felipe, 2026-10-27: label is the symbol, TiLiA's default display; the row
+    # carries both, whatever each chord's display_mode
+    result = run("harmony", "V7 THEN I IN harmony")
+    got = [(r["label"], r["symbol"], r["roman"], r["$1.label"]) for r in result.rows]
+    assert got == [
+        ("G7 → C", "G7 → C", "V7 → I", "G7"),
+        ("G7/B → C", "G7/B → C", "V65 → I", "G7/B"),
+        ("G7 → C", "G7 → C", "V7 → I", "G7"),
+        ("Bb7 → Eb", "Bb7 → Eb", "V7 → I", "Bb7"),
+    ]
+    row = run("harmony", "@V65 THEN I IN harmony").rows[0]
+    assert (row["label"], row["symbol"], row["roman"]) == ("G7/B", "G7/B", "V65")
+    row = run("pop", "chorus IN form").rows[0]
+    assert (row["symbol"], row["roman"]) == (None, None)
+    row = run("harmony", "Eb IN keys").rows[0]
+    assert (row["label"], row["symbol"], row["roman"]) == ("Eb", None, None)
+
+
 def test_an_empty_result_writes_the_header(tmp_path):
     path = tmp_path / "out.csv"
     full = run("pop", "verse THEN chorus IN form")
