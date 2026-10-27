@@ -14,7 +14,9 @@ from tilia.parsers.score.musicxml_to_svg import SVG_MAKER_PATH, musicxml_to_svg
 from tilia.requests import Get, get
 from tilia.ui import commands
 
-pytestmark = pytest.mark.draws_scores
+# The waits below allow the long timeout because under `pytest -n auto`, with
+# every worker busy, the web engine has gone up to 17 s without loading a page.
+pytestmark = [pytest.mark.draws_scores, pytest.mark.timeout(90)]
 
 # Stands in for svg_maker.html: keeps the text loadSVG gets, says so in its
 # title, and needs no network.
@@ -56,7 +58,7 @@ TITLES = {
 }
 
 
-def wait_until(condition, timeout: float = 5.0) -> bool:
+def wait_until(condition, timeout: float = 30.0) -> bool:
     deadline = time.monotonic() + timeout
     while not condition():
         if time.monotonic() > deadline:
