@@ -168,8 +168,9 @@ def plan_time_signatures(
     set records `source` ("score", "import", or "edit": "edited", unless the
     measure is tapped); when every measure of the table is set and records
     the same source, the timeline's `measure_source` changes instead, and the
-    marks lose their own. A measure whose unit, "assumed" flag and source are
-    already right gets no write.
+    marks lose their own, even where every measure already reads it through
+    its mark. A measure whose unit, "assumed" flag and source are already
+    right gets no write, unless that moves its mark's source to the timeline.
 
     `after` says what the measures after a run of set measures get: "carry",
     the new unit, so nothing more is written. Writes nothing to the document.
@@ -303,11 +304,12 @@ def _source_changes(
     """The change to the timeline's `measure_source`, if any, and the change
     to the source in each set measure's mark, by downbeat id."""
     targets = {row.id: _target(row, source) for row in rows if row.id in wanted}
-    if all(row.source == targets[row.id] for row in rows if row.id in targets):
-        return None, {}
-
     table_source = _measure_source(timeline)
-    # Every measure set, all from one source: the timeline records it (FR-071).
+    # Every measure set, all from one source: the timeline records it (FR-071),
+    # even when every measure already reads it through its own mark, so that
+    # the same table gives the same file however many plans built it
+    # (TimeLineAnnotator/project-management#340). So this comes before any
+    # measure is skipped.
     every = len(targets) == len(rows) and len(set(targets.values())) == 1
     measure_source = next(iter(targets.values())) if every else table_source
     changed = measure_source != table_source
