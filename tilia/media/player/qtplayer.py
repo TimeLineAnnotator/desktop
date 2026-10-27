@@ -118,6 +118,10 @@ class QtPlayer(Player):
         return stop()
 
     def _engine_unload_media(self):
+        if self.player.source().isEmpty():
+            # Nothing loaded, so nothing to stop: _engine_stop() would wait out
+            # its whole timeout for a StoppedState signal that never comes.
+            return
         self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
         self.player.setSource(QUrl())
 

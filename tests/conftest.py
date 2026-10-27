@@ -7,9 +7,11 @@ from typing import Literal
 
 import pytest
 from colorama import Fore, Style
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 import tilia.log as logging_module
+import tilia.parsers.score.musicxml as musicxml_module
 import tilia.settings as settings_module
 import tilia.utils  # noqa: F401
 from tests import SETTINGS_DIR
@@ -108,6 +110,9 @@ class TiliaState:
         self.media_path = ""
         self._reset_undo_manager()
         post(Post.REQUEST_CLEAR_UI)
+        # Deliver what this test left queued, so it can't reach the next one.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.MetaCall)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def _reset_undo_manager(self):
         self.app.reset_undo_manager()
@@ -213,6 +218,27 @@ def print_errors():
 @pytest.fixture()
 def resources() -> Path:
     return Path(__file__).parent / "resources"
+
+
+class _UndrawnScore:
+    def __init__(self, timeline_id):
+        pass
+
+    def to_svg(self, data):
+        pass
+
+
+@pytest.fixture(autouse=True)
+def no_score_drawing(request, monkeypatch):
+    """Leave imported scores undrawn, except in tests marked `draws_scores`.
+
+    Drawing starts a web engine that loads OSMD from its CDN and finishes long
+    after the test that imported the score: it competes for the CPU with the
+    other workers and sets the svg data of whatever timeline has that id then.
+    """
+    if request.node.get_closest_marker("draws_scores"):
+        return
+    monkeypatch.setattr(musicxml_module, "musicxml_to_svg", _UndrawnScore)
 
 
 def pytest_unconfigure(config):

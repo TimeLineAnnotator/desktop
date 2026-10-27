@@ -140,3 +140,14 @@ class TestReplacePlayerWhilePlaying:
         assert uncaught == []
         assert tilia.player.MEDIA_TYPE == second
         assert not tilia.player.is_playing
+
+
+class TestClearWithoutMedia:
+    def test_does_not_wait_for_the_engine_to_stop(self, tilia):
+        # With nothing loaded the engine is already stopped, so it never
+        # reports stopping. Clearing used to wait the whole 200ms timeout for
+        # that report, which every test's teardown paid.
+        start = time.monotonic()
+        post(Post.APP_CLEAR)
+
+        assert time.monotonic() - start < 0.1
