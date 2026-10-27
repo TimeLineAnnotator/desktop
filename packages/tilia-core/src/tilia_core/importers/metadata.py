@@ -24,8 +24,9 @@ _LENGTH_IGNORED = "{} ignored: " + _MEDIA_LOADED
 # tla's reader's, with its limit. How deep json.loads reads depends on the
 # system and Python version.
 _TOO_DEEP = f"nested more than {MAX_DEPTH} levels deep"
-# A text, whose brackets don't count, or a bracket.
-_TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"|[\[\]{}]')
+# A text, whose brackets don't count, or a bracket. A text that never closes
+# runs to the end, so that it is read once, not again from each quote in it.
+_TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"?|[\[\]{}]')
 
 _MEDIA_LENGTH = "media length"
 # A number written as text, in ASCII, as WP3's migration reads an old file's
