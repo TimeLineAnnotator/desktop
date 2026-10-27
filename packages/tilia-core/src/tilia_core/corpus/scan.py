@@ -562,6 +562,28 @@ class Scanner:
                 found = [Found(path, native, info.st_size, info.st_mtime_ns)]
             return self._refresh(found, scope={path}, force=frozenset({path}))
 
+    def written(
+        self, path: str, native: Path, fingerprint: str | None = None
+    ) -> ScanReport:
+        """Record the core's own write of the file at ``path``: read it again
+        at once, as :meth:`reread` does, so the generation moves only if its
+        content changed. When ``fingerprint``, the one the writer wrote,
+        differs from the file's, the index keeps what is on disk, and says so
+        in the log (research R11)."""
+        with self.turn:
+            report = self.reread(path, native)
+            record = self.records.get(path)
+            on_disk = record.fingerprint if record is not None else None
+            if fingerprint is not None and on_disk != fingerprint:
+                LOG.warning(
+                    "%s on disk isn't what its writer wrote (fingerprint %s, not "
+                    "%s); the index keeps the file as it is on disk",
+                    native,
+                    on_disk,
+                    fingerprint,
+                )
+            return report
+
     def _scan(self) -> ScanReport:
         """One scan, under the change mutex."""
         self.last_scan = clock()
