@@ -19,12 +19,15 @@ import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from urllib.parse import parse_qs, unquote
 
 from tilia_core.library_link import PROTOCOL
 from tilia_library import security
 from tilia_library.backend import Backend, NotAvailable
+
+if TYPE_CHECKING:
+    from tilia_library.liveness import Liveness
 
 logger = logging.getLogger(__name__)
 
@@ -451,6 +454,8 @@ class LibraryServer:
         )
         self.library_version: str = library_version or _installed_version()
         self.router = Router()
+        # The rescan thread this server owns, if the API made one; stopped by stop().
+        self.liveness: Liveness | None = None
         self._lock = threading.Lock()
         self._serving = False
         self._closed = False
@@ -529,6 +534,8 @@ class LibraryServer:
         if serving:
             self._httpd.shutdown()
         self._httpd.server_close()
+        if self.liveness is not None:
+            self.liveness.stop()
 
     def __enter__(self) -> LibraryServer:
         self.start()

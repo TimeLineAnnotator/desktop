@@ -46,6 +46,8 @@ select, input[type=search] { cursor: auto; }
 #tabs button { border-bottom: none; border-radius: 4px 4px 0 0; background: #f0f0f0; }
 #tabs button.active { background: var(--bg); color: var(--accent); font-weight: 600; }
 
+.changed { padding: 4px 12px; background: #fff8c5; border-bottom: 1px solid var(--border); }
+
 main { flex: 1; overflow: auto; }
 .panel { padding: 8px 12px; }
 #how-to-add { padding: 16px 12px; }

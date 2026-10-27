@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tilia_library.corpora import Corpora, Corpus
+from tilia_library.corpora import Corpora, Corpus, CorpusHandles
+from tilia_library.liveness import Liveness
 from tilia_library.server import (
     ApiError,
     LibraryServer,
@@ -16,20 +17,29 @@ from tilia_library.server import (
 HOW_TO_ADD = "tilia library FOLDER"
 
 
-def _listing(corpus: Corpus) -> dict[str, object]:
+def _listing(corpus: Corpus, liveness: Liveness | None) -> dict[str, object]:
+    state = liveness.state(corpus.id) if liveness else None
     return {
         "id": corpus.id,
         "name": corpus.name,
         "path": str(corpus.path),
         "available": corpus.available,
-        "files": None,
-        "unreadable": None,
-        "unavailable": None,
+        "files": state["files"] if state else None,
+        "unreadable": state["unreadable"] if state else None,
+        "unavailable": state["unavailable"] if state else None,
     }
 
 
-def register(server: LibraryServer, corpora: Corpora) -> None:
-    """Add the library routes to the server, working on ``corpora``."""
+def register(
+    server: LibraryServer,
+    corpora: Corpora,
+    liveness: Liveness | None = None,
+    handles: CorpusHandles | None = None,
+) -> None:
+    """Add the library routes to the server, working on ``corpora``.
+
+    A removed corpus is also unwatched and its handle dropped, when given.
+    """
 
     def get_library(request: Request) -> Response:
         listed = corpora.all()
@@ -41,7 +51,7 @@ def register(server: LibraryServer, corpora: Corpora) -> None:
                 f"{corpora.set_aside_to.name}, starting with no corpora"
             )
         data: dict[str, object] = {
-            "corpora": [_listing(c) for c in listed],
+            "corpora": [_listing(c, liveness) for c in listed],
             "last_corpus": last.id if last else None,
         }
         if not listed:
@@ -63,8 +73,13 @@ def register(server: LibraryServer, corpora: Corpora) -> None:
         return json_response({"id": corpus.id})
 
     def delete_corpus(request: Request) -> Response:
-        if not corpora.remove(request.params["cid"]):
+        cid = request.params["cid"]
+        if not corpora.remove(cid):
             raise ApiError(404, "unknown corpus")
+        if liveness is not None:
+            liveness.unwatch(cid)
+        if handles is not None:
+            handles.drop(cid)
         return Response(204)
 
     server.router.add("GET", "/api/library", get_library)
