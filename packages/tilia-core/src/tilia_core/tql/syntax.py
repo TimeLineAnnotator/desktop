@@ -1,6 +1,6 @@
 """The TQL parser: query text in, one syntax tree out, or a :class:`TQLError`.
 
-This module is TQL 0.1.0's lexer, syntax tree and parser. It is **corpus-free**
+This module is TQL 0.1.1's lexer, syntax tree and parser. It is **corpus-free**
 (matching against timelines lives elsewhere), so the grammar can be tested
 without loading a file. The grammar, as implemented (``:=`` is "is", ``|``
 "or", ``[…]`` "optional", ``(…)*`` "repeated")::
@@ -63,7 +63,7 @@ Lexical rules:
 * Text in any script: words, strings and regular expressions are read in one
   Unicode normal form (NFC), and keywords are ASCII. Error offsets count the
   characters as typed.
-* Forms the prototype accepts and TQL 0.1.0 leaves out (``$n.first``,
+* Forms the prototype accepts and TQL 0.1.1 leaves out (``$n.first``,
   ``$n.last``, ``$-1``, ``1:30:00``, a value in milliseconds, a percentage with
   ``duration``) raise a :class:`TQLError` saying so.
 """
@@ -78,7 +78,11 @@ from typing import Any, Iterator, Union
 from tilia_core import colors
 from tilia_core.labels import nfc
 
-__all__ = ["TQLError", "parse", "format_error", "KEYWORDS", "Query"]
+__all__ = ["TQLError", "parse", "format_error", "KEYWORDS", "Query", "VERSION"]
+
+# The version of tql.md this parser reads: 0.1.1 since 2026-10-27, when the
+# changes the port made to what some queries do got a number of their own.
+VERSION = "0.1.1"
 
 
 class TQLError(ValueError):
@@ -178,8 +182,8 @@ class Tok:
 
 
 def _not_in_v01(form: str, pos: int, end: int) -> TQLError:
-    """The error for a form the prototype reads and TQL 0.1.0 leaves out."""
-    return TQLError(f"{form} is not part of TQL v0.1.0", pos, end)
+    """The error for a form the prototype reads and TQL 0.1 leaves out."""
+    return TQLError(f"{form} is not part of TQL v{VERSION}", pos, end)
 
 
 def _opens_operand(toks: list[Tok]) -> bool:
@@ -1210,7 +1214,7 @@ class _Parser:
         """A unit after a number or a range: ``8 bars``, ``7..9 beats``,
         ``30 s``. Seconds become plain numbers; bars and beats stay on the
         value, for ``duration`` to be measured on the beat timeline. Values in
-        milliseconds are not part of TQL v0.1.0."""
+        milliseconds are not part of TQL 0.1."""
         u = self.peek()
         if (
             v.kind in ("number", "range")
@@ -1784,7 +1788,7 @@ _HMS_RE = re.compile(r"^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$", re.ASCII)
 
 def _refuse_hms_and_ms(text: str, pos: int, ms: bool = True) -> None:
     """Raise for ``text`` written as hours:minutes:seconds or, when ``ms`` is
-    true, in milliseconds: TQL v0.1.0 has neither as a value. Raise too for a
+    true, in milliseconds: TQL 0.1 has neither as a value. Raise too for a
     ``m:ss`` time whose seconds are 60 or more (``1:75``), and for a number
     written with digits other than 0-9 (``١٢``, ``１２``)."""
     t = text.strip()
