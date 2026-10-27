@@ -256,6 +256,7 @@ class Facts:
         self._timelines: dict[str, dict[str, Any]] = {}
         self._file: dict[str, list[Any]] | None = None
         self._media_length: list[float | None] | None = None
+        self._chord_labels: dict[str, list[str]] | None = None
 
     def media_length(self) -> float | None:
         """The length of the file's media in seconds; None without one."""
@@ -271,6 +272,22 @@ class Facts:
         if self._units is None:
             self._units = self._load_units()
         return self._units.get(comp_id, {})
+
+    def chord_labels(self, comp_id: str) -> list[str]:
+        """What a chord's ``label`` is in a condition: its symbol, its Roman
+        numeral and its custom text alike, those it has, each once. Its
+        ``display_mode`` plays no part (Felipe, 2026-10-27)."""
+        if self._chord_labels is None:
+            rows = self.log.execute(
+                "SELECT ch.component_id, ch.symbol, ch.roman, ch.custom_text "
+                "FROM chords ch JOIN components c ON c.id = ch.component_id "
+                "WHERE c.file_id = ?",
+                (self.file_id,),
+            )
+            self._chord_labels = {
+                r[0]: list(dict.fromkeys(t for t in r[1:] if t)) for r in rows
+            }
+        return self._chord_labels.get(comp_id, [])
 
     def _load_units(self) -> dict[str, dict[str, Any]]:
         rows = self.log.execute(
