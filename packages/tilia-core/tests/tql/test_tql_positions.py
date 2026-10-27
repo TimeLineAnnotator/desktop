@@ -674,21 +674,46 @@ class TestOffTheMap:
         assert units(self.OFF, "n[NOT SAME START m WITHIN 1 beat] IN notes") == []
         query = "e IN form NOT STARTS WITH g IN inner WITHIN 1 beat"
         assert units(self.OFF, query) == []
-        assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 bars] IN form") == ["a@28"]
+        # a@28 lies on the map, but its every target off it (sheet I3)
+        assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 bars] IN form") == []
         assert units(
             self.OFF, "* IN form WHERE NOT SAME START g IN inner WITHIN 1 beat"
-        ) == ["a@28"]
+        ) == []
         # the SQL path agrees
         query = "* IN notes NOT SAME START m IN notes WITHIN 1 beat"
         assert units(self.OFF, query) == []
         assert units(
             self.OFF, "*[NOT SAME START g IN inner WITHIN 1 beat] IN form"
-        ) == ["a@28"]
+        ) == []
         # in seconds, the map is not read
         assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 s] IN form") == [
             "b@40",
             "e@40",
         ]
+
+    def test_not_holds_where_some_target_lies_on_the_map_or_none_is_there(self):
+        # sheet I3: only a unit whose every target lies off the map is unknown
+        fix = fixture(
+            hierarchy("Form (Z)", [["a", 1, 28, 31], ["b", 1, 40, 41]]),
+            hierarchy("Inner", [["g", 1, 40, 44], ["h", 1, 10, 12]]),
+            beats(8),
+            length=60,
+        )
+        for query in (
+            "a[NOT SAME START * IN inner WITHIN 1 beat] IN form",  # SQL
+            "a IN form NOT SAME START * IN inner WITHIN 1 beat",
+            "a IN form WHERE NOT SAME START * IN inner WITHIN 1 beat",  # Python
+            "a[NOT SAME START zzz IN inner WITHIN 1 beat] IN form",
+            "a IN form WHERE NOT SAME START zzz IN inner WITHIN 1 beat",
+        ):
+            assert units(fix, query) == ["a@28"], query
+        for query in (
+            "a[NOT SAME START g IN inner WITHIN 1 beat] IN form",
+            "a IN form WHERE NOT SAME START g IN inner WITHIN 1 beat",
+            "a[NOT AFTER b WITHIN 20 bars] IN form",
+            "a[NOT BEFORE b IN form WITHIN 20 bars] IN form",
+        ):
+            assert units(fix, query) == [], query
 
     def test_not_before_holds_of_no_unit_ending_off_the_map(self):
         # c starts on the map (it ends at 32 s) and ends off it, where BEFORE's
