@@ -560,7 +560,7 @@ def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[st
     ]
 
 
-def _chord_names(log: _Log, comps: list[Component]) -> dict[str, str | None]:
+def _chord_names(log: Recorder, comps: list[Component]) -> dict[str, str | None]:
     """The ``symbol`` and ``roman`` columns: a chord result's symbols and Roman
     numerals, joined as its labels are; None for a result without chords. The
     ``label`` of a chord is its symbol, whatever its ``display_mode``: which of
