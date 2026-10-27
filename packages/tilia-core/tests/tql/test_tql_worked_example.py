@@ -13,7 +13,7 @@ DATA = examples.load()
 ROWS = [e for e in DATA["examples"] if e.plan.startswith("§4.2 table")]
 
 # rows that need a later part of the language
-LATER = {7: "[parent = ST] compares a field inside brackets"}
+LATER: dict[int, str] = {}
 
 
 def _unit(component, marked):

@@ -172,10 +172,11 @@ class TestTimingRelations:
         assert not rows(SPANS, "* IN Marks SAME * IN Marks")
 
     def test_a_lane_that_resolves_to_nothing_finds_nothing(self):
-        assert not rows(SPANS, "* IN form DURING * IN nothing")
-        assert not rows(SPANS, "*[DURING * IN nothing] IN form")
-        assert lefts(SPANS, "* IN form NOT DURING * IN nothing") == ALL
-        assert lefts(SPANS, "*[NOT DURING * IN nothing] IN form") == ALL
+        # a role no timeline has: the lane exists in the language, and is empty
+        assert not rows(SPANS, "* IN form DURING * IN cadences")
+        assert not rows(SPANS, "*[DURING * IN cadences] IN form")
+        assert lefts(SPANS, "* IN form NOT DURING * IN cadences") == ALL
+        assert lefts(SPANS, "*[NOT DURING * IN cadences] IN form") == ALL
 
 
 class TestPoints:
@@ -736,7 +737,3 @@ class TestLabelsAndMatches:
             "C@0",
             "G@6",
         ]
-
-    def test_field_comparisons_in_brackets_are_for_later(self):
-        with pytest.raises(NotImplementedError, match="conditions"):
-            run(SPANS, "*[level = 1] IN form")
