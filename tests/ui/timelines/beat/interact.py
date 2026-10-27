@@ -3,7 +3,14 @@ from unittest.mock import patch
 
 from PySide6.QtCore import QEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QDialog, QGraphicsSceneHoverEvent, QMessageBox
+from PySide6.QtWidgets import (
+    QAbstractItemDelegate,
+    QApplication,
+    QDialog,
+    QGraphicsSceneHoverEvent,
+    QLineEdit,
+    QMessageBox,
+)
 
 from tests.ui.timelines.interact import click_timeline_ui_view
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -44,6 +51,40 @@ def patch_beat_pattern_dialog(typed: str | None, on_exec=None):
         return dialog.result()
 
     return patch.object(BeatPatternDialog, "exec", new=exec_)
+
+
+def patch_bars_dialog(on_exec):
+    """
+    Makes the bars and time signatures dialog run `on_exec(dialog)`, which
+    edits it as a user would, then press OK.
+    """
+
+    def exec_(dialog):
+        on_exec(dialog)
+        dialog.ok_button.click()
+        return dialog.result()
+
+    return patch.object(BeatPatternDialog, "exec", new=exec_)
+
+
+def edit_bars_dialog_cell(dialog, row: int, column: int, text: str) -> None:
+    """
+    Edits a cell of the bars and time signatures dialog's table as a user
+    would: opens its editor, types `text` over what is there and commits it.
+    The editor's Enter key doesn't reach the table in offscreen tests, so the
+    commit is made as the table makes it on Enter.
+    """
+    table = dialog.table
+    table.setCurrentCell(row, column)
+    table.editItem(table.item(row, column))
+    editor = table.findChild(QLineEdit)
+    editor.selectAll()
+    QTest.keyClicks(editor, text)
+    table.commitData(editor)
+    table.closeEditor(editor, QAbstractItemDelegate.EndEditHint.NoHint)
+    # The closed editor is deleted later; deleting it now keeps the next
+    # edit from finding it.
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 def click_time_signature_label(

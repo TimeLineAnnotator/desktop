@@ -31,7 +31,7 @@ from tilia.timelines.beat.measures import (
     fit_legacy_lists,
     get_extension_from_beat_pattern,
 )
-from tilia.timelines.beat.pattern import PlannedBar, parse
+from tilia.timelines.beat.pattern import PlannedBar, format_planned_bars, parse
 from tilia.timelines.beat.units import (
     DEFAULT_DENOMINATOR,
     DEFAULT_UNITS,
@@ -454,6 +454,43 @@ class BeatTimeline(Timeline):
     def get_planned_bar(self, measure_index: int) -> PlannedBar:
         """The bar the pattern plans for a measure, repeating from its start."""
         return self._planned_bars[measure_index % len(self._planned_bars)]
+
+    def get_measures_as_planned_bars(self) -> list[PlannedBar]:
+        """
+        Each measure as a bar of a pattern: its beats, with the values its
+        beat unit gives them. The last measure, while it has only the first
+        of the beats the pattern plans for it, is the planned bar.
+        """
+        bars = []
+        for measure_index, meter in enumerate(self.measure_meters):
+            values = list(meter.beat_values)
+            bar = PlannedBar.from_values(values, meter.denominator, meter.is_assumed)
+            planned = self.get_planned_bar(measure_index)
+            if (
+                measure_index == self.measure_count - 1
+                and len(values) < planned.beat_count
+                and planned.denominator == meter.denominator
+                and planned.values[: len(values)] == values
+            ):
+                bar = planned
+            bars.append(bar)
+        return bars
+
+    def get_bars_to_edit(self) -> tuple[str, list[PlannedBar]]:
+        """
+        The pattern and the bars to edit it from: the measures as they are,
+        then the bars the pattern plans after them, up to its end. The
+        pattern is the timeline's when the measures follow it, or else one
+        written from the bars.
+        """
+        measures = self.get_measures_as_planned_bars()
+        follow_pattern = all(
+            bar == self.get_planned_bar(index) for index, bar in enumerate(measures)
+        )
+        bars = measures + self._planned_bars[len(measures) :]
+        if follow_pattern:
+            return self.beat_pattern, bars
+        return format_planned_bars(bars), bars
 
     @property
     def default_height(self):
@@ -944,23 +981,34 @@ class BeatTimeline(Timeline):
             previous = (meter.denominator, meter.units, meter.is_assumed)
 
         beats = self.components
+        planned: dict[int | str, tuple[int, str, bool]] = {}
+        for measure_index in range(from_measure, measures.count):
+            bar = self.get_planned_bar(measure_index)
+            meter = (bar.denominator, bar.units, bar.assumed)
+            if meter != previous:
+                beat_id = beats[measures.starts[measure_index]].id
+                planned[beat_id] = (bar.denominator, bar.units_text, bar.assumed)
+            previous = meter
+
+        # Beat units already as planned are left in place, so the change
+        # touches only what it changes.
         with self.component_manager.bulk():
             for beat_unit in self.beat_units:
                 beat_index = self.get_beat_index(self.get_component(beat_unit.beat_id))
-                if measures.measure_of_beat[beat_index] >= from_measure:
+                if (
+                    measures.measure_of_beat[beat_index] >= from_measure
+                    and beat_unit.beat_id not in planned
+                ):
                     self.component_manager.delete_component(beat_unit)
 
-            for measure_index in range(from_measure, measures.count):
-                bar = self.get_planned_bar(measure_index)
-                meter = (bar.denominator, bar.units, bar.assumed)
-                if meter != previous:
-                    self.put_beat_unit_on_beat(
-                        beats[measures.starts[measure_index]].id,
-                        bar.denominator,
-                        bar.units_text,
-                        assumed=bar.assumed,
-                    )
-                previous = meter
+            for beat_id, (denominator, units, assumed) in planned.items():
+                beat_unit = self.get_beat_unit_on_beat(beat_id)
+                if beat_unit is None or (
+                    beat_unit.denominator,
+                    beat_unit.units,
+                    beat_unit.assumed,
+                ) != (denominator, units, assumed):
+                    self.put_beat_unit_on_beat(beat_id, denominator, units, assumed)
 
     def ensure_first_beat_starts_measure(self) -> None:
         if len(self) and not self[0].is_first_in_measure:
@@ -1230,12 +1278,17 @@ class BeatTimeline(Timeline):
         ]
 
         with self.component_manager.bulk():
-            # Beat units are recreated on the measures' new first beats, as
-            # moving them one by one could land one on a beat that still
-            # holds another.
-            beat_unit_values = []
-            for _, _, beat_unit in kept_data:
+            # Beat units that move are recreated on their measures' new first
+            # beats, as moving them one by one could land one on a beat that
+            # still holds another. Those that stay are left in place.
+            beat_unit_values: list[tuple[int, str, bool] | None] = []
+            for index, (_, _, beat_unit) in enumerate(kept_data):
+                new_start = new_starts[index] if index < len(new_starts) else None
+                old_first = old_first_beats[index]
                 if beat_unit is None:
+                    beat_unit_values.append(None)
+                    continue
+                if new_start is not None and beats[new_start] is old_first:
                     beat_unit_values.append(None)
                     continue
                 beat_unit_values.append(

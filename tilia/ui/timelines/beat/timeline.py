@@ -126,7 +126,9 @@ class BeatTimelineUI(TimelineUI):
         )
 
         commands.register(
-            "timeline.beat.set_pattern", cls.on_set_pattern, text="Set beat pattern"
+            "timeline.beat.set_pattern",
+            cls.on_set_pattern,
+            text="Edit bars and time signatures",
         )
 
         cls.register_timeline_command(
@@ -463,35 +465,50 @@ class BeatTimelineUI(TimelineUI):
     @staticmethod
     @command_callback
     def on_set_pattern(
-        timeline_ui: "BeatTimelineUI", pattern: str | None = None
+        timeline_ui: "BeatTimelineUI",
+        pattern: str | None = None,
+        numbers: list[int] | None = None,
     ) -> bool:
+        """
+        Remeasures the beats from a pattern of time signatures and numbers
+        the measures. Without a pattern, asks for both in a dialog that shows
+        the bars as they are and what changes; with one, asks before
+        overwriting bars set by hand.
+        """
         timeline = timeline_ui.timeline
         if pattern is None:
-            accepted, pattern = get(
-                Get.FROM_USER_BEAT_PATTERN,
-                timeline.beat_pattern,
+            text, _ = timeline.get_bars_to_edit()
+            accepted, edit = get(
+                Get.FROM_USER_BARS,
+                text,
                 len(timeline),
-                timeline.get_bars_overwritten_by,
+                timeline.get_measures_as_planned_bars(),
+                timeline.measure_numbers,
             )
             if not accepted:
                 return False
+            pattern, numbers = edit.pattern, edit.numbers
+        else:
+            result = parse(pattern)
+            if not result.is_complete:
+                tilia.errors.display(tilia.errors.INVALID_BEAT_PATTERN, result.error)
+                return False
 
-        result = parse(pattern)
-        if not result.is_complete:
-            tilia.errors.display(tilia.errors.INVALID_BEAT_PATTERN, result.error)
+            overwritten = timeline.get_bars_overwritten_by(result.bars)
+            if overwritten and not get(
+                Get.FROM_USER_YES_OR_NO,
+                BEAT_PATTERN_OVERWRITE_TITLE,
+                BEAT_PATTERN_OVERWRITE_PROMPT.format(
+                    ", ".join(str(i + 1) for i in overwritten)
+                ),
+            ):
+                return False
+
+        if not timeline.set_beat_pattern(pattern):
             return False
-
-        overwritten = timeline.get_bars_overwritten_by(result.bars)
-        if overwritten and not get(
-            Get.FROM_USER_YES_OR_NO,
-            BEAT_PATTERN_OVERWRITE_TITLE,
-            BEAT_PATTERN_OVERWRITE_PROMPT.format(
-                ", ".join(str(i + 1) for i in overwritten)
-            ),
-        ):
-            return False
-
-        return timeline.set_beat_pattern(pattern)
+        if numbers is not None:
+            timeline.set_measure_numbers(numbers)
+        return True
 
     def on_add(self, time: float | None = None):
         if time is None:

@@ -1,13 +1,25 @@
 VALIDATE_BOUNDED_INTEGER = "{0} must be a value between {1} and {2}."
-BEAT_PATTERN_DIALOG_TITLE = "Beat pattern"
+BEAT_PATTERN_DIALOG_TITLE = "Bars and time signatures"
 BEAT_PATTERN_DIALOG_PROMPT = (
-    "Beats per bar, separated by spaces. The pattern repeats after its last bar."
+    "Time signatures of the bars, separated by spaces. Tapping past the last"
+    " bar starts the list again. Double-click a cell below to change its bars."
 )
 BEAT_PATTERN_DIALOG_TOOLTIP = """Examples:
-  - '4' = 4 beats in every bar;
-  - '4 3 3' = a cycle of 4, then 3, then 3 beats per bar;
-  - '10[4] 3 15[4]' = 10 bars of 4, a bar of 3, then 15 bars of 4;
-  - '2[4 3[3]]' = 4 3 3 3 4 3 3 3."""
+  - '4/4' = 4/4 in every bar, tapped on each quarter note;
+  - '4[4/4] 3/4 3[4/4]' = 4 bars of 4/4, a bar of 3/4, then 3 bars of 4/4;
+  - '2[4/4 3[3/4]]' = 4/4 3/4 3/4 3/4 4/4 3/4 3/4 3/4;
+  - '6/8(3 3)' = 6/8 tapped in two, three eighth notes per tap;
+  - '4/4(3/2 3/2 1)' = 4/4 tapped as 3+3+2 eighth notes;
+  - '2+3/8' = 5/8 tapped as 2+3 eighth notes;
+  - '4' = 4 taps in every bar, of an assumed quarter note."""
+BEAT_PATTERN_TABLE_HEADERS = ["Bars", "Time signature", "Taps"]
+BEAT_PATTERN_TABLE_TOOLTIP = """Double-click a cell to change it:
+  - Bars: their numbers, e.g. '9', or '1-8, 1-8' for a repeat;
+  - Time signature: e.g. '3/4';
+  - Taps: what each tap is worth, in units of the denominator, e.g. '3/2 3/2 1'.
+Highlighted bars change when you press OK. Grey bars aren't tapped yet."""
+BEAT_PATTERN_SUMMARY = "{} bar{}, then the list starts again from bar 1."
+BEAT_PATTERN_TAPPED = "{} beat{} tapped, in {} bar{}."
 BEAT_PATTERN_OVERWRITE_TITLE = "Overwrite bars set by hand"
 BEAT_PATTERN_OVERWRITE_PROMPT = (
     "This pattern will overwrite bars set by hand (bars {})."
