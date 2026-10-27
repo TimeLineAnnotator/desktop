@@ -24,7 +24,7 @@ from typing import Any
 
 from . import schema
 from .documents import DocumentReader
-from .scan import ScanReport, Scanner
+from .scan import RESCAN_AFTER, ScanReport, Scanner
 from .settings import CorpusSettings, NoSettings
 from .store import Reading, Store
 from .time_map import TimeMap, TimeMapOf
@@ -156,8 +156,19 @@ class Corpus:
     @contextmanager
     def reading(self) -> Iterator[Reading]:
         """Hold the read side for the block, and give the read's connection,
-        generation, availability and time maps (contracts/index-reader.md)."""
+        generation, availability and time maps (contracts/index-reader.md).
+
+        A corpus opened with ``rescan_before_reads`` first rescans when its
+        last scan began more than 2 s ago (FR-024); readers that arrive while
+        that rescan runs wait for it, and share it. A read nested in another,
+        or on a thread that holds the change mutex, doesn't rescan."""
         me = threading.get_ident()
+        if (
+            self.rescan_before_reads
+            and not self._in_read()
+            and not self._scanner.turn.held_by_me()
+        ):
+            self._scanner.scan(older_than=RESCAN_AFTER)
         with self._store.reading() as read:
             with self._lock:
                 self._reads[me] = self._reads.get(me, 0) + 1
@@ -193,7 +204,45 @@ class Corpus:
         anything did. Concurrent calls share one scan. Raises
         ``RuntimeError`` inside a read on the same thread."""
         self._no_change_inside_a_read("a scan")
-        return self._scanner.scan()
+        report = self._scanner.scan()
+        assert report is not None
+        return report
+
+    def _member(self, path: str | os.PathLike) -> tuple[str, Path]:
+        """The relative path, in NFC, and the native path of ``path``, a file
+        of the corpus, relative to its folder or as given. Raises
+        ``ValueError`` for a path outside the folder, or one the walk would
+        leave out."""
+        given = Path(path)
+        native = (given if given.is_absolute() else self.path / given).resolve()
+        try:
+            parts = native.relative_to(self.path).parts
+        except ValueError:
+            raise ValueError(f"{path} is outside the corpus {self.path}") from None
+        rel = unicodedata.normalize("NFC", "/".join(parts))
+        reader = self._scanner.reader
+        name = parts[-1] if parts else ""
+        endings = tuple(e.lower() for e in reader.extensions)
+        if (
+            not parts
+            or any(part.startswith(".") for part in parts)
+            or not name.lower().endswith(endings)
+            or reader.is_temporary(name)
+            or not self._scanner.settings.includes(rel)
+            or native.is_dir()
+        ):
+            raise ValueError(f"{path} is not a file of the corpus {self.path}")
+        return rel, native
+
+    def reread(self, path: str | os.PathLike) -> ScanReport:
+        """Read one file at once, without scanning the rest: a TiLiA window
+        saved it (FR-020). A new file of the corpus is added, and a missing one
+        becomes unavailable. ``path`` is relative to the corpus folder, or as
+        given. Raises ``ValueError`` for a path outside the corpus, and
+        ``RuntimeError`` inside a read on the same thread."""
+        self._no_change_inside_a_read("a reread")
+        rel, native = self._member(path)
+        return self._scanner.reread(rel, native)
 
     # -- the files and their units ------------------------------------------- #
     def _file_rows(
