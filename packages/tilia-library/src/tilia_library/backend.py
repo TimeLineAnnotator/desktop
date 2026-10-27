@@ -57,9 +57,11 @@ Shapes returned:
   ``component_id`` is the id it will get (or null).
 - apply: {"written": [file ids], "skipped": [{"file_id", "reason"}], "entry":
   str (the edit log entry), "generation"}
-- edit_log: [{"entry", "statement", "at", "files", "undone"}]
-- undo: {"restored": [file ids], "refused": [{"file_id", "what_changed"}],
-  "skipped": [{"file_id", "reason"}], "generation"}
+- edit_log: the entries, newest first: [{"entry": str, "statement": str, "at":
+  str (ISO 8601), "files": [file ids], "undone": bool}]
+- undo(corpus, entry, skip_files): {"restored": [file ids], "refused":
+  [{"file_id", "what_changed"}], "skipped": [{"file_id", "reason"}],
+  "generation"}; raises KeyError for an unknown entry
 - media_of: {"kind": "local" | "youtube" | "none", "path": the absolute path of
   a local media file, or null, "youtube_id": str or null, "length": float or
   null, "reason": str or null}

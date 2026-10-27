@@ -1,0 +1,9 @@
+#edit-log-list { max-width: 60em; }
+.edit-entry { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.edit-statement { flex: 1 1 100%; font-family: monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.edit-at, .edit-files { color: var(--muted); font-size: 12px; }
+.edit-files { flex: 1; }
+.edit-undone { color: var(--muted); font-style: italic; }
+#edit-log-result { margin-bottom: 12px; }
+#edit-log-result ul { margin: 4px 0; padding-left: 20px; }
+.edit-refused { padding: 4px 12px; background: #fff8e1; border: 1px solid var(--border); border-left: 4px solid #e0a800; }

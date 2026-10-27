@@ -1,1 +1,4 @@
-{"restored": ["f1"], "refused": [], "skipped": [], "generation": 3}
+{"restored": ["f1"],
+ "refused": [{"file_id": "f4", "what_changed": "edited in TiLiA after this edit: 2 labels"}],
+ "skipped": [],
+ "generation": 3}
