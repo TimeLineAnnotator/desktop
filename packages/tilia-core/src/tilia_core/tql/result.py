@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Sequence
+
+from . import stats
 
 
 @dataclass(frozen=True)
@@ -71,7 +75,11 @@ class Match:
 
 @dataclass
 class Result:
-    """The matches of a query, as rows of the result table (tql.md §10)."""
+    """The matches of a query, as rows of the result table (tql.md §10).
+
+    ``columns`` are the table's columns in order, which the query decides (its
+    grain and how many numbered units a match has), so a result with no rows
+    still has them."""
 
     grain: str
     rows: list[dict[str, Any]]
@@ -81,3 +89,49 @@ class Result:
     warnings: list[str]
     stopped: str | None
     generation: int
+    columns: list[str] = field(default_factory=list)
+    _index: Any = field(default=None, repr=False, compare=False)
+
+    def to_csv(self, path: str | Path) -> None:
+        """Write the table of ``rows`` as CSV: a header of the columns, then a
+        line per row; UTF-8 in NFC, LF line endings, no byte-order mark. Times
+        are in seconds with three decimals, None is an empty field. A result
+        with no rows writes the header alone."""
+        columns = list(self.columns)
+        for row in self.rows:
+            columns.extend(c for c in row if c not in columns)
+        timed = [bool(_TIME_COLUMN.match(c)) for c in columns]
+        stats.write_csv(
+            path,
+            columns,
+            (
+                [
+                    _seconds(v) if t else v
+                    for v, t in zip((row.get(c) for c in columns), timed, strict=True)
+                ]
+                for row in self.rows
+            ),
+        )
+
+    def stats(
+        self,
+        name: str,
+        by: str | Sequence[str] | None = None,
+        *,
+        fold_subtypes: bool = False,
+    ) -> stats.Table:
+        """A statistics table of the targets: ``counts`` (``by`` one key or two),
+        ``durations`` and ``positions`` (one key), or ``transitions`` (none).
+        ``by`` is ``label`` unless given; see :mod:`tilia_core.tql.stats`.
+        ``fold_subtypes`` makes the ``category`` key of a subtype the category
+        its label grammar puts it under (``bridge.modern``: ``bridge``); with no
+        grammar a dot marks no subtype. Raises ``ValueError`` for an unknown
+        ``name`` or key."""
+        return stats.compute(self, name, by, fold_subtypes=fold_subtypes)
+
+
+_TIME_COLUMN = re.compile(r"(\$\d+\.)?(start|end)$")
+
+
+def _seconds(value: Any) -> Any:
+    return f"{value:.3f}" if isinstance(value, (int, float)) else value

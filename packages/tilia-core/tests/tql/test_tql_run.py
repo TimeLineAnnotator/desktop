@@ -537,6 +537,8 @@ class TestRows:
             "lane",
             "ids",
             "label",
+            "symbol",
+            "roman",
             "start",
             "end",
             "bar",

@@ -198,6 +198,8 @@ def run(
         warnings=warn.messages(),
         stopped=stopped,
         generation=index.generation,
+        columns=_columns(grain, query, extra),
+        _index=index,
     )
 
 
@@ -534,6 +536,50 @@ def _position(log: _Log, comp: Component | None) -> tuple[Any, Any]:
     return (rows[0][0], rows[0][1]) if rows else (None, None)
 
 
+RESULT_COLUMNS = ("file", "title", "timeline", "lane", "ids", "label")
+RESULT_COLUMNS += ("symbol", "roman", "start", "end", "bar", "beat")
+STEP_COLUMNS = ("label", "timeline", "start", "end", "bar", "ids")
+TIMELINE_COLUMNS = ("file", "title", "timeline", "kind", "role", "author")
+
+
+def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[str]:
+    """The columns of the result table (tql.md §10), as ``_row``,
+    ``_timeline_row`` and ``_file_row`` write them; a query of only ``WHERE``
+    that lists units has the one numbered unit each match holds."""
+    if grain == "timeline":
+        return list(TIMELINE_COLUMNS)
+    if grain == "file":
+        return ["file", "title", *(f for f in file_fields if f not in ("file", "title"))]
+    steps = query.slot_count if query.pattern is not None else 1
+    return [
+        *RESULT_COLUMNS,
+        *(f"${n}.{c}" for n in range(1, steps + 1) for c in STEP_COLUMNS),
+    ]
+
+
+def _chord_names(log: _Log, comps: list[Component]) -> dict[str, str | None]:
+    """The ``symbol`` and ``roman`` columns: a chord result's symbols and Roman
+    numerals, joined as its labels are; None for a result without chords. The
+    ``label`` of a chord is its symbol, whatever its ``display_mode``: which of
+    the two to show is the reader's choice (Felipe, 2026-10-27)."""
+    names: list[tuple[str, str]] = []
+    for c in comps:
+        if c.kind != "chord":
+            continue
+        # not logged, as for positions: one lookup per chord
+        rows = log.con.execute(
+            "SELECT symbol, roman FROM chords WHERE component_id = ?", (c.id,)
+        ).fetchall()
+        if rows:
+            names.append((rows[0][0] or "", rows[0][1] or ""))
+    if not names:
+        return {"symbol": None, "roman": None}
+    return {
+        "symbol": " → ".join(s for s, _ in names),
+        "roman": " → ".join(r for _, r in names),
+    }
+
+
 def _lane_column(m: Match) -> str | None:
     if m.lane_level is not None:
         return f"level {m.lane_level}"
@@ -554,6 +600,7 @@ def _row(
         "lane": _lane_column(m),
         "ids": " ".join(c.id for c, _, _ in targets),
         "label": " → ".join(c.label for c, _, _ in targets),
+        **_chord_names(log, [c for c, _, _ in targets]),
         "start": start,
         "end": end,
         "bar": bar,
