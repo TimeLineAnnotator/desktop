@@ -38,7 +38,6 @@ def call(backend, name, cancel=None):
         "context": (corpus, "f1", []),
         "explain": ("hello",),
         "query_sql": (corpus, "hello"),
-        "statistics": (corpus, "hello", ["label"]),
         "categories": (corpus, True),
         "plan": (corpus, "rename", set()),
         "apply": (corpus, {"plan": []}, {"k1"}, set()),
@@ -48,6 +47,7 @@ def call(backend, name, cancel=None):
     }
     kwargs = {
         "run": ((corpus, "hello"), dict(max_matches=10, time_limit=1.0, cancel=cancel)),
+        "statistics": ((corpus, "hello", ["label"]), dict(fold=False)),
         "sql": ((corpus, "select 1"), dict(max_rows=10, time_limit=1.0, cancel=cancel)),
     }
     if name in kwargs:
@@ -209,8 +209,8 @@ def test_fixture_shapes():
     assert keys(b.query_sql(corpus, "q")) == {"sql", "notes"}
     sql = b.sql(corpus, "select 1", max_rows=5, time_limit=1, cancel=ev)
     assert keys(sql) == {"columns", "rows", "stopped", "generation"}
-    stats = b.statistics(corpus, "q", [])
-    assert keys(stats) == {"generation", "tables"}
+    stats = b.statistics(corpus, "q", ["label"], fold=False)
+    assert keys(stats) == {"generation", "tables", "warnings"}
     assert keys(stats["tables"][0]) == {"name", "title", "columns", "rows"}
     cats = b.categories(corpus, False)
     assert keys(cats) == {"generation", "categories"}

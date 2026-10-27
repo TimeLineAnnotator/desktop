@@ -35,7 +35,15 @@ Shapes returned:
 - query_sql: {"sql", "notes": [...]}
 - sql: {"columns": [str], "rows": [[value]], "stopped", "generation"};
   raises ``SqlError``
-- statistics: {"generation", "tables": [{"name", "title", "columns", "rows"}]}
+- statistics: {"generation", "tables": [{"name": "counts" | "durations" |
+  "positions" | "transitions", "title", "columns": [str], "rows": [[value]]}],
+  "warnings": [str]}. ``by`` is one or two keys (label, category, file,
+  timeline, file.<name>, tl.<name> or a component field's name); ``fold``
+  folds a category's subtypes into it. counts: the key(s), matches, files;
+  durations: the key, n, min, median, mean, max, then the same five with a
+  ``_bars`` suffix (n_bars, min_bars, ...); positions: the key, from_pct,
+  to_pct, n; transitions: from, to, n. Rows are lists in ``columns`` order;
+  raises ``QueryError``
 - categories: {"generation", "categories": [{"category", "group", "n"}]}
 - plan: {"plan": [{"key", "file_id", "name", "do": "write" | "skip",
   "reason": str or null, "writes": [{"op": "set" | "add" | "delete",
@@ -147,7 +155,9 @@ class Backend(Protocol):
     ) -> dict:
         ...
 
-    def statistics(self, corpus: object, text: str, by: list[str]) -> dict:
+    def statistics(
+        self, corpus: object, text: str, by: list[str], *, fold: bool = False
+    ) -> dict:
         ...
 
     def categories(self, corpus: object, fold: bool) -> dict:
@@ -231,7 +241,9 @@ class CoreBackend:
     ) -> dict:
         raise NotAvailable(_ENGINE)
 
-    def statistics(self, corpus: object, text: str, by: list[str]) -> dict:
+    def statistics(
+        self, corpus: object, text: str, by: list[str], *, fold: bool = False
+    ) -> dict:
         raise NotAvailable(_ENGINE)
 
     def categories(self, corpus: object, fold: bool) -> dict:

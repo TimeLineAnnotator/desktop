@@ -1,0 +1,11 @@
+.stats-bar { flex-wrap: wrap; }
+.stats-query { max-width: 40em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; }
+#stats-field { width: 220px; }
+.stats-error { color: var(--error); margin-bottom: 8px; }
+.stats-warnings { margin: 0 0 8px; padding: 4px 12px; background: #fff8e1; border: 1px solid var(--border); list-style: none; }
+.stats-table { margin-bottom: 24px; }
+.stats-table h3 { font-size: 13px; margin: 8px 0 4px; }
+.stats-chart { position: relative; height: 280px; max-width: 900px; margin-bottom: 8px; }
+.stats-table table { width: auto; margin-bottom: 4px; }
+.stats-table th, .stats-table td { text-align: left; padding: 2px 10px 2px 0; border-bottom: 1px solid var(--border); }
+.stats-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
