@@ -149,10 +149,16 @@ def _set_media_length(document: tla.Document, path: Path, values: list[Any]) -> 
 
 
 def _length(value: Any) -> Any:
-    """A positive number written as text, as a number; anything else as it is,
-    for `build.set_media_length` to refuse as the JSON wrote it."""
-    if isinstance(value, str) and _NUMBER.fullmatch(value):
-        number = float(value)
-        if math.isfinite(number) and number > 0:
-            return number
-    return value
+    """A positive number written as text, as a number; other text and a finite
+    number as they are; anything else as JSON writes it. `build.set_media_length`
+    refuses what isn't a length, quoting it so."""
+    if isinstance(value, str):
+        if _NUMBER.fullmatch(value):
+            number = float(value)
+            if math.isfinite(number) and number > 0:
+                return number
+        return value
+    # An int may be too large for math.isfinite; build reads it as an infinity.
+    if type(value) is int or (type(value) is float and math.isfinite(value)):
+        return value
+    return json.dumps(value, ensure_ascii=False)
