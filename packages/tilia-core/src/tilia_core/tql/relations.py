@@ -628,9 +628,9 @@ class Scope:
                 self.parent(u) for u in self.subject_units(f, subject)
             ]
             return self.step_ok(cond, parents, subject.bracket)
-        # A file without the field answers `!=` and `NOT … =` (#104, R2): no
-        # warning that it could not.
-        open_ = not (
+        # A file without the field answers `!=` and `NOT … =` (#104, R2), and
+        # `= *` in every form (it has none): no warning that it could not.
+        open_ = v.kind != "any" and not (
             (cond.op == "!=" and not cond.negate) or (cond.op == "=" and cond.negate)
         )
         lhs = self.field_values(f, subject, open_)
