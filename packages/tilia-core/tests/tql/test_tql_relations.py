@@ -722,21 +722,21 @@ class TestLabelsAndMatches:
         assert lefts(harmony, "phrase[CONTAINS V IN harmony] IN form") == ["phrase@0"]
         assert lefts(harmony, "phrase IN form CONTAINS I IN harmony") == ["phrase@0"]
         assert lefts(harmony, "phrase[CONTAINS * IN harmony] IN form") == ["phrase@0"]
-        assert lefts(harmony, "* IN harmony DURING phrase IN form") == ["I@0", "V@4"]
+        assert lefts(harmony, "* IN harmony DURING phrase IN form") == ["C@0", "G@4"]
 
     def test_a_chord_counts_where_it_begins(self):
         # tql.md §8: inside a unit, chords and keys count where they begin, so
         # the V that begins in the first phrase and rings on into the second
         # is in the first; SQL (the join, EXISTS) and Python read it alike
         assert rows(CHORDS, "* IN form CONTAINS * IN harmony") == Counter(
-            ["first@0 | I@0", "first@0 | V@6", "second@8 | I@12"]
+            ["first@0 | C@0", "first@0 | G@6", "second@8 | C@12"]
         )
-        assert lefts(CHORDS, "*[DURING first IN form] IN harmony") == ["I@0", "V@6"]
+        assert lefts(CHORDS, "*[DURING first IN form] IN harmony") == ["C@0", "G@6"]
         assert lefts(CHORDS, "*[CONSISTS OF *{2} IN harmony] IN form") == ["first@0"]
         # a target with a condition SQL cannot test runs the Python twin
         assert lefts(CHORDS, "*[DURING first[NOT zzz] IN form] IN harmony") == [
-            "I@0",
-            "V@6",
+            "C@0",
+            "G@6",
         ]
 
 
