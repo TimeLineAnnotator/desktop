@@ -142,7 +142,7 @@ BAD = {
 # Every query here raises a TQLError that names its fragment and points into the text.
 # `*[start = 1:00..50%]` and the like keep m:ss times; h:mm:ss, milliseconds as a
 # value, `$n.first`, `$n.last`, `$-1` and a percentage with `duration` are refused
-# as "not part of TQL v0.1.0" (see test_tql_syntax.py).
+# as "not part of TQL v0.1.1" (see test_tql_syntax.py).
 
 
 @pytest.mark.parametrize("text, fragment", list(BAD.items()))
@@ -215,7 +215,7 @@ def test_bad_actions_keep_their_messages(text, fragment):
 def test_forms_left_to_the_prototype(text, form):
     with pytest.raises(TQLError) as exc:
         parse(text)
-    assert exc.value.msg == f"{form} is not part of TQL v0.1.0"
+    assert exc.value.msg == f"{form} is not part of TQL v0.1.1"
     assert text[exc.value.pos : exc.value.end] == form
 
 
@@ -241,6 +241,6 @@ def test_an_unknown_unit_lists_every_unit_and_alias(text):
 @pytest.mark.parametrize("unit", UNIT_NAMES.split())
 def test_every_unit_and_alias_is_read(unit):
     if unit == "ms":
-        return  # not part of TQL v0.1.0 as a value
+        return  # not part of TQL v0.1.1 as a value
     q = parse(f"a THEN b WITHIN 2 {unit}")
     assert q.pattern.within.amount == 2

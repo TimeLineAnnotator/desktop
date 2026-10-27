@@ -77,21 +77,15 @@ def key_in_force(
 
 def chord_fields(chord: dict, key: dict | None) -> dict:
     """The properties of a chord read in ``key`` (C major when it has none),
-    plus ``label``, the text TiLiA shows for the chord's ``display_mode``:
-    ``custom`` its custom text, ``roman`` its Roman numeral (its symbol when it
-    has none), anything else (``letter``, TiLiA's default) its symbol.
+    plus ``label``, its symbol, as TiLiA's default display ("letter") shows
+    it. The label never follows the chord's ``display_mode``: which of symbol
+    and Roman numeral to show is a setting of the interface, not of each chord
+    (Felipe, 2026-10-27), and its custom text stays a field of its own.
     ``key`` of the result is the key in force's label, None without one."""
     props = harmony.chord_props(chord, key or C_MAJOR)
     if key is None:
         props["key"] = None
-    mode = chord.get("display_mode")
-    if mode == "custom":
-        label = chord.get("custom_text") or ""
-    elif mode == "roman":
-        label = props["roman"] or props["symbol"] or ""
-    else:
-        label = props["symbol"] or ""
-    props["label"] = label
+    props["label"] = props["symbol"] or ""
     return props
 
 
