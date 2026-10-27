@@ -10,21 +10,25 @@ from __future__ import annotations
 
 import csv
 import itertools
+import logging
 import statistics
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
-from tilia_core.labels import fold as fold_text, nfc
+from tilia_core.labels import fold, nfc
+from tilia_core.labels import fold as fold_text  # in _values, fold is a flag
 
 from . import names
+from .inuse import in_use
 
 if TYPE_CHECKING:
     from .result import Component, Result
     from .values import Facts
 
 NAMES = ("counts", "durations", "positions", "transitions")
+LOG = logging.getLogger(__name__)
 COMPONENT_COLUMNS = ("id", "kind", "label", "start", "end", "color", "comments")
 # The fields of a unit a key may name (tql.md §7.2), read as WHERE reads them;
 # `parent` is a unit, not a value to group by.
@@ -51,17 +55,30 @@ def write_csv(path: str | Path, columns: Sequence[str], rows: Iterable[Any]) -> 
 
 @dataclass
 class Table:
-    """A statistics table: its ``columns`` and ``rows`` (tuples, in order).
-    ``stopped`` says why a read of rows ended early (``"max_rows"``,
-    ``"time_limit"`` or ``"cancelled"``), else None."""
+    """A table: its ``columns`` and ``rows`` (tuples, in order).
+
+    ``stopped`` says why the table holds only some of its rows, else None:
+    ``"max_rows"`` (:func:`tilia_core.tql.sql` read as many rows as it was
+    allowed), ``"max_matches"``, ``"time_limit"`` or ``"cancelled"``. A table
+    from :meth:`Result.stats` carries the reason its result stopped for, and
+    counts only the matches that were found. ``to_csv`` returns the reason."""
 
     columns: list[str]
     rows: list[tuple[Any, ...]] = field(default_factory=list)
     stopped: str | None = None
 
-    def to_csv(self, path: str | Path) -> None:
-        """Write the table as CSV (UTF-8 in NFC, LF, no byte-order mark)."""
+    def to_csv(self, path: str | Path) -> str | None:
+        """Write the table as CSV (UTF-8 in NFC, LF, no byte-order mark) and
+        return ``stopped``. The file holds the table and nothing else; when
+        ``stopped`` is not None a WARNING is logged that names the reason."""
         write_csv(path, self.columns, self.rows)
+        if self.stopped is not None:
+            LOG.warning(
+                "writing the CSV of a table that stopped (%s): it holds only "
+                "the rows found",
+                self.stopped,
+            )
+        return self.stopped
 
 
 def _sort_key(value: Any) -> tuple[int, int, Any]:
@@ -360,7 +377,7 @@ def _transitions(reader: _Reader) -> Table:
         lanes.setdefault((c.file_id, c.timeline_id, c.kind, lane), []).append(c)
     pairs: dict[tuple[str, str], int] = {}
     for comps in lanes.values():
-        comps.sort(key=lambda c: (c.start, c.end, c.id))
+        comps.sort(key=lambda c: (c.start, c.end, fold(c.label), c.id))
         for a, b in zip(comps, comps[1:], strict=False):
             pair = (nfc(a.label), nfc(b.label))
             pairs[pair] = pairs.get(pair, 0) + 1
@@ -376,7 +393,8 @@ def compute(
     *,
     fold_subtypes: bool = False,
 ) -> Table:
-    """The statistics table ``name`` of ``result`` (see :meth:`Result.stats`).
+    """The statistics table ``name`` of ``result`` (see :meth:`Result.stats`),
+    with the ``stopped`` of ``result``.
 
     Raises ``ValueError`` for an unknown ``name`` or key, and for a result of
     only ``WHERE`` that lists files or timelines: the tables are of units."""
@@ -388,6 +406,19 @@ def compute(
             "the units a query matched, so it must name one or a lane"
         )
     reader = _Reader(result)
+    with in_use(reader.con):
+        table = _compute_on(reader, name, by, fold_subtypes)
+    table.stopped = result.stopped
+    return table
+
+
+def _compute_on(
+    reader: _Reader,
+    name: str,
+    by: str | Sequence[str] | None,
+    fold: bool,
+) -> Table:
+    """:func:`compute` once ``reader``'s connection is marked in use."""
     if name == "transitions":
         if by is not None:
             raise ValueError("transitions takes no key")
@@ -401,7 +432,7 @@ def compute(
     for key in keys:
         _check_key(reader, key)
     if name == "counts":
-        return _counts(reader, keys, fold_subtypes)
+        return _counts(reader, keys, fold)
     if name == "durations":
-        return _durations(reader, keys[0], fold_subtypes)
-    return _positions(reader, keys[0], fold_subtypes)
+        return _durations(reader, keys[0], fold)
+    return _positions(reader, keys[0], fold)

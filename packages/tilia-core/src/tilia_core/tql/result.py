@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import Any, Sequence
 
 from . import stats
 from .showsql import SqlBlock, render
+
+LOG = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -88,7 +91,15 @@ class Result:
 
     ``columns`` are the table's columns in order, which the query decides (its
     grain and how many numbered units a match has), so a result with no rows
-    still has them."""
+    still has them.
+
+    ``stopped`` is None, or says why the run ended early. ``"max_matches"``
+    means the result holds some N matches, not necessarily the first N of the
+    full result in file and time order: the search stops after N are found, and
+    which N depends on the order the lanes were searched in, so do not word it
+    as "the first N". ``"time_limit"`` and ``"cancelled"`` mean the matches
+    found so far. ``stats`` and ``to_csv`` carry the mark: the ``stopped`` of
+    the table, and the return value and the log line of ``to_csv``."""
 
     grain: str
     rows: list[dict[str, Any]]
@@ -111,11 +122,16 @@ class Result:
         yet."""
         return render(self.sql_blocks)
 
-    def to_csv(self, path: str | Path) -> None:
+    def to_csv(self, path: str | Path) -> str | None:
         """Write the table of ``rows`` as CSV: a header of the columns, then a
         line per row; UTF-8 in NFC, LF line endings, no byte-order mark. Times
         are in seconds with three decimals, None is an empty field. A result
-        with no rows writes the header alone."""
+        with no rows writes the header alone.
+
+        Returns ``stopped``: why the result holds only the matches found
+        (``"max_matches"``, ``"time_limit"`` or ``"cancelled"``), else None. A
+        stopped result logs one WARNING that names the reason. The file is the
+        same either way: it does not say that the result stopped."""
         columns = list(self.columns)
         for row in self.rows:
             columns.extend(c for c in row if c not in columns)
@@ -131,6 +147,13 @@ class Result:
                 for row in self.rows
             ),
         )
+        if self.stopped is not None:
+            LOG.warning(
+                "writing the CSV of a result that stopped (%s): it holds only "
+                "the rows found",
+                self.stopped,
+            )
+        return self.stopped
 
     def stats(
         self,
@@ -144,8 +167,11 @@ class Result:
         ``by`` is ``label`` unless given; see :mod:`tilia_core.tql.stats`.
         ``fold_subtypes`` makes the ``category`` key of a subtype the category
         its label grammar puts it under (``bridge.modern``: ``bridge``); with no
-        grammar a dot marks no subtype. Raises ``ValueError`` for an unknown
-        ``name`` or key."""
+        grammar a dot marks no subtype. The table counts only the matches found,
+        and its ``stopped`` is this result's ``stopped`` (None when the run was
+        not cut). Raises ``ValueError`` for an unknown ``name`` or key, and
+        ``RuntimeError`` when another thread is running on the connection the
+        index gives."""
         return stats.compute(self, name, by, fold_subtypes=fold_subtypes)
 
 

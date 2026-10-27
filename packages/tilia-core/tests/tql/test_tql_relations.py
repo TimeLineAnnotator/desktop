@@ -3,6 +3,7 @@ the sentence form and in brackets, negated, with and without ``IN``, children,
 nesting, tolerances and what ``Result.sql`` shows."""
 
 from collections import Counter
+from decimal import Decimal
 
 import fixture_index
 import pytest
@@ -54,7 +55,7 @@ TOLERANCE = fixture(
 )
 # P has exactly a's extent and Q exactly b's: each parent lies in its child in
 # time (tql.md §8, Q33), but is not below it in the hierarchy.
-SAME_EXTENT = fixture(
+SAME_EXTENT_PAIRS = fixture(
     hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8], ["P", 2, 0, 4], ["Q", 2, 4, 8]])
 )
 # a starts 0.05 s before P, so the index does not make it P's child, though it
@@ -435,34 +436,34 @@ class TestOrderRelations:
         # tql.md §8: A STARTS B is B STARTS WITH A, and with IN a unit of the
         # same extent lies inside the other in time (Q33), whichever is the
         # parent; without IN the target's lane is read through the hierarchy
-        assert rows(SAME_EXTENT, "P IN form STARTS WITH a IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "P IN form STARTS WITH a IN form") == Counter(
             ["P@0 | a@0"]
         )
-        assert rows(SAME_EXTENT, "a IN form STARTS P IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "a IN form STARTS P IN form") == Counter(
             ["a@0 | P@0"]
         )
-        assert rows(SAME_EXTENT, "a IN form STARTS WITH P IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "a IN form STARTS WITH P IN form") == Counter(
             ["a@0 | P@0"]
         )
-        assert rows(SAME_EXTENT, "P IN form STARTS a IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "P IN form STARTS a IN form") == Counter(
             ["P@0 | a@0"]
         )
-        assert rows(SAME_EXTENT, "Q IN form ENDS WITH b IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "Q IN form ENDS WITH b IN form") == Counter(
             ["Q@4 | b@4"]
         )
-        assert rows(SAME_EXTENT, "b IN form ENDS Q IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "b IN form ENDS Q IN form") == Counter(
             ["b@4 | Q@4"]
         )
-        assert rows(SAME_EXTENT, "b IN form ENDS WITH Q IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "b IN form ENDS WITH Q IN form") == Counter(
             ["b@4 | Q@4"]
         )
-        assert rows(SAME_EXTENT, "Q IN form ENDS b IN form") == Counter(
+        assert rows(SAME_EXTENT_PAIRS, "Q IN form ENDS b IN form") == Counter(
             ["Q@4 | b@4"]
         )
-        assert lefts(SAME_EXTENT, "*[STARTS a IN form] IN form") == ["P@0"]
-        assert lefts(SAME_EXTENT, "*[ENDS b IN form] IN form") == ["Q@4"]
-        assert not rows(SAME_EXTENT, "P IN form STARTS a")
-        assert not rows(SAME_EXTENT, "Q IN form ENDS b")
+        assert lefts(SAME_EXTENT_PAIRS, "*[STARTS a IN form] IN form") == ["P@0"]
+        assert lefts(SAME_EXTENT_PAIRS, "*[ENDS b IN form] IN form") == ["Q@4"]
+        assert not rows(SAME_EXTENT_PAIRS, "P IN form STARTS a")
+        assert not rows(SAME_EXTENT_PAIRS, "Q IN form ENDS b")
 
     def test_negated_order_relations_have_no_second_unit(self):
         got = run(SPANS, "* IN form NOT STARTS WITH a")
@@ -737,3 +738,286 @@ class TestLabelsAndMatches:
             "C@0",
             "G@6",
         ]
+
+
+class TestEqualTimes:
+    """Units of one lane are ordered by start, then end, then label ignoring
+    case, then id: the order a file stores them in decides nothing."""
+
+    @staticmethod
+    def cadences(*labels, time=4):
+        return fixture(markers("Cadences", [[label, time] for label in labels]))
+
+    @pytest.mark.parametrize("stored", [("PAC", "HC"), ("HC", "PAC")])
+    def test_markers_at_one_time_are_ordered_by_label(self, stored):
+        fix = self.cadences(*stored)
+        assert rows(fix, "HC THEN PAC IN cadences") == Counter(["HC@4 | PAC@4"])
+        assert not rows(fix, "PAC THEN HC IN cadences")
+
+    @pytest.mark.parametrize("stored", [("PAC", "hc"), ("hc", "PAC")])
+    def test_the_label_is_compared_ignoring_case(self, stored):
+        fix = self.cadences(*stored)
+        assert rows(fix, "hc THEN PAC IN cadences") == Counter(["hc@4 | PAC@4"])
+        assert not rows(fix, "PAC THEN hc IN cadences")
+
+    def test_the_end_comes_before_the_label(self):
+        # a is the earlier by label, z by end
+        fix = fixture(
+            {
+                "name": "Analysis",
+                "kind": "range",
+                "rows": ["R"],
+                "units": [["R", "a", 0, 4], ["R", "z", 0, 2]],
+            }
+        )
+        assert rows(fix, "z THEN a IN Analysis") == Counter(["z@0 | a@0"])
+        assert not rows(fix, "a THEN z IN Analysis")
+
+    def test_equal_labels_are_ordered_by_id(self):
+        fix = self.cadences("HC", "HC")
+        (match,) = run(fix, "HC THEN HC IN cadences").matches
+        assert [c.id for s in match.slots for c in s] == ["f1:t1:c1", "f1:t1:c2"]
+
+    @staticmethod
+    def swap_ids(index, first, second):
+        """Exchange the ids of two units, so that the one stored first has the
+        later id."""
+        con = index.connection()
+        con.execute("UPDATE components SET id = 'tmp' WHERE id = ?", (first,))
+        con.execute("UPDATE components SET id = ? WHERE id = ?", (first, second))
+        con.execute("UPDATE components SET id = ? WHERE id = 'tmp'", (second,))
+
+    def test_equal_labels_follow_the_id_and_not_the_order_of_storage(self):
+        index = fixture_index.build_index(self.cadences("HC", "HC"))
+        self.swap_ids(index, "f1:t1:c1", "f1:t1:c2")
+        (match,) = tql.run(index, "HC THEN HC IN cadences").matches
+        assert [c.id for s in match.slots for c in s] == ["f1:t1:c1", "f1:t1:c2"]
+
+    def test_a_join_lists_equal_labels_by_id_and_not_by_storage(self):
+        index = fixture_index.build_index(
+            fixture(
+                hierarchy("Form (X)", [["a", 1, 0, 8]]),
+                markers("Cadences", [["HC", 4], ["HC", 4]]),
+            )
+        )
+        self.swap_ids(index, "f1:t2:c1", "f1:t2:c2")
+        got = tql.run(index, "HC IN cadences DURING a IN form")
+        assert [m.slots[0][0].id for m in got.matches] == ["f1:t2:c1", "f1:t2:c2"]
+
+    @pytest.mark.parametrize("stored", [("chorus", "B"), ("B", "chorus")])
+    def test_a_lane_shows_the_first_of_two_units_of_one_extent(self, stored):
+        fix = fixture(hierarchy("Form (X)", [[label, 1, 0, 10] for label in stored]))
+        assert lefts(fix, "B IN form") == ["B@0"]
+        assert lefts(fix, "chorus IN form") == []
+
+    @pytest.mark.parametrize("stored", [("z", "b"), ("b", "z")])
+    def test_the_first_unit_of_a_lane_in_a_unit(self, stored):
+        fix = fixture(
+            hierarchy("Form (X)", [["a", 1, 10, 20]]),
+            markers("Marks", [[x, 15] for x in stored]),
+        )
+        assert rows(fix, "a IN form STARTS WITH b IN Marks") == Counter(["a@10 | b@15"])
+        assert not rows(fix, "a IN form STARTS WITH z IN Marks")
+        assert rows(fix, "a IN form ENDS WITH z IN Marks") == Counter(["a@10 | z@15"])
+        assert not rows(fix, "a IN form ENDS WITH b IN Marks")
+
+    @pytest.mark.parametrize("stored", [("PAC", "hc"), ("hc", "PAC")])
+    def test_a_join_lists_matches_of_one_start_by_label(self, stored):
+        fix = fixture(
+            hierarchy("Form (X)", [["a", 1, 0, 8]]),
+            markers("Cadences", [[x, 4] for x in stored]),
+        )
+        got = run(fix, "* IN cadences DURING a IN form")
+        assert [m.slots[0][0].label for m in got.matches] == ["hc", "PAC"]
+
+
+# P covers what b does, and Q what c does, one level up
+SAME_EXTENT = fixture(
+    hierarchy(
+        "Form (X)", [["b", 1, 0, 4], ["P", 2, 0, 4], ["c", 1, 4, 8], ["Q", 2, 4, 8]]
+    )
+)
+
+
+class TestSameExtent:
+    """A unit with exactly its child's extent STARTS and ENDS it, and the child
+    STARTS WITH and ENDS WITH it: ``A STARTS B`` is ``B STARTS WITH A``."""
+
+    @pytest.mark.parametrize(
+        "word, with_", [("STARTS", "STARTS WITH"), ("ENDS", "ENDS WITH")]
+    )
+    @pytest.mark.parametrize("a, b", [("P", "b"), ("b", "P"), ("Q", "c"), ("c", "Q")])
+    def test_a_relation_is_the_other_read_backwards(self, word, with_, a, b):
+        direct = rows(SAME_EXTENT, f"{a} IN form {word} {b} IN form")
+        swapped = Counter(
+            " | ".join(reversed(row.split(" | ")))
+            for row in rows(SAME_EXTENT, f"{b} IN form {with_} {a} IN form").elements()
+        )
+        assert direct == swapped
+
+    def test_a_parent_starts_and_ends_a_child_of_its_extent(self):
+        assert rows(SAME_EXTENT, "P IN form STARTS b IN form") == Counter(["P@0 | b@0"])
+        assert rows(SAME_EXTENT, "P IN form ENDS b IN form") == Counter(["P@0 | b@0"])
+        assert rows(SAME_EXTENT, "b IN form STARTS WITH P IN form") == Counter(
+            ["b@0 | P@0"]
+        )
+        assert rows(SAME_EXTENT, "b IN form ENDS WITH P IN form") == Counter(
+            ["b@0 | P@0"]
+        )
+
+    def test_and_the_child_starts_and_ends_its_parent(self):
+        assert rows(SAME_EXTENT, "b IN form STARTS P IN form") == Counter(["b@0 | P@0"])
+        assert rows(SAME_EXTENT, "c IN form ENDS Q IN form") == Counter(["c@4 | Q@4"])
+
+    def test_without_in_only_the_descendants_are_inside(self):
+        assert not rows(SAME_EXTENT, "P IN form STARTS b")
+        assert not rows(SAME_EXTENT, "b IN form STARTS WITH P")
+        assert rows(SAME_EXTENT, "b IN form STARTS P") == Counter(["b@0 | P@0"])
+        assert rows(SAME_EXTENT, "P IN form STARTS WITH b") == Counter(["P@0 | b@0"])
+
+
+# Two points a tenth of a second apart whose float difference is not 0.1 (20.1 -
+# 20 is 0.10000000000000142, 0.8 - 0.7 is 0.10000000000000009, and 0.8 - 0.1 is
+# 0.7000000000000001): a difference of exactly the tolerance is within it
+EDGES = [(20, 20.1), (15, 15.1), (0.7, 0.8)]
+TENTH = Decimal("0.1")
+# relation: whether it holds of points at a and b, in exact decimals
+POINT_RELATIONS = {
+    "SAME START": lambda a, b, tol: abs(a - b) <= tol,
+    "SAME END": lambda a, b, tol: abs(a - b) <= tol,
+    "SAME": lambda a, b, tol: abs(a - b) <= tol,
+    "OVERLAPS": lambda a, b, tol: abs(a - b) <= tol,
+    "DURING": lambda a, b, tol: abs(a - b) <= tol,
+    "CONTAINS": lambda a, b, tol: abs(a - b) <= tol,
+    "BEFORE": lambda a, b, tol: a <= b + tol,
+    "AFTER": lambda a, b, tol: b <= a + tol,
+    "STARTS BEFORE": lambda a, b, tol: a < b - tol,
+    "STARTS AFTER": lambda a, b, tol: b < a - tol,
+}
+# one relation in SQL (a join, an EXISTS) and in Python (no IN, one timeline)
+FORMS = [
+    "{a} IN Marks {rel} {b} IN Marks{within}",
+    "{a}[{rel} {b} IN Marks{within}] IN Marks",
+    "{a} IN Marks {rel} {b}{within}",
+]
+
+
+def two_points(first, second):
+    return fixture(markers("Marks", [["m", first], ["n", second]]))
+
+
+def hold(fix, rel, a, b, within=""):
+    """Whether ``a REL b`` holds, in each form: all must agree."""
+    got = {
+        bool(rows(fix, form.format(a=a, rel=rel, b=b, within=within)))
+        for form in FORMS
+    }
+    assert len(got) == 1, (rel, a, b, "SQL and Python disagree")
+    return got.pop()
+
+
+class TestToleranceEdge:
+    @pytest.mark.parametrize("rel", POINT_RELATIONS)
+    @pytest.mark.parametrize(
+        "first, second", [*EDGES, (20, 20.2), (15, 15.2), (0.7, 0.9)]
+    )
+    def test_exactly_the_tolerance_is_within_it(self, rel, first, second):
+        fix = two_points(first, second)
+        times = {"m": Decimal(str(first)), "n": Decimal(str(second))}
+        for a, b in (("m", "n"), ("n", "m")):
+            expected = POINT_RELATIONS[rel](times[a], times[b], TENTH)
+            assert hold(fix, rel, a, b) == expected, (rel, a, b)
+
+    @pytest.mark.parametrize("first, second", EDGES)
+    def test_a_tenth_apart_is_the_same_start_and_end_and_the_same(self, first, second):
+        fix = two_points(first, second)
+        for rel in ("SAME START", "SAME END", "SAME"):
+            assert hold(fix, rel, "m", "n"), rel
+        # 0.2 s apart is not
+        fix = two_points(first, round(first + 0.2, 1))
+        for rel in ("SAME START", "SAME END", "SAME"):
+            assert not hold(fix, rel, "m", "n"), rel
+
+    @pytest.mark.parametrize(
+        "rel, holds",
+        [
+            # WITHIN replaces the tolerance ...
+            ("SAME START", lambda gap, within: gap <= within),
+            ("DURING", lambda gap, within: gap <= within),
+            # ... or, for the order in time, limits the distance
+            ("BEFORE", lambda gap, within: gap <= within),
+            ("STARTS BEFORE", lambda gap, within: TENTH < gap <= within),
+        ],
+    )
+    @pytest.mark.parametrize("first, second", [(20, 20.3), (0.4, 0.7), (1, 1.1)])
+    def test_exactly_a_within_distance_is_within_it(self, rel, holds, first, second):
+        fix = two_points(first, second)
+        gap = Decimal(str(second)) - Decimal(str(first))
+        for within in (gap, gap - Decimal("0.05"), gap + Decimal("0.05")):
+            got = hold(fix, rel, "m", "n", f" WITHIN {within * 1000} ms")
+            assert got == holds(gap, within), (rel, within)
+
+    @pytest.mark.parametrize("rel", ["SAME START", "DURING"])
+    def test_exactly_a_beat_is_within_one_beat(self, rel):
+        beats = {
+            "name": "Beats",
+            "kind": "beats",
+            "start": 0,
+            "every": 0.3,
+            "beats_per_bar": 4,
+            "bars": 100,
+        }
+        # 20.3 - 20 is 0.3000000000000007, and a beat lasts 0.3 s
+        near = fixture(beats, markers("Marks", [["m", 20], ["n", 20.3]]))
+        far = fixture(beats, markers("Marks", [["m", 20], ["n", 20.4]]))
+        assert hold(near, rel, "m", "n", " WITHIN 1 beat")
+        assert not hold(far, rel, "m", "n", " WITHIN 1 beat")
+
+    def test_overlapping_by_exactly_the_tolerance_is_not_overlapping(self):
+        # a and v share 0.7 to 0.8, a tenth of a second; with 0.9 they share 0.2
+        for a_end, shares in ((0.8, False), (0.9, True)):
+            fix = fixture(
+                {
+                    "name": "Analysis",
+                    "kind": "range",
+                    "rows": ["A", "B"],
+                    "units": [["A", "a", 0, a_end], ["B", "v", 0.7, 5]],
+                }
+            )
+            for query in (
+                "a IN Analysis OVERLAPS v IN Analysis",
+                "a[OVERLAPS v IN Analysis] IN Analysis",
+                "a IN Analysis OVERLAPS v",
+            ):
+                assert bool(rows(fix, query)) == shares, (a_end, query)
+
+    def test_a_span_starting_a_tenth_before_another_is_inside_it(self):
+        fix = fixture(
+            {
+                "name": "Analysis",
+                "kind": "range",
+                "rows": ["A", "B"],
+                "units": [["A", "a", 0.7, 2], ["B", "v", 0.8, 5]],
+            }
+        )
+        for query in (
+            "a IN Analysis DURING v IN Analysis",
+            "v IN Analysis CONTAINS a IN Analysis",
+            "v[CONTAINS a IN Analysis] IN Analysis",
+            "a IN Analysis DURING v",
+            "v IN Analysis CONTAINS a",
+        ):
+            assert rows(fix, query), query
+
+    @pytest.mark.parametrize("first, second", [(20, 20.1), (0.7, 0.8)])
+    def test_a_then_crosses_a_gap_of_exactly_the_tolerance(self, first, second):
+        def form(second_start):
+            units = [["a", 1, 0, first], ["b", 1, second_start, second_start + 5]]
+            return fixture(hierarchy("Form (X)", units))
+
+        assert rows(form(second), "a THEN b IN form") == Counter(
+            [f"a@0 | b@{second:g}"]
+        )
+        # WITHIN replaces the rule for the gap, and the tolerance still crosses
+        assert len(rows(form(second), "a THEN b IN form WITHIN 1 ms")) == 1
+        assert not rows(form(round(second + 0.1, 1)), "a THEN b IN form")

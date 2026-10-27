@@ -469,8 +469,8 @@ why = "the PAC in bar 40 lies 15 bars into ST"
 plan = "§4.2 (matching rules)"
 query = 'phrase[ENDS WITH I IN harmony]'
 fixture = "harmony"
-rows = ["phrase@0", "phrase@16"]
-why = "the middle phrase's last chord is V; the chord on its last boundary belongs to the next phrase"
+rows = ["phrase@8", "phrase@16"]
+why = "a chord on a phrase's last boundary is in it: the Eb at 16 (an I in E-flat) ends the middle phrase; the first ends with the i at 8"
 
 [[example]]
 plan = "§4.2 (matching rules)"

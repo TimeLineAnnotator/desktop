@@ -24,13 +24,18 @@ from functools import lru_cache
 from typing import Any, Protocol
 
 _engine: Any
+# What a bad pattern raises: re.error, and with the package regex.error too
+# (it is no subclass of re.error).
+PatternError: tuple[type[Exception], ...]
 try:
     import regex as _engine
 except ImportError:
     _engine = re
     HAS_TIMEOUT = False
+    PatternError = (re.error,)
 else:
     HAS_TIMEOUT = True
+    PatternError = (re.error, _engine.error)
 
 
 class RegexTimeout(Exception):
@@ -77,7 +82,7 @@ def search(pattern: str, text: str) -> Any:
     With the ``regex`` package and a current budget (see :func:`within`) the
     search is given the budget's seconds left; when they run out the budget's
     ``ran_out()`` is called once and :class:`RegexTimeout` is raised. A bad
-    pattern raises the engine's own error (``re.error`` or ``regex.error``)."""
+    pattern raises the engine's own error (one of :data:`PatternError`)."""
     compiled = _compile(_engine, pattern)
     budget = _budget.get()
     if budget is None or not HAS_TIMEOUT:

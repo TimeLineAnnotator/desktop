@@ -1,6 +1,7 @@
 """tql.run on sequence patterns: lanes, literals, results, rows and keys."""
 
 import sqlite3
+import threading
 import unicodedata
 
 import examples
@@ -106,6 +107,32 @@ class TestLanes:
             "Form (B) · level 1",
         ]
         assert lane_names("pop", quoted("*(B)")) == ["Form (B) · level 1"]
+
+    @pytest.mark.parametrize(
+        "bare_star, quoted_star",
+        [
+            ("* IN *", '* IN "*"'),
+            ("verse IN form CONTAINS * IN *", 'verse IN form CONTAINS * IN "*"'),
+            ("* IN * CONTAINS * IN *", '* IN "*" CONTAINS * IN "*"'),
+            ("*[CONTAINS * IN *] IN form", '*[CONTAINS * IN "*"] IN form'),
+            ("verse THEN * IN *", 'verse THEN * IN "*"'),
+        ],
+    )
+    def test_a_bare_star_is_every_timeline_like_a_quoted_one(
+        self, bare_star, quoted_star
+    ):
+        index = index_of("pop")
+        got = tql.run(index, bare_star)
+        assert got.matches
+        assert [m.key for m in got.matches] == [
+            m.key for m in tql.run(index, quoted_star).matches
+        ]
+
+    def test_a_bare_star_takes_every_lane_of_every_timeline_but_the_bars(self):
+        index = index_of("pop")
+        lanes = {m.lane for m in tql.run(index, "* IN *").matches}
+        assert lanes >= {"Form (A) · level 1", "Form (B) · level 1", "Beats"}
+        assert not any(lane.endswith("bars") for lane in lanes)
 
     def test_range_rows(self):
         assert lane_names("pop", bare("solo")) == ["Instruments · solo"]
@@ -486,7 +513,7 @@ class TestRun:
 
     def test_time_limit_and_cancel_are_accepted(self):
         index = index_of("exposition")
-        got = tql.run(index, "* IN form", time_limit=5.0, cancel=lambda: False)
+        got = tql.run(index, "* IN form", time_limit=5.0, cancel=threading.Event())
         assert len(got.matches) == 9
 
     def test_matches_are_ordered_by_file_then_start(self):

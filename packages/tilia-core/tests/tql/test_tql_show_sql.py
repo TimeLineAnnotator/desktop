@@ -94,7 +94,7 @@ class TestShownStatementsRun:
         got = tql.run(index, "PAC IN cadences")
         (comments, statement), *_ = blocks(got.sql)
         assert comments == ["-- $1: PAC IN cadences"]
-        assert "'PAC'" in statement and "c.file_id = 'f1'" in statement
+        assert "'pac'" in statement and "c.file_id = 'f1'" in statement
         assert statement.endswith(";")
         rows = tql.sql(index, statement).rows
         assert [c.id for m in got.matches for s in m.slots for c in s] == [
@@ -191,6 +191,51 @@ class TestShownStatementsRun:
         assert all(
             lookup not in (b.statement or "") for b in got.sql_blocks
         ), got.sql_blocks
+
+
+class TestWhereOnly:
+    """A query of only WHERE shows the statement it ran, like any other."""
+
+    def test_units_show_the_statement_that_read_them(self):
+        index = index_of("pop")
+        got = tql.run(index, "WHERE level = 2")
+        assert component_ids(got)
+        (units, statement), (stage, none) = blocks(got.sql)
+        assert units == ["-- WHERE level = 2: the units"]
+        assert statement.endswith(";") and "c.file_id = 'f1'" in statement
+        assert (stage, none) == (
+            ["-- WHERE level = 2: tested in Python on each unit."],
+            "",
+        )
+        assert shown_rows(index, got.sql) >= component_ids(got)
+        assert [b.statement is None for b in got.sql_blocks] == [False, True]
+
+    def test_a_statement_per_file(self):
+        index = fixture_index.build_index(FIXTURES["sonata"], FIXTURES["exposition"])
+        got = tql.run(index, "WHERE duration > 5")
+        files = [
+            re.search(r"c\.file_id = '(\w+)'", s).group(1) for s in statements(got.sql)
+        ]
+        assert files == ["f1", "f2"]
+        used = {c.file_id for m in got.matches for s in m.slots for c in s}
+        assert used == {"f1", "f2"}
+        assert shown_rows(index, got.sql) >= component_ids(got)
+
+    @pytest.mark.parametrize(
+        "name, query, grain",
+        [
+            ("pop", "WHERE duration > 2", "match"),
+            ("pop", "WHERE tl.name ~ /^Form/", "timeline"),
+            ("harmony", "WHERE file.composer = Mozart", "file"),
+        ],
+    )
+    def test_every_grain_shows_a_statement_that_runs(self, name, query, grain):
+        index = index_of(name)
+        got = tql.run(index, query)
+        assert got.grain == grain
+        assert got.rows
+        assert statements(got.sql)
+        shown_rows(index, got.sql)
 
 
 class TestRelations:

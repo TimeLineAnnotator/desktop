@@ -445,6 +445,21 @@ def test_then_within_after_the_lane():
     assert parse("verse THEN chorus IN form").pattern.within is None
 
 
+def test_a_bare_star_is_a_lane():
+    assert parse("* IN *").pattern.lane.text == "*"
+    rel = parse("verse IN form CONTAINS * IN *").pattern.relation
+    assert rel.lane.text == "*"
+    assert first_cond("*[CONTAINS * IN *] IN form").relation.lane.text == "*"
+    assert parse("verse THEN chorus IN * WITHIN 2 bars").pattern.within.unit == "bar"
+
+
+def test_a_bare_name_with_a_trailing_star_is_still_an_error():
+    for text, pos in (("* IN For*", 8), ("verse IN form CONTAINS * IN For*", 31)):
+        with pytest.raises(TQLError) as exc:
+            parse(text)
+        assert (exc.value.msg, exc.value.pos) == ("unexpected '*'", pos), text
+
+
 def test_starts_before_and_starts_after():
     r = parse("ST IN form STARTS AFTER MT IN form WITHIN 16 bars").pattern.relation
     assert (r.rel, r.lane.text, r.within.unit) == ("STARTS_AFTER", "form", "bar")

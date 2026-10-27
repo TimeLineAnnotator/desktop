@@ -925,9 +925,9 @@ class _Parser:
         if t.type == "STRING":
             self.next()
             return Lane(t.value, True, t.pos)
-        if t.type == "WORD" and t.upper not in KEYWORDS and t.text != "*":
+        if t.type == "WORD" and t.upper not in KEYWORDS:
             self.next()
-            return Lane(t.text, False, t.pos)
+            return Lane(t.text, False, t.pos)  # a bare `*` is `"*"`: every timeline
         raise self.err(
             "IN needs a lane: a role (form, cadences...), a kind "
             '(markers, ranges...) or a "timeline name"',

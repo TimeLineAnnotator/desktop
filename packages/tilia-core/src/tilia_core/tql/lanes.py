@@ -11,9 +11,12 @@ from __future__ import annotations
 
 from typing import Any, Sequence, TypeVar
 
+from tilia_core.labels import fold
+
 BAR_KIND = "bar"  # the kind of the units of the bars lane
 
 GAP_EPS: float = 0.1  # s: a gap above this breaks a THEN run between spans
+SLACK: float = 1e-9  # s: float noise, added to every tolerance and limit on a gap
 LEAF_EPS: float = 1e-6  # s: containment inside one hierarchy (float noise only)
 
 U = TypeVar("U")
@@ -23,6 +26,14 @@ def bar_id(file_id: str, count: int) -> str:
     """The id of the unit of the bars lane that is bar ``count`` (from 1, in
     playing order) of a file. No file stores it: it names a row of ``measures``."""
     return f"{file_id}:bar:{count}"
+
+
+def lane_order(starts: Sequence[float], labels: Sequence[str]) -> list[int]:
+    """The order of the points of one lane (chords, keys) that ``starts`` and
+    ``labels`` give, as indices: by start, then label ignoring case, then place
+    in the file (the id). Of several points at one time the first ends where it
+    starts (``derived.implied_spans``), so this decides which one lasts."""
+    return sorted(range(len(starts)), key=lambda i: (starts[i], fold(labels[i]), i))
 
 
 def project(units: Sequence[U], level: int) -> list[tuple[U, float, float]]:
@@ -52,7 +63,7 @@ def project(units: Sequence[U], level: int) -> list[tuple[U, float, float]]:
                 rep = u
         if rep is None:
             continue
-        if rep.level > level and b - a <= GAP_EPS + LEAF_EPS:
+        if rep.level > level and b - a <= GAP_EPS + SLACK:
             continue  # a gap THEN crosses, not an item
         if segs and segs[-1][0] is rep and abs(segs[-1][2] - a) <= LEAF_EPS:
             segs[-1][2] = b

@@ -18,6 +18,7 @@ Two kinds of relation, and the line between them decides what runs where:
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from typing import Any, Callable, Iterator, Protocol
@@ -27,10 +28,11 @@ from tilia_core.labels import fold, nfc
 from . import compile as tql_compile
 from . import names, sqlfuncs, syntax, values
 from .compile import LaneSpec, SqlBuilder
-from .lanes import BAR_KIND, GAP_EPS, bar_id, project
+from .lanes import BAR_KIND, GAP_EPS, SLACK, bar_id, project
 from .result import Component, Match
 from .sequences import Item, find_runs, slots_of
 
+LOG = logging.getLogger(__name__)
 TOLERANCE = 0.1  # s: two times this close are the same time (tql.md §8)
 TIMING = (
     "DURING",
@@ -52,7 +54,7 @@ SEQUENCE_MODES = {
     "CONSISTS_OF": "full",
 }
 POINT_KINDS = ("marker", "beat")
-SLACK = 1e-9  # s: float noise in a limit on a gap
+CHECK_EVERY = 256  # tests of a unit between two looks at the limits
 
 
 # --------------------------------------------------------------------------- #
@@ -131,14 +133,21 @@ class Metric:
     tmap: Any = None
     void: bool = False
 
+    @property
+    def reach(self) -> float:
+        """``tol`` with a margin of float noise, so that a difference of exactly
+        ``tol`` is within it whatever the rounding of the two times gives. SQL
+        writes the same sum (:func:`timing_sql`)."""
+        return self.tol + SLACK
+
     def eq(self, a: float, b: float) -> bool:
-        return abs(a - b) <= self.tol
+        return abs(a - b) <= self.reach
 
     def le(self, a: float, b: float) -> bool:
-        return a <= b + self.tol
+        return a <= b + self.reach
 
     def lt(self, a: float, b: float) -> bool:
-        return a < b - self.tol
+        return a < b - self.reach
 
     def within_gap(self, a: float, b: float) -> bool:
         if self.gap is None:
@@ -152,14 +161,13 @@ class Metric:
         return pa is not None and pb is not None and pb - pa <= self.gap + SLACK
 
     def inside(self, a: Component, b: Component) -> bool:
-        """``a`` lies in ``b``. Points count on the edges; chords and keys belong
-        where they begin (half-open), so the next unit's first chord is not this
-        unit's last."""
+        """``a`` lies in ``b``, the edges included. A chord or key counts where it
+        begins, like a point, and may ring on past ``b``'s end."""
         if a.id == b.id or self.void:
             return False
         if a.kind in ("chord", "key"):
-            return b.start - self.tol <= a.start < b.end - self.tol
-        return b.start - self.tol <= a.start and a.end <= b.end + self.tol
+            return b.start - self.reach <= a.start <= b.end + self.reach
+        return b.start - self.reach <= a.start and a.end <= b.end + self.reach
 
 
 def metric_of(
@@ -265,7 +273,7 @@ def in_sql(rel: syntax.Relation) -> bool:
 def _inside_sql(a: str, b: str, t: str) -> str:
     return (
         f"({b}.start - {t} <= {a}.start AND CASE WHEN {a}.kind IN ('chord', 'key') "
-        f'THEN {a}.start < {b}."end" - {t} ELSE {a}."end" <= {b}."end" + {t} END)'
+        f'THEN {a}.start ELSE {a}."end" END <= {b}."end" + {t})'
     )
 
 
@@ -275,13 +283,13 @@ def timing_sql(rel: syntax.Relation, a: str, b: str) -> str:
     twin of :func:`timing`."""
     within = rel.within
     m = metric_of(rel)
-    t = repr(m.tol)
+    t = f"({m.tol!r} + {SLACK!r})"  # :attr:`Metric.reach`
     if uses_map(within) and rel.rel not in ORDER_IN_TIME:
         assert within is not None
         # as long as the beat or the bar where the left unit starts lasts
         t = (
             f"(tql_unit_seconds({a}.file_id, {a}.start, '{within.unit}') "
-            f"* {within.amount!r})"
+            f"* {within.amount!r} + {SLACK!r})"
         )
     pa = f"{a}.kind IN ('marker', 'beat')"
     pb = f"{b}.kind IN ('marker', 'beat')"
@@ -338,7 +346,6 @@ def exists_sql(rel: syntax.Relation, comp: str, bld: SqlBuilder) -> str:
     if uses_map(rel.within) and not bld.has_map:
         return "0"  # no time map: nothing is within a distance in bars or beats
     specs = bld.lanes(rel.lane)
-    tql_compile.check_labels(specs, [target])
     if not specs:
         return "1" if rel.negate else "0"
     other = bld.alias("x")
@@ -346,7 +353,7 @@ def exists_sql(rel: syntax.Relation, comp: str, bld: SqlBuilder) -> str:
         f"{other}.file_id = {comp}.file_id AND {other}.id <> {comp}.id AND "
         f"{timing_sql(rel, comp, other)} AND "
         f"{tql_compile.lane_test(specs, other, bld)} AND "
-        f"{tql_compile.unit_test(target, other, bld)}"
+        f"{tql_compile.unit_test(target, other, bld, specs)}"
     )
     found = f"EXISTS (SELECT 1 FROM components {other} WHERE {inner})"
     if rel.negate and uses_map(rel.within):
@@ -358,7 +365,7 @@ def exists_sql(rel: syntax.Relation, comp: str, bld: SqlBuilder) -> str:
             test = (
                 f"{o}.file_id = {comp}.file_id AND {o}.id <> {comp}.id AND "
                 f"{tql_compile.lane_test(specs, o, bld)} AND "
-                f"{tql_compile.unit_test(target, o, bld)}"
+                f"{tql_compile.unit_test(target, o, bld, specs)}"
             )
             if on_map:
                 test += f" AND {target_on_map_sql(rel, o)}"
@@ -389,14 +396,17 @@ def join_statement(
     where = (
         f"a.file_id = ? AND {tql_compile.lane_test(left_specs, 'a', bld)} AND "
         f"{tql_compile.lane_test(right_specs, 'b', bld)} AND "
-        f"{tql_compile.unit_test(left, 'a', bld)} AND "
-        f"{tql_compile.unit_test(target, 'b', bld)}"
+        f"{tql_compile.unit_test(left, 'a', bld, left_specs)} AND "
+        f"{tql_compile.unit_test(target, 'b', bld, right_specs)}"
     )
     sql = (
         "SELECT a.id, a.timeline_id, b.id, b.timeline_id "
         "FROM components a JOIN components b ON "
         f"a.file_id = b.file_id AND a.id <> b.id AND {timing_sql(rel, 'a', 'b')} "
-        f'WHERE {where} ORDER BY a.start, a."end", a.id, b.start, b."end", b.id'
+        f'WHERE {where} ORDER BY a.start, a."end", '
+        "COALESCE(tql_fold(a.label), ''), a.id, "
+        'b.start, b."end", '
+        "COALESCE(tql_fold(b.label), ''), b.id"
     )
     return sql, bld.params
 
@@ -462,7 +472,8 @@ def units_of(seq: syntax.Seq) -> Iterator[syntax.Unit]:
 def _single(seq: syntax.Seq) -> syntax.Unit:
     step = seq.steps[0]
     if len(seq.steps) != 1 or not isinstance(step.item, syntax.Unit):
-        raise NotImplementedError("a sequence is not available on this relation")
+        LOG.error("a sequence is the target of a relation between two units")
+        return next(units_of(seq))
     return step.item
 
 
@@ -482,8 +493,12 @@ class Scope:
         file_id: str,
         time_map: Any = None,
         labels: dict[int, str] | None = None,
+        check: Callable[[], None] | None = None,
     ) -> None:
         self.log = log
+        self.check = check  # called now and then; raises to stop the run
+        self._calls = 0
+        self.play: list[LaneSpec] | None = None  # every lane the query reads
         self.labels = {} if labels is None else labels  # what each unit's SQL answers
         self.file_id = file_id
         self.time_map = time_map  # the file's, or None: see ``index.time_map``
@@ -506,7 +521,8 @@ class Scope:
 
     # -- components ---------------------------------------------------------- #
     def timeline(self, timeline_id: str) -> list[Component]:
-        """Every component of one timeline, in time order."""
+        """Every component of one timeline in the order of its lanes: by start,
+        then end, then label ignoring case, then id."""
         comps = self._timelines.get(timeline_id)
         if comps is not None:
             return comps
@@ -516,7 +532,8 @@ class Scope:
             "LEFT JOIN hierarchies h ON h.component_id = c.id "
             "LEFT JOIN ranges r ON r.component_id = c.id "
             "WHERE c.file_id = ? AND c.timeline_id = ? "
-            'ORDER BY c.start, c."end", c.id',
+            'ORDER BY c.start, c."end", '
+            "COALESCE(tql_fold(c.label), ''), c.id",
             (self.file_id, timeline_id),
         )
         comps = []
@@ -661,7 +678,7 @@ class Scope:
         if got is not None:
             return got
         sql, params = tql_compile.candidate_statement(
-            unit, self.file_id, self.lanes, self.time_map is not None
+            unit, self.file_id, self.lanes, self.time_map is not None, self.play
         )
         part = self.labels.get(id(unit), "a unit of the query")
         ids = [r[0] for r in self.log.execute(sql, params, part)]
@@ -681,6 +698,10 @@ class Scope:
         return got
 
     def fits(self, unit: syntax.Unit, comp: Component) -> bool:
+        if self.check is not None:
+            self._calls += 1
+            if self._calls % CHECK_EVERY == 0:
+                self.check()
         if comp.kind == BAR_KIND:
             return self.bar_fits(unit, comp)
         return comp.id in self.fit(unit)
@@ -712,7 +733,15 @@ class Scope:
             # whatever the gaps between them, so no hole breaks a run of them.
             items: list[Item] = [(c, c.start, c.end) for c in self.children(comp)]
             found = bool(items) and bool(
-                find_runs(cond.seq, items, "any", False, self.fits, joins=_parts)
+                find_runs(
+                    cond.seq,
+                    items,
+                    "any",
+                    False,
+                    self.fits,
+                    joins=_parts,
+                    check=self.check,
+                )
             )
             return found != cond.negate
         if isinstance(cond, syntax.Downbeat):
@@ -735,7 +764,8 @@ class Scope:
         if isinstance(cond, syntax.Compare):
             subject = values.Subject([[comp]], comp.timeline_id, bracket=True)
             return self.compare(cond, subject, None)
-        raise NotImplementedError(f"{type(cond).__name__} is not a condition on a unit")
+        LOG.error("%s is not a condition on a unit", type(cond).__name__)
+        return False
 
     # -- fields -------------------------------------------------------------- #
     def unit_value(self, name: str, comp: Component) -> Any:
@@ -830,9 +860,7 @@ class Scope:
             self.labels[id(got)] = f"the step {cond.field.raw} {cond.op} {v.raw}"
         return got
 
-    def step_ok(
-        self, cond: syntax.Compare, comps: list[Component | None], bracket: bool
-    ) -> bool:
+    def step_ok(self, cond: syntax.Compare, comps: list[Component | None]) -> bool:
         """Whether some of ``comps`` fits the step ``cond`` stands for: ``=``
         holds when one does, ``!=`` when none does."""
         step = self.step_unit(cond)
@@ -840,10 +868,6 @@ class Scope:
         for comp in comps:
             if comp is None:
                 continue
-            if comp.kind in ("chord", "key") and cond.value.kind != "any":
-                if bracket:
-                    continue  # the unit's lane is checked as a whole
-                raise NotImplementedError(tql_compile.LABEL_STEP_MESSAGE)
             hit = hit or self.fits(step, comp)
         if cond.op in ("=", "~"):
             return hit
@@ -942,12 +966,12 @@ class Scope:
         if not f.scope and f.name == "label" and cond.op in ("=", "!="):
             if v.kind in ("word", "string"):
                 units: list[Component | None] = list(self.subject_units(f, subject))
-                return self.step_ok(cond, units, subject.bracket) if units else False
+                return self.step_ok(cond, units) if units else False
         if not f.scope and f.name == "parent" and v.kind != "ref":
             parents: list[Component | None] = [
                 self.parent(u) for u in self.subject_units(f, subject)
             ]
-            return self.step_ok(cond, parents, subject.bracket)
+            return self.step_ok(cond, parents)
         # A file without the field answers `!=` and `NOT … =` (#104, R2), and
         # `= *` in every form (it has none): no warning that it could not.
         open_ = v.kind != "any" and not (
@@ -1000,7 +1024,7 @@ class Scope:
         if within is None:
             return None
         metric = gap_metric(within, self.time_map)
-        return lambda end, start: start - end <= GAP_EPS or metric.within_gap(
+        return lambda end, start: start - end <= GAP_EPS + SLACK or metric.within_gap(
             end, start
         )
 
@@ -1010,9 +1034,7 @@ class Scope:
         lanes ``IN`` names; with no ``IN``, ``a``'s own timeline, and below ``a``
         for the relations that look inside it."""
         if rel.lane is not None:
-            specs = self.lanes(rel.lane)
-            tql_compile.check_labels(specs, units_of(rel.target))
-            return specs
+            return self.lanes(rel.lane)
         own = self.own_lanes(a.timeline_id)
         if rel.rel in SEQUENCE_MODES and a.kind == "hierarchy":
             return [
@@ -1092,6 +1114,7 @@ class Scope:
                     spec.point,
                     self.fits,
                     joins=joins,
+                    check=self.check,
                 ):
                     slots = slots_of(inner, i, j, assign, n_steps)
                     key = tuple(tuple(it[0].id for it in s) for s in slots)
@@ -1173,7 +1196,6 @@ def matches(
     relation gives the left unit alone. ``part`` is what its join answers, for
     ``Result.sql``."""
     rel, left = pattern.relation, pattern.left
-    tql_compile.check_labels(specs, [left])
     if uses_map(rel.within) and scope.time_map is None:
         return  # nothing is within a distance in bars or beats
     if rel.negate:
@@ -1191,7 +1213,6 @@ def matches(
         assert rel.lane is not None
         target = _single(rel.target)
         right = scope.lanes(rel.lane)
-        tql_compile.check_labels(right, [target])
         if not right:
             return
         sql, params = join_statement(

@@ -217,6 +217,13 @@ class TestHoles:
         items = spans("verse", "chorus", gap=0.05)
         assert spans_of("verse THEN chorus", items) == [(0, 2)]
 
+    def test_a_gap_of_exactly_the_tolerance_does_not_break(self):
+        # 2.1 - 2.0 is 0.10000000000000009 in floats
+        items = spans("verse", "chorus", gap=0.1)
+        assert items[1][1] - items[0][2] > lanes.GAP_EPS
+        assert spans_of("verse THEN chorus", items) == [(0, 2)]
+        assert spans_of("verse THEN chorus", spans("verse", "chorus", gap=0.2)) == []
+
     def test_gap_of_exactly_eps_is_no_hole(self):
         # §6.1: "a gap of 0.1 s or less is no hole"; 1.1 - 1.0 is 0.1 plus
         # float noise, so the comparison needs slack
@@ -376,6 +383,21 @@ class TestProject:
             (parent, 32.322, 60),
         ]
         assert spans_of("FirstGroup THEN Transition", items) == [(1, 3)]
+
+    @pytest.mark.parametrize(
+        "hole, is_gap",
+        [
+            (lanes.GAP_EPS, True),
+            (lanes.GAP_EPS + lanes.SLACK / 2, True),  # within the one margin
+            (lanes.GAP_EPS + 5e-7, False),  # beyond it, though under 1e-6
+        ],
+    )
+    def test_a_slivers_tolerance_is_gap_eps_plus_slack(self, hole, is_gap):
+        first = FakeUnit("a", 1.0, 2.0, 1)
+        second = FakeUnit("b", 2.0 + hole, 3.0, 1)
+        parent = FakeUnit("P", 0, 4, 2)
+        units = [u for u, _, _ in lanes.project([first, second, parent], 1)]
+        assert (units[1:3] == [first, second]) is is_gap, units
 
     def test_short_piece_of_a_unit_on_the_level_stays(self):
         # only a higher unit's sliver is a gap; one on the lane's own level is

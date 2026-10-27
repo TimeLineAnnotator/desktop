@@ -8,6 +8,7 @@ from fake_timemap import FakeTimeMap
 from grammars import GRAMMARS
 
 from tilia_core import derived, index_schema, labels
+from tilia_core.tql import lanes
 
 _NOTES = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 _FORM = re.compile(r"Form \((.+)\)$")
@@ -18,6 +19,37 @@ def _spell(name: str) -> tuple[int, int]:
     """(step, accidental) of a pitch name such as "C", "Eb", "F#"."""
     accidental = name[1:].count("#") - name[1:].count("b")
     return _NOTES[name[0].upper()], accidental
+
+
+def _in_lane_order(keys: list, chords: list) -> tuple[list, list]:
+    """``keys`` and ``chords`` by time, those at one time by label ignoring case,
+    so that the order of the file does not decide which of them ends where it
+    starts (``lanes.lane_order``)."""
+    keys = sorted(keys, key=lambda k: k[0])
+    chords = sorted(chords, key=lambda c: c[0])
+    modes = []
+    for _, tonic, kind in keys:
+        step, accidental = _spell(tonic)
+        modes.append({"step": step, "accidental": accidental, "type": kind})
+    key_labels = [derived.key_fields(mode)["label"] for mode in modes]
+    order = lanes.lane_order([k[0] for k in keys], key_labels)
+    keys, modes = [keys[i] for i in order], [modes[i] for i in order]
+    in_force = derived.key_in_force([c[0] for c in chords], [k[0] for k in keys])
+    chord_labels = []
+    for (_, root, quality, *rest), k in zip(chords, in_force, strict=True):
+        step, accidental = _spell(root)
+        data = {
+            "step": step,
+            "accidental": accidental,
+            "quality": quality,
+            "inversion": rest[0] if rest else 0,
+            "applied_to": rest[1] if len(rest) > 1 else 0,
+            "display_mode": "roman",  # the label the builder stores
+        }
+        props = derived.chord_fields(data, None if k is None else modes[k])
+        chord_labels.append(props["label"])
+    order = lanes.lane_order([c[0] for c in chords], chord_labels)
+    return keys, [chords[i] for i in order]
 
 
 class FixtureIndex:
@@ -179,8 +211,7 @@ class _Builder:
     def _add_harmony(
         self, fid: str, tid: str, tl: dict, length: float, grammar: Any
     ) -> None:
-        keys = sorted(tl.get("keys", []), key=lambda k: k[0])
-        chords = sorted(tl.get("chords", []), key=lambda c: c[0])
+        keys, chords = _in_lane_order(tl.get("keys", []), tl.get("chords", []))
         key_ends = derived.implied_spans([k[0] for k in keys], length)
         chord_ends = derived.implied_spans([c[0] for c in chords], length)
         modes = []
