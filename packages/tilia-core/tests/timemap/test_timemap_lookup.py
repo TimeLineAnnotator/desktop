@@ -131,13 +131,12 @@ ENDINGS = (
     ({"number": 12, "label": "12b"}, 2),
     (13, 2),
 )
-# A cadenza that shares bar 2's number: 1, 2, 2c, 3.
-CADENZA = (
-    (1, 2),
-    (2, 2),
-    ({"number": 2, "label": "2c", "cadenza": True}, 2),
-    (3, 2),
-)
+# A cadenza that shares bar 2's number: 1, 2, 2c, 3. Bar 2 ends at 5 s,
+# where the cadenza starts, and bar 3 starts at 8 s.
+C2 = {"number": 2, "label": "2c", "cadenza": True}
+CADENZA = ((1, 2), (2, 2), (C2, 3), (3, 2))
+# Two cadenzas in a row: 1, 2, 2c, 2d, 3, with bar 3 from 9 s.
+CADENZAS = ((1, 2), (2, 2), (C2, 2), ({**C2, "label": "2d"}, 2), (3, 2))
 
 
 class TestFind:
@@ -348,3 +347,118 @@ class TestASegmentsEndOnADownbeat:
 
         assert songs.times_of(2, segment_end=True) == [3.0, 9.0]
         assert songs.times_of(2, movement=2, segment_end=True) == [9.0]
+
+
+class TestACadenzaBelongsToTheBarBeforeIt:
+    """An end of bar N-1 that leads into a cadenza is taken after the
+    cadenza, or after the last of a run of them, and counts as an end at
+    bar N only if the cadenza leads into a bar N the query names. The
+    fraction 1 of bar N-1 gives the downbeat after the cadenza when that bar
+    is numbered N (TimeLineAnnotator/project-management#339)."""
+
+    def test_a_section_that_ends_at_the_bar_after_a_cadenza_holds_it(self):
+        cadenza = time_map(*CADENZA)
+
+        assert cadenza.times_of(3, segment_end=True) == [8.0]
+        assert cadenza.times_of(3) == [8.0]
+
+    def test_the_fraction_1_of_the_bar_before_is_the_downbeat_after_it(self):
+        assert time_map(*CADENZA).times_of(2, 1.0) == [8.0]
+
+    def test_after_a_run_of_cadenzas_the_last_one(self):
+        cadenzas = time_map(*CADENZAS)
+
+        assert cadenzas.times_of(3, segment_end=True) == [9.0]
+        assert cadenzas.times_of(2, 1.0) == [9.0]
+
+    def test_a_cadenza_that_leads_into_another_bar_gives_no_end(self):
+        # 1, 2, 3, 1, 2, 2c, 1: the second bar 2 and its cadenza lead back
+        # to bar 1, so only the first bar 2 ends at bar 3.
+        back = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2), (1, 2))
+
+        assert back.times_of(3, segment_end=True) == [5.0]
+        assert back.times_of(2, 1.0) == [5.0]
+
+    def test_nor_one_that_ends_the_piece(self):
+        # 1, 2, 3, 1, 2, 2c
+        last = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2))
+
+        assert last.times_of(3, segment_end=True) == [5.0]
+
+    def test_a_pass_across_a_repeat(self):
+        # 1, 2, 3, 1, 2, 2c, 3: the cadenza comes the second time only;
+        # bar 3 starts at 5 and 13 s.
+        repeat = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2), (3, 2))
+
+        assert repeat.times_of(3, pass_=2, segment_end=True) == [13.0]
+        assert repeat.times_of(3, pass_=1, segment_end=True) == [5.0]
+        assert repeat.times_of(3, segment_end=True) == [5.0, 13.0]
+        assert repeat.times_of(2, 1.0) == [5.0, 13.0]
+        assert repeat.times_of(2, 1.0, pass_=2) == [13.0]
+
+    def test_a_label_is_judged_at_the_bar_after_the_cadenza(self):
+        # 10, 11, 12a, 10, 11, 11c, 12b, 13: the second bar 11 leads into
+        # 12b through its cadenza; 12a starts at 5 s and 12b at 13 s.
+        endings = time_map(
+            (10, 2),
+            (11, 2),
+            ({"number": 12, "label": "12a"}, 2),
+            (10, 2),
+            (11, 2),
+            ({"number": 11, "label": "11c", "cadenza": True}, 2),
+            ({"number": 12, "label": "12b"}, 2),
+            (13, 2),
+        )
+
+        assert endings.times_of(label="12a", segment_end=True) == [5.0]
+        assert endings.times_of(label="12b", segment_end=True) == [13.0]
+        assert endings.times_of(12, segment_end=True) == [5.0, 13.0]
+        assert endings.times_of(11, 1.0) == [5.0, 13.0]
+
+    def test_a_movement(self):
+        # 1, 2, 2c, 3, then a second song 1, 2, 3: bar 3 from 7 and 13 s.
+        songs = time_map(
+            (1, 2), (2, 2), (C2, 2), (3, 2), (restart(1), 2), (2, 2), (3, 2)
+        )
+
+        assert songs.times_of(3, movement=1, segment_end=True) == [7.0]
+        assert songs.times_of(3, segment_end=True) == [7.0, 13.0]
+
+    # Cases the rule leaves open, read as "the cadenza is part of the bar
+    # before it".
+
+    def test_as_a_segments_end_the_fraction_1_is_where_the_cadenza_ends(self):
+        assert time_map(*CADENZA).times_of(2, 1.0, segment_end=True) == [8.0]
+        assert time_map(*CADENZAS).times_of(2, 1.0, segment_end=True) == [9.0]
+        # A cadenza that ends the piece lasts as long as the row before it,
+        # as the last row does (TiLiA's projection): 11 s + 2 s.
+        last = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2))
+
+        assert last.times_of(2, 1.0, segment_end=True) == [5.0, 13.0]
+
+    def test_a_fraction_below_1_counts_the_bars_own_beats(self):
+        # Between bar 2's last beat and the cadenza's start, not its end
+        assert time_map(*CADENZA).times_of(2, 0.75) == [4.5]
+        assert time_map(*CADENZA).times_of(2, 0.75, segment_end=True) == [4.5]
+
+    def test_a_cadenza_named_by_its_label_is_that_measure_alone(self):
+        cadenza = time_map(*CADENZA)
+
+        assert cadenza.times_of(label="2c", fraction=1.0) == [8.0]
+        assert cadenza.times_of(label="2c", segment_end=True) == [5.0]
+        cadenzas = time_map(*CADENZAS)
+
+        # 2d follows 2c, and is numbered 2, not 3
+        assert cadenzas.times_of(label="2c", fraction=1.0) == []
+        assert cadenzas.times_of(label="2c", fraction=1.0, segment_end=True) == [7.0]
+
+    def test_a_cadenza_that_starts_a_movement_belongs_to_it(self):
+        # 1, 2, then a second song that opens with a cadenza: 0c, 1, 2, 3.
+        # The first song's bar 2 ends where the second song starts, at 5 s,
+        # as it would before a bar 1 that restarts the count.
+        opening = {"number": 0, "label": "0c", "cadenza": True, "restart": True}
+        songs = time_map((1, 2), (2, 2), (opening, 2), (1, 2), (2, 2), (3, 2))
+
+        assert songs.times_of(3, segment_end=True) == [5.0, 11.0]
+        assert songs.times_of(2, 1.0, segment_end=True) == [5.0, 11.0]
+        assert songs.times_of(2, 1.0) == [11.0]
