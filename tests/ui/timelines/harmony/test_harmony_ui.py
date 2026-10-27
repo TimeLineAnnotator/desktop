@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -5,7 +7,7 @@ import pytest
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add_mode
 from tests.ui.timelines.interact import click_timeline_ui
-from tests.utils import save_and_reopen, undoable
+from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.timelines.harmony import HarmonyTimelineUI
@@ -574,3 +576,46 @@ class TestCadentialSixFour:
         harmony = reloaded_tlui.harmonies()[0]
         assert harmony.get_data("quality") == "cadential-six-four"
         assert harmony.label == "V(64)"
+
+
+class TestUnknownQualityInFile:
+    # A file saved by a newer TiLiA may have a quality this one doesn't know.
+    # It is renamed in a file saved here, as this TiLiA can't make one.
+    def save_with_unknown_quality(self, tmp_path):
+        add_mode()
+        add_harmony(1, step=0)
+        add_harmony(2, step=4, quality="dominant-seventh")
+        add_harmony(3, step=0)
+        path = save_tilia_to_tmp_path(tmp_path)
+
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        for timeline in data["timelines"].values():
+            for component in timeline.get("components", {}).values():
+                if component.get("quality") == "dominant-seventh":
+                    component["quality"] = "some-future-quality"
+        Path(path).write_text(json.dumps(data), encoding="utf-8")
+        post(Post.APP_CLEAR)
+        return path
+
+    def test_rest_of_file_loads(self, harmony_tlui, tluis, tmp_path, tilia_errors):
+        path = self.save_with_unknown_quality(tmp_path)
+
+        commands.execute("file.open", path=path)
+
+        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        harmonies = reloaded_tlui.harmonies()
+        assert sorted(h.get_data("time") for h in harmonies) == [1, 3]
+        assert [h.label for h in harmonies] == ["I", "I"]
+        assert len(reloaded_tlui.modes()) == 1
+
+    def test_harmony_left_out_is_reported(
+        self, harmony_tlui, tluis, tmp_path, tilia_errors
+    ):
+        path = self.save_with_unknown_quality(tmp_path)
+
+        commands.execute("file.open", path=path)
+
+        tilia_errors.assert_in_error_title("Load components error")
+        tilia_errors.assert_in_error_message(
+            "Harmony at '00:02.0' has an unknown chord quality"
+        )

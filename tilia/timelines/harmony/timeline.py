@@ -33,13 +33,17 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         self,
         kind: ComponentKind,
         time: float,
-        *_,
-        **__,
-    ):
+        *args,
+        **kwargs,
+    ) -> tuple[bool, str]:
         component_class = self._get_component_class_by_kind(kind)
-        return component_class.validate_creation(
-            time, {c.get_data("time") for c in self if c.KIND == kind}
-        )
+        existing_times = {c.get_data("time") for c in self if c.KIND == kind}
+        if kind == ComponentKind.HARMONY:
+            # A harmony's quality is checked too.
+            return component_class.validate_creation(
+                time, existing_times, *args, **kwargs
+            )
+        return component_class.validate_creation(time, existing_times)
 
     def _update_harmony_applied_to_on_mode_creation(self, mode: Mode):
         harmonies_in_harmonic_region = self.get_harmonies_in_harmonic_region(mode)
