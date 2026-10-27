@@ -29,6 +29,7 @@ from tests.utils import (
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.beat.units import format_units
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
@@ -493,6 +494,113 @@ class TestBeatPattern:
             action.trigger()
 
         assert tluis[0].timeline.beats_in_measure == [3, 3]
+
+
+def time_signatures(timeline):
+    return [
+        (format_units([meter.numerator]), meter.denominator)
+        for meter in timeline.measure_meters
+    ]
+
+
+class TestPatternWithTimeSignatures:
+    def test_tapping_follows_the_time_signatures(self, tluis):
+        add_beat_timeline_with_pattern("2[4/4] 3/4 2[4/4(3/2 3/2 1)]")
+        add_beats(range(4 + 4 + 3 + 3 + 3))
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4, 4, 3, 3, 3]
+        assert time_signatures(timeline) == [
+            ("4", 4),
+            ("4", 4),
+            ("3", 4),
+            ("4", 4),
+            ("4", 4),
+        ]
+        values = [m.beat_values for m in timeline.measure_meters]
+        assert values[3] == (F(3, 2), F(3, 2), F(1))
+
+    def test_beat_units_go_where_the_time_signature_changes(self, tluis):
+        add_beat_timeline_with_pattern("2[4/4] 6/8(3 3)")
+        add_beats(range(10))
+
+        timeline = tluis[0].timeline
+        units = [
+            (
+                timeline.get_beat_index(timeline.get_component(u.beat_id)),
+                u.denominator,
+                u.units,
+                u.assumed,
+            )
+            for u in timeline.beat_units
+        ]
+        assert units == [(0, 4, "1", False), (8, 8, "3", False)]
+
+    def test_tapping_past_the_pattern_starts_it_again(self, tluis):
+        add_beat_timeline_with_pattern("4/4 3/4")
+        add_beats(range(4 + 3 + 4 + 3))
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4, 3, 4, 3]
+        assert time_signatures(timeline) == [("4", 4), ("3", 4), ("4", 4), ("3", 4)]
+
+    def test_numbers_of_beats_alone_are_assumed(self, tluis):
+        add_beat_timeline_with_pattern("3")
+        add_beats(range(6))
+
+        timeline = tluis[0].timeline
+        assert time_signatures(timeline) == [("3", 4), ("3", 4)]
+        assert all(m.is_assumed for m in timeline.measure_meters)
+
+    def test_written_time_signatures_are_not_assumed(self, tluis):
+        add_beat_timeline_with_pattern("3/4")
+        add_beats(range(6))
+
+        assert not any(m.is_assumed for m in tluis[0].timeline.measure_meters)
+
+    def test_fill_with_beats_follows_the_time_signatures(self, tluis, tilia_state):
+        tilia_state.duration = 100
+        add_beat_timeline_with_pattern("6/8(3 3) 2/4")
+
+        with patch_fill_beat_timeline_dialog(
+            tluis[0].timeline, BeatTimeline.FillMethod.BY_AMOUNT, 8
+        ):
+            commands.execute("timeline.beat.fill")
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [2, 2, 2, 2]
+        assert time_signatures(timeline) == [("6", 8), ("2", 4), ("6", 8), ("2", 4)]
+
+    def test_setting_the_pattern_remeasures_with_its_time_signatures(self, tluis):
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(12))
+
+        with undoable():
+            commands.execute(
+                "timeline.beat.set_pattern", tluis[0], pattern="6/8(3 3) 3/4(1 1 1)"
+            )
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [2, 3, 2, 3, 2]
+        assert time_signatures(timeline) == [
+            ("6", 8),
+            ("3", 4),
+            ("6", 8),
+            ("3", 4),
+            ("6", 8),
+        ]
+
+    def test_time_signatures_survive_save_and_reopen(self, tluis, tmp_path):
+        add_beat_timeline_with_pattern("2[4/4] 3/4")
+        add_beats(range(11))
+
+        save_and_reopen(tmp_path)
+
+        timeline = tluis[0].timeline
+        assert timeline.beat_pattern == "2[4/4] 3/4"
+        assert time_signatures(timeline) == [("4", 4), ("4", 4), ("3", 4)]
+        add_beats(range(11, 15))
+        assert time_signatures(timeline)[-1] == ("4", 4)
 
 
 class TestCreateDeleteBeat:

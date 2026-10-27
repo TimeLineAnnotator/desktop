@@ -88,7 +88,7 @@ class TestPatternPreview:
         assert preview.rows == []
 
     def test_empty(self):
-        assert get_pattern_preview(parse("")).error == "Enter at least one bar length."
+        assert get_pattern_preview(parse("")).error == "Enter at least one bar."
 
 
 class TestDialog:
