@@ -346,13 +346,13 @@ def test_duration_in_a_where_keeps_its_raw_text():
 )
 def test_values_in_milliseconds_are_refused(text, form):
     err = refused(text)
-    assert err.msg == f"{form} is not part of TQL v0.1.0"
+    assert err.msg == f"{form} is not part of TQL v0.1.1"
     assert text[err.pos : err.end] == form
 
 
 def test_times_as_hours_minutes_seconds_are_refused():
     err = refused("* WHERE start > 1:30:00")
-    assert err.msg == "1:30:00 is not part of TQL v0.1.0"
+    assert err.msg == "1:30:00 is not part of TQL v0.1.1"
     assert (err.pos, err.end) == (16, 23)
     refused("*[start = 0:10:00..1:00:00]")
     refused("a THEN b WHERE $1.start >= $2.start + 1:30:00")
@@ -365,22 +365,22 @@ def test_minutes_and_seconds_are_still_times():
 
 def test_a_percentage_with_duration_is_refused():
     err = refused("*[duration >= 10%]")
-    assert err.msg == "duration >= 10% is not part of TQL v0.1.0"
+    assert err.msg == "duration >= 10% is not part of TQL v0.1.1"
     refused("*[duration = 10%..20%]")
     refused("a THEN b WHERE $1.duration >= 10%")
 
 
 def test_unit_numbers_pick_nothing_by_name():
     err = refused("a THEN b WHERE $1.first.label = x")
-    assert err.msg == "$1.first is not part of TQL v0.1.0"
+    assert err.msg == "$1.first is not part of TQL v0.1.1"
     err = refused("a THEN b -> SET $2.last.label = x")
-    assert err.msg == "$2.last is not part of TQL v0.1.0"
+    assert err.msg == "$2.last is not part of TQL v0.1.1"
     refused('a THEN b -> TAG $1.last "x"')
 
 
 def test_negative_unit_numbers_are_refused():
     err = refused("a THEN b -> UNTAG $-1 *")
-    assert err.msg == "$-1 is not part of TQL v0.1.0"
+    assert err.msg == "$-1 is not part of TQL v0.1.1"
     assert (err.pos, err.end) == (18, 21)
     refused("a THEN b WHERE $-1.label = x")
 
