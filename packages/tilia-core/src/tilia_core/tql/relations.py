@@ -75,6 +75,28 @@ def off_map(rel: syntax.Relation, a: Component, tmap: Any) -> bool:
     return rel.rel == "BEFORE" and tmap.position(a.end, unit) is None
 
 
+def target_off_map(rel: syntax.Relation, b: Component, tmap: Any) -> bool:
+    """Whether a time of the target ``b`` that ``rel``'s ``WITHIN`` in bars or
+    beats reads lies off the time map ``tmap``, or there is none: its start, and
+    for ``AFTER`` its end, where the gap begins (the mirror of :func:`off_map`)."""
+    assert rel.within is not None
+    unit = rel.within.unit
+    if tmap is None or tmap.unit_seconds(b.start, unit) is None:
+        return True
+    return rel.rel == "AFTER" and tmap.position(b.end, unit) is None
+
+
+def target_on_map_sql(rel: syntax.Relation, b: str) -> str:
+    """The SQL twin of ``NOT target_off_map(rel, b)``, ``b`` the target's alias."""
+    assert rel.within is not None
+    unit = rel.within.unit
+    test = f"tql_unit_seconds({b}.file_id, {b}.start, '{unit}') IS NOT NULL"
+    if rel.rel == "AFTER":
+        end = f'{b}."end"'
+        test += f" AND tql_position({b}.file_id, {end}, '{unit}') IS NOT NULL"
+    return test
+
+
 def on_map_sql(rel: syntax.Relation, a: str) -> str:
     """The SQL twin of ``NOT off_map(rel, a)``, ``a`` the left unit's alias."""
     assert rel.within is not None
@@ -328,8 +350,24 @@ def exists_sql(rel: syntax.Relation, comp: str, bld: SqlBuilder) -> str:
     )
     found = f"EXISTS (SELECT 1 FROM components {other} WHERE {inner})"
     if rel.negate and uses_map(rel.within):
-        # off the map, NOT included: a unit off it is in no such relation
-        return f"({on_map_sql(rel, comp)} AND NOT {found})"
+        # off the map, NOT included: a unit off it is in no such relation, and
+        # neither is one whose every target lies off it (sheet I3)
+        cands = []
+        for on_map in (True, False):
+            o = bld.alias("x")
+            test = (
+                f"{o}.file_id = {comp}.file_id AND {o}.id <> {comp}.id AND "
+                f"{tql_compile.lane_test(specs, o, bld)} AND "
+                f"{tql_compile.unit_test(target, o, bld)}"
+            )
+            if on_map:
+                test += f" AND {target_on_map_sql(rel, o)}"
+            cands.append(f"EXISTS (SELECT 1 FROM components {o} WHERE {test})")
+        some_on_map, some = cands
+        return (
+            f"({on_map_sql(rel, comp)} AND NOT {found} AND "
+            f"({some_on_map} OR NOT {some}))"
+        )
     return f"NOT {found}" if rel.negate else found
 
 
@@ -686,6 +724,13 @@ class Scope:
             ):
                 return False  # off the map, NOT included: no time holds
             got = bool(self.rel_targets(comp, cond.relation, first_only=True))
+            if (
+                cond.relation.negate
+                and not got
+                and uses_map(cond.relation.within)
+                and self.targets_off_map(comp, cond.relation)
+            ):
+                return False  # every target lies off the map (sheet I3)
             return got != cond.relation.negate
         if isinstance(cond, syntax.Compare):
             subject = values.Subject([[comp]], comp.timeline_id, bracket=True)
@@ -694,8 +739,11 @@ class Scope:
 
     # -- fields -------------------------------------------------------------- #
     def unit_value(self, name: str, comp: Component) -> Any:
-        """One field of a unit; None when its kind has none."""
+        """One field of a unit; None when its kind has none. A chord's
+        ``label`` is its symbol, Roman numeral and custom text alike (a list)."""
         if name == "label":
+            if comp.kind == "chord":
+                return self.facts.chord_labels(comp.id) or [comp.label]
             return comp.label
         if name in ("start", "time"):
             return comp.start
@@ -900,9 +948,9 @@ class Scope:
                 self.parent(u) for u in self.subject_units(f, subject)
             ]
             return self.step_ok(cond, parents, subject.bracket)
-        # A file without the field answers `!=` and `NOT … =` (#104, R2): no
-        # warning that it could not.
-        open_ = not (
+        # A file without the field answers `!=` and `NOT … =` (#104, R2), and
+        # `= *` in every form (it has none): no warning that it could not.
+        open_ = v.kind != "any" and not (
             (cond.op == "!=" and not cond.negate) or (cond.op == "=" and cond.negate)
         )
         lhs = self.field_values(f, subject, open_)
@@ -990,6 +1038,21 @@ class Scope:
             elif metric.inside(u, outer):
                 out.append(it)
         return out
+
+    def targets_off_map(self, a: Component, rel: syntax.Relation) -> bool:
+        """Whether ``rel`` with ``a`` on the left has targets, units of its lanes
+        that fit a unit of its target, and every one lies off the time map:
+        whether it holds is unknown, so its ``NOT`` holds of nothing."""
+        specs = self.target_lanes(a, rel)
+        some = False
+        for unit in units_of(rel.target):
+            for b in self.candidates(unit, specs):
+                if b.id == a.id:
+                    continue
+                if not target_off_map(rel, b, self.time_map):
+                    return False
+                some = True
+        return some
 
     def candidates(self, unit: syntax.Unit, specs: list[LaneSpec]) -> list[Component]:
         seen: set[str] = set()

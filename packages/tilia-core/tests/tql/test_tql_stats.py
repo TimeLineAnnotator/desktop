@@ -276,6 +276,21 @@ class TestKeys:
             (None, 3),
         ]
 
+    def test_tags_are_folded_as_categories_are(self):
+        # sheet I5 (2026-10-27): "Fast", "fast " and "FAST" are one tag
+        index = index_of("pop")
+        ids = [m.slots[0][0].id for m in tql.run(index, "chorus IN form").matches]
+        index.connection().executemany(
+            "INSERT INTO fields VALUES ('component', ?, 'tags', ?)",
+            [(ids[0], "Fast"), (ids[0], "fast "), (ids[1], "FAST"), (ids[2], "Loud")],
+        )
+        result = tql.run(index, "chorus IN form")
+        assert result.stats("counts", "tags").rows == [
+            ("fast", 2, 1),
+            ("loud", 1, 1),
+            (None, 2, 1),
+        ]
+
     def test_unknown_name_is_refused(self):
         result = run("pop", "chorus IN form")
         with pytest.raises(ValueError, match="counts.*durations.*positions"):
@@ -448,13 +463,14 @@ class TestTransitions:
         kinds = {c.kind for m in result.matches for s in m.slots for c in s}
         assert kinds == {"chord", "key"}
         table = result.stats("transitions")
+        # a chord's label is its symbol (Felipe, 2026-10-27)
         assert table.rows == [
-            ("I", "V", 1),
-            ("I", "V65", 1),
-            ("I", "V7", 1),
-            ("V", "I", 1),
-            ("V65", "I", 1),
-            ("V7", "I", 1),
+            ("C", "G", 1),
+            ("C", "G7", 1),
+            ("C", "G7/B", 1),
+            ("G", "C", 1),
+            ("G7", "C", 1),
+            ("G7/B", "C", 1),
         ]
 
 
