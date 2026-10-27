@@ -15,6 +15,15 @@ from tilia_library.corpora import Corpora
 from tilia_library.liveness import Liveness
 from tilia_library.server import LibraryServer
 
+# The fixture corpus's counts, read from the fixture so that adding a file to it
+# doesn't break these tests.
+_ROWS = FixtureBackend().files(None)
+FIXTURE_COUNTS = (
+    len(_ROWS),
+    sum(r["state"] == "unreadable" for r in _ROWS),
+    sum(r["state"] == "unavailable" for r in _ROWS),
+)
+
 
 class FakeClock:
     def __init__(self) -> None:
@@ -234,7 +243,7 @@ def test_the_rows_are_read_only_when_the_generation_moves(
         liveness.tick()
     assert len(backend.scans) == 3
     assert backend.files_calls == 1
-    assert liveness.state(corpus.id)["files"] == 3
+    assert liveness.state(corpus.id)["files"] == FIXTURE_COUNTS[0]
     backend.rows = [{"state": "ok"}]
     backend.finds_change = True
     clock.now = 12.0
@@ -274,7 +283,7 @@ def test_a_vanished_folder_whose_scan_raises_is_unavailable(
         liveness.tick()
     state = liveness.state(corpus.id)
     assert state["available"] is False
-    assert state["files"] == 3
+    assert state["files"] == FIXTURE_COUNTS[0]
     assert state["last_scan"] is None
     assert state["scanning"] is False
     folder.mkdir()
@@ -435,7 +444,7 @@ def test_state_route(served, backend, liveness, clock, corpus):
     status, data = _call(served, "GET", f"/api/{cid}/state")
     assert status == 200
     assert data["generation"] == 1
-    assert data["files"] == 3
+    assert data["files"] == FIXTURE_COUNTS[0]
     status, _ = _call(served, "POST", f"/api/{cid}/rescan", {})
     assert status == 202
     liveness.tick()
@@ -507,7 +516,7 @@ def test_opening_a_corpus_reads_its_files_once(served, backend, liveness, corpus
         sum(1 for r in rows if r["state"] == "unreadable"),
         sum(1 for r in rows if r["state"] == "unavailable"),
     )
-    assert state["files"] == 3
+    assert state["files"] == FIXTURE_COUNTS[0]
 
 
 def test_opened_by_another_route_the_first_rescan_counts(
@@ -517,7 +526,7 @@ def test_opened_by_another_route_the_first_rescan_counts(
     assert liveness.state(corpus.id)["files"] is None
     liveness.tick()
     assert backend.files_calls == 1
-    assert liveness.state(corpus.id)["files"] == 3
+    assert liveness.state(corpus.id)["files"] == FIXTURE_COUNTS[0]
 
 
 def test_rescan_opens_the_corpus(served, backend, liveness, corpus):
@@ -561,4 +570,8 @@ def test_library_counts(served, corpus):
     _call(served, "GET", f"/api/{corpus.id}/files")
     _, after = _call(served, "GET", "/api/library")
     listed = after["corpora"][0]
-    assert (listed["files"], listed["unreadable"], listed["unavailable"]) == (3, 1, 1)
+    assert (
+        listed["files"],
+        listed["unreadable"],
+        listed["unavailable"],
+    ) == FIXTURE_COUNTS

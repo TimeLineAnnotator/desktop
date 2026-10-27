@@ -1,1 +1,31 @@
-{"columns": ["file_id", "label"], "rows": [["f1", "Überleitung"], ["f1", "过渡"]], "stopped": null, "generation": 1}
+{
+ "columns": [
+  "file",
+  "label",
+  "n"
+ ],
+ "rows": [
+  [
+   "Überleitung.tla",
+   "Überleitung",
+   1
+  ],
+  [
+   "Überleitung.tla",
+   "transição",
+   1
+  ],
+  [
+   "Überleitung.tla",
+   "μετάβαση",
+   1
+  ],
+  [
+   "Überleitung.tla",
+   "过渡",
+   1
+  ]
+ ],
+ "stopped": null,
+ "generation": 1
+}

@@ -1,12 +1,178 @@
-{"f1": {"file_id": "f1", "timelines": [
-  {"id": "t1", "name": "Form", "kind": "hierarchy", "units": [
-    {"id": "u1", "start": 0.0, "end": 4.5, "label": "Überleitung"},
-    {"id": "u2", "start": 4.5, "end": 9.0, "label": "transição"},
-    {"id": "u3", "start": 9.0, "end": 12.0, "label": "μετάβαση"}]},
-  {"id": "t2", "name": "Sections", "kind": "hierarchy", "units": [
-    {"id": "u4", "start": 0.0, "end": 6.0, "label": "过渡"},
-    {"id": "u5", "start": 6.0, "end": 12.0, "label": "מעבר"}]},
-  {"id": "t3", "name": "Notes", "kind": "marker", "units": [
-    {"id": "u6", "start": 3.0, "end": 3.0, "label": "🎵"}]}]},
- "f2": {"file_id": "f2", "timelines": []},
- "f3": {"file_id": "f3", "timelines": []}}
+{
+ "f1": {
+  "file_id": "f1",
+  "name": "Überleitung.tla",
+  "end": 12.0,
+  "timelines": [
+   {
+    "id": "t1",
+    "name": "Form",
+    "kind": "hierarchy",
+    "rows": {
+     "1": "level 1",
+     "2": "level 2"
+    },
+    "components": [
+     {
+      "component_id": "u1",
+      "level": 1,
+      "start": 0.0,
+      "end": 4.5,
+      "label": "Überleitung",
+      "color": "#4477aa",
+      "point": false
+     },
+     {
+      "component_id": "u2",
+      "level": 1,
+      "start": 4.5,
+      "end": 9.0,
+      "label": "transição",
+      "color": "#4477aa",
+      "point": false
+     },
+     {
+      "component_id": "u3",
+      "level": 1,
+      "start": 9.0,
+      "end": 12.0,
+      "label": "μετάβαση",
+      "color": "#4477aa",
+      "point": false
+     }
+    ]
+   },
+   {
+    "id": "t2",
+    "name": "Sections",
+    "kind": "hierarchy",
+    "rows": {
+     "1": "level 1"
+    },
+    "components": [
+     {
+      "component_id": "u4",
+      "level": 1,
+      "start": 0.0,
+      "end": 6.0,
+      "label": "过渡",
+      "color": "#ee6677",
+      "point": false
+     },
+     {
+      "component_id": "u5",
+      "level": 1,
+      "start": 6.0,
+      "end": 12.0,
+      "label": "מעבר",
+      "color": "#ee6677",
+      "point": false
+     }
+    ]
+   },
+   {
+    "id": "t3",
+    "name": "Notes",
+    "kind": "marker",
+    "rows": {
+     "1": "Notes"
+    },
+    "components": [
+     {
+      "component_id": "u6",
+      "level": 1,
+      "start": 3.0,
+      "end": 3.0,
+      "label": "🎵",
+      "color": "#228833",
+      "point": true
+     }
+    ]
+   }
+  ]
+ },
+ "f4": {
+  "file_id": "f4",
+  "name": "Переход.tla",
+  "end": 10.0,
+  "timelines": [
+   {
+    "id": "t4",
+    "name": "Form",
+    "kind": "hierarchy",
+    "rows": {
+     "1": "level 1"
+    },
+    "components": [
+     {
+      "component_id": "u7",
+      "level": 1,
+      "start": 0.0,
+      "end": 3.0,
+      "label": "Переход",
+      "color": "#aa3377",
+      "point": false
+     },
+     {
+      "component_id": "u8",
+      "level": 1,
+      "start": 3.0,
+      "end": 7.0,
+      "label": "経過",
+      "color": "#aa3377",
+      "point": false
+     },
+     {
+      "component_id": "u9",
+      "level": 1,
+      "start": 7.0,
+      "end": 10.0,
+      "label": "переход",
+      "color": "#aa3377",
+      "point": false
+     }
+    ]
+   },
+   {
+    "id": "t5",
+    "name": "Notes",
+    "kind": "marker",
+    "rows": {
+     "1": "Notes"
+    },
+    "components": [
+     {
+      "component_id": "u10",
+      "level": 1,
+      "start": 2.0,
+      "end": 2.0,
+      "label": "♩",
+      "color": "#228833",
+      "point": true
+     },
+     {
+      "component_id": "u11",
+      "level": 1,
+      "start": 6.5,
+      "end": 6.5,
+      "label": "♪",
+      "color": "#228833",
+      "point": true
+     }
+    ]
+   }
+  ]
+ },
+ "f2": {
+  "file_id": "f2",
+  "name": "broken.tla",
+  "end": null,
+  "timelines": []
+ },
+ "f3": {
+  "file_id": "f3",
+  "name": "offline.tla",
+  "end": null,
+  "timelines": []
+ }
+}

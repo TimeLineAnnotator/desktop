@@ -3,17 +3,19 @@ import { loadFiles } from './files.js';
 import { startPolling } from './liveness.js';
 import { qa } from './lib/dom.js';
 import { notAvailable, panelSection, showPanel, urlPanel } from './panels.js';
+import { loadQuery } from './query.js';
 import { errMsg, setStatus } from './util.js';
 
 function openPanel(name) {
   showPanel(name);
   if (name === "files") loadFiles().catch(e => setStatus(String(e), "error"));
+  if (name === "query") loadQuery();
 }
 
 for (const tab of qa(document, "#tabs button")) {
   tab.addEventListener("click", () => openPanel(tab.dataset.panel));
 }
-for (const name of ["query", "categories", "statistics", "edit-log"]) {
+for (const name of ["categories", "statistics", "edit-log"]) {
   notAvailable(panelSection(name), "a later version of TiLiA Library");
 }
 

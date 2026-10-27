@@ -1,6 +1,395 @@
-{"rows": [
-  {"file_id": "f1", "path": "corpus/Überleitung.tla", "start": 0.0, "end": 4.5, "match_start": 0.0, "match_end": 4.5, "label": "Überleitung"},
-  {"file_id": "f1", "path": "corpus/Überleitung.tla", "start": 4.5, "end": 9.0, "match_start": 4.5, "match_end": 9.0, "label": "transição"}],
- "count": 2, "total": 2, "truncated": false, "files": 1,
- "explain": "every unit labelled like a transition", "warnings": [],
- "sql": "SELECT 1", "stopped": null, "generation": 1}
+{
+ "columns": [
+  "file",
+  "title",
+  "timeline",
+  "lane",
+  "ids",
+  "label",
+  "start",
+  "end",
+  "bar",
+  "beat",
+  "$1.label",
+  "$1.timeline",
+  "$1.start",
+  "$1.end",
+  "$1.bar",
+  "$1.ids",
+  "$2.label",
+  "$2.timeline",
+  "$2.start",
+  "$2.end",
+  "$2.bar",
+  "$2.ids"
+ ],
+ "rows": [
+  {
+   "file": "Überleitung.tla",
+   "title": "Überleitung",
+   "timeline": "Form",
+   "lane": "Form / level 1",
+   "ids": "u1,u2",
+   "label": "Überleitung → transição",
+   "start": 0.0,
+   "end": 9.0,
+   "bar": null,
+   "beat": null,
+   "$1.label": "Überleitung",
+   "$1.timeline": "Form",
+   "$1.start": 0.0,
+   "$1.end": 4.5,
+   "$1.bar": null,
+   "$1.ids": "u1",
+   "$2.label": "transição",
+   "$2.timeline": "Form",
+   "$2.start": 4.5,
+   "$2.end": 9.0,
+   "$2.bar": null,
+   "$2.ids": "u2"
+  },
+  {
+   "file": "Überleitung.tla",
+   "title": "Überleitung",
+   "timeline": "Form",
+   "lane": "Form / level 1",
+   "ids": "u2,u3",
+   "label": "transição → μετάβαση",
+   "start": 4.5,
+   "end": 12.0,
+   "bar": null,
+   "beat": null,
+   "$1.label": "transição",
+   "$1.timeline": "Form",
+   "$1.start": 4.5,
+   "$1.end": 9.0,
+   "$1.bar": null,
+   "$1.ids": "u2",
+   "$2.label": "μετάβαση",
+   "$2.timeline": "Form",
+   "$2.start": 9.0,
+   "$2.end": 12.0,
+   "$2.bar": null,
+   "$2.ids": "u3"
+  },
+  {
+   "file": "Überleitung.tla",
+   "title": "Überleitung",
+   "timeline": "Sections",
+   "lane": "Sections / level 1",
+   "ids": "u4,u5",
+   "label": "过渡 → מעבר",
+   "start": 0.0,
+   "end": 12.0,
+   "bar": null,
+   "beat": null,
+   "$1.label": "过渡",
+   "$1.timeline": "Sections",
+   "$1.start": 0.0,
+   "$1.end": 6.0,
+   "$1.bar": null,
+   "$1.ids": "u4",
+   "$2.label": "מעבר",
+   "$2.timeline": "Sections",
+   "$2.start": 6.0,
+   "$2.end": 12.0,
+   "$2.bar": null,
+   "$2.ids": "u5"
+  },
+  {
+   "file": "Переход.tla",
+   "title": "Переход",
+   "timeline": "Form",
+   "lane": "Form / level 1",
+   "ids": "u7,u8",
+   "label": "Переход → 経過",
+   "start": 0.0,
+   "end": 7.0,
+   "bar": null,
+   "beat": null,
+   "$1.label": "Переход",
+   "$1.timeline": "Form",
+   "$1.start": 0.0,
+   "$1.end": 3.0,
+   "$1.bar": null,
+   "$1.ids": "u7",
+   "$2.label": "経過",
+   "$2.timeline": "Form",
+   "$2.start": 3.0,
+   "$2.end": 7.0,
+   "$2.bar": null,
+   "$2.ids": "u8"
+  },
+  {
+   "file": "Переход.tla",
+   "title": "Переход",
+   "timeline": "Form",
+   "lane": "Form / level 1",
+   "ids": "u8,u9",
+   "label": "経過 → переход",
+   "start": 3.0,
+   "end": 10.0,
+   "bar": null,
+   "beat": null,
+   "$1.label": "経過",
+   "$1.timeline": "Form",
+   "$1.start": 3.0,
+   "$1.end": 7.0,
+   "$1.bar": null,
+   "$1.ids": "u8",
+   "$2.label": "переход",
+   "$2.timeline": "Form",
+   "$2.start": 7.0,
+   "$2.end": 10.0,
+   "$2.bar": null,
+   "$2.ids": "u9"
+  }
+ ],
+ "matches": [
+  {
+   "key": "f1:u1-u2",
+   "file_id": "f1",
+   "name": "Überleitung.tla",
+   "start": 0.0,
+   "end": 9.0,
+   "match_start": 0.0,
+   "match_end": 9.0,
+   "lane": {
+    "timeline_id": "t1",
+    "timeline": "Form",
+    "kind": "hierarchy",
+    "level": 1,
+    "row": 0
+   },
+   "slots": [
+    [
+     {
+      "component_id": "u1",
+      "timeline_id": "t1",
+      "timeline": "Form",
+      "label": "Überleitung",
+      "start": 0.0,
+      "end": 4.5,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": true
+     }
+    ],
+    [
+     {
+      "component_id": "u2",
+      "timeline_id": "t1",
+      "timeline": "Form",
+      "label": "transição",
+      "start": 4.5,
+      "end": 9.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": false
+     }
+    ]
+   ],
+   "timelines": [
+    "t1"
+   ]
+  },
+  {
+   "key": "f1:u2-u3",
+   "file_id": "f1",
+   "name": "Überleitung.tla",
+   "start": 4.5,
+   "end": 12.0,
+   "match_start": 4.5,
+   "match_end": 12.0,
+   "lane": {
+    "timeline_id": "t1",
+    "timeline": "Form",
+    "kind": "hierarchy",
+    "level": 1,
+    "row": 0
+   },
+   "slots": [
+    [
+     {
+      "component_id": "u2",
+      "timeline_id": "t1",
+      "timeline": "Form",
+      "label": "transição",
+      "start": 4.5,
+      "end": 9.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": true
+     }
+    ],
+    [
+     {
+      "component_id": "u3",
+      "timeline_id": "t1",
+      "timeline": "Form",
+      "label": "μετάβαση",
+      "start": 9.0,
+      "end": 12.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": false
+     }
+    ]
+   ],
+   "timelines": [
+    "t1"
+   ]
+  },
+  {
+   "key": "f1:u4-u5",
+   "file_id": "f1",
+   "name": "Überleitung.tla",
+   "start": 0.0,
+   "end": 12.0,
+   "match_start": 0.0,
+   "match_end": 12.0,
+   "lane": {
+    "timeline_id": "t2",
+    "timeline": "Sections",
+    "kind": "hierarchy",
+    "level": 1,
+    "row": 0
+   },
+   "slots": [
+    [
+     {
+      "component_id": "u4",
+      "timeline_id": "t2",
+      "timeline": "Sections",
+      "label": "过渡",
+      "start": 0.0,
+      "end": 6.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": true
+     }
+    ],
+    [
+     {
+      "component_id": "u5",
+      "timeline_id": "t2",
+      "timeline": "Sections",
+      "label": "מעבר",
+      "start": 6.0,
+      "end": 12.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": false
+     }
+    ]
+   ],
+   "timelines": [
+    "t2"
+   ]
+  },
+  {
+   "key": "f4:u7-u8",
+   "file_id": "f4",
+   "name": "Переход.tla",
+   "start": 0.0,
+   "end": 7.0,
+   "match_start": 0.0,
+   "match_end": 7.0,
+   "lane": {
+    "timeline_id": "t4",
+    "timeline": "Form",
+    "kind": "hierarchy",
+    "level": 1,
+    "row": 0
+   },
+   "slots": [
+    [
+     {
+      "component_id": "u7",
+      "timeline_id": "t4",
+      "timeline": "Form",
+      "label": "Переход",
+      "start": 0.0,
+      "end": 3.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": true
+     }
+    ],
+    [
+     {
+      "component_id": "u8",
+      "timeline_id": "t4",
+      "timeline": "Form",
+      "label": "経過",
+      "start": 3.0,
+      "end": 7.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": false
+     }
+    ]
+   ],
+   "timelines": [
+    "t4"
+   ]
+  },
+  {
+   "key": "f4:u8-u9",
+   "file_id": "f4",
+   "name": "Переход.tla",
+   "start": 3.0,
+   "end": 10.0,
+   "match_start": 3.0,
+   "match_end": 10.0,
+   "lane": {
+    "timeline_id": "t4",
+    "timeline": "Form",
+    "kind": "hierarchy",
+    "level": 1,
+    "row": 0
+   },
+   "slots": [
+    [
+     {
+      "component_id": "u8",
+      "timeline_id": "t4",
+      "timeline": "Form",
+      "label": "経過",
+      "start": 3.0,
+      "end": 7.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": true
+     }
+    ],
+    [
+     {
+      "component_id": "u9",
+      "timeline_id": "t4",
+      "timeline": "Form",
+      "label": "переход",
+      "start": 7.0,
+      "end": 10.0,
+      "level": 1,
+      "kind": "hierarchy",
+      "target": false
+     }
+    ]
+   ],
+   "timelines": [
+    "t4"
+   ]
+  }
+ ],
+ "files": 2,
+ "grain": "match",
+ "slots": 2,
+ "target": true,
+ "explain": "a unit followed by the next unit on the same timeline",
+ "warnings": [],
+ "action": null,
+ "action_error": null,
+ "stopped": null,
+ "generation": 1
+}
