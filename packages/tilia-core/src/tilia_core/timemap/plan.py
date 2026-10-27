@@ -167,10 +167,11 @@ def plan_time_signatures(
     which is edited, else on the downbeat, and is not assumed. Every measure
     set records `source` ("score", "import", or "edit": "edited", unless the
     measure is tapped); when every measure of the table is set and records
-    the same source, the timeline's `measure_source` changes instead, and the
-    marks lose their own, even where every measure already reads it through
-    its mark. A measure whose unit, "assumed" flag and source are already
-    right gets no write, unless that moves its mark's source to the timeline.
+    the same source, the timeline records it instead, changing its
+    `measure_source` if need be, and the marks lose their own, even where
+    every measure already reads it, through its mark or the timeline. A
+    measure whose unit, "assumed" flag and source are already right gets no
+    write, unless its mark has its own source and every measure is set.
 
     `after` says what the measures after a run of set measures get: "carry",
     the new unit, so nothing more is written. Writes nothing to the document.
@@ -325,8 +326,10 @@ def _source_changes(
         if target is None:
             continue
         own = _dict(timeline.components.get(row.id), "measure").get("source")
-        if changed:
-            # Every measure now has the timeline's source: a mark's own goes.
+        if every:
+            # Every measure now has the timeline's source: a mark's own goes,
+            # also a copy of a source the timeline already had
+            # (TimeLineAnnotator/project-management#343).
             needed, new = own is not None, None
         else:
             needed = row.source != target

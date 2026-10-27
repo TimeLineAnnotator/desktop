@@ -96,6 +96,18 @@ def written(p):
     return {change.component_id for change in p.changes}
 
 
+def with_copies():
+    """A file written outside TiLiA and the core: three bars of three taps
+    reading 3/4 from the timeline's source, "import", which bars 1 and 3
+    repeat in their own marks."""
+    return piece(
+        [3, 3, 3],
+        marks={0: {"source": "import"}, 2: {"source": "import"}},
+        units={(0, 0): unit(4, "1")},
+        measure_source="import",
+    )
+
+
 class TestTimeSignature:
     @pytest.mark.parametrize(
         "beat_values, denominator, parts",
@@ -421,6 +433,32 @@ class TestSources:
 
         assert tla.canonical_bytes(doc) == tla.canonical_bytes(once)
 
+    def test_a_plan_of_every_measure_from_the_timeline_s_source_drops_the_copies(
+        self,
+    ):
+        # TimeLineAnnotator/project-management#343
+        doc, tl = with_copies()
+        assert read(doc, tl) == [("3/4", False, "import")] * 3
+
+        p = plan(doc, tl, bars(1, 2, 3, text="3/4"), source="import")
+
+        assert p.changes == [
+            Change(tl.id, downbeat(tl, 0), "measure.source", "import", None),
+            Change(tl.id, downbeat(tl, 2), "measure.source", "import", None),
+        ]
+        apply_plan(doc, p)
+        assert read(doc, tl) == [("3/4", False, "import")] * 3
+        assert [tl.components[downbeat(tl, m)].attrs["measure"] for m in range(3)] == [
+            {}
+        ] * 3
+
+    def test_a_plan_of_some_measures_leaves_the_copies(self):
+        doc, tl = with_copies()
+
+        p = plan(doc, tl, bars(1, 2, text="3/4"), source="import")
+
+        assert p == Plan([], [], [])
+
     def test_a_timeline_without_its_source_stored_has_its_table_s(self):
         doc, tl = piece([2, 2])
         del tl.attrs["measure_source"]
@@ -552,6 +590,18 @@ class TestNoNeedlessWrites:
         assert tl.attrs["measure_source"] == "import"
 
         p = plan(doc, tl, bars(1, 2, 3, text="3/4"), source="import")
+
+        assert p == Plan([], [], [])
+
+    def test_planning_again_after_the_copies_of_the_timeline_s_source_go_is_empty(
+        self,
+    ):
+        doc, tl = with_copies()
+        settings = bars(1, 2, 3, text="3/4")
+        apply_plan(doc, plan(doc, tl, settings, source="import"))
+        assert "source" not in tl.components[downbeat(tl, 0)].attrs["measure"]
+
+        p = plan(doc, tl, settings, source="import")
 
         assert p == Plan([], [], [])
 
