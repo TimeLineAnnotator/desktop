@@ -21,3 +21,9 @@ export const query = {
   contexts: new Map(),   // "<file id>|<timeline ids>" -> promise of the /api/ql-context answer
   contextsGeneration: null,  // the generation `contexts` was filled at
 };
+
+// The query panel's bulk edit (`query -> ACTION`).
+export const edit = {
+  live: null,            // the preview shown: {id, statement, plan: Map key -> entry, summary}, or null
+  picks: new Map(),      // match key -> the user's own tick; kept when the text changes
+};

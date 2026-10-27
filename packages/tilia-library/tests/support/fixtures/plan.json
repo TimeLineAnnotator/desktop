@@ -1,4 +1,98 @@
-{"plan": [{"key": "k1", "file_id": "f1", "do": "write", "reason": "label matches",
-  "writes": [{"op": "set", "component_id": "u1", "timeline_id": "t1", "field": "label", "old": "Überleitung", "new": "Transition"}]}],
- "skipped_files": [{"file_id": "f2", "reason": "unreadable"}],
- "summary": "1 change in 1 file", "explain": "rename Überleitung", "warnings": [], "generation": 1}
+{
+ "plan": [
+  {
+   "key": "f1:u1-u2",
+   "file_id": "f1",
+   "name": "Überleitung.tla",
+   "do": "write",
+   "reason": null,
+   "writes": [
+    {
+     "op": "set",
+     "component_id": "u1",
+     "timeline_id": "t1",
+     "field": "label",
+     "old": "Überleitung",
+     "new": "Transition"
+    }
+   ]
+  },
+  {
+   "key": "f1:u2-u3",
+   "file_id": "f1",
+   "name": "Überleitung.tla",
+   "do": "write",
+   "reason": null,
+   "writes": [
+    {
+     "op": "delete",
+     "component_id": "u3",
+     "timeline_id": "t1",
+     "field": "label",
+     "old": "μετάβαση",
+     "new": null
+    }
+   ]
+  },
+  {
+   "key": "f1:u4-u5",
+   "file_id": "f1",
+   "name": "Überleitung.tla",
+   "do": "skip",
+   "reason": "the file has unsaved changes in TiLiA",
+   "writes": []
+  },
+  {
+   "key": "f4:u7-u8",
+   "file_id": "f4",
+   "name": "Переход.tla",
+   "do": "write",
+   "reason": null,
+   "writes": [
+    {
+     "op": "set",
+     "component_id": "u7",
+     "timeline_id": "t4",
+     "field": "label",
+     "old": "Переход",
+     "new": "Übergang"
+    }
+   ]
+  },
+  {
+   "key": "f4:u8-u9",
+   "file_id": "f4",
+   "name": "Переход.tla",
+   "do": "write",
+   "reason": null,
+   "writes": [
+    {
+     "op": "add",
+     "component_id": "new-1",
+     "timeline_id": "t4",
+     "field": "label",
+     "level": 2,
+     "start": 0.0,
+     "end": 6.0,
+     "old": null,
+     "new": "Coda"
+    }
+   ]
+  }
+ ],
+ "skipped_files": [
+  {
+   "file_id": "f2",
+   "reason": "unreadable"
+  }
+ ],
+ "summary": {
+  "matches": 5,
+  "writes": 4,
+  "files": 2,
+  "deletes": 1
+ },
+ "explain": "rename and tidy the form labels",
+ "warnings": [],
+ "generation": 1
+}

@@ -82,6 +82,9 @@ class FixtureBackend:
     ) -> dict:
         _raise_on_error_word(text)
         result = self._get("run")
+        if "->" in text:
+            words = text.split("->", 1)[1].split()
+            result["action"] = words[0].lower() if words else None
         if cancel.is_set():
             result["stopped"] = "cancelled"
         return result
@@ -113,12 +116,20 @@ class FixtureBackend:
         return self._get("categories")
 
     def plan(self, corpus: object, statement: str, skip_files: set[Path]) -> dict:
+        _raise_on_error_word(statement)
         return self._get("plan")
 
     def apply(
         self, corpus: object, plan: dict, keys: set[str], skip_files: set[Path]
     ) -> dict:
-        return self._get("apply")
+        result = self._get("apply")
+        entries = self._get("plan")["plan"]
+        written: list[str] = []
+        for entry in entries:
+            if entry["key"] in keys and entry["file_id"] not in written:
+                written.append(entry["file_id"])
+        result["written"] = written
+        return result
 
     def edit_log(self, corpus: object) -> list[dict]:
         return self._get("edit_log")

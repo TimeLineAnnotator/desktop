@@ -224,7 +224,14 @@ def test_fixture_shapes():
         "warnings",
         "generation",
     }
-    assert keys(plan["plan"][0]) == {"key", "file_id", "do", "reason", "writes"}
+    assert keys(plan["plan"][0]) == {
+        "key",
+        "file_id",
+        "name",
+        "do",
+        "reason",
+        "writes",
+    }
     assert keys(plan["plan"][0]["writes"][0]) == {
         "op",
         "component_id",

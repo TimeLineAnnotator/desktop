@@ -37,12 +37,18 @@ Shapes returned:
   raises ``SqlError``
 - statistics: {"generation", "tables": [{"name", "title", "columns", "rows"}]}
 - categories: {"generation", "categories": [{"category", "group", "n"}]}
-- plan: {"plan": [{"key", "file_id", "do", "reason", "writes": [{"op",
-  "component_id", "timeline_id", "field", "old", "new"}]}],
-  "skipped_files": [{"file_id", "reason"}], "summary", "explain",
-  "warnings", "generation"}
-- apply: {"written": [file ids], "skipped": [{"file_id", "reason"}],
-  "entry", "generation"}
+- plan: {"plan": [{"key", "file_id", "name", "do": "write" | "skip",
+  "reason": str or null, "writes": [{"op": "set" | "add" | "delete",
+  "component_id", "timeline_id", "field", "old", "new"}]}], "skipped_files":
+  [{"file_id", "reason"}], "summary": {"matches", "writes", "files",
+  "deletes"}, "explain", "warnings", "generation"}. ``key`` is the match key
+  (the same as in the query answer's ``matches``); ``old`` and ``new`` are
+  null where they don't apply (a new component has no old value, a deletion
+  no new one). An ``add`` write also carries ``level``, ``start`` and ``end``
+  (seconds): where the new component would sit, so the page can draw it; its
+  ``component_id`` is the id it will get (or null).
+- apply: {"written": [file ids], "skipped": [{"file_id", "reason"}], "entry":
+  str (the edit log entry), "generation"}
 - edit_log: [{"entry", "statement", "at", "files", "undone"}]
 - undo: {"restored": [file ids], "refused": [{"file_id", "what_changed"}],
   "skipped": [{"file_id", "reason"}], "generation"}

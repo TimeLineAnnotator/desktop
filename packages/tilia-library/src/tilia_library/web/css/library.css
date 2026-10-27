@@ -180,3 +180,25 @@ table.ql-table { width: auto; min-width: 100%; }
   width: 4px; margin-left: -2px; padding: 0; overflow: visible; text-overflow: clip; text-indent: 7px;
   color: var(--fg); text-shadow: none; border-right: none; font-size: 10px; line-height: 24px;
 }
+
+/* ---- bulk edit: the bar and the plan drawn on the results ---- */
+.ql-edit-bar { border: 1px solid var(--border); border-radius: 6px; background: #fff; padding: 6px 8px; margin: 6px 0; }
+.ql-edit-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ql-edit-verb { font: 600 11px/1.6 ui-monospace, Consolas, monospace; padding: 0 6px; border-radius: 3px; background: #fff4d6; color: #8a5a00; border: 1px solid #f59f00; }
+.ql-edit-summary { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ql-edit-skipped, .ql-edit-result ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
+.ql-edit-result { font-size: 12px; }
+.ql-edit-result:empty { display: none; }
+
+.run-pick, .card-pick { margin: 0 6px 0 0; vertical-align: middle; }
+.plan-diff { margin-left: 10px; font-size: 12px; color: #333; }
+.plan-diff s { color: var(--muted); }
+.plan-diff b { color: var(--ok); font-weight: 600; }
+.plan-diff.plan-del, .plan-diff.plan-del s { color: var(--error); }
+.plan-diff.plan-del s { text-decoration: none; }
+.plan-skip, .plan-none { color: var(--muted); font-style: italic; }
+.run-off { opacity: .45; }
+.card-off { opacity: .6; }
+.strip-block.plan-del { outline: 2px solid var(--error); outline-offset: -1px; z-index: 3; text-decoration: line-through; }
+.strip-block.plan-add { background: transparent; color: var(--fg); text-shadow: none; outline: 2px dashed var(--ok); outline-offset: -1px; z-index: 3; }
+.strip-block.plan-set { box-shadow: 0 0 0 2px rgba(31,111,235,.45); z-index: 3; font-style: italic; }
