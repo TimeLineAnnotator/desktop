@@ -386,9 +386,9 @@ def test_fixture_name_is_the_file_id():
 
 
 def test_chords_at_one_time_are_ordered_by_the_label_stored():
-    # C (I) and B diminished (vii°) at 0: by the Roman labels the builder
-    # stores, I comes first and ends where it starts, and vii° lasts; by the
-    # letter labels (Bdim before C) it would be the other way round
+    # C (I) and B diminished (vii°) at 0: by the symbols the builder stores
+    # (sheet I6), Bdim comes first and ends where it starts, and C lasts; by
+    # the Roman labels (I before vii°) it would be the other way round
     fixture = {
         "length": 4,
         "timelines": [
@@ -404,4 +404,4 @@ def test_chords_at_one_time_are_ordered_by_the_label_stored():
     assert rows(
         index, "SELECT label, start, \"end\" FROM components WHERE kind = 'chord' "
         "ORDER BY \"end\""
-    ) == [("I", 0, 0), ("vii°", 0, 4)]
+    ) == [("Bdim", 0, 0), ("C", 0, 4)]

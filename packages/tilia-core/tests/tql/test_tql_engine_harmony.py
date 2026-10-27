@@ -428,15 +428,15 @@ class TestChordsOnBoundaries:
     def test_in_the_sentence_form_and_in_brackets(self):
         fix = phrases(I_V_I)
         assert where(fix, "I IN harmony DURING phrase IN form") == [
-            "I@0 | phrase@0",
-            "I@8 | phrase@0",
+            "C@0 | phrase@0",
+            "C@8 | phrase@0",
         ]
         assert where(fix, "phrase IN form CONTAINS I IN harmony") == [
-            "phrase@0 | I@0",
-            "phrase@0 | I@8",
+            "phrase@0 | C@0",
+            "phrase@0 | C@8",
         ]
         assert where(fix, "phrase[CONTAINS I IN harmony] IN form") == ["phrase@0"]
-        assert where(fix, "next IN form CONTAINS I IN harmony") == ["next@8 | I@8"]
+        assert where(fix, "next IN form CONTAINS I IN harmony") == ["next@8 | C@8"]
         assert where(fix, "next[CONSISTS OF I IN harmony] IN form") == ["next@8"]
 
     @pytest.mark.parametrize("time, inside", [(8.05, True), (8.1, True), (8.2, False)])
@@ -458,16 +458,16 @@ class TestChordsOnBoundaries:
         # V starts at 4, in the phrase, and lasts until 12
         fix = phrases([(0, "C", "major"), (4, "G", "major"), (12, "C", "major")])
         assert where(fix, "phrase[ENDS WITH V IN harmony] IN form") == ["phrase@0"]
-        assert where(fix, "V IN harmony DURING phrase IN form") == ["V@4 | phrase@0"]
+        assert where(fix, "V IN harmony DURING phrase IN form") == ["G@4 | phrase@0"]
 
     def test_a_chord_at_the_time_of_a_marker_is_during_it(self):
         fix = phrases(I_V_I, markers=[("PAC", 8), ("HC", 4.05), ("EC", 6)])
-        assert where(fix, "I IN harmony DURING PAC IN cadences") == ["I@8 | PAC@8"]
-        assert where(fix, "PAC IN cadences CONTAINS I IN harmony") == ["PAC@8 | I@8"]
-        assert where(fix, "V IN harmony DURING HC IN cadences") == ["V@4 | HC@4.05"]
-        assert where(fix, "HC IN cadences CONTAINS V IN harmony") == ["HC@4.05 | V@4"]
+        assert where(fix, "I IN harmony DURING PAC IN cadences") == ["C@8 | PAC@8"]
+        assert where(fix, "PAC IN cadences CONTAINS I IN harmony") == ["PAC@8 | C@8"]
+        assert where(fix, "V IN harmony DURING HC IN cadences") == ["G@4 | HC@4.05"]
+        assert where(fix, "HC IN cadences CONTAINS V IN harmony") == ["HC@4.05 | G@4"]
         assert where(fix, "V IN harmony DURING EC IN cadences") == []
-        assert where(fix, "*[DURING PAC IN cadences] IN harmony") == ["I@8"]
+        assert where(fix, "*[DURING PAC IN cadences] IN harmony") == ["C@8"]
         assert where(fix, "PAC[STARTS WITH I IN harmony] IN cadences") == ["PAC@8"]
         assert where(fix, "PAC[CONTAINS V IN harmony] IN cadences") == []
 
@@ -483,21 +483,24 @@ class TestEqualTimes:
         chords = [list(self.CHORDS[i]) for i in order]
         got = run(harmony_fixture([[0, "C", "major"]], chords, 16), "* IN harmony")
         assert [(c.label, c.start, c.end) for m in got.matches for c in m.slots[0]] == [
-            ("I", 0, 0),
-            ("V", 0, 4),
-            ("vi", 4, 16),
+            ("C", 0, 0),
+            ("G", 0, 4),
+            ("Am", 4, 16),
         ]
 
     @pytest.mark.parametrize("first", ["D", "G"])
-    def test_the_label_is_compared_ignoring_case(self, first):
-        # ii (D minor) before V (G major) ignoring case, V before ii by code point
+    def test_two_chords_at_one_time_go_by_symbol(self, first):
+        # Dm before G, whichever the file stores first. A chord's label is its
+        # symbol (sheet I6), a capital root and then no other capital, so case
+        # never decides between two chords: the Roman ii and V, which it did
+        # decide, are no longer labels
         chords = {"D": (0, "D", "minor"), "G": (0, "G", "major")}
         stored = [list(chords[first]), list(chords["G" if first == "D" else "D"])]
         fix = harmony_fixture([[0, "C", "major"]], stored, 10)
         got = run(fix, "* IN harmony")
         assert [(c.label, c.start, c.end) for m in got.matches for c in m.slots[0]] == [
-            ("ii", 0, 0),
-            ("V", 0, 10),
+            ("Dm", 0, 0),
+            ("G", 0, 10),
         ]
 
     @pytest.mark.parametrize(
