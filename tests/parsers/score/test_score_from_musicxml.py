@@ -242,7 +242,7 @@ def test_changing_attributes(score_tl, beat_tl, tmp_path):
     beat_tl.set_data("beat_pattern", [1])
     for i in range(6):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 3, 0, 2, 4, 5]
+    beat_tl.set_measure_numbers([1, 3, 0, 2, 4, 5])
     beat_tl.recalculate_measures()
 
     _import_with_patch(score_tl, beat_tl, example, tmp_path)
@@ -656,7 +656,7 @@ def test_notes_in_a_measure_the_beat_timeline_skips_are_not_imported(
     beat_tl.set_data("beat_pattern", [1])
     for i in range(4):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 3, 4, 5]
+    beat_tl.set_measure_numbers([1, 3, 4, 5])
     beat_tl.recalculate_measures()
 
     success, errors = _import_with_patch(

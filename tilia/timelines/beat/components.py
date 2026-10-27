@@ -28,25 +28,50 @@ from tilia.timelines.base.component import (
 )
 
 
+def validate_measure_number_override(value: int | None) -> bool:
+    return value is None or (isinstance(value, int) and not isinstance(value, bool))
+
+
 class Beat(PointLikeTimelineComponent):
-    SERIALIZABLE = ["time"]
+    """
+    A tapped beat. A beat that starts a measure carries `is_first_in_measure`
+    and the measure's own data: the number set on it by hand, if any (None
+    means one more than the measure before), and whether that number is
+    always shown. See `tilia.timelines.beat.measures`.
+    """
+
+    SERIALIZABLE = [
+        "time",
+        "is_first_in_measure",
+        "measure_number_override",
+        "measure_number_always_shown",
+    ]
     ORDERING_ATTRS = ("time",)
     KIND = ComponentKind.BEAT
 
-    validators = {"time": validate_time, "is_first_in_measure": validate_bool}
+    validators = {
+        "time": validate_time,
+        "is_first_in_measure": validate_bool,
+        "measure_number_override": validate_measure_number_override,
+        "measure_number_always_shown": validate_bool,
+    }
 
     def __init__(
         self,
         timeline: BeatTimeline,
         id: int,
         time: float,
+        is_first_in_measure: bool = False,
+        measure_number_override: int | None = None,
+        measure_number_always_shown: bool = False,
         comments="",
         **_,
     ):
         self.time = time
+        self.is_first_in_measure = is_first_in_measure
+        self.measure_number_override = measure_number_override
+        self.measure_number_always_shown = measure_number_always_shown
         self.comments = comments
-        self.is_first_in_measure = False
-        self._cached_metric_position = None
 
         super().__init__(timeline, id)
 
@@ -56,25 +81,16 @@ class Beat(PointLikeTimelineComponent):
     def __repr__(self):
         return f"Beat({self.time})"
 
-    def clear_cached_metric_position(self):
-        self._cached_metric_position = None
+    @classmethod
+    def get_export_attributes(cls) -> list[str]:
+        # The measure data is exported through "measure", the number the
+        # beat's measure ends up with.
+        return ["time", "measure", "beat"]
 
     @property
     def metric_position(self) -> MetricPosition:
-        if self._cached_metric_position is None:
-            self.timeline: BeatTimeline
-            beat_index = self.timeline.get_beat_index(self)
-            measure_index, index_in_measure = self.timeline.get_measure_index(
-                beat_index
-            )
-
-            self._cached_metric_position = MetricPosition(
-                self.timeline.measure_numbers[measure_index],
-                index_in_measure + 1,
-                self.timeline.beats_in_measure[measure_index],
-            )
-
-        return self._cached_metric_position
+        self.timeline: BeatTimeline
+        return self.timeline.get_metric_position_of_beat(self)
 
     @property
     def measure_number(self):

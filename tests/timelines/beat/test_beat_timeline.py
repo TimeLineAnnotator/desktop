@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 import pytest
 
 from tests.mock import patch_yes_or_no_dialog
@@ -27,9 +25,7 @@ class TestBeatTimeline:
         commands.execute("timeline.beat.add")
         assert len(beat_tlui) == 0
 
-    def test_create_beat_at_middle_updates_next_beats_is_first_in_measure(
-        self, beat_tlui
-    ):
+    def test_create_beat_at_middle_joins_the_measure_it_falls_in(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [2]
         commands.execute("media.seek", 0)
         commands.execute("timeline.beat.add")
@@ -41,10 +37,24 @@ class TestBeatTimeline:
         commands.execute("media.seek", 5)
         commands.execute("timeline.beat.add")
 
-        assert beat_tlui[0].get_data("is_first_in_measure") is True
-        assert beat_tlui[1].get_data("is_first_in_measure") is False
-        assert beat_tlui[2].get_data("is_first_in_measure") is True
-        assert beat_tlui[3].get_data("is_first_in_measure") is False
+        assert [b.get_data("is_first_in_measure") for b in beat_tlui] == [
+            True,
+            False,
+            False,
+            True,
+        ]
+        assert beat_tlui.timeline.beats_in_measure == [3, 1]
+
+    def test_create_beat_before_the_first_starts_measure_zero(self, beat_tlui):
+        for time in [10, 11, 12]:
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+
+        commands.execute("media.seek", 5)
+        commands.execute("timeline.beat.add")
+
+        assert beat_tlui.timeline.beats_in_measure == [1, 3]
+        assert beat_tlui.timeline.measure_numbers == [0, 1]
 
     def test_recalculate_measures_added_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
@@ -157,11 +167,6 @@ class TestBeatTimeline:
         assert beat_tl.beats_in_measure == [2, 2, 1]
         assert beat_tl.measure_numbers == [1, 2, 3]
 
-    def test_reduce_beats_in_measure_more_than_available(self, beat_tl):
-        beat_tl.beats_in_measure = [4, 3, 2]
-        beat_tl.reduce_beats_in_measure(13)
-        assert beat_tl.beats_in_measure == []
-
     def test_recalculate_measures_removed_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
         beat_tl.create_beat(time=2)
@@ -240,73 +245,87 @@ class TestBeatTimeline:
         assert beat_tl.beats_in_measure == [2, 1]
         assert beat_tl.measure_numbers == [1, 2]
 
+    @staticmethod
+    def _add_measures(beat_tl, count):
+        beat_tl.set_data("beat_pattern", [1])
+        for time in range(count):
+            beat_tl.create_beat(time=time + 1)
+
     def test_change_measure_number_case1(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(1, 10)
         assert beat_tl.measure_numbers == [1, 10, 11, 12]
         assert beat_tl.measures_to_force_display == [1]
 
     def test_change_measure_number_case2(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(2, 10)
         assert beat_tl.measure_numbers == [1, 2, 10, 11]
         assert beat_tl.measures_to_force_display == [2]
 
-    def test_propagate_number_change_stops_at_forced_display(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4, 5, 6]
-        beat_tl.measures_to_force_display = [4]
+    def test_number_change_stops_at_a_measure_numbered_by_hand(self, beat_tl):
+        self._add_measures(beat_tl, 6)
+        beat_tl.set_measure_number(4, 5)
         beat_tl.set_measure_number(2, 10)
         assert beat_tl.measure_numbers == [1, 2, 10, 11, 5, 6]
-        assert beat_tl.measures_to_force_display == [4, 2]
+        assert beat_tl.measures_to_force_display == [2, 4]
 
     def test_set_measure_number_twice_forces_display_once(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(1, 10)
         beat_tl.set_measure_number(1, 10)
         assert beat_tl.measures_to_force_display == [1]
 
     def test_reset_measure_number_unforces_display_after_repeated_sets(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(1, 10)
         beat_tl.set_measure_number(1, 20)
         beat_tl.set_measure_number(1, 30)
         beat_tl.reset_measure_number(1)
         assert beat_tl.measures_to_force_display == []
 
-    def test_reduce_measure_numbers_drops_forced_display_out_of_range(self, beat_tl):
-        beat_tl.set_data("beat_pattern", [1])
-        for i in range(5):
-            beat_tl.create_beat(time=i + 1)
-        beat_tl.recalculate_measures()
+    def test_deleting_measures_drops_their_forced_display(self, beat_tl):
+        self._add_measures(beat_tl, 5)
 
-        # forcing a later measure first leaves the list unsorted
         beat_tl.set_measure_number(4, 40)
         beat_tl.set_measure_number(1, 10)
-        assert beat_tl.measures_to_force_display == [4, 1]
+        assert beat_tl.measures_to_force_display == [1, 4]
 
         beat_tl.delete_components([beat_tl[2], beat_tl[3], beat_tl[4]])
-        beat_tl.recalculate_measures()
 
         assert beat_tl.measure_count == 2
         assert beat_tl.measures_to_force_display == [1]
 
     def test_reset_measure_number_first_measure(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(0, 10)
         beat_tl.reset_measure_number(0)
         assert beat_tl.measure_numbers == [1, 2, 3, 4]
 
     def test_reset_measure_number_middle_measure(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(1, 10)
         beat_tl.reset_measure_number(1)
         assert beat_tl.measure_numbers == [1, 2, 3, 4]
 
     def test_reset_measure_number_last_measure(self, beat_tl):
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        self._add_measures(beat_tl, 4)
         beat_tl.set_measure_number(3, 10)
         beat_tl.reset_measure_number(3)
         assert beat_tl.measure_numbers == [1, 2, 3, 4]
+
+    def test_set_measure_numbers_with_a_repeat(self, beat_tl):
+        self._add_measures(beat_tl, 6)
+        beat_tl.set_measure_numbers([1, 2, 3, 1, 2, 3])
+        assert beat_tl.measure_numbers == [1, 2, 3, 1, 2, 3]
+        assert [b.measure_number_override for b in beat_tl] == [
+            None,
+            None,
+            None,
+            1,
+            None,
+            None,
+        ]
 
     def test_get_times_by_measure_no_beats(self, beat_tl):
         with pytest.raises(ValueError):
@@ -425,8 +444,7 @@ class TestBeatTimeline:
         beat_tl.set_data("beat_pattern", [2])
         for t in range(1, 13):
             beat_tl.create_beat(time=t)
-        beat_tl.measure_numbers = [1, 2, 3, 1, 2, 1]
-        beat_tl.recalculate_measures()
+        beat_tl.set_measure_numbers([1, 2, 3, 1, 2, 1])
 
         assert beat_tl.get_time_by_measure(1) == [1, 7, 11]
         assert beat_tl.get_time_by_measure(2, 0.5) == [4, 10]
@@ -436,20 +454,32 @@ class TestBeatTimeline:
         assert beat_tl.get_time_by_measure(3, 1.0) == []
         assert beat_tl.get_time_by_measure(3, 1.0, True) == [7]
 
-    def test_delete_beat_updates_is_first_in_measure_of_subsequent_beats(self, beat_tl):
+    def test_delete_beat_leaves_the_other_measures_as_they_are(self, beat_tl):
         beat_tl.beat_pattern = [2]
-        beat_tl.create_beat(0)
-        beat_tl.create_beat(1)
-        beat_tl.create_beat(2)
-        beat_tl.create_beat(3)
-        beat_tl.create_beat(4)
+        for time in range(5):
+            beat_tl.create_beat(time)
 
         beat_tl.delete_components([beat_tl[1]])
 
-        assert beat_tl[0].get_data("is_first_in_measure")
-        assert not beat_tl[1].get_data("is_first_in_measure")
-        assert beat_tl[2].get_data("is_first_in_measure")
-        assert not beat_tl[3].get_data("is_first_in_measure")
+        assert [b.get_data("is_first_in_measure") for b in beat_tl] == [
+            True,
+            True,
+            False,
+            True,
+        ]
+        assert beat_tl.beats_in_measure == [1, 2, 1]
+
+    def test_delete_first_beat_of_a_measure_hands_it_to_the_next(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        for time in range(5):
+            beat_tl.create_beat(time)
+        beat_tl.set_measure_number(1, 10)
+
+        beat_tl.delete_components([beat_tl[2]])
+
+        assert beat_tl.beats_in_measure == [2, 1, 1]
+        assert beat_tl.measure_numbers == [1, 10, 11]
+        assert beat_tl[2].measure_number_override == 10
 
     @pytest.mark.timeout(5)
     def test_open_file_with_many_beats(self, resources, tilia):
@@ -520,36 +550,32 @@ class TestBeatTimeline:
         with undoable():
             commands.execute("timeline.component.delete")
 
-    def test_delete_keeps_an_outer_suppression_in_place(self, beat_tlui):
-        # BeatTLComponentManager.restore_state suppresses recomputation across a
-        # whole delete-then-create pass, and reaches delete_components in the
-        # middle of it. Restoring a hardcoded True here would re-enable the
-        # recomputation for every beat the restore re-creates afterwards.
+    def test_delete_keeps_an_outer_bulk_change_in_place(self, beat_tlui):
+        # BeatTLComponentManager.restore_state makes a whole delete-then-create
+        # pass a bulk change, and reaches delete_components in the middle of
+        # it. Ending the bulk change there would place every beat the restore
+        # re-creates afterwards as if a user had added it.
         self._add_beats(range(8))
         timeline = beat_tlui.timeline
         component_manager = timeline.component_manager
 
-        with component_manager.suppressing_is_first_in_measure():
+        with component_manager.bulk():
             timeline.delete_components(list(timeline.components)[4:])
 
-            assert component_manager.compute_is_first_in_measure is False
+            assert component_manager.is_bulk is True
 
-        assert component_manager.compute_is_first_in_measure is True
+        assert component_manager.is_bulk is False
 
-    def test_delete_restores_the_flag_when_a_deletion_raises(self, beat_tlui):
-        # Leaving the flag off would silently stop every beat created later in
-        # the session from getting any measure data.
-        self._add_beats(range(8))
-        timeline = beat_tlui.timeline
-        component_manager = timeline.component_manager
+    def test_bulk_change_ends_when_its_body_raises(self, beat_tlui):
+        # Leaving the flag on would stop every beat created later in the
+        # session from being placed in a measure.
+        component_manager = beat_tlui.timeline.component_manager
 
-        with patch.object(
-            component_manager, "delete_component", side_effect=ValueError
-        ):
-            with pytest.raises(ValueError):
-                timeline.delete_components(list(timeline.components))
+        with pytest.raises(ValueError):
+            with component_manager.bulk():
+                raise ValueError
 
-        assert component_manager.compute_is_first_in_measure is True
+        assert component_manager.is_bulk is False
 
     def test_crop_recalculates_measures(self, beat_tlui, tilia_state):
         beat_tlui.timeline.set_data("beat_pattern", [2, 3])

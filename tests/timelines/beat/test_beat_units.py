@@ -298,17 +298,32 @@ class TestMeasureMeters:
         assert meter.beat_unit_id == first.beat_id
         assert meter.denominator == 8
 
-    def test_beat_unit_follows_its_beat_when_barlines_move(self, beat_tl):
+    def test_inserted_beats_leave_later_measures_as_they_are(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
         add_beat_unit(beat_tl, 4, 8, "3")
         assert time_signatures(beat_tl) == [(2, 4), (2, 4), (6, 8)]
 
-        # A forgotten bar's beats, before the beat unit.
+        # A forgotten bar's beats join the measure they fall in, and the
+        # beat unit stays on the measure it starts.
         beat_tl.create_beat(0.25)
         beat_tl.create_beat(0.5)
 
-        assert time_signatures(beat_tl) == [(2, 4), (2, 4), (2, 4), (6, 8)]
+        assert time_signatures(beat_tl) == [(4, 4), (2, 4), (6, 8)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (6, 8, "3")]
+
+    def test_remeasuring_keeps_each_measures_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 4, 8, "3")
+
+        # The measures after the first keep their beat counts, so their first
+        # beats move, and each beat unit moves with its measure.
+        beat_tl.set_beat_amount_in_measure(0, 3)
+
+        assert beat_tl.beats_in_measure == [3, 2, 2, 1]
+        assert time_signatures(beat_tl) == [(3, 4), (2, 4), (6, 8), (3, 8)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (5, 8, "3")]
 
     def test_meters_can_be_hashed(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
@@ -404,14 +419,15 @@ class TestFirstBeatUnit:
         assert beat_unit_values(beat_tl) == [(0, 8, "3"), (1, 8, "3")]
         assert time_signatures(beat_tl)[0] == (3, 8)
 
-    def test_pickup_in_the_same_measure_needs_no_new_beat_unit(self, beat_tl):
+    def test_pickup_leaves_the_other_measures_as_they_are(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 4, start=1)
         add_beat_unit(beat_tl, 0, 8, "3")
 
         beat_tl.create_beat(0)
 
-        assert beat_unit_values(beat_tl) == [(1, 8, "3")]
+        assert beat_tl.beats_in_measure == [1, 2, 2]
+        assert beat_unit_values(beat_tl) == [(0, 8, "3"), (1, 8, "3")]
 
     def test_deleting_the_first_beat_keeps_the_values(self, beat_tl):
         beat_tl.set_data("beat_pattern", [1])
