@@ -129,11 +129,9 @@ class Harmony(PointLikeTimelineComponent):
         cls,
         time: float,
         existing_times: Iterable[float],
-        step: int = 0,
-        accidental: int = 0,
+        *,
         quality: str = "major",
-        *_,
-        **__,
+        **_: Any,
     ) -> tuple[bool, str]:
         return cls.compose_validators(
             [
