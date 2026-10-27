@@ -9,6 +9,11 @@ FONT_TYPES = ["analytic", "normal"]
 # The dominant with a sixth and a fourth over its root, which resolve to its
 # fifth and third. Its sixth and fourth are not added tones, but it is written
 # and typed as if they were, on the major triad: "V(64)".
+#
+# Two gaps are left until the harmony model is overhauled. Any major triad
+# takes it, not only the dominant, so "I(64)" is accepted too. And "Gadd64" is
+# read as it, though music21 reads a 64th as the root doubled, so its music21
+# chord has the root, third and fifth, and no sixth or fourth.
 CADENTIAL_SIX_FOUR = "cadential-six-four"
 CADENTIAL_SIX_FOUR_TONE = "64"
 
