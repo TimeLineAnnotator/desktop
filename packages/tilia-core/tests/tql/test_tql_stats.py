@@ -448,13 +448,14 @@ class TestTransitions:
         kinds = {c.kind for m in result.matches for s in m.slots for c in s}
         assert kinds == {"chord", "key"}
         table = result.stats("transitions")
+        # a chord's label is its symbol (Felipe, 2026-10-27)
         assert table.rows == [
-            ("I", "V", 1),
-            ("I", "V65", 1),
-            ("I", "V7", 1),
-            ("V", "I", 1),
-            ("V65", "I", 1),
-            ("V7", "I", 1),
+            ("C", "G", 1),
+            ("C", "G7", 1),
+            ("C", "G7/B", 1),
+            ("G", "C", 1),
+            ("G7", "C", 1),
+            ("G7/B", "C", 1),
         ]
 
 
