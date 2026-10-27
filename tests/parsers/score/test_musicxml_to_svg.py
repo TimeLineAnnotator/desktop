@@ -14,6 +14,8 @@ from tilia.parsers.score.musicxml_to_svg import SVG_MAKER_PATH, musicxml_to_svg
 from tilia.requests import Get, get
 from tilia.ui import commands
 
+pytestmark = pytest.mark.draws_scores
+
 # Stands in for svg_maker.html: keeps the text loadSVG gets, says so in its
 # title, and needs no network.
 STUB_PAGE = """<html><head><title>waiting</title></head><body><script>
