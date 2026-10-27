@@ -34,6 +34,7 @@ _NO_DURATION = (
 )
 _NOT_APPLICABLE = "'{}' is not valid for timeline kind '{}'."
 _INVALID_BEAT_PATTERN = "Invalid beat pattern '{}': {}"
+_SHARED_NAME = "There is more than one timeline with name '{}'"
 # The spec's, where TiLiA has none (FR-052, FR-056), and the one text for a
 # value that isn't one (TimeLineAnnotator/project-management#298 (texts for the
 # rules)), which rules.not_valid will give.
@@ -263,10 +264,17 @@ def add_timeline(
 
 
 def find_timeline(
-    document: tla.Document, *, name: str | None = None, ordinal: int | None = None
+    document: tla.Document,
+    *,
+    name: str | None = None,
+    ordinal: int | None = None,
+    problems: list[str] | None = None,
 ) -> str:
     """The id of the timeline with this ordinal, or else of the first, by
     ordinal, with this name, as TiLiA's command line finds an import's target.
+
+    A name that more than one timeline has adds TiLiA's warning to
+    `problems`, when given, which `tilia run` reports as a problem.
 
     Raises ValueError when there is none.
     """
@@ -279,10 +287,14 @@ def find_timeline(
         raise TypeError("find_timeline needs a name or an ordinal")
     wanted = nfc(name)
     by_ordinal = sorted(document.timelines.items(), key=lambda item: item[1].ordinal)
-    for timeline_id, timeline in by_ordinal:
-        if timeline.name == wanted:
-            return timeline_id
-    raise ValueError(f"No timeline found with name={name}")
+    found = [
+        timeline_id for timeline_id, timeline in by_ordinal if timeline.name == wanted
+    ]
+    if not found:
+        raise ValueError(f"No timeline found with name={name}")
+    if len(found) > 1 and problems is not None:
+        problems.append(_SHARED_NAME.format(name))
+    return found[0]
 
 
 def _media_length(value: object) -> float:
