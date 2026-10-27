@@ -702,7 +702,7 @@ class TestLabelsAndMatches:
             for m in got.matches
         ) == Counter(expected)
 
-    def test_chord_labels_wait_for_the_harmony_part(self):
+    def test_chords_in_a_relation_target(self):
         harmony = fixture(
             hierarchy("Form (X)", [["phrase", 1, 0, 8]]),
             {
@@ -712,14 +712,10 @@ class TestLabelsAndMatches:
                 "chords": [[0, "C", "major"], [4, "G", "major"]],
             },
         )
-        with pytest.raises(NotImplementedError, match="harmony"):
-            run(harmony, "phrase[ENDS WITH I IN harmony] IN form")
-        with pytest.raises(NotImplementedError, match="harmony"):
-            run(harmony, "phrase IN form CONTAINS I IN harmony")
-        with pytest.raises(NotImplementedError, match="harmony"):
-            run(harmony, "phrase[CONTAINS I IN harmony] IN form")
-        with pytest.raises(NotImplementedError, match="harmony"):
-            run(harmony, "I IN harmony DURING phrase IN form")
+        assert lefts(harmony, "phrase[ENDS WITH V IN harmony] IN form") == ["phrase@0"]
+        assert lefts(harmony, "phrase[ENDS WITH I IN harmony] IN form") == []
+        assert lefts(harmony, "phrase[CONTAINS V IN harmony] IN form") == ["phrase@0"]
+        assert lefts(harmony, "phrase IN form CONTAINS I IN harmony") == ["phrase@0"]
         assert lefts(harmony, "phrase[CONTAINS * IN harmony] IN form") == ["phrase@0"]
         assert lefts(harmony, "* IN harmony DURING phrase IN form") == ["C@0", "G@4"]
 

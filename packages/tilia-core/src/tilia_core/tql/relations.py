@@ -501,8 +501,11 @@ class Scope:
 
     # -- fields -------------------------------------------------------------- #
     def unit_value(self, name: str, comp: Component) -> Any:
-        """One field of a unit; None when its kind has none."""
+        """One field of a unit; None when its kind has none. A chord's
+        ``label`` is its symbol, Roman numeral and custom text alike (a list)."""
         if name == "label":
+            if comp.kind == "chord":
+                return self.facts.chord_labels(comp.id) or [comp.label]
             return comp.label
         if name in ("start", "time"):
             return comp.start
@@ -601,9 +604,7 @@ class Scope:
             if comp.kind in ("chord", "key") and cond.value.kind != "any":
                 if bracket:
                     continue  # the unit's lane is checked as a whole
-                raise NotImplementedError(
-                    "labels in chords and keys lanes are for the harmony part"
-                )
+                raise NotImplementedError(tql_compile.LABEL_STEP_MESSAGE)
             hit = hit or self.fits(step, comp)
         if cond.op in ("=", "~"):
             return hit

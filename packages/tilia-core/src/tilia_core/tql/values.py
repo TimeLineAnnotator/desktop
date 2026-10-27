@@ -9,8 +9,9 @@ fields.
 
 Case rules (Q25): a quoted value keeps its case, a bare word ignores it (after
 ``~`` too), and two units' fields compare ignoring it. ``key``, ``roman``,
-``symbol`` and regular expressions keep case anyway. Colours compare as colours. Chords and keys are
-compared as stored text here; reading them as music is for the harmony part.
+``symbol`` and regular expressions keep case anyway. Colours compare as colours.
+Keys, Roman numerals and chord symbols compare as music (``c``, ``Cm`` and
+``C minor`` are one key), as text when either side does not parse.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from tilia_core import derived
+from tilia_core import derived, harmony
 from tilia_core.labels import fold, nfc
 
 from . import syntax
@@ -61,6 +62,24 @@ def text(v: Any) -> str:
     if isinstance(v, float) and v.is_integer():
         return str(int(v))
     return "" if v is None else str(v)
+
+
+def same_harmony(fname: str, have: str, want: str) -> bool | None:
+    """Whether ``have`` and ``want`` are one key (``fname`` is ``key``) or one
+    chord (``roman``, ``symbol``), read as music; None when either side does not
+    parse, and the caller compares text."""
+    if not have or not want:
+        return None
+    try:
+        if fname == "key":
+            return (
+                harmony.parse_key(have).canonical == harmony.parse_key(want).canonical
+            )
+        return (
+            harmony.parse_chord(have).canonical == harmony.parse_chord(want).canonical
+        )
+    except harmony.HarmonyError:
+        return None
 
 
 def _ordered(op: str, a: Any, b: Any) -> bool:
@@ -118,7 +137,11 @@ def _pair(op: str, lhs: Any, rhs: Any, fname: str, caps: list[str] | None) -> bo
             ignore_case=fname not in CASE_SENSITIVE,
         )
     if fname in CASE_SENSITIVE:
-        return _ordered(op, nfc(text(lhs)), nfc(text(rhs)))
+        have, want = nfc(text(lhs)), nfc(text(rhs))
+        same = same_harmony(fname, have.strip(), want.strip())
+        if same is not None and op in ("=", "!="):
+            return same == (op == "=")
+        return _ordered(op, have, want)
     return _ordered(op, fold(text(lhs)), fold(text(rhs)))
 
 
@@ -168,6 +191,10 @@ def _one(
     if a is not None and b is not None and not isinstance(lhs, str):
         return _ordered(op, a, b)
     have, want = nfc(text(lhs).strip()), str(v.value).strip()
+    if fname in CASE_SENSITIVE:
+        same = same_harmony(fname, have, want)
+        if same is not None and op in ("=", "!="):
+            return same == (op == "=")
     if fname in CASE_SENSITIVE or v.kind == "string":  # quoted: case included
         return _ordered(op, have, want)
     return _ordered(op, fold(have), fold(want))
@@ -227,12 +254,29 @@ class Facts:
         self._units: dict[str, dict[str, Any]] | None = None
         self._timelines: dict[str, dict[str, Any]] = {}
         self._file: dict[str, list[Any]] | None = None
+        self._chord_labels: dict[str, list[str]] | None = None
 
     def unit(self, comp_id: str) -> dict[str, Any]:
         """The stored fields of one component (``tags`` is a list)."""
         if self._units is None:
             self._units = self._load_units()
         return self._units.get(comp_id, {})
+
+    def chord_labels(self, comp_id: str) -> list[str]:
+        """What a chord's ``label`` is in a condition: its symbol, its Roman
+        numeral and its custom text alike, those it has, each once. Its
+        ``display_mode`` plays no part (Felipe, 2026-10-27)."""
+        if self._chord_labels is None:
+            rows = self.log.execute(
+                "SELECT ch.component_id, ch.symbol, ch.roman, ch.custom_text "
+                "FROM chords ch JOIN components c ON c.id = ch.component_id "
+                "WHERE c.file_id = ?",
+                (self.file_id,),
+            )
+            self._chord_labels = {
+                r[0]: list(dict.fromkeys(t for t in r[1:] if t)) for r in rows
+            }
+        return self._chord_labels.get(comp_id, [])
 
     def _load_units(self) -> dict[str, dict[str, Any]]:
         rows = self.log.execute(

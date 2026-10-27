@@ -169,6 +169,7 @@ def run(
     else:
         grain = "match"
         matches, stopped = _pattern_matches(log, query, pattern, max_matches, warn)
+        warn.words.update(dict.fromkeys(_harmony_warnings(log, query)))
     titles: dict[str, str | None] = {}
     rows = []
     node_names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
@@ -199,6 +200,7 @@ class _Warnings:
 
     def __init__(self) -> None:
         self.files: dict[str, set[str]] = {}
+        self.words: dict[str, None] = {}  # literals that are no chord or key
         self.other: list[str] = []
 
     def file_lacks(self, field_name: str, file_id: str) -> None:
@@ -211,7 +213,82 @@ class _Warnings:
             out.append(
                 f"{n} file{'s' if n != 1 else ''} without {what} could not answer"
             )
-        return out
+        return out + list(self.words)
+
+
+def _lane_units(
+    query: syntax.Query,
+) -> Iterator[tuple[syntax.Unit, syntax.Lane | None]]:
+    """Every unit of a pattern with the lane its literal is read in: the
+    pattern's, or the ``IN`` of the relation whose target it is."""
+    pattern = query.pattern
+    if isinstance(pattern, syntax.SeqPattern):
+        yield from _seq_units(pattern.seq, pattern.lane)
+    elif isinstance(pattern, syntax.RelPattern):
+        yield from _unit_units(pattern.left, pattern.lane)
+        yield from _seq_units(
+            pattern.relation.target, pattern.relation.lane or pattern.lane
+        )
+
+
+def _seq_units(
+    seq: syntax.Seq, lane: syntax.Lane | None
+) -> Iterator[tuple[syntax.Unit, syntax.Lane | None]]:
+    for step in seq.steps:
+        if isinstance(step.item, syntax.Group):
+            for option in step.item.options:
+                yield from _seq_units(option, lane)
+        else:
+            yield from _unit_units(step.item, lane)
+
+
+def _unit_units(
+    unit: syntax.Unit, lane: syntax.Lane | None
+) -> Iterator[tuple[syntax.Unit, syntax.Lane | None]]:
+    yield unit, lane
+    for cond in unit.conds:
+        if isinstance(cond, syntax.RelCond):
+            rel = cond.relation
+            yield from _seq_units(rel.target, rel.lane or lane)
+
+
+def _harmony_warnings(log: _Log, query: syntax.Query) -> list[str]:
+    """What the literals of ``query`` that are read as chords or keys and are
+    neither, in the chords and keys lanes they are looked for in, warn. Only
+    a unit with a literal that is no chord or no key can warn, so the lanes
+    (resolved once per file and ``IN``) are looked up for those alone."""
+    pairs = [
+        (unit, lane)
+        for unit, lane in _lane_units(query)
+        if tql_compile.harmony_problems(unit, ("chord",))
+        or tql_compile.harmony_problems(unit, ("key",))
+    ]
+    if not pairs:
+        return []
+    custom: dict[str, bool] = {}
+
+    def has_custom(text: str) -> bool:
+        if text not in custom:
+            found = log.con.execute(
+                "SELECT 1 FROM chords WHERE trim(custom_text) = ? LIMIT 1", (text,)
+            ).fetchone()
+            custom[text] = found is not None
+        return custom[text]
+
+    out: list[str] = []
+    # lookups, not search statements: kept out of the SQL a result shows
+    for (file_id,) in log.con.execute("SELECT id FROM files ORDER BY id"):
+        kinds_of: dict[int, tuple[str, ...]] = {}
+        for unit, lane in pairs:
+            if id(lane) not in kinds_of:
+                specs = tql_compile.resolve_lanes(log.con, file_id, lane)
+                kinds = {s.kind for s in specs}
+                kinds_of[id(lane)] = tuple(k for k in ("chord", "key") if k in kinds)
+            if kinds_of[id(lane)]:
+                out.extend(
+                    tql_compile.harmony_problems(unit, kinds_of[id(lane)], has_custom)
+                )
+    return out
 
 
 def _lanes_with_labels_and_more(
