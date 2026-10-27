@@ -7,8 +7,8 @@ from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_mode
 from tests.ui.timelines.interact import click_timeline_ui
 from tests.utils import save_and_reopen, undoable
 from tilia.requests import Post, post
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui import commands
-from tilia.ui.timelines.harmony import HarmonyTimelineUI
 from tilia.ui.windows.kinds import WindowKind
 
 
@@ -159,5 +159,5 @@ class TestModeFieldInspectorEdit:
 
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
         save_and_reopen(tmp_path)
-        reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
         assert reloaded_tlui.modes()[0].get_data(attr) == new_value
