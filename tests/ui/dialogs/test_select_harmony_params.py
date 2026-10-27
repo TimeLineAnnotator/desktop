@@ -386,36 +386,31 @@ class TestRomanNumeralParsing:
 
 class TestCadentialSixFourParsing:
     @pytest.mark.parametrize(
-        "key, text, step, applied_to",
+        "key, text, step, accidental, applied_to",
         [
-            ("C", "V(64)", 4, 0),
-            ("C", "Vadd64", 4, 0),
-            ("C", "Cad64", 4, 0),
-            ("C", "cad64", 4, 0),
-            ("C", "V(64)/V", 1, 4),
-            ("C", "Cad64/V", 1, 4),
-            ("a", "V(64)", 2, 0),
-            ("a", "Cad64", 2, 0),
+            # Roman numerals
+            ("C", "V(64)", 4, 0, 0),
+            ("C", "Vadd64", 4, 0, 0),
+            ("C", "Cad64", 4, 0, 0),
+            ("C", "cad64", 4, 0, 0),
+            ("C", "V(64)/V", 1, 0, 4),
+            ("C", "Cad64/V", 1, 0, 4),
+            ("a", "V(64)", 2, 0, 0),
+            ("a", "Cad64", 2, 0, 0),
+            # Chord symbols
+            (None, "G(64)", 4, 0, 0),
+            (None, "Gadd64", 4, 0, 0),
+            (None, "Bb(64)", 6, -1, 0),
+            (None, "F#(64)", 3, 1, 0),
         ],
     )
-    def test_roman_numeral(self, key, text, step, applied_to, qtui):
-        params = parse_text(text, music21.key.Key(key))
-        assert params["quality"] == "cadential-six-four"
-        assert params["step"] == step
-        assert params["accidental"] == 0
-        assert params["inversion"] == 0
-        assert params["applied_to"] == applied_to
-
-    @pytest.mark.parametrize(
-        "text, step, accidental",
-        [("G(64)", 4, 0), ("Gadd64", 4, 0), ("Bb(64)", 6, -1), ("F#(64)", 3, 1)],
-    )
-    def test_chord_symbol(self, text, step, accidental, qtui):
-        params = parse_text(text)
+    def test_is_read(self, key, text, step, accidental, applied_to, qtui):
+        params = parse_text(text, music21.key.Key(key) if key else None)
         assert params["quality"] == "cadential-six-four"
         assert params["step"] == step
         assert params["accidental"] == accidental
         assert params["inversion"] == 0
+        assert params["applied_to"] == applied_to
 
     def test_six_four_without_parentheses_is_the_second_inversion(self, qtui):
         params = parse_text("V64", music21.key.Key("C"))
