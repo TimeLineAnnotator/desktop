@@ -575,7 +575,8 @@ class TestCadentialSixFour:
 class TestUnknownQualityInFile:
     # A file saved by a newer TiLiA may have a quality this one doesn't know.
     # It is renamed in a file saved here, as this TiLiA can't make one.
-    def save_with_unknown_quality(self, tmp_path):
+    @pytest.fixture
+    def open_file_with_unknown_quality(self, harmony_tlui, tmp_path, tilia_errors):
         add_mode()
         add_harmony(1, step=0)
         add_harmony(2, step=4, quality="dominant-seventh")
@@ -589,13 +590,10 @@ class TestUnknownQualityInFile:
                     component["quality"] = "some-future-quality"
         Path(path).write_text(json.dumps(data), encoding="utf-8")
         post(Post.APP_CLEAR)
-        return path
-
-    def test_rest_of_file_loads(self, harmony_tlui, tluis, tmp_path, tilia_errors):
-        path = self.save_with_unknown_quality(tmp_path)
 
         commands.execute("file.open", path=path)
 
+    def test_rest_of_file_loads(self, open_file_with_unknown_quality, tluis):
         reloaded_tlui = [t for t in tluis if isinstance(t, HarmonyTimelineUI)][0]
         harmonies = reloaded_tlui.harmonies()
         assert sorted(h.get_data("time") for h in harmonies) == [1, 3]
@@ -603,12 +601,8 @@ class TestUnknownQualityInFile:
         assert len(reloaded_tlui.modes()) == 1
 
     def test_harmony_left_out_is_reported(
-        self, harmony_tlui, tluis, tmp_path, tilia_errors
+        self, open_file_with_unknown_quality, tilia_errors
     ):
-        path = self.save_with_unknown_quality(tmp_path)
-
-        commands.execute("file.open", path=path)
-
         tilia_errors.assert_in_error_title("Load components error")
         tilia_errors.assert_in_error_message(
             "Harmony at '00:02.0' has an unknown chord quality"
