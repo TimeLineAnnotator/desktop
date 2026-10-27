@@ -38,13 +38,23 @@ def harmony_tl(tls):
 
     def create_harmony(time=0, step=0, accidental=0, quality="major", **kwargs):
         component, _ = original_create_component(
-            ComponentKind.HARMONY, time, step, accidental, quality, **kwargs
+            ComponentKind.HARMONY,
+            time,
+            step=step,
+            accidental=accidental,
+            quality=quality,
+            **kwargs,
         )
         return component, None
 
     def create_mode(time=0, step=0, accidental=0, type="major", **kwargs):
         component, _ = original_create_component(
-            ComponentKind.MODE, time, step, accidental, type, **kwargs
+            ComponentKind.MODE,
+            time,
+            step=step,
+            accidental=accidental,
+            type=type,
+            **kwargs,
         )
         return component, None
 

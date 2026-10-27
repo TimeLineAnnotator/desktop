@@ -1,7 +1,10 @@
 import music21.harmony
 import music21.pitch
 
-from tilia.timelines.harmony.constants import ADDED_TONE_QUALITIES
+from tilia.timelines.harmony.constants import (
+    ADDED_TONE_QUALITIES,
+    CADENTIAL_SIX_FOUR_TONE,
+)
 
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 
@@ -54,10 +57,22 @@ STEP_TO_PITCH_CLASS = {
 QUALITY_TO_ABBREVIATION = {
     qlt: data[1][0] for qlt, data in music21.harmony.CHORD_TYPES.items()
 }
-# An altered tone follows its base's abbreviation, as in "C7b9", and any
-# other follows "add", as in "Cadd9".
+
+
+def _added_tone_abbreviation(tone: str) -> str:
+    """
+    Write an added tone after its base's abbreviation: an altered tone as it
+    is, as in "C7b9", the cadential six-four's in parentheses, as it is
+    labelled, as in "G(64)", and any other after "add", as in "Cadd9".
+    """
+    if tone.startswith(("b", "#")):
+        return tone
+    if tone == CADENTIAL_SIX_FOUR_TONE:
+        return f"({tone})"
+    return "add" + tone
+
+
 QUALITY_TO_ABBREVIATION |= {
-    quality: QUALITY_TO_ABBREVIATION[base]
-    + (tone if tone.startswith(("b", "#")) else "add" + tone)
+    quality: QUALITY_TO_ABBREVIATION[base] + _added_tone_abbreviation(tone)
     for quality, (base, tone) in ADDED_TONE_QUALITIES.items()
 }

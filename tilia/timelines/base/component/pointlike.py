@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Iterable
+from typing import Any, Iterable
 
 from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
@@ -30,7 +30,7 @@ class PointLikeTimelineComponent(TimelineComponent):
 
     @classmethod
     def validate_creation(
-        cls, time: float, existing_times: Iterable[float]
+        cls, time: float, existing_times: Iterable[float], **_: Any
     ) -> tuple[bool, str]:
         """Requires unique times by default. Overwrite this or pass a filtered iterable to allow duplicate times."""
         return cls.compose_validators(

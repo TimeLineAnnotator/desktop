@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import functools
 import re
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 import music21
 
@@ -25,6 +26,7 @@ from tilia.timelines.harmony.validators import (
     validate_quality,
     validate_step,
 )
+from tilia.ui.format import format_media_time
 
 if TYPE_CHECKING:
     from tilia.timelines.harmony.timeline import HarmonyTimeline
@@ -122,6 +124,35 @@ class Harmony(PointLikeTimelineComponent):
         )
         return Harmony(*params)
 
+    @classmethod
+    def validate_creation(
+        cls,
+        time: float,
+        existing_times: Iterable[float],
+        *,
+        quality: str = "major",
+        **_: Any,
+    ) -> tuple[bool, str]:
+        return cls.compose_validators(
+            [
+                functools.partial(super().validate_creation, time, existing_times),
+                functools.partial(cls.validate_known_quality, quality, time),
+            ]
+        )
+
+    @staticmethod
+    def validate_known_quality(quality: str, time: float) -> tuple[bool, str]:
+        # A file saved by a newer TiLiA may have a quality this one doesn't
+        # know. Its harmony is left out, so that the rest of the file loads.
+        if validate_quality(quality):
+            return True, ""
+        return (
+            False,
+            f"Harmony at '{format_media_time(time)}' has an unknown chord quality,"
+            f' "{quality}". The file may have been saved by a newer version of'
+            " TiLiA.",
+        )
+
     def validate_set_data(self, attr: str, value: Any) -> bool:
         if attr == "inversion":
             return validate_inversion(value, self.quality)
@@ -183,6 +214,8 @@ def _get_music21_object_from_text(
     Return the music21 object for the text, its kind, and the tone the text
     adds to the object's quality, or "" if they are no added-tone quality.
     """
+    # "Cad64" is the key's cadential six-four, as "V(64)" is.
+    text = re.sub(r"^[Cc]ad64(?=/|$)", "V(64)", text)
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
     text = _replace_special_abbreviations(text)

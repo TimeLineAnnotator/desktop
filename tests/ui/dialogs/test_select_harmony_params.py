@@ -257,6 +257,7 @@ class TestChordSymbolParsing:
             ("major-added-ninth", "major", "Cadd9", 2),
             ("minor-added-ninth", "minor", "Cmadd9", 2),
             ("minor-seventh-added-eleventh", "minor-seventh", "Cm7add11", 3),
+            ("cadential-six-four", "major-added-ninth", "C(64)", 0),
         ],
     )
     def test_added_tone_quality_is_offered_after_its_base(
@@ -270,7 +271,7 @@ class TestChordSymbolParsing:
         combobox.setCurrentIndex(index)
 
         assert dialog.line_edit.text() == text
-        # The base quality's inversions, plus root position.
+        # Root position, plus the inversions the quality allows.
         assert dialog.inversion_combobox.count() == inversions + 1
         assert dialog.populate_from_text()
         assert dialog.get_result()["quality"] == quality
@@ -381,3 +382,53 @@ class TestRomanNumeralParsing:
         # TiLiA has no quality for these. A minor seventh with a flat ninth,
         # say, is not read as a minor seventh.
         assert is_refused(type_text(text))
+
+
+class TestCadentialSixFourParsing:
+    @pytest.mark.parametrize(
+        "key, text, step, accidental, applied_to",
+        [
+            # Roman numerals
+            ("C", "V(64)", 4, 0, 0),
+            ("C", "Vadd64", 4, 0, 0),
+            ("C", "Cad64", 4, 0, 0),
+            ("C", "cad64", 4, 0, 0),
+            ("C", "V(64)/V", 1, 0, 4),
+            ("C", "Cad64/V", 1, 0, 4),
+            ("a", "V(64)", 2, 0, 0),
+            ("a", "Cad64", 2, 0, 0),
+            # Chord symbols
+            (None, "G(64)", 4, 0, 0),
+            (None, "Gadd64", 4, 0, 0),
+            (None, "Bb(64)", 6, -1, 0),
+            (None, "F#(64)", 3, 1, 0),
+        ],
+    )
+    def test_is_read(self, key, text, step, accidental, applied_to, qtui):
+        params = parse_text(text, music21.key.Key(key) if key else None)
+        assert params["quality"] == "cadential-six-four"
+        assert params["step"] == step
+        assert params["accidental"] == accidental
+        assert params["inversion"] == 0
+        assert params["applied_to"] == applied_to
+
+    def test_six_four_without_parentheses_is_the_second_inversion(self, qtui):
+        params = parse_text("V64", music21.key.Key("C"))
+        assert params["quality"] == "major"
+        assert params["inversion"] == 2
+
+    @pytest.mark.parametrize(
+        "key, text",
+        [
+            # Its root is in the bass by definition.
+            ("C", "V6(64)"),
+            ("C", "G(64)/B"),
+            ("C", "G(64)/D"),
+            # Only a major triad has one.
+            ("C", "V7(64)"),
+            ("a", "v(64)"),
+            ("C", "Gm(64)"),
+        ],
+    )
+    def test_is_refused(self, key, text, qtui):
+        assert is_refused(type_text(text, music21.key.Key(key)))

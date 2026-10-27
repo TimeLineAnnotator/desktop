@@ -1,7 +1,9 @@
 import re
 
 from tests.ui.timelines.interact import click_timeline_ui_view
+from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
+from tilia.ui.windows.kinds import WindowKind
 
 
 def _click_element_ui(element, button, modifier, double):
@@ -22,6 +24,13 @@ def click_harmony_ui(harmony_ui, button="left", modifier=None, double=False):
 
 def click_mode_ui(mode_ui, button="left", modifier=None, double=False):
     _click_element_ui(mode_ui, button, modifier, double)
+
+
+def open_inspector_for(element_ui, qtui):
+    """Click the harmony or mode, inspect it, and return the Inspector."""
+    _click_element_ui(element_ui, "left", None, False)
+    commands.execute("timeline.element.inspect")
+    return qtui._windows[WindowKind.INSPECT]
 
 
 def numeral_part(label: str) -> str:

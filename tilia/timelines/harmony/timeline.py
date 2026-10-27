@@ -33,12 +33,13 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         self,
         kind: ComponentKind,
         time: float,
-        *_,
-        **__,
-    ):
+        **kwargs: Any,
+    ) -> tuple[bool, str]:
+        # Attributes after the time are taken by keyword only, so that none
+        # is passed by position and left unchecked.
         component_class = self._get_component_class_by_kind(kind)
         return component_class.validate_creation(
-            time, {c.get_data("time") for c in self if c.KIND == kind}
+            time, {c.get_data("time") for c in self if c.KIND == kind}, **kwargs
         )
 
     def _update_harmony_applied_to_on_mode_creation(self, mode: Mode):
