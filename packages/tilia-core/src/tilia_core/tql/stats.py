@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Sequence
 
-from tilia_core.labels import nfc
+from tilia_core.labels import fold as fold_text, nfc
 
 from . import names
 
@@ -153,9 +153,9 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
 
     ``label`` is the label in NFC, case and spacing kept (``category`` folds
     them); a target without a category has the one value None. ``tags`` gives
-    each tag once, as ``category`` gives each category, so a unit tagged
-    ``fast`` and ``loud`` counts under each; one without tags has the one value
-    None. Another field with several values (a file field, a component field
+    each tag once, folded as ``category`` folds and gives each category, so a
+    unit tagged ``fast`` and ``loud`` counts under each, and ``Fast`` is
+    ``fast``; one without tags has the one value None. Another field with several values (a file field, a component field
     set twice) gives them joined by ``, ``, as the result table does."""
     if key == "label":
         return [nfc(comp.label)]
@@ -212,8 +212,8 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
         return [comp.start if key == "time" else comp.end - comp.start]
     if key in UNIT_FIELDS:  # a chord, key or position field, or tags
         value = reader.facts(comp.file_id).unit(comp.id).get(key)
-        if key == "tags":  # one group per tag
-            return sorted({nfc(str(v)) for v in value or []}) or [None]
+        if key == "tags":  # one group per tag, folded as a category is
+            return sorted({fold_text(str(v).strip()) for v in value or []}) or [None]
         if isinstance(value, list):
             return [", ".join(str(v) for v in value) if value else None]
         return [value]
