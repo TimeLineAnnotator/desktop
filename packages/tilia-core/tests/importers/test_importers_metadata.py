@@ -316,19 +316,25 @@ def test_any_media_length_is_ignored_when_media_is_attached(tmp_path, value):
         ('"-5"', "-5"),
         ('"1e999"', "1e999"),
         ('""', ""),
-        ("null", "None"),
-        ("true", "True"),
-        ("NaN", "nan"),
-        ("Infinity", "inf"),
-        ("1e999", "inf"),
+        ("1" + "0" * 400, "1" + "0" * 400),
+        # Anything else as JSON writes it.
+        ("null", "null"),
+        ("true", "true"),
+        ("false", "false"),
+        ("NaN", "NaN"),
+        ("Infinity", "Infinity"),
+        ("-Infinity", "-Infinity"),
+        ("1e999", "Infinity"),
         ("[312.5]", "[312.5]"),
-        ('{"seconds": 312.5}', "{'seconds': 312.5}"),
+        ('["1", 2]', '["1", 2]'),
+        ('{"seconds": 312.5}', '{"seconds": 312.5}'),
+        ('{"durée": 312.5}', '{"durée": 312.5}'),
     ],
 )
 def test_a_media_length_that_isnt_one_fails_the_import(tmp_path, text, shown):
     # Checked as `metadata set-media-length` checks it (FR-053, FR-051): the
-    # import fails, and the other fields aren't set either
-    # (TimeLineAnnotator/project-management#326).
+    # import fails, and the other fields aren't set either. Text is quoted as
+    # written (TimeLineAnnotator/project-management#326).
     doc = build.new_script_document()
     build.set_media_length(doc, 60.0)
     path = text_file(tmp_path, f'{{"composer": "Mozart", "media length": {text}}}')
