@@ -94,6 +94,9 @@ env = [
     "ENVIRONMENT=test",
     "QT_QPA_PLATFORM=offscreen",
 ]
+markers = [
+    "draws_scores: imported scores are drawn by OSMD, as in the app (see the no_score_drawing fixture)",
+]
 
 [tool.ruff]
 exclude = ["tilia/dev"]
