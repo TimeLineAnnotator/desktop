@@ -12,6 +12,7 @@ class Get(Enum):
     FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
     FILE_PATH = auto()
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
+    FROM_USER_BARS = auto()
     FROM_USER_BEAT_PATTERN = auto()
     FROM_USER_BEAT_UNIT = auto()
     FROM_USER_BEAT_UNIT_SCOPE = auto()

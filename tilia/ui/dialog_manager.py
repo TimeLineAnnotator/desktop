@@ -24,6 +24,7 @@ from tilia.ui.dialogs.harmony_params import ask_for_harmony_params
 from tilia.ui.dialogs.mode_params import ask_for_mode_params
 from tilia.ui.timelines.beat.dialogs import (
     ask_beat_timeline_fill_method,
+    ask_for_bars,
     ask_for_beat_pattern,
     ask_for_beat_unit,
 )
@@ -44,6 +45,7 @@ class DialogManager:
             (Get.FROM_USER_INT, ask_for_int),
             (Get.FROM_USER_YES_OR_NO, ask_yes_or_no),
             (Get.FROM_USER_COLOR, ask_for_color),
+            (Get.FROM_USER_BARS, ask_for_bars),
             (Get.FROM_USER_BEAT_PATTERN, ask_for_beat_pattern),
             (Get.FROM_USER_BEAT_UNIT, ask_for_beat_unit),
             (Get.FROM_USER_BEAT_UNIT_SCOPE, ask_for_beat_unit_scope),

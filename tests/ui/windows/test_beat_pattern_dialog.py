@@ -1,17 +1,29 @@
+from fractions import Fraction as F
+
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QValidator
 from PySide6.QtTest import QTest
 
-from tests.ui.timelines.beat.interact import patch_beat_pattern_dialog
-from tilia.timelines.beat.pattern import parse
+from tests.ui.timelines.beat.interact import (
+    edit_bars_dialog_cell,
+    patch_beat_pattern_dialog,
+)
+from tilia.timelines.beat.pattern import PlannedBar, parse
 from tilia.ui import commands
 from tilia.ui.windows.beat_pattern import (
+    BARS_COLUMN,
+    MAX_TABLE_HEIGHT,
+    TAPS_COLUMN,
+    TIME_SIGNATURE_COLUMN,
+    UNTAPPED_COLOR,
     BeatPatternDialog,
     BeatPatternValidator,
-    get_pattern_preview,
+    get_numbers,
+    get_overrides,
+    lay_out,
+    parse_bar_numbers,
 )
-from tilia.ui.windows.pattern_preview import MAX_TABLE_HEIGHT
 
 
 def add_beat_timeline():
@@ -20,14 +32,23 @@ def add_beat_timeline():
     commands.execute("timelines.add.beat", name="")
 
 
+def bars(text):
+    return parse(text).planned_bars
+
+
 class TestValidator:
     @pytest.mark.parametrize(
         "text, state",
         [
             ("4 4 3", QValidator.State.Acceptable),
             ("10[4] 3", QValidator.State.Acceptable),
+            ("4[4/4] 3/4", QValidator.State.Acceptable),
+            ("6/8(3 3)", QValidator.State.Acceptable),
+            ("2+3/8", QValidator.State.Acceptable),
             ("", QValidator.State.Intermediate),
             ("10[", QValidator.State.Intermediate),
+            ("4/", QValidator.State.Intermediate),
+            ("4/4(1 1", QValidator.State.Intermediate),
             ("4]", QValidator.State.Intermediate),
             ("0", QValidator.State.Intermediate),
             ("4a", QValidator.State.Invalid),
@@ -39,92 +60,241 @@ class TestValidator:
         assert BeatPatternValidator().validate(text, len(text))[0] == state
 
 
-class TestPatternPreview:
-    def test_rows_and_footer(self):
-        preview = get_pattern_preview(parse("10[4] 3 15[4]"))
+class TestLayOut:
+    def test_without_beats(self):
+        assert lay_out(bars("4/4 3/4"), 0) == (bars("4/4 3/4"), 0)
 
-        assert preview.headers == ["Bars", "Beats per bar"]
-        assert preview.rows == [("1\u201310", "4"), ("11", "3"), ("12\u201326", "4")]
-        assert (
-            preview.footer == "26 bars, 103 beats, then the pattern repeats from bar 1."
+    def test_beats_fill_part_of_the_pattern(self):
+        assert lay_out(bars("4/4 3/4 2/4"), 5) == (bars("4/4 3/4 2/4"), 2)
+
+    def test_beats_go_past_the_pattern(self):
+        assert lay_out(bars("4/4 3/4"), 12) == (bars("4/4 3/4 4/4 3/4"), 4)
+
+
+class TestBarNumbers:
+    def test_numbers_count_on_from_the_bar_before(self):
+        assert get_numbers(5, {2: 1}) == [1, 2, 1, 2, 3]
+
+    def test_overrides_are_where_the_count_breaks(self):
+        assert get_overrides([0, 1, 2, 1, 2, 9]) == {0: 0, 3: 1, 5: 9}
+
+    @pytest.mark.parametrize(
+        "text, count, numbers",
+        [
+            ("5", 3, [5, 6, 7]),
+            ("5-7", 3, [5, 6, 7]),
+            ("5–7", 3, [5, 6, 7]),
+            ("1-4, 1-4", 8, [1, 2, 3, 4, 1, 2, 3, 4]),
+            ("1-3, 3, 4", 5, [1, 2, 3, 3, 4]),
+            (" 2 ", 1, [2]),
+        ],
+    )
+    def test_valid(self, text, count, numbers):
+        assert parse_bar_numbers(text, count) == (numbers, "")
+
+    @pytest.mark.parametrize(
+        "text, count, error",
+        [
+            ("1-4", 3, "'1-4' numbers 4 bars, not 3 bars."),
+            ("1-2, 1", 4, "'1-2, 1' numbers 3 bars, not 4 bars."),
+            ("a", 2, "'a' is not a bar number or a range such as 1-4."),
+            ("1-2-3", 3, "'1-2-3' is not a bar number or a range such as 1-4."),
+            ("4-1", 4, "'4-1' counts down."),
+            ("", 2, "'' is not a bar number or a range such as 1-4."),
+        ],
+    )
+    def test_invalid(self, text, count, error):
+        assert parse_bar_numbers(text, count) == (None, error)
+
+
+class TestTable:
+    def test_rows_group_alike_bars(self, qtui):
+        dialog = BeatPatternDialog("4[4/4] 3/4 3[4/4(3/2 3/2 1)]")
+
+        assert dialog.get_table_rows() == [
+            ("1–4", "4/4", "1 1 1 1"),
+            ("5", "3/4", "1 1 1"),
+            ("6–8", "4/4(3/2 3/2 1)", "3/2 3/2 1"),
+        ]
+
+    def test_rows_of_bars_given_only_their_beats(self, qtui):
+        dialog = BeatPatternDialog("2[3] 4")
+
+        assert dialog.get_table_rows() == [
+            ("1–2", "3", "1 1 1"),
+            ("3", "4", "1 1 1 1"),
+        ]
+
+    def test_rows_cover_the_tapped_beats(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=10)
+
+        assert dialog.get_table_rows() == [("1–3", "4/4", "1 1 1 1")]
+        assert dialog.footer.text() == (
+            "1 bar, then the list starts again from bar 1.\n"
+            "10 beats tapped, in 3 bars."
         )
-        assert preview.error == ""
 
-    def test_singular(self):
-        preview = get_pattern_preview(parse("1"), beat_count=1)
+    def test_untapped_bars_are_grey_and_keep_no_number(self, qtui):
+        dialog = BeatPatternDialog("4[4/4] 3/4", beat_count=8)
 
-        assert preview.footer == (
-            "1 bar, 1 beat, then the pattern repeats from bar 1.\n1 beat tapped."
+        assert [row.is_tapped for row in dialog.rows] == [True, False, False]
+        untapped = dialog.table.item(1, BARS_COLUMN)
+        assert untapped.foreground().color() == UNTAPPED_COLOR
+        assert not untapped.flags() & Qt.ItemFlag.ItemIsEditable
+        assert dialog.table.item(1, TAPS_COLUMN).flags() & Qt.ItemFlag.ItemIsEditable
+
+    def test_numbers_split_rows(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=16, numbers=[1, 2, 1, 2])
+
+        assert [row[0] for row in dialog.get_table_rows()] == [
+            "1–2",
+            "1–2",
+        ]
+
+    def test_table_scrolls_instead_of_growing(self, qtui):
+        dialog = BeatPatternDialog("50[1 2]")
+
+        assert dialog.table.rowCount() == 100
+        assert dialog.table.maximumHeight() == MAX_TABLE_HEIGHT
+
+    def test_bars_that_change_are_highlighted(self, qtui):
+        current = bars("4/4 3/4 4/4")
+        dialog = BeatPatternDialog(
+            "4/4 3/4 4/4", beat_count=11, current_bars=current, numbers=[1, 2, 3]
         )
+        assert dialog.get_highlighted_rows() == set()
 
-    def test_every_run_is_listed(self):
-        preview = get_pattern_preview(parse("50[1 2]"))
+        dialog.line_edit.setText("4/4")
 
-        assert len(preview.rows) == 100
+        assert dialog.get_table_rows()[0][0] == "1–3"
+        assert dialog.get_highlighted_rows() == {0}
 
-    def test_beat_count(self):
-        footer = get_pattern_preview(parse("4"), beat_count=12).footer
 
-        assert footer.endswith("12 beats tapped.")
+class TestEditingCells:
+    def test_taps_change_the_time_signature(self, qtui):
+        dialog = BeatPatternDialog("4[4/4] 3/4")
 
-    def test_overwritten_bars(self):
-        assert get_pattern_preview(
-            parse("4"), overwritten_bars=[10, 13]
-        ).footer.endswith("Bars 11, 14 were set by hand and will be overwritten.")
-        assert get_pattern_preview(parse("4"), overwritten_bars=[2]).footer.endswith(
-            "Bar 3 was set by hand and will be overwritten."
-        )
+        edit_bars_dialog_cell(dialog, 1, TAPS_COLUMN, "3")
 
-    def test_overwritten_bars_highlight_their_rows(self):
-        # Bar 22 is the 11th bar of the second pass through the pattern.
-        preview = get_pattern_preview(parse("10[4] 3"), overwritten_bars=[21])
+        assert dialog.get_table_rows()[1] == ("5", "3/4(3)", "3")
+        assert dialog.text == "4[4/4] 3/4(3)"
 
-        assert preview.highlighted_rows == {1}
+    def test_taps_that_add_up_to_another_numerator(self, qtui):
+        dialog = BeatPatternDialog("4/4")
 
-    def test_incomplete_shows_error_with_position(self):
-        preview = get_pattern_preview(parse("10["))
+        edit_bars_dialog_cell(dialog, 0, TAPS_COLUMN, "1 1 1")
 
-        assert preview.error == "Unclosed '['. (at character 3)"
-        assert preview.rows == []
+        assert dialog.text == "3/4"
 
-    def test_empty(self):
-        assert get_pattern_preview(parse("")).error == "Enter at least one bar."
+    def test_fractional_taps(self, qtui):
+        dialog = BeatPatternDialog("2[4/4]")
+
+        edit_bars_dialog_cell(dialog, 0, TAPS_COLUMN, "3/2 3/2 1")
+
+        assert dialog.text == "2[4/4(3/2 3/2 1)]"
+        assert dialog.rows[0].bar.values == [F(3, 2), F(3, 2), F(1)]
+
+    def test_time_signature(self, qtui):
+        dialog = BeatPatternDialog("4[4/4] 3/4")
+
+        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "6/8(3 3)")
+
+        assert dialog.text == "4[6/8(3 3)] 3/4"
+
+    def test_editing_a_row_of_a_repeated_pattern(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=12)
+
+        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "3/4")
+
+        assert dialog.text == "3[3/4]"
+        assert dialog.get_table_rows() == [("1–4", "3/4", "1 1 1")]
+
+    def test_invalid_cell_is_reported_and_reverted(self, qtui):
+        dialog = BeatPatternDialog("4/4")
+
+        edit_bars_dialog_cell(dialog, 0, TAPS_COLUMN, "1 0")
+
+        assert dialog.error.text() == "Units must be greater than 0."
+        assert dialog.get_table_rows() == [("1", "4/4", "1 1 1 1")]
+        assert dialog.text == "4/4"
+
+    def test_more_than_one_time_signature_is_refused(self, qtui):
+        dialog = BeatPatternDialog("4/4")
+
+        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "4/4 3/4")
+
+        assert dialog.error.text() == "Enter one time signature, such as 3/4."
+
+    def test_bar_numbers_make_a_repeat(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=40)
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-4, 1-6")
+
+        assert [row[0] for row in dialog.get_table_rows()] == [
+            "1–4",
+            "1–6",
+        ]
+        assert dialog.get_result().numbers == [1, 2, 3, 4, 1, 2, 3, 4, 5, 6]
+
+    def test_bars_after_count_on(self, qtui):
+        dialog = BeatPatternDialog("4/4 3/4", beat_count=21)
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "10")
+
+        assert dialog.get_result().numbers == [1, 10, 11, 12, 13, 14]
+
+    def test_numbers_set_further_on_are_kept(self, qtui):
+        dialog = BeatPatternDialog("4/4 3/4", beat_count=21, numbers=[1, 2, 3, 1, 2, 3])
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "5")
+
+        assert dialog.get_result().numbers == [1, 5, 6, 1, 2, 3]
+
+    def test_editing_the_pattern_keeps_the_numbers(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=16, numbers=[1, 2, 1, 2])
+
+        dialog.line_edit.setText("2/4")
+
+        assert dialog.get_result().numbers == [1, 2, 1, 2, 3, 4, 5, 6]
 
 
 class TestDialog:
     def test_complete_pattern_enables_ok(self, qtui):
         dialog = BeatPatternDialog()
-        QTest.keyClicks(dialog.line_edit, "2[3] 4")
+        QTest.keyClicks(dialog.line_edit, "2[3/4] 4/4")
         assert dialog.ok_button.isEnabled()
-        assert dialog.preview.rows() == [("1\u20132", "3"), ("3", "4")]
-        assert dialog.text == "2[3] 4"
+        assert dialog.get_table_rows() == [
+            ("1–2", "3/4", "1 1 1"),
+            ("3", "4/4", "1 1 1 1"),
+        ]
+        assert dialog.text == "2[3/4] 4/4"
 
     def test_incomplete_pattern_disables_ok(self, qtui):
         dialog = BeatPatternDialog()
         # Typed brackets are paired, so set the text to leave one unclosed.
         dialog.line_edit.setText("2[3")
         assert not dialog.ok_button.isEnabled()
-        assert dialog.preview.error.text().startswith("Unclosed '['.")
-        assert dialog.preview.table.isHidden()
-        assert dialog.preview.footer.isHidden()
+        assert dialog.error.text().startswith("Unclosed '['.")
+        assert dialog.table.isHidden()
+        assert dialog.footer.isHidden()
+
+    def test_error_names_the_character(self, qtui):
+        dialog = BeatPatternDialog("4/4(1 1 1)")
+
+        assert dialog.error.text() == "The taps add up to 3, not 4. (at character 4)"
 
     def test_table_comes_back_when_the_pattern_is_complete(self, qtui):
         dialog = BeatPatternDialog()
         dialog.line_edit.setText("2[3")
         dialog.line_edit.setText("2[3]")
 
-        assert not dialog.preview.table.isHidden()
-        assert dialog.preview.error.isHidden()
-
-    def test_table_scrolls_instead_of_growing(self, qtui):
-        dialog = BeatPatternDialog("50[1 2]")
-
-        assert dialog.preview.table.rowCount() == 100
-        assert dialog.preview.table.maximumHeight() == MAX_TABLE_HEIGHT
+        assert not dialog.table.isHidden()
+        assert dialog.error.isHidden()
 
     def test_empty_dialog_disables_ok(self, qtui):
         dialog = BeatPatternDialog()
         assert not dialog.ok_button.isEnabled()
+        assert dialog.error.text() == "Enter at least one bar."
 
     def test_characters_outside_the_syntax_are_blocked(self, qtui):
         dialog = BeatPatternDialog()
@@ -135,27 +305,24 @@ class TestDialog:
         dialog = BeatPatternDialog("3 4", beat_count=7)
         assert dialog.text == "3 4"
         assert dialog.ok_button.isEnabled()
-        assert dialog.preview.footer.text().endswith("7 beats tapped.")
+        assert dialog.footer.text().endswith("7 beats tapped, in 2 bars.")
 
-    def test_overwritten_bars_follow_the_text(self, qtui):
-        dialog = BeatPatternDialog(
-            get_overwritten_bars=lambda bars: [0] if bars[0] != 4 else []
-        )
-        QTest.keyClicks(dialog.line_edit, "3")
-        assert "Bar 1 was set by hand" in dialog.preview.footer.text()
-        assert dialog.preview.highlighted_rows() == {0}
-        dialog.line_edit.setText("4")
-        assert "set by hand" not in dialog.preview.footer.text()
-        assert dialog.preview.highlighted_rows() == set()
+    def test_result(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=8, numbers=[0, 1])
+
+        result = dialog.get_result()
+
+        assert result.pattern == "4/4"
+        assert result.numbers == [0, 1]
 
 
 class TestCreateTimeline:
     def test_typed_pattern_reaches_the_timeline(self, tluis):
-        with patch_beat_pattern_dialog("2[3] 4"):
+        with patch_beat_pattern_dialog("2[3/4] 4/4"):
             add_beat_timeline()
 
         assert len(tluis) == 1
-        assert tluis[0].timeline.beat_pattern == "2[3] 4"
+        assert tluis[0].timeline.beat_pattern == "2[3/4] 4/4"
 
     def test_cancel_creates_no_timeline(self, tluis):
         with patch_beat_pattern_dialog(None):
@@ -213,3 +380,7 @@ class TestBracketPairing:
         QTest.keyClicks(dialog.line_edit, "]")
 
         assert dialog.line_edit.text() == "2[3]"
+
+
+def test_planned_bars_compare_by_value():
+    assert PlannedBar.from_values([F(1)] * 4, 4) == bars("4/4")[0]
