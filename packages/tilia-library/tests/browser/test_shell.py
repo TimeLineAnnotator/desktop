@@ -96,6 +96,6 @@ def test_query_tab_and_remove(page):
     page.once("dialog", lambda d: d.accept())
     page.click("#corpus-remove")
     page.wait_for_function(
-        "document.querySelectorAll('#corpus-pick option').length === 2"
+        "() => document.querySelectorAll('#corpus-pick option').length === 2"
     )
     assert "Fixture corpus" not in page.locator("#corpus-pick option").all_inner_texts()

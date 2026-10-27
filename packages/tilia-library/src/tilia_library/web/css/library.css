@@ -73,7 +73,7 @@ tbody tr:hover { background: #f6f6f6; }
 tr.detail:hover { background: none; }
 tr.detail td { background: #f7f9fc; padding: 6px 8px 6px 40px; }
 tr.detail table { width: auto; }
-td.expand-cell { width: 1%; }
+td.expand-cell { width: 1%; white-space: nowrap; }
 button.expand { padding: 0 6px; border-color: transparent; background: none; }
 .pair { margin-right: 10px; white-space: nowrap; }
 
@@ -202,3 +202,19 @@ table.ql-table { width: auto; min-width: 100%; }
 .strip-block.plan-del { outline: 2px solid var(--error); outline-offset: -1px; z-index: 3; text-decoration: line-through; }
 .strip-block.plan-add { background: transparent; color: var(--fg); text-shadow: none; outline: 2px dashed var(--ok); outline-offset: -1px; z-index: 3; }
 .strip-block.plan-set { box-shadow: 0 0 0 2px rgba(31,111,235,.45); z-index: 3; font-style: italic; }
+
+/* ---- player bar ---- */
+#player {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+  padding: 6px 12px; background: #fff; border-top: 1px solid var(--border);
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, .08);
+}
+#player .player-row { display: flex; align-items: center; gap: 8px; }
+#player-what { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#player-yt:not(:empty) { display: flex; align-items: flex-end; gap: 12px; margin-top: 6px; }
+#player-yt iframe { width: 320px; height: 180px; border: 0; }
+/* keep the status line above the bar */
+body.player-on { padding-bottom: var(--player-h, 40px); }
+.ql-open, .files-open, .ql-play { font-size: 11px; padding: 0 6px; }
+.seq-card .seq-head .ql-open { margin-left: auto; }
+.ql-play { margin-left: 8px; }

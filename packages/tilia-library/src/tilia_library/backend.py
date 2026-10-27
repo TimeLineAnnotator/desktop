@@ -60,8 +60,9 @@ Shapes returned:
 - edit_log: [{"entry", "statement", "at", "files", "undone"}]
 - undo: {"restored": [file ids], "refused": [{"file_id", "what_changed"}],
   "skipped": [{"file_id", "reason"}], "generation"}
-- media_of: {"kind": "local" | "youtube" | "none", "path": str or null,
-  "youtube_id": str or null, "length": float or null, "reason": str or null}
+- media_of: {"kind": "local" | "youtube" | "none", "path": the absolute path of
+  a local media file, or null, "youtube_id": str or null, "length": float or
+  null, "reason": str or null}
 """
 
 from __future__ import annotations

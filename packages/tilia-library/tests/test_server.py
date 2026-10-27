@@ -175,6 +175,37 @@ def test_security_headers_everywhere(server):
         assert "content-length" in r.headers
 
 
+def test_content_security_policy_everywhere(web_srv):
+    from tilia_library.server import CONTENT_SECURITY_POLICY
+
+    for path in ("/", "/web/a.js", "/api/ping", "/api/none"):
+        r = send(web_srv, "GET", path, auth(web_srv))
+        assert r.headers["content-security-policy"] == CONTENT_SECURITY_POLICY
+    r = send(web_srv, "GET", "/", {})
+    assert r.status == 403
+    assert "content-security-policy" in r.headers
+
+
+def test_content_security_policy_text(server):
+    policy = send(server, "GET", "/api/ping", auth(server)).headers[
+        "content-security-policy"
+    ]
+    directives = {d.split(" ", 1)[0]: d.split(" ", 1)[1] for d in policy.split("; ")}
+    assert directives == {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "media-src": "'self'",
+        "connect-src": "'self'",
+        "frame-src": "https://www.youtube-nocookie.com",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'",
+        "frame-ancestors": "'none'",
+    }
+
+
 def test_bound_port_raises():
     first = LibraryServer(FixtureBackend())
     try:

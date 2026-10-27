@@ -192,7 +192,7 @@ def test_notice_appears_and_rerun_hides_it(entry_url):
             assert loads and page.locator("#changed").is_hidden()
             page.click("#files-rescan")
             page.wait_for_function(
-                "document.getElementById('status').textContent.includes('Rescanning')"
+                "() => document.getElementById('status').textContent.includes('Rescanning')"
             )
             assert problems == []
         finally:
@@ -209,7 +209,9 @@ def test_a_failed_rerun_keeps_the_notice_and_shows_the_error(live):
     live.poll(generation=2, last_scan="t1")
     live.rerun_fails("reload failed")
     live.page.click("#changed-rerun")
-    live.page.wait_for_function("document.getElementById('status').textContent !== ''")
+    live.page.wait_for_function(
+        "() => document.getElementById('status').textContent !== ''"
+    )
     assert live.notice_shown()
     assert "reload failed" in live.status()
     assert live.status_class() == "error"
@@ -219,7 +221,9 @@ def test_a_rerun_that_works_hides_the_notice(live):
     live.poll(generation=2, last_scan="t1")
     live.rerun_fails("reload failed")
     live.page.click("#changed-rerun")
-    live.page.wait_for_function("document.getElementById('status').textContent !== ''")
+    live.page.wait_for_function(
+        "() => document.getElementById('status').textContent !== ''"
+    )
     assert live.notice_shown()
     live.files_generation = 2
     live.rerun_reloads()

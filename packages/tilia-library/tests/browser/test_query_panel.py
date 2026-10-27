@@ -128,7 +128,7 @@ def test_emptying_the_box_clears_results(page):
     run(page, "a then b")
     page.wait_for_selector(".ql-card")
     run(page, "")
-    page.wait_for_function("document.querySelectorAll('.ql-card').length === 0")
+    page.wait_for_function("() => document.querySelectorAll('.ql-card').length === 0")
     assert page.locator("#ql-count").inner_text() == ""
     assert page.locator("#ql-csv").is_disabled()
 
@@ -145,7 +145,9 @@ def test_show_sql_and_run_sql(page):
     assert page.locator("#ql-sql-result tbody tr").count() == 4
     page.fill("#ql-sql-box", "DELETE FROM units")
     page.click("#ql-sql-run")
-    page.wait_for_function("document.querySelector('#ql-sql-error').textContent !== ''")
+    page.wait_for_function(
+        "() => document.querySelector('#ql-sql-error').textContent !== ''"
+    )
     assert "SELECT" in page.locator("#ql-sql-error").inner_text()
 
 

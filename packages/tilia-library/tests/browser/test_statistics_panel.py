@@ -72,13 +72,15 @@ def test_four_tables_charts_and_scripts(page):
         "els => els.map(e => e.dataset.table)"
     )
     assert names == ["counts", "durations", "positions", "transitions"]
-    page.wait_for_function("document.querySelectorAll('canvas').length === 3")
+    page.wait_for_function("() => document.querySelectorAll('canvas').length === 3")
     assert page.locator('section[data-table="transitions"] canvas').count() == 0
     assert page.locator('section[data-table="counts"] h3').inner_text() == "Counts"
     body = page.inner_text('section[data-table="counts"] table')
     for label in ("Überleitung", "μετάβαση", "过渡", "מעבר", "🎵"):
         assert label in body
-    page.wait_for_function("Object.keys(Chart.instances).length === 3", timeout=3000)
+    page.wait_for_function(
+        "() => Object.keys(Chart.instances).length === 3", timeout=3000
+    )
     assert page.problems == []
 
 
@@ -91,7 +93,7 @@ def test_two_keys_fold_and_series(page):
     heads = page.locator('section[data-table="counts"] th').all_inner_texts()
     assert heads == ["category", "file", "matches", "files"]
     page.wait_for_function(
-        "Object.values(Chart.instances)[0].data.datasets.length === 2"
+        "() => Object.values(Chart.instances)[0].data.datasets.length === 2"
     )
     assert page.problems == []
 
@@ -101,13 +103,13 @@ def test_field_replaces_the_first_key(page):
     page.fill("#stats-field", "file.composer")
     page.click("#stats-run")
     page.wait_for_function(
-        "document.querySelector('section[data-table=counts] th').textContent === 'file.composer'"
+        "() => document.querySelector('section[data-table=counts] th').textContent === 'file.composer'"
     )
 
 
 def test_query_error_is_shown(page):
     show(page, "an error here")
-    page.wait_for_function("document.querySelector('#stats-error').textContent")
+    page.wait_for_function("() => document.querySelector('#stats-error').textContent")
     assert page.is_visible("#stats-error")
     assert page.locator("section.stats-table").count() == 0
 
