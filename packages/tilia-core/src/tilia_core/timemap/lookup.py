@@ -14,6 +14,12 @@ pass's beats at once, with one time for each row the bar names instead
   (TiLiA's projection), not until FR-011's closing barline;
 - as a segment's end, the fraction 0 also gives where each time through the
   bar numbered just below ends (#321);
+- a cadenza belongs to the bar before it
+  (TimeLineAnnotator/project-management#339): that bar leads into the row
+  after the cadenza, or after the last of a run of them, and ends where the
+  cadenza does. So the fraction 1 looks at the bar after the cadenza, and an
+  end that leads into a cadenza counts as an end at bar N only when the
+  cadenza leads into a bar N;
 - a bar no row names gives no time.
 """
 
@@ -77,9 +83,10 @@ def _time_in(
     j = row.count - 1  # a time map keeps every row of its table
     beat = _beat_at(row, fraction)
     if beat == row.beats:  # the fraction 1
+        k = _leads_into(rows, j)
         if segment_end:
-            return _end(rows, j)
-        following = rows[j + 1] if j + 1 < len(rows) else None
+            return _end(rows, k - 1)
+        following = rows[k] if k < len(rows) else None
         if following is not None and following.number == row.number + 1:
             return following.start
         return None
@@ -118,6 +125,18 @@ def _end(rows: Sequence[MeasureRow], j: int) -> float | None:
     return row.start + (row.start - rows[j - 1].start)
 
 
+def _leads_into(rows: Sequence[MeasureRow], j: int) -> int:
+    """The index of the row that row j leads into, `len(rows)` when none
+    follows: the next row, past the cadenzas after it, which belong to it
+    (#339). A cadenza named by its label leads into the next row, and one
+    that starts a movement belongs to that movement, not to the row before."""
+    k = j + 1
+    if not rows[j].cadenza:
+        while k < len(rows) and rows[k].cadenza and not rows[k].restart:
+            k += 1
+    return k
+
+
 def _ends_before(
     rows: Sequence[MeasureRow],
     named: Sequence[MeasureRow],
@@ -131,7 +150,8 @@ def _ends_before(
 
     An end that leads into a bar N the query doesn't name is left out, so a
     label or a pass gives only the ends that lead into the bars it names;
-    without them, every bar N is named.
+    without them, every bar N is named. A bar that cadenzas follow ends after
+    them, and counts only when they lead into a bar N (#339).
     """
     named_counts = {row.count for row in named}
     ends: list[float] = []
@@ -145,12 +165,16 @@ def _ends_before(
         ]
         if not below:
             continue
-        others = {row.count for row in find_rows(rows, number)} - named_counts
+        bars = {row.count for row in find_rows(rows, number)}
         for before in find_rows(rows, max(below), pass_=pass_, movement=movement):
             j = before.count - 1
-            if j + 1 < len(rows) and rows[j + 1].count in others:
-                continue
-            end = _end(rows, j)
+            k = _leads_into(rows, j)
+            into = rows[k].count if k < len(rows) else None
+            if into in bars and into not in named_counts:
+                continue  # a bar N the query doesn't name
+            if k > j + 1 and into not in bars:
+                continue  # its cadenzas lead elsewhere, or end the piece
+            end = _end(rows, k - 1)
             if end is not None:
                 ends.append(end)
     return ends
