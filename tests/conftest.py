@@ -7,6 +7,7 @@ from typing import Literal
 
 import pytest
 from colorama import Fore, Style
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 import tilia.log as logging_module
@@ -108,6 +109,9 @@ class TiliaState:
         self.media_path = ""
         self._reset_undo_manager()
         post(Post.REQUEST_CLEAR_UI)
+        # Deliver what this test left queued, so it can't reach the next one.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.MetaCall)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
     def _reset_undo_manager(self):
         self.app.reset_undo_manager()
