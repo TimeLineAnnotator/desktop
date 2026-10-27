@@ -110,6 +110,13 @@ def keys(result):
     return [m.key for m in result.matches]
 
 
+def documents(index, file_keys):
+    """The document ids of the files whose keys are ``file_keys``."""
+    con = index.connection()
+    names = dict(con.execute("SELECT id, document_id FROM files").fetchall())
+    return [names[k] for k in file_keys]
+
+
 class SteppingClock:
     """Stands in for the ``time`` module that the limits read: each read moves
     the clock on by 1 ms, so a time limit falls at a known point of the run on
@@ -417,13 +424,17 @@ class TestWarningsPass:
         got = tql.run(harmony_index, HARMONY_QUERY, max_matches=2)
         assert got.stopped == "max_matches"
         assert len(got.matches) == len(got.rows) == 2
-        assert seen.resolved == [f"h{k:02d}" for k in range(8)]
+        assert documents(harmony_index, seen.resolved) == [
+            f"h{k:02d}" for k in range(8)
+        ]
 
     def test_a_complete_run_resolves_every_file_once(self, harmony_index, monkeypatch):
         seen = watch_the_warnings_pass(monkeypatch)
         got = tql.run(harmony_index, HARMONY_QUERY)
         assert got.stopped is None
-        assert seen.resolved == [f"h{k:02d}" for k in range(8)]
+        assert documents(harmony_index, seen.resolved) == [
+            f"h{k:02d}" for k in range(8)
+        ]
 
 
 class TestRowsUnderLimits:

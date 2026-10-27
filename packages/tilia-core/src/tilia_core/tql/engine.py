@@ -78,14 +78,16 @@ def _sequence_matches(
             )
 
 
-def _timeline_row(log: Recorder, m: Match, title: str | None) -> dict[str, Any]:
+def _timeline_row(
+    log: Recorder, m: Match, title: str | None, ids: _OwnIds
+) -> dict[str, Any]:
     """A row of a query of only ``WHERE`` that lists timelines."""
     name, kind, role, author = log.execute(
         "SELECT name, kind, role, author FROM timelines WHERE id = ?",
         (m.timeline_id,),
     )[0]
     return {
-        "file": m.file_id,
+        "file": ids.document(m.file_id),
         "title": title,
         "timeline": name,
         "kind": kind,
@@ -95,17 +97,17 @@ def _timeline_row(log: Recorder, m: Match, title: str | None) -> dict[str, Any]:
 
 
 def _file_row(
-    log: Recorder, m: Match, title: str | None, file_fields: list[str]
+    log: Recorder, m: Match, title: str | None, file_fields: list[str], ids: _OwnIds
 ) -> dict[str, Any]:
     """A row of a query of only ``WHERE`` that lists files: ``file``, ``title``
     and a column for each file field the query names (several values joined by
     ``, ``)."""
-    row: dict[str, Any] = {"file": m.file_id, "title": title}
+    row: dict[str, Any] = {"file": ids.document(m.file_id), "title": title}
     for name in file_fields:
         if name in row:
             continue
         if name == "id":
-            row[name] = m.file_id
+            row[name] = ids.document(m.file_id)
             continue
         found = log.execute(
             "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
@@ -116,7 +118,7 @@ def _file_row(
     return row
 
 
-def _file_title(log: Recorder, file_id: str) -> str | None:
+def _file_title(log: Recorder, file_id: int) -> str | None:
     rows = log.execute(
         "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
         "AND name = ?",
@@ -141,7 +143,7 @@ def run(
     statement that is running. ``max_matches`` means some N matches: the search
     stops once N are found, and which N depends on the order the lanes are
     searched in, so they are not necessarily the first N of the full result;
-    the rows of the matches kept are ordered by file and time. The time limit
+    the rows of the matches kept are ordered by path and time. The time limit
     bounds the search and the warnings about the query's chord and key
     literals; building the rows of the matches found takes time in proportion
     to their number, and only a ``cancel`` that comes while they are built ends
@@ -197,6 +199,13 @@ def _run_on(
                 )
     finally:
         con.set_progress_handler(None, 0)
+    # by path, then start (timelines in their order, files alone): keys change
+    # between runs (TimeLineAnnotator/project-management#124)
+    paths = _paths(log)
+    if grain == "match":
+        matches.sort(key=lambda m: (paths.get(_file_of(m), ""), _extent(m)[0]))
+    else:
+        matches.sort(key=lambda m: paths.get(m.file_id or 0, ""))
     if pattern is not None:
         warn.words.update(dict.fromkeys(_harmony_warnings(log, query, limits)))
     # A limit or a cancel that already stopped the search or the warnings pass
@@ -204,9 +213,10 @@ def _run_on(
     # cuts the rows. The time limit never does.
     spent = limits.stopped is not None
     stopped = stopped or limits.stopped
-    titles: dict[str, str | None] = {}
+    titles: dict[int, str | None] = {}
     rows: list[dict[str, Any]] = []
     node_names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
+    ids = _OwnIds(log, matches)
     for m in matches:
         if not spent and limits.cancelled():
             matches = matches[: len(rows)]
@@ -216,11 +226,11 @@ def _run_on(
         if fid not in titles:
             titles[fid] = _file_title(log, fid)
         if grain == "match":
-            rows.append(_row(log, m, node_names, titles[fid]))
+            rows.append(_row(log, m, node_names, titles[fid], ids))
         elif grain == "timeline":
-            rows.append(_timeline_row(log, m, titles[fid]))
+            rows.append(_timeline_row(log, m, titles[fid], ids))
         else:
-            rows.append(_file_row(log, m, titles[fid], extra))
+            rows.append(_file_row(log, m, titles[fid], extra, ids))
     return Result(
         grain=grain,
         rows=rows,
@@ -427,7 +437,8 @@ def _pattern_matches(
     limits: Limits,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
-    meet ``WHERE`` only, sorted by file and time, and why the search stopped
+    meet ``WHERE`` only, in the order found (``_run_on`` sorts them by path and
+    time), and why the search stopped
     early, if it did. When ``max_matches`` stopped it, these are some
     ``max_matches`` matches, not the first ones of the full result."""
     marked = query.has_target
@@ -490,9 +501,7 @@ def _pattern_matches(
     except (Stopped, sqlite3.OperationalError, regexes.RegexTimeout) as err:
         stopped = limits.reason_of(err)
 
-    matches = [found[k] for k in order]
-    matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
-    return matches, stopped
+    return [found[k] for k in order], stopped
 
 
 def _is_join(pattern: syntax.SeqPattern | syntax.RelPattern) -> bool:
@@ -552,9 +561,10 @@ def _where_only(
                 log, file_id, index.time_map(file_id), labels, limits.ensure
             )
             timelines = log.execute(
-                "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
-                (file_id,),
-                part=f"{where}: the timelines of {file_id}"
+                "SELECT t.id, t.name FROM timelines t JOIN files f ON "
+                "f.id = t.file_id WHERE f.path = ? ORDER BY t.ordinal",
+                (scope.path,),
+                part=f"{where}: the timelines of {scope.path}"
                 if grain == "timeline"
                 else None,
             )
@@ -598,7 +608,6 @@ def _where_only(
         stopped = limits.reason_of(err)
     if grain == "match":
         log.note(stage)
-        matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
     return grain, matches, names.named_file_fields(cat, query), stopped
 
 
@@ -666,8 +675,54 @@ def _no_lane(log: Recorder, lane: syntax.Lane, warnings: list[str]) -> None:
 # --------------------------------------------------------------------------- #
 # The result table (tql.md §10)
 # --------------------------------------------------------------------------- #
-def _file_of(m: Match) -> str:
+def _file_of(m: Match) -> int:
     return next(c.file_id for s in m.slots for c in s)
+
+
+def _paths(log: Recorder) -> dict[int, str]:
+    """Each file's path by its key. Read after the run's progress handler is
+    removed, so that a stop or a cancel can't interrupt it."""
+    # a lookup, not a search statement: kept out of the SQL a result shows
+    return {r[0]: r[1] for r in log.con.execute("SELECT id, path FROM files")}
+
+
+class _OwnIds:
+    """The ids the files store, which the result table prints: a file's
+    ``files.document_id`` and a component's ``components.uuid``, never the
+    index's keys (contracts/index-reader.md)."""
+
+    CHUNK = 500  # keys per lookup, under SQLite's limit on parameters
+
+    def __init__(self, log: Recorder, matches: list[Match]) -> None:
+        # lookups, not search statements: kept out of the SQL a result shows
+        self._documents: dict[int, str | None] = {
+            r[0]: r[1] for r in log.con.execute("SELECT id, document_id FROM files")
+        }
+        keys = sorted(
+            {c.id for m in matches for s in m.slots for c in s if c.kind != BAR_KIND}
+        )
+        self._uuids: dict[Any, str] = {}
+        for i in range(0, len(keys), self.CHUNK):
+            chunk = keys[i : i + self.CHUNK]
+            marks = ", ".join("?" for _ in chunk)
+            self._uuids.update(
+                log.con.execute(
+                    f"SELECT id, uuid FROM components WHERE id IN ({marks})", chunk
+                ).fetchall()
+            )
+
+    def document(self, file_id: int | None) -> str | None:
+        """The document id of the file ``file_id``."""
+        return None if file_id is None else self._documents.get(file_id)
+
+    def unit(self, comp: Component) -> str:
+        """The id the file stores for ``comp``. A bar is no component and has
+        none: it is named by its file's document id and its place in playing
+        order (``<document id>:bar:<count>``)."""
+        if comp.kind == BAR_KIND:
+            count = str(comp.id).rpartition(":")[2]
+            return f"{self.document(comp.file_id)}:bar:{count}"
+        return self._uuids.get(comp.id, "")
 
 
 def _targets(m: Match) -> list[tuple[Component, float, float]]:
@@ -753,18 +808,22 @@ def _lane_column(m: Match) -> str | None:
 
 
 def _row(
-    log: Recorder, m: Match, names: dict[str, str], title: str | None
+    log: Recorder,
+    m: Match,
+    names: dict[int, str],
+    title: str | None,
+    ids: _OwnIds,
 ) -> dict[str, Any]:
     targets = _targets(m)
     first = targets[0][0]
     start, end = _extent(m)
     bar, beat = _position(log, first)
     row: dict[str, Any] = {
-        "file": first.file_id,
+        "file": ids.document(first.file_id),
         "title": title,
         "timeline": names.get(first.timeline_id),
         "lane": _lane_column(m),
-        "ids": " ".join(c.id for c, _, _ in targets),
+        "ids": " ".join(ids.unit(c) for c, _, _ in targets),
         "label": " → ".join(c.label for c, _, _ in targets),
         **_chord_names(log, [c for c, _, _ in targets]),
         "start": start,
@@ -779,5 +838,5 @@ def _row(
         row[f"${n}.start"] = min((s for s, _ in spans), default=None)
         row[f"${n}.end"] = max((e for _, e in spans), default=None)
         row[f"${n}.bar"] = _position(log, slot[0] if slot else None)[0]
-        row[f"${n}.ids"] = " ".join(c.id for c in slot)
+        row[f"${n}.ids"] = " ".join(ids.unit(c) for c in slot)
     return row

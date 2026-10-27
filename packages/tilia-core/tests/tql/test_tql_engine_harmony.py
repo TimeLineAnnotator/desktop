@@ -142,7 +142,8 @@ class TestChordLiterals:
         index = fixture_index.build_index(HARMONY)
         con = index.connection()
         con.execute(
-            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id LIKE '%c2'"
+            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id = "
+            "(SELECT id FROM components WHERE uuid LIKE '%c2')"
         )
         got = tql.run(index, "/N\\.C/ IN harmony")
         assert [c.start for m in got.matches for c in m.slots[0]] == [1]
@@ -151,7 +152,8 @@ class TestChordLiterals:
         index = fixture_index.build_index(HARMONY)
         con = index.connection()
         con.execute(
-            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id LIKE '%c2'"
+            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id = "
+            "(SELECT id FROM components WHERE uuid LIKE '%c2')"
         )
         got = tql.run(index, '"N.C." IN harmony')
         assert [c.start for m in got.matches for c in m.slots[0]] == [1]
@@ -188,7 +190,8 @@ class TestLabelConditions:
     def test_the_custom_text_is_a_label_too(self):
         index = fixture_index.build_index(HARMONY)
         index.connection().execute(
-            "UPDATE chords SET custom_text = 'dom' WHERE component_id LIKE '%c2'"
+            "UPDATE chords SET custom_text = 'dom' WHERE component_id = "
+            "(SELECT id FROM components WHERE kind = 'chord' AND start = 1)"
         )
         got = tql.run(index, "*[label ~ dom] IN harmony")
         assert [c.start for m in got.matches for c in m.slots[0]] == [1]
@@ -262,7 +265,8 @@ class TestWarnings:
         index = fixture_index.build_index(HARMONY)
         con = index.connection()
         con.execute(
-            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id LIKE '%c2'"
+            "UPDATE chords SET custom_text = 'N.C.' WHERE component_id = "
+            "(SELECT id FROM components WHERE uuid LIKE '%c2')"
         )
         got = tql.run(index, '"N.C." IN harmony')
         assert [c.start for m in got.matches for c in m.slots[0]] == [1]
@@ -591,7 +595,10 @@ class TestFieldsAsMusic:
         fix = harmony_fixture([[0, "C", "minor"], [5, "C", "minor"]], [])
         index = fixture_index.build_index(fix)
         con = index.connection()
-        con.execute("UPDATE keys SET key = 'Cm' WHERE component_id LIKE '%k2'")
+        con.execute(
+            "UPDATE keys SET key = 'Cm' WHERE component_id = "
+            "(SELECT id FROM components WHERE uuid LIKE '%k2')"
+        )
         assert [r[0] for r in con.execute("SELECT key FROM keys")] == ["c", "Cm"]
         assert len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
         assert tql.run(index, "* THEN * IN keys WHERE $1.key != $2.key").matches == []

@@ -9,7 +9,8 @@ import examples
 import fixture_index
 import pytest
 
-from tilia_core import index_schema, tql
+from tilia_core import tql
+from tilia_core.corpus import schema
 from tilia_core.tql import readonly, showsql, sqlfuncs
 from tilia_core.tql.result import Result
 from tilia_core.tql.syntax import TQLError
@@ -94,7 +95,7 @@ class TestShownStatementsRun:
         got = tql.run(index, "PAC IN cadences")
         (comments, statement), *_ = blocks(got.sql)
         assert comments == ["-- $1: PAC IN cadences"]
-        assert "'pac'" in statement and "c.file_id = 'f1'" in statement
+        assert "'pac'" in statement and "f.path = 'f1.tla'" in statement
         assert statement.endswith(";")
         rows = tql.sql(index, statement).rows
         assert [c.id for m in got.matches for s in m.slots for c in s] == [
@@ -156,16 +157,46 @@ class TestShownStatementsRun:
         got = tql.run(index, 'verse THEN "it\'s" IN form')
         assert "?" not in got.sql
         assert "'it''s'" in got.sql
-        assert "c.file_id = 'f1'" in got.sql
+        assert "f.path = 'f1.tla'" in got.sql
         shown_rows(index, got.sql)
 
     def test_a_statement_that_ran_once_per_file_is_shown_once_per_file(self):
         index = fixture_index.build_index(FIXTURES["sonata"], FIXTURES["exposition"])
         got = tql.run(index, "PAC IN cadences")
         files = [
-            re.search(r"c\.file_id = '(\w+)'", s).group(1) for s in statements(got.sql)
+            re.search(r"f\.path = '([^']+)'", s).group(1) for s in statements(got.sql)
         ]
-        assert files == ["f1", "f2"]
+        assert files == ["f1.tla", "f2.tla"]
+
+    def test_a_file_is_selected_by_its_path_not_its_key(self):
+        # research R18: the statement shown runs as it stands on any index of
+        # the same folder, whose keys differ
+        sonata = dict(FIXTURES["sonata"], name="sonata")
+        exposition = dict(FIXTURES["exposition"], name="exposition")
+        one = fixture_index.build_index(sonata, exposition)
+        other = fixture_index.build_index(exposition, sonata)
+        assert fixture_index.file_key(one, "sonata") != fixture_index.file_key(
+            other, "sonata"
+        )
+        got = tql.run(one, "PAC IN cadences")
+        shown = statements(got.sql)
+        assert all(
+            "JOIN files f ON f.id = c.file_id WHERE f.path = '" in s for s in shown
+        )
+        assert not any(re.search(r"c\.file_id = \d", s) for s in shown)
+
+        def uuids(index):
+            con = index.connection()
+            out = set()
+            for statement in shown:
+                for (key,) in tql.sql(index, statement).rows:
+                    row = con.execute(
+                        "SELECT uuid FROM components WHERE id = ?", (key,)
+                    )
+                    out.add(row.fetchone()[0])
+            return out
+
+        assert uuids(one) == uuids(other) == {r["ids"] for r in got.rows}
 
     def test_bookkeeping_reads_are_not_shown(self):
         got = tql.run(index_of("exposition"), "PAC IN cadences")
@@ -202,7 +233,7 @@ class TestWhereOnly:
         assert component_ids(got)
         (units, statement), (stage, none) = blocks(got.sql)
         assert units == ["-- WHERE level = 2: the units"]
-        assert statement.endswith(";") and "c.file_id = 'f1'" in statement
+        assert statement.endswith(";") and "f.path = 'f1.tla'" in statement
         assert (stage, none) == (
             ["-- WHERE level = 2: tested in Python on each unit."],
             "",
@@ -214,12 +245,27 @@ class TestWhereOnly:
         index = fixture_index.build_index(FIXTURES["sonata"], FIXTURES["exposition"])
         got = tql.run(index, "WHERE duration > 5")
         files = [
-            re.search(r"c\.file_id = '(\w+)'", s).group(1) for s in statements(got.sql)
+            re.search(r"f\.path = '([^']+)'", s).group(1) for s in statements(got.sql)
         ]
-        assert files == ["f1", "f2"]
+        assert files == ["f1.tla", "f2.tla"]
         used = {c.file_id for m in got.matches for s in m.slots for c in s}
-        assert used == {"f1", "f2"}
+        assert used == {fixture_index.file_key(index, f) for f in ("f1", "f2")}
         assert shown_rows(index, got.sql) >= component_ids(got)
+
+    def test_the_timelines_of_a_file_are_selected_by_its_path(self):
+        index = fixture_index.build_index(FIXTURES["pop"], FIXTURES["sonata"])
+        got = tql.run(index, "WHERE tl.name ~ /^Form/")
+        assert got.grain == "timeline"
+        shown = [s for s in statements(got.sql) if "FROM timelines" in s]
+        assert [re.search(r"f\.path = '([^']+)'", s).group(1) for s in shown] == [
+            "f1.tla",
+            "f2.tla",
+        ]
+        assert [b.comment for b in got.sql_blocks if b.statement in shown] == [
+            "WHERE tl.name ~ /^Form/: the timelines of f1.tla",
+            "WHERE tl.name ~ /^Form/: the timelines of f2.tla",
+        ]
+        assert not any(re.search(r"file_id = \d", s) for s in shown)
 
     @pytest.mark.parametrize(
         "name, query, grain",
@@ -244,7 +290,10 @@ class TestRelations:
         got = tql.run(index, "PAC IN cadences SAME END MT IN form")
         (comments, statement), *rest = blocks(got.sql)
         assert comments[0].startswith("-- $1 SAME END $2")
-        assert "FROM components a JOIN components b ON" in statement
+        assert (
+            "FROM components a JOIN files f ON f.id = a.file_id "
+            "JOIN components b ON" in statement
+        )
         assert "0.1" in statement and "?" not in statement
         assert len([s for _, s in blocks(got.sql) if s]) == 1
         rows = tql.sql(index, statement).rows
@@ -303,7 +352,7 @@ def functions(con):
 
 
 # The SQL functions shown SQL calls, and how many arguments each takes. Like
-# the tables test_tql_index_schema.py pins, they may change and nothing in them
+# the tables test_corpus_schema.py pins, they may change and nothing in them
 # is promised yet: a rename touches this table, so that it is deliberate.
 FUNCTIONS = {
     ("regexp", 2),
@@ -343,7 +392,7 @@ class TestNothingIsPromisedYet:
     the ``tql_*`` functions may change and nothing in them is promised yet."""
 
     DOCUMENTED = {
-        "index_schema": index_schema,
+        "corpus.schema": schema,
         "sqlfuncs": sqlfuncs,
         "showsql": showsql,
         "Result.sql": Result.sql,
@@ -357,7 +406,7 @@ class TestNothingIsPromisedYet:
         assert "promised" in doc, name
 
     def test_the_names_are_not_called_public(self):
-        assert "makes public" not in words(index_schema)
+        assert "makes public" not in words(schema)
         assert "are public" not in words(sqlfuncs)
 
     def test_the_text_is_for_reading_and_the_blocks_take_it_apart(self):

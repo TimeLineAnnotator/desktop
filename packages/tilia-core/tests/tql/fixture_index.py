@@ -1,4 +1,10 @@
-"""In-memory indexes built from TQL's test fixtures, until the real index exists."""
+"""In-memory indexes built from TQL's test fixtures, until the real index exists.
+
+The index's keys are integers from one counter, as a corpus's are
+(TimeLineAnnotator/project-management#124). The fixture's own text ids
+(``f1:t1:c1``) are the files' own ids: ``timelines.uuid`` and
+``components.uuid``, and the fixture's name is its ``files.document_id``.
+"""
 
 import re
 import sqlite3
@@ -7,12 +13,13 @@ from typing import Any
 from fake_timemap import FakeTimeMap
 from grammars import GRAMMARS
 
-from tilia_core import derived, index_schema, labels
+from tilia_core import derived, labels
+from tilia_core.corpus import schema
 from tilia_core.tql import lanes
 
 _NOTES = {"C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6}
 _FORM = re.compile(r"Form \((.+)\)$")
-_INSERT_COMPONENT = "INSERT INTO components VALUES (?,?,?,?,?,?,?,?,?)"
+_INSERT_COMPONENT = "INSERT INTO components VALUES (?,?,?,?,?,?,?,?,?,?)"
 
 
 def _spell(name: str) -> tuple[int, int]:
@@ -55,14 +62,14 @@ def _in_lane_order(keys: list, chords: list) -> tuple[list, list]:
 class FixtureIndex:
     """An index in memory, and the time maps of its files."""
 
-    def __init__(self, con: sqlite3.Connection, maps: dict[str, FakeTimeMap]) -> None:
+    def __init__(self, con: sqlite3.Connection, maps: dict[int, FakeTimeMap]) -> None:
         self._con = con
         self._maps = maps
 
     def connection(self) -> sqlite3.Connection:
         return self._con
 
-    def time_map(self, file_id: str) -> FakeTimeMap | None:
+    def time_map(self, file_id: int) -> FakeTimeMap | None:
         return self._maps.get(file_id)
 
     @property
@@ -85,7 +92,15 @@ def _timeline_role(tl: dict) -> tuple[str | None, str | None]:
 class _Builder:
     def __init__(self, con: sqlite3.Connection) -> None:
         self.con = con
-        self.maps: dict[str, FakeTimeMap] = {}
+        self.maps: dict[int, FakeTimeMap] = {}
+        self.keys: dict[str, int] = {}  # a text id, and its key in the index
+
+    def key(self, text_id: str) -> int:
+        """The key of the file, timeline or component ``text_id``: the next
+        integer the first time it is asked for."""
+        if text_id not in self.keys:
+            self.keys[text_id] = len(self.keys) + 1
+        return self.keys[text_id]
 
     def add_component(
         self,
@@ -101,9 +116,10 @@ class _Builder:
         self.con.execute(
             _INSERT_COMPONENT,
             (
+                self.key(cid),
+                self.key(fid),
+                self.key(tid),
                 cid,
-                fid,
-                tid,
                 kind,
                 start,
                 end,
@@ -120,16 +136,20 @@ class _Builder:
         grammar = GRAMMARS[fixture["grammar"]] if "grammar" in fixture else None
         grammar = grammar or labels.WholeLabel()
         tmap = FakeTimeMap.from_fixture(beats[0][1]) if beats else None
+        fkey = self.key(fid)
         if tmap is not None:
-            self.maps[fid] = tmap
+            self.maps[fkey] = tmap
         self.con.execute(
-            "INSERT INTO files VALUES (?,?,?,?,?)",
+            "INSERT INTO files (id, path, document_id, state, media_length, "
+            "time_unit, time_map) VALUES (?,?,?,?,?,?,?)",
             (
-                fid,
+                fkey,
                 fid + ".tla",
+                fid,
+                "readable",
                 fixture["length"],
                 "seconds",
-                f"{fid}:t{beats[0][0]}" if beats else None,
+                self.key(f"{fid}:t{beats[0][0]}") if beats else None,
             ),
         )
         for ordinal, tl in enumerate(tls, 1):
@@ -137,10 +157,11 @@ class _Builder:
             role, author = _timeline_role(tl)
             kind = "beat" if tl["kind"] == "beats" else tl["kind"]
             self.con.execute(
-                "INSERT INTO timelines VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO timelines VALUES (?,?,?,?,?,?,?,?,?)",
                 (
+                    self.key(tid),
+                    fkey,
                     tid,
-                    fid,
                     kind,
                     tl["name"],
                     labels.fold(tl["name"]),
@@ -152,12 +173,12 @@ class _Builder:
             add = getattr(self, "_add_" + tl["kind"])
             add(fid, tid, tl, fixture["length"], grammar)
         if tmap is not None:
-            self._add_positions(fid, tmap)
+            self._add_positions(fkey, tmap)
         for name, value in fixture.get("fields", {}).items():
             for item in value if isinstance(value, list) else [value]:
                 self.con.execute(
                     "INSERT INTO fields VALUES (?,?,?,?)",
-                    ("file", fid, derived.field_name(name), str(item)),
+                    ("file", fkey, derived.field_name(name), str(item)),
                 )
 
     def _categorise(self, cid: str, label: str, grammar: Any) -> None:
@@ -165,7 +186,7 @@ class _Builder:
             for category in derived.categories(label, grammar):
                 self.con.execute(
                     "INSERT INTO categories VALUES (?,?,?)",
-                    (cid, category, grammar.supertype(category)),
+                    (self.key(cid), category, grammar.supertype(category)),
                 )
 
     def _add_hierarchy(
@@ -184,7 +205,13 @@ class _Builder:
         for cid, level, _, _ in rows:
             parent, depth = structure[cid]
             self.con.execute(
-                "INSERT INTO hierarchies VALUES (?,?,?,?)", (cid, level, parent, depth)
+                "INSERT INTO hierarchies VALUES (?,?,?,?)",
+                (
+                    self.key(cid),
+                    level,
+                    None if parent is None else self.key(parent),
+                    depth,
+                ),
             )
 
     def _add_marker(
@@ -204,7 +231,7 @@ class _Builder:
             self.add_component(cid, fid, tid, "range", start, end, label)
             self.con.execute(
                 "INSERT INTO ranges VALUES (?,?,?,?)",
-                (cid, row_ids[row], row, labels.fold(row)),
+                (self.key(cid), row_ids[row], row, labels.fold(row)),
             )
             self._categorise(cid, label, grammar)
 
@@ -226,10 +253,10 @@ class _Builder:
             self.add_component(cid, fid, tid, "key", time, end, props["label"])
             self.con.execute(
                 "INSERT INTO keys VALUES (?,?,?,?,?,?)",
-                (cid, step, accidental, kind, props["tonic"], props["key"]),
+                (self.key(cid), step, accidental, kind, props["tonic"], props["key"]),
             )
             modes.append(mode)
-            key_ids.append(cid)
+            key_ids.append(self.key(cid))
         in_force = derived.key_in_force([c[0] for c in chords], [k[0] for k in keys])
         for n, (chord, end, k) in enumerate(
             zip(chords, chord_ends, in_force, strict=True), 1
@@ -251,7 +278,7 @@ class _Builder:
             self.con.execute(
                 "INSERT INTO chords VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    cid,
+                    self.key(cid),
                     step,
                     accidental,
                     quality,
@@ -273,7 +300,7 @@ class _Builder:
         for i, t in enumerate(tmap.beat_times(), 1):
             self.add_component(f"{tid}:c{i}", fid, tid, "beat", t, t, "")
 
-    def _add_positions(self, fid: str, tmap: FakeTimeMap) -> None:
+    def _add_positions(self, fid: int, tmap: FakeTimeMap) -> None:
         for count, (start, end, number, label) in enumerate(tmap.measures(), 1):
             self.con.execute(
                 "INSERT INTO measures VALUES (?,?,?,?,?,?,?,?)",
@@ -315,9 +342,33 @@ def build_index(*fixtures: dict) -> FixtureIndex:
     """An in-memory index of one or more examples.toml fixtures (or dicts of
     the same shape). File k is ``f<k>`` unless the fixture has a ``name``."""
     con = sqlite3.connect(":memory:", check_same_thread=False)
-    index_schema.create_schema(con)
+    schema.create_schema(con)
     builder = _Builder(con)
     for k, fixture in enumerate(fixtures, 1):
         builder.add_file(k, fixture)
     con.commit()
     return FixtureIndex(con, builder.maps)
+
+
+def file_key(index: FixtureIndex, document_id: str) -> int:
+    """The key of the file whose document id is ``document_id`` (``f1``, or the
+    fixture's name)."""
+    row = (
+        index.connection()
+        .execute("SELECT id FROM files WHERE document_id = ?", (document_id,))
+        .fetchone()
+    )
+    if row is None:
+        raise KeyError(document_id)
+    return row[0]
+
+
+def key_of(index: FixtureIndex, uuid: str) -> int:
+    """The key of the timeline or component whose own id is ``uuid``
+    (``f1:t2``, ``f1:t2:c3``)."""
+    con = index.connection()
+    table = "timelines" if uuid.count(":") == 1 else "components"
+    row = con.execute(f"SELECT id FROM {table} WHERE uuid = ?", (uuid,)).fetchone()
+    if row is None:
+        raise KeyError(uuid)
+    return row[0]

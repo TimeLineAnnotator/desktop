@@ -383,25 +383,27 @@ def join_statement(
     rel: syntax.Relation,
     left_specs: list[LaneSpec],
     right_specs: list[LaneSpec],
-    file_id: str,
+    path: str,
     resolve: tql_compile.Resolve,
     has_map: bool = True,
 ) -> tuple[str, list[Any]]:
     """``(sql, parameters)`` of the sentence form of a timing relation: the
-    left unit's candidates joined with the target's, each in its lanes."""
+    left unit's candidates joined with the target's, each in its lanes, in the
+    file at ``path`` (named by its path, as in ``candidate_statement``)."""
     target = simple_target(rel.target)
     assert target is not None
     bld = SqlBuilder(resolve, has_map)
-    bld.params.append(file_id)
+    bld.params.append(path)
     where = (
-        f"a.file_id = ? AND {tql_compile.lane_test(left_specs, 'a', bld)} AND "
+        f"f.path = ? AND {tql_compile.lane_test(left_specs, 'a', bld)} AND "
         f"{tql_compile.lane_test(right_specs, 'b', bld)} AND "
         f"{tql_compile.unit_test(left, 'a', bld, left_specs)} AND "
         f"{tql_compile.unit_test(target, 'b', bld, right_specs)}"
     )
     sql = (
         "SELECT a.id, a.timeline_id, b.id, b.timeline_id "
-        "FROM components a JOIN components b ON "
+        "FROM components a JOIN files f ON f.id = a.file_id "
+        "JOIN components b ON "
         f"a.file_id = b.file_id AND a.id <> b.id AND {timing_sql(rel, 'a', 'b')} "
         f'WHERE {where} ORDER BY a.start, a."end", '
         "COALESCE(tql_fold(a.label), ''), a.id, "
@@ -490,7 +492,7 @@ class Scope:
     def __init__(
         self,
         log: Log,
-        file_id: str,
+        file_id: int,
         time_map: Any = None,
         labels: dict[int, str] | None = None,
         check: Callable[[], None] | None = None,
@@ -500,7 +502,8 @@ class Scope:
         self._calls = 0
         self.play: list[LaneSpec] | None = None  # every lane the query reads
         self.labels = {} if labels is None else labels  # what each unit's SQL answers
-        self.file_id = file_id
+        self.file_id = file_id  # the file's key, files.id
+        self._path: str | None = None
         self.time_map = time_map  # the file's, or None: see ``index.time_map``
         self._timelines: dict[str, list[Component]] = {}
         self._by_id: dict[str, Component] = {}
@@ -518,6 +521,17 @@ class Scope:
         self.missing: set[str] = set()  # file fields a condition read and it lacks
         self.no_length = False  # a percentage needed the media length, and it lacks
         self._steps: dict[int, syntax.Unit] = {}
+
+    @property
+    def path(self) -> str:
+        """The file's path, ``files.path``, which the statements shown name it
+        by."""
+        if self._path is None:
+            row = self.log.con.execute(
+                "SELECT path FROM files WHERE id = ?", (self.file_id,)
+            ).fetchone()
+            self._path = "" if row is None else str(row[0])
+        return self._path
 
     # -- components ---------------------------------------------------------- #
     def timeline(self, timeline_id: str) -> list[Component]:
@@ -678,7 +692,7 @@ class Scope:
         if got is not None:
             return got
         sql, params = tql_compile.candidate_statement(
-            unit, self.file_id, self.lanes, self.time_map is not None, self.play
+            unit, self.path, self.lanes, self.time_map is not None, self.play
         )
         part = self.labels.get(id(unit), "a unit of the query")
         ids = [r[0] for r in self.log.execute(sql, params, part)]
@@ -1220,7 +1234,7 @@ def matches(
             rel,
             specs,
             right,
-            scope.file_id,
+            scope.path,
             scope.lanes,
             scope.time_map is not None,
         )

@@ -627,20 +627,26 @@ def unit_test(
 
 def candidate_statement(
     unit: syntax.Unit,
-    file_id: str,
+    path: str,
     resolve: Resolve | None = None,
     has_map: bool = True,
     specs: list[LaneSpec] | None = None,
 ) -> tuple[str, list[Any]]:
-    """``(sql, parameters)`` selecting the ids of the components of ``file_id``
-    that fit ``unit`` (tql.md §5), bound with ``?``: its label and the timing
+    """``(sql, parameters)`` selecting the ids of the components of the file at
+    ``path`` (``files.path``) that fit ``unit`` (tql.md §5), bound with ``?``.
+    The file is named by its path, never by its key, so that the statement
+    shown runs as it stands on any index of the same folder. It tests the unit's
+    label and the timing
     relations in its brackets, and the stored numbers and colours it compares.
     ``resolve`` names the lanes of an ``IN`` clause; ``has_map`` says whether the
     file has a time map, without which a relation limited in bars or beats holds
     of nothing. ``specs`` are the lanes the units are looked for in, if known
     (see :func:`unit_test`)."""
     bld = SqlBuilder(resolve, has_map)
-    bld.params.append(file_id)
+    bld.params.append(path)
     test = unit_test(unit, "c", bld, specs)
-    sql = f"SELECT c.id FROM components c WHERE c.file_id = ? AND ({test})"
+    sql = (
+        "SELECT c.id FROM components c JOIN files f ON f.id = c.file_id "
+        f"WHERE f.path = ? AND ({test})"
+    )
     return sql, bld.params

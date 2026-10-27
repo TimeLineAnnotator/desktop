@@ -1,5 +1,6 @@
 """tql.run on sequence patterns: lanes, literals, results, rows and keys."""
 
+import re
 import sqlite3
 import threading
 import unicodedata
@@ -23,7 +24,8 @@ def index_of(name):
 
 def lane_names(name, lane):
     index = index_of(name)
-    specs = tql_compile.resolve_lanes(index.connection(), "f1", lane)
+    key = fixture_index.file_key(index, "f1")
+    specs = tql_compile.resolve_lanes(index.connection(), key, lane)
     return [s.description for s in specs]
 
 
@@ -222,10 +224,11 @@ class TestLanes:
                 {"name": "Whoa", "kind": "marker", "units": [["y", 1]]},
             ],
         }
-        con = fixture_index.build_index(fixture).connection()
+        index = fixture_index.build_index(fixture)
+        con, key = index.connection(), fixture_index.file_key(index, "f1")
 
         def names(lane):
-            return [s.description for s in tql_compile.resolve_lanes(con, "f1", lane)]
+            return [s.description for s in tql_compile.resolve_lanes(con, key, lane)]
 
         assert names(quoted("Form [A]")) == ["Form [A] · level 1"]
         assert names(bare("form [a]")) == ["Form [A] · level 1"]
@@ -238,10 +241,11 @@ class TestLanes:
             "length": 8,
             "timelines": [dict(beats, name="Beats"), dict(beats, name="Other beats")],
         }
-        con = fixture_index.build_index(fixture).connection()
-        specs = tql_compile.resolve_lanes(con, "f1", bare("time_map"))
+        index = fixture_index.build_index(fixture)
+        con, key = index.connection(), fixture_index.file_key(index, "f1")
+        specs = tql_compile.resolve_lanes(con, key, bare("time_map"))
         assert [s.description for s in specs] == ["Beats"]
-        specs = tql_compile.resolve_lanes(con, "f1", bare("beats"))
+        specs = tql_compile.resolve_lanes(con, key, bare("beats"))
         assert [s.description for s in specs] == ["Beats", "Other beats"]
 
 
@@ -280,7 +284,7 @@ def matched(query_text):
     con = index.connection()
     sqlfuncs.register(con)
     unit = tql.parse(query_text + " IN form").pattern.seq.steps[0].item
-    sql, params = tql_compile.candidate_statement(unit, "f1")
+    sql, params = tql_compile.candidate_statement(unit, "f1.tla")
     ids = {r[0] for r in con.execute(sql, params)}
     rows = con.execute("SELECT id, label FROM components ORDER BY start").fetchall()
     return [label for cid, label in rows if cid in ids]
@@ -386,19 +390,24 @@ class TestLiterals:
 
     def test_a_position_is_read_from_the_positions_table(self):
         unit = tql.parse("verse[bar = 1] IN form").pattern.seq.steps[0].item
-        sql, params = tql_compile.candidate_statement(unit, "f1")
+        sql, params = tql_compile.candidate_statement(unit, "f1.tla")
         assert "positions" in sql and params[-1] == 1.0
 
     def test_a_simple_comparison_is_in_the_candidate_statement(self):
         unit = tql.parse("verse[level = 1] IN form").pattern.seq.steps[0].item
-        sql, params = tql_compile.candidate_statement(unit, "f1")
+        sql, params = tql_compile.candidate_statement(unit, "f1.tla")
         assert "hierarchies" in sql and params[-1] == 1.0
 
     def test_candidate_statement_shape(self):
         unit = tql.parse("verse IN form").pattern.seq.steps[0].item
-        sql, params = tql_compile.candidate_statement(unit, "f1")
-        assert sql.startswith("SELECT c.id FROM components c WHERE c.file_id = ? AND (")
-        assert params[0] == "f1"
+        sql, params = tql_compile.candidate_statement(unit, "f1.tla")
+        # the file is named by its path, so the statement runs on any index of
+        # the same folder (TimeLineAnnotator/project-management#144)
+        assert sql.startswith(
+            "SELECT c.id FROM components c JOIN files f ON f.id = c.file_id "
+            "WHERE f.path = ? AND ("
+        )
+        assert params[0] == "f1.tla"
         assert "'verse'" not in sql
 
 
@@ -527,6 +536,24 @@ class TestRun:
         assert all(v == sorted(v) for v in by_file.values())
         assert set(files) == {"f1", "f2"}
 
+    def test_matches_are_ordered_by_path_then_start_not_by_key(self):
+        # research R18: the first file's key is the smaller, its path the later
+        index = fixture_index.build_index(FIXTURES["pop"], FIXTURES["strophic"])
+        con = index.connection()
+        f1 = fixture_index.file_key(index, "f1")
+        assert f1 < fixture_index.file_key(index, "f2")
+        con.execute("UPDATE files SET path = 'z/late.tla' WHERE id = ?", (f1,))
+        con.execute("UPDATE files SET path = 'a/early.tla' WHERE id <> ?", (f1,))
+        got = tql.run(index, "verse THEN chorus IN form")
+        files = [r["file"] for r in got.rows]
+        assert files == sorted(files, reverse=True) and set(files) == {"f1", "f2"}
+        for name in ("f1", "f2"):
+            starts = [r["start"] for r in got.rows if r["file"] == name]
+            assert starts == sorted(starts)
+        # a query of only WHERE lists its files and timelines by path too
+        by_file = tql.run(index, "WHERE file.id != nothing")
+        assert [r["file"] for r in by_file.rows] == ["f2", "f1"]
+
     def test_title_comes_from_the_file_field(self):
         fixture = dict(FIXTURES["exposition"], fields={"title": "Sonata"})
         got = tql.run(fixture_index.build_index(fixture), "TR IN form")
@@ -623,12 +650,21 @@ class TestRows:
         a = tql.run(index_of("pop"), "verse THEN chorus IN form")
         b = tql.run(index_of("pop"), "verse THEN chorus IN form")
         assert [m.key for m in a.matches] == [m.key for m in b.matches]
-        assert a.matches[0].key == "f1|f1:t2/f1:t2:c2;f1:t2/f1:t2:c3"
+        index = index_of("pop")
+        f = fixture_index.file_key(index, "f1")
+        t2 = fixture_index.key_of(index, "f1:t2")
+        c2, c3 = (fixture_index.key_of(index, f"f1:t2:c{n}") for n in (2, 3))
+        # match keys are built from the index's keys, as before
+        assert a.matches[0].key == f"{f}|{t2}/{c2};{t2}/{c3}"
         assert len({m.key for m in a.matches}) == 3
 
     def test_key_with_several_units_in_a_step(self):
-        m = tql.run(index_of("pop"), "verse+ THEN chorus IN form").matches[0]
-        assert m.key == "f1|f1:t1/f1:t1:c4,f1:t1/f1:t1:c5;f1:t1/f1:t1:c6"
+        index = index_of("pop")
+        m = tql.run(index, "verse+ THEN chorus IN form").matches[0]
+        f = fixture_index.file_key(index, "f1")
+        t1 = fixture_index.key_of(index, "f1:t1")
+        c4, c5, c6 = (fixture_index.key_of(index, f"f1:t1:c{n}") for n in (4, 5, 6))
+        assert m.key == f"{f}|{t1}/{c4},{t1}/{c5};{t1}/{c6}"
 
 
 # --------------------------------------------------------------------------- #
@@ -656,7 +692,7 @@ class TestSql:
             assert lines[0].startswith("--")
             assert lines[-1].startswith("--") or lines[-1].endswith(";")
         assert "?" not in got.sql
-        assert "c.file_id = 'f1'" in got.sql
+        assert "f.path = 'f1.tla'" in got.sql
         assert "'it''s'" in got.sql
         assert "'verse'" in got.sql
 
@@ -673,11 +709,14 @@ class TestSql:
     def test_lane_lookups_search_the_timeline_index(self):
         # the levels and rows of a timeline are read through
         # components_by_timeline (file_id, timeline_id, start), not a scan
-        con = index_of("pop").connection()
+        index = index_of("pop")
+        con = index.connection()
         seen = []
         con.set_trace_callback(seen.append)
         try:
-            specs = tql_compile.resolve_lanes(con, "f1", None)
+            specs = tql_compile.resolve_lanes(
+                con, fixture_index.file_key(index, "f1"), None
+            )
         finally:
             con.set_trace_callback(None)
         assert {s.kind for s in specs} >= {"hierarchy", "range"}
@@ -688,8 +727,9 @@ class TestSql:
         assert any("ranges" in q for q in lookups)
         for q in lookups:
             plan = [r[-1] for r in con.execute("EXPLAIN QUERY PLAN " + q)]
+            # covering, now that the keys are integers (the rowid)
             assert any(
-                p.startswith("SEARCH c USING INDEX components_by_timeline")
+                re.match(r"SEARCH c USING (COVERING )?INDEX components_by_timeline", p)
                 for p in plan
             ), (q, plan)
             assert not any(p.startswith("SCAN c") for p in plan), (q, plan)
