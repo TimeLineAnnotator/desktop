@@ -183,6 +183,8 @@ def _get_music21_object_from_text(
     Return the music21 object for the text, its kind, and the tone the text
     adds to the object's quality, or "" if they are no added-tone quality.
     """
+    # "Cad64" is the key's cadential six-four, as "V(64)" is.
+    text = re.sub(r"^[Cc]ad64(?=/|$)", "V(64)", text)
     text, prefixed_accidental = _extract_prefixed_accidental(text)
     text = _format_postfix_accidental(text)
     text = _replace_special_abbreviations(text)

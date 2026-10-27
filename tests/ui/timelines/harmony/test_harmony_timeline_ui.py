@@ -986,6 +986,8 @@ class TestDominantSeventhFlatNinthLabel:
 class TestAddedToneLabel:
     # The base quality's label, then the added tone in raised parentheses. An
     # 11 is written "1\u200c1", as MusAnalysis draws "11" over the parenthesis.
+    # The cadential six-four's 6 is stacked over its 4 in plain parentheses
+    # that enclose both.
     @pytest.mark.parametrize(
         "step, quality, inversion, expected",
         [
@@ -1005,6 +1007,7 @@ class TestAddedToneLabel:
             (1, "minor-added-ninth", 0, "ii((9))"),
             (1, "minor-seventh-added-eleventh", 0, "ii7((1\u200c1))"),
             (1, "minor-seventh-added-eleventh", 3, "ii42((1\u200c1))"),
+            (4, "cadential-six-four", 0, "V(64)"),
         ],
     )
     def test_roman(self, step, quality, inversion, expected, harmony_tlui):
@@ -1031,6 +1034,7 @@ class TestAddedToneLabel:
             ("minor-added-ninth", 0, "Cm((9))"),
             ("minor-seventh-added-eleventh", 0, "Cm7((1\u200c1))"),
             ("minor-seventh-added-eleventh", 1, "Cm7((1\u200c1))/E`b"),
+            ("cadential-six-four", 0, "C(64)"),
         ],
     )
     def test_letter(self, quality, inversion, expected, harmony_tlui):
@@ -1045,3 +1049,25 @@ class TestAddedToneLabel:
         )
 
         assert harmony_tlui.harmonies()[0].label == "C`#7((#9))"
+
+    def test_letter_on_flat_root(self, harmony_tlui):
+        add_harmony(
+            display_mode="letter",
+            step=6,
+            accidental=-1,
+            quality="cadential-six-four",
+        )
+
+        assert harmony_tlui.harmonies()[0].label == "B`b(64)"
+
+    def test_cadential_six_four_in_minor(self, harmony_tlui):
+        # In A minor, as in major, the dominant is major: E with C and A over it.
+        add_mode(**MINOR)
+        add_harmony(1, step=2, quality="cadential-six-four")
+
+        assert harmony_tlui.harmonies()[0].label == "V(64)"
+
+    def test_cadential_six_four_applied(self, harmony_tlui):
+        add_harmony(step=1, quality="cadential-six-four", applied_to=4)
+
+        assert harmony_tlui.harmonies()[0].label == "V(64)/V"

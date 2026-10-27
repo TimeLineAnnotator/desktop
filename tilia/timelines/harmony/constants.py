@@ -6,6 +6,17 @@ HARMONY_ACCIDENTALS = [2, 1, 0, -1, -2]
 MODE_TYPES = [m for m in _m21k.modeSharpsAlter.keys() if m not in ("ionian", "aeolian")]
 FONT_TYPES = ["analytic", "normal"]
 
+# The dominant with a sixth and a fourth over its root, which resolve to its
+# fifth and third. Its sixth and fourth are not added tones, but it is written
+# and typed as if they were, on the major triad: "V(64)".
+#
+# Two gaps are left until the harmony model is overhauled. Any major triad
+# takes it, not only the dominant, so "I(64)" is accepted too. And "Gadd64" is
+# read as it, though music21 reads a 64th as the root doubled, so its music21
+# chord has the root, third and fifth, and no sixth or fourth.
+CADENTIAL_SIX_FOUR = "cadential-six-four"
+CADENTIAL_SIX_FOUR_TONE = "64"
+
 # Qualities that music21 has no chord type for, each a chord type it has plus
 # one added tone. The tone is spelled as in a chord symbol, from the root: the
 # flat ninth of E7 is F, whatever the key.
@@ -21,6 +32,7 @@ ADDED_TONE_QUALITIES = {
     "major-sixth-added-ninth": ("major-sixth", "9"),
     "minor-sixth-added-ninth": ("minor-sixth", "9"),
     "major-added-ninth": ("major", "9"),
+    CADENTIAL_SIX_FOUR: ("major", CADENTIAL_SIX_FOUR_TONE),
     "minor-added-ninth": ("minor", "9"),
     "minor-seventh-added-eleventh": ("minor-seventh", "11"),
 }
@@ -90,6 +102,8 @@ CHORD_COMMON_NAME_TO_TYPE = {
 #   inversion=1 (raises ChordException — see the try/except in
 #   HarmonyUI.letter_symbol), and there's no established figured-bass
 #   notation for an inverted power chord to reuse in to_roman_numeral.
+# - cadential six-four: its root, the dominant, is in the bass by definition.
+#   With another tone in the bass, it is a different chord.
 #
 # TODO: Neapolitan and power are the two qualities above actually worth
 # revisiting (Italian/French/German/Tristan have no inversions to support).
@@ -99,16 +113,24 @@ CHORD_COMMON_NAME_TO_TYPE = {
 # plus an invented figured-bass notation for to_roman_numeral, since no
 # textbook convention exists for an inverted power chord.
 _NO_INVERSION_QUALITIES = frozenset(
-    {"Italian", "French", "German", "Neapolitan", "Tristan", "power"}
+    {
+        "Italian",
+        "French",
+        "German",
+        "Neapolitan",
+        "Tristan",
+        "power",
+        CADENTIAL_SIX_FOUR,
+    }
 )
 
 
 def get_inversion_amount(quality: str) -> int:
     if quality not in HARMONY_QUALITIES:
         raise ValueError(f'Invalid harmony quality "{quality}"')
-    # An added tone is not one the chord can be inverted to.
-    quality, _ = split_added_tone(quality)
     if quality in _NO_INVERSION_QUALITIES:
         return 0
+    # An added tone is not one the chord can be inverted to.
+    quality, _ = split_added_tone(quality)
     intervals_str = str(_m21h.CHORD_TYPES[quality][0])  # type: ignore[index]
     return len(intervals_str.split(",")) - 1
