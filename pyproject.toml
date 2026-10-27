@@ -50,10 +50,10 @@ build = [
     "Nuitka==4.3.1",  # not 4.3: its builds segfault on start (v0.7.2)
     "ordered-set==4.1.0",
     "pyyaml",
-    "setuptools<82.0.0; python_version >= '3.12'", #  setuptools>82.0.0 no longer provides pkg_resources
+    "setuptools<82.0.0", #  setuptools>82.0.0 no longer provides pkg_resources
     "velopack",
     "wheel==0.38.4",
-    "zstandard==0.20.0"
+    "zstandard==0.25.0"
 ]
 ci-tests = [
     "coverage>=7.0.0",
