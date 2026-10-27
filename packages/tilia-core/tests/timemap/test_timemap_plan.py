@@ -381,6 +381,46 @@ class TestSources:
         ]
         assert read(doc, tl) == [("2/4", False, "import")] * 3
 
+    def test_when_every_measure_reads_it_through_its_own_mark_it_moves_to_the_timeline(
+        self,
+    ):
+        # Bars 1 and 2 imported in one plan and bar 3 in another: each mark
+        # records the source, and the timeline doesn't
+        # (TimeLineAnnotator/project-management#340).
+        doc, tl = piece([3, 3, 3])
+        for numbers in [(1, 2), (3,)]:
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), source="import"))
+        assert read(doc, tl) == [("3/4", False, "import")] * 3
+        assert tl.attrs["measure_source"] == "tapped"
+
+        p = plan(doc, tl, bars(1, 2, 3, text="3/4"), source="import")
+
+        assert p.changes == [
+            Change(tl.id, None, "measure_source", "tapped", "import"),
+            *[
+                Change(tl.id, downbeat(tl, m), "measure.source", "import", None)
+                for m in range(3)
+            ],
+        ]
+        apply_plan(doc, p)
+        assert read(doc, tl) == [("3/4", False, "import")] * 3
+        assert [tl.components[downbeat(tl, m)].attrs["measure"] for m in range(3)] == [
+            {}
+        ] * 3
+
+    def test_a_table_set_in_several_plans_is_written_as_one_set_in_one(self):
+        doc, tl = piece([3, 3, 3])
+        once = copy.deepcopy(doc)
+
+        for numbers in [(1, 2), (3,), (1, 2, 3)]:
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), source="import"))
+        apply_plan(
+            once,
+            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), "import"),
+        )
+
+        assert tla.canonical_bytes(doc) == tla.canonical_bytes(once)
+
     def test_a_timeline_without_its_source_stored_has_its_table_s(self):
         doc, tl = piece([2, 2])
         del tl.attrs["measure_source"]
@@ -502,6 +542,28 @@ class TestNoNeedlessWrites:
         )
 
         assert plan(doc, tl, bars(1, text="6/8")) == Plan([], [], [])
+
+    def test_planning_again_after_the_source_moves_to_the_timeline_gives_an_empty_plan(
+        self,
+    ):
+        doc, tl = piece([3, 3, 3])
+        for numbers in [(1, 2), (3,), (1, 2, 3)]:
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), source="import"))
+        assert tl.attrs["measure_source"] == "import"
+
+        p = plan(doc, tl, bars(1, 2, 3, text="3/4"), source="import")
+
+        assert p == Plan([], [], [])
+
+    def test_every_bar_that_reads_it_from_the_timeline_is_skipped(self):
+        doc, tl = piece(
+            [3, 3, 3], units={(0, 0): unit(4, "1")}, measure_source="import"
+        )
+        assert read(doc, tl) == [("3/4", False, "import")] * 3
+
+        p = plan(doc, tl, bars(1, 2, 3, text="3/4"), source="import")
+
+        assert p == Plan([], [], [])
 
     def test_a_bar_whose_unit_is_carried_needs_none_of_its_own(self):
         doc, tl = piece([2, 2, 2], units={(0, 0): unit(8, "3")})
