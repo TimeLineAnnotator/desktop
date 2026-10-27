@@ -433,7 +433,6 @@ def test_chords_at_one_time_are_ordered_by_the_label_stored():
     }
     index = fixture_index.build_index(fixture)
     assert rows(
-        index,
-        "SELECT label, start, \"end\" FROM components WHERE kind = 'chord' "
-        'ORDER BY "end"',
+        index, "SELECT label, start, \"end\" FROM components WHERE kind = 'chord' "
+        "ORDER BY \"end\""
     ) == [("I", 0, 0), ("vii°", 0, 4)]

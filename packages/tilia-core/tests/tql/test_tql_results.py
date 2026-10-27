@@ -67,7 +67,7 @@ def test_an_empty_result_writes_the_header(tmp_path):
     assert empty.rows == [] and empty.grain == "file"
     empty.to_csv(path)
     assert read(path) == [["file", "title", "composer"]]
-    empty = run("harmony", "WHERE tl.kind = nothing")
+    empty = run("harmony", 'WHERE tl.kind = nothing')
     assert empty.rows == [] and empty.grain == "timeline"
     empty.to_csv(path)
     assert read(path) == [["file", "title", "timeline", "kind", "role", "author"]]

@@ -807,11 +807,7 @@ def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[st
     if grain == "timeline":
         return list(TIMELINE_COLUMNS)
     if grain == "file":
-        return [
-            "file",
-            "title",
-            *(f for f in file_fields if f not in ("file", "title")),
-        ]
+        return ["file", "title", *(f for f in file_fields if f not in ("file", "title"))]
     steps = query.slot_count if query.pattern is not None else 1
     return [
         *RESULT_COLUMNS,

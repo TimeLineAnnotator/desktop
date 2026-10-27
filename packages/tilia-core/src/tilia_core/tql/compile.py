@@ -154,7 +154,9 @@ def resolve_lanes(
             return _role_lanes(con, file_id, timelines, word)
         if word in KIND_WORDS:
             kind = KIND_WORDS[word]
-            return [s for tl in timelines for s in _lanes_of(con, file_id, tl, (kind,))]
+            return [
+                s for tl in timelines for s in _lanes_of(con, file_id, tl, (kind,))
+            ]
 
     pattern = name_pattern(lane)
     out: list[LaneSpec] = []
@@ -375,11 +377,7 @@ def harmony_problems(
         text = nfc(lits[0].text if exact else alt.raw)
         problems: list[str] = []
         for kind in kinds:
-            spec = (
-                sqlfuncs.chord_spec(text)
-                if kind == "chord"
-                else sqlfuncs.key_spec(text)
-            )
+            spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
             if not isinstance(spec, str):
                 break
             if kind == "chord" and exact and has_custom and has_custom(text.strip()):

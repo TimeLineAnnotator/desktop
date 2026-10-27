@@ -208,10 +208,7 @@ class TestWarnings:
         assert any("'Xyz' is not a key" in w for w in got.warnings)
 
     def test_an_exact_literal_that_matches_custom_text_does_not_warn(self):
-        assert any(
-            "'N.C.' is not a chord" in w
-            for w in run(HARMONY, '"N.C." IN harmony').warnings
-        )
+        assert any("'N.C.' is not a chord" in w for w in run(HARMONY, '"N.C." IN harmony').warnings)
         index = fixture_index.build_index(HARMONY)
         con = index.connection()
         con.execute(
@@ -248,9 +245,7 @@ class TestWarnings:
             tql.run(index, text)
             return calls[0]
 
-        assert count("phrase THEN phrase THEN phrase IN form") == count(
-            "phrase IN form"
-        )
+        assert count("phrase THEN phrase THEN phrase IN form") == count("phrase IN form")
         assert count("V7 THEN I THEN V7 IN harmony") == count("V7 IN harmony")
         assert count("Xyz THEN Xyz THEN Xyz IN harmony") == count("Xyz IN harmony")
 
@@ -549,9 +544,7 @@ class TestFieldsAsMusic:
             "(SELECT id FROM components WHERE uuid LIKE '%k2')"
         )
         assert [r[0] for r in con.execute("SELECT key FROM keys")] == ["c", "Cm"]
-        assert (
-            len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
-        )
+        assert len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
         assert tql.run(index, "* THEN * IN keys WHERE $1.key != $2.key").matches == []
 
 

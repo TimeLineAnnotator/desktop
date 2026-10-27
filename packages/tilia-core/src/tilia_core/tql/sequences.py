@@ -21,7 +21,8 @@ def nullable(item: Unit | Group) -> bool:
     """Whether ``item`` can match nothing: a group with an option whose every
     step may take nothing (``(c*)``, ``(a? THEN (b?))``). A unit never can."""
     return isinstance(item, Group) and any(
-        all(st.lo == 0 or nullable(st.item) for st in opt.steps) for opt in item.options
+        all(st.lo == 0 or nullable(st.item) for st in opt.steps)
+        for opt in item.options
     )
 
 

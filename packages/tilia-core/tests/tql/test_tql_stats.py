@@ -172,16 +172,9 @@ class TestCounts:
 
     def test_fold_subtypes_without_a_grammar_keeps_the_dot(self):
         # with no label grammar "I. Allegro" is no subtype of "i"
-        fixture = {
-            **SUBTYPES,
-            "timelines": [
-                {
-                    "name": "Form (A)",
-                    "kind": "hierarchy",
-                    "units": [["I. Allegro", 1, 0, 20], ["II. Adagio", 1, 20, 40]],
-                }
-            ],
-        }
+        fixture = {**SUBTYPES, "timelines": [
+            {"name": "Form (A)", "kind": "hierarchy",
+             "units": [["I. Allegro", 1, 0, 20], ["II. Adagio", 1, 20, 40]]}]}
         del fixture["grammar"]
         result = tql.run(fixture_index.build_index(fixture), "* IN form")
         table = result.stats("counts", "category", fold_subtypes=True)
@@ -303,11 +296,7 @@ class TestKeys:
 
     def test_position_and_duration_fields(self):
         result = run("pop", "chorus IN form")
-        assert result.stats("counts", "bar").rows == [
-            (11, 2, 1),
-            (19, 1, 1),
-            (27, 2, 1),
-        ]
+        assert result.stats("counts", "bar").rows == [(11, 2, 1), (19, 1, 1), (27, 2, 1)]
         assert result.stats("counts", "duration").rows == [(16.0, 5, 1)]
         assert result.stats("counts", "start").rows == [
             (40.0, 2, 1),
@@ -499,9 +488,7 @@ class TestTransitions:
     def test_pairs_follow_start_order_not_match_order(self):
         index = index_of("pop")
         units = [
-            Component(
-                f"c{n}", "f1", "t1", "hierarchy", label, 10.0 * n, 10.0 * n + 10, 1
-            )
+            Component(f"c{n}", "f1", "t1", "hierarchy", label, 10.0 * n, 10.0 * n + 10, 1)
             for n, label in enumerate(("a", "b", "c"))
         ]
         matches = [tql.Match([[c]], "level 1") for c in reversed(units)]
