@@ -28,7 +28,7 @@ If you find a bug, [check](https://github.com/TimeLineAnnotator/desktop/issues) 
 # Suggesting features or enhancements
 We are very much looking for ideas of new features for TiLiA. If you would like to suggest one, [check](https://github.com/TimeLineAnnotator/desktop/issues) to see if your feature has already been requested. If not, [open a new one](https://github.com/TimeLineAnnotator/desktop/issues/new) detailing your suggestion.
 
-You need Python >=3.10 to build and test TiLiA. You will also need to have ffmpeg installed to use the export and convert audio features.
+You need Python 3.12–3.14 to build and test TiLiA. You will also need to have ffmpeg installed to use the export and convert audio features.
 
 # AI tools and agents
 You may use AI tools to contribute to TiLiA, on two conditions:

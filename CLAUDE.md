@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.10–3.12 (3.13 is flaky due to PySide dependencies).
+TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.12–3.14.
 
 ## Environment
 
@@ -132,7 +132,7 @@ When a bug is reported in the running app but the test suite is green, agents ca
 
 ## CI
 
-`.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows across Python 3.10–3.13 (excluding Windows+3.13). Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
+`.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows. Pull requests test Python 3.12 and 3.14; pushes to `dev` and `main` and manual runs test 3.12–3.14. Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
 
 ## Release notes
 
