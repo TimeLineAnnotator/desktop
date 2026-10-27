@@ -418,6 +418,32 @@ def to_roman_numeral(
     applied_to: int,
     inversion: int,
 ) -> str:
+    return _to_roman_numeral(
+        step, accidental, quality, key.tonic.name, key.mode, applied_to, inversion
+    )
+
+
+@cache
+def _key(tonic: str, mode: str) -> music21.key.Key:
+    """A key, shared, so only read, and only in this module."""
+    return music21.key.Key(tonic, mode=mode)
+
+
+@lru_cache(maxsize=4096)
+def _to_roman_numeral(
+    step: int,
+    accidental: int,
+    quality: str,
+    tonic: str,
+    mode: str,
+    applied_to: int,
+    inversion: int,
+) -> str:
+    """
+    A label depends on its key only through the key's tonic and mode, so labels
+    are kept by those: a timeline draws the same labels again on every redraw.
+    """
+    key = _key(tonic, mode)
     # A quality with an added tone is written as its base quality, then the tone.
     quality, added_tone = split_added_tone(quality)
     if result := _handle_special_qualities(quality):
