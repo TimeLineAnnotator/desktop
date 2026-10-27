@@ -1,3 +1,6 @@
+from functools import cache
+from typing import NamedTuple
+
 import music21
 
 from tilia.timelines.harmony.constants import (
@@ -7,6 +10,29 @@ from tilia.timelines.harmony.constants import (
     split_added_tone,
 )
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
+
+
+class _ScaleDegree(NamedTuple):
+    step: str
+    alter: float
+    pitch_class: int
+
+
+@cache
+def _scale_degrees(tonic: str, mode: str) -> tuple[_ScaleDegree, ...]:
+    """
+    The steps, alterations and pitch classes of a key's scale, by tonic name
+    and mode. music21 realizes `Key.pitches` anew on every read, which is most
+    of a label's cost, so they are kept here, as values no caller can change.
+    """
+    return tuple(
+        _ScaleDegree(p.step, p.alter, p.pitchClass)
+        for p in music21.key.Key(tonic, mode=mode).pitches
+    )
+
+
+def _key_scale_degrees(key: music21.key.Key) -> tuple[_ScaleDegree, ...]:
+    return _scale_degrees(key.tonic.name, key.mode)
 
 
 def _handle_special_qualities(quality: str) -> str | None:
@@ -203,8 +229,9 @@ def _raised_minor_tones(
     """
     if key.mode != "minor":
         return set()
-    natural = {p.step: p.alter for p in key.pitches[:7]}
-    sixth_and_seventh = {key.pitches[5].step, key.pitches[6].step}
+    key_pitches = _key_scale_degrees(key)
+    natural = {p.step: p.alter for p in key_pitches[:7]}
+    sixth_and_seventh = {key_pitches[5].step, key_pitches[6].step}
     tones = [sym.root(), sym.third, sym.fifth]
     if quality == "half-diminished-seventh":
         tones.append(sym.seventh)
@@ -230,7 +257,7 @@ def _get_figures(
     half-diminished seventh's seventh.
     """
     bass = sym.bass()
-    key_pitches = key.pitches
+    key_pitches = _key_scale_degrees(key)
     key_steps = [p.step for p in key_pitches]
     try:
         bass_idx = key_steps.index(bass.step)
@@ -332,7 +359,7 @@ def _compute_quality_suffix(
 
 
 def _get_note_degree(key: music21.key.Key, note):
-    steps = [p.step for p in key.pitches]
+    steps = [p.step for p in _key_scale_degrees(key)]
     return (
         steps.index(note.step) + 1
     )  # +1 is needed because music21's degrees are 1-based
@@ -358,7 +385,7 @@ def _get_roman_numeral_accidental(
         return note.pitch.alter - (natural_alter + (1 if is_lower_case else 0))
 
     is_diatonic = (note.step, note.pitch.pitchClass) in (
-        (p.step, p.pitchClass) for p in key.pitches
+        (p.step, p.pitch_class) for p in _key_scale_degrees(key)
     )
     if is_diatonic:
         return 0
