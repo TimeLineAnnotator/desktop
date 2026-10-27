@@ -795,7 +795,7 @@ def _position(log: Recorder, comp: Component | None) -> tuple[Any, Any]:
 
 
 RESULT_COLUMNS = ("file", "title", "timeline", "lane", "ids", "label")
-RESULT_COLUMNS += ("start", "end", "bar", "beat")
+RESULT_COLUMNS += ("symbol", "roman", "start", "end", "bar", "beat")
 STEP_COLUMNS = ("label", "timeline", "start", "end", "bar", "ids")
 TIMELINE_COLUMNS = ("file", "title", "timeline", "kind", "role", "author")
 
@@ -813,6 +813,29 @@ def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[st
         *RESULT_COLUMNS,
         *(f"${n}.{c}" for n in range(1, steps + 1) for c in STEP_COLUMNS),
     ]
+
+
+def _chord_names(log: Recorder, comps: list[Component]) -> dict[str, str | None]:
+    """The ``symbol`` and ``roman`` columns: a chord result's symbols and Roman
+    numerals, joined as its labels are; None for a result without chords. The
+    ``label`` of a chord is its symbol, whatever its ``display_mode``: which of
+    the two to show is the reader's choice (Felipe, 2026-10-27)."""
+    names: list[tuple[str, str]] = []
+    for c in comps:
+        if c.kind != "chord":
+            continue
+        # not logged, as for positions: one lookup per chord
+        rows = log.con.execute(
+            "SELECT symbol, roman FROM chords WHERE component_id = ?", (c.id,)
+        ).fetchall()
+        if rows:
+            names.append((rows[0][0] or "", rows[0][1] or ""))
+    if not names:
+        return {"symbol": None, "roman": None}
+    return {
+        "symbol": " → ".join(s for s, _ in names),
+        "roman": " → ".join(r for _, r in names),
+    }
 
 
 def _lane_column(m: Match) -> str | None:
@@ -839,6 +862,7 @@ def _row(
         "lane": _lane_column(m),
         "ids": " ".join(ids.unit(c) for c, _, _ in targets),
         "label": " → ".join(c.label for c, _, _ in targets),
+        **_chord_names(log, [c for c, _, _ in targets]),
         "start": start,
         "end": end,
         "bar": bar,

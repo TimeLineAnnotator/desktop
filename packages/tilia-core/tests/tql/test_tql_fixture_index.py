@@ -101,9 +101,9 @@ def test_harmony_components():
         "JOIN chords ch ON ch.component_id = c.id "
         "LEFT JOIN components k ON k.id = ch.key_id WHERE c.start = ?"
     )
-    assert one(index, sql, 9) == ("V7", 10, "c", "c")
-    assert one(index, sql, 3)[0] == "V65"
-    assert one(index, sql, 18)[:2] == ("I", 24)
+    assert one(index, sql, 9) == ("G7", 10, "c", "c")
+    assert one(index, sql, 3)[0] == "G7/B"
+    assert one(index, sql, 18)[:2] == ("Eb", 24)
     assert rows(index, "SELECT label FROM components WHERE kind = 'key'") == [
         ("C",),
         ("c",),
@@ -112,9 +112,9 @@ def test_harmony_components():
     assert rows(index, "SELECT name, value FROM fields") == [("composer", "Mozart")]
 
 
-def test_chords_are_labelled_as_roman_numerals():
-    # The fixture format has no display_mode; the builder sets "roman", so the
-    # examples print "V7@1 | I@2" as TiLiA would with that mode.
+def test_chords_are_labelled_by_their_symbols():
+    # A chord's label is its symbol, TiLiA's default display, whatever its
+    # display_mode (Felipe, 2026-10-27); the Roman numeral is a field.
     index = fixture_index.build_index(FIXTURES["harmony"])
     labels = rows(
         index,
@@ -122,7 +122,7 @@ def test_chords_are_labelled_as_roman_numerals():
         "JOIN chords ch ON ch.component_id = c.id",
     )
     assert labels
-    assert all(label == roman != symbol for label, roman, symbol in labels)
+    assert all(label == symbol != roman for label, roman, symbol in labels)
 
 
 def test_a_list_field_gives_one_row_per_item():
@@ -417,9 +417,9 @@ def test_keys_are_integers_from_one_counter_and_text_ids_are_uuids():
 
 
 def test_chords_at_one_time_are_ordered_by_the_label_stored():
-    # C (I) and B diminished (vii°) at 0: by the Roman labels the builder
-    # stores, I comes first and ends where it starts, and vii° lasts; by the
-    # letter labels (Bdim before C) it would be the other way round
+    # C (I) and B diminished (vii°) at 0: by the symbols the builder stores
+    # (sheet I6), Bdim comes first and ends where it starts, and C lasts; by
+    # the Roman labels (I before vii°) it would be the other way round
     fixture = {
         "length": 4,
         "timelines": [
@@ -435,4 +435,4 @@ def test_chords_at_one_time_are_ordered_by_the_label_stored():
     assert rows(
         index, "SELECT label, start, \"end\" FROM components WHERE kind = 'chord' "
         "ORDER BY \"end\""
-    ) == [("I", 0, 0), ("vii°", 0, 4)]
+    ) == [("Bdim", 0, 0), ("C", 0, 4)]
