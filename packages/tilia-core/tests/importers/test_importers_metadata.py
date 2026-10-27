@@ -5,6 +5,7 @@ Story 6, scenarios 7 and 8)."""
 import copy
 import json
 import sys
+import time
 import wave
 from pathlib import Path
 
@@ -537,6 +538,21 @@ def test_brackets_in_text_dont_count(tmp_path, text):
 
     unescaped = text.replace('\\"', '"')
     assert doc.metadata[unescaped] == unescaped
+
+
+def test_a_text_that_never_closes_takes_little_time(tmp_path):
+    # The nesting check reads it once: 200,000 escaped quotes take
+    # milliseconds, where a pattern that starts again at each quote in it takes
+    # minutes.
+    doc = build.new_script_document()
+    path = text_file(tmp_path, '{"a": "' + '\\"' * 200_000)
+
+    start = time.perf_counter()
+    message = fails(doc, path)
+    assert time.perf_counter() - start < 1
+
+    error = "Unterminated string starting at: line 1 column 7 (char 6)"
+    assert message == JSON_FAILED.format(path, f"JSONDecodeError({error!r})")
 
 
 def test_a_value_too_deep_to_write_as_text(tmp_path, monkeypatch):
