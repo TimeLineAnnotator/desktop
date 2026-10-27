@@ -171,3 +171,14 @@ The fields of files, timelines and units, such as `tags`, `vocabulary`, `generat
 | `value` | TEXT | one value | the file |
 
 A timeline's `role` and `author` are columns of `timelines`, not rows here.
+
+## Indexes
+
+The index has these indexes, so that the joins of "show SQL" run fast; your own SQL doesn't need to know them:
+
+- `components (file_id, timeline_id, start)` and `components (timeline_id)`;
+- `categories (category)` and `categories (component_id)`;
+- `fields (scope, owner_id)` and `fields (name)`;
+- `hierarchies (parent_id)`.
+
+`component_id` is the key of `hierarchies`, `ranges`, `chords`, `keys` and `positions`, so a lookup by it needs no index of its own.
