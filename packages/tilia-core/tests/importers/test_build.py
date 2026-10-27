@@ -1026,3 +1026,85 @@ def test_no_timeline_found():
 def test_find_timeline_needs_a_name_or_an_ordinal():
     with pytest.raises(TypeError):
         build.find_timeline(document())
+
+
+# A name that more than one timeline has: the first, and TiLiA's warning
+# (tilia/ui/cli/timelines/utils.py), which `tilia run` reports as a problem.
+
+
+def test_a_name_two_timelines_have_is_a_problem():
+    second = timeline("harmony", name="Chords", ordinal=2)
+    first = timeline("harmony", name="Chords", ordinal=1)
+    doc = document(timelines=[second, timeline("beat", name="Measures"), first])
+    problems: list[str] = []
+
+    found = build.find_timeline(doc, name="Chords", problems=problems)
+
+    assert found == first.id
+    assert problems == ["There is more than one timeline with name 'Chords'"]
+
+
+def test_a_name_three_timelines_have_is_one_problem():
+    doc = document(
+        timelines=[timeline("marker", name="Same", ordinal=n) for n in (1, 2, 3)]
+    )
+    problems: list[str] = []
+
+    build.find_timeline(doc, name="Same", problems=problems)
+
+    assert problems == ["There is more than one timeline with name 'Same'"]
+
+
+def test_a_shared_name_given_in_another_normal_form_is_a_problem():
+    # Compared in NFC, and given in the message as the command gives it.
+    nfc_name, nfd_name = "Cadéncias", "Cadéncias"
+    first = timeline("marker", name=nfc_name, ordinal=1)
+    doc = document(timelines=[first, timeline("marker", name=nfc_name, ordinal=2)])
+    problems: list[str] = []
+
+    found = build.find_timeline(doc, name=nfd_name, problems=problems)
+
+    assert found == first.id
+    assert problems == [f"There is more than one timeline with name '{nfd_name}'"]
+
+
+def test_a_name_one_timeline_has_is_no_problem():
+    chords = timeline("harmony", name="Chords", ordinal=2)
+    doc = document(timelines=[timeline("harmony", name="Chord"), chords])
+    problems: list[str] = []
+
+    assert build.find_timeline(doc, name="Chords", problems=problems) == chords.id
+    assert problems == []
+
+
+def test_a_shared_name_is_no_problem_when_an_ordinal_is_given():
+    # The ordinal is used, and the name isn't looked at.
+    second = timeline("marker", name="Same", ordinal=2)
+    doc = document(timelines=[timeline("marker", name="Same", ordinal=1), second])
+    problems: list[str] = []
+
+    found = build.find_timeline(doc, name="Same", ordinal=2, problems=problems)
+
+    assert found == second.id
+    assert problems == []
+
+
+def test_problems_are_added_to_the_list_given():
+    # A command's target and its reference, found one after the other.
+    doc = document(
+        timelines=[
+            timeline("beat", name="Measures", ordinal=1),
+            timeline("beat", name="Measures", ordinal=2),
+            timeline("harmony", name="Chords", ordinal=3),
+            timeline("harmony", name="Chords", ordinal=4),
+        ]
+    )
+    problems: list[str] = []
+
+    build.find_timeline(doc, name="Chords", problems=problems)
+    build.find_timeline(doc, name="Measures", problems=problems)
+
+    assert problems == [
+        "There is more than one timeline with name 'Chords'",
+        "There is more than one timeline with name 'Measures'",
+    ]
