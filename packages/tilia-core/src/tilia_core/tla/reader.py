@@ -60,11 +60,16 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
         # A file from TiLiA 0.x, migrated in memory; its document's
-        # format_version is the version it was read from.
+        # format_version is the version it was read from. The migrated
+        # content is checked as a file of the current format is (FR-053):
+        # what the check refuses or warns about is at a place in the
+        # migrated document, which has no line. Its warnings come after the
+        # migration's, which name places in the old file.
         migrated = migrate(content, path=path)
-        doc = _Reader(path).document(migrated.content)
-        doc.warnings[:0] = migrated.warnings
-        return doc
+        warnings = check(migrated.content, path=path)
+        document = _Reader(path).document(migrated.content)
+        document.warnings = migrated.warnings + warnings
+        return document
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
