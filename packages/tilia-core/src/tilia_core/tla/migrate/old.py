@@ -21,7 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from tilia_core.tla.model import TIMELINE_KINDS, Kind, UnknownKind
+from tilia_core.tla.model import timeline_kind_from_file
 
 Migration = Callable[[dict[str, Any]], dict[str, Any]]
 # A version as TiLiA compares versions; see version_key.
@@ -72,26 +72,12 @@ def _timeline_kind(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-_KINDS_IN_ANY_CASE = {
-    spelling.lower(): kind for kind, spelling in TIMELINE_KINDS.items()
-}
-
-
-def timeline_kind(spelling: str) -> Kind:
-    """The kind of an old file's timeline, read as TiLiA 0.7 reads it: in any
-    letter case, and without the `_TIMELINE` suffix TiLiA before 0.7 wrote.
-    Only old files are read so; the migration writes the format's spelling."""
-    return _KINDS_IN_ANY_CASE.get(normalize_kind_string(spelling).lower()) or (
-        UnknownKind(spelling)
-    )
-
-
 def _as_tilia_0_7_opens_it(data: dict[str, Any]) -> dict[str, Any]:
     """Make the changes TiLiA 0.7 makes to an old file when it opens it:
     hierarchies' `parent` and `children` dropped, clef icons without `.svg`.
     Components that aren't objects are left for the migration to refuse."""
     for timeline in data.get("timelines", {}).values():
-        kind = timeline_kind(timeline.get("kind", ""))
+        kind = timeline_kind_from_file(timeline.get("kind", ""))
         components = timeline.get("components")
         if kind not in ("hierarchy", "score") or not isinstance(components, dict):
             continue
