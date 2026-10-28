@@ -6,8 +6,15 @@ from PySide6.QtCore import QLineF, QPointF, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsLineItem, QGraphicsScene
 
+import tilia.errors
+import tilia.ui.strings
 from tilia.requests import Get, Post, get, post
-from tilia.timelines.beat.units import MAX_DENOMINATOR, format_units, parse_units
+from tilia.timelines.beat.pattern import (
+    PlannedBar,
+    format_taps,
+    format_time_signature,
+    parse_time_signature_over_taps,
+)
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -18,7 +25,7 @@ from tilia.ui.timelines.beat.time_signature import (
     TimeSignatureLabel,
     TimeSignatureLabelSpec,
 )
-from tilia.ui.windows.beat_unit import UnitsValidator
+from tilia.ui.windows.beat_pattern import BeatPatternValidator
 from tilia.ui.windows.inspect import InspectRowKind
 
 if TYPE_CHECKING:
@@ -42,8 +49,10 @@ def _call_once_mouse_is_released(callback: Callable[[], None]) -> None:
 
 class BeatUnitUI(TimelineUIElement):
     """
-    A beat unit has no mark of its own: it is shown, and selected, through
-    the time signature labels of the measures it governs.
+    A beat unit, which gives the taps of the measures it governs their
+    values, has no mark of its own: it is shown, and selected, through the
+    time signature labels of those measures. The inspector edits the time
+    signature of the measure whose label was clicked.
     """
 
     UPDATE_TRIGGERS = ["denominator", "units", "beat_id", "assumed"]
@@ -51,22 +60,15 @@ class BeatUnitUI(TimelineUIElement):
 
     INSPECTOR_FIELDS = [
         (
-            "Denominator",
-            InspectRowKind.SPIN_BOX_ON_FINISH,
-            lambda: {"min": 1, "max": MAX_DENOMINATOR},
-        ),
-        (
-            "Units per tap",
+            "Time signature",
             InspectRowKind.SINGLE_LINE_EDIT_ON_FINISH,
-            lambda: {"validator": UnitsValidator},
+            lambda: {"validator": BeatPatternValidator},
         ),
-        ("Starts at measure", InspectRowKind.LABEL, None),
+        ("Taps", InspectRowKind.LABEL, None),
+        ("Measure", InspectRowKind.LABEL, None),
         ("Assumed", InspectRowKind.LABEL, None),
     ]
-    FIELD_NAMES_TO_ATTRIBUTES = {
-        "Denominator": "denominator",
-        "Units per tap": "units",
-    }
+    FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
 
     def __init__(
         self,
@@ -186,7 +188,7 @@ class BeatUnitUI(TimelineUIElement):
 
     def on_double_left_click(self, item: QGraphicsItem) -> None:
         self._set_active_label(item)
-        commands.execute("timeline.beat.set_beat_unit")
+        commands.execute("timeline.beat.edit_bars")
 
     def on_right_click(self, x: int, y: int, item: QGraphicsItem) -> None:
         self._set_active_label(item)
@@ -198,44 +200,66 @@ class BeatUnitUI(TimelineUIElement):
         beat = timeline.get_component(self.get_data("beat_id"))
         return timeline.get_measure_index(timeline.get_beat_index(beat))[0]
 
+    @property
+    def inspected_measure_index(self) -> int:
+        """The measure whose label was clicked, or where the beat unit starts."""
+        if self.active_measure_index is not None:
+            return self.active_measure_index
+        return self.start_measure_index
+
+    def _get_inspected_bar(self) -> PlannedBar:
+        meter = self.timeline_ui.timeline.get_measure_meter(
+            self.inspected_measure_index
+        )
+        return PlannedBar.from_values(list(meter.beat_values), meter.denominator)
+
     def get_inspector_dict(self) -> dict:
         timeline = self.timeline_ui.timeline
+        bar = self._get_inspected_bar()
         return {
-            "Denominator": self.get_data("denominator"),
-            "Units per tap": self.get_data("units"),
-            "Starts at measure": str(
-                timeline.measure_numbers[self.start_measure_index]
-            ),
+            "Time signature": format_time_signature(bar),
+            "Taps": format_taps(bar),
+            "Measure": str(timeline.measure_numbers[self.inspected_measure_index]),
             "Assumed": "Yes" if self.get_data("assumed") else "No",
         }
 
-    def on_inspector_edit(self, field_name: str, value: int | str) -> None:
+    def on_inspector_edit(self, field_name: str, value: str) -> None:
         """
-        Applies an inspector edit to the measure whose label was clicked,
-        asking first whether it applies there only or until the next change.
+        Sets the time signature of the measure whose label was clicked, over
+        its taps, asking first whether it applies there only or until the
+        next change.
         """
-        attr = self.FIELD_NAMES_TO_ATTRIBUTES[field_name]
-        if attr == "units":
-            value = format_units(parse_units(value).units)
-        if value == self.get_data(attr) or self._pending_edit == (attr, value):
+        measure_index = self.inspected_measure_index
+        timeline = self.timeline_ui.timeline
+        if field_name != "Time signature" or measure_index >= timeline.measure_count:
             return
 
-        measure_index = (
-            self.active_measure_index
-            if self.active_measure_index is not None
-            else self.start_measure_index
-        )
-        self._pending_edit = (attr, value)
+        beat_count = timeline.beats_in_measure[measure_index]
+        bar, error = parse_time_signature_over_taps(value, beat_count)
+        if bar is not None and bar.beat_count != beat_count:
+            error = tilia.ui.strings.TIME_SIGNATURE_TAPS_ERROR.format(beat_count)
+        if bar is None or error:
+            tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
+            self._refresh_inspector()
+            return
+
+        edit = (bar.denominator, bar.units_text)
+        meter = timeline.get_measure_meter(measure_index)
+        current = PlannedBar.from_values(list(meter.beat_values), meter.denominator)
+        if bar == current or self._pending_edit == edit:
+            return
+
+        self._pending_edit = edit
         # Editing often finishes because the user clicked elsewhere. The
         # scope question is modal, and opening it inside that mouse press
         # keeps the view from ever seeing the release (its selection box
         # stays up). Ask once the mouse is released instead.
         _call_once_mouse_is_released(
-            lambda: self._apply_inspector_edit(attr, value, measure_index)
+            lambda: self._apply_inspector_edit(*edit, measure_index)
         )
 
     def _apply_inspector_edit(
-        self, attr: str, value: int | str, measure_index: int
+        self, denominator: int, units: str, measure_index: int
     ) -> None:
         try:
             if self.id not in self.timeline_ui.id_to_element:
@@ -243,10 +267,6 @@ class BeatUnitUI(TimelineUIElement):
             timeline = self.timeline_ui.timeline
             if measure_index >= timeline.measure_count:
                 return
-            values = {
-                "denominator": self.get_data("denominator"),
-                "units": self.get_data("units"),
-            } | {attr: value}
 
             only_this_measure = False
             next_index = measure_index + 1
@@ -259,13 +279,8 @@ class BeatUnitUI(TimelineUIElement):
                     self._refresh_inspector()
                     return
 
-            timeline.set_beat_unit(
-                measure_index,
-                values["denominator"],
-                values["units"],
-                only_this_measure,
-            )
-            post(Post.APP_STATE_RECORD, "beat unit edit via inspect")
+            timeline.set_beat_unit(measure_index, denominator, units, only_this_measure)
+            post(Post.APP_STATE_RECORD, "time signature edit via inspect")
             self._refresh_inspector()
         finally:
             self._pending_edit = None

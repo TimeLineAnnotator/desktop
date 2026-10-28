@@ -187,8 +187,7 @@ class TestExportBeatUnits:
         for time in range(4):
             commands.execute("media.seek", time)
             commands.execute("timeline.beat.add")
-        beat_tlui.select_element(beat_tlui[2])
-        commands.execute("timeline.beat.set_beat_unit", denominator=8, units="2+1")
+        commands.execute("timeline.beat.set_pattern", beat_tlui, pattern="6/8(2 1 2 1)")
 
         commands.execute("file.export.json", path=tmp_path / "test.json")
         with open(tmp_path / "test.json", encoding="utf-8") as f:

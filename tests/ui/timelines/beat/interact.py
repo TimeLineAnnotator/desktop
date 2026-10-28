@@ -17,7 +17,6 @@ from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import strings
 from tilia.ui.coords import time_x_converter
 from tilia.ui.windows.beat_pattern import BeatPatternDialog
-from tilia.ui.windows.beat_unit import BeatUnitDialog
 from tilia.ui.windows.fill_beat_timeline import FillBeatTimeline
 
 
@@ -104,36 +103,6 @@ def hover_time_signature_label(timeline_ui, label, entered=True):
         else QEvent.Type.GraphicsSceneHoverLeave
     )
     timeline_ui.scene.sendEvent(label, QGraphicsSceneHoverEvent(event_type))
-
-
-def patch_beat_unit_dialog(
-    denominator: int | None = None,
-    units: str | None = None,
-    only_this_measure: bool = False,
-    cancel: bool = False,
-    on_exec=None,
-):
-    """
-    Makes the beat unit dialog take the given values (keeping any left as
-    None) and press OK, or press Cancel. `on_exec(dialog)` runs first.
-    """
-
-    def exec_(dialog):
-        if on_exec:
-            on_exec(dialog)
-        if cancel:
-            return QDialog.DialogCode.Rejected
-        if denominator is not None:
-            dialog.denominator_edit.setValue(denominator)
-        if units is not None:
-            dialog.units_edit.clear()
-            QTest.keyClicks(dialog.units_edit, units)
-        if only_this_measure:
-            dialog.measure_option.click()
-        dialog.ok_button.click()
-        return dialog.result()
-
-    return patch.object(BeatUnitDialog, "exec", new=exec_)
 
 
 def patch_fill_beat_timeline_dialog(timeline, method, value: float):

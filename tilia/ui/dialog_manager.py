@@ -26,7 +26,6 @@ from tilia.ui.timelines.beat.dialogs import (
     ask_beat_timeline_fill_method,
     ask_for_bars,
     ask_for_beat_pattern,
-    ask_for_beat_unit,
 )
 from tilia.ui.windows.beat_unit import ask_for_beat_unit_scope
 
@@ -47,7 +46,6 @@ class DialogManager:
             (Get.FROM_USER_COLOR, ask_for_color),
             (Get.FROM_USER_BARS, ask_for_bars),
             (Get.FROM_USER_BEAT_PATTERN, ask_for_beat_pattern),
-            (Get.FROM_USER_BEAT_UNIT, ask_for_beat_unit),
             (Get.FROM_USER_BEAT_UNIT_SCOPE, ask_for_beat_unit_scope),
             (Get.FROM_USER_MEDIA_PATH, ask_for_media_file),
             (Get.FROM_USER_MODE_PARAMS, ask_for_mode_params),

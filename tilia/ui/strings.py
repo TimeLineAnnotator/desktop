@@ -15,9 +15,11 @@ BEAT_PATTERN_DIALOG_TOOLTIP = """Examples:
 BEAT_PATTERN_TABLE_HEADERS = ["Bars", "Time signature", "Taps"]
 BEAT_PATTERN_TABLE_TOOLTIP = """Double-click a cell to change it:
   - Bars: their numbers, e.g. '9', or '1-8, 1-8' for a repeat;
-  - Time signature: e.g. '3/4';
+  - Time signature: e.g. '6/8'. Tapped bars keep their taps, so 6/8 over
+    two taps is two dotted quarters;
   - Taps: what each tap is worth, in units of the denominator, e.g. '3/2 3/2 1'.
 Highlighted bars change when you press OK. Grey bars aren't tapped yet."""
+BEAT_PATTERN_ASSUMED_TIME_SIGNATURE = "{} (assumed)"
 BEAT_PATTERN_SUMMARY = "{} bar{}, then the list starts again from bar 1."
 BEAT_PATTERN_TAPPED = "{} beat{} tapped, in {} bar{}."
 BEAT_PATTERN_OVERWRITE_TITLE = "Overwrite bars set by hand"
@@ -25,24 +27,21 @@ BEAT_PATTERN_OVERWRITE_PROMPT = (
     "This pattern will overwrite bars set by hand (bars {})."
     "\nDo you want to continue?"
 )
-BEAT_UNIT_DIALOG_TITLE = "Beat unit"
-BEAT_UNIT_DENOMINATOR_LABEL = "Denominator:"
-BEAT_UNIT_UNITS_LABEL = "Units per tap:"
-BEAT_UNIT_UNITS_TOOLTIP = """How many denominator units each tapped beat is worth.
-Separate taps in a measure with '+'. Examples:
-  - '1' = one unit per tap (4/4 tapped in 4);
-  - '3' = three units per tap (6/8 tapped in 2);
-  - '1/2' = half a unit per tap (2/2 tapped in 4);
-  - '2+3' = two units, then three (5/4 tapped as 2+3)."""
+TIME_SIGNATURE_SCOPE_TITLE = "Time signature"
+TIME_SIGNATURE_TAPS_ERROR = (
+    "This measure has {} taps. To change them, use Edit bars and time signatures."
+)
 BEAT_UNIT_SCOPE_ONWARD = "From this measure until the next change"
 BEAT_UNIT_SCOPE_MEASURE = "This measure only"
 BEAT_UNIT_SCOPE_PROMPT = "Where should this change apply?"
 BEAT_UNIT_CONFLICT_TOOLTIP = (
-    "This measure has more than one beat unit. The first one applies."
+    "This measure has more than one time signature. The first one applies."
 )
-BEAT_UNIT_AMBIGUOUS_TOOLTIP = "{} taps under {}: treated as {}."
+BEAT_UNIT_AMBIGUOUS_TOOLTIP = (
+    "{} taps, where the time signature has a pattern of taps worth {}: read as {}."
+)
 BEAT_UNIT_ASSUMED_TOOLTIP = (
-    "Assumed from the tapped beats. Set the beat unit to confirm."
+    "Assumed from the tapped beats." " Edit bars and time signatures to set it."
 )
 PROMPT_CREATE_LEVEL_BELOW_TITLE = "Create level below"
 PROMPT_CREATE_LEVEL_BELOW_MESSAGE = (
