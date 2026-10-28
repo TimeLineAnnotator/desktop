@@ -29,9 +29,12 @@ import tilia.ui.strings
 from tilia.requests import Get, get
 from tilia.timelines.beat.pattern import (
     PlannedBar,
-    format_planned_bar,
     format_planned_bars,
+    format_taps,
+    format_time_signature,
     parse,
+    parse_time_signature,
+    parse_time_signature_over_taps,
 )
 from tilia.timelines.beat.units import parse_units
 
@@ -157,12 +160,20 @@ def get_overrides(numbers: list[int]) -> dict[int, int]:
     }
 
 
-def get_rows(bars: list[PlannedBar], tapped: int, numbers: list[int]) -> list[BarRow]:
-    """Groups consecutive bars that are alike and numbered one after another."""
+def get_rows(
+    bars: list[PlannedBar],
+    tapped: int,
+    numbers: list[int],
+    breaks: frozenset[int] = frozenset(),
+) -> list[BarRow]:
+    """
+    Groups consecutive bars that are alike and numbered one after another.
+    A bar whose index is in `breaks` starts a row of its own.
+    """
     rows: list[BarRow] = []
     for index, (bar, number) in enumerate(zip(bars, numbers, strict=True)):
         is_tapped = index < tapped
-        if rows:
+        if rows and index not in breaks:
             last = rows[-1]
             if (
                 last.bar == bar
@@ -212,16 +223,6 @@ def parse_bar_numbers(text: str, count: int) -> tuple[list[int] | None, str]:
     return numbers, ""
 
 
-def parse_time_signature(text: str) -> tuple[PlannedBar | None, str]:
-    """Reads one bar of the pattern syntax, such as "6/8" or "6/8(3 3)"."""
-    result = parse(text)
-    if not result.is_complete:
-        return None, result.error
-    if len(result.planned_bars) != 1:
-        return None, "Enter one time signature, such as 3/4."
-    return result.planned_bars[0], ""
-
-
 def parse_taps(text: str, denominator: int) -> tuple[PlannedBar | None, str]:
     """Reads what each tap of a bar is worth, such as "3/2 3/2 1"."""
     result = parse_units("+".join(text.replace("+", " ").split()))
@@ -230,8 +231,11 @@ def parse_taps(text: str, denominator: int) -> tuple[PlannedBar | None, str]:
     return PlannedBar.from_values(result.units, denominator), ""
 
 
-def format_taps(bar: PlannedBar) -> str:
-    return " ".join(str(value) for value in bar.values)
+def format_time_signature_cell(bar: PlannedBar) -> str:
+    text = format_time_signature(bar)
+    if bar.assumed:
+        return tilia.ui.strings.BEAT_PATTERN_ASSUMED_TIME_SIGNATURE.format(text)
+    return text
 
 
 class BeatPatternDialog(QDialog):
@@ -241,10 +245,12 @@ class BeatPatternDialog(QDialog):
         beat_count: int = 0,
         current_bars: list[PlannedBar] | None = None,
         numbers: list[int] | None = None,
+        focus_bar: int | None = None,
     ) -> None:
         """
         `current_bars` are the bars the timeline has, and `numbers` their
-        numbers; rows of bars that would change are highlighted.
+        numbers; rows of bars that would change are highlighted. The table
+        starts scrolled to the row of `focus_bar`.
         """
         super().__init__(
             get(Get.MAIN_WINDOW),
@@ -256,6 +262,11 @@ class BeatPatternDialog(QDialog):
         self._overrides = get_overrides(numbers or [])
         self._planned: list[PlannedBar] = []
         self._rows: list[BarRow] = []
+        # The bar the dialog was opened at has a row of its own, so it can
+        # be edited apart from the alike bars around it.
+        self._row_breaks = (
+            frozenset() if focus_bar is None else frozenset({focus_bar, focus_bar + 1})
+        )
         self._is_updating_table = False
 
         self.setLayout(QVBoxLayout())
@@ -311,6 +322,8 @@ class BeatPatternDialog(QDialog):
 
         self.line_edit.textChanged.connect(self._on_text_changed)
         self._on_text_changed(initial_text)
+        if focus_bar is not None:
+            self.focus_bar(focus_bar)
 
     @property
     def ok_button(self) -> QPushButton:
@@ -340,6 +353,20 @@ class BeatPatternDialog(QDialog):
             if self.table.item(row, 0).background().color() == CHANGED_COLOR
         }
 
+    def focus_bar(self, bar_index: int) -> None:
+        """Scrolls to the row of a bar and makes it the current one."""
+        for row_index, row in enumerate(self._rows):
+            if row.start <= bar_index < row.start + row.count:
+                self.table.setCurrentCell(row_index, TIME_SIGNATURE_COLUMN)
+                self.table.scrollToItem(
+                    self.table.item(row_index, TIME_SIGNATURE_COLUMN)
+                )
+                return
+
+    @property
+    def current_row(self) -> int:
+        return self.table.currentRow()
+
     def get_result(self) -> BarsEdit:
         _, tapped = lay_out(self._planned, self._beat_count)
         return BarsEdit(self.text, get_numbers(tapped, self._overrides))
@@ -367,14 +394,14 @@ class BeatPatternDialog(QDialog):
     def _update_table(self) -> None:
         bars, tapped = lay_out(self._planned, self._beat_count)
         numbers = get_numbers(len(bars), self._overrides)
-        self._rows = get_rows(bars, tapped, numbers)
+        self._rows = get_rows(bars, tapped, numbers, self._row_breaks)
 
         self._is_updating_table = True
         self.table.setRowCount(len(self._rows))
         for row_index, row in enumerate(self._rows):
             texts = [
                 format_bar_numbers(row.numbers),
-                format_planned_bar(row.bar),
+                format_time_signature_cell(row.bar),
                 format_taps(row.bar),
             ]
             is_changed = self._is_changed(row)
@@ -431,7 +458,10 @@ class BeatPatternDialog(QDialog):
             self._edit_numbers(row, item.text())
             return
 
-        if item.column() == TIME_SIGNATURE_COLUMN:
+        if item.column() == TIME_SIGNATURE_COLUMN and row.is_tapped:
+            # A tapped bar keeps its taps, unless the text gives others.
+            bar, error = parse_time_signature_over_taps(item.text(), row.bar.beat_count)
+        elif item.column() == TIME_SIGNATURE_COLUMN:
             bar, error = parse_time_signature(item.text())
         else:
             bar, error = parse_taps(item.text(), row.bar.denominator)
@@ -473,8 +503,9 @@ class BeatPatternDialog(QDialog):
         beat_count: int = 0,
         current_bars: list[PlannedBar] | None = None,
         numbers: list[int] | None = None,
+        focus_bar: int | None = None,
     ) -> tuple[bool, BarsEdit | None]:
-        dialog = cls(initial_text, beat_count, current_bars, numbers)
+        dialog = cls(initial_text, beat_count, current_bars, numbers, focus_bar)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return True, dialog.get_result()
         return False, None

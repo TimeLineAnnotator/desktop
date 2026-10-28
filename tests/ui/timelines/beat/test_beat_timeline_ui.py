@@ -15,7 +15,6 @@ from tests.ui.timelines.beat.interact import (
     hover_time_signature_label,
     patch_bars_dialog,
     patch_beat_pattern_dialog,
-    patch_beat_unit_dialog,
     patch_beat_unit_scope_prompt,
     patch_fill_beat_timeline_dialog,
 )
@@ -36,7 +35,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.coords import time_x_converter
-from tilia.ui.strings import BEAT_UNIT_ASSUMED_TOOLTIP
+from tilia.ui.strings import BEAT_UNIT_AMBIGUOUS_TOOLTIP, BEAT_UNIT_ASSUMED_TOOLTIP
 from tilia.ui.timelines.beat.context_menu import (
     BeatContextMenu,
     BeatTimelineUIContextMenu,
@@ -1613,16 +1612,17 @@ class TestDragBeatLimits:
             assert beat_tlui[0].get_data("time") == 0
 
 
-def set_beat_unit(timeline_ui, measure_index, denominator, units, **kwargs):
-    """Selects the measure's first beat and sets its beat unit, as a user would."""
-    timeline = timeline_ui.timeline
-    first_beat = timeline[timeline.beats_that_start_measures[measure_index]]
-    timeline_ui.deselect_all_elements()
-    timeline_ui.select_element(timeline_ui.get_element(first_beat.id))
-    commands.execute(
-        "timeline.beat.set_beat_unit", denominator=denominator, units=units, **kwargs
+def set_beat_unit(
+    timeline_ui, measure_index, denominator, units, only_this_measure=False
+):
+    """
+    Gives a measure a beat unit, as editing its time signature in the
+    inspector does, and records the state, so it can be undone.
+    """
+    timeline_ui.timeline.set_beat_unit(
+        measure_index, denominator, units, only_this_measure
     )
-    timeline_ui.deselect_all_elements()
+    post(Post.APP_STATE_RECORD, "set beat unit")
 
 
 def newest_beat_unit_ui(timeline_ui):
@@ -1780,7 +1780,9 @@ class TestTimeSignatures:
             LabelState.NORMAL,
             LabelState.AMBIGUOUS,
         ]
-        assert labels[1].toolTip() == "3 taps under 2+3: treated as 2+3+2."
+        assert labels[1].toolTip() == BEAT_UNIT_AMBIGUOUS_TOOLTIP.format(
+            3, "2+3", "2+3+2"
+        )
 
     def test_clicking_a_label_selects_its_beat_unit(self, tluis):
         add_beat_timeline_with_pattern("2")
@@ -1981,134 +1983,98 @@ class TestTimeSignatures:
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "8")]
 
 
-class TestSetBeatUnitCommand:
-    def test_from_selected_beat_through_dialog(self, tluis):
-        add_beat_timeline_with_pattern("2")
-        add_beats(range(6))
-        timeline_ui = tluis[0]
-        # A beat in the middle of measure 2 sets that measure's beat unit.
-        timeline_ui.select_element(timeline_ui[3])
+class TestEditBarsCommand:
+    @staticmethod
+    def record_dialog(seen):
+        def record(dialog):
+            seen["rows"] = dialog.get_table_rows()
+            seen["current_row"] = dialog.current_row
 
-        with patch_beat_unit_dialog(denominator=8, units="3"):
-            with undoable():
-                commands.execute("timeline.beat.set_beat_unit")
+        return record
 
-        beat_unit = timeline_ui.timeline.beat_units[-1]
-        assert beat_unit.beat_id == timeline_ui.timeline[2].id
-        assert label_texts(all_labels(timeline_ui)) == [("2", "4"), ("6", "8")]
-
-    def test_dialog_starts_with_the_measure_values(self, tluis):
-        add_beat_timeline_with_pattern("2")
+    def test_opens_the_dialog_at_the_selected_beats_measure(self, tluis):
+        add_beat_timeline_with_pattern("2/4")
         add_beats(range(6))
         set_beat_unit(tluis[0], 1, 8, "3")
-        tluis[0].select_element(tluis[0][4])
+        # A beat in the middle of measure 3.
+        tluis[0].select_element(tluis[0][5])
         seen = {}
 
-        def record(dialog):
-            seen["values"] = (
-                dialog.denominator_edit.value(),
-                dialog.units_edit.text(),
-            )
-            seen["preview"] = dialog.preview.footer.text()
+        with patch_bars_dialog(self.record_dialog(seen)):
+            commands.execute("timeline.beat.edit_bars")
 
-        with patch_beat_unit_dialog(cancel=True, on_exec=record):
-            commands.execute("timeline.beat.set_beat_unit")
-
-        assert seen["values"] == (8, "3")
-        assert seen["preview"].endswith("becomes 6/8.")
+        # The measure has a row of its own, apart from the alike one before.
+        assert seen["rows"] == [
+            ("1", "2/4", "1 1"),
+            ("2", "6/8", "3 3"),
+            ("3", "6/8", "3 3"),
+        ]
+        assert seen["current_row"] == 2
 
     def test_cancel_changes_nothing(self, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
         tluis[0].select_element(tluis[0][0])
 
-        with patch_beat_unit_dialog(cancel=True):
-            commands.execute("timeline.beat.set_beat_unit")
+        with patch_beat_pattern_dialog(None):
+            commands.execute("timeline.beat.edit_bars")
 
         assert_only_the_default_beat_unit(tluis[0].timeline)
 
-    def test_this_measure_only_through_dialog(self, tluis):
-        add_beat_timeline_with_pattern("2")
+    def test_editing_a_time_signature(self, tluis):
+        add_beat_timeline_with_pattern("2/4")
         add_beats(range(6))
         tluis[0].select_element(tluis[0][2])
 
-        with patch_beat_unit_dialog(denominator=8, units="3", only_this_measure=True):
-            with undoable():
-                commands.execute("timeline.beat.set_beat_unit")
+        def edit(dialog):
+            edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1, 2, 3")
+            edit_bars_dialog_cell(dialog, 1, TIME_SIGNATURE_COLUMN, "6/8")
+
+        with undoable():
+            with patch_bars_dialog(edit):
+                commands.execute("timeline.beat.edit_bars")
 
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("6", "8"), ("2", "4")]
+        assert tluis[0].timeline.beats_in_measure == [2, 2, 2]
 
-    @pytest.mark.parametrize(
-        "beat_index, next_has_own_unit, show_scope",
-        [(0, False, True), (4, False, False), (0, True, False)],
-    )
-    def test_scope_is_offered_only_when_it_matters(
-        self, tluis, beat_index, next_has_own_unit, show_scope
-    ):
-        add_beat_timeline_with_pattern("2")
-        add_beats(range(6))
-        if next_has_own_unit:
-            set_beat_unit(tluis[0], 1, 4, "1")
-        tluis[0].select_element(tluis[0][beat_index])
-        seen = {}
-
-        def record(dialog):
-            seen["shown"] = not dialog.measure_option.isHidden()
-
-        with patch_beat_unit_dialog(cancel=True, on_exec=record):
-            commands.execute("timeline.beat.set_beat_unit")
-
-        assert seen["shown"] == show_scope
-
-    def test_double_clicking_a_label_edits_in_place(self, tluis):
-        add_beat_timeline_with_pattern("2")
-        add_beats(range(6))
-        set_beat_unit(tluis[0], 1, 8, "3")
-        beat_unit_ui = newest_beat_unit_ui(tluis[0])
-
-        with patch_beat_unit_dialog(units="1"):
-            click_time_signature_label(tluis[0], beat_unit_ui.labels[0], double=True)
-
-        assert len(tluis[0].timeline.beat_units) == 2
-        assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("2", "8")]
-
-    def test_editing_an_inherited_label_starts_a_new_beat_unit(self, tluis):
+    def test_double_clicking_a_label_opens_the_dialog_at_its_measure(self, tluis):
         add_beat_timeline_with_pattern("2 3")
         add_beats(range(10))
         set_beat_unit(tluis[0], 0, 8, "1")
         beat_unit_ui = newest_beat_unit_ui(tluis[0])
+        seen = {}
 
-        with patch_beat_unit_dialog(denominator=4):
-            click_time_signature_label(tluis[0], beat_unit_ui.get_label(1), double=True)
+        with patch_bars_dialog(self.record_dialog(seen)):
+            click_time_signature_label(tluis[0], beat_unit_ui.get_label(2), double=True)
 
-        assert label_texts(all_labels(tluis[0])) == [
-            ("2", "8"),
-            ("3", "4"),
-            ("2", "4"),
-            ("3", "4"),
-        ]
-        assert len(tluis[0].timeline.beat_units) == 2
+        assert seen["current_row"] == 2
 
-    def test_beat_context_menu_has_set_beat_unit(self, tluis):
+    def test_beat_context_menu_has_edit_bars(self, tluis):
         add_beat_timeline_with_pattern("4")
         add_beats(range(4))
 
         menu = BeatContextMenu(tluis[0][0])
 
-        assert "timeline.beat.set_beat_unit" in get_command_names(menu)
+        assert "timeline.beat.edit_bars" in get_command_names(menu)
+        assert "timeline.beat.set_beat_unit" not in get_command_names(menu)
 
-    def test_set_beat_unit_from_beat_context_menu(self, tluis):
+    def test_edit_bars_from_beat_context_menu(self, tluis):
         add_beat_timeline_with_pattern("4")
-        add_beats(range(4))
+        add_beats(range(8))
         tluis[0].select_element(tluis[0][0])
         action = get_command_action(
-            BeatContextMenu(tluis[0][0]), "timeline.beat.set_beat_unit"
+            BeatContextMenu(tluis[0][0]), "timeline.beat.edit_bars"
         )
 
-        with patch_beat_unit_dialog(denominator=8):
+        with patch_bars_dialog(
+            lambda dialog: edit_bars_dialog_cell(
+                dialog, 0, TIME_SIGNATURE_COLUMN, "8/8"
+            )
+        ):
             action.trigger()
 
-        assert label_texts(all_labels(tluis[0])) == [("4", "8")]
+        # Only the measure the dialog was opened at changes.
+        assert label_texts(all_labels(tluis[0])) == [("8", "8"), ("4", "4")]
 
     def test_label_context_menu_items(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -2118,7 +2084,7 @@ class TestSetBeatUnitCommand:
 
         names = get_command_names(BeatUnitContextMenu(beat_unit_ui))
 
-        assert names == ["timeline.beat.set_beat_unit", "timeline.component.delete"]
+        assert names == ["timeline.beat.edit_bars", "timeline.component.delete"]
 
     def test_delete_from_label_context_menu(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -2134,7 +2100,7 @@ class TestSetBeatUnitCommand:
 
         assert_only_the_default_beat_unit(tluis[0].timeline)
 
-    def test_edit_from_label_context_menu(self, tluis):
+    def test_edit_bars_from_label_context_menu(self, tluis):
         add_beat_timeline_with_pattern("2 3")
         add_beats(range(10))
         set_beat_unit(tluis[0], 0, 8, "1")
@@ -2144,18 +2110,14 @@ class TestSetBeatUnitCommand:
                 tluis[0], beat_unit_ui.get_label(1), button="right"
             )
         action = get_command_action(
-            BeatUnitContextMenu(beat_unit_ui), "timeline.beat.set_beat_unit"
+            BeatUnitContextMenu(beat_unit_ui), "timeline.beat.edit_bars"
         )
+        seen = {}
 
-        with patch_beat_unit_dialog(denominator=4, only_this_measure=True):
+        with patch_bars_dialog(self.record_dialog(seen)):
             action.trigger()
 
-        assert label_texts(all_labels(tluis[0])) == [
-            ("2", "8"),
-            ("3", "4"),
-            ("2", "8"),
-            ("3", "8"),
-        ]
+        assert seen["current_row"] == 1
 
     def test_deleting_the_beat_moves_its_beat_unit(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -2184,7 +2146,7 @@ class TestSetBeatUnitCommand:
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("6", "8")]
 
 
-class TestBeatUnitInspector:
+class TestTimeSignatureInspector:
     @pytest.fixture(autouse=True)
     def close_inspector(self):
         yield
@@ -2215,11 +2177,12 @@ class TestBeatUnitInspector:
         )
 
         widgets = inspector.field_name_to_widgets
-        assert widgets["Denominator"][1].value() == 8
-        assert widgets["Units per tap"][1].text() == "3"
-        assert widgets["Starts at measure"][1].text() == "2"
+        assert widgets["Time signature"][1].text() == "6/8"
+        assert widgets["Taps"][1].text() == "3 3"
+        assert widgets["Measure"][1].text() == "2"
+        assert "Denominator" not in widgets
 
-    def test_edit_units_until_next_change(self, qtui, tluis):
+    def test_edit_until_next_change(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(8))
         set_beat_unit(tluis[0], 1, 8, "3")
@@ -2230,12 +2193,46 @@ class TestBeatUnitInspector:
 
         with patch_beat_unit_scope_prompt("onward"):
             with undoable():
-                self.type_into(inspector.field_name_to_widgets["Units per tap"][1], "1")
+                self.type_into(
+                    inspector.field_name_to_widgets["Time signature"][1], "2/8"
+                )
 
         assert len(tluis[0].timeline.beat_units) == 2
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("2", "8")]
 
-    def test_edit_denominator_this_measure_only(self, qtui, tluis):
+    def test_the_measure_keeps_its_taps(self, qtui, tluis):
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(4))
+        beat_unit_ui = newest_beat_unit_ui(tluis[0])
+        inspector = self.open_inspector_for_label(
+            tluis[0], beat_unit_ui.labels[0], qtui
+        )
+
+        with patch_beat_unit_scope_prompt("onward"):
+            self.type_into(inspector.field_name_to_widgets["Time signature"][1], "6/8")
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [2, 2]
+        assert label_texts(all_labels(tluis[0])) == [("6", "8")]
+        assert [m.beat_values for m in timeline.measure_meters] == [(3, 3), (3, 3)]
+
+    def test_other_taps_are_refused(self, qtui, tluis, tilia_errors):
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(4))
+        beat_unit_ui = newest_beat_unit_ui(tluis[0])
+        inspector = self.open_inspector_for_label(
+            tluis[0], beat_unit_ui.labels[0], qtui
+        )
+
+        self.type_into(
+            inspector.field_name_to_widgets["Time signature"][1], "6/8(1 1 1 1 1 1)"
+        )
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("This measure has 2 taps.")
+        assert_only_the_default_beat_unit(tluis[0].timeline)
+
+    def test_edit_this_measure_only(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(8))
         set_beat_unit(tluis[0], 1, 8, "1")
@@ -2245,10 +2242,7 @@ class TestBeatUnitInspector:
         )
 
         with patch_beat_unit_scope_prompt("measure"):
-            spin_box = inspector.field_name_to_widgets["Denominator"][1]
-            spin_box.setValue(2)
-            spin_box.editingFinished.emit()
-            QApplication.processEvents()
+            self.type_into(inspector.field_name_to_widgets["Time signature"][1], "2/2")
 
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("2", "2"), ("2", "8")]
 
@@ -2261,18 +2255,18 @@ class TestBeatUnitInspector:
             tluis[0], beat_unit_ui.labels[0], qtui
         )
 
-        line_edit = inspector.field_name_to_widgets["Units per tap"][1]
+        line_edit = inspector.field_name_to_widgets["Time signature"][1]
 
         # Ended by clicking away rather than Enter, which closes the
         # inspector, so the field can be seen going back.
         with patch_beat_unit_scope_prompt(None):
             line_edit.selectAll()
-            QTest.keyClicks(line_edit, "1")
+            QTest.keyClicks(line_edit, "2/8")
             line_edit.editingFinished.emit()
             QApplication.processEvents()
 
         assert tluis[0].timeline.beat_units[-1].units == "3"
-        assert line_edit.text() == "3"
+        assert line_edit.text() == "6/8"
 
     def test_no_question_when_the_beat_unit_covers_one_measure(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
@@ -2284,7 +2278,7 @@ class TestBeatUnitInspector:
         )
 
         with patch_beat_unit_scope_prompt("onward") as prompts:
-            self.type_into(inspector.field_name_to_widgets["Units per tap"][1], "1")
+            self.type_into(inspector.field_name_to_widgets["Time signature"][1], "2/8")
 
         assert prompts == []
         assert tluis[0].timeline.beat_units[-1].units == "1"
@@ -2299,10 +2293,7 @@ class TestBeatUnitInspector:
         )
 
         with patch_beat_unit_scope_prompt("onward"):
-            spin_box = inspector.field_name_to_widgets["Denominator"][1]
-            spin_box.setValue(4)
-            spin_box.editingFinished.emit()
-            QApplication.processEvents()
+            self.type_into(inspector.field_name_to_widgets["Time signature"][1], "2/4")
 
         assert label_texts(all_labels(tluis[0])) == [
             ("2", "8"),
@@ -2311,7 +2302,7 @@ class TestBeatUnitInspector:
             ("3", "4"),
         ]
 
-    def test_half_typed_units_are_not_applied(self, qtui, tluis):
+    def test_half_typed_time_signature_is_not_applied(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
         set_beat_unit(tluis[0], 1, 8, "3")
@@ -2320,7 +2311,7 @@ class TestBeatUnitInspector:
             tluis[0], beat_unit_ui.labels[0], qtui
         )
 
-        self.type_into(inspector.field_name_to_widgets["Units per tap"][1], "2+")
+        self.type_into(inspector.field_name_to_widgets["Time signature"][1], "2/")
 
         assert tluis[0].timeline.beat_units[-1].units == "3"
 
@@ -2334,10 +2325,10 @@ class TestBeatUnitInspector:
         inspector = self.open_inspector_for_label(
             tluis[0], beat_unit_ui.labels[0], qtui
         )
-        line_edit = inspector.field_name_to_widgets["Units per tap"][1]
+        line_edit = inspector.field_name_to_widgets["Time signature"][1]
         with patch_beat_unit_scope_prompt("onward") as prompts:
             line_edit.selectAll()
-            QTest.keyClicks(line_edit, "1")
+            QTest.keyClicks(line_edit, "2/8")
             line_edit.editingFinished.emit()
             line_edit.editingFinished.emit()
             QApplication.processEvents()
@@ -2353,11 +2344,11 @@ class TestBeatUnitInspector:
         inspector = self.open_inspector_for_label(
             tluis[0], beat_unit_ui.labels[0], qtui
         )
-        line_edit = inspector.field_name_to_widgets["Units per tap"][1]
+        line_edit = inspector.field_name_to_widgets["Time signature"][1]
 
         with patch_beat_unit_scope_prompt("onward"):
             line_edit.selectAll()
-            QTest.keyClicks(line_edit, "1")
+            QTest.keyClicks(line_edit, "2/8")
             # Clicking a beat ends the edit, then selects the beat.
             line_edit.editingFinished.emit()
             click_beat_ui(tluis[0][5])
@@ -2450,14 +2441,17 @@ class TestAssumedBeatUnits:
         assert second.body.opacity() == 1
         assert second.toolTip() == ""
 
-    def test_confirming_unchanged_values_in_the_dialog(self, tluis):
+    def test_confirming_an_assumed_time_signature_in_the_dialog(self, tluis):
         add_beat_timeline_with_pattern("4")
         add_beats(range(4))
-        tluis[0].select_element(tluis[0][0])
 
-        with patch_beat_unit_dialog():
+        with patch_bars_dialog(
+            lambda dialog: edit_bars_dialog_cell(
+                dialog, 0, TIME_SIGNATURE_COLUMN, "4/4"
+            )
+        ):
             with undoable():
-                commands.execute("timeline.beat.set_beat_unit")
+                commands.execute("timeline.beat.set_pattern", tluis[0])
 
         beat_unit = tluis[0].timeline.beat_units[0]
         assert (beat_unit.denominator, beat_unit.units) == (4, "1")
@@ -2626,7 +2620,7 @@ class TestConflictingBeatUnits:
         names = get_command_names(BeatUnitContextMenu(beat_unit_ui))
 
         assert names == [
-            "timeline.beat.set_beat_unit",
+            "timeline.beat.edit_bars",
             "timeline.beat.remove_other_beat_units",
             "timeline.component.delete",
         ]
@@ -2950,20 +2944,22 @@ class TestOneMeasureEditRoundTrips:
         assert tluis[0].timeline.get_state()["components"] == components
         assert not tilia.is_file_modified()
 
-    def test_undo_and_redo(self, tluis):
+    def test_undo_and_redo(self, qtui, tluis):
         add_beat_timeline_with_pattern("2 3")
         add_beats(range(6))
-        tluis[0].select_element(tluis[0][2])
+        beat_unit_ui = newest_beat_unit_ui(tluis[0])
+        inspector = TestTimeSignatureInspector.open_inspector_for_label(
+            tluis[0], beat_unit_ui.get_label(1), qtui
+        )
 
-        with undoable():
-            commands.execute(
-                "timeline.beat.set_beat_unit",
-                denominator=8,
-                units="1",
-                only_this_measure=True,
-            )
+        with patch_beat_unit_scope_prompt("measure"):
+            with undoable():
+                TestTimeSignatureInspector.type_into(
+                    inspector.field_name_to_widgets["Time signature"][1], "3/8"
+                )
 
         assert self.snapshot(tluis[0]) == self.EXPECTED
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
 
     def test_tapping_on_after_reopening(self, tluis, tmp_path):
         self.setup_timeline(tluis)

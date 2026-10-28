@@ -22,7 +22,7 @@ class BeatContextMenu(TimelineUIElementContextMenu):
         (MenuItemKind.COMMAND, "timeline.beat.reset_measure_number"),
         (MenuItemKind.COMMAND, "timeline.beat.distribute"),
         (MenuItemKind.COMMAND, "timeline.beat.set_amount_in_measure"),
-        (MenuItemKind.COMMAND, "timeline.beat.set_beat_unit"),
+        (MenuItemKind.COMMAND, "timeline.beat.edit_bars"),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.COMMAND, "timeline.component.copy"),
         (MenuItemKind.COMMAND, "timeline.component.cut"),
@@ -33,9 +33,9 @@ class BeatContextMenu(TimelineUIElementContextMenu):
 
 
 class BeatUnitContextMenu(TimelineUIElementContextMenu):
-    name = "Beat unit"
+    name = "Time signature"
     items = [
-        (MenuItemKind.COMMAND, "timeline.beat.set_beat_unit"),
+        (MenuItemKind.COMMAND, "timeline.beat.edit_bars"),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.COMMAND, "timeline.component.delete"),
     ]
