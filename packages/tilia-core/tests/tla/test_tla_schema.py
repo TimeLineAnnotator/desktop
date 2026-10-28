@@ -7,6 +7,7 @@ Every file the tests write is checked against the schema too, by the fixture
 import codecs
 import hashlib
 import json
+import unicodedata
 from collections import Counter
 from importlib.resources import files
 from pathlib import Path
@@ -16,7 +17,7 @@ import pytest
 
 from tilia_core import tla
 from tilia_core.tla import writer
-from tilia_core.tla.model import timeline_kind_from_file
+from tilia_core.tla.model import timeline_kind_from_current_file
 
 HERE = Path(__file__).parent
 GOLDEN_FILES = sorted((HERE / "golden").glob("*.tla"))
@@ -135,39 +136,54 @@ def entries(value):
     return value.items() if isinstance(value, dict) else ()
 
 
+def nfc(value):
+    return unicodedata.normalize("NFC", value) if isinstance(value, str) else value
+
+
+def known_timelines(content):
+    """The timelines of kinds the core knows, spelt exactly as the writer
+    writes them, by id, with their kinds. What a timeline of another kind
+    holds is kept as it is, and never looked at (FR-015)."""
+    found = {}
+    for key, timeline in entries(content.get("timelines")):
+        spelling = timeline.get("kind") if isinstance(timeline, dict) else None
+        if isinstance(spelling, str):
+            kind = timeline_kind_from_current_file(spelling)
+            if isinstance(kind, str):  # not an UnknownKind
+                found[key] = (kind, timeline)
+    return found
+
+
 def named_nothing(content):
     """The references in `content` that name nothing: a range's row and the
     range it is joined to, a score timeline's score, a measure table, and a
-    measure's next measures."""
-    timelines = dict(entries(content.get("timelines")))
+    measure's next measures. A component is followed only in a timeline that
+    holds its kind: elsewhere it is kept as it is."""
+    timelines = known_timelines(content)
     scores = content.get("scores") if isinstance(content.get("scores"), list) else []
     score_ids = {score.get("id") for score in scores if isinstance(score, dict)}
-
-    def kind(timeline):
-        spelling = timeline.get("kind") if isinstance(timeline, dict) else None
-        return timeline_kind_from_file(spelling) if isinstance(spelling, str) else None
-
-    beat_timelines = {key for key, value in timelines.items() if kind(value) == "beat"}
+    beat_timelines = {key for key, (kind, _) in timelines.items() if kind == "beat"}
     found = []
-    for key, timeline in timelines.items():
-        timeline_kind = kind(timeline)
-        if not isinstance(timeline_kind, str):
-            continue  # a kind the core doesn't know is kept as it is
+    for key, (timeline_kind, timeline) in timelines.items():
         components = dict(entries(timeline.get("components")))
         rows = timeline.get("rows") if isinstance(timeline.get("rows"), list) else []
-        row_ids = {row.get("id") for row in rows if isinstance(row, dict)}
-        refs = [
-            (timeline.get("measure_table"), beat_timelines, "measure_table"),
-            (timeline.get("score"), score_ids, "score"),
-        ]
+        # Compared as the reader gives them: in NFC.
+        row_ids = {nfc(row.get("id")) for row in rows if isinstance(row, dict)}
+        refs = [(timeline.get("measure_table"), beat_timelines, "measure_table")]
+        if timeline_kind == "score":
+            refs.append((timeline.get("score"), score_ids, "score"))
         for component in components.values():
             if not isinstance(component, dict):
                 continue
-            if component.get("kind") == "RANGE":
-                refs.append((component.get("row_id"), row_ids, "row_id"))
+            if timeline_kind == "range" and component.get("kind") == "RANGE":
+                refs.append((nfc(component.get("row_id")), row_ids, "row_id"))
                 refs.append((component.get("joined_right"), components, "joined_right"))
             measure = component.get("measure")
-            if component.get("kind") == "BEAT" and isinstance(measure, dict):
+            if (
+                timeline_kind == "beat"
+                and component.get("kind") == "BEAT"
+                and isinstance(measure, dict)
+            ):
                 following = measure.get("next")
                 for item in following if isinstance(following, list) else ():
                     refs.append((item, components, "next"))
@@ -181,19 +197,28 @@ def named_nothing(content):
 
 def only_the_core_checks(content, repeated_key):
     """What in a file JSON Schema can't check, and only the core refuses: an
-    object that repeats a key, an id used twice and a reference that names
-    nothing (FR-090, research R17)."""
+    object that repeats a key, an id used twice in the file or a row's in its
+    timeline, and a reference that names nothing (FR-090, research R17)."""
     found = ["a repeated key"] if repeated_key else []
     if not isinstance(content, dict):
         return found
-    ids = Counter()
-    for _, timeline in entries(content.get("timelines")):
-        if isinstance(timeline, dict):
-            ids.update(key for key, _ in entries(timeline.get("components")))
-    ids.update(key for key, _ in entries(content.get("timelines")))
+    timelines = known_timelines(content)
+    ids = Counter(key for key, _ in entries(content.get("timelines")))
+    for _, timeline in timelines.values():
+        ids.update(key for key, _ in entries(timeline.get("components")))
     scores = content.get("scores") if isinstance(content.get("scores"), list) else []
     ids.update(score.get("id") for score in scores if isinstance(score, dict))
     found += [f"the id {key} used twice" for key, n in ids.items() if n > 1]
+    for key, (kind, timeline) in timelines.items():
+        rows = timeline.get("rows")
+        if kind != "range" or not isinstance(rows, list):
+            continue
+        row_ids = Counter(nfc(row.get("id")) for row in rows if isinstance(row, dict))
+        found += [
+            f"the row id {row_id} used twice in {key}"
+            for row_id, n in row_ids.items()
+            if isinstance(row_id, str) and n > 1
+        ]
     return found + named_nothing(content)
 
 
@@ -302,6 +327,59 @@ def with_warnings(content):
     timeline_of(content, "Beat")["metadata"]["role"] = "time_map"
 
 
+def with_two_rows_of_one_id(content):
+    rows = timeline_of(content, "Range")["rows"]
+    rows.append(dict(rows[0], name="Another"))
+
+
+def with_two_rows_of_one_id_in_nfc(content):
+    # Row ids are any text, compared as the reader gives them: in NFC.
+    ranges = timeline_of(content, "Range")
+    old = ranges["rows"][0]["id"]
+    ranges["rows"][0]["id"] = "café"
+    ranges["rows"].append({"id": "café", "name": "Another"})
+    for component in ranges["components"].values():
+        if component["row_id"] == old:
+            component["row_id"] = "café"
+
+
+def with_a_row_named_in_nfd(content):
+    ranges = timeline_of(content, "Range")
+    old = ranges["rows"][0]["id"]
+    ranges["rows"][0]["id"] = "café"
+    for component in ranges["components"].values():
+        if component["row_id"] == old:
+            component["row_id"] = "café"
+
+
+def with_a_kind_in_another_letter_case(content):
+    # "range" is a kind the core doesn't know: what it holds is kept as it is.
+    ranges = timeline_of(content, "Range")
+    first_component(ranges)["row_id"] = "gone"
+    ranges["kind"] = "range"
+
+
+def with_a_range_in_a_marker_timeline(content):
+    # Kept as it is, with a warning: its row isn't looked for.
+    misplaced = dict(first_component(timeline_of(content, "Range")), row_id="gone")
+    del misplaced["joined_right"]
+    markers = timeline_of(content, "Marker")["components"]
+    markers["019a0000-0000-7000-8000-00000000000c"] = misplaced
+
+
+def with_an_unknown_timeline_repeating_an_id(content):
+    # What a timeline of an unknown kind holds is kept as it is.
+    content["timelines"]["019a0000-0000-7000-8000-00000000000d"] = {
+        "kind": "Lyrics",
+        "ordinal": 99,
+        "components": dict(timeline_of(content, "Marker")["components"]),
+    }
+
+
+def first_marker(content):
+    return first_component(timeline_of(content, "Marker"))
+
+
 AGREEMENT = [
     # The core and the schema both refuse these...
     pytest.param(b"", True, True, id="empty"),
@@ -348,6 +426,24 @@ AGREEMENT = [
         True,
         id="score line a number",
     ),
+    pytest.param(
+        changed(lambda c: c.update(version=c["version"] + "+build.5")),
+        True,
+        True,
+        id="build metadata",
+    ),
+    pytest.param(
+        changed(lambda c: first_marker(c).update(time=None)),
+        True,
+        True,
+        id="null on a required key",
+    ),
+    pytest.param(
+        changed(lambda c: c["scores"][0].update(source=None)),
+        True,
+        True,
+        id="MEI score's null source",
+    ),
     # ...only the core refuses these: JSON Schema can't check them...
     pytest.param(
         changed(with_a_repeated_key).replace(
@@ -360,6 +456,15 @@ AGREEMENT = [
     pytest.param(
         changed(with_two_scores_of_one_id), True, False, id="two scores of one id"
     ),
+    pytest.param(
+        changed(with_two_rows_of_one_id), True, False, id="two rows of one id"
+    ),
+    pytest.param(
+        changed(with_two_rows_of_one_id_in_nfc),
+        True,
+        False,
+        id="two rows of one id in NFC",
+    ),
     # ...and both accept these.
     pytest.param(EVERY_KIND.read_bytes(), False, False, id="golden"),
     pytest.param(
@@ -370,6 +475,71 @@ AGREEMENT = [
     ),
     pytest.param(changed(with_unknown_keys), False, False, id="unknown keys"),
     pytest.param(changed(with_warnings), False, False, id="warnings only"),
+    pytest.param(
+        changed(lambda c: first_marker(c).update(label=None)),
+        False,
+        False,
+        id="null on a key that isn't required",
+    ),
+    pytest.param(
+        changed(lambda c: c["scores"][0].update(license=None)),
+        False,
+        False,
+        id="MEI score's null licence",
+    ),
+    pytest.param(
+        changed(
+            lambda c: c["scores"][0].update(
+                format="musicxml", source=None, license=None
+            )
+        ),
+        False,
+        False,
+        id="null source and licence on a score of an unknown format",
+    ),
+    pytest.param(
+        changed(lambda c: first_component(timeline_of(c, "Hierarchy")).update(level=0)),
+        False,
+        False,
+        id="level below 1",
+    ),
+    pytest.param(
+        changed(lambda c: timeline_of(c, "Marker").update(ordinal=0)),
+        False,
+        False,
+        id="ordinal below 1",
+    ),
+    pytest.param(
+        changed(lambda c: c.update(time_unit="frames")),
+        False,
+        False,
+        id="time unit the schema doesn't list",
+    ),
+    pytest.param(
+        changed(lambda c: timeline_of(c, "Marker").update(ordinal=5.0)),
+        False,
+        False,
+        id="integer written as 5.0",
+    ),
+    pytest.param(
+        changed(with_a_kind_in_another_letter_case),
+        False,
+        False,
+        id="timeline kind in another letter case",
+    ),
+    pytest.param(
+        changed(with_a_range_in_a_marker_timeline),
+        False,
+        False,
+        id="range in a marker timeline",
+    ),
+    pytest.param(
+        changed(with_an_unknown_timeline_repeating_an_id),
+        False,
+        False,
+        id="unknown timeline repeating an id",
+    ),
+    pytest.param(changed(with_a_row_named_in_nfd), False, False, id="row named in NFD"),
 ]
 
 
@@ -389,6 +559,8 @@ def test_what_only_the_core_checks_is_found():
     content = golden()
     assert only_the_core_checks(content, False) == []
     assert only_the_core_checks(content, True) == ["a repeated key"]
+    rows = timeline_of(content, "Range")["rows"]
+    rows.append(dict(rows[1], name="Another"))
     form = timeline_of(content, "Hierarchy")
     unit_id = next(iter(form["components"]))
     timeline_of(content, "Marker")["components"][unit_id] = {"kind": "MARKER"}
@@ -404,6 +576,7 @@ def test_what_only_the_core_checks_is_found():
     assert sorted(only_the_core_checks(content, False)) == sorted(
         [
             f"the id {unit_id} used twice",
+            f"the row id {rows[1]['id']} used twice in {ranges}",
             f"row_id in {ranges}",
             f"joined_right in {ranges}",
             f"score in {score}",
