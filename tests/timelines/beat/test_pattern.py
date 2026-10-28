@@ -325,3 +325,20 @@ class TestTimeSignatureOverTaps:
             None,
             "Enter one time signature, such as 3/4.",
         )
+
+
+class TestReviewedEdgeCases:
+    def test_a_number_after_an_added_numerator_is_unexpected(self):
+        result = parse("3+2 4/8")
+        assert result.status == ParseStatus.INVALID
+        assert result.error == "Unexpected '4'."
+
+    def test_an_added_numerator_waits_for_its_denominator(self):
+        result = parse("3+2")
+        assert result.status == ParseStatus.INCOMPLETE
+        assert result.error == "Enter '/' and a denominator."
+
+    @pytest.mark.timeout(1)
+    def test_a_huge_numerator_is_refused_before_its_taps_are_listed(self):
+        result = parse("999999999/4")
+        assert result.error == f"Bars can have at most {MAX_BEATS_PER_BAR} beats."
