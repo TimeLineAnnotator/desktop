@@ -272,7 +272,11 @@ def test_a_media_length_attached_by_an_opened_file_counts_as_media():
 
 
 def with_a_marker(media_length):
-    marker = timeline("marker", components=[component("marker", time=1.0)])
+    # The format requires a marker timeline's height, and the reader refuses a
+    # file without one: TiLiA's default, as `add_timeline` gives it.
+    marker = timeline(
+        "marker", components=[component("marker", time=1.0)], attrs={"height": 30}
+    )
     return document(media_length=media_length, timelines=[marker])
 
 
@@ -344,30 +348,39 @@ def test_a_known_length_changes_while_no_timeline_has_components():
 
 def read_with_length(doc, length):
     """`doc` written and read back, with the file's media length changed to
-    `length`: the reader keeps it as the file has it."""
+    `length`: the reader keeps a number as the file has it."""
     data = json.loads(tla.canonical_bytes(doc))
     data["media"]["length"] = length
     return tla.loads(json.dumps(data).encode())
 
 
-# A media length the format doesn't allow, read from a file, is no known
-# length, as WP9's time map reads it
-# (TimeLineAnnotator/project-management#216 (choose a document's time map by
-# role)). A file can't hold NaN or infinity: the reader refuses them.
+def made_with_length(doc, length):
+    """`doc` with the media length `length` set in memory."""
+    doc.media_length = length
+    return doc
+
+
+# A media length the format doesn't allow is no known length, as WP9's time
+# map reads it (TimeLineAnnotator/project-management#216 (choose a document's
+# time map by role)). From a file, a number above 0 is allowed: the reader
+# keeps zero or less, and a whole number too large for a float, as the file
+# has them. It refuses text and true or false (tests/tla/test_tla_unreadable.py),
+# and NaN and infinity, which a file can't hold. A document made in memory can
+# still hold text or a bool, which the time map takes as no length too.
 NOT_ALLOWED = [
-    "abc",
-    "312.5",
-    0,
-    -5,
-    True,
-    pytest.param(10**400, id="too-large-for-a-float"),
+    pytest.param(read_with_length, 0, id="read-0"),
+    pytest.param(read_with_length, -5, id="read-minus-5"),
+    pytest.param(read_with_length, 10**400, id="read-too-large-for-a-float"),
+    pytest.param(made_with_length, "abc", id="in-memory-abc"),
+    pytest.param(made_with_length, "312.5", id="in-memory-312.5"),
+    pytest.param(made_with_length, True, id="in-memory-True"),
 ]
 
 
-@pytest.mark.parametrize("length", NOT_ALLOWED)
-def test_a_length_the_format_doesnt_allow_is_no_known_length(length):
+@pytest.mark.parametrize("given, length", NOT_ALLOWED)
+def test_a_length_the_format_doesnt_allow_is_no_known_length(given, length):
     # So a new length is a first one, set although timelines have components.
-    doc = read_with_length(with_a_marker(3.0), length)
+    doc = given(with_a_marker(3.0), length)
     assert doc.media_length == length
 
     build.set_media_length(doc, 30.0)
@@ -549,21 +562,21 @@ def test_a_length_set_earlier_is_kept(tmp_path):
     assert doc.media_path == stored(path)
 
 
-@pytest.mark.parametrize("length", NOT_ALLOWED)
-def test_a_length_the_format_doesnt_allow_isnt_taken_for_media(tmp_path, length):
+@pytest.mark.parametrize("given, length", NOT_ALLOWED)
+def test_a_length_the_format_doesnt_allow_isnt_taken_for_media(tmp_path, given, length):
     path = tmp_path / "recording.mp3"
     path.write_bytes(b"ID3")
-    doc = read_with_length(build.new_script_document(), length)
+    doc = given(build.new_script_document(), length)
     before = copy.deepcopy(doc)
 
     assert refused(build.load_media, doc, path) == NO_LENGTH.format("recording.mp3")
     assert doc == before
 
 
-@pytest.mark.parametrize("length", NOT_ALLOWED)
-def test_media_replaces_a_length_the_format_doesnt_allow(tmp_path, length):
+@pytest.mark.parametrize("given, length", NOT_ALLOWED)
+def test_media_replaces_a_length_the_format_doesnt_allow(tmp_path, given, length):
     # A first length, although timelines have components.
-    doc = read_with_length(with_a_marker(3.0), length)
+    doc = given(with_a_marker(3.0), length)
     wav = pcm16_wav(tmp_path / "a.wav", rate=8000, channels=1, frames=12000)
 
     assert build.load_media(doc, wav) == 1.5
@@ -877,10 +890,10 @@ def test_no_timeline_until_the_media_length_is_known():
     assert doc == before
 
 
-@pytest.mark.parametrize("length", NOT_ALLOWED)
-def test_no_timeline_while_the_length_is_one_the_format_doesnt_allow(length):
+@pytest.mark.parametrize("given, length", NOT_ALLOWED)
+def test_no_timeline_while_the_length_is_one_the_format_doesnt_allow(given, length):
     # FR-055. TiLiA refuses a timeline while the duration is falsy, so at 0 too.
-    doc = read_with_length(build.new_script_document(), length)
+    doc = given(build.new_script_document(), length)
     before = copy.deepcopy(doc)
 
     assert refused(build.add_timeline, doc, "marker") == NO_DURATION

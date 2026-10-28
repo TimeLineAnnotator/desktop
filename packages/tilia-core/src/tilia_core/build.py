@@ -312,11 +312,11 @@ def _media_length(value: object) -> float:
 
 def _known_length(document: tla.Document) -> float | None:
     """The document's media length, as it is, when `_media_length` accepts it;
-    else None. The reader keeps a file's length as the file has it, and one
-    the format doesn't allow (text, a bool, zero or less, a whole number too
-    large for a float) counts as no length, as WP9's time map reads it
-    (TimeLineAnnotator/project-management#216 (choose a document's time map
-    by role))."""
+    else None. The reader keeps a number as the file has it, and one the
+    format doesn't allow (zero or less, a whole number too large for a float,
+    or, in a document made in memory, text or a bool) counts as no length, as
+    WP9's time map reads it (TimeLineAnnotator/project-management#216 (choose a
+    document's time map by role))."""
     length = document.media_length
     try:
         _media_length(length)
