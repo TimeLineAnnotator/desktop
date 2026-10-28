@@ -18,8 +18,8 @@ pass's beats at once, with one time for each row the bar names instead
   (TimeLineAnnotator/project-management#339): that bar leads into the row
   after the cadenza, or after the last of a run of them, and ends where the
   cadenza does. So the fraction 1 looks at the bar after the cadenza, and an
-  end that leads into a cadenza counts as an end at bar N only when the
-  cadenza leads into a bar N;
+  end that leads into a cadenza is taken after it and counts as any other
+  end does: a cadenza moves an end, and never removes one;
 - a bar no row names gives no time.
 """
 
@@ -151,7 +151,7 @@ def _ends_before(
     An end that leads into a bar N the query doesn't name is left out, so a
     label or a pass gives only the ends that lead into the bars it names;
     without them, every bar N is named. A bar that cadenzas follow ends after
-    them, and counts only when they lead into a bar N (#339).
+    them, and the bar after them is the one it leads into (#339).
     """
     named_counts = {row.count for row in named}
     ends: list[float] = []
@@ -165,15 +165,11 @@ def _ends_before(
         ]
         if not below:
             continue
-        bars = {row.count for row in find_rows(rows, number)}
+        others = {row.count for row in find_rows(rows, number)} - named_counts
         for before in find_rows(rows, max(below), pass_=pass_, movement=movement):
-            j = before.count - 1
-            k = _leads_into(rows, j)
-            into = rows[k].count if k < len(rows) else None
-            if into in bars and into not in named_counts:
+            k = _leads_into(rows, before.count - 1)
+            if k < len(rows) and rows[k].count in others:
                 continue  # a bar N the query doesn't name
-            if k > j + 1 and into not in bars:
-                continue  # its cadenzas lead elsewhere, or end the piece
             end = _end(rows, k - 1)
             if end is not None:
                 ends.append(end)
