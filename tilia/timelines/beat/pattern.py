@@ -275,8 +275,10 @@ class _Parser:
                 parts.append(Fraction(self.expect_int("Enter a number after '+'.")))
                 self.skip_whitespace()
                 continue
+            if self.at_end():
+                raise _Incomplete("Enter '/' and a denominator.", self.pos)
             if not self.at("/"):
-                raise _Incomplete("Enter a denominator after '/'.", self.pos)
+                raise _Invalid(f"Unexpected '{self.peek()}'.", self.pos)
             self.pos += 1
             number = self.expect_int("Enter a denominator after '/'.")
             # A second "/" makes the number a part's denominator: the last
@@ -312,10 +314,15 @@ class _Parser:
             self.pos = taps_start
             if len(parts) > 1:
                 values = parts
-            elif parts[0].denominator == 1:
-                values = [Fraction(1)] * int(parts[0])
-            else:
+            elif parts[0].denominator != 1:
                 raise _Invalid("Give the taps of a fractional numerator.", start)
+            elif parts[0] > MAX_BEATS_PER_BAR:
+                # Checked before the taps are listed, as they may be many.
+                raise _Invalid(
+                    f"Bars can have at most {MAX_BEATS_PER_BAR} beats.", start
+                )
+            else:
+                values = [Fraction(1)] * int(parts[0])
 
         if len(values) > MAX_BEATS_PER_BAR:
             raise _Invalid(f"Bars can have at most {MAX_BEATS_PER_BAR} beats.", start)
