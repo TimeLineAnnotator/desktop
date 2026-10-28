@@ -25,7 +25,7 @@ class TestBeatTimeline:
         commands.execute("timeline.beat.add")
         assert len(beat_tlui) == 0
 
-    def test_create_beat_at_middle_joins_the_measure_it_falls_in(self, beat_tlui):
+    def test_create_beat_at_middle_keeps_the_measures_lengths(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [2]
         commands.execute("media.seek", 0)
         commands.execute("timeline.beat.add")
@@ -37,13 +37,15 @@ class TestBeatTimeline:
         commands.execute("media.seek", 5)
         commands.execute("timeline.beat.add")
 
+        # The first measure keeps two beats, so the beat at 10 starts the
+        # second, which the beat at 20 fills.
         assert [b.get_data("is_first_in_measure") for b in beat_tlui] == [
             True,
             False,
-            False,
             True,
+            False,
         ]
-        assert beat_tlui.timeline.beats_in_measure == [3, 1]
+        assert beat_tlui.timeline.beats_in_measure == [2, 2]
 
     def test_create_beat_before_the_first_starts_measure_zero(self, beat_tlui):
         for time in [10, 11, 12]:
@@ -467,7 +469,7 @@ class TestBeatTimeline:
         assert beat_tl.get_time_by_measure(3, 1.0) == []
         assert beat_tl.get_time_by_measure(3, 1.0, True) == [7]
 
-    def test_delete_beat_leaves_the_other_measures_as_they_are(self, beat_tl):
+    def test_delete_beat_keeps_the_measures_lengths(self, beat_tl):
         beat_tl.beat_pattern = [2]
         for time in range(5):
             beat_tl.create_beat(time)
@@ -476,13 +478,13 @@ class TestBeatTimeline:
 
         assert [b.get_data("is_first_in_measure") for b in beat_tl] == [
             True,
-            True,
             False,
             True,
+            False,
         ]
-        assert beat_tl.beats_in_measure == [1, 2, 1]
+        assert beat_tl.beats_in_measure == [2, 2]
 
-    def test_delete_first_beat_of_a_measure_hands_it_to_the_next(self, beat_tl):
+    def test_delete_first_beat_of_a_measure_keeps_its_number(self, beat_tl):
         beat_tl.beat_pattern = [2]
         for time in range(5):
             beat_tl.create_beat(time)
@@ -490,9 +492,20 @@ class TestBeatTimeline:
 
         beat_tl.delete_components([beat_tl[2]])
 
-        assert beat_tl.beats_in_measure == [2, 1, 1]
-        assert beat_tl.measure_numbers == [1, 10, 11]
+        assert beat_tl.beats_in_measure == [2, 2]
+        assert beat_tl.measure_numbers == [1, 10]
         assert beat_tl[2].measure_number_override == 10
+
+    def test_delete_every_beat_of_a_measure_removes_it(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        for time in range(7):
+            beat_tl.create_beat(time)
+        beat_tl.set_measure_number(2, 10)
+
+        beat_tl.delete_components([beat_tl[2], beat_tl[3]])
+
+        assert beat_tl.beats_in_measure == [2, 2, 1]
+        assert beat_tl.measure_numbers == [1, 10, 11]
 
     @pytest.mark.timeout(5)
     def test_open_file_with_many_beats(self, resources, tilia):

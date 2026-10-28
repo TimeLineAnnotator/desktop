@@ -298,19 +298,20 @@ class TestMeasureMeters:
         assert meter.beat_unit_id == first.beat_id
         assert meter.denominator == 8
 
-    def test_inserted_beats_leave_later_measures_as_they_are(self, beat_tl):
+    def test_inserted_beats_keep_each_measures_length_and_beat_unit(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
         add_beat_unit(beat_tl, 4, 8, "3")
         assert time_signatures(beat_tl) == [(2, 4), (2, 4), (6, 8)]
 
-        # A forgotten bar's beats join the measure they fall in, and the
-        # beat unit stays on the measure it starts.
+        # A forgotten bar's beats go in the first measure, which keeps its
+        # two beats, so the barlines after them move. The beat unit moves
+        # with the third measure, and the beats left over make a fourth.
         beat_tl.create_beat(0.25)
         beat_tl.create_beat(0.5)
 
-        assert time_signatures(beat_tl) == [(4, 4), (2, 4), (6, 8)]
-        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (6, 8, "3")]
+        assert time_signatures(beat_tl) == [(2, 4), (2, 4), (6, 8), (6, 8)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (4, 8, "3")]
 
     def test_remeasuring_keeps_each_measures_beat_unit(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
