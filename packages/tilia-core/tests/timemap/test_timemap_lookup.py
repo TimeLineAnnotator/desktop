@@ -351,10 +351,12 @@ class TestASegmentsEndOnADownbeat:
 
 class TestACadenzaBelongsToTheBarBeforeIt:
     """An end of bar N-1 that leads into a cadenza is taken after the
-    cadenza, or after the last of a run of them, and counts as an end at
-    bar N only if the cadenza leads into a bar N the query names. The
-    fraction 1 of bar N-1 gives the downbeat after the cadenza when that bar
-    is numbered N (TimeLineAnnotator/project-management#339)."""
+    cadenza, or after the last of a run of them, and then counts as any
+    other end of bar N-1 does, whatever follows the cadenza; a pass, a label
+    or a movement judges it by the bar after the cadenza. A cadenza moves an
+    end and never removes one. The fraction 1 of bar N-1 gives the downbeat
+    after the cadenza when that bar is numbered N
+    (TimeLineAnnotator/project-management#339)."""
 
     def test_a_section_that_ends_at_the_bar_after_a_cadenza_holds_it(self):
         cadenza = time_map(*CADENZA)
@@ -371,26 +373,29 @@ class TestACadenzaBelongsToTheBarBeforeIt:
         assert cadenzas.times_of(3, segment_end=True) == [9.0]
         assert cadenzas.times_of(2, 1.0) == [9.0]
 
-    def test_a_cadenza_that_leads_into_another_bar_gives_no_end(self):
+    def test_a_cadenza_that_leads_into_another_bar_moves_the_end(self):
         # 1, 2, 3, 1, 2, 2c, 1: the second bar 2 and its cadenza lead back
-        # to bar 1, so only the first bar 2 ends at bar 3.
+        # to bar 1, at 13 s. Without the cadenza, 1, 2, 3, 1, 2, 1 gives
+        # [5.0, 11.0]: the second end moves past the cadenza and stays.
         back = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2), (1, 2))
 
-        assert back.times_of(3, segment_end=True) == [5.0]
+        assert back.times_of(3, segment_end=True) == [5.0, 13.0]
         assert back.times_of(2, 1.0) == [5.0]
 
-    def test_nor_one_that_ends_the_piece(self):
-        # 1, 2, 3, 1, 2, 2c
+    def test_a_cadenza_that_ends_the_piece_moves_the_end_to_its_own(self):
+        # 1, 2, 3, 1, 2, 2c: the cadenza, the last row, lasts as long as the
+        # row before it (TiLiA's projection): it ends at 11 s + 2 s.
         last = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2))
 
-        assert last.times_of(3, segment_end=True) == [5.0]
+        assert last.times_of(3, segment_end=True) == [5.0, 13.0]
 
-    def test_nor_one_that_ends_a_movement(self):
+    def test_a_cadenza_that_ends_a_movement_moves_the_end_to_its_own(self):
         # 1, 2, 2c, then a second song 1, 2, 3: the first song's bar 2 and
         # its cadenza lead into the second song's bar 1, at 7 s.
         songs = time_map((1, 2), (2, 2), (C2, 2), (restart(1), 2), (2, 2), (3, 2))
 
-        assert songs.times_of(3, segment_end=True) == [11.0]
+        assert songs.times_of(3, segment_end=True) == [7.0, 11.0]
+        assert songs.times_of(3, movement=2, segment_end=True) == [11.0]
         assert songs.times_of(2, 1.0, segment_end=True) == [7.0, 11.0]
 
     def test_a_pass_across_a_repeat(self):
