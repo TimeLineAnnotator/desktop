@@ -539,12 +539,14 @@ def write(
     permission bits. A read-only file is refused with `PermissionError`, as
     the system refuses to open one for writing. On Windows, a file another
     program holds open is retried for about a second, then refused with
-    `FileInUse`. A document `canonical_bytes` refuses raises its
-    `ValueError`. Any other failure raises the system's `OSError`. Whenever
-    a write fails, the file is as it was.
+    `FileInUse`. A document the reader would refuse raises `UnreadableFile`,
+    with its place and line, and one `canonical_bytes` refuses raises its
+    `ValueError`, both before anything is read or written (FR-034). Any
+    other failure raises the system's `OSError`. Whenever a write fails, the
+    file is as it was.
     """
     target = os.path.realpath(path)
-    data = canonical_bytes(doc)
+    data = checked_bytes(doc, path=path)
     if expect is ABSENT:
         if os.path.lexists(target):
             raise FileChanged(path, None, _found(target))
