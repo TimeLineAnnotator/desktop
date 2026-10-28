@@ -13,6 +13,8 @@ takes it to the current format:
 - hierarchies' `formal_type` and `formal_function` are dropped, each
   non-empty value with a warning, and AudioWave timelines' amplitude bars,
   which TiLiA computes from the media, with one warning per timeline;
+- a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
+  `[4, 4, 3]` becomes `"4 4 3"`;
 - a `pre_start` or `post_end` equal to its `start` or `end` is left unset,
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
@@ -164,6 +166,14 @@ def _text(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _pattern(bars: list[Any]) -> str:
+    """A beat pattern as text: its bar lengths separated by spaces, as
+    desktop#621 joins a list, which it reads as the same pattern. An item
+    that isn't text, which TiLiA never wrote, is written as `_text` writes
+    it; the text then doesn't parse, and counts as "4" (FR-084)."""
+    return " ".join(_text(bar) for bar in bars)
+
+
 def _field(value: Any) -> str | list[str]:
     """A field's value as text: a list of plain values as a list of texts."""
     if isinstance(value, list) and not any(
@@ -271,6 +281,10 @@ class _Migration:
         # an old file may have any letter case, and TiLiA's own migration
         # spells an old "AUDIOWAVE_TIMELINE" "Audiowave".
         converted["kind"] = timeline_kind_to_file(kind)
+        if kind == "beat" and isinstance(converted.get("beat_pattern"), list):
+            # Text, as the current format writes it (contracts/migration.md,
+            # *Beat timelines*, step 6); "4", the default, is then left out.
+            converted["beat_pattern"] = _pattern(converted["beat_pattern"])
         if isinstance(converted.get("rows"), list):
             converted["rows"] = [
                 _without_defaults(row, RANGE_ROW_SHAPE)

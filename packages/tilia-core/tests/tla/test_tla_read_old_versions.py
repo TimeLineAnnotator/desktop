@@ -1137,6 +1137,71 @@ def test_a_file_without_fields_has_empty_metadata():
     assert doc.media_length is None
 
 
+# Beat timelines
+
+
+def with_beats(**keys):
+    def change(content):
+        content["timelines"]["9"] = {
+            "kind": "Beat",
+            "name": "Measures",
+            "ordinal": 3,
+            "height": 35,
+            **keys,
+            "components": {"10": {"time": 0.0, "kind": "BEAT"}},
+        }
+
+    return change
+
+
+@pytest.mark.parametrize(
+    "pattern, text",
+    [
+        ([4], "4"),
+        ([4, 4, 3], "4 4 3"),
+        ([3], "3"),
+        ([2, 3], "2 3"),
+        # Never written by TiLiA: kept as text, which a pattern that doesn't
+        # parse is (FR-084).
+        ([], ""),
+        ([4, "x"], "4 x"),
+        ([4, None, True], "4  true"),
+    ],
+)
+def test_a_beat_pattern_becomes_text(pattern, text):
+    # contracts/migration.md, *Beat timelines*, step 6: as desktop#621 joins
+    # a list, which it reads as the same pattern.
+    doc = loads(edited(with_beats(beat_pattern=pattern)))
+    assert by_kind(doc, "beat").attrs["beat_pattern"] == text
+    written = json.loads(tla.canonical_bytes(doc))
+    beat = next(tl for tl in written["timelines"].values() if tl["kind"] == "Beat")
+    assert beat.get("beat_pattern", "4") == text
+
+
+@pytest.mark.parametrize("pattern", ["3 4", None])
+def test_a_beat_pattern_that_isnt_a_list_stays(pattern):
+    doc = loads(edited(with_beats(beat_pattern=pattern)))
+    assert by_kind(doc, "beat").attrs["beat_pattern"] == (pattern or "4")
+
+
+def test_a_beat_pattern_becomes_text_before_the_document_id_is_derived():
+    # [4] is "4", the default, so it is left out, as TiLiA 0.7 writing it
+    # would be.
+    with_list = loads(edited(with_beats(beat_pattern=[4])))
+    without = loads(edited(with_beats()))
+    assert with_list.document_id == without.document_id
+    assert (
+        with_list.document_id != loads(edited(with_beats(beat_pattern=[3]))).document_id
+    )
+
+
+def test_only_beat_timelines_have_their_beat_pattern_changed():
+    content = old_file_content()
+    content["timelines"]["3"]["beat_pattern"] = [4, 3]
+    marker = by_kind(loads(content), "marker")
+    assert marker.extra == {"beat_pattern": [4, 3]}
+
+
 # What the migration drops
 
 
