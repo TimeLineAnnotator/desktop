@@ -188,3 +188,12 @@ class TestBeatUnitColumns:
         (beat_unit,) = beat_tl.beat_units
         assert (beat_unit.denominator, beat_unit.units) == (4, "1")
         assert not beat_unit.assumed
+
+
+def test_times_alone_follow_the_patterns_time_signatures(beat_tl):
+    beat_tl.beat_pattern = "6/8(3 3)"
+
+    _import_with_patch(beat_tl, "time\n0\n1\n2\n3")
+
+    assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
+    assert not any(m.is_assumed for m in beat_tl.measure_meters)
