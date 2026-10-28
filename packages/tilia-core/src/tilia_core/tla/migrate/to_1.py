@@ -49,6 +49,7 @@ from tilia_core.tla.model import (
     ReadWarning,
     UnknownKind,
     component_kind_from_file,
+    timeline_kind_from_file,
     timeline_kind_to_file,
 )
 
@@ -263,7 +264,7 @@ class _Migration:
 
     def _timeline(self, key: str, timeline: dict[str, Any]) -> dict[str, Any]:
         place = pointer_to("/timelines", key)
-        kind = old_migrations.timeline_kind(timeline["kind"])
+        kind = timeline_kind_from_file(timeline["kind"])
         if isinstance(kind, UnknownKind):
             # Kept as it is, without TiLiA's stored hashes.
             return {k: v for k, v in timeline.items() if k not in _STORED_HASHES}
@@ -353,7 +354,7 @@ def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
     timelines: dict[str, Any] = {}
     for position, (old_id, timeline) in enumerate(content["timelines"].items()):
         new_id = migrated_id(document_id, "timeline", old_id, position=position)
-        kind = old_migrations.timeline_kind(timeline["kind"])
+        kind = timeline_kind_from_file(timeline["kind"])
         if not isinstance(kind, UnknownKind):
             components = timeline["components"]
             new_ids = {
