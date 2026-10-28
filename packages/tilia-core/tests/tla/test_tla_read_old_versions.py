@@ -17,7 +17,6 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import reader as reader_module
 from tilia_core.tla.ids import MIGRATED_BASE_MS, derived_document_id, migrated_id
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.migrate import to_1
@@ -864,18 +863,15 @@ def test_the_migration_spells_audiowave_exactly(version, spelling):
     ]
 
 
-def exactly(spelling):
-    """A timeline kind read as the current format reads it: exactly."""
-    known = {written: kind for kind, written in TIMELINE_KINDS.items()}
-    return known.get(spelling) or tla.UnknownKind(spelling)
-
-
-def test_old_files_read_where_kinds_are_read_exactly(old_file, monkeypatch):
-    # The reader of the current format may read kinds exactly: an old file's
-    # kinds come out of the migration in the format's spelling.
-    expected = [tl.kind for tl in tla.read(old_file).timelines.values()]
-    monkeypatch.setattr(reader_module, "timeline_kind_from_file", exactly)
-    assert [tl.kind for tl in tla.read(old_file).timelines.values()] == expected
+def test_old_files_kinds_come_out_in_the_formats_spelling(old_file):
+    # The current format's reader reads kinds exactly: an old file's come out
+    # of the migration as the format spells them, whatever the file's spelling.
+    migrated = to_1.migrate(content_of(old_file))
+    timelines = sorted(
+        migrated.content["timelines"].values(), key=lambda tl: tl["ordinal"]
+    )
+    _, kinds = EXPECTED[old_file.name]
+    assert [tl["kind"] for tl in timelines] == [TIMELINE_KINDS[k] for k in kinds]
 
 
 # What TiLiA 0.7 changes when it opens an old file
