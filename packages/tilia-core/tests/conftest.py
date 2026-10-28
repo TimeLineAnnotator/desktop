@@ -62,15 +62,24 @@ def _schema_error(data):
 def written_files_are_valid(request, monkeypatch):
     written = []
     write = writer.canonical_bytes
+    write_checked = writer.checked_bytes
 
     def recorded(doc):
         data = write(doc)
         written.append(data)
         return data
 
+    def recorded_once_checked(doc, **kwargs):
+        # What write writes: the canonical bytes, once the reader's checks
+        # have let them through.
+        data = write_checked(doc, **kwargs)
+        written.append(data)
+        return data
+
     # The writer's own callers look it up in its module, the tests in tla's.
     monkeypatch.setattr(writer, "canonical_bytes", recorded)
     monkeypatch.setattr(tla, "canonical_bytes", recorded)
+    monkeypatch.setattr(writer, "checked_bytes", recorded_once_checked)
     yield
     errors = [error for data in written if (error := _schema_error(data))]
     if request.node.get_closest_marker("writes_outside_the_schema") is None:

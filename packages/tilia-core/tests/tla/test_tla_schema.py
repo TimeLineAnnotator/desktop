@@ -105,6 +105,17 @@ def test_a_file_a_test_writes_is_checked(monkeypatch):
     tla.canonical_bytes(tla.new_document())
 
 
+@pytest.mark.writes_outside_the_schema(
+    "checks that the files a test writes are checked"
+)
+def test_a_file_written_once_checked_is_checked_too(monkeypatch):
+    # checked_bytes gives what write writes. With the reader's checks off, it
+    # gives an object with none of the keys.
+    monkeypatch.setattr(writer, "_document", lambda doc: {})
+    monkeypatch.setattr(writer, "check", lambda *args, **kwargs: None)
+    writer.checked_bytes(tla.new_document(), path="piece.tla")
+
+
 # Agreement with the core
 
 
