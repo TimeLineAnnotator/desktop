@@ -56,6 +56,19 @@ class TestBeatTimeline:
         assert beat_tlui.timeline.beats_in_measure == [1, 3]
         assert beat_tlui.timeline.measure_numbers == [0, 1]
 
+    def test_create_beat_before_a_pickup_joins_it(self, beat_tlui):
+        for time in [10, 11, 12, 13, 14]:
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+        commands.execute("media.seek", 9)
+        commands.execute("timeline.beat.add")
+
+        commands.execute("media.seek", 8)
+        commands.execute("timeline.beat.add")
+
+        assert beat_tlui.timeline.beats_in_measure == [2, 4, 1]
+        assert beat_tlui.timeline.measure_numbers == [0, 1, 2]
+
     def test_recalculate_measures_added_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
         beat_tl.create_beat(time=2)
