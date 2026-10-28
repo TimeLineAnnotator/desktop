@@ -537,9 +537,10 @@ class TestEditBarsDialog:
             ("2", "3/4", "1 1 1"),
             ("3", "4/4", "1 1 1 1"),
         ]
-        assert seen["text"] == "4/4 3/4 4/4"
+        assert seen["text"] == "4/4"
         # Pressing OK on what is shown changes nothing.
         assert tluis[0].timeline.beats_in_measure == [4, 3, 4]
+        assert tluis[0].timeline.beat_pattern == "4/4"
 
     def test_correcting_a_bar_moves_the_later_bars(self, tluis):
         add_beat_timeline_with_pattern("4/4")
@@ -556,7 +557,7 @@ class TestEditBarsDialog:
 
         timeline = tluis[0].timeline
         assert timeline.beats_in_measure == [4, 4, 4, 1]
-        assert timeline.beat_pattern == "3[4/4]"
+        assert timeline.beat_pattern == "4/4"
 
     def test_changing_a_time_signature(self, tluis):
         add_beat_timeline_with_pattern("4/4")
@@ -569,9 +570,12 @@ class TestEditBarsDialog:
         with undoable():
             self.edit_bars(tluis[0], edit)
 
+        # The three bars now take two beats each, and the beats left over
+        # make bars from the pattern.
         timeline = tluis[0].timeline
-        assert timeline.beats_in_measure == [2, 2, 2, 2, 2, 2]
-        assert time_signatures(timeline) == [("6", 8)] * 6
+        assert timeline.beats_in_measure == [2, 2, 2, 4, 2]
+        # The last bar has two of its four beats so far.
+        assert time_signatures(timeline) == [("6", 8)] * 3 + [("4", 4), ("2", 4)]
 
     def test_numbering_a_repeat(self, tluis, tmp_path):
         add_beat_timeline_with_pattern("4/4")
@@ -615,6 +619,21 @@ class TestEditBarsDialog:
 
         assert seen["tapped"] == [True, False, False]
         assert seen["text"] == "2[4/4] 3/4 2/4"
+
+    def test_ok_without_changes_keeps_the_pattern_for_later_bars(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(1, 9))
+        # A pickup, which the pattern doesn't plan.
+        add_beats([0.5])
+        assert tluis[0].timeline.beats_in_measure == [1, 4, 4]
+
+        self.edit_bars(tluis[0], lambda dialog: None)
+
+        timeline = tluis[0].timeline
+        assert timeline.beat_pattern == "4/4"
+        assert timeline.beats_in_measure == [1, 4, 4]
+        add_beats(range(9, 17))
+        assert timeline.beats_in_measure == [1, 4, 4, 4, 4]
 
     def test_assumed_time_signatures_stay_assumed(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -1238,6 +1257,35 @@ class TestActions:
 
 
 class TestSetBeatAmountInMeasure:
+    def test_the_measure_being_tapped_can_still_fill_up(self, beat_tlui):
+        add_beats(range(10))
+        assert beat_tlui.timeline.beats_in_measure == [4, 4, 2]
+        beat_tlui.select_element(beat_tlui[0])
+
+        commands.execute("timeline.beat.set_amount_in_measure", amount=3)
+
+        assert beat_tlui.timeline.beats_in_measure == [3, 4, 3]
+        add_beats(range(10, 13))
+        assert beat_tlui.timeline.beats_in_measure == [3, 4, 4, 2]
+        assert beat_tlui.timeline.get_hand_set_bars() == [0]
+
+    def test_measures_made_from_the_pattern_get_its_time_signatures(self, tluis):
+        add_beat_timeline_with_pattern("2/4 6/8(3 3)")
+        add_beats(range(8))
+        tluis[0].select_element(tluis[0][0])
+
+        commands.execute("timeline.beat.set_amount_in_measure", amount=1)
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [1, 2, 2, 2, 1]
+        assert time_signatures(timeline) == [
+            ("1", 4),
+            ("6", 8),
+            ("2", 4),
+            ("6", 8),
+            ("1", 4),
+        ]
+
     def test_set_beat_amount_in_measure(self, beat_tlui):
         beat_tlui.create_beat(0)
 
@@ -2980,3 +3028,22 @@ class TestOneMeasureEditRoundTrips:
         assert snapshot["bars"] == [2, 3, 2]
         assert snapshot["time_signatures"] == [(2, 4), (3, 8), (2, 4)]
         assert snapshot["stamps"][-1] == F(9, 2)
+
+
+class TestManyBeats:
+    @pytest.mark.timeout(15)
+    def test_setting_a_pattern_with_changing_time_signatures(self, tluis, tilia_state):
+        tilia_state.set_duration(10000, scale_timelines="no")
+        add_beat_timeline_with_pattern("4")
+        with patch_fill_beat_timeline_dialog(
+            tluis[0].timeline, BeatTimeline.FillMethod.BY_AMOUNT, 2000
+        ):
+            commands.execute("timeline.beat.fill")
+
+        with undoable():
+            commands.execute(
+                "timeline.beat.set_pattern", tluis[0], pattern="2/4 3/8(3)"
+            )
+
+        # A beat unit on every measure: 666 pairs and one more 2/4.
+        assert len(tluis[0].timeline.beat_units) == 1333

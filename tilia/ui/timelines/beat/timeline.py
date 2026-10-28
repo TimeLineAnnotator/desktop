@@ -292,6 +292,9 @@ class BeatTimelineUI(TimelineUI):
         return specs
 
     def update_time_signatures(self) -> None:
+        if self.timeline.component_manager.is_bulk:
+            # Redrawn once the bulk change is done.
+            return
         specs = self.get_time_signature_label_specs()
         for beat_unit_ui in self.beat_unit_uis:
             beat_unit_ui.set_labels(specs.get(beat_unit_ui.get_data("beat_id"), []))
@@ -367,19 +370,17 @@ class BeatTimelineUI(TimelineUI):
         changes, then remeasures the beats from it and numbers the measures.
         """
         timeline = self.timeline
-        text, _ = timeline.get_bars_to_edit()
         accepted, edit = get(
             Get.FROM_USER_BARS,
-            text,
+            timeline.beat_pattern,
             len(timeline),
             timeline.get_measures_as_planned_bars(),
             timeline.measure_numbers,
             measure_index,
         )
-        if not accepted or not timeline.set_beat_pattern(edit.pattern):
+        if not accepted:
             return False
-        timeline.set_measure_numbers(edit.numbers)
-        return True
+        return timeline.set_bars(edit.pattern, edit.bars, edit.numbers)
 
     def on_remove_other_beat_units(self, measure_index: int | None = None) -> bool:
         """
