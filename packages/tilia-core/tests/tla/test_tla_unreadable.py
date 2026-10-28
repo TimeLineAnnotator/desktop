@@ -1143,16 +1143,50 @@ IN_MEMORY = {
 }
 
 
-@pytest.fixture(params=sorted(IN_MEMORY))
-def broken_document(request):
-    change, where = IN_MEMORY[request.param]
+# What JSON Schema can't check (FR-090): the file canonical_bytes writes for
+# one of these is valid against the schema, and only the core refuses it.
+CORE_ONLY = {
+    "a range joined to nothing",
+    "a row named nowhere",
+    "a score named nowhere",
+    "a score's measure table named nowhere",
+    "an id used in two timelines",
+    "an imported timeline's measure table named nowhere",
+    "two rows with one id",
+}
+
+
+def _written(case):
+    """A case of IN_MEMORY, for a test that writes it with canonical_bytes,
+    which doesn't check: every file the tests write is checked against the
+    schema, which refuses this one unless only the core can (tests/conftest.py)."""
+    if case in CORE_ONLY:
+        return case
+    reason = "a broken document, written on purpose"
+    return pytest.param(case, marks=pytest.mark.writes_outside_the_schema(reason))
+
+
+def _broken(case):
+    change, where = IN_MEMORY[case]
     doc = base_document()
     change(doc)
     return doc, place(where)
 
 
-def test_the_writer_refuses_a_document_the_reader_would_refuse(broken_document):
-    doc, where = broken_document
+@pytest.fixture(params=sorted(IN_MEMORY))
+def broken_document(request):
+    return _broken(request.param)
+
+
+@pytest.fixture(params=[_written(case) for case in sorted(IN_MEMORY)])
+def written_broken_document(request):
+    return _broken(request.param)
+
+
+def test_the_writer_refuses_a_document_the_reader_would_refuse(
+    written_broken_document,
+):
+    doc, where = written_broken_document
     with pytest.raises(tla.UnreadableFile) as error:
         writer.checked_bytes(doc, path="piece.tla")
     assert error.value.place == where
@@ -1199,9 +1233,9 @@ def test_the_writer_takes_values_of_a_kind_of_jsons_types():
     assert writer.checked_bytes(doc) == base_bytes()
 
 
-def test_canonical_bytes_doesnt_check(broken_document):
+def test_canonical_bytes_doesnt_check(written_broken_document):
     # It is what a file would hold: write checks before writing it.
-    doc, _ = broken_document
+    doc, _ = written_broken_document
     tla.canonical_bytes(doc)
 
 
