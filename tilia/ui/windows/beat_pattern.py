@@ -1,9 +1,14 @@
 """
 The dialog where a beat timeline's bars are written: a pattern of time
 signatures on one line (see `tilia.timelines.beat.pattern`), and a table of
-the bars it makes over the tapped beats, where each row's bar numbers, time
-signature and taps can be edited. Editing a row rewrites the pattern, and
-editing the pattern rewrites the rows.
+the bars, where each row's bar numbers, time signature and taps can be
+edited.
+
+The table lists the bars the tapped beats make, as they are, then the bars
+the pattern plans after them. Editing the pattern lays it over every beat
+again. Editing a row of tapped bars changes those bars only; the pattern,
+which bars tapped later follow, stays as it is. Editing a row of bars not
+tapped yet changes the pattern.
 """
 
 from __future__ import annotations
@@ -105,10 +110,13 @@ class PatternLineEdit(QLineEdit):
 
 @dataclass(frozen=True)
 class BarsEdit:
-    """What the dialog was left with: the pattern, and the number of each
-    bar the tapped beats fill."""
+    """
+    What the dialog was left with: the pattern, and the bars the tapped
+    beats fill, with their numbers.
+    """
 
     pattern: str
+    bars: list[PlannedBar]
     numbers: list[int]
 
 
@@ -126,20 +134,28 @@ class BarRow:
         return len(self.numbers)
 
 
-def lay_out(planned: list[PlannedBar], beat_count: int) -> tuple[list[PlannedBar], int]:
+def lay_out(
+    bars: list[PlannedBar], plan: list[PlannedBar], beat_count: int
+) -> tuple[list[PlannedBar], int]:
     """
-    The bars `planned` makes over `beat_count` beats, repeating it from its
-    start as often as the beats need, then the rest of it; and how many of
-    them the beats reach.
+    The bars `beat_count` beats make: `bars` in order while there are beats
+    for them, then bars of `plan`, going on from the bar after the last and
+    starting it again from its first as often as the beats need; then the
+    rest of `plan`. Also returns how many of them the beats reach.
     """
-    bars: list[PlannedBar] = []
+    laid: list[PlannedBar] = []
     beats = 0
-    while beats < beat_count:
-        bar = planned[len(bars) % len(planned)]
-        bars.append(bar)
+    for bar in bars:
+        if beats >= beat_count:
+            break
+        laid.append(bar)
         beats += bar.beat_count
-    tapped = len(bars)
-    return bars + planned[tapped:], tapped
+    while beats < beat_count:
+        bar = plan[len(laid) % len(plan)]
+        laid.append(bar)
+        beats += bar.beat_count
+    tapped = len(laid)
+    return laid + plan[tapped:], tapped
 
 
 def get_numbers(count: int, overrides: dict[int, int]) -> list[int]:
@@ -201,6 +217,7 @@ def parse_bar_numbers(text: str, count: int) -> tuple[list[int] | None, str]:
     repeat or a jump.
     """
     numbers: list[int] = []
+    total = 0
     for item in text.replace("–", "-").split(","):
         item = item.strip()
         bounds = [bound.strip() for bound in item.split("-")]
@@ -211,15 +228,17 @@ def parse_bar_numbers(text: str, count: int) -> tuple[list[int] | None, str]:
         first, last = int(bounds[0]), int(bounds[-1])
         if last < first:
             return None, f"'{item}' counts down."
-        numbers += range(first, last + 1)
-        if len(numbers) > count:
-            break
+        total += last - first + 1
+        # Counted rather than listed past the row's bars, as a range may be
+        # huge.
+        if total <= count:
+            numbers += range(first, last + 1)
 
-    if len(numbers) == 1:
+    if total == 1:
         return list(range(numbers[0], numbers[0] + count)), ""
-    if len(numbers) != count:
+    if total != count:
         bars = "bar" if count == 1 else "bars"
-        return None, f"'{text}' numbers {len(numbers)} bars, not {count} {bars}."
+        return None, f"'{text}' numbers {total} bars, not {count} {bars}."
     return numbers, ""
 
 
@@ -260,7 +279,12 @@ class BeatPatternDialog(QDialog):
         self._beat_count = beat_count
         self._current_bars = current_bars or []
         self._overrides = get_overrides(numbers or [])
-        self._planned: list[PlannedBar] = []
+        self._plan: list[PlannedBar] = []
+        # The tapped bars, where they don't simply follow the pattern.
+        self._bars: list[PlannedBar] = []
+        # Set while a row edit rewrites the pattern, which then keeps the
+        # tapped bars rather than laying the pattern over them.
+        self._is_writing_plan = False
         self._rows: list[BarRow] = []
         # The bar the dialog was opened at has a row of its own, so it can
         # be edited apart from the alike bars around it.
@@ -322,6 +346,9 @@ class BeatPatternDialog(QDialog):
 
         self.line_edit.textChanged.connect(self._on_text_changed)
         self._on_text_changed(initial_text)
+        if self._current_bars and parse(initial_text).is_complete:
+            self._bars = list(self._current_bars)
+            self._update_table()
         if focus_bar is not None:
             self.focus_bar(focus_bar)
 
@@ -367,9 +394,12 @@ class BeatPatternDialog(QDialog):
     def current_row(self) -> int:
         return self.table.currentRow()
 
+    def _lay_out(self) -> tuple[list[PlannedBar], int]:
+        return lay_out(self._bars, self._plan, self._beat_count)
+
     def get_result(self) -> BarsEdit:
-        _, tapped = lay_out(self._planned, self._beat_count)
-        return BarsEdit(self.text, get_numbers(tapped, self._overrides))
+        bars, tapped = self._lay_out()
+        return BarsEdit(self.text, bars[:tapped], get_numbers(tapped, self._overrides))
 
     def _show_error(self, message: str) -> None:
         self.error.setText(message)
@@ -388,11 +418,13 @@ class BeatPatternDialog(QDialog):
             return
 
         self._show_error("")
-        self._planned = result.planned_bars
+        self._plan = result.planned_bars
+        if not self._is_writing_plan:
+            self._bars = []
         self._update_table()
 
     def _update_table(self) -> None:
-        bars, tapped = lay_out(self._planned, self._beat_count)
+        bars, tapped = self._lay_out()
         numbers = get_numbers(len(bars), self._overrides)
         self._rows = get_rows(bars, tapped, numbers, self._row_breaks)
 
@@ -433,7 +465,7 @@ class BeatPatternDialog(QDialog):
         return False
 
     def _get_footer(self, bars: list[PlannedBar], tapped: int) -> str:
-        length = len(self._planned)
+        length = len(self._plan)
         lines = [
             tilia.ui.strings.BEAT_PATTERN_SUMMARY.format(
                 length, "" if length == 1 else "s"
@@ -471,12 +503,26 @@ class BeatPatternDialog(QDialog):
             return
 
         self._show_error("")
-        bars, _ = lay_out(self._planned, self._beat_count)
+        if row.is_tapped:
+            bars, tapped = self._lay_out()
+            bars = bars[:tapped]
+            for index in range(row.start, row.start + row.count):
+                bars[index] = bar
+            self._bars = bars
+            self._update_table()
+            return
+
+        # Bars not tapped yet are the pattern's, by position.
+        plan = list(self._plan)
         for index in range(row.start, row.start + row.count):
-            bars[index] = bar
-        # Setting the text parses it back into the same bars and redraws the
-        # table.
-        self.line_edit.setText(format_planned_bars(bars))
+            plan[index] = bar
+        self._is_writing_plan = True
+        try:
+            # Setting the text parses it back into the same bars and redraws
+            # the table.
+            self.line_edit.setText(format_planned_bars(plan))
+        finally:
+            self._is_writing_plan = False
 
     def _edit_numbers(self, row: BarRow, text: str) -> None:
         numbers, error = parse_bar_numbers(text, row.count)
@@ -486,7 +532,7 @@ class BeatPatternDialog(QDialog):
             return
 
         self._show_error("")
-        bars, tapped = lay_out(self._planned, self._beat_count)
+        _, tapped = self._lay_out()
         all_numbers = get_numbers(tapped, self._overrides)
         all_numbers[row.start : row.start + row.count] = numbers
         # The bars after the row count on from it, unless numbered by hand.
