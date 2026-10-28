@@ -14,7 +14,6 @@ class Get(Enum):
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
     FROM_USER_BARS = auto()
     FROM_USER_BEAT_PATTERN = auto()
-    FROM_USER_BEAT_UNIT = auto()
     FROM_USER_BEAT_UNIT_SCOPE = auto()
     FROM_USER_BEAT_TIMELINE_FILL_METHOD = auto()
     FROM_USER_COLOR = auto()

@@ -13,6 +13,7 @@ from tilia.timelines.beat.pattern import (
     format_planned_bars,
     group_runs,
     parse,
+    parse_time_signature_over_taps,
 )
 
 
@@ -290,3 +291,37 @@ class TestTimeSignatures:
         bar = PlannedBar.from_values([F(1), F(2)] * 3, 8)
         assert bar.units == (F(1), F(2))
         assert bar.beat_count == 6
+
+
+class TestTimeSignatureOverTaps:
+    @pytest.mark.parametrize(
+        "text, beat_count, values, denominator",
+        [
+            # As many taps as the time signature's own.
+            ("4/4", 4, [F(1)] * 4, 4),
+            # Each tap gets an equal share of the numerator.
+            ("6/8", 2, [F(3), F(3)], 8),
+            ("3/4", 4, [F(3, 4)] * 4, 4),
+            ("2/2", 4, [F(1, 2)] * 4, 2),
+            # An added numerator with a part per tap.
+            ("2+3/8", 2, [F(2), F(3)], 8),
+            ("2+3/8", 5, [F(1)] * 5, 8),
+            # Taps given in brackets are kept, however many.
+            ("6/8(3 3)", 6, [F(3), F(3)], 8),
+        ],
+    )
+    def test_values(self, text, beat_count, values, denominator):
+        bar, error = parse_time_signature_over_taps(text, beat_count)
+        assert error == ""
+        assert (bar.values, bar.denominator) == (values, denominator)
+
+    def test_a_share_too_fine_is_refused(self):
+        bar, error = parse_time_signature_over_taps("1/4", 129)
+        assert bar is None
+        assert error == "1/4 can't be shared between 129 taps."
+
+    def test_more_than_one_bar_is_refused(self):
+        assert parse_time_signature_over_taps("4/4 3/4", 4) == (
+            None,
+            "Enter one time signature, such as 3/4.",
+        )

@@ -1,6 +1,5 @@
 from tilia.timelines.beat.pattern import PlannedBar
 from tilia.ui.windows.beat_pattern import BarsEdit, BeatPatternDialog
-from tilia.ui.windows.beat_unit import BeatUnitDialog, BeatUnitInput
 from tilia.ui.windows.fill_beat_timeline import BeatTimeline, FillBeatTimeline
 
 
@@ -15,18 +14,15 @@ def ask_for_bars(
     beat_count: int,
     current_bars: list[PlannedBar],
     numbers: list[int],
+    focus_bar: int | None = None,
 ) -> tuple[bool, BarsEdit | None]:
-    """Asks for changes to the bars of a timeline that has beats."""
-    return BeatPatternDialog.ask(initial_text, beat_count, current_bars, numbers)
-
-
-def ask_for_beat_unit(
-    denominator: int,
-    units: str,
-    beat_count: int | None = None,
-    show_scope: bool = True,
-) -> tuple[bool, BeatUnitInput | None]:
-    return BeatUnitDialog.ask(denominator, units, beat_count, show_scope)
+    """
+    Asks for changes to the bars of a timeline that has beats, showing the
+    row of `focus_bar` first.
+    """
+    return BeatPatternDialog.ask(
+        initial_text, beat_count, current_bars, numbers, focus_bar
+    )
 
 
 def ask_beat_timeline_fill_method() -> tuple[

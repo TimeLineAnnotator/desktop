@@ -114,15 +114,15 @@ class TestTable:
         assert dialog.get_table_rows() == [
             ("1–4", "4/4", "1 1 1 1"),
             ("5", "3/4", "1 1 1"),
-            ("6–8", "4/4(3/2 3/2 1)", "3/2 3/2 1"),
+            ("6–8", "4/4", "3/2 3/2 1"),
         ]
 
     def test_rows_of_bars_given_only_their_beats(self, qtui):
         dialog = BeatPatternDialog("2[3] 4")
 
         assert dialog.get_table_rows() == [
-            ("1–2", "3", "1 1 1"),
-            ("3", "4", "1 1 1 1"),
+            ("1–2", "3/4 (assumed)", "1 1 1"),
+            ("3", "4/4 (assumed)", "1 1 1 1"),
         ]
 
     def test_rows_cover_the_tapped_beats(self, qtui):
@@ -176,7 +176,7 @@ class TestEditingCells:
 
         edit_bars_dialog_cell(dialog, 1, TAPS_COLUMN, "3")
 
-        assert dialog.get_table_rows()[1] == ("5", "3/4(3)", "3")
+        assert dialog.get_table_rows()[1] == ("5", "3/4", "3")
         assert dialog.text == "4[4/4] 3/4(3)"
 
     def test_taps_that_add_up_to_another_numerator(self, qtui):
@@ -204,10 +204,42 @@ class TestEditingCells:
     def test_editing_a_row_of_a_repeated_pattern(self, qtui):
         dialog = BeatPatternDialog("4/4", beat_count=12)
 
-        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "3/4")
+        edit_bars_dialog_cell(dialog, 0, TAPS_COLUMN, "1 1 1")
 
+        # The three bars edited become the pattern, which the twelve beats
+        # go through again for a fourth bar.
         assert dialog.text == "3[3/4]"
         assert dialog.get_table_rows() == [("1–4", "3/4", "1 1 1")]
+
+    def test_a_tapped_bar_keeps_its_taps(self, qtui):
+        dialog = BeatPatternDialog("2/4", beat_count=4)
+
+        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "6/8")
+
+        assert dialog.get_table_rows() == [("1–2", "6/8", "3 3")]
+        assert dialog.text == "2[6/8(3 3)]"
+
+    def test_a_tapped_bar_takes_the_taps_given(self, qtui):
+        dialog = BeatPatternDialog("2/4", beat_count=4)
+
+        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "6/8(1 1 1 1 1 1)")
+
+        assert dialog.text == "2[6/8]"
+
+    def test_a_bar_not_tapped_yet_takes_the_time_signatures_taps(self, qtui):
+        dialog = BeatPatternDialog("2/4 2/4", beat_count=2)
+
+        edit_bars_dialog_cell(dialog, 1, TIME_SIGNATURE_COLUMN, "6/8")
+
+        assert dialog.text == "2/4 6/8"
+
+    def test_confirming_an_assumed_time_signature(self, qtui):
+        dialog = BeatPatternDialog("4", beat_count=8)
+
+        edit_bars_dialog_cell(dialog, 0, TIME_SIGNATURE_COLUMN, "4/4")
+
+        assert dialog.text == "2[4/4]"
+        assert not dialog.rows[0].bar.assumed
 
     def test_invalid_cell_is_reported_and_reverted(self, qtui):
         dialog = BeatPatternDialog("4/4")

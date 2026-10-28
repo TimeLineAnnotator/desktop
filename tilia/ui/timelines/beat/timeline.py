@@ -133,10 +133,10 @@ class BeatTimelineUI(TimelineUI):
 
         cls.register_timeline_command(
             collection,
-            "set_beat_unit",
-            cls.on_set_beat_unit,
+            "edit_bars",
+            cls.on_edit_bars,
             TimelineSelector.SELECTED,
-            text="Set beat unit",
+            text="Edit bars and time signatures",
         )
 
         cls.register_timeline_command(
@@ -144,7 +144,7 @@ class BeatTimelineUI(TimelineUI):
             "remove_other_beat_units",
             cls.on_remove_other_beat_units,
             TimelineSelector.SELECTED,
-            text="Remove other beat units in this measure",
+            text="Keep only the first time signature in this measure",
         )
 
         commands.register(
@@ -338,8 +338,8 @@ class BeatTimelineUI(TimelineUI):
 
     def _get_beat_unit_target_measure(self) -> int | None:
         """
-        The measure a beat unit command applies to: the one whose label was
-        clicked, or else the measure of the first selected beat.
+        The measure a time signature command applies to: the one whose label
+        was clicked, or else the measure of the first selected beat.
         """
         for element in self.selected_elements:
             if (
@@ -352,44 +352,34 @@ class BeatTimelineUI(TimelineUI):
             return self._get_measure_indices(beat_uis)[0]
         return None
 
-    def on_set_beat_unit(
-        self,
-        measure_index: int | None = None,
-        denominator: int | None = None,
-        units: str | None = None,
-        only_this_measure: bool | None = None,
-    ) -> bool:
-        timeline = self.timeline
+    def on_edit_bars(self, measure_index: int | None = None) -> bool:
+        """
+        Opens the bars and time signatures dialog at the measure of the
+        clicked label or selected beat.
+        """
         if measure_index is None:
             measure_index = self._get_beat_unit_target_measure()
-        if measure_index is None or not 0 <= measure_index < timeline.measure_count:
-            return False
+        return self.edit_bars(measure_index)
 
-        if denominator is None or units is None:
-            meter = timeline.get_measure_meter(measure_index)
-            next_index = measure_index + 1
-            # Both scopes do the same when the next measure starts its own
-            # beat unit, or there is none.
-            show_scope = (
-                next_index < timeline.measure_count
-                and not timeline.get_measure_meter(next_index).starts_here
-            )
-            accepted, result = get(
-                Get.FROM_USER_BEAT_UNIT,
-                meter.denominator,
-                format_units(meter.units),
-                timeline.beats_in_measure[measure_index],
-                show_scope,
-            )
-            if not accepted:
-                return False
-            denominator, units = result.denominator, result.units
-            if only_this_measure is None:
-                only_this_measure = result.only_this_measure
-
-        return timeline.set_beat_unit(
-            measure_index, denominator, units, bool(only_this_measure)
+    def edit_bars(self, measure_index: int | None = None) -> bool:
+        """
+        Asks for the bars in a dialog that shows them as they are and what
+        changes, then remeasures the beats from it and numbers the measures.
+        """
+        timeline = self.timeline
+        text, _ = timeline.get_bars_to_edit()
+        accepted, edit = get(
+            Get.FROM_USER_BARS,
+            text,
+            len(timeline),
+            timeline.get_measures_as_planned_bars(),
+            timeline.measure_numbers,
+            measure_index,
         )
+        if not accepted or not timeline.set_beat_pattern(edit.pattern):
+            return False
+        timeline.set_measure_numbers(edit.numbers)
+        return True
 
     def on_remove_other_beat_units(self, measure_index: int | None = None) -> bool:
         """
@@ -477,32 +467,22 @@ class BeatTimelineUI(TimelineUI):
         """
         timeline = timeline_ui.timeline
         if pattern is None:
-            text, _ = timeline.get_bars_to_edit()
-            accepted, edit = get(
-                Get.FROM_USER_BARS,
-                text,
-                len(timeline),
-                timeline.get_measures_as_planned_bars(),
-                timeline.measure_numbers,
-            )
-            if not accepted:
-                return False
-            pattern, numbers = edit.pattern, edit.numbers
-        else:
-            result = parse(pattern)
-            if not result.is_complete:
-                tilia.errors.display(tilia.errors.INVALID_BEAT_PATTERN, result.error)
-                return False
+            return timeline_ui.edit_bars()
 
-            overwritten = timeline.get_bars_overwritten_by(result.bars)
-            if overwritten and not get(
-                Get.FROM_USER_YES_OR_NO,
-                BEAT_PATTERN_OVERWRITE_TITLE,
-                BEAT_PATTERN_OVERWRITE_PROMPT.format(
-                    ", ".join(str(i + 1) for i in overwritten)
-                ),
-            ):
-                return False
+        result = parse(pattern)
+        if not result.is_complete:
+            tilia.errors.display(tilia.errors.INVALID_BEAT_PATTERN, result.error)
+            return False
+
+        overwritten = timeline.get_bars_overwritten_by(result.bars)
+        if overwritten and not get(
+            Get.FROM_USER_YES_OR_NO,
+            BEAT_PATTERN_OVERWRITE_TITLE,
+            BEAT_PATTERN_OVERWRITE_PROMPT.format(
+                ", ".join(str(i + 1) for i in overwritten)
+            ),
+        ):
+            return False
 
         if not timeline.set_beat_pattern(pattern):
             return False

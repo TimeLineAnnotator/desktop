@@ -111,6 +111,7 @@ INVALID_RETURN_VALUES_FOR_COMMAND = Error(
 )
 SCORE_SVG_CREATE_ERROR = Error("Error creating SVG", "{}")
 INVALID_BEAT_PATTERN = Error("Set beat pattern", "Invalid beat pattern: {}")
+INVALID_TIME_SIGNATURE = Error("Time signature", "Invalid time signature: {}")
 INVALID_MEASURE_FRACTION = Error(
     "Invalid measure fraction",
     "Measure fraction '{}' is not valid. Using closest valid value.",

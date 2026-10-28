@@ -351,6 +351,41 @@ def parse(text: str) -> ParseResult:
     return ParseResult(ParseStatus.COMPLETE, bars)
 
 
+def parse_time_signature(text: str) -> tuple[PlannedBar | None, str]:
+    """Reads one bar of the pattern syntax, such as "6/8" or "6/8(3 3)"."""
+    result = parse(text)
+    if not result.is_complete:
+        return None, result.error
+    if len(result.planned_bars) != 1:
+        return None, "Enter one time signature, such as 3/4."
+    return result.planned_bars[0], ""
+
+
+def parse_time_signature_over_taps(
+    text: str, beat_count: int
+) -> tuple[PlannedBar | None, str]:
+    """
+    Reads the time signature of a bar that already has `beat_count` taps.
+    The bar keeps its taps unless the text gives others, in brackets: each
+    tap is then worth the same, the numerator divided by the taps, or, for
+    an added numerator with as many parts as taps, a part each. 6/8 over two
+    taps is 3 and 3; 3/4 over four is 3/4 each.
+    """
+    bar, error = parse_time_signature(text)
+    if bar is None:
+        return None, error
+    if bar.assumed or bar.beat_count == beat_count or "(" in text:
+        return bar, ""
+
+    value = bar.numerator / beat_count
+    if value.denominator > MAX_DENOMINATOR:
+        return None, (
+            f"{format_units([bar.numerator])}/{bar.denominator} can't be shared "
+            f"between {beat_count} taps."
+        )
+    return PlannedBar.from_values([value] * beat_count, bar.denominator), ""
+
+
 def group_runs(bars: list[int]) -> list[BarRun]:
     """Groups consecutive bars of equal length, e.g. for previewing a pattern."""
     runs: list[BarRun] = []
@@ -389,6 +424,16 @@ def format_planned_bar(bar: PlannedBar) -> str:
         return f"{format_units(values)}/{bar.denominator}"
     taps = " ".join(str(value) for value in values)
     return f"{format_units([bar.numerator])}/{bar.denominator}({taps})"
+
+
+def format_time_signature(bar: PlannedBar) -> str:
+    """A bar's time signature alone, such as "6/8" or "11/2/4"."""
+    return f"{format_units([bar.numerator])}/{bar.denominator}"
+
+
+def format_taps(bar: PlannedBar) -> str:
+    """What each tap of a bar is worth, such as "3/2 3/2 1"."""
+    return " ".join(str(value) for value in bar.values)
 
 
 def format_planned_bars(bars: list[PlannedBar]) -> str:
