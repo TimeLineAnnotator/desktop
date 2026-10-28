@@ -163,6 +163,9 @@ def beats_from_csv(
                 created.append((component, row))
             else:
                 errors.append(fail_reason)
+        # The time signatures the beat pattern gives, if any. A row's own
+        # beat unit, below, replaces the one on its beat.
+        timeline.lay_planned_beat_units(0)
     # Gives the first beat its default beat unit, which a row of the file can
     # then edit.
     timeline.refresh_measures()
