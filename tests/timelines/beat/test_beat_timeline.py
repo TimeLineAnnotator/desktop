@@ -573,3 +573,88 @@ class TestGetExtensionFromBeatPattern:
             [4], 3, beats_on_starting_measure=5
         )
         assert extension == [3]
+
+
+def load_beat_timeline(tls, beats_in_measure, measure_numbers):
+    """A beat timeline as TiLiA loads it from a file, with a beat every second
+    from 1 s."""
+    components = {
+        i: {"kind": "BEAT", "time": i + 1} for i in range(sum(beats_in_measure))
+    }
+    return tls.create_timeline(
+        BeatTimeline,
+        components,
+        beats_in_measure=beats_in_measure,
+        measure_numbers=measure_numbers,
+    )
+
+
+class TestGetTimeByMeasureEachPass:
+    """One time for each pass through a measure, at the fraction of that pass's
+    own beats."""
+
+    def test_last_measure_between_its_beats(self, tls):
+        beat_tl = load_beat_timeline(tls, [4, 4], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 0.5) == [7]
+        assert beat_tl.get_time_by_measure(2, 0.75) == [8]
+
+    def test_passes_with_different_beat_counts(self, tls):
+        beat_tl = load_beat_timeline(tls, [4, 4, 3, 4, 2], [1, 2, 1, 2, 3])
+
+        assert beat_tl.get_time_by_measure(1, 0.5) == [3, 10.5]
+
+    def test_passes_with_different_beat_counts_between_beats(self, tls):
+        beat_tl = load_beat_timeline(tls, [4, 4, 3, 4, 2], [1, 2, 1, 2, 3])
+
+        assert beat_tl.get_time_by_measure(1, 0.4) == pytest.approx([2.6, 10.2])
+
+    def test_fraction_between_beats_is_not_rounded(self, tls):
+        beat_tl = load_beat_timeline(tls, [3, 1], [1, 2])
+
+        assert beat_tl.get_time_by_measure(1, 0.5) == [2.5]
+
+    def test_measure_that_does_not_exist(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2, 2], [1, 2, 4, 5])
+
+        assert beat_tl.get_time_by_measure(3) == []
+        assert beat_tl.get_time_by_measure(3, 0.5) == []
+        assert beat_tl.get_time_by_measure(3, 0, True) == []
+        assert beat_tl.get_time_by_measure(6, 0, True) == []
+
+    def test_fraction_1_is_next_downbeat_only_if_next_measure_number_follows(self, tls):
+        beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 2, 3, 4])
+
+        assert beat_tl.get_time_by_measure(1, 1) == [3]
+        assert beat_tl.get_time_by_measure(3, 1) == [11]
+
+    def test_fraction_1_at_segment_end_is_end_of_each_pass(self, tls):
+        beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 2, 3, 4])
+
+        assert beat_tl.get_time_by_measure(1, 1, True) == [3]
+        assert beat_tl.get_time_by_measure(3, 1, True) == [7, 11]
+
+    def test_last_pass_projects_past_last_beat(self, tls):
+        beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 1, 2, 1])
+
+        assert beat_tl.get_time_by_measure(1, 0.75) == [2.5, 8.5, 12.5]
+        assert beat_tl.get_time_by_measure(1, 1, True) == [3, 9, 13]
+
+    def test_segment_end_on_downbeat_includes_end_of_previous_measure(self, tls):
+        beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 1, 2, 1])
+
+        assert beat_tl.get_time_by_measure(3, 0, True) == [5, 11]
+
+    def test_segment_end_on_downbeat_after_passes_with_different_beat_counts(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2, 3, 2], [1, 2, 1, 2, 3])
+
+        assert beat_tl.get_time_by_measure(3, 0, True) == [5, 10]
+
+    def test_one_beat(self, tls):
+        beat_tl = load_beat_timeline(tls, [1], [0])
+
+        assert beat_tl.get_time_by_measure(0) == [1]
+        assert beat_tl.get_time_by_measure(0, 0, True) == [1]
+        assert beat_tl.get_time_by_measure(0, 0.5) == []
+        assert beat_tl.get_time_by_measure(0, 1) == []
+        assert beat_tl.get_time_by_measure(0, 1, True) == []
