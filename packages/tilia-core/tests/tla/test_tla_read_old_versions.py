@@ -640,6 +640,17 @@ def test_the_amplitude_bars_dont_change_the_document_id():
 
 
 @pytest.mark.parametrize(
+    "change",
+    [set_key(*HIERARCHY, "metadata", {}), set_key(*UNIT, "metadata", {})],
+    ids=["timeline", "component"],
+)
+def test_an_empty_metadata_is_left_out_of_the_document_id(change):
+    # As the writer leaves it out. No TiLiA version writes a timeline's or a
+    # component's metadata: only a file made by hand has an empty one.
+    assert loads(edited(change)).document_id == loads(old_file_content()).document_id
+
+
+@pytest.mark.parametrize(
     "changes",
     [
         [set_key(*UNIT, "label", "Development")],
@@ -715,6 +726,25 @@ def test_old_ids_that_arent_integers_sort_after_the_others_in_their_order():
     doc = loads(content)
     components = list(by_kind(doc, "hierarchy").components.values())
     assert [c.attrs["start"] for c in components] == [1, 2, 0]
+
+
+def test_old_timeline_ids_that_arent_integers_sort_after_the_others_in_order():
+    content = old_file_content()
+    hierarchy, marker = content["timelines"]["1"], content["timelines"]["3"]
+    content["timelines"] = {
+        "b": hierarchy,
+        "7": {**copy.deepcopy(marker), "name": "Seven", "ordinal": 3},
+        "a": marker,
+    }
+    doc = loads(content)
+    # Each takes its position in the file, which only the ids of old ids
+    # that aren't integers depend on.
+    assert list(doc.timelines) == [
+        migrated_id(doc.document_id, "timeline", "7", position=1),
+        migrated_id(doc.document_id, "timeline", "b", position=0),
+        migrated_id(doc.document_id, "timeline", "a", position=2),
+    ]
+    assert [tl.name for tl in doc.timelines.values()] == ["Seven", "Form", "Cadences"]
 
 
 # Versions
@@ -1486,6 +1516,12 @@ RANGE = ("timelines", "9")
             ("1", "height"),
             '"height" should be an integer, not text',
         ),
+        # Not a number to the core, though TiLiA 0.7 reads it as no height.
+        (
+            [set_key(*HIERARCHY, "height", False)],
+            ("1", "height"),
+            '"height" should be an integer, not true or false',
+        ),
         (
             [set_key(*MARKER, "time", "3")],
             ("3", "components", "4", "time"),
@@ -1555,6 +1591,32 @@ def test_old_files_have_no_warnings_but_the_migrations(old_file):
     for warning in doc.warnings:
         timeline = warning.place.split("/")[2]
         assert timeline in content["timelines"]
+
+
+# Ranges
+
+
+def test_a_joined_right_written_as_an_integer_follows_the_new_ids():
+    # TiLiA writes it as text: range timelines came with TiLiA 0.7.0, whose
+    # ids are text. Only a file edited by hand has an integer.
+    doc = loads(edited(with_range(joined_right=11)))
+    first = migrated_id(doc.document_id, "component", "9", "10", position=0)
+    second = migrated_id(doc.document_id, "component", "9", "11", position=1)
+    ranges = by_kind(doc, "range").components
+    assert ranges[first].attrs["joined_right"] == second
+
+
+def rows(*rows):
+    return set_key(*RANGE, "rows", list(rows))
+
+
+def test_a_row_at_its_defaults_is_left_out_of_the_document_id():
+    # TiLiA 0.7 writes every row's color and height, null when unset.
+    written = loads(edited(with_range())).document_id
+    left_out = edited(with_range(), rows({"id": "r", "name": "Row"}))
+    assert loads(left_out).document_id == written
+    coloured = edited(with_range(), rows({"id": "r", "name": "Row", "color": "#f00"}))
+    assert loads(coloured).document_id != written
 
 
 def test_a_missing_app_name_is_tilias():
