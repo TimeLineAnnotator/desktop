@@ -666,6 +666,15 @@ class TestPatternWithTimeSignatures:
         assert timeline.beats_in_measure == [4, 3, 4, 3]
         assert time_signatures(timeline) == [("4", 4), ("3", 4), ("4", 4), ("3", 4)]
 
+    def test_a_time_signature_set_by_hand_carries_on_while_tapping(self, tluis):
+        add_beat_timeline_with_pattern("2/4")
+        add_beats(range(4))
+        set_beat_unit(tluis[0], 1, 8, "3")
+
+        add_beats(range(4, 6))
+
+        assert time_signatures(tluis[0].timeline) == [("2", 4), ("6", 8), ("6", 8)]
+
     def test_numbers_of_beats_alone_are_assumed(self, tluis):
         add_beat_timeline_with_pattern("3")
         add_beats(range(6))
