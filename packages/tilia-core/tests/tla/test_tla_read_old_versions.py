@@ -1411,6 +1411,152 @@ def test_a_display_position_that_isnt_an_integer_is_refused(value):
     assert error.value.message == "expected an integer at /timelines/1/display_position"
 
 
+# The migrated content, checked as a file of the current format is (FR-053):
+# its places are the migrated document's, with the new ids, and have no line.
+
+
+def migrated_place(content, timeline, *rest):
+    """The place in the migrated document of what the old file has under
+    timeline `timeline` and, when `rest` starts with "components", under its
+    component `rest[1]`."""
+    document_id = to_1.migrate(copy.deepcopy(content)).content["document_id"]
+    timelines = list(content["timelines"])
+    steps = [
+        "timelines",
+        migrated_id(
+            document_id, "timeline", timeline, position=timelines.index(timeline)
+        ),
+    ]
+    if rest[:1] == ("components",):
+        component = rest[1]
+        components = list(content["timelines"][timeline]["components"])
+        steps += [
+            "components",
+            migrated_id(
+                document_id,
+                "component",
+                timeline,
+                component,
+                position=components.index(component),
+            ),
+        ]
+        rest = rest[2:]
+    return "/" + "/".join([*steps, *rest])
+
+
+def with_range(**first):
+    """A range timeline "9" with one row and two ranges, "10" with the keys
+    `first` and "11" after it, as TiLiA 0.7.0 writes them."""
+
+    def change(content):
+        content["version"] = "0.7.0"
+        content["timelines"]["9"] = {
+            "kind": "Range",
+            "name": "Rows",
+            "ordinal": 3,
+            "height": 1,
+            "rows": [{"id": "r", "name": "Row", "color": None, "height": None}],
+            "components": {
+                "10": {"kind": "RANGE", "start": 0, "end": 1, "row_id": "r", **first},
+                "11": {"kind": "RANGE", "start": 1, "end": 2, "row_id": "r"},
+            },
+        }
+
+    return change
+
+
+RANGE = ("timelines", "9")
+
+
+@pytest.mark.parametrize(
+    "changes, place, message",
+    [
+        (
+            [set_key(*HIERARCHY, "ordinal", None)],
+            ("1", "ordinal"),
+            '"ordinal" should be an integer, not null',
+        ),
+        (
+            [set_key(*HIERARCHY, "ordinal", "1")],
+            ("1", "ordinal"),
+            '"ordinal" should be an integer, not text',
+        ),
+        (
+            [set_key(*HIERARCHY, "height", "x")],
+            ("1", "height"),
+            '"height" should be an integer, not text',
+        ),
+        (
+            [set_key(*MARKER, "time", "3")],
+            ("3", "components", "4", "time"),
+            '"time" should be a number, not text',
+        ),
+        (
+            [with_range(), set_key(*RANGE, "rows", {"a": 1})],
+            ("9", "rows"),
+            '"rows" should be a list, not an object',
+        ),
+        (
+            [with_range(joined_right="99")],
+            ("9", "components", "10", "joined_right"),
+            '"joined_right" isn\'t a UUID: "99"',
+        ),
+        (
+            [with_range(row_id="s")],
+            ("9", "components", "10", "row_id"),
+            'a range names row "s", which its timeline doesn\'t have',
+        ),
+    ],
+)
+def test_the_migrated_content_is_checked(changes, place, message):
+    content = edited(*changes)
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(content)
+    assert error.value.message == message
+    assert error.value.place == migrated_place(content, *place)
+    assert error.value.line is None
+
+
+def test_the_checks_warnings_come_after_the_migrations():
+    content = old_file_content()
+    content["timelines"]["1"]["components"]["2"]["formal_type"] = "sonata form"
+    content["timelines"]["1"]["components"]["5"] = {"kind": "MARKER", "time": 1}
+    doc = loads(content)
+    assert [(w.place, w.line, w.message) for w in doc.warnings] == [
+        (
+            "/timelines/1/components/2/formal_type",
+            None,
+            'formal_type "sonata form" dropped',
+        ),
+        (
+            migrated_place(content, "1", "components", "5"),
+            None,
+            'the timeline "Form" holds a component of kind "MARKER", which a'
+            ' timeline of kind "Hierarchy" doesn\'t have: it is kept as it is',
+        ),
+    ]
+
+
+def test_an_integer_written_with_a_fraction_is_read_as_one():
+    # As in a file of the current format: the check makes it an integer.
+    doc = loads(
+        edited(set_key(*HIERARCHY, "ordinal", 1.0), set_key(*UNIT, "level", 1.0))
+    )
+    hierarchy = by_kind(doc, "hierarchy")
+    assert type(hierarchy.ordinal) is int
+    (unit,) = hierarchy.components.values()
+    assert type(unit.attrs["level"]) is int
+
+
+def test_old_files_have_no_warnings_but_the_migrations(old_file):
+    # Every place a warning names is in the old file, with its old ids.
+    doc = tla.read(old_file)
+    content = content_of(old_file)
+    for warning in doc.warnings:
+        timeline = warning.place.split("/")[2]
+        assert timeline in content["timelines"]
+
+
 def test_a_missing_app_name_is_tilias():
     doc = loads(edited(remove_key("app_name")))
     assert doc.app_name == "TiLiA"
