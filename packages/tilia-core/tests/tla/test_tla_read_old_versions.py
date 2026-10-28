@@ -970,6 +970,79 @@ def test_icons_of_what_isnt_a_clef_stay():
     assert component.extra == {"icon": "staff.svg"}
 
 
+# The height TiLiA 0.7.0 gives a timeline whose file has none
+# (`Timeline.__init__`: `height or self.default_height or 1`): its kind's
+# default height as TiLiA 0.7.0 ships its settings, or 1 for a kind without
+# one. TimeLineAnnotator/project-management#312.
+TILIA_0_7_HEIGHTS = {
+    "slider": 40,
+    "hierarchy": 120,
+    "marker": 30,
+    "beat": 35,
+    "pdf": 30,
+    "audiowave": 80,
+    "score": 1,
+    "range": 1,
+}
+MISSING = object()
+
+
+def with_timeline_of_kind(kind, height=MISSING):
+    def change(content):
+        timeline = {"kind": TIMELINE_KINDS[kind], "name": "Added", "ordinal": 3}
+        if height is not MISSING:
+            timeline["height"] = height
+        if kind == "range":
+            timeline["rows"] = []
+        if kind == "pdf":
+            timeline["path"] = ""
+        timeline["components"] = {}
+        content["timelines"]["9"] = timeline
+
+    return change
+
+
+def added(doc):
+    return next(tl for tl in doc.timelines.values() if tl.name == "Added")
+
+
+@pytest.mark.parametrize(
+    "height", [MISSING, None, 0, 0.0], ids=["missing", "null", "0", "0.0"]
+)
+@pytest.mark.parametrize("kind", list(TILIA_0_7_HEIGHTS))
+def test_a_timeline_without_a_height_gets_tilia_0_7s(kind, height):
+    # TiLiA 0.7 reads a null or 0 as no height.
+    doc = loads(edited(with_timeline_of_kind(kind, height)))
+    assert added(doc).kind == kind
+    assert added(doc).attrs["height"] == TILIA_0_7_HEIGHTS[kind]
+    assert doc.warnings == []
+
+
+@pytest.mark.parametrize("kind", list(TILIA_0_7_HEIGHTS))
+def test_a_filled_in_height_keeps_the_id_of_tilia_0_7s_save(kind):
+    # Saved again by TiLiA 0.7, the file has the height filled in.
+    filled = loads(edited(with_timeline_of_kind(kind))).document_id
+    saved = loads(edited(with_timeline_of_kind(kind, TILIA_0_7_HEIGHTS[kind])))
+    other = loads(edited(with_timeline_of_kind(kind, TILIA_0_7_HEIGHTS[kind] + 1)))
+    assert filled == saved.document_id != other.document_id
+
+
+@pytest.mark.parametrize("height", [1, 7, 25, 35.0, -5])
+def test_a_height_is_kept_as_it_is(height):
+    doc = loads(edited(with_timeline_of_kind("beat", height)))
+    assert added(doc).attrs["height"] == height
+
+
+def test_a_harmony_timeline_gets_no_height():
+    # Its levels have one.
+    doc = loads(edited(with_harmony()))
+    written = json.loads(tla.canonical_bytes(doc))
+    harmony = next(
+        tl for tl in written["timelines"].values() if tl["kind"] == "Harmony"
+    )
+    assert "height" not in harmony
+
+
 def with_slider(content):
     content["timelines"]["0"] = {
         "kind": "Slider",

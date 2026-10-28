@@ -5,10 +5,11 @@ file: each function makes one change, and applies to the files below its
 target version. Then the changes TiLiA 0.7 makes to any old file when it
 opens it, and so writes when it saves the file again without an edit:
 hierarchies lose `parent` and `children`, which TiLiA before 0.5.6 wrote and
-TiLiA now computes from levels and times, and clef icons lose `.svg`. After
-them, every old file has TiLiA 0.7.0's shape, so that a file saved again by
-TiLiA 0.7 without an edit is migrated to the same content. The core doesn't
-import the app, so all of this is copied here.
+TiLiA now computes from levels and times, clef icons lose `.svg`, and a
+timeline without a height gets its kind's. After them, every old file has
+TiLiA 0.7.0's shape, so that a file saved again by TiLiA 0.7 without an edit
+is migrated to the same content. The core doesn't import the app, so all of
+this is copied here.
 
 One difference: TiLiA 0.1.1, as released, still wrote `display_position`,
 and TiLiA's migration, which applies below 0.1.1, leaves its files without
@@ -72,12 +73,40 @@ def _timeline_kind(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+# The height TiLiA 0.7.0 gives a timeline whose file has none, by kind: its
+# `default_height` setting as TiLiA 0.7.0 ships it (`tilia/settings.py`),
+# never a user's. Score and range timelines have no `default_height` in TiLiA
+# 0.7.0, so they get 1; a harmony timeline has no height of its own: its
+# levels have one.
+TILIA_0_7_HEIGHTS: dict[str, int] = {
+    "slider": 40,
+    "hierarchy": 120,
+    "marker": 30,
+    "beat": 35,
+    "pdf": 30,
+    "audiowave": 80,
+    "score": 1,
+    "range": 1,
+}
+
+
+def _no_height(height: Any) -> bool:
+    """Whether TiLiA 0.7 reads `height` as no height: missing, null or 0."""
+    if isinstance(height, bool):
+        return False  # not a number to the core: refused when checked
+    return height is None or (isinstance(height, (int, float)) and height == 0)
+
+
 def _as_tilia_0_7_opens_it(data: dict[str, Any]) -> dict[str, Any]:
     """Make the changes TiLiA 0.7 makes to an old file when it opens it:
-    hierarchies' `parent` and `children` dropped, clef icons without `.svg`.
-    Components that aren't objects are left for the migration to refuse."""
+    hierarchies' `parent` and `children` dropped, clef icons without `.svg`,
+    and a height for a timeline without one, as `Timeline.__init__` gives it
+    (`height or self.default_height or 1`). Components that aren't objects
+    are left for the migration to refuse."""
     for timeline in data.get("timelines", {}).values():
         kind = timeline_kind_from_file(timeline.get("kind", ""))
+        if kind in TILIA_0_7_HEIGHTS and _no_height(timeline.get("height")):
+            timeline["height"] = TILIA_0_7_HEIGHTS[kind]
         components = timeline.get("components")
         if kind not in ("hierarchy", "score") or not isinstance(components, dict):
             continue
