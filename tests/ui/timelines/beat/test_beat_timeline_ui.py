@@ -521,9 +521,9 @@ class TestEditBarsDialog:
 
     def test_a_bar_with_another_number_of_beats_has_a_row_of_its_own(self, tluis):
         add_beat_timeline_with_pattern("4/4")
-        add_beats(range(12))
+        add_beats(range(11))
         tluis[0].select_element(tluis[0][5])
-        commands.execute("timeline.component.delete")
+        commands.execute("timeline.beat.set_amount_in_measure", amount=3)
         seen = {}
 
         def record(dialog):
@@ -544,9 +544,9 @@ class TestEditBarsDialog:
 
     def test_correcting_a_bar_moves_the_later_bars(self, tluis):
         add_beat_timeline_with_pattern("4/4")
-        add_beats(range(12))
-        # A tap too many in the first bar.
-        add_beats([0.5])
+        add_beats(range(13))
+        tluis[0].select_element(tluis[0][0])
+        commands.execute("timeline.beat.set_amount_in_measure", amount=5)
         assert tluis[0].timeline.beats_in_measure == [5, 4, 4]
 
         with undoable():
@@ -787,7 +787,7 @@ class TestCreateDeleteBeat:
         assert get_displayed_measure_number(beat_tlui[0]) == "1"
         assert get_displayed_measure_number(beat_tlui[1]) == "2"
 
-    def test_create_in_a_measure_keeps_the_next_measures_numbers(self, beat_tlui):
+    def test_create_in_a_measure_moves_the_later_barlines(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [1]
         settings.set("beat_timeline", "display_measure_periodicity", 1)
         beat_tlui.create_beat(0)
@@ -797,11 +797,12 @@ class TestCreateDeleteBeat:
         commands.execute("media.seek", 0.5)
         commands.execute("timeline.beat.add")
 
+        # Each measure keeps its one beat.
         assert [get_displayed_measure_number(beat) for beat in beat_tlui] == [
             "1",
-            "",
             "2",
             "3",
+            "4",
         ]
 
     def test_create_after_the_last_beat_numbers_the_new_measure(self, beat_tlui):
@@ -818,6 +819,46 @@ class TestCreateDeleteBeat:
             "2",
             "3",
         ]
+
+    def test_deleting_a_stray_tap_puts_the_later_barlines_back(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        # A stray tap at 1.5 makes every later bar start a beat early.
+        add_beats([0, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        timeline = tluis[0].timeline
+        assert [b.time for b in timeline if b.is_first_in_measure] == [0, 3, 7, 11]
+
+        tluis[0].select_element(tluis[0][2])
+        with undoable():
+            commands.execute("timeline.component.delete")
+
+        assert [b.time for b in timeline if b.is_first_in_measure] == [0, 4, 8]
+        assert timeline.beats_in_measure == [4, 4, 4]
+
+    def test_adding_a_missed_tap_puts_the_later_barlines_back(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        # Without a tap at 2, every later bar starts a beat late.
+        add_beats([0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        timeline = tluis[0].timeline
+        assert [b.time for b in timeline if b.is_first_in_measure] == [0, 5, 9]
+
+        with undoable():
+            add_beats([2])
+
+        assert [b.time for b in timeline if b.is_first_in_measure] == [0, 4, 8]
+
+    def test_a_time_signature_moves_with_its_bar(self, tluis):
+        add_beat_timeline_with_pattern("2[2/4] 6/8(3 3)")
+        add_beats(range(7))
+        timeline = tluis[0].timeline
+        assert time_signatures(timeline) == [("2", 4), ("2", 4), ("6", 8), ("1", 4)]
+
+        tluis[0].select_element(tluis[0][1])
+        with undoable():
+            commands.execute("timeline.component.delete")
+
+        assert time_signatures(timeline) == [("2", 4), ("2", 4), ("6", 8)]
+        assert timeline.get_beat_unit_on_beat(timeline[4].id).denominator == 8
+        assert not any(meter.is_conflicting for meter in timeline.measure_meters)
 
 
 class TestSelect:
