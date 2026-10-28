@@ -212,3 +212,24 @@ def test_a_write_that_expects_nothing_checks_nothing(piece):
     doc = edited()
     tla.write(piece, doc)
     assert piece.read_bytes() == tla.canonical_bytes(doc)
+
+
+# A document the reader would refuse.
+
+
+@pytest.mark.parametrize("expect", ["0" * 64, tla.ABSENT], ids=["other", "ABSENT"])
+def test_a_document_the_reader_would_refuse_is_refused_before_the_file_is_compared(
+    piece, expect
+):
+    # Whatever the file on disk holds, the caller learns what is wrong with
+    # the document, with the path it gave, and nothing is written.
+    before = piece.read_bytes()
+    doc = edited()
+    doc.document_id = "piece-1"
+    with pytest.raises(tla.UnreadableFile) as caught:
+        tla.write(piece, doc, expect=expect)
+    assert caught.value.place == "/document_id"
+    assert caught.value.path == piece
+    assert str(caught.value).startswith("piece.tla, line ")
+    assert piece.read_bytes() == before
+    assert listing(piece.parent) == ["piece.tla"]
