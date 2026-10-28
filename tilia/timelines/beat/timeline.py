@@ -968,7 +968,8 @@ class BeatTimeline(Timeline):
         """
         Gives the measures from `from_measure` on the beat units the pattern
         plans for them, replacing theirs: one on the first beat of each
-        measure whose planned time signature differs from the one before.
+        measure where the pattern's time signature changes. Where it
+        doesn't, a time signature set on an earlier measure carries on.
         Does nothing when the pattern gives no time signatures.
         """
         measures = self.measures
@@ -977,8 +978,8 @@ class BeatTimeline(Timeline):
 
         previous = None
         if from_measure:
-            meter = self.get_measure_meter(from_measure - 1)
-            previous = (meter.denominator, meter.units, meter.is_assumed)
+            bar = self.get_planned_bar(from_measure - 1)
+            previous = (bar.denominator, bar.units, bar.assumed)
 
         beats = self.components
         planned: dict[int | str, tuple[int, str, bool]] = {}
