@@ -369,22 +369,11 @@ def test_the_s4_file_keeps_its_youtube_link_and_fields():
 # Saved again by TiLiA 0.7 without an edit
 
 
-@pytest.mark.parametrize(
-    "pair",
-    [
-        pytest.param(
-            PAIRS[0],
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason="TiLiA 0.7 fills the beat timeline's empty lists, as the"
-                " fitting of TimeLineAnnotator/project-management#181 will",
-            ),
-        ),
-        PAIRS[1],
-    ],
-    ids=lambda pair: pair[0],
-)
+@pytest.mark.parametrize("pair", PAIRS, ids=lambda pair: pair[0])
 def test_a_save_by_tilia_0_7_without_an_edit_keeps_the_ids(pair):
+    # TiLiA 0.7 fills the 0.0.96 file's empty beat lists when it saves it
+    # again; the migration fits both files' lists to their beats as TiLiA
+    # does, so they give the same marks.
     first, saved = (tla.read(OLD / name) for name in pair)
     assert first.document_id == saved.document_id
     assert tla.canonical_bytes(first) == tla.canonical_bytes(saved)
@@ -392,8 +381,7 @@ def test_a_save_by_tilia_0_7_without_an_edit_keeps_the_ids(pair):
 
 def with_beat_lists_filled(content):
     """The old file with its beat timeline's empty lists filled, as TiLiA 0.7
-    fills them when it opens the file, and as the migration will fit them
-    (TimeLineAnnotator/project-management#181)."""
+    fills them when it opens the file, and as the migration fits them."""
     content = copy.deepcopy(content)
     for timeline in content["timelines"].values():
         if timeline["kind"] == "BEAT_TIMELINE" and not timeline["beats_in_measure"]:

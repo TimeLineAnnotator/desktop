@@ -14,7 +14,9 @@ takes it to the current format:
   non-empty value with a warning, and AudioWave timelines' amplitude bars,
   which TiLiA computes from the media, with one warning per timeline;
 - a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
-  `[4, 4, 3]` becomes `"4 4 3"`;
+  `[4, 4, 3]` becomes `"4 4 3"`; its lists by measure, fitted to its beats
+  as TiLiA fits them, become marks on its downbeats, and desktop#621's beat
+  units move onto their beats (`beats`);
 - a `pre_start` or `post_end` equal to its `start` or `end` is left unset,
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
@@ -44,6 +46,7 @@ from tilia_core.tla.layout import (
     Shape,
     pointer_to,
 )
+from tilia_core.tla.migrate import beats
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.model import (
     ReadWarning,
@@ -98,6 +101,7 @@ def migrate(
     migration.check(old)
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
+    beats.convert(old, content, migration.warnings, migration.changes)
     # With the old ids still in place, the beat timelines' measures
     # (TimeLineAnnotator/project-management#181), the legacy scores
     # (TimeLineAnnotator/project-management#182) and the comments' marks
