@@ -175,6 +175,20 @@ def test_an_integer_given_as_a_float_at_its_default_is_left_out():
     assert "step" not in content["timelines"][harmony.id]["components"][chord.id]
 
 
+class _Float(float):
+    """A float of a type of its own, as NumPy's float64 is."""
+
+
+def test_a_whole_float_of_another_type_at_its_default_is_left_out():
+    # As a float is: read back, it would be the integer 0 (FR-051a).
+    doc = tla.read(EVERY_KIND)
+    harmony = named(doc, "Harmony")
+    chord = nth(harmony, 0)
+    chord.attrs["step"] = _Float(0.0)
+    content = json.loads(tla.canonical_bytes(doc))
+    assert "step" not in content["timelines"][harmony.id]["components"][chord.id]
+
+
 @pytest.mark.parametrize(
     "key, derived_from", [("pre_start", "start"), ("post_end", "end")]
 )
