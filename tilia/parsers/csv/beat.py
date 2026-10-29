@@ -186,14 +186,17 @@ def beats_from_csv(
         else:
             changes.append(change)
 
-    for index, (measure_index, text, row) in enumerate(changes):
-        if index + 1 < len(changes):
-            stop = changes[index + 1][0]
-        else:
-            stop = timeline.measure_count
-        error = timeline.set_time_signature(text, measure_index, stop)
-        if error:
-            errors.append(f"{row}: '{text}' is not a valid time signature. {error}")
+    # The time signatures are drawn once, when the measures are refreshed.
+    with timeline.component_manager.bulk():
+        for index, (measure_index, text, row) in enumerate(changes):
+            if index + 1 < len(changes):
+                stop = changes[index + 1][0]
+            else:
+                stop = timeline.measure_count
+            error = timeline.set_time_signature(text, measure_index, stop)
+            if error:
+                errors.append(f"{row}: '{text}' is not a valid time signature. {error}")
+    timeline.refresh_measures()
 
     return True, errors
 

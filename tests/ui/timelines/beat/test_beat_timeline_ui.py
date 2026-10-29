@@ -1,6 +1,7 @@
 import json
 from fractions import Fraction as F
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 from PySide6.QtCore import Qt
@@ -3203,3 +3204,23 @@ class TestManyBeats:
 
         assert len(tluis[0].timeline) == 2100
         assert tluis[0].timeline.beats_in_measure == [4] * 525
+
+    @pytest.mark.timeout(15)
+    def test_importing_many_time_signatures_from_csv(self, tluis, tilia_state):
+        tilia_state.set_duration(10000, scale_timelines="no")
+        add_beat_timeline_with_pattern("4")
+        rows = ["time,is_first_in_measure,time_signature"]
+        for time in range(2000):
+            if time % 4:
+                rows.append(f"{time},,")
+            else:
+                rows.append(f"{time},True,{('4/4', '2/2')[time // 4 % 2]}")
+
+        with (
+            Serve(Get.FROM_USER_FILE_PATH, (True, Path())),
+            patch("builtins.open", mock_open(read_data="\n".join(rows))),
+        ):
+            commands.execute("timelines.import.beat")
+
+        assert tluis[0].timeline.beats_in_measure == [4] * 500
+        assert len(all_labels(tluis[0])) == 500
