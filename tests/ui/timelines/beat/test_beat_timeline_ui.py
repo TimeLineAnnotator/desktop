@@ -30,8 +30,9 @@ from tests.utils import (
 )
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
+from tilia.timelines.beat.pattern import PlannedBar, format_planned_bar
 from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.beat.units import format_units
+from tilia.timelines.beat.units import fit_units, format_units, parse_units
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
@@ -1735,12 +1736,25 @@ def set_beat_unit(
     timeline_ui, measure_index, denominator, units, only_this_measure=False
 ):
     """
-    Gives a measure a beat unit, as editing its time signature in the
-    inspector does, and records the state, so it can be undone.
+    Gives a measure the beat unit `denominator` and `units`, which carries on
+    until the next one, or, with `only_this_measure`, sets the time signature
+    that has them on that measure only, as the inspector does. Records the
+    state, so it can be undone.
     """
-    timeline_ui.timeline.set_beat_unit(
-        measure_index, denominator, units, only_this_measure
-    )
+    timeline = timeline_ui.timeline
+    if only_this_measure:
+        values = fit_units(
+            parse_units(units).units, timeline.beats_in_measure[measure_index]
+        )
+        text = format_planned_bar(PlannedBar.from_values(values, denominator))
+        assert timeline.set_time_signature(text, measure_index, measure_index + 1) == ""
+    else:
+        meter = timeline.get_measure_meter(measure_index)
+        if meter.starts_here:
+            beat_id = meter.beat_unit_id
+        else:
+            beat_id = timeline[timeline.beats_that_start_measures[measure_index]].id
+        timeline.put_beat_unit_on_beat(beat_id, denominator, units)
     post(Post.APP_STATE_RECORD, "set beat unit")
 
 
