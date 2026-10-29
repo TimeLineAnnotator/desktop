@@ -20,6 +20,7 @@ from tilia_core.tla.model import (
     UnknownKind,
 )
 from tilia_core.tla.layout import FORMAT_VERSION, schema
+from tilia_core.tla.media import media  # the function, in place of its module
 from tilia_core.tla.reader import loads, read
 from tilia_core.tla.writer import (
     ABSENT,
@@ -56,6 +57,7 @@ __all__ = [
     "fingerprint_of",
     "is_temporary",
     "loads",
+    "media",
     "new_document",
     "new_id",
     "read",

@@ -1237,8 +1237,10 @@ def test_no_media_length_is_none():
     assert doc.media_length is None
 
 
-def test_the_media_path_is_kept_and_a_missing_one_is_empty():
-    assert loads(old_file_content()).media_path == "C:/Users/someone/corpus/piece.mp3"
+def test_the_media_path_is_made_relative_and_a_missing_one_is_empty():
+    # Relative from the old file_path's folder: the other cases are in
+    # test_tla_migrate_media.py.
+    assert loads(old_file_content()).media_path == "piece.mp3"
     assert loads(edited(remove_key("media_path"))).media_path == ""
 
 
