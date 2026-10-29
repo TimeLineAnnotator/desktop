@@ -242,6 +242,16 @@ def test_a_comment_left_empty_is_left_out_of_the_file():
     assert component["metadata"] == {"tags": ["check"], "generated_by": "group/A"}
 
 
+def test_a_comment_left_empty_is_left_out_of_the_migrated_content():
+    # As every attribute at its default is, before the document id is
+    # derived from that content.
+    migrated = to_1.migrate(old_file("tag=check gen=group/A"))
+    (timeline,) = migrated.content["timelines"].values()
+    (component,) = timeline["components"].values()
+    assert "comments" not in component
+    assert component["metadata"] == {"tags": ["check"], "generated_by": "group/A"}
+
+
 def test_a_migrated_file_reads_back_with_its_fields():
     doc = loads(old_file("Nice. tag=check gen=group/A"))
     data = tla.canonical_bytes(doc)
@@ -420,6 +430,20 @@ def test_the_document_id_changes_with_the_marks():
         for comments in ("x", "x tag=check", "x tag=other", "x gen=group/A")
     }
     assert len(ids) == 4
+
+
+@pytest.mark.parametrize(
+    "comments", ["tag=check gen=group/A", "x tag=check gen=group/A"]
+)
+def test_the_document_id_is_that_of_the_marks_as_fields(comments):
+    # A file whose marks are already fields, as only a hand-edited one can
+    # be, gets the same id: it is derived from the migrated content.
+    fields = old_file(comments.removesuffix("tag=check gen=group/A").rstrip())
+    fields["timelines"]["1"]["components"]["2"]["metadata"] = {
+        "tags": ["check"],
+        "generated_by": "group/A",
+    }
+    assert loads(old_file(comments)).document_id == loads(fields).document_id
 
 
 # The split itself
