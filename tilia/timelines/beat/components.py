@@ -168,11 +168,6 @@ class BeatUnit(TimelineComponent):
             value = format_units(parse_units(value).units)
         return super().set_data(attr, value)
 
-    @classmethod
-    def get_export_attributes(cls) -> list[str]:
-        # Like Staff, a beat unit has no time of its own to export.
-        return cls.SERIALIZABLE
-
     @property
     def ordinal(self) -> tuple[float, str]:
         # Sorts after every beat (whose ordinal is its time), so beat units

@@ -32,7 +32,12 @@ from tilia.timelines.beat.measures import (
     fit_legacy_lists,
     get_extension_from_beat_pattern,
 )
-from tilia.timelines.beat.pattern import PlannedBar, parse
+from tilia.timelines.beat.pattern import (
+    PlannedBar,
+    format_taps,
+    format_time_signature,
+    parse,
+)
 from tilia.timelines.beat.units import (
     DEFAULT_DENOMINATOR,
     DEFAULT_UNITS,
@@ -861,22 +866,29 @@ class BeatTimeline(Timeline):
         return meters
 
     def get_export_data(self) -> dict[str, Any]:
-        # Beat units are kept apart from beats in the component manager, so
-        # the base export, which iterates it, only sees beats. They have no
-        # time of their own; their beat's time and measure are added so the
-        # export reads without looking the beat up.
+        """
+        The beats, then a time signature at each measure where it or its
+        taps change, as the bars dialog lists them. Beat units, which store
+        them, aren't exported: the base export iterates the component
+        manager, which keeps them apart from beats.
+        """
         result = super().get_export_data()
-        for beat_unit in self.beat_units:
-            beat = self.get_component(beat_unit.beat_id)
-            measure_index, _ = self.get_measure_index(self.get_beat_index(beat))
-            data = {
-                attr: getattr(beat_unit, attr)
-                for attr in beat_unit.get_export_attributes()
-            }
-            data["time"] = beat.time
-            data["measure"] = self.measure_numbers[measure_index]
-            data["kind"] = beat_unit.KIND.name
-            result["components"].append(data)
+        previous = None
+        bars = self.get_measures_as_planned_bars()
+        for measure_index, bar in enumerate(bars):
+            if bar == previous:
+                continue
+            previous = bar
+            result["components"].append(
+                {
+                    "time": self._get_first_beat_of_measure(measure_index).time,
+                    "measure": self.measure_numbers[measure_index],
+                    "time_signature": format_time_signature(bar),
+                    "taps": format_taps(bar),
+                    "assumed": bar.assumed,
+                    "kind": "TIME_SIGNATURE",
+                }
+            )
         return result
 
     def set_beat_unit(
