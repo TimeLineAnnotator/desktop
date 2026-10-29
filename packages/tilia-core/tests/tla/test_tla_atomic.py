@@ -39,7 +39,9 @@ def listing(folder):
 
 
 def edited(note="edited"):
-    doc = tla.read(EVERY_KIND)
+    # Read from nowhere, so that its relative media paths are written as they
+    # are into any folder (FR-033).
+    doc = tla.loads(EVERY_KIND.read_bytes())
     doc.metadata["note"] = note
     return doc
 
