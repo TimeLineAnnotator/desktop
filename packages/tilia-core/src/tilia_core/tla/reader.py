@@ -102,6 +102,8 @@ def _old(
         ReadWarning(place=place, line=lines[place], message=message)
         for place, message in named
     ]
+    document._migration_changes = migrated.changes
+    document._migration_warnings = document.warnings[: len(migrated.warnings)]
     return document
 
 

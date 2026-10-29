@@ -297,6 +297,18 @@ class Document:
     warnings: list[ReadWarning] = field(default_factory=list)
     origin: Path | None = None  # where it was read from
 
+    # For a document read from an old file: what the migration dropped or
+    # changed, counted as a migration report counts it, and the migration's
+    # own warnings among `warnings`, which those counts sum up. The reader
+    # sets them, for `migrate_folder`. Fields, so that dataclasses.replace
+    # keeps them, but not shown or compared.
+    _migration_changes: dict[str, int] = field(
+        default_factory=dict, repr=False, compare=False
+    )
+    _migration_warnings: list[ReadWarning] = field(
+        default_factory=list, repr=False, compare=False
+    )
+
 
 @dataclass(frozen=True)
 class Media:
@@ -309,7 +321,16 @@ class Media:
 
 @dataclass(kw_only=True)
 class FileResult:
-    """What migrating a folder did, or would do, to one file."""
+    """What migrating a folder did, or would do, to one file.
+
+    `outcome` is "would_migrate" (an old file, without `apply`), "migrated",
+    "current", "newer" (a newer format), "unreadable", "changed_since_read",
+    "in_use" (another program held it open) or "write_failed". `reason` says
+    why a file was left alone, for users. `changes` counts what the migration
+    dropped or changed, and `warnings` are the rules the migrated file
+    breaks, which don't stop it being migrated; the migration's own warnings
+    are what `changes` counts.
+    """
 
     path: str  # relative to the folder, with "/"
     outcome: str
@@ -319,9 +340,23 @@ class FileResult:
     warnings: list[ReadWarning] = field(default_factory=list)
 
 
+# The outcomes of a file the migration should have written, and didn't.
+LEFT_ALONE_ON_FAILURE = frozenset(
+    {"unreadable", "changed_since_read", "in_use", "write_failed"}
+)
+
+
 @dataclass(kw_only=True)
 class MigrationReport:
     files: list[FileResult] = field(default_factory=list)  # in path order
     shared_ids: list[list[str]] = field(
         default_factory=list
     )  # paths whose files share an id
+
+    @property
+    def status(self) -> int:
+        """`tilia migrate`'s exit status: 1 when it left alone a file it
+        should have migrated, else 0. A file of a newer format isn't one:
+        this core can't migrate it, and nothing failed."""
+        failed = any(f.outcome in LEFT_ALONE_ON_FAILURE for f in self.files)
+        return 1 if failed else 0
