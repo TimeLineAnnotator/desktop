@@ -219,6 +219,12 @@ def _second_row(row_id: str) -> Callable[[dict[str, Any]], None]:
     return change
 
 
+def _first_beat_without_mark(content: dict[str, Any]) -> None:
+    # The mark on the second beat: the first starts no measure.
+    del component(content, "beat_1", of="beats")["measure"]
+    component(content, "beat_2", of="beats")["measure"] = {}
+
+
 def _unknown_ordinal_as_text(content: dict[str, Any]) -> None:
     form = timeline(content, "form")
     form["kind"] = "Lyrics"
@@ -309,6 +315,15 @@ FILES: dict[str, Callable[[], bytes]] = {
     "measure-table-not-a-beat-timeline.tla": _changed(
         _set(lambda c: timeline(c, "cadences"), "measure_table", IDS["form"])
     ),
+    "next-named-nowhere.tla": _changed(
+        _set(
+            lambda c: component(c, "beat_1", of="beats")["measure"],
+            "next",
+            [IDS["nothing"]],
+        )
+    ),
+    # A beat timeline's first beat starts its first measure.
+    "first-beat-without-mark.tla": _changed(_first_beat_without_mark),
 }
 
 
