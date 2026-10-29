@@ -1012,22 +1012,22 @@ class BeatTimeline(Timeline):
         """
         Gives the measures from `start` up to `stop` the time signature
         `text`, each over its own beats (see `get_beat_count_to_set`), as
-        `parse_time_signature_of_tapped_bar` reads it. The measure at `stop`
-        keeps the time signature it had. Returns why `text` can't be set
-        there, or "" once it is.
+        `parse_time_signature_of_tapped_bar` reads it. A measure after
+        `start` whose beats `text` doesn't fit, such as one of three taps
+        under 6/8(3 3), carries on the beat unit before it, as a measure
+        with other taps does: there, 9/8. The measure at `stop` keeps the
+        time signature it had. Returns why `text` can't be set on the
+        measure at `start`, or "" once it is.
         """
         if not 0 <= start < stop <= self.measure_count:
             return "There are no such measures."
 
-        bars: list[PlannedBar] = []
+        bars: list[PlannedBar | None] = []
         for measure_index in range(start, stop):
             bar, error = parse_time_signature_of_tapped_bar(
                 text, self.get_beat_count_to_set(text, measure_index)
             )
-            if bar is None:
-                if stop - start > 1:
-                    number = self.measure_numbers[measure_index]
-                    error = f"Measure {number}: {error}"
+            if bar is None and measure_index == start:
                 return error
             bars.append(bar)
 
@@ -1036,7 +1036,10 @@ class BeatTimeline(Timeline):
         with self.component_manager.bulk():
             for measure_index, bar in zip(range(start, stop), bars, strict=True):
                 meter = meters[measure_index]
-                values = (bar.denominator, bar.units_text, bar.assumed)
+                if bar is None:
+                    values = previous
+                else:
+                    values = (bar.denominator, bar.units_text, bar.assumed)
                 if values != previous:
                     self._put_beat_unit(measure_index, *values, meter=meter)
                 elif meter.starts_here:
