@@ -24,6 +24,9 @@ harmony = ["music21>=9.1"]
 [project.scripts]
 tilia = "tilia_core.commands:main"
 
+[project.entry-points."tilia.commands"]
+migrate = "tilia_core.commands.migrate:main"
+
 [project.urls]
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
