@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="https://music-encoding.org/schema/dev/mei-all.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<?xml-model href="https://music-encoding.org/schema/dev/mei-all.rng" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="6.0-dev">
+   <meiHead xml:id="m44ah4k">
+      <fileDesc xml:id="f137s4t1">
+         <titleStmt xml:id="t1w19g02">
+            <title>Ständchen ("klein") — Σερενάτα — セレナーデ</title>
+            <respStmt>
+               <persName role="composer">Antonín Dvořák</persName>
+               <persName role="lyricist">Σαπφώ</persName>
+            </respStmt>
+         </titleStmt>
+         <pubStmt xml:id="pi85mee" />
+      </fileDesc>
+      <encodingDesc xml:id="e1ldavl3">
+         <appInfo xml:id="a19tlcaj">
+            <application xml:id="algq2dp" isodate="2026-10-29T17:53:20" version="6.3.0[undefined]">
+               <name xml:id="nibg4s5">Verovio</name>
+               <p xml:id="podwb68">Transcoded from MusicXML</p>
+            </application>
+         </appInfo>
+      </encodingDesc>
+   </meiHead>
+   <music>
+      <body>
+         <mdiv xml:id="kpm33dw">
+            <score xml:id="l1gpfui1">
+               <scoreDef xml:id="m1msd62b">
+                  <staffGrp xml:id="o13hc2dv">
+                     <staffDef xml:id="P1" n="1" lines="5" ppq="1">
+                        <label xml:id="pqk0b11">Φωνή</label>
+                        <clef xml:id="z1ffe8rg" shape="G" line="2" />
+                        <keySig xml:id="agao1bd" sig="3f" />
+                        <meterSig xml:id="b1rgk5po" count="3" unit="4" />
+                     </staffDef>
+                  </staffGrp>
+               </scoreDef>
+               <section xml:id="nkc4jfo">
+                  <expansion plist="#u5dwleo" xml:id="v2w4pwn" />
+                  <section xml:id="u5dwleo">
+                     <measure xml:id="cc1fpih" n="1">
+                        <staff xml:id="l1uww4v0" n="1">
+                           <layer xml:id="o185gbdu" n="1">
+                              <note xml:id="pm7sasu" dur.ppq="1" dur="4" oct="4" pname="e" accid.ges="f">
+                                 <verse xml:id="r1qozyvw" n="1">
+                                    <syl xml:id="s1f9oyll" con="d" wordpos="i">Σε</syl>
+                                 </verse>
+                              </note>
+                              <note xml:id="u1kg5bza" dur.ppq="1" dur="4" oct="4" pname="g">
+                                 <verse xml:id="vijs3qn" n="1">
+                                    <syl xml:id="w1uo137o" con="d" wordpos="m">ρε</syl>
+                                 </verse>
+                              </note>
+                              <note xml:id="yhqbpi2" dur.ppq="1" dur="4" oct="4" pname="b" accid.ges="f">
+                                 <verse xml:id="a13q223x" n="1">
+                                    <syl xml:id="baq4q27" con="d" wordpos="m">νά</syl>
+                                 </verse>
+                              </note>
+                           </layer>
+                        </staff>
+                        <dir xml:id="m13l0lrv" place="above" staff="1" tstamp="1">a tempo	\ dolce</dir>
+                     </measure>
+                     <measure xml:id="d3zjmg6" right="end" n="2">
+                        <staff xml:id="mkej2o5" n="1">
+                           <layer xml:id="n1chn1sm" n="1">
+                              <note xml:id="ob82y1u" dur.ppq="2" dur="2" oct="4" pname="a" accid.ges="f">
+                                 <verse xml:id="q1f6yn3s" n="1">
+                                    <syl xml:id="r1tlx498" con="s" wordpos="t">τα</syl>
+                                 </verse>
+                              </note>
+                              <rest xml:id="t1am9eqy" dur.ppq="1" dur="4" />
+                           </layer>
+                        </staff>
+                     </measure>
+                  </section>
+               </section>
+            </score>
+         </mdiv>
+      </body>
+   </music>
+</mei>
