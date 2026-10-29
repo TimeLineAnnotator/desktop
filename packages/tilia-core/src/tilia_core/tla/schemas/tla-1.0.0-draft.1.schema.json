@@ -242,7 +242,7 @@
           "default": false
         },
         "restart": {
-          "description": "The first bar of a new movement or song in the same file: every pass count starts again here (TimeLineAnnotator/project-management#191).",
+          "description": "The first measure of a new movement or song in the same file, its pickup if it has one: every pass count starts again here (TimeLineAnnotator/project-management#191, TimeLineAnnotator/project-management#181).",
           "type": ["boolean", "null"],
           "default": false
         },
