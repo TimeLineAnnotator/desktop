@@ -562,8 +562,9 @@ def write(
     a change between them isn't caught.
 
     A link stays a link, and the file it names is written; the file keeps its
-    permission bits. A read-only file is refused with `PermissionError`, as
-    the system refuses to open one for writing. On Windows, a file another
+    permission bits. A folder is refused with `IsADirectoryError`, and a
+    read-only file with `PermissionError`, as the system refuses to open
+    either for writing. On Windows, a file another
     program holds open is retried for about a second, then refused with
     `FileInUse`. A document the reader would refuse raises `UnreadableFile`,
     with its place and line, and one `canonical_bytes` refuses raises its
@@ -580,6 +581,11 @@ def write(
         found = _found(target)
         if found != expect:
             raise FileChanged(path, expect, found)
+    if os.path.isdir(target):
+        # On Windows, the rename would be refused as if the file were held open.
+        raise IsADirectoryError(
+            errno.EISDIR, os.strerror(errno.EISDIR), os.fspath(path)
+        )
     if os.path.exists(target) and not os.access(target, os.W_OK):
         # The rename would replace it on macOS and Linux.
         raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), os.fspath(path))
@@ -602,6 +608,6 @@ _HELD_OPEN = frozenset({5, 32})
 def _held_open(error: PermissionError) -> bool:
     """Whether `atomic_write`'s rename failed, after its retry, because
     another program holds the file or the temporary file open. A read-only
-    file is refused before the rename."""
+    file and a folder are refused before the rename."""
     renamed = error.filename2 is not None  # os.replace names both files
     return renamed and getattr(error, "winerror", None) in _HELD_OPEN
