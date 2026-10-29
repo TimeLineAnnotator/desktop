@@ -693,6 +693,49 @@ def test_a_list_of_numbers_keeps_1_0(lists):
     assert [type(value) for value in doc.extra["weights"]] == [float, int]
 
 
+class _Float(float):
+    """A float of a type of its own, as NumPy's float64 is."""
+
+
+def _level(doc, value):
+    _section(doc).attrs["level"] = value
+
+
+def _counts(doc, value):
+    doc.extra["counts"] = [value]
+
+
+@pytest.mark.parametrize("put", [_level, _counts], ids=["level", "counts"])
+def test_the_writer_writes_a_whole_float_of_another_type_as_the_integer(lists, put):
+    # As it writes a float (FR-051a): as the reader reads it back.
+    given, expected = base_document(), base_document()
+    put(given, _Float(2.0))
+    put(expected, 2)
+    assert writer.checked_bytes(given) == writer.checked_bytes(expected)
+
+
+@pytest.mark.parametrize(
+    "put, where, message",
+    [
+        (_level, SECTION + "/level", '"level" should be an integer, not a number'),
+        (
+            _counts,
+            "/counts/0",
+            'an item of "counts" should be an integer, not a number',
+        ),
+    ],
+    ids=["level", "counts"],
+)
+def test_a_float_of_another_type_with_a_fraction_is_refused_for_an_integer(
+    lists, put, where, message
+):
+    doc = base_document()
+    put(doc, _Float(1.5))
+    with pytest.raises(tla.UnreadableFile) as error:
+        writer.checked_bytes(doc)
+    assert (error.value.place, error.value.message) == (place(where), message)
+
+
 def test_the_first_problem_in_the_file_is_reported():
     def change(content):
         component(content, "cadence", of="cadences")["time"] = "1.0"
