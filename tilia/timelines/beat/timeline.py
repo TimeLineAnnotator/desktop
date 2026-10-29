@@ -48,7 +48,6 @@ from tilia.timelines.beat.units import (
     format_units,
     is_fit_ambiguous,
     parse_units,
-    validate_denominator,
 )
 from tilia.timelines.beat.validators import validate_beat_pattern
 from tilia.timelines.component_kinds import ComponentKind
@@ -928,65 +927,6 @@ class BeatTimeline(Timeline):
                 }
             )
         return result
-
-    def set_beat_unit(
-        self,
-        measure_index: int,
-        denominator: int,
-        units: str,
-        only_this_measure: bool = False,
-    ) -> bool:
-        """
-        Sets the beat unit from `measure_index` until the next change, or for
-        that measure only, restoring the previous values from the next one.
-        Edits the beat unit starting in that measure if there is one, and
-        otherwise creates one on the measure's first beat. The values count
-        as set by the user even when unchanged, which confirms assumed ones.
-        """
-        result = parse_units(units)
-        if not result.is_valid or not validate_denominator(denominator):
-            return False
-        if not 0 <= measure_index < self.measure_count:
-            return False
-
-        previous = self.get_measure_meter(measure_index)
-        self._put_beat_unit(
-            measure_index, denominator, format_units(result.units), assumed=False
-        )
-
-        next_index = measure_index + 1
-        if (
-            only_this_measure
-            and next_index < self.measure_count
-            and not self.get_measure_meter(next_index).starts_here
-        ):
-            self._put_beat_unit(
-                next_index,
-                previous.denominator,
-                format_units(previous.units),
-                assumed=previous.is_assumed,
-            )
-
-        return True
-
-    def _put_beat_unit(
-        self,
-        measure_index: int,
-        denominator: int,
-        units: str,
-        assumed: bool,
-        meter: MeasureMeter | None = None,
-    ) -> None:
-        """
-        Puts a beat unit on a measure, editing the one that starts there if
-        any. `meter` is the measure's, if the caller already has it.
-        """
-        meter = meter or self.get_measure_meter(measure_index)
-        if meter.starts_here:
-            beat_id = meter.beat_unit_id
-        else:
-            beat_id = self[self.beats_that_start_measures[measure_index]].id
-        self.put_beat_unit_on_beat(beat_id, denominator, units, assumed)
 
     def get_alike_measures_end(self, measure_index: int) -> int:
         """

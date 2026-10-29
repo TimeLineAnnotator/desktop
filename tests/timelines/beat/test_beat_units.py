@@ -441,12 +441,21 @@ class TestFirstBeatUnit:
         assert beat_unit_values(beat_tl) == [(0, 8, "3")]
 
 
-class TestSetBeatUnit:
+class TestSetTimeSignature:
+    @staticmethod
+    def set_onward(beat_tl, measure_index, text):
+        stop = beat_tl.get_alike_measures_end(measure_index)
+        return beat_tl.set_time_signature(text, measure_index, stop)
+
+    @staticmethod
+    def set_measure(beat_tl, measure_index, text):
+        return beat_tl.set_time_signature(text, measure_index, measure_index + 1)
+
     def test_onward_creates_on_the_first_beat(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
 
-        assert beat_tl.set_beat_unit(1, 8, "3")
+        assert self.set_onward(beat_tl, 1, "6/8") == ""
 
         assert time_signatures(beat_tl) == [(2, 4), (6, 8), (6, 8)]
         assert beat_unit_values(beat_tl) == [(0, 4, "1"), (2, 8, "3")]
@@ -454,9 +463,9 @@ class TestSetBeatUnit:
     def test_onward_edits_in_place(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
-        beat_tl.set_beat_unit(1, 8, "3")
+        self.set_onward(beat_tl, 1, "6/8")
 
-        beat_tl.set_beat_unit(1, 4, "1/2")
+        self.set_onward(beat_tl, 1, "1/4")
 
         assert beat_unit_values(beat_tl) == [(0, 4, "1"), (2, 4, "1/2")]
         assert time_signatures(beat_tl) == [(2, 4), (1, 4), (1, 4)]
@@ -464,18 +473,18 @@ class TestSetBeatUnit:
     def test_onward_from_a_later_measure_splits(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 8)
-        beat_tl.set_beat_unit(1, 8, "3")
+        self.set_onward(beat_tl, 1, "6/8")
 
-        beat_tl.set_beat_unit(2, 4, "1")
+        self.set_onward(beat_tl, 2, "2/4")
 
         assert time_signatures(beat_tl) == [(2, 4), (6, 8), (2, 4), (2, 4)]
 
     def test_this_measure_only(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 8)
-        beat_tl.set_beat_unit(1, 8, "3")
+        self.set_onward(beat_tl, 1, "6/8")
 
-        beat_tl.set_beat_unit(2, 4, "1", only_this_measure=True)
+        self.set_measure(beat_tl, 2, "2/4")
 
         assert time_signatures(beat_tl) == [(2, 4), (6, 8), (2, 4), (6, 8)]
 
@@ -483,16 +492,16 @@ class TestSetBeatUnit:
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
 
-        beat_tl.set_beat_unit(0, 8, "3", only_this_measure=True)
+        self.set_measure(beat_tl, 0, "6/8")
 
         assert time_signatures(beat_tl) == [(6, 8), (2, 4), (2, 4)]
 
     def test_this_measure_only_keeps_a_following_change(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
-        beat_tl.set_beat_unit(1, 2, "1")
+        self.set_onward(beat_tl, 1, "2/2")
 
-        beat_tl.set_beat_unit(0, 8, "3", only_this_measure=True)
+        self.set_measure(beat_tl, 0, "6/8")
 
         assert time_signatures(beat_tl) == [(6, 8), (2, 2), (2, 2)]
         assert len(beat_tl.beat_units) == 2
@@ -500,23 +509,27 @@ class TestSetBeatUnit:
     def test_this_measure_only_on_the_last_measure(self, beat_tl):
         add_beats(beat_tl, 4)
 
-        beat_tl.set_beat_unit(0, 8, "1", only_this_measure=True)
+        self.set_measure(beat_tl, 0, "4/8")
 
         assert time_signatures(beat_tl) == [(4, 8)]
         assert len(beat_tl.beat_units) == 1
 
     @pytest.mark.parametrize(
-        "measure_index, denominator, units",
-        [(5, 4, "1"), (-1, 4, "1"), (0, 0, "1"), (0, MAX_DENOMINATOR + 1, "1")],
+        "start, stop, text",
+        [
+            (5, 6, "4/4"),
+            (-1, 0, "4/4"),
+            (0, 1, "4/0"),
+            (0, 1, f"4/{MAX_DENOMINATOR + 1}"),
+            (0, 1, "4/4(1 1 1 1 1)"),
+        ],
     )
-    def test_invalid(self, beat_tl, measure_index, denominator, units):
+    def test_invalid(self, beat_tl, start, stop, text):
         add_beats(beat_tl, 4)
 
-        assert not beat_tl.set_beat_unit(measure_index, denominator, units)
+        assert beat_tl.set_time_signature(text, start, stop) != ""
         assert beat_unit_values(beat_tl) == [(0, 4, "1")]
 
-
-class TestSetTimeSignature:
     def test_replaces_every_beat_unit_in_a_measure(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 6)
@@ -607,7 +620,7 @@ class TestState:
         state = beat_tl.get_state()["components"]
 
         beat_tl.delete_components([beat_tl[4], beat_tl[5], beat_tl[6], beat_tl[7]])
-        beat_tl.set_beat_unit(0, 2, "1")
+        add_beat_unit(beat_tl, 0, 2, "1")
         assert beat_unit_values(beat_tl) == [(0, 2, "1")]
 
         beat_tl.component_manager.restore_state(state)
