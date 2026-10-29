@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv
 from tilia.settings import settings
@@ -187,6 +189,27 @@ class TestTimeSignatureColumn:
 
         assert beat_tl.beats_in_measure == [2, 3]
         assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
+
+    @pytest.mark.parametrize(
+        "text, time_signatures",
+        [
+            ("6/8(3 3)", [(6, 8), (9, 8), (6, 8)]),
+            ("2", [(2, 4), (3, 4), (2, 4)]),
+        ],
+    )
+    def test_a_time_signature_carries_on_over_measures_it_does_not_fit(
+        self, beat_tl, text, time_signatures
+    ):
+        data = (
+            "time,is_first_in_measure,time_signature\n"
+            f"0,True,{text}\n1,,\n2,True,\n3,,\n4,,\n5,True,\n6,,"
+        )
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert errors == []
+        assert beat_tl.beats_in_measure == [2, 3, 2]
+        assert [m.time_signature for m in beat_tl.measure_meters] == time_signatures
 
     def test_a_time_signature_replaces_the_patterns_later_ones(self, beat_tl):
         beat_tl.beat_pattern = "2[2/4] 3/4"
