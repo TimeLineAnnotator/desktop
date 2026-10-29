@@ -409,23 +409,24 @@ class TestFirstBeatUnit:
     def test_none_without_beats(self, beat_tl):
         assert beat_tl.beat_units == []
 
-    def test_pickup_copies_the_next_beat_unit(self, beat_tl):
-        beat_tl.set_data("beat_pattern", [1, 2])
-        add_beats(beat_tl, 4, start=1)
-        add_beat_unit(beat_tl, 0, 8, "3")
-
-        # A pickup before the old first beat, in a measure of its own.
-        beat_tl.create_beat(0)
-
-        assert beat_unit_values(beat_tl) == [(0, 8, "3"), (1, 8, "3")]
-        assert time_signatures(beat_tl)[0] == (3, 8)
-
-    def test_pickup_leaves_the_other_measures_as_they_are(self, beat_tl):
+    def test_a_beat_before_the_first_takes_over_its_beat_unit(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
         add_beats(beat_tl, 4, start=1)
         add_beat_unit(beat_tl, 0, 8, "3")
 
+        # It starts the first measure, which keeps its two beats.
         beat_tl.create_beat(0)
+
+        assert beat_tl.beats_in_measure == [2, 2, 1]
+        assert beat_unit_values(beat_tl) == [(0, 8, "3")]
+
+    def test_measure_zero_copies_the_next_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 4, start=1)
+        add_beat_unit(beat_tl, 0, 8, "3")
+
+        # A measure of its own before the first, as a score's measure 0 adds.
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
 
         assert beat_tl.beats_in_measure == [1, 2, 2]
         assert beat_unit_values(beat_tl) == [(0, 8, "3"), (1, 8, "3")]
