@@ -23,7 +23,7 @@ takes it to the current format:
 
 Keys and kinds the core doesn't know are kept as they are; a timeline of a
 kind it doesn't know keeps its content, its components' ids included, under
-a new id.
+a new id, without the stored hashes, its own and its components'.
 """
 
 from __future__ import annotations
@@ -159,6 +159,14 @@ def _media_length(value: Any) -> int | float | None:
     return value if value > 0 else None
 
 
+def _without_hash(component: Any) -> Any:
+    """A component without the hash TiLiA stores in it; anything that isn't
+    an object, as it is."""
+    if not isinstance(component, dict):
+        return component
+    return {key: value for key, value in component.items() if key != "hash"}
+
+
 def _text(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -266,8 +274,15 @@ class _Migration:
         place = pointer_to("/timelines", key)
         kind = timeline_kind_from_file(timeline["kind"])
         if isinstance(kind, UnknownKind):
-            # Kept as it is, without TiLiA's stored hashes.
-            return {k: v for k, v in timeline.items() if k not in _STORED_HASHES}
+            # Kept as it is, without TiLiA's stored hashes: its own and its
+            # components'.
+            kept = {k: v for k, v in timeline.items() if k not in _STORED_HASHES}
+            if isinstance(kept.get("components"), dict):
+                kept["components"] = {
+                    name: _without_hash(component)
+                    for name, component in kept["components"].items()
+                }
+            return kept
         self._require(timeline, "ordinal", place)
         components = self._object(
             self._require(timeline, "components", place),
@@ -318,7 +333,7 @@ class _Migration:
         place = pointer_to(parent, key)
         component = self._object(value, place)
         kind = component_kind_from_file(self._text(component, "kind", place))
-        converted = {k: v for k, v in component.items() if k != "hash"}
+        converted: dict[str, Any] = _without_hash(component)
         if kind == "hierarchy":
             for name in ("formal_type", "formal_function"):
                 dropped = converted.pop(name, None)
