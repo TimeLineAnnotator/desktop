@@ -162,9 +162,11 @@ def _admits(types: frozenset[type], value: Any) -> bool:
 
 def _whole(value: Any, types: frozenset[type]) -> bool:
     """Whether `value` is a float that JSON Schema counts as an integer, where
-    only an integer will do."""
+    only an integer will do; and one of a type of its own, such as NumPy's
+    float64, which the writer may be given, so that it is written as a float
+    would be."""
     return (
-        type(value) is float
+        isinstance(value, float)
         and int in types
         and float not in types
         and value.is_integer()
@@ -464,7 +466,9 @@ class _Checker:
             sub = spec.prefix[index] if index < len(spec.prefix) else spec.items
             if sub is None or type(item) in sub.quick:
                 continue
-            self.value(item, sub, (place, index), name)
+            checked = self.value(item, sub, (place, index), name)
+            if checked is not item:
+                value[index] = checked
 
     def key(self, key: str, spec: _Spec, place: Place) -> None:
         """An object's key, which must be an id."""

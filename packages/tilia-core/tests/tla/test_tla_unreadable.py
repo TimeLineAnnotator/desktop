@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import layout, writer
+from tilia_core.tla import check, layout, writer
 from tilia_core.tla.parse import lines_of, pointer
 
 BROKEN = Path(__file__).parent / "broken"
@@ -644,6 +644,131 @@ def test_the_writer_writes_an_integer_given_as_1_0_as_1():
     assert b'"level": 2,' in data
     assert b'"level": 2.0' not in data
     assert _section(tla.loads(data)).attrs["level"] == 2
+
+
+@pytest.fixture
+def lists(monkeypatch):
+    # The schema has no list of integers yet: the check is given some, at
+    # keys of the top level the core doesn't know, which the reader keeps in
+    # `extra`; and a list of numbers beside them.
+    integer, number = {"type": "integer"}, {"type": "number"}
+    spec = check._compile(
+        {
+            "properties": {
+                "counts": {"type": "array", "items": integer},
+                "weights": {"type": "array", "items": number},
+                "pairs": {"type": "array", "prefixItems": [integer, number]},
+                "grid": {"type": "array", "items": {"type": "array", "items": integer}},
+                # Items that may be floats, but whose type isn't all there is
+                # to check: a number, or a list of integers.
+                "sizes": {
+                    "type": "array",
+                    "items": {"type": ["number", "array"], "items": integer},
+                },
+            }
+        }
+    )
+    monkeypatch.setattr(check, "_DOCUMENT", check._merge(check._DOCUMENT, spec))
+
+
+def _typed(value):
+    """`value`, with the type of each item of its lists: 1 == 1.0."""
+    if isinstance(value, list):
+        return [_typed(item) for item in value]
+    return (type(value), value)
+
+
+@pytest.mark.parametrize(
+    "key, given, expected",
+    [
+        ("counts", [1.0, 2, -0.0], [1, 2, 0]),
+        ("pairs", [1.0, 1.0], [1, 1.0]),
+        ("grid", [[1.0, 2], [3.0]], [[1, 2], [3]]),
+        # Only the integers: a number stays as it is written.
+        ("sizes", [1.0, [1.0]], [1.0, [1]]),
+    ],
+)
+def test_an_integer_written_as_1_0_in_a_list_is_read_as_the_integer_1(
+    lists, key, given, expected
+):
+    doc = tla.loads(edited(lambda content: content.update({key: given})))
+    assert _typed(doc.extra[key]) == _typed(expected)
+    with_integers = tla.loads(edited(lambda content: content.update({key: expected})))
+    assert tla.canonical_bytes(doc) == tla.canonical_bytes(with_integers)
+
+
+def test_the_writer_writes_an_integer_given_as_1_0_in_a_list_as_1(lists):
+    doc = base_document()
+    doc.extra["counts"] = [2.0]
+    data = writer.checked_bytes(doc)
+    assert _typed(json.loads(data)["counts"]) == [(int, 2)]
+    assert tla.loads(data).extra["counts"] == [2]
+    # The caller's document is left as it is.
+    assert _typed(doc.extra["counts"]) == [(float, 2.0)]
+
+
+def test_a_number_with_a_fraction_in_a_list_of_integers_is_refused_at_its_index(
+    lists,
+):
+    data = edited(lambda content: content.update(counts=[1, 1.5]))
+    error = refusal(data)
+    assert error.place == "/counts/1"
+    assert error.message == 'an item of "counts" should be an integer, not a number'
+    assert error.line == data.decode().splitlines().index("    1.5") + 1
+
+
+def test_a_list_of_numbers_keeps_1_0(lists):
+    doc = tla.loads(edited(lambda content: content.update(weights=[1.0, 2])))
+    assert _typed(doc.extra["weights"]) == [(float, 1.0), (int, 2)]
+    # Its items are checked, as numbers.
+    error = refusal(edited(lambda content: content.update(weights=["a"])))
+    assert (error.place, error.message) == (
+        "/weights/0",
+        'an item of "weights" should be a number, not text',
+    )
+
+
+class _Float(float):
+    """A float of a type of its own, as NumPy's float64 is."""
+
+
+def _level(doc, value):
+    _section(doc).attrs["level"] = value
+
+
+def _counts(doc, value):
+    doc.extra["counts"] = [value]
+
+
+@pytest.mark.parametrize("put", [_level, _counts], ids=["level", "counts"])
+def test_the_writer_writes_a_whole_float_of_another_type_as_the_integer(lists, put):
+    # As it writes a float (FR-051a): as the reader reads it back.
+    given, expected = base_document(), base_document()
+    put(given, _Float(2.0))
+    put(expected, 2)
+    assert writer.checked_bytes(given) == writer.checked_bytes(expected)
+
+
+@pytest.mark.parametrize(
+    "put, where, message",
+    [
+        (_level, SECTION + "/level", '"level" should be an integer, not a number'),
+        (
+            _counts,
+            "/counts/0",
+            'an item of "counts" should be an integer, not a number',
+        ),
+    ],
+    ids=["level", "counts"],
+)
+def test_a_float_of_another_type_with_a_fraction_is_refused_for_an_integer(
+    lists, put, where, message
+):
+    doc = base_document()
+    put(doc, _Float(1.5))
+    with pytest.raises(tla.UnreadableFile) as error:
+        writer.checked_bytes(doc)
+    assert (error.value.place, error.value.message) == (place(where), message)
 
 
 def test_the_first_problem_in_the_file_is_reported():
