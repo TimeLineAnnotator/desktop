@@ -54,12 +54,12 @@ class TestBeatStamps:
         assert beat_tl.quarter_stamps[6] == 2
         assert beat_tl.quarter_stamps[1] == F(1, 3)
 
-    def test_pickup_starts_at_zero(self, beat_tl):
+    def test_a_shorter_first_measure_starts_at_zero(self, beat_tl):
         beat_tl.set_data("beat_pattern", [1, 2])
         add_beats(beat_tl, range(3))
         add_beat_unit(beat_tl, 0, 4, "3+2")
 
-        # One pickup tap, read from the start of 3+2, then a full bar.
+        # One tap, read from the start of 3+2, then a full bar.
         assert beat_tl.quarter_stamps == [0, 3, 6]
 
     def test_stamps_follow_inserted_beats(self, beat_tl):

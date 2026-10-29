@@ -774,8 +774,7 @@ class BeatTimeline(Timeline):
     def quarter_stamps(self) -> list[Fraction]:
         """
         Each beat's position in quarter notes, counted in playback order from
-        the first beat (pickup included), as Verovio's and the Measure Map's
-        "qstamp".
+        the first beat, as Verovio's and the Measure Map's "qstamp".
         """
         return self._cached("quarter_stamps", self._build_quarter_stamps)
 
@@ -1216,10 +1215,10 @@ class BeatTimeline(Timeline):
         Keeps a beat unit in the first measure, so every measure is governed
         by one and every time signature label can be selected and edited.
 
-        When one is missing, e.g. because a pickup was added before the old
-        first beat, it copies the next beat unit's values (a pickup in a 6/8
-        piece starts as 6/8); with no other beat units, or `copy_next` False,
-        it gets the default. Either way it is assumed: nobody set a time
+        When one is missing, e.g. because a measure was added before the old
+        first measure (a score's measure 0), it copies the next beat unit's
+        values, as measures before the first beat unit do in tilia_core; with
+        no other beat units, or `copy_next` False, it gets the default. Either way it is assumed: nobody set a time
         signature on the measures before the next beat unit. Skipped while
         beats are being changed in bulk, which refreshes and calls this once
         at the end.
