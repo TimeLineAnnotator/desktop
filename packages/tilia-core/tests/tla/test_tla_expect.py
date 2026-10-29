@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
+from tilia_core.tla import reader
 
 EVERY_KIND = Path(__file__).parent / "golden" / "every-kind.tla"
 
@@ -138,11 +139,46 @@ def test_line_endings_a_bom_and_key_order_leave_the_fingerprint_unchanged(
     assert tla.fingerprint(piece) == expected
 
 
-def test_a_file_whose_bytes_differ_only_in_form_is_still_the_one_expected(piece):
+def files_parsed(monkeypatch):
+    """The files the reader parses from now on."""
+    parsed = []
+    real = reader.parse
+
+    def parse(data, **kwargs):
+        parsed.append(data)
+        return real(data, **kwargs)
+
+    monkeypatch.setattr(reader, "parse", parse)
+    return parsed
+
+
+def with_bom_and_crlf(data):
+    return with_bom(with_crlf(data))
+
+
+@pytest.mark.parametrize(
+    "variant", [with_crlf, with_bom, in_another_key_order, with_bom_and_crlf]
+)
+def test_a_file_whose_bytes_differ_only_in_form_is_still_the_one_expected(
+    piece, variant, monkeypatch
+):
+    # Its bytes aren't its canonical bytes, so it is read to be compared.
     expected = tla.fingerprint(piece)
-    piece.write_bytes(with_bom(with_crlf(piece.read_bytes())))
+    piece.write_bytes(variant(piece.read_bytes()))
     doc = edited()
+    parsed = files_parsed(monkeypatch)
     assert tla.write(piece, doc, expect=expected) == tla.fingerprint_of(doc)
+    assert len(parsed) == 1
+    assert piece.read_bytes() == tla.canonical_bytes(doc)
+
+
+def test_a_file_the_core_wrote_is_compared_without_reading_it(piece, monkeypatch):
+    # Its bytes are its canonical bytes, whose SHA-256 is its fingerprint.
+    expected = tla.fingerprint(piece)
+    doc = edited()
+    parsed = files_parsed(monkeypatch)
+    assert tla.write(piece, doc, expect=expected) == tla.fingerprint_of(doc)
+    assert parsed == []
     assert piece.read_bytes() == tla.canonical_bytes(doc)
 
 

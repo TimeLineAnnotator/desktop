@@ -537,11 +537,18 @@ def fingerprint(path: str | os.PathLike[str]) -> str:
     return fingerprint_of(read(path))
 
 
-def _found(path: str) -> str | None:
+def _found(path: str, expect: str | None = None) -> str | None:
     """The fingerprint of the file at `path`, or None when it is missing or
-    can't be read."""
+    can't be read. A file the core wrote holds its canonical bytes: when the
+    SHA-256 of its bytes is `expect`, that is its fingerprint, and it isn't
+    read as a document. Any other file is, so that a file in another form,
+    such as with CRLF line endings, is still the one expected."""
     try:
-        return fingerprint(path)
+        with open(path, "rb") as file:
+            data = file.read()
+        if expect is not None and hashlib.sha256(data).hexdigest() == expect:
+            return expect
+        return fingerprint_of(loads(data, path=path))
     except (OSError, ValueError):  # UnreadableFile is a ValueError
         return None
 
@@ -578,7 +585,7 @@ def write(
         if os.path.lexists(target):
             raise FileChanged(path, None, _found(target))
     elif expect is not None:
-        found = _found(target)
+        found = _found(target, expect)
         if found != expect:
             raise FileChanged(path, expect, found)
     if os.path.isdir(target):
