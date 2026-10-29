@@ -15,6 +15,9 @@ takes it to the current format:
   which TiLiA computes from the media, with one warning per timeline;
 - a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
   `[4, 4, 3]` becomes `"4 4 3"`;
+- a score timeline's SVG and its viewer's beat positions become a legacy
+  score in `scores`, which the timeline names, with an id derived as the
+  timeline's is (`scores`);
 - a `pre_start` or `post_end` equal to its `start` or `end` is left unset,
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
@@ -45,6 +48,7 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.migrate import old as old_migrations
+from tilia_core.tla.migrate import scores
 from tilia_core.tla.model import (
     ReadWarning,
     UnknownKind,
@@ -110,7 +114,9 @@ def migrate(
     # a file without one, moves timelines of kinds it doesn't know after the
     # others and renumbers them, and clears a media path it can't find when
     # the user doesn't show it where the media is.
+    scores.to_legacy_scores(content, version=version, path=path)
     document_id = derived_document_id(content)
+    scores.name_by_new_ids(content, document_id)
     content = _with_new_ids(content, document_id)
     # The media's and PDF timelines' paths are made relative here, from the
     # old file's `file_path` (TimeLineAnnotator/project-management#176).
