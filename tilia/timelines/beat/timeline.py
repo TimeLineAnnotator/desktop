@@ -1018,58 +1018,71 @@ class BeatTimeline(Timeline):
         with other taps does: there, 9/8. The measure at `stop` keeps the
         time signature it had. Returns why `text` can't be set on the
         measure at `start`, or "" once it is.
+
+        No beat moves, so no beat is relabelled: the UI redraws the time
+        signatures as their beat units change, or, in a bulk change, once
+        the caller refreshes the measures (see `refresh_measures`).
         """
-        if not 0 <= start < stop <= self.measure_count:
+        measure_count = self.measure_count
+        if not 0 <= start < stop <= measure_count:
             return "There are no such measures."
 
+        # Measures with as many beats read `text` alike.
+        parsed: dict[int, tuple[PlannedBar | None, str]] = {}
         bars: list[PlannedBar | None] = []
         for measure_index in range(start, stop):
-            bar, error = parse_time_signature_of_tapped_bar(
-                text, self.get_beat_count_to_set(text, measure_index)
-            )
+            beat_count = self.get_beat_count_to_set(text, measure_index)
+            if beat_count not in parsed:
+                parsed[beat_count] = parse_time_signature_of_tapped_bar(
+                    text, beat_count
+                )
+            bar, error = parsed[beat_count]
             if bar is None and measure_index == start:
                 return error
             bars.append(bar)
 
+        # Read before any beat unit changes, as each change makes the
+        # measures be computed again the next time they are read.
         meters = self.measure_meters
-        measure_of_beat = self.measures.measure_of_beat
+        measures = self.measures
+        beats = self.components
         beat_units_in: dict[int, list[BeatUnit]] = {}
         for beat_unit in self.beat_units:
             beat = self.get_component(beat_unit.beat_id)
-            measure_index = measure_of_beat[self.get_beat_index(beat)]
+            measure_index = measures.measure_of_beat[self.get_beat_index(beat)]
             if start <= measure_index < stop:
                 beat_units_in.setdefault(measure_index, []).append(beat_unit)
 
+        def get_beat_id(measure_index: int) -> int | str:
+            """Where a measure's beat unit goes: on the one governing it."""
+            meter = meters[measure_index]
+            if meter.starts_here and meter.beat_unit_id is not None:
+                return meter.beat_unit_id
+            return beats[measures.starts[measure_index]].id
+
         previous: tuple[int, str, bool] | None = None
-        with self.component_manager.bulk():
-            for measure_index, bar in zip(range(start, stop), bars, strict=True):
-                meter = meters[measure_index]
-                if bar is None:
-                    values = previous
-                else:
-                    values = (bar.denominator, bar.units_text, bar.assumed)
-                changes = values is not None and values != previous
-                # A measure keeps only the beat unit that governs it, and only
-                # where its values change: another one would carry on past it.
-                kept = meter.beat_unit_id if meter.starts_here and changes else None
-                for beat_unit in beat_units_in.get(measure_index, []):
-                    if beat_unit.beat_id != kept:
-                        self.component_manager.delete_component(beat_unit)
-                if changes:
-                    self._put_beat_unit(measure_index, *values, meter=meter)
-                previous = values
+        for measure_index, bar in zip(range(start, stop), bars, strict=True):
+            meter = meters[measure_index]
+            if bar is None:
+                values = previous
+            else:
+                values = (bar.denominator, bar.units_text, bar.assumed)
+            changes = values is not None and values != previous
+            # A measure keeps only the beat unit that governs it, and only
+            # where its values change: another one would carry on past it.
+            kept = meter.beat_unit_id if meter.starts_here and changes else None
+            for beat_unit in beat_units_in.get(measure_index, []):
+                if beat_unit.beat_id != kept:
+                    self.component_manager.delete_component(beat_unit)
+            if changes:
+                self.put_beat_unit_on_beat(get_beat_id(measure_index), *values)
+            previous = values
 
-            if stop < self.measure_count:
-                after = meters[stop]
-                values = (
-                    after.denominator,
-                    format_units(after.units),
-                    after.is_assumed,
-                )
-                if not after.starts_here and values != previous:
-                    self._put_beat_unit(stop, *values, meter=after)
-
-        self.refresh_measures()
+        if stop < measure_count:
+            after = meters[stop]
+            values = (after.denominator, format_units(after.units), after.is_assumed)
+            if not after.starts_here and values != previous:
+                self.put_beat_unit_on_beat(get_beat_id(stop), *values)
         return ""
 
     @staticmethod
