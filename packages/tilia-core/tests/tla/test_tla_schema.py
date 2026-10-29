@@ -18,7 +18,7 @@ import jsonschema
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import writer
+from tilia_core.tla import layout, writer
 from tilia_core.tla.model import timeline_kind_from_current_file
 
 HERE = Path(__file__).parent
@@ -119,13 +119,24 @@ def test_the_schema_names_the_format_version_it_describes():
 
 
 def test_each_call_gives_a_schema_of_its_own():
-    # A caller that changes it doesn't change the next caller's.
+    # A caller that changes it doesn't change the next caller's, nor the one
+    # the reader and the writer use.
     mine = tla.schema()
     mine["properties"]["version"]["const"] = "0.0.0"
     del mine["$defs"]["id"]
     again = tla.schema()
     assert again["properties"]["version"]["const"] == tla.FORMAT_VERSION
     assert "id" in again["$defs"]
+    assert layout._SCHEMA == json.loads(shipped_schema().read_bytes())
+
+
+def test_a_call_copies_the_schema_without_reading_the_file_again(monkeypatch):
+    # The core reads and parses the file once, when it is imported.
+    def read_again(*args, **kwargs):
+        raise AssertionError("schema() read the file again")
+
+    monkeypatch.setattr(layout, "files", read_again)
+    assert tla.schema() == json.loads(shipped_schema().read_bytes())
 
 
 # Files the writer writes
