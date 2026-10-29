@@ -181,6 +181,23 @@ def test_marks_at_the_same_time_follow_each_other_in_id_order():
     assert [r.label for r in rows_of(doc)] == ["1", "b", "c"]
 
 
+def test_marks_at_the_same_time_are_in_id_order_whatever_the_components_order():
+    # A timeline made or changed in memory need not hold its components in
+    # id order, as the reader gives them.
+    doc = tla.loads(
+        one_timeline(
+            [
+                (B[0], beat(0.0, measure={})),
+                (B[1], beat(1.0, measure={"label": "b"})),
+                (B[2], beat(1.0, measure={"label": "c"})),
+            ]
+        )
+    )
+    timeline = doc.timelines[BEATS]
+    timeline.components = dict(reversed(list(timeline.components.items())))
+    assert [r.label for r in tla.measure_table(timeline).rows] == ["1", "b", "c"]
+
+
 def test_an_empty_mark_survives_a_read_and_a_write_and_marks_its_downbeat():
     data = one_timeline([(B[0], beat(0.0, measure={})), (B[1], beat(1.0))])
     assert b'"measure": {}' in data
