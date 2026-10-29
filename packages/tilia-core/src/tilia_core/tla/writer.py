@@ -571,13 +571,13 @@ def write(
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A folder is refused with `IsADirectoryError`, and a
     read-only file with `PermissionError`, as the system refuses to open
-    either for writing. On Windows, a file another
-    program holds open is retried for about a second, then refused with
-    `FileInUse`. A document the reader would refuse raises `UnreadableFile`,
-    with its place and line, and one `canonical_bytes` refuses raises its
-    `ValueError`, both before anything is read or written (FR-034). Any
-    other failure raises the system's `OSError`. Whenever a write fails, the
-    file is as it was.
+    either for writing. On Windows, a file another program holds open, or
+    whose new temporary file it holds open, is retried for about a second,
+    then refused with `FileInUse`. A document the reader would refuse raises
+    `UnreadableFile`, with its place and line, and one `canonical_bytes`
+    refuses raises its `ValueError`, both before anything is read or written
+    (FR-034). Any other failure raises the system's `OSError`. Whenever a
+    write fails, the file is as it was.
     """
     target = os.path.realpath(path)
     data = checked_bytes(doc, path=path)
