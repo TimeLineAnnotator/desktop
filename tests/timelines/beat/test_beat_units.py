@@ -280,7 +280,7 @@ class TestMeasureMeters:
         assert [m.beat_values for m in meters] == [(1, 2)] * 3
         assert all(m.is_ambiguous for m in meters)
 
-    def test_pickup_also_takes_the_start_of_the_pattern(self, beat_tl):
+    def test_a_shorter_measure_takes_the_start_of_the_units(self, beat_tl):
         beat_tl.set_data("beat_pattern", [1, 2])
         add_beats(beat_tl, 3)
         add_beat_unit(beat_tl, 0, 4, "3+2")
