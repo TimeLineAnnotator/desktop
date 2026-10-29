@@ -505,6 +505,24 @@ def test_a_read_only_file_is_refused_before_the_rename_not_as_in_use(
     assert renames == []
 
 
+def test_a_folder_at_the_path_is_refused_before_anything_is_written(
+    tmp_path, monkeypatch
+):
+    # As macOS and Linux refuse to open a folder for writing. On Windows,
+    # the rename would be refused, retried and reported as if the file were
+    # held open.
+    folder = tmp_path / "piece.tla"
+    folder.mkdir()
+    renames = count_renames(monkeypatch)
+    with pytest.raises(IsADirectoryError) as caught:
+        tla.write(folder, edited())
+    assert caught.value.errno == errno.EISDIR
+    assert caught.value.filename == str(folder)
+    assert renames == []
+    assert listing(tmp_path) == ["piece.tla"]
+    assert listing(folder) == []
+
+
 @posix_only
 @not_root
 def test_a_folder_that_cant_be_written_to_is_refused_with_the_systems_reason(piece):
