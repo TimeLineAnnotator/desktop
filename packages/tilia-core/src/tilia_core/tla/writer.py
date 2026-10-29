@@ -27,7 +27,7 @@ from typing import Any
 
 from tilia_core.state import atomic_write
 from tilia_core.tla.check import check
-from tilia_core.tla.errors import FileChanged, FileInUse
+from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -63,7 +63,7 @@ from tilia_core.tla.model import (
     timeline_kind_to_file,
 )
 from tilia_core.tla.parse import MAX_DEPTH
-from tilia_core.tla.reader import read
+from tilia_core.tla.reader import loads, read
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -437,14 +437,16 @@ def _utf8(text: str) -> bytes:
 def canonical_bytes(doc: Document) -> bytes:
     """The bytes `doc` is written as: the one way to write it, the same on every
     system (FR-016, FR-031, FR-032). For a document read from a file the core
-    wrote, they are the file's bytes.
+    wrote, they are the file's bytes. A float that is an integer, where the
+    format has an integer, is written as that integer, as the reader reads
+    it (FR-051a); a document the reader would refuse is written as it is.
 
     Raises ValueError, naming the place as a JSON Pointer, for a value JSON
     can't hold: NaN, an infinity, an integer too long to read back, or a
     value of another type than JSON's; and for one nested deeper than the
     reader reads, as a value that holds itself is (FR-034).
     """
-    return _utf8(_text(_document(doc)))
+    return _utf8(_canonical(doc, refuse=False))
 
 
 def checked_bytes(
@@ -455,10 +457,34 @@ def checked_bytes(
     for a document the reader would refuse; one the reader only warns about
     gives its bytes (FR-034). `path`, where they are to be written, is for
     messages."""
+    return _utf8(_canonical(doc, path=path, refuse=True))
+
+
+def _canonical(
+    doc: Document,
+    *,
+    path: str | os.PathLike[str] | None = None,
+    refuse: bool,
+) -> str:
+    """`doc`'s text, checked as the reader checks a file. The check turns
+    each float that is an integer, where the format has an integer, into
+    that integer. When it turned any, the text is that of the document
+    reading the checked text gives: a value at its default, such as a step
+    of 0 given as 0.0, is then left out, as the reader fills it in. A
+    document the reader would refuse raises `UnreadableFile` with `refuse`,
+    and is written as it is without."""
     content = _document(doc)
     text = _text(content)
-    check(content, text, path=path)
-    return _utf8(text)
+    try:
+        check(content, text, path=path)
+    except UnreadableFile:
+        if refuse:
+            raise
+        return text
+    checked = _text(content)
+    if checked == text:
+        return text
+    return _text(_document(loads(_utf8(checked))))
 
 
 def _text(content: dict[str, Any]) -> str:

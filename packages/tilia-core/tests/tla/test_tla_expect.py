@@ -62,6 +62,47 @@ def test_another_edit_gives_another_fingerprint(piece):
     assert tla.fingerprint_of(edited()) != tla.fingerprint(piece)
 
 
+def with_value(where, key, value):
+    """every-kind.tla with `key` set to `value` on its first component of the
+    kind `where`, or on its first hierarchy timeline."""
+    doc = tla.read(EVERY_KIND)
+    timeline = next(tl for tl in doc.timelines.values() if tl.kind == "hierarchy")
+    if where == "timeline":
+        setattr(timeline, key, value)
+        return doc
+    component = next(
+        c
+        for tl in doc.timelines.values()
+        for c in tl.components.values()
+        if c.kind == where
+    )
+    component.attrs[key] = value
+    return doc
+
+
+@pytest.mark.parametrize(
+    "where, key, integer",
+    [("hierarchy", "level", 2), ("harmony", "step", 0), ("timeline", "ordinal", 2)],
+    ids=["a level", "a step, at its default", "an ordinal"],
+)
+def test_an_integer_given_as_a_float_is_written_and_fingerprinted_as_the_integer(
+    tmp_path, where, key, integer
+):
+    # The reader reads an integer written as 1.0 as the integer 1, so the
+    # writer writes 1, left out where it is the default, as reading the file
+    # and writing it again would. Otherwise the fingerprint written wouldn't
+    # be the file's, and the next write that expects it would be refused.
+    path = tmp_path / "piece.tla"
+    doc = with_value(where, key, float(integer))
+    as_integer = tla.canonical_bytes(with_value(where, key, integer))
+    written = tla.write(path, doc)
+    assert path.read_bytes() == as_integer
+    assert tla.canonical_bytes(doc) == as_integer
+    assert written == tla.fingerprint(path)
+    assert written == tla.fingerprint_of(doc)
+    assert tla.write(path, doc, expect=written) == written
+
+
 def with_crlf(data):
     return data.replace(b"\n", b"\r\n")
 
