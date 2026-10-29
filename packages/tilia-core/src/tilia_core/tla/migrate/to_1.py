@@ -15,6 +15,8 @@ takes it to the current format:
   which TiLiA computes from the media, with one warning per timeline;
 - a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
   `[4, 4, 3]` becomes `"4 4 3"`;
+- the prototype's `tag=` and `gen=` marks in components' comments move into
+  their metadata's `tags` and `generated_by` (`marks`), and are counted;
 - a `pre_start` or `post_end` equal to its `start` or `end` is left unset,
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
@@ -44,6 +46,7 @@ from tilia_core.tla.layout import (
     Shape,
     pointer_to,
 )
+from tilia_core.tla.migrate import marks
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.model import (
     ReadWarning,
@@ -100,9 +103,10 @@ def migrate(
     content = migration.to_current(old)
     # With the old ids still in place, the beat timelines' measures
     # (TimeLineAnnotator/project-management#181), the legacy scores
-    # (TimeLineAnnotator/project-management#182) and the comments' marks
-    # (TimeLineAnnotator/project-management#180) are converted here, so that
-    # the document id is derived from the content they give.
+    # (TimeLineAnnotator/project-management#182) are converted here, as the
+    # comments' marks (TimeLineAnnotator/project-management#180) are in
+    # `to_current`, so that the document id is derived from the content they
+    # give.
     #
     # A file saved again by TiLiA 0.7 without an edit gets the same id, but
     # for three changes TiLiA 0.7 makes itself, which change it (accepted in
@@ -358,6 +362,11 @@ class _Migration:
                         del converted[derived]
         if isinstance(kind, UnknownKind):
             return converted
+        if "comments" in COMPONENT_SHAPES[kind].known:
+            # Before the defaults go, so that a comment left empty goes too.
+            moved = marks.move(converted)
+            if moved:
+                self.changes["marks_moved"] = self.changes.get("marks_moved", 0) + moved
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 
 
