@@ -4,19 +4,14 @@ import argparse
 from collections.abc import Callable
 from functools import wraps
 
-from tilia.timelines.beat.pattern import parse
+from tilia.timelines.beat.pattern import parse, parse_time_signature_over_taps
 from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.beat.units import (
-    MAX_DENOMINATOR,
-    parse_units,
-    validate_denominator,
-)
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import (
     get_timeline_by_name,
     get_timeline_by_ordinal,
 )
-from tilia.ui.format import format_numerator
+from tilia.ui.timelines.beat_bars import format_row, get_rows
 from tilia.ui.timelines.beat_time_signatures import set_time_signatures_shown
 
 
@@ -29,7 +24,6 @@ def setup_parser(subparser: argparse._SubParsersAction) -> None:
     beat_subp = beat_parser.add_subparsers(dest="beat_command", required=True)
 
     _setup_pattern_parser(beat_subp)
-    _setup_unit_parser(beat_subp)
     _setup_time_signatures_parser(beat_subp)
 
 
@@ -58,11 +52,13 @@ def _setup_pattern_set(subparser: argparse._SubParsersAction) -> None:
     parser = subparser.add_parser(
         "set",
         exit_on_error=False,
-        help="Set the beat pattern and recompute every measure from it.",
+        help="Set the time signatures of the bars and recompute every measure "
+        "from them.",
         epilog="""
 Examples:
-  timelines beat pattern set -o 1 4
-  timelines beat pattern set -o 1 10[4] 3 15[4]
+  timelines beat pattern set -o 1 4/4
+  timelines beat pattern set -o 1 4[4/4] 3/4 3[4/4]
+  timelines beat pattern set -o 1 6/8(3 3)
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -71,7 +67,11 @@ Examples:
         "pattern",
         type=str,
         nargs="+",
-        help="Beats per measure, separated by spaces. Use n[...] to repeat a group.",
+        help="Time signatures of the bars, separated by spaces, starting again "
+        "from the first after the last. Use n[...] to repeat a group. Taps "
+        "default to one per beat; otherwise give their values in brackets, "
+        "e.g. 6/8(3 3). A number alone is that many taps of an assumed "
+        "quarter note.",
     )
     parser.add_argument(
         "--yes",
@@ -82,37 +82,36 @@ Examples:
     parser.set_defaults(func=set_pattern)
 
 
-def _setup_unit_parser(subparser: argparse._SubParsersAction) -> None:
-    unit_parser = subparser.add_parser(
-        "unit",
+def _setup_time_signatures_parser(subparser: argparse._SubParsersAction) -> None:
+    time_signatures_parser = subparser.add_parser(
+        "time-signatures",
         exit_on_error=False,
-        help="Beat unit operations: what one tapped beat is worth in notation.",
+        help="Time signature operations.",
     )
-    unit_subp = unit_parser.add_subparsers(dest="unit_command", required=True)
+    time_signatures_subp = time_signatures_parser.add_subparsers(
+        dest="time_signatures_command", required=True
+    )
 
-    parser = unit_subp.add_parser(
+    parser = time_signatures_subp.add_parser(
         "set",
         exit_on_error=False,
-        help="Set the beat unit of a measure.",
+        help="Set the time signature of a measure, over the taps it has.",
         epilog="""
 Examples:
-  timelines beat unit set -o 1 --measure 12 --denominator 8 --units 3
-  timelines beat unit set -o 1 --measure 5 -d 4 -u 2+3 --scope measure
+  timelines beat time-signatures set -o 1 --measure 12 6/8
+  timelines beat time-signatures set -o 1 -m 5 4/4(3/2 3/2 1) --scope measure
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     _add_target_args(parser)
     _add_measure_args(parser)
     parser.add_argument(
-        "--denominator", "-d", type=int, required=True, help="Denominator"
-    )
-    parser.add_argument(
-        "--units",
-        "-u",
+        "time_signature",
         type=str,
-        required=True,
-        help="Units per tap, '+'-separated whole numbers or fractions "
-        "(e.g. 1, 3, 2+3, 1/2).",
+        nargs="+",
+        help="A time signature such as 3/4. The measure keeps its taps, each "
+        "worth the same, so 6/8 over two taps is two dotted quarters. To give "
+        "the taps other values, put them in brackets: 4/4(3/2 3/2 1).",
     )
     parser.add_argument(
         "--scope",
@@ -120,35 +119,35 @@ Examples:
         default="onward",
         help="Apply until the next change (default) or to this measure only.",
     )
-    parser.set_defaults(func=set_unit)
+    parser.set_defaults(func=set_time_signature)
 
-    parser = unit_subp.add_parser(
+    parser = time_signatures_subp.add_parser(
         "remove",
         exit_on_error=False,
-        help="Remove the beat unit that starts at a measure.",
+        help="Remove the time signature change at a measure, so the one "
+        "before carries on.",
     )
     _add_target_args(parser)
     _add_measure_args(parser)
-    parser.set_defaults(func=remove_unit)
+    parser.set_defaults(func=remove_time_signature)
 
-    parser = unit_subp.add_parser(
+    parser = time_signatures_subp.add_parser(
         "list",
         exit_on_error=False,
-        help="List the beat units of a beat timeline.",
+        help="List the bars of a beat timeline, with their time signatures and "
+        "taps.",
     )
     _add_target_args(parser)
-    parser.set_defaults(func=list_units)
+    parser.set_defaults(func=list_bars)
 
-
-def _setup_time_signatures_parser(subparser: argparse._SubParsersAction) -> None:
-    parser = subparser.add_parser(
-        "time-signatures",
-        exit_on_error=False,
-        help="Show or hide the time signatures of a beat timeline.",
-    )
-    parser.add_argument("action", choices=["show", "hide"])
-    _add_target_args(parser)
-    parser.set_defaults(func=set_time_signatures_visibility)
+    for action in ("show", "hide"):
+        parser = time_signatures_subp.add_parser(
+            action,
+            exit_on_error=False,
+            help=f"{action.capitalize()} the time signatures of a beat timeline.",
+        )
+        _add_target_args(parser)
+        parser.set_defaults(func=set_time_signatures_visibility, action=action)
 
 
 def _add_measure_args(parser: argparse.ArgumentParser) -> None:
@@ -244,69 +243,54 @@ def set_pattern(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
 
 
 @with_timeline
-def set_unit(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
+def set_time_signature(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
     measure_index = _resolve_measure(timeline, namespace)
     if measure_index is None:
         return
-    result = parse_units(namespace.units)
-    if not result.is_valid:
-        io.error(f"Invalid units '{namespace.units}': {result.error}")
-        return
-    if not validate_denominator(namespace.denominator):
-        io.error(
-            f"Invalid denominator: {namespace.denominator}. "
-            f"Use 1 to {MAX_DENOMINATOR}."
-        )
+    text = " ".join(namespace.time_signature)
+    beat_count = timeline.beats_in_measure[measure_index]
+    bar, error = parse_time_signature_over_taps(text, beat_count)
+    if bar is not None and bar.beat_count != beat_count:
+        error = f"It gives {bar.beat_count} taps, but the measure has {beat_count}."
+    if bar is None or error:
+        io.error(f"Invalid time signature '{text}': {error}")
         return
 
     timeline.set_beat_unit(
         measure_index,
-        namespace.denominator,
-        namespace.units,
+        bar.denominator,
+        bar.units_text,
         only_this_measure=namespace.scope == "measure",
     )
 
 
 @with_timeline
-def remove_unit(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
+def remove_time_signature(
+    timeline: BeatTimeline, namespace: argparse.Namespace
+) -> None:
     measure_index = _resolve_measure(timeline, namespace)
     if measure_index is None:
         return
     meter = timeline.get_measure_meter(measure_index)
     if not meter.starts_here:
-        io.error("No beat unit starts at that measure.")
+        io.error("The time signature doesn't change at that measure.")
         return
     timeline.delete_components([timeline.get_beat_unit_on_beat(meter.beat_unit_id)])
 
 
 @with_timeline
-def list_units(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
-    beat_units = timeline.beat_units
-    if not beat_units:
-        io.output(f"Timeline {timeline.name!r} has no beat units.")
+def list_bars(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
+    if not len(timeline):
+        io.output(f"Timeline {timeline.name!r} has no bars.")
         return
 
-    headers = ["measure", "beat time", "denominator", "units", "time signature"]
-    data = []
-    for beat_unit in beat_units:
-        beat = timeline.get_component(beat_unit.beat_id)
-        measure_index, _ = timeline.get_measure_index(timeline.get_beat_index(beat))
-        numerator, denominator = timeline.get_measure_meter(
-            measure_index
-        ).time_signature
-        time_signature = f"{format_numerator(numerator)}/{denominator}"
-        if beat_unit.assumed:
-            time_signature += " (assumed)"
-        data.append(
-            (
-                str(timeline.measure_numbers[measure_index]),
-                str(beat.time),
-                str(beat_unit.denominator),
-                beat_unit.units,
-                time_signature,
-            )
-        )
-    io.tabulate(headers, data, title=f"Beat units in {timeline.name!r}")
+    bars = timeline.get_measures_as_planned_bars()
+    rows = get_rows(bars, len(bars), timeline.measure_numbers)
+    io.tabulate(
+        ["bars", "time signature", "taps"],
+        [format_row(row) for row in rows],
+        title=f"Bars of {timeline.name!r} (pattern: {timeline.beat_pattern})",
+    )
 
 
 @with_timeline
