@@ -219,6 +219,20 @@ class TestTimeSignatureColumn:
 
         assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8)] * 4
 
+    def test_times_in_any_order(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        data = "time,time_signature\n4,3/4\n0,6/8\n1,\n2,\n3,\n5,"
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert errors == []
+        assert beat_tl.beats_in_measure == [2, 2, 2]
+        assert [m.time_signature for m in beat_tl.measure_meters] == [
+            (6, 8),
+            (6, 8),
+            (3, 4),
+        ]
+
     def test_a_number_alone_is_assumed(self, beat_tl):
         beat_tl.beat_pattern = [2]
 
