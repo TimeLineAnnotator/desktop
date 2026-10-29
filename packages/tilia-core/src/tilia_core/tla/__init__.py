@@ -29,6 +29,7 @@ from tilia_core.tla.model import (
     measure_table,
 )
 from tilia_core.tla.layout import FORMAT_VERSION, schema
+from tilia_core.tla.media import media  # the function, in place of its module
 from tilia_core.tla.reader import loads, read
 from tilia_core.tla.writer import (
     ABSENT,
@@ -69,6 +70,7 @@ __all__ = [
     "is_temporary",
     "loads",
     "measure_table",
+    "media",
     "migrate_folder",
     "new_document",
     "new_id",
