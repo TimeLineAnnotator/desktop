@@ -171,27 +171,36 @@ class CantCheck(Exception):
         return type(self), (self.kind,), {"args": self.args, "error": None}
 
 
-# The private functions give the first rule they find broken, or None. `_kept`
-# checks them in order, each only once the ones before it are kept. Then it raises
-# `CantCheck` when the rules that need music21 couldn't be checked, and only then
-# checks the color: an importer keeps a row whose color isn't one, with the
-# default color, so a bad color mustn't hide another broken rule, nor that a rule
-# couldn't be checked.
+# Each kind's rules but the color are one private function, which gives the first
+# rule broken, or None, so that what checks many components at once can call the
+# same rules. `_kept` then raises `CantCheck` when the rules that need music21
+# couldn't be checked, and only then checks the color: an importer keeps a row
+# whose color isn't one, with the default color, so a bad color mustn't hide
+# another broken rule, nor that a rule couldn't be checked.
 
 Check = Callable[[], "Outcome | None"]
 
 
-def _kept(
-    attrs: Mapping[str, Any],
-    *checks: Check,
-    cant_check: CantCheck | None = None,
-) -> Outcome:
-    """The first rule `checks` find broken, else `cant_check` raised, when the
-    rules that need music21 couldn't be checked, else the color's outcome."""
+def _first(*checks: Check) -> Outcome | None:
+    """The first rule `checks` find broken, each checked only once the ones
+    before it are kept; or None."""
     for check in checks:
         broken = check()
         if broken is not None and not broken:
             return broken
+    return None
+
+
+def _kept(
+    attrs: Mapping[str, Any],
+    broken: Outcome | None,
+    cant_check: CantCheck | None = None,
+) -> Outcome:
+    """`broken`, the first rule found broken but the color, else `cant_check`
+    raised, when the rules that need music21 couldn't be checked, else the
+    color's outcome."""
+    if broken is not None:
+        return broken
     if cant_check is not None:
         raise cant_check from cant_check.error
     broken = _color_of(attrs)
@@ -202,14 +211,14 @@ def marker(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A marker."""
-    return _kept(attrs, lambda: _point("marker", media_length, others, attrs))
+    return _kept(attrs, _point("marker", media_length, others, attrs))
 
 
 def beat(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A beat. Its measure mark and beat unit follow the measure table's rules."""
-    return _kept(attrs, lambda: _point("beat", media_length, others, attrs))
+    return _kept(attrs, _point("beat", media_length, others, attrs))
 
 
 def pdf_marker(
@@ -220,11 +229,7 @@ def pdf_marker(
     page_count: int,
 ) -> Outcome:
     """A PDF marker, in a PDF of `page_count` pages: 0 for a PDF that can't be read."""
-    return _kept(
-        attrs,
-        lambda: _point("pdf_marker", media_length, others, attrs),
-        lambda: _page(attrs.get("page_number"), page_count),
-    )
+    return _kept(attrs, _pdf_marker(media_length, others, attrs, page_count))
 
 
 def harmony(
@@ -235,15 +240,8 @@ def harmony(
     music21, error = _music21()
     return _kept(
         attrs,
-        lambda: _point("harmony", media_length, others, attrs),
-        lambda: _one_of(attrs, "step", _STEPS),
-        lambda: _one_of(attrs, "applied_to", _STEPS),
-        lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
-        lambda: _quality_and_inversion(music21, attrs) if music21 else None,
-        lambda: _one_of(attrs, "level", _LEVELS),
-        lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
-        lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
-        cant_check=None if music21 else CantCheck("harmony", error),
+        _harmony(media_length, others, attrs, music21),
+        None if music21 else CantCheck("harmony", error),
     )
 
 
@@ -255,12 +253,8 @@ def mode(
     music21, error = _music21()
     return _kept(
         attrs,
-        lambda: _point("mode", media_length, others, attrs),
-        lambda: _one_of(attrs, "step", _STEPS),
-        lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
-        lambda: _mode_type(music21, attrs) if music21 else None,
-        lambda: _one_of(attrs, "level", _LEVELS),
-        cant_check=None if music21 else CantCheck("mode", error),
+        _mode(media_length, others, attrs, music21),
+        None if music21 else CantCheck("mode", error),
     )
 
 
@@ -269,18 +263,7 @@ def hierarchy(
 ) -> Outcome:
     """A hierarchy. Hierarchies nest: one that overlaps another lies inside it,
     at a lower level."""
-    start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
-    hierarchies = [other for other in others if other.kind == "hierarchy"]
-    return _kept(
-        attrs,
-        lambda: _every_kind(attrs, _SEGMENT_TIMES),
-        lambda: _hierarchy_times(start, end, media_length),
-        lambda: _hierarchy_level(level),
-        lambda: _pre_start(attrs.get("pre_start"), start),
-        lambda: _post_end(attrs.get("post_end"), end, media_length),
-        lambda: _same_place(start, end, level, hierarchies),
-        lambda: _crossed(start, end, level, hierarchies),
-    )
+    return _kept(attrs, _hierarchy(media_length, others, attrs))
 
 
 def range_(
@@ -294,10 +277,84 @@ def range_(
 
     Ranges in a row may overlap.
     """
-    start, end = attrs.get("start"), attrs.get("end")
     row_ids = [row.get("id") for row in rows]
-    return _kept(
-        attrs,
+    return _kept(attrs, _range(media_length, others, attrs, rows, row_ids))
+
+
+def _pdf_marker(
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    page_count: int,
+) -> Outcome | None:
+    """A PDF marker's rules, in a PDF of `page_count` pages."""
+    return _first(
+        lambda: _point("pdf_marker", media_length, others, attrs),
+        lambda: _page(attrs.get("page_number"), page_count),
+    )
+
+
+def _harmony(
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    music21: ModuleType | None,
+) -> Outcome | None:
+    """A harmony's rules; without music21, those that don't need it."""
+    return _first(
+        lambda: _point("harmony", media_length, others, attrs),
+        lambda: _one_of(attrs, "step", _STEPS),
+        lambda: _one_of(attrs, "applied_to", _STEPS),
+        lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
+        lambda: _quality_and_inversion(music21, attrs) if music21 else None,
+        lambda: _one_of(attrs, "level", _LEVELS),
+        lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
+        lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
+    )
+
+
+def _mode(
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    music21: ModuleType | None,
+) -> Outcome | None:
+    """A key's rules; without music21, those that don't need it."""
+    return _first(
+        lambda: _point("mode", media_length, others, attrs),
+        lambda: _one_of(attrs, "step", _STEPS),
+        lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
+        lambda: _mode_type(music21, attrs) if music21 else None,
+        lambda: _one_of(attrs, "level", _LEVELS),
+    )
+
+
+def _hierarchy(
+    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+) -> Outcome | None:
+    start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
+    hierarchies = [other for other in others if other.kind == "hierarchy"]
+    return _first(
+        lambda: _every_kind(attrs, _SEGMENT_TIMES),
+        lambda: _hierarchy_times(start, end, media_length),
+        lambda: _hierarchy_level(level),
+        lambda: _pre_start(attrs.get("pre_start"), start),
+        lambda: _post_end(attrs.get("post_end"), end, media_length),
+        lambda: _same_place(start, end, level, hierarchies),
+        lambda: _crossed(start, end, level, hierarchies),
+    )
+
+
+def _range(
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    rows: Sequence[Mapping[str, Any]],
+    row_ids: Sequence[Any],
+) -> Outcome | None:
+    """A range's rules, in a timeline whose rows are `rows`, with the ids `row_ids`."""
+    start, end = attrs.get("start"), attrs.get("end")
+    return _first(
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _range_place(attrs.get("row_id"), row_ids, start, end, media_length),
         lambda: _pre_start(attrs.get("pre_start"), start),
