@@ -95,9 +95,9 @@ def format_units(units: Sequence[Fraction]) -> str:
 def fit_units(units: list[Fraction], beat_count: int) -> list[Fraction]:
     """
     The value of each of `beat_count` tapped beats in a measure. The pattern
-    is read from its start in every measure, pickups included: a shorter
-    measure takes its first entries and a longer one repeats it. A pickup
-    that holds the end of the pattern needs a beat unit of its own.
+    is read from its start in every measure: a shorter measure takes its
+    first entries and a longer one repeats it. A shorter measure that holds
+    the end of the pattern needs a beat unit of its own.
     """
     return [units[i % len(units)] for i in range(beat_count)]
 
@@ -106,7 +106,7 @@ def is_fit_ambiguous(units: list[Fraction], beat_count: int) -> bool:
     """
     Whether the measure doesn't hold a whole number of patterns: the pattern
     is not uniform and the beat count is not a multiple of its length. One
-    tap under 2+3 is read as 2, but could be a pickup worth 3.
+    tap under 2+3 is read as 2, but could be the 3 that ends a bar.
     """
     return len(set(units)) > 1 and beat_count % len(units) != 0
 

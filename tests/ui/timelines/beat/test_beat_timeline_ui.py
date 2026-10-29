@@ -623,7 +623,7 @@ class TestEditBarsDialog:
     def test_ok_without_changes_keeps_the_pattern_for_later_bars(self, tluis):
         add_beat_timeline_with_pattern("4/4")
         add_beats(range(9))
-        # A pickup, which the pattern doesn't plan.
+        # A one-beat measure, which the pattern doesn't plan.
         tluis[0].select_element(tluis[0][0])
         commands.execute("timeline.beat.set_amount_in_measure", amount=1)
         assert tluis[0].timeline.beats_in_measure == [1, 4, 4]
