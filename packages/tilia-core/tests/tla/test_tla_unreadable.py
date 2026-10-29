@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import layout, writer
+from tilia_core.tla import check, layout, writer
 from tilia_core.tla.parse import lines_of, pointer
 
 BROKEN = Path(__file__).parent / "broken"
@@ -644,6 +644,53 @@ def test_the_writer_writes_an_integer_given_as_1_0_as_1():
     assert b'"level": 2,' in data
     assert b'"level": 2.0' not in data
     assert _section(tla.loads(data)).attrs["level"] == 2
+
+
+@pytest.fixture
+def lists(monkeypatch):
+    # The schema has no list of integers yet: the check is given one, at a
+    # key of the top level the core doesn't know, which the reader keeps in
+    # `extra`; and a list of numbers beside it.
+    spec = check._compile(
+        {
+            "properties": {
+                "counts": {"type": "array", "items": {"type": "integer"}},
+                "weights": {"type": "array", "items": {"type": "number"}},
+            }
+        }
+    )
+    monkeypatch.setattr(check, "_DOCUMENT", check._merge(check._DOCUMENT, spec))
+
+
+def test_an_integer_written_as_1_0_in_a_list_is_read_as_the_integer_1(lists):
+    doc = tla.loads(edited(lambda content: content.update(counts=[1.0, 2, -0.0])))
+    assert doc.extra["counts"] == [1, 2, 0]
+    assert [type(value) for value in doc.extra["counts"]] == [int, int, int]
+    with_integers = tla.loads(edited(lambda content: content.update(counts=[1, 2, 0])))
+    assert tla.canonical_bytes(doc) == tla.canonical_bytes(with_integers)
+
+
+def test_the_writer_writes_an_integer_given_as_1_0_in_a_list_as_1(lists):
+    doc = base_document()
+    doc.extra["counts"] = [2.0]
+    data = writer.checked_bytes(doc)
+    assert [type(value) for value in json.loads(data)["counts"]] == [int]
+    assert tla.loads(data).extra["counts"] == [2]
+
+
+def test_a_number_with_a_fraction_in_a_list_of_integers_is_refused_at_its_index(
+    lists,
+):
+    data = edited(lambda content: content.update(counts=[1, 1.5]))
+    error = refusal(data)
+    assert error.place == "/counts/1"
+    assert error.message == 'an item of "counts" should be an integer, not a number'
+    assert error.line == data.decode().splitlines().index("    1.5") + 1
+
+
+def test_a_list_of_numbers_keeps_1_0(lists):
+    doc = tla.loads(edited(lambda content: content.update(weights=[1.0, 2])))
+    assert [type(value) for value in doc.extra["weights"]] == [float, int]
 
 
 def test_the_first_problem_in_the_file_is_reported():
