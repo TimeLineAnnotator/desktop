@@ -40,6 +40,7 @@ POSIX_MEDIA = "/home/someone-176/audio/piece.mp3"
 SAVED_HERE = WINDOWS_SAVED if WINDOWS else POSIX_SAVED
 # A media path of the other system's form: no relative path to it exists here.
 OTHER_SYSTEM_MEDIA = POSIX_MEDIA if WINDOWS else WINDOWS_MEDIA
+OTHER_SYSTEM_SAVED = POSIX_SAVED if WINDOWS else WINDOWS_SAVED
 
 MISSING = object()
 
@@ -301,6 +302,38 @@ def test_a_windows_path_isnt_looked_up_on_posix_when_migrated(
     assert stored_in(tla.read(piece), where) == WINDOWS_MEDIA
 
 
+@pytest.mark.parametrize(
+    "stored, file_path, expected",
+    [
+        (OTHER_SYSTEM_MEDIA, OTHER_SYSTEM_SAVED, "../audio/piece.mp3"),
+        (
+            "//www.youtube.com/watch?v=_ORrftU6sGA",
+            WINDOWS_SAVED,
+            "//www.youtube.com/watch?v=_ORrftU6sGA",
+        ),
+    ],
+    ids=["another system's path", "a link without its scheme"],
+)
+def test_a_url_or_another_systems_path_is_never_looked_up_here(
+    tmp_path, monkeypatch, where, stored, file_path, expected
+):
+    # Looked up, the first would name another file: below the working folder
+    # on macOS and Linux, or on the current drive on Windows; the second, a
+    # server's share, which Windows would look for on the network.
+    piece = old_file(tmp_path / "corpus", where, stored, file_path)
+    looked_up = []
+
+    def exists(path):
+        looked_up.append(os.fspath(path))
+        return True
+
+    monkeypatch.setattr(os.path, "exists", exists)
+    doc = tla.read(piece)
+    monkeypatch.undo()
+    assert stored not in looked_up
+    assert stored_in(doc, where) == expected
+
+
 def test_without_a_file_path_a_path_of_the_other_system_stays_absolute(tmp_path, where):
     piece = old_file(tmp_path / "corpus", where, OTHER_SYSTEM_MEDIA, "")
     assert stored_in(tla.read(piece), where) == OTHER_SYSTEM_MEDIA
@@ -449,13 +482,36 @@ def test_a_windows_path_isnt_looked_up_on_posix(tmp_path):
     assert tla.media(tmp_path / "corpus" / "piece.tla", doc).path is None
 
 
+@pytest.mark.parametrize(
+    "stored",
+    [OTHER_SYSTEM_MEDIA, "https://example.com/audio/piece.mp3"],
+    ids=["another system's path", "a link"],
+)
+def test_a_url_or_another_systems_media_is_never_looked_up_here(
+    tmp_path, monkeypatch, stored
+):
+    looked_up = []
+
+    def isfile(path):
+        looked_up.append(os.fspath(path))
+        return True
+
+    doc = tla.new_document()
+    doc.media_path = stored
+    monkeypatch.setattr(os.path, "isfile", isfile)
+    found = tla.media(tmp_path / "piece.tla", doc)
+    monkeypatch.undo()
+    assert (found.kind, found.path, looked_up) == ("local", None, [])
+
+
 NAME = "Ständchen"
 
 
 @pytest.mark.parametrize(
     "on_disk",
     [
-        f"audio/{unicodedata.normalize('NFD', NAME)}.wav",
+        # In a folder whose name is in NFC, as a file copied into it is.
+        f"{NAME}/{unicodedata.normalize('NFD', NAME)}.wav",
         unicodedata.normalize("NFD", f"{NAME}/{NAME}.wav"),
     ],
     ids=["name", "folder and name"],
