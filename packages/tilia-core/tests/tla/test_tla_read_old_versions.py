@@ -1355,19 +1355,20 @@ def test_each_non_empty_formal_value_is_dropped_with_a_warning():
         "formal_type": "",
         "formal_function": "exposição",
     }
-    doc = loads(content)
+    data = indented(content)
+    doc = tla.loads(data)
     for component in by_kind(doc, "hierarchy").components.values():
         assert not {"formal_type", "formal_function"} & set(component.attrs)
         assert not {"formal_type", "formal_function"} & set(component.extra)
     assert [(w.place, w.line, w.message) for w in doc.warnings] == [
         (
             "/timelines/1/components/2/formal_type",
-            None,
+            line_of(data, b'"formal_type": "sonata form"'),
             'formal_type "sonata form" dropped',
         ),
         (
             "/timelines/1/components/3/formal_function",
-            None,
+            line_of(data, b'"formal_function": "exposi'),
             'formal_function "exposição" dropped',
         ),
     ]
@@ -1503,37 +1504,86 @@ def test_a_timeline_without_an_ordinal_is_refused_at_its_old_place(
     assert (error.value.place, error.value.message) == ("/timelines/1/ordinal", message)
 
 
-# The migrated content, checked as a file of the current format is (FR-053):
-# its places are the migrated document's, with the new ids, and have no line.
+# The migrated content, checked as a file of the current format is (FR-053).
+# What the check refuses or warns about is named in the old file's terms, as
+# what the migration refuses or warns about is: the place in the old file,
+# with its old ids, and the line in its bytes
+# (TimeLineAnnotator/project-management#347).
+
+SEVEN = OLD / "0.7.0.tla"
 
 
-def migrated_place(content, timeline, *rest):
-    """The place in the migrated document of what the old file has under
-    timeline `timeline` and, when `rest` starts with "components", under its
-    component `rest[1]`."""
-    document_id = to_1.migrate(copy.deepcopy(content)).content["document_id"]
-    timelines = list(content["timelines"])
-    steps = [
-        "timelines",
-        migrated_id(
-            document_id, "timeline", timeline, position=timelines.index(timeline)
-        ),
-    ]
-    if rest[:1] == ("components",):
-        component = rest[1]
-        components = list(content["timelines"][timeline]["components"])
-        steps += [
-            "components",
-            migrated_id(
-                document_id,
-                "component",
-                timeline,
-                component,
-                position=components.index(component),
-            ),
-        ]
-        rest = rest[2:]
-    return "/" + "/".join([*steps, *rest])
+def replaced(data, old, new):
+    """`data` with `old`, which it holds once, replaced by `new`."""
+    assert data.count(old) == 1
+    return data.replace(old, new)
+
+
+def line_of(data, *texts):
+    """The line of the last of `texts` in `data`, each found after the one
+    before it."""
+    position = 0
+    for text in texts:
+        position = data.index(text, position)
+    return data.count(b"\n", 0, position) + 1
+
+
+def indented(content):
+    """An old file's bytes with a key or an item on each line, as TiLiA
+    writes them."""
+    return json.dumps(content, indent=2).encode()
+
+
+def test_what_the_check_refuses_in_an_old_file_is_named_at_its_place_and_line():
+    data = replaced(SEVEN.read_bytes(), b'"row_id": "s9jlhi"', b'"row_id": "s9"')
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == (
+        'a range names row "s9", which its timeline doesn\'t have'
+    )
+    assert error.value.place == "/timelines/42/components/45/row_id"
+    assert error.value.line == line_of(data, b'"row_id": "s9"') == 451
+
+
+def test_what_the_check_warns_about_in_an_old_file_is_named_at_its_place_and_line():
+    data = replaced(SEVEN.read_bytes(), b'"kind": "MODE"', b'"kind": "MARKER"')
+    doc = tla.loads(data)
+    assert (
+        tla.ReadWarning(
+            place="/timelines/22/components/23",
+            line=line_of(data, b'"23": {'),
+            message='the timeline "Harmony" holds a component of kind "MARKER",'
+            ' which a timeline of kind "Harmony" doesn\'t have: it is kept as it is',
+        )
+        in doc.warnings
+    )
+    assert line_of(data, b'"23": {') == 220
+
+
+def test_the_migrations_warnings_name_their_line_in_the_old_file():
+    data = SEVEN.read_bytes()
+    lines = {w.place: w.line for w in tla.loads(data).warnings}
+    assert lines["/timelines/1/components/3/formal_type"] == 61
+    assert line_of(data, b'"formal_type": "sonata form"') == 61
+    assert lines["/timelines/1/components/3/formal_function"] == 62
+    assert line_of(data, b'"formal_function": "exposition"') == 62
+    assert lines["/timelines/30/components"] == 294
+    assert line_of(data, b'"30": {', b'"components"') == 294
+
+
+def test_the_lines_are_found_after_a_byte_order_mark():
+    data = SEVEN.read_bytes()
+    with_mark = tla.loads(b"\xef\xbb\xbf" + data).warnings
+    assert with_mark == tla.loads(data).warnings
+    assert with_mark[0].line == 61
+
+
+def test_what_the_migration_refuses_is_named_at_its_line_in_the_old_file():
+    data = replaced(SEVEN.read_bytes(), b'"ordinal": 9', b'"ordinal": null')
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.place == "/timelines/42/ordinal"
+    assert error.value.line == line_of(data, b'"ordinal": null')
 
 
 def with_range(**first):
@@ -1560,74 +1610,147 @@ def with_range(**first):
 RANGE = ("timelines", "9")
 
 
+def with_lyrics_ordinal(ordinal):
+    """A timeline "5" of a kind the core doesn't know, with this ordinal."""
+    return set_key(
+        "timelines", "5", {"kind": "Lyrics", "ordinal": ordinal, "components": {}}
+    )
+
+
 @pytest.mark.parametrize(
-    "changes, place, message",
+    "changes, place, message, texts",
     [
         (
             [set_key(*HIERARCHY, "ordinal", "1")],
-            ("1", "ordinal"),
+            "/timelines/1/ordinal",
             '"ordinal" should be an integer, not text',
+            [b'"ordinal": "1"'],
         ),
         (
             [set_key(*HIERARCHY, "height", "x")],
-            ("1", "height"),
+            "/timelines/1/height",
             '"height" should be an integer, not text',
+            [b'"height": "x"'],
         ),
         # Not a number to the core, though TiLiA 0.7 reads it as no height.
         (
             [set_key(*HIERARCHY, "height", False)],
-            ("1", "height"),
+            "/timelines/1/height",
             '"height" should be an integer, not true or false',
+            [b'"height": false'],
         ),
         (
             [set_key(*MARKER, "time", "3")],
-            ("3", "components", "4", "time"),
+            "/timelines/3/components/4/time",
             '"time" should be a number, not text',
+            [b'"time": "3"'],
+        ),
+        # A key the old file doesn't have: the line of what holds it.
+        (
+            [remove_key(*MARKER, "time")],
+            "/timelines/3/components/4/time",
+            '"time" is missing',
+            [b'"3": {', b'"4": {'],
         ),
         (
             [with_range(), set_key(*RANGE, "rows", {"a": 1})],
-            ("9", "rows"),
+            "/timelines/9/rows",
             '"rows" should be a list, not an object',
+            [b'"rows": {'],
         ),
         (
             [with_range(joined_right="99")],
-            ("9", "components", "10", "joined_right"),
+            "/timelines/9/components/10/joined_right",
             '"joined_right" isn\'t a UUID: "99"',
+            [b'"joined_right": "99"'],
         ),
         (
             [with_range(row_id="s")],
-            ("9", "components", "10", "row_id"),
+            "/timelines/9/components/10/row_id",
             'a range names row "s", which its timeline doesn\'t have',
+            [b'"row_id": "s"'],
+        ),
+        # A timeline of a kind the core doesn't know gets a new id too.
+        (
+            [with_lyrics_ordinal("x")],
+            "/timelines/5/ordinal",
+            '"ordinal" should be an integer, not text',
+            [b'"ordinal": "x"'],
         ),
     ],
 )
-def test_the_migrated_content_is_checked(changes, place, message):
-    content = edited(*changes)
+def test_the_migrated_content_is_checked(changes, place, message, texts):
+    data = indented(edited(*changes))
     with pytest.raises(tla.UnreadableFile) as error:
-        loads(content)
+        tla.loads(data)
     assert error.value.message == message
-    assert error.value.place == migrated_place(content, *place)
-    assert error.value.line is None
+    assert error.value.place == place
+    assert error.value.line == line_of(data, *texts)
+
+
+def test_an_old_id_is_named_as_a_json_pointer_names_it():
+    content = old_file_content()
+    form = content["timelines"].pop("1")
+    content["timelines"]["a/b~c"] = {**form, "ordinal": "1"}
+    data = indented(content)
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.place == "/timelines/a~1b~0c/ordinal"
+    assert error.value.line == line_of(data, b'"ordinal": "1"')
 
 
 def test_the_checks_warnings_come_after_the_migrations():
     content = old_file_content()
     content["timelines"]["1"]["components"]["2"]["formal_type"] = "sonata form"
     content["timelines"]["1"]["components"]["5"] = {"kind": "MARKER", "time": 1}
-    doc = loads(content)
+    data = indented(content)
+    doc = tla.loads(data)
     assert [(w.place, w.line, w.message) for w in doc.warnings] == [
         (
             "/timelines/1/components/2/formal_type",
-            None,
+            line_of(data, b'"formal_type"'),
             'formal_type "sonata form" dropped',
         ),
         (
-            migrated_place(content, "1", "components", "5"),
-            None,
+            "/timelines/1/components/5",
+            line_of(data, b'"5": {'),
             'the timeline "Form" holds a component of kind "MARKER", which a'
             ' timeline of kind "Hierarchy" doesn\'t have: it is kept as it is',
         ),
     ]
+
+
+def test_in_a_file_of_the_current_format_the_places_are_its_own():
+    # The migrated document written in the current format, with the same
+    # problems as the old files above: its own ids, its own lines, and the
+    # check's messages.
+    doc = tla.read(SEVEN)
+    ranges = by_kind(doc, "range")
+    (joined,) = [
+        (key, c) for key, c in ranges.components.items() if c.attrs["joined_right"]
+    ]
+    key, component = joined
+    current = tla.canonical_bytes(doc)
+    data = replaced(
+        current,
+        f'"joined_right": "{component.attrs["joined_right"]}"'.encode(),
+        b'"joined_right": "99"',
+    )
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == '"joined_right" isn\'t a UUID: "99"'
+    assert error.value.place == (
+        f"/timelines/{ranges.id}/components/{key}/joined_right"
+    )
+    assert error.value.line == line_of(data, b'"joined_right": "99"')
+    data = replaced(current, b'"kind": "MODE"', b'"kind": "MARKER"')
+    harmonies = by_kind(doc, "harmony")
+    (mode,) = [k for k, c in harmonies.components.items() if c.kind == "mode"]
+    (warning,) = tla.loads(data).warnings
+    assert (warning.place, warning.line) == (
+        f"/timelines/{harmonies.id}/components/{mode}",
+        line_of(data, f'"{mode}": {{'.encode()),
+    )
 
 
 def test_an_integer_written_with_a_fraction_is_read_as_one():
@@ -1648,6 +1771,64 @@ def test_old_files_have_no_warnings_but_the_migrations(old_file):
     for warning in doc.warnings:
         timeline = warning.place.split("/")[2]
         assert timeline in content["timelines"]
+
+
+# Where each place of the migrated document was in the old file
+
+
+def migrated_ids(content):
+    """The migration's result, and its ids by the old ones."""
+    migrated = to_1.migrate(copy.deepcopy(content))
+    document_id = migrated.content["document_id"]
+    ids = {}
+    for position, (old_id, timeline) in enumerate(content["timelines"].items()):
+        ids[old_id] = migrated_id(document_id, "timeline", old_id, position=position)
+        for index, key in enumerate(timeline["components"]):
+            ids[old_id, key] = migrated_id(
+                document_id, "component", old_id, key, position=index
+            )
+    return migrated, ids
+
+
+def test_the_migration_keeps_each_new_ids_old_id():
+    migrated, ids = migrated_ids(old_file_content())
+    place = f"/timelines/{ids['1']}/components/{ids['1', '2']}/label"
+    assert migrated.places.old(place) == "/timelines/1/components/2/label"
+    assert migrated.places.old(f"/timelines/{ids['3']}") == "/timelines/3"
+
+
+@pytest.mark.parametrize(
+    "place, old",
+    [
+        ("/media/path", "/media_path"),
+        ("/media/length", "/media_metadata/media length"),
+        ("/metadata", "/media_metadata"),
+        ("/metadata/composer", "/media_metadata/composer"),
+        # Only in the migrated document.
+        ("/document_id", "/document_id"),
+        ("/time_unit", "/time_unit"),
+    ],
+)
+def test_the_migration_keeps_where_the_keys_it_moves_were(place, old):
+    migrated, _ = migrated_ids(old_file_content())
+    assert migrated.places.old(place) == old
+
+
+def test_an_ordinal_was_a_display_position_up_to_tilia_0_1_1():
+    content = timeline_without_ordinal("0.0.96", display_position=1)
+    migrated, ids = migrated_ids(content)
+    ordinal = f"/timelines/{ids['1']}/ordinal"
+    assert migrated.places.old(ordinal) == "/timelines/1/display_position"
+    migrated, ids = migrated_ids(old_file_content())
+    ordinal = f"/timelines/{ids['1']}/ordinal"
+    assert migrated.places.old(ordinal) == "/timelines/1/ordinal"
+
+
+def test_the_components_of_a_timeline_of_an_unknown_kind_keep_their_ids():
+    content = edited(with_lyrics({"8": word("0a")}))
+    migrated, ids = migrated_ids(content)
+    place = f"/timelines/{ids['7']}/components/8/text"
+    assert migrated.places.old(place) == "/timelines/7/components/8/text"
 
 
 # Ranges

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import json
 import os
 import re
@@ -34,13 +35,14 @@ from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
     Component,
     Document,
+    ReadWarning,
     Score,
     Timeline,
     UnknownKind,
     component_kind_from_file,
     timeline_kind_from_current_file,
 )
-from tilia_core.tla.parse import parse
+from tilia_core.tla.parse import lines_of, parse
 
 
 def read(path: str | os.PathLike[str]) -> Document:
@@ -59,21 +61,54 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
-        # A file from TiLiA 0.x, migrated in memory; its document's
-        # format_version is the version it was read from. The migrated
-        # content is checked as a file of the current format is (FR-053):
-        # what the check refuses or warns about is at a place in the
-        # migrated document, which has no line. Its warnings come after the
-        # migration's, which name places in the old file.
-        migrated = migrate(content, path=path)
-        warnings = check(migrated.content, path=path)
-        document = _Reader(path).document(migrated.content)
-        document.warnings = migrated.warnings + warnings
-        return document
+        return _old(content, data, path)
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
     return document
+
+
+def _old(
+    content: dict[str, Any], data: bytes, path: str | os.PathLike[str] | None
+) -> Document:
+    """A file from TiLiA 0.x, migrated in memory; its document's
+    format_version is the version it was read from. The migrated content is
+    checked as a file of the current format is (FR-053), and its warnings
+    come after the migration's.
+
+    What the migration or the check refuses or warns about is named in the
+    old file's terms: its place there, with the old ids, and its line in
+    the old file's bytes (TimeLineAnnotator/project-management#347). The
+    migration names its places so itself; the check names places in the
+    migrated document, which the migration's `places` takes back to the old
+    file.
+    """
+    try:
+        migrated = migrate(content, path=path)
+        try:
+            warnings = check(migrated.content, path=path)
+        except UnreadableFile as error:
+            if error.place is not None:
+                error.place = migrated.places.old(error.place)
+            raise
+    except UnreadableFile as error:
+        if error.place is not None and error.line is None:
+            error.line = _lines(data, [error.place])[error.place]
+        raise
+    named = [(w.place, w.message) for w in migrated.warnings]
+    named += [(migrated.places.old(w.place), w.message) for w in warnings]
+    lines = _lines(data, [place for place, _ in named]) if named else {}
+    document = _Reader(path).document(migrated.content)
+    document.warnings = [
+        ReadWarning(place=place, line=lines[place], message=message)
+        for place, message in named
+    ]
+    return document
+
+
+def _lines(data: bytes, places: list[str]) -> dict[str, int]:
+    """The line of each place in a file's bytes, which `parse` has read."""
+    return lines_of(data.removeprefix(codecs.BOM_UTF8).decode("utf-8"), places)
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.
