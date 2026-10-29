@@ -728,13 +728,14 @@ def _refused_nulls():
     keys |= {"/timelines/{texture}/rows"}
     keys |= {f"/timelines/{{texture}}/rows/0/{key}" for key in ("id", "name")}
     components = {
+        # A beat without a time is kept, with a warning
+        # (TimeLineAnnotator/project-management#285).
         ("beats", "beat_1"): (
             "kind",
-            "time",
             "beat_unit/denominator",
             "beat_unit/units",
         ),
-        ("beats", "beat_2"): ("kind", "time"),
+        ("beats", "beat_2"): ("kind",),
         ("form", "section"): ("kind", "start", "end", "level"),
         ("cadences", "cadence"): ("kind", "time"),
         ("texture", "melody_1"): ("kind", "start", "end", "row_id"),
