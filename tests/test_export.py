@@ -208,11 +208,11 @@ class TestExportTimeSignatures:
         }
 
     @pytest.mark.parametrize(
-        "pattern, beat_count, time_signature",
-        [("2", 7, "6/8"), ("4", 10, "4/4")],
+        "pattern, beat_count, time_signature, exported",
+        [("2", 7, "6/8", ["6/8", "3/8"]), ("4", 10, "4/4", ["4/4", "2/4"])],
     )
-    def test_an_unfinished_last_measure_is_no_change(
-        self, tilia, beat_tlui, tmp_path, pattern, beat_count, time_signature
+    def test_an_unfinished_last_measure_is_exported_as_tapped(
+        self, tilia, beat_tlui, tmp_path, pattern, beat_count, time_signature, exported
     ):
         commands.execute("timeline.beat.set_pattern", beat_tlui, pattern=pattern)
         for time in range(beat_count):
@@ -223,9 +223,10 @@ class TestExportTimeSignatures:
 
         components = self.export(tmp_path)
 
-        assert [c["time_signature"] for c in components if "time_signature" in c] == [
-            time_signature
-        ]
+        # As the timeline's labels show it.
+        assert [c["time_signature"] for c in components if "time_signature" in c] == (
+            exported
+        )
 
     def test_one_per_change(self, tilia, beat_tlui, tmp_path):
         commands.execute("timeline.beat.set_pattern", beat_tlui, pattern="2[2/4] 3/4")

@@ -207,9 +207,12 @@ class BeatUnitUI(TimelineUIElement):
             return self.active_measure_index
         return self.start_measure_index
 
-    def _get_inspected_bar(self) -> PlannedBar:
+    def _get_inspected_bar(self, beat_count: int | None = None) -> PlannedBar:
+        """The inspected measure, over `beat_count` beats or the ones it has."""
         timeline = self.timeline_ui.timeline
-        bar = timeline.get_measures_as_planned_bars()[self.inspected_measure_index]
+        bar = timeline.get_measure_as_planned_bar(
+            self.inspected_measure_index, beat_count
+        )
         return PlannedBar.from_values(bar.values, bar.denominator)
 
     def get_inspector_dict(self) -> dict:
@@ -233,7 +236,7 @@ class BeatUnitUI(TimelineUIElement):
         if field_name != "Time signature" or measure_index >= timeline.measure_count:
             return
 
-        beat_count = timeline.get_full_beat_count(measure_index)
+        beat_count = timeline.get_beat_count_to_set(value, measure_index)
         bar, error = parse_time_signature_over_taps(value, beat_count)
         if bar is not None and bar.beat_count != beat_count:
             error = tilia.ui.strings.TIME_SIGNATURE_TAPS_ERROR.format(beat_count)
@@ -243,7 +246,7 @@ class BeatUnitUI(TimelineUIElement):
             return
 
         edit = (bar.denominator, bar.units_text)
-        if bar == self._get_inspected_bar() or self._pending_edit == edit:
+        if bar == self._get_inspected_bar(beat_count) or self._pending_edit == edit:
             return
 
         self._pending_edit = edit

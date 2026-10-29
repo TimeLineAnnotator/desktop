@@ -37,6 +37,7 @@ from tilia.timelines.beat.pattern import (
     format_taps,
     format_time_signature,
     parse,
+    parse_time_signature,
     parse_time_signature_of_tapped_bar,
 )
 from tilia.timelines.beat.units import (
@@ -514,18 +515,25 @@ class BeatTimeline(Timeline):
     def get_measures_as_planned_bars(self) -> list[PlannedBar]:
         """
         Each measure as a bar of a pattern: its beats, with the values its
-        beat unit gives them. The last measure counts as many beats as it
-        will have once tapped (see `get_full_beat_count`).
+        beat unit gives them.
         """
-        bars: list[PlannedBar] = []
-        for measure_index, meter in enumerate(self.measure_meters):
-            values = fit_units(
-                list(meter.units), self.get_full_beat_count(measure_index)
-            )
-            bars.append(
-                PlannedBar.from_values(values, meter.denominator, meter.is_assumed)
-            )
-        return bars
+        return [
+            self.get_measure_as_planned_bar(measure_index)
+            for measure_index in range(self.measure_count)
+        ]
+
+    def get_measure_as_planned_bar(
+        self, measure_index: int, beat_count: int | None = None
+    ) -> PlannedBar:
+        """
+        A measure as a bar of a pattern: `beat_count` beats, by default the
+        ones it has, with the values its beat unit gives them.
+        """
+        meter = self.measure_meters[measure_index]
+        if beat_count is None:
+            beat_count = self.beats_in_measure[measure_index]
+        values = fit_units(list(meter.units), beat_count)
+        return PlannedBar.from_values(values, meter.denominator, meter.is_assumed)
 
     def get_full_beat_count(self, measure_index: int) -> int:
         """
@@ -535,8 +543,32 @@ class BeatTimeline(Timeline):
         """
         count = self.beats_in_measure[measure_index]
         if measure_index == self.measure_count - 1:
-            return max(count, self.get_planned_bar(measure_index).beat_count)
+            return self._get_open_beat_count(measure_index, count)
         return count
+
+    def _get_open_beat_count(self, measure_index: int, count: int) -> int:
+        """
+        The beats a last measure that has `count` takes: as many as the
+        pattern plans for it, if that is more.
+        """
+        return max(count, self.get_planned_bar(measure_index).beat_count)
+
+    def get_beat_count_to_set(self, text: str, measure_index: int) -> int:
+        """
+        The beats the time signature `text` is read over when it is set on a
+        measure: the ones it has, or, for the last measure, the ones it will
+        have once tapped (see `get_full_beat_count`), unless `text` fits the
+        ones it has as it is written. So "6/8" on a last bar with one of its
+        two taps is 3 and 3, and "2/4" on one with two taps of four makes it
+        a bar of 2/4.
+        """
+        count = self.beats_in_measure[measure_index]
+        if measure_index != self.measure_count - 1:
+            return count
+        as_written, _ = parse_time_signature(text)
+        if as_written is not None and as_written.beat_count == count:
+            return count
+        return self._get_open_beat_count(measure_index, count)
 
     @property
     def default_height(self):
@@ -959,18 +991,27 @@ class BeatTimeline(Timeline):
     def get_alike_measures_end(self, measure_index: int) -> int:
         """
         The index past the measures from `measure_index` on that are alike
-        (the same time signature and taps), as the bars dialog groups them.
+        (the same time signature and taps), as the bars dialog groups them,
+        but with the last measure as it will be once tapped (see
+        `get_full_beat_count`), so a time signature set on the measures
+        being tapped carries on to the one being tapped.
         """
-        bars = self.get_measures_as_planned_bars()
+
+        def get_bar(index: int) -> PlannedBar:
+            return self.get_measure_as_planned_bar(
+                index, self.get_full_beat_count(index)
+            )
+
+        bar = get_bar(measure_index)
         end = measure_index + 1
-        while end < len(bars) and bars[end] == bars[measure_index]:
+        while end < self.measure_count and get_bar(end) == bar:
             end += 1
         return end
 
     def set_time_signature(self, text: str, start: int, stop: int) -> str:
         """
         Gives the measures from `start` up to `stop` the time signature
-        `text`, each over its own beats (see `get_full_beat_count`), as
+        `text`, each over its own beats (see `get_beat_count_to_set`), as
         `parse_time_signature_of_tapped_bar` reads it. The measure at `stop`
         keeps the time signature it had. Returns why `text` can't be set
         there, or "" once it is.
@@ -981,7 +1022,7 @@ class BeatTimeline(Timeline):
         bars: list[PlannedBar] = []
         for measure_index in range(start, stop):
             bar, error = parse_time_signature_of_tapped_bar(
-                text, self.get_full_beat_count(measure_index)
+                text, self.get_beat_count_to_set(text, measure_index)
             )
             if bar is None:
                 if stop - start > 1:
@@ -1412,9 +1453,7 @@ class BeatTimeline(Timeline):
         pattern plans for it, as it may not have all its beats yet.
         """
         last = len(counts) - 1
-        return counts[:last] + [
-            max(counts[last], self.get_planned_bar(last).beat_count)
-        ]
+        return counts[:last] + [self._get_open_beat_count(last, counts[last])]
 
     def _remeasure(self, counts: list[int], from_measure: int) -> None:
         """
