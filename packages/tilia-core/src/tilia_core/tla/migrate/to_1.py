@@ -14,7 +14,9 @@ takes it to the current format:
   non-empty value with a warning, and AudioWave timelines' amplitude bars,
   which TiLiA computes from the media, with one warning per timeline;
 - a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
-  `[4, 4, 3]` becomes `"4 4 3"`;
+  `[4, 4, 3]` becomes `"4 4 3"`; its lists by measure, fitted to its beats
+  as TiLiA fits them, become marks on its downbeats, and desktop#621's beat
+  units move onto their beats (`beats`);
 - a score timeline's SVG and its viewer's beat positions become a legacy
   score in `scores`, which the timeline names, with an id derived as the
   timeline's is (`scores`);
@@ -60,7 +62,7 @@ from tilia_core.tla.layout import (
     Shape,
     pointer_to,
 )
-from tilia_core.tla.migrate import marks, scores
+from tilia_core.tla.migrate import beats, marks, scores
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import (
@@ -129,13 +131,13 @@ def migrate(
     migration.check(old)
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
+    beats.convert(old, content, migration.warnings, migration.changes)
     # `to_current` has made the legacy scores
     # (TimeLineAnnotator/project-management#182) and moved the comments' marks
-    # into fields (TimeLineAnnotator/project-management#180), with the old ids
-    # still in place, so that the document id is derived from the content they
-    # give. The beat timelines' measures
-    # (TimeLineAnnotator/project-management#181) are to be converted here,
-    # before the id is derived, for the same reason.
+    # into fields (TimeLineAnnotator/project-management#180), and `beats` the
+    # beat timelines' measures (TimeLineAnnotator/project-management#181), with
+    # the old ids still in place, so that the document id is derived from the
+    # content they give.
     #
     # A file saved again by TiLiA 0.7 without an edit gets the same id, but
     # for three changes TiLiA 0.7 makes itself, which change it (accepted in
