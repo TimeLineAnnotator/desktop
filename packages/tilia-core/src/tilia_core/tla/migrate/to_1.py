@@ -63,6 +63,7 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.migrate import beats, marks, scores
+from tilia_core.tla.migrate import media as media_paths
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import (
@@ -127,6 +128,7 @@ def migrate(
     the migration can't read.
     """
     version = old.get("version", "0.0.0")
+    file_path = old.get("file_path")
     migration = _Migration(version, path)
     migration.check(old)
     old = old_migrations.migrate(old)
@@ -147,8 +149,9 @@ def migrate(
     # the user doesn't show it where the media is.
     document_id = derived_document_id(content)
     content = _with_new_ids(content, document_id, migration.places)
-    # The media's and PDF timelines' paths are made relative here, from the
-    # old file's `file_path` (TimeLineAnnotator/project-management#176).
+    # The media's and PDF timelines' paths are made relative after the id is
+    # derived, since they depend on where the file is.
+    media_paths.make_relative(content, file_path=file_path, path=path)
     content["document_id"] = document_id
     return Migrated(content, migration.warnings, migration.changes, migration.places)
 
