@@ -124,27 +124,30 @@ ERRORS = {
 }
 
 
+# Each failure is injected in a monkeypatch of its own, undone before the
+# folder is looked at: undoing the test's `monkeypatch` would also undo what
+# fixtures patched with it.
+
+
 @pytest.mark.parametrize("error", ERRORS.values(), ids=ERRORS.keys())
 @pytest.mark.parametrize("step", STEPS)
-def test_a_write_that_fails_at_any_step_leaves_the_file_as_it_was(
-    piece, monkeypatch, step, error
-):
+def test_a_write_that_fails_at_any_step_leaves_the_file_as_it_was(piece, step, error):
     before = piece.read_bytes()
     raised = error()
-    inject(monkeypatch, step, raised)
-    with pytest.raises(type(raised)):
-        tla.write(piece, edited())
-    monkeypatch.undo()
+    with pytest.MonkeyPatch.context() as failing:
+        inject(failing, step, raised)
+        with pytest.raises(type(raised)):
+            tla.write(piece, edited())
     assert piece.read_bytes() == before
     assert listing(piece.parent) == ["piece.tla"]
 
 
 @pytest.mark.parametrize("step", STEPS)
-def test_a_new_file_whose_write_fails_is_not_there(tmp_path, monkeypatch, step):
-    inject(monkeypatch, step, OSError(errno.ENOSPC, os.strerror(errno.ENOSPC)))
-    with pytest.raises(OSError):
-        tla.write(tmp_path / "new.tla", edited())
-    monkeypatch.undo()
+def test_a_new_file_whose_write_fails_is_not_there(tmp_path, step):
+    with pytest.MonkeyPatch.context() as failing:
+        inject(failing, step, OSError(errno.ENOSPC, os.strerror(errno.ENOSPC)))
+        with pytest.raises(OSError):
+            tla.write(tmp_path / "new.tla", edited())
     assert listing(tmp_path) == []
 
 
