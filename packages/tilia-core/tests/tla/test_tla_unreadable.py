@@ -635,12 +635,14 @@ def test_an_integer_written_as_1_0_is_read_as_the_integer_1(change, get):
     assert tla.canonical_bytes(doc) == tla.canonical_bytes(with_integers)
 
 
-def test_the_writer_writes_an_integer_given_as_1_0_as_it_is():
-    # It is the document's: the reader reads it back as 1.
+def test_the_writer_writes_an_integer_given_as_1_0_as_1():
+    # As the reader reads it back (FR-051a), so that the file's fingerprint
+    # is that of the bytes written.
     doc = base_document()
     _section(doc).attrs["level"] = 2.0
     data = writer.checked_bytes(doc)
-    assert b'"level": 2.0' in data
+    assert b'"level": 2,' in data
+    assert b'"level": 2.0' not in data
     assert _section(tla.loads(data)).attrs["level"] == 2
 
 

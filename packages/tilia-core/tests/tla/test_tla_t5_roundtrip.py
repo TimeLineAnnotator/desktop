@@ -153,26 +153,26 @@ def test_integers_stay_integers():
     assert [type(c.attrs["time"]) for c in beats.components.values()] == [int, int]
 
 
-@pytest.mark.parametrize(
-    "value",
-    [
-        0.0,
-        pytest.param(
-            False,
-            marks=pytest.mark.writes_outside_the_schema("a step that isn't a number"),
-        ),
-    ],
-    ids=["0.0", "False"],
-)
-def test_a_value_equal_to_its_default_in_another_type_is_written(value):
-    # A step's default is 0: left out, either would read back as 0.
+@pytest.mark.writes_outside_the_schema("a step that isn't a number")
+def test_a_value_equal_to_its_default_in_another_type_is_written():
+    # A step's default is 0: left out, false would read back as 0.
     doc = tla.read(EVERY_KIND)
     harmony = named(doc, "Harmony")
     chord = nth(harmony, 0)
-    chord.attrs["step"] = value
+    chord.attrs["step"] = False
     content = json.loads(tla.canonical_bytes(doc))
     step = content["timelines"][harmony.id]["components"][chord.id]["step"]
-    assert (type(step), step) == (type(value), value)
+    assert (type(step), step) == (bool, False)
+
+
+def test_an_integer_given_as_a_float_at_its_default_is_left_out():
+    # A step of 0.0 is read as the integer 0 (FR-051a), its default.
+    doc = tla.read(EVERY_KIND)
+    harmony = named(doc, "Harmony")
+    chord = nth(harmony, 0)
+    chord.attrs["step"] = 0.0
+    content = json.loads(tla.canonical_bytes(doc))
+    assert "step" not in content["timelines"][harmony.id]["components"][chord.id]
 
 
 @pytest.mark.parametrize(
