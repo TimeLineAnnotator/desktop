@@ -209,11 +209,9 @@ class BeatUnitUI(TimelineUIElement):
 
     def _get_inspected_bar(self, beat_count: int | None = None) -> PlannedBar:
         """The inspected measure, over `beat_count` beats or the ones it has."""
-        timeline = self.timeline_ui.timeline
-        bar = timeline.get_measure_as_planned_bar(
+        return self.timeline_ui.timeline.get_measure_as_planned_bar(
             self.inspected_measure_index, beat_count
         )
-        return PlannedBar.from_values(bar.values, bar.denominator)
 
     def get_inspector_dict(self) -> dict:
         timeline = self.timeline_ui.timeline
