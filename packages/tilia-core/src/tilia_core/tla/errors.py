@@ -74,8 +74,9 @@ class FileChanged(Exception):
 
 class FileInUse(PermissionError):
     """Windows still refused to replace the file after a short retry: another
-    program, such as a sync client or a virus scanner, holds it open. The
-    file is as it was; a later write may succeed.
+    program, such as a sync client or a virus scanner, holds it open, or
+    holds the new temporary file beside it open. The file is as it was; a
+    later write may succeed.
 
     `path` is the file that was to be written, never the temporary file.
     """
