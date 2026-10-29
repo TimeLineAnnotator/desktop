@@ -1658,11 +1658,12 @@ def with_lyrics_ordinal(ordinal):
             '"rows" should be a list, not an object',
             [b'"rows": {'],
         ),
+        # Not a reference: not followed to the new ids, and of the wrong type.
         (
-            [with_range(joined_right="99")],
+            [with_range(joined_right=True)],
             "/timelines/9/components/10/joined_right",
-            '"joined_right" isn\'t a UUID: "99"',
-            [b'"joined_right": "99"'],
+            '"joined_right" should be a UUID or null, not true or false',
+            [b'"joined_right": true'],
         ),
         (
             [with_range(row_id="s")],
@@ -1842,6 +1843,52 @@ def test_a_joined_right_written_as_an_integer_follows_the_new_ids():
     second = migrated_id(doc.document_id, "component", "9", "11", position=1)
     ranges = by_kind(doc, "range").components
     assert ranges[first].attrs["joined_right"] == second
+
+
+def test_a_joined_right_that_names_nothing_is_refused_as_naming_nothing():
+    data = replaced(
+        SEVEN.read_bytes(), b'"joined_right": "44"', b'"joined_right": "99"'
+    )
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == '"joined_right" names nothing: "99"'
+    assert error.value.place == "/timelines/42/components/43/joined_right"
+    assert error.value.line == line_of(data, b'"joined_right": "99"') == 429
+
+
+UUID = "01890a5d-ac96-774b-bcce-b302099a8057"
+
+
+@pytest.mark.parametrize(
+    "value, shown",
+    [
+        (99, "99"),
+        ("", '""'),
+        # A component of another timeline.
+        ("4", '"4"'),
+        (UUID, f'"{UUID}"'),
+    ],
+)
+def test_a_joined_right_names_nothing_unless_its_timeline_has_it(value, shown):
+    data = indented(edited(with_range(joined_right=value)))
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == f'"joined_right" names nothing: {shown}'
+    assert error.value.place == "/timelines/9/components/10/joined_right"
+    assert error.value.line == line_of(data, b'"joined_right"')
+
+
+def test_only_a_ranges_joined_right_is_a_reference():
+    # A component of another kind in a range timeline is kept as it is, as
+    # the check keeps it, with what it names.
+    marker = {"kind": "MARKER", "time": 1, "joined_right": "99"}
+    doc = loads(edited(with_range(), set_key(*RANGE, "components", "11", marker)))
+    (kept,) = [c for c in by_kind(doc, "range").components.values() if c.extra]
+    assert kept.extra["joined_right"] == "99"
+    assert [w.message for w in doc.warnings] == [
+        'the timeline "Rows" holds a component of kind "MARKER", which a'
+        ' timeline of kind "Range" doesn\'t have: it is kept as it is'
+    ]
 
 
 def rows(*rows):
