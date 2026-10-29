@@ -985,6 +985,36 @@ class BeatTimeline(Timeline):
         )
         return component, reason
 
+    @contextmanager
+    def adding_beats_together(self) -> Iterator[None]:
+        """
+        Places the beats created in the block once, at its end, as adding
+        them one at a time would (see `create_component`): every measure
+        keeps its length. Into an empty timeline, they are added one at a
+        time, as that only appends them.
+        """
+        if not len(self):
+            yield
+            return
+
+        counts = self.beats_in_measure.copy()
+        old_ids = {beat.id for beat in self}
+        old_first = self[0]
+        manager = self.component_manager
+        with manager.bulk() as was_bulk:
+            yield
+            new_indices = [
+                index for index, beat in enumerate(self) if beat.id not in old_ids
+            ]
+            if new_indices:
+                if self[0] is not old_first:
+                    # Beats before the first join the first measure.
+                    manager.move_measure_start(old_first, self[0])
+                from_measure = self.measures.measure_of_beat[new_indices[0]]
+                self._remeasure(self._with_last_measure_open(counts), from_measure)
+        if not was_bulk:
+            self.refresh_measures()
+
     def _place_new_beat(self, beat: Beat) -> None:
         index = self.get_beat_index(beat)
         if len(self) == 1:
@@ -1298,6 +1328,7 @@ class BeatTimeline(Timeline):
         if measure_index != len(counts) - 1:
             counts = self._with_last_measure_open(counts)
         self._remeasure(counts, measure_index)
+        self.refresh_measures()
 
     def _with_last_measure_open(self, counts: list[int]) -> list[int]:
         """
@@ -1314,7 +1345,8 @@ class BeatTimeline(Timeline):
         Makes the measures from `from_measure` on hold `counts[from_measure:]`
         beats each. Each keeps its number, display and the beat unit on its
         first beat, by position. Beats left over at the end make measures
-        from the beat pattern; measures past the last beat go.
+        from the beat pattern; measures past the last beat go. The caller
+        refreshes the measures (see `refresh_measures`) once it is done.
         """
         measures = self.measures
         if not 0 <= from_measure < measures.count:
@@ -1390,8 +1422,6 @@ class BeatTimeline(Timeline):
             if len(new_starts) > len(kept_data):
                 # Measures made from the pattern for the beats left over.
                 self.lay_planned_beat_units(from_measure + len(kept_data))
-
-        self.refresh_measures()
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)

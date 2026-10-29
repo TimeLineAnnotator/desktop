@@ -623,21 +623,26 @@ class BeatTimelineUI(TimelineUI):
     def create_pasted_beats(
         self, paste_data: list[dict], reference_time: float, target_time: float
     ) -> None:
-        for beat_data in copy.deepcopy(
-            paste_data
-        ):  # deepcopying so popping won't affect original data
-            beat_time = beat_data["context"].pop("time")
-            beat_unit_data = beat_data.pop("beat_unit", None)
+        pasted_beat_units = []
+        with self.timeline.adding_beats_together():
+            for beat_data in copy.deepcopy(
+                paste_data
+            ):  # deepcopying so popping won't affect original data
+                beat_time = beat_data["context"].pop("time")
+                beat_unit_data = beat_data.pop("beat_unit", None)
 
-            beat, _ = self.timeline.create_component(
-                ComponentKind.BEAT,
-                target_time + (beat_time - reference_time),
-                **beat_data["values"],
-                **beat_data["context"],
-            )
-            if beat and beat_unit_data:
-                # A pasted first beat already has a beat unit of its own.
-                self.timeline.put_beat_unit_on_beat(beat.id, **beat_unit_data)
+                beat, _ = self.timeline.create_component(
+                    ComponentKind.BEAT,
+                    target_time + (beat_time - reference_time),
+                    **beat_data["values"],
+                    **beat_data["context"],
+                )
+                if beat and beat_unit_data:
+                    pasted_beat_units.append((beat, beat_unit_data))
+        # Once the pasted beats are in their measures. A pasted first beat
+        # already has a beat unit of its own.
+        for beat, beat_unit_data in pasted_beat_units:
+            self.timeline.put_beat_unit_on_beat(beat.id, **beat_unit_data)
 
     def update_beat_pattern(self):
         pass  # not implemented
