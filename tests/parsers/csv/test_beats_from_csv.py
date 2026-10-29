@@ -130,64 +130,69 @@ def test_measure_number_on_every_beat_is_forced_once(beat_tlui):
     assert not beat_tlui[4].label.isVisible()
 
 
-class TestBeatUnitColumns:
-    def test_rows_with_values_get_beat_units(self, beat_tl):
+def beat_unit_values(beat_tl):
+    return [
+        (beat_tl.get_component(u.beat_id).time, u.denominator, u.units)
+        for u in beat_tl.beat_units
+    ]
+
+
+class TestTimeSignatureColumn:
+    def test_rows_give_their_measures_time_signatures(self, beat_tl):
         beat_tl.beat_pattern = [2]
-        data = "time,denominator,units\n0,8,3\n1,,\n2,4,2+3\n3,,\n4,,1\n5,,"
+        data = "time,time_signature\n0,6/8\n1,\n2,5/8(3 2)\n3,\n4,2/4\n5,"
 
         success, errors = _import_with_patch(beat_tl, data)
 
         assert success
         assert errors == []
-        values = [
-            (beat_tl.get_component(u.beat_id).time, u.denominator, u.units)
-            for u in beat_tl.beat_units
+        assert [m.time_signature for m in beat_tl.measure_meters] == [
+            (6, 8),
+            (5, 8),
+            (2, 4),
         ]
-        assert values == [(0, 8, "3"), (2, 4, "2+3"), (4, 4, "1")]
+        assert beat_unit_values(beat_tl) == [(0, 8, "3"), (2, 8, "3+2"), (4, 4, "1")]
 
-    def test_empty_values_carry_over(self, beat_tl):
-        beat_tl.beat_pattern = [1]
-        data = "time,denominator,units\n0,8,\n1,,1/2"
+    def test_a_time_signature_carries_on(self, beat_tl):
+        beat_tl.beat_pattern = [2]
 
-        _import_with_patch(beat_tl, data)
+        _import_with_patch(beat_tl, "time,time_signature\n0,6/8\n1,\n2,\n3,")
 
-        values = [(u.denominator, u.units) for u in beat_tl.beat_units]
-        assert values == [(8, "1"), (8, "1/2")]
+        assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
 
-    def test_only_one_of_the_columns(self, beat_tl):
-        data = "time,units\n0,2+3"
+    def test_a_row_inside_a_measure_sets_that_measure(self, beat_tl):
+        beat_tl.beat_pattern = [2]
 
-        _import_with_patch(beat_tl, data)
+        _import_with_patch(beat_tl, "time,time_signature\n0,\n1,6/8\n2,\n3,")
 
-        (beat_unit,) = beat_tl.beat_units
-        assert (beat_unit.denominator, beat_unit.units) == (4, "2+3")
-        assert beat_unit.beat_id == beat_tl[0].id
+        assert beat_unit_values(beat_tl) == [(0, 8, "3")]
 
     def test_invalid_values_are_reported(self, beat_tl):
-        data = "time,denominator,units\n0,0,1\n1,4,2+\n2,8,1\n3,129,1"
+        beat_tl.beat_pattern = [2]
+        data = "time,time_signature\n0,3/0\n1,\n2,4/4(2 1 1)\n3,\n4,x\n5,\n6,3/8\n7,"
 
         success, errors = _import_with_patch(beat_tl, data)
 
-        assert_in_errors("'0' is not a valid denominator", errors)
-        assert_in_errors("2+", errors)
-        assert_in_errors("'129' is not a valid denominator", errors)
-        # The first beat keeps its default beat unit; only the valid row adds one.
-        values = [(u.denominator, u.units) for u in beat_tl.beat_units]
-        assert values == [(4, "1"), (8, "1")]
+        assert_in_errors("'3/0' is not a valid time signature", errors)
+        assert_in_errors("It gives 3 taps, but the bar has 2.", errors)
+        assert_in_errors("'x' is not a valid time signature", errors)
+        # The first beat keeps its default time signature; only the valid row
+        # adds one.
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (6, 8, "3/2")]
 
-    def test_without_the_columns(self, beat_tl):
+    def test_without_the_column(self, beat_tl):
         _import_with_patch(beat_tl, "time\n0\n1")
 
-        values = [(u.denominator, u.units) for u in beat_tl.beat_units]
-        assert values == [(4, "1")]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
         assert beat_tl.beat_units[0].assumed
 
     def test_values_from_the_file_are_not_assumed(self, beat_tl):
-        _import_with_patch(beat_tl, "time,denominator\n0,4\n1,")
+        beat_tl.beat_pattern = [2]
 
-        (beat_unit,) = beat_tl.beat_units
-        assert (beat_unit.denominator, beat_unit.units) == (4, "1")
-        assert not beat_unit.assumed
+        _import_with_patch(beat_tl, "time,time_signature\n0,2/4\n1,")
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert not beat_tl.beat_units[0].assumed
 
 
 def test_times_alone_follow_the_patterns_time_signatures(beat_tl):

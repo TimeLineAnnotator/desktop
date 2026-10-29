@@ -393,6 +393,20 @@ def parse_time_signature_over_taps(
     return PlannedBar.from_values([value] * beat_count, bar.denominator), ""
 
 
+def parse_time_signature_of_tapped_bar(
+    text: str, beat_count: int
+) -> tuple[PlannedBar | None, str]:
+    """
+    Reads the time signature of a bar that has `beat_count` taps, as
+    `parse_time_signature_over_taps` does, refusing taps in brackets that
+    aren't as many.
+    """
+    bar, error = parse_time_signature_over_taps(text, beat_count)
+    if bar is not None and bar.beat_count != beat_count:
+        return None, f"It gives {bar.beat_count} taps, but the bar has {beat_count}."
+    return bar, error
+
+
 def group_runs(bars: list[int]) -> list[BarRun]:
     """Groups consecutive bars of equal length, e.g. for previewing a pattern."""
     runs: list[BarRun] = []

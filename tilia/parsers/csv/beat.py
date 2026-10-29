@@ -7,16 +7,11 @@ from tilia.parsers.csv.base import (
     get_params_indices,
 )
 from tilia.timelines.beat.measures import get_extension_from_beat_pattern
-from tilia.timelines.beat.pattern import format_bars
-from tilia.timelines.beat.timeline import BeatTimeline
-from tilia.timelines.beat.units import (
-    DEFAULT_DENOMINATOR,
-    DEFAULT_UNITS,
-    MAX_DENOMINATOR,
-    format_units,
-    parse_units,
-    validate_denominator,
+from tilia.timelines.beat.pattern import (
+    format_bars,
+    parse_time_signature_of_tapped_bar,
 )
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 
 
@@ -31,9 +26,10 @@ def beats_from_csv(
     Assumes the first row of the file will contain headers.
     At least 'time' should be present.
     'measure' and 'is_first_in_measure' are optional.
-    'denominator' and 'units' are optional and only need filling on rows
-    where the beat unit changes; a filled row puts a beat unit on its beat,
-    with any value left empty carried over from the previous one.
+    'time_signature' is optional and only needs filling where the time
+    signature changes: it applies to the measure of its row's beat, over
+    that measure's taps, until the next row that gives one. It is written
+    as in the beat pattern, e.g. '6/8', or '4/4(3/2 3/2 1)' with taps.
     Returns a boolean indicating if the process was successful and
     an array with descriptions of any errors during the process.
 
@@ -141,7 +137,9 @@ def beats_from_csv(
             )
 
     with TiliaCSVReader(path, file_kwargs, reader_kwargs) as reader:
-        beat_unit_indices = get_params_indices(["denominator", "units"], next(reader))
+        time_signature_index = get_params_indices(["time_signature"], next(reader)).get(
+            "time_signature"
+        )
         rows = [row for row in reader if row]
 
     if measure_marks is None:
@@ -163,30 +161,29 @@ def beats_from_csv(
                 created.append((component, row))
             else:
                 errors.append(fail_reason)
-        # The time signatures the beat pattern gives, if any. A row's own
-        # beat unit, below, replaces the one on its beat.
+        # The time signatures the beat pattern gives, if any. A row's own,
+        # below, replaces the one of its measure.
         timeline.lay_planned_beat_units(0)
-    # Gives the first beat its default beat unit, which a row of the file can
-    # then edit.
+    # Gives the first beat its default time signature, which a row of the
+    # file can then replace.
     timeline.refresh_measures()
 
-    denominator, units = DEFAULT_DENOMINATOR, DEFAULT_UNITS
+    if time_signature_index is None:
+        return True, errors
+
     for component, row in created:
-        row_values = {
-            param: row[index].strip()
-            for param, index in beat_unit_indices.items()
-            if index < len(row) and row[index].strip()
-        }
-        if not row_values:
+        if time_signature_index >= len(row) or not row[time_signature_index].strip():
             continue
-        beat_unit_values, error = _parse_beat_unit_values(
-            row_values, denominator, units
+        text = row[time_signature_index].strip()
+        measure_index, _ = timeline.get_measure_index(
+            timeline.get_beat_index(component)
         )
-        if error:
-            errors.append(f"{row}: {error}")
+        beat_count = timeline.beats_in_measure[measure_index]
+        bar, error = parse_time_signature_of_tapped_bar(text, beat_count)
+        if bar is None:
+            errors.append(f"{row}: '{text}' is not a valid time signature. {error}")
             continue
-        denominator, units = beat_unit_values
-        timeline.put_beat_unit_on_beat(component.id, denominator, units)
+        timeline.set_beat_unit(measure_index, bar.denominator, bar.units_text)
 
     return True, errors
 
@@ -211,26 +208,3 @@ def _get_measure_marks(
         )
         row_index += count
     return marks
-
-
-def _parse_beat_unit_values(
-    row_values: dict[str, str], denominator: int, units: str
-) -> tuple[tuple[int, str], str]:
-    if "denominator" in row_values:
-        try:
-            denominator = int(row_values["denominator"])
-        except ValueError:
-            denominator = 0
-        if not validate_denominator(denominator):
-            return (denominator, units), (
-                f"'{row_values['denominator']}' is not a valid denominator "
-                f"(1 to {MAX_DENOMINATOR})"
-            )
-    if "units" in row_values:
-        result = parse_units(row_values["units"])
-        if not result.is_valid:
-            return (denominator, units), (
-                f"'{row_values['units']}' is not valid units: {result.error}"
-            )
-        units = format_units(result.units)
-    return (denominator, units), ""
