@@ -198,7 +198,9 @@ class Measure:
     beat_units: list[BeatUnit] = field(default_factory=list)  # set on its own beats
     force_display: bool = False
     cadenza: bool = False  # no pass: not counted towards its number's passes
-    restart: bool = False  # the first bar of a new movement: passes count again
+    # The first measure of a new movement or song, its pickup if it has one:
+    # passes count again.
+    restart: bool = False
     next: list[str] | None = None  # downbeat ids, for folded tables
     metadata: Metadata = field(default_factory=dict)
 
