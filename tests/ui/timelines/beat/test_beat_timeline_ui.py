@@ -1030,6 +1030,23 @@ class TestCopyPaste:
         assert len(beat_tlui) == 2
         assert beat_tlui[0].time == 0
 
+    def test_pasted_beats_keep_the_measures_lengths(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(10, 22))
+        for beat_ui in tluis[0][0:2]:
+            tluis[0].select_element(beat_ui)
+        commands.execute("timeline.component.copy")
+        tluis[0].deselect_all_elements()
+        commands.execute("media.seek", 14.5)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+
+        # As adding them one at a time would: the second measure keeps its
+        # four beats, so the barlines after it move.
+        starts = [b.time for b in tluis[0].timeline if b.is_first_in_measure]
+        assert starts == [10, 14, 16, 20]
+
     def test_paste_multiple_into_timeline(self, beat_tlui, tluis):
         beat_tlui.create_beat(10)
         beat_tlui.create_beat(11)
@@ -3088,3 +3105,22 @@ class TestManyBeats:
 
         # A beat unit on every measure: 666 pairs and one more 2/4.
         assert len(tluis[0].timeline.beat_units) == 1333
+
+    @pytest.mark.timeout(15)
+    def test_pasting_many_beats_near_the_start(self, tluis, tilia_state):
+        tilia_state.set_duration(10000, scale_timelines="no")
+        add_beat_timeline_with_pattern("4/4")
+        with patch_fill_beat_timeline_dialog(
+            tluis[0].timeline, BeatTimeline.FillMethod.BY_AMOUNT, 2000
+        ):
+            commands.execute("timeline.beat.fill")
+        for beat_ui in tluis[0][0:100]:
+            tluis[0].select_element(beat_ui)
+        commands.execute("timeline.component.copy")
+        tluis[0].deselect_all_elements()
+        commands.execute("media.seek", 2.5)
+
+        commands.execute("timeline.component.paste")
+
+        assert len(tluis[0].timeline) == 2100
+        assert tluis[0].timeline.beats_in_measure == [4] * 525
