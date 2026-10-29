@@ -2465,6 +2465,38 @@ class TestTimeSignatureInspector:
         assert widgets["Time signature"][1].text() == "1/4"
         assert widgets["Taps"][1].text() == "1"
 
+    def test_writing_an_assumed_time_signature_confirms_it(self, qtui, tluis):
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(4))
+        inspector = self.open_inspector_for_label(
+            tluis[0], all_labels(tluis[0])[0], qtui
+        )
+
+        with patch_beat_unit_scope_prompt("onward"):
+            with undoable():
+                self.type_into(
+                    inspector.field_name_to_widgets["Time signature"][1], "2/4"
+                )
+
+        assert assumed_flags(tluis[0].timeline) == [False]
+
+    def test_retyping_an_assumed_number_changes_nothing(self, qtui, tluis):
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(4))
+        inspector = self.open_inspector_for_label(
+            tluis[0], all_labels(tluis[0])[0], qtui
+        )
+
+        with patch_beat_unit_scope_prompt("onward") as prompts:
+            with patch("tilia.ui.timelines.beat.beat_unit.post") as post_:
+                self.type_into(
+                    inspector.field_name_to_widgets["Time signature"][1], "2"
+                )
+
+        assert prompts == []
+        assert Post.APP_STATE_RECORD not in [c.args[0] for c in post_.call_args_list]
+        assert assumed_flags(tluis[0].timeline) == [True]
+
     def test_half_typed_time_signature_is_not_applied(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
