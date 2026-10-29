@@ -1129,8 +1129,47 @@ def test_a_timeline_of_an_unknown_kind_keeps_its_content_under_a_new_id():
     doc = loads(content)
     timeline = doc.timelines[migrated_id(doc.document_id, "timeline", "7", position=2)]
     assert timeline.kind == tla.UnknownKind("Lyrics")
-    del lyrics["hash"], lyrics["components_hash"]  # TiLiA's stored hashes
+    # TiLiA's stored hashes, the timeline's and its components'.
+    del lyrics["hash"], lyrics["components_hash"], lyrics["components"]["8"]["hash"]
     assert timeline.raw == lyrics
+
+
+def with_lyrics(components):
+    def change(content):
+        content["timelines"]["7"] = {
+            "kind": "Lyrics",
+            "name": "Words",
+            "ordinal": 3,
+            "components": components,
+        }
+
+    return change
+
+
+def word(stored_hash):
+    return {"kind": "WORD", "time": 1, "text": "Ah", "hash": stored_hash}
+
+
+def test_a_timeline_of_an_unknown_kind_loses_its_components_stored_hashes():
+    # As in a timeline of a known kind: TiLiA stores them, and they change
+    # without an edit.
+    one = edited(with_lyrics({"8": word("aaaa")}))
+    other = edited(with_lyrics({"8": word("bbbb")}))
+    assert loads(one).document_id == loads(other).document_id
+    migrated = to_1.migrate(one)
+    assert "hash" not in set(keys_in(migrated.content["timelines"]))
+    lyrics = by_kind(loads(other), tla.UnknownKind("Lyrics"))
+    assert lyrics.raw["components"] == {"8": {"kind": "WORD", "time": 1, "text": "Ah"}}
+
+
+@pytest.mark.parametrize(
+    "components", [{"8": "Ah"}, {"8": ["Ah"]}, ["Ah"], "Ah"], ids=repr
+)
+def test_a_timeline_of_an_unknown_kind_keeps_components_that_arent_objects(
+    components,
+):
+    doc = loads(edited(with_lyrics(copy.deepcopy(components))))
+    assert by_kind(doc, tla.UnknownKind("Lyrics")).raw["components"] == components
 
 
 def test_keys_the_core_doesnt_know_are_kept():
