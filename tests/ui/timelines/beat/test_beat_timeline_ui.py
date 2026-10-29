@@ -2408,15 +2408,48 @@ class TestTimeSignatureInspector:
             tluis[0], beat_unit_ui.get_label(2), qtui
         )
 
-        with patch_beat_unit_scope_prompt("onward"):
+        # The next measure, a 3/8, isn't alike, so nothing asks how far the
+        # edit goes, and it keeps its time signature.
+        with patch_beat_unit_scope_prompt("onward") as shown:
             self.type_into(inspector.field_name_to_widgets["Time signature"][1], "2/4")
 
+        assert shown == []
         assert label_texts(all_labels(tluis[0])) == [
             ("2", "8"),
             ("3", "8"),
             ("2", "4"),
-            ("3", "4"),
+            ("3", "8"),
         ]
+
+    def test_onward_stops_where_the_time_signature_changes(self, qtui, tluis):
+        add_beat_timeline_with_pattern("2[2/4] 3/4")
+        add_beats(range(9))
+        inspector = self.open_inspector_for_label(
+            tluis[0], all_labels(tluis[0])[0], qtui
+        )
+
+        with patch_beat_unit_scope_prompt("onward"):
+            self.type_into(inspector.field_name_to_widgets["Time signature"][1], "6/8")
+
+        assert time_signatures(tluis[0].timeline) == [
+            ("6", 8),
+            ("6", 8),
+            ("3", 4),
+            ("2", 4),
+        ]
+
+    def test_an_unfinished_last_measure_is_set_over_all_its_beats(self, qtui, tluis):
+        add_beat_timeline_with_pattern("2/4")
+        add_beats(range(5))
+        inspector = self.open_inspector_for_label(
+            tluis[0], all_labels(tluis[0])[0], qtui
+        )
+
+        with patch_beat_unit_scope_prompt("onward"):
+            self.type_into(inspector.field_name_to_widgets["Time signature"][1], "6/8")
+        add_beats(range(5, 8))
+
+        assert time_signatures(tluis[0].timeline) == [("6", 8)] * 4
 
     def test_half_typed_time_signature_is_not_applied(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")

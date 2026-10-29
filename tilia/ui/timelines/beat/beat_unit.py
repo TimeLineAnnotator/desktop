@@ -208,10 +208,9 @@ class BeatUnitUI(TimelineUIElement):
         return self.start_measure_index
 
     def _get_inspected_bar(self) -> PlannedBar:
-        meter = self.timeline_ui.timeline.get_measure_meter(
-            self.inspected_measure_index
-        )
-        return PlannedBar.from_values(list(meter.beat_values), meter.denominator)
+        timeline = self.timeline_ui.timeline
+        bar = timeline.get_measures_as_planned_bars()[self.inspected_measure_index]
+        return PlannedBar.from_values(bar.values, bar.denominator)
 
     def get_inspector_dict(self) -> dict:
         timeline = self.timeline_ui.timeline
@@ -226,15 +225,15 @@ class BeatUnitUI(TimelineUIElement):
     def on_inspector_edit(self, field_name: str, value: str) -> None:
         """
         Sets the time signature of the measure whose label was clicked, over
-        its taps, asking first whether it applies there only or until the
-        next change.
+        its taps, asking first whether it applies there only or to the alike
+        measures after it too.
         """
         measure_index = self.inspected_measure_index
         timeline = self.timeline_ui.timeline
         if field_name != "Time signature" or measure_index >= timeline.measure_count:
             return
 
-        beat_count = timeline.beats_in_measure[measure_index]
+        beat_count = timeline.get_full_beat_count(measure_index)
         bar, error = parse_time_signature_over_taps(value, beat_count)
         if bar is not None and bar.beat_count != beat_count:
             error = tilia.ui.strings.TIME_SIGNATURE_TAPS_ERROR.format(beat_count)
@@ -244,9 +243,7 @@ class BeatUnitUI(TimelineUIElement):
             return
 
         edit = (bar.denominator, bar.units_text)
-        meter = timeline.get_measure_meter(measure_index)
-        current = PlannedBar.from_values(list(meter.beat_values), meter.denominator)
-        if bar == current or self._pending_edit == edit:
+        if bar == self._get_inspected_bar() or self._pending_edit == edit:
             return
 
         self._pending_edit = edit
@@ -255,12 +252,10 @@ class BeatUnitUI(TimelineUIElement):
         # keeps the view from ever seeing the release (its selection box
         # stays up). Ask once the mouse is released instead.
         _call_once_mouse_is_released(
-            lambda: self._apply_inspector_edit(*edit, measure_index)
+            lambda: self._apply_inspector_edit(value, measure_index)
         )
 
-    def _apply_inspector_edit(
-        self, denominator: int, units: str, measure_index: int
-    ) -> None:
+    def _apply_inspector_edit(self, value: str, measure_index: int) -> None:
         try:
             if self.id not in self.timeline_ui.id_to_element:
                 return  # deleted in the meantime
@@ -268,19 +263,20 @@ class BeatUnitUI(TimelineUIElement):
             if measure_index >= timeline.measure_count:
                 return
 
-            only_this_measure = False
-            next_index = measure_index + 1
-            if (
-                next_index < timeline.measure_count
-                and not timeline.get_measure_meter(next_index).starts_here
-            ):
+            stop = timeline.get_alike_measures_end(measure_index)
+            if stop > measure_index + 1:
                 accepted, only_this_measure = get(Get.FROM_USER_BEAT_UNIT_SCOPE)
                 if not accepted:
                     self._refresh_inspector()
                     return
+                if only_this_measure:
+                    stop = measure_index + 1
 
-            timeline.set_beat_unit(measure_index, denominator, units, only_this_measure)
-            post(Post.APP_STATE_RECORD, "time signature edit via inspect")
+            error = timeline.set_time_signature(value, measure_index, stop)
+            if error:
+                tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
+            else:
+                post(Post.APP_STATE_RECORD, "time signature edit via inspect")
             self._refresh_inspector()
         finally:
             self._pending_edit = None
