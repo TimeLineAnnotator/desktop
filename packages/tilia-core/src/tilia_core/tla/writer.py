@@ -592,13 +592,16 @@ def write(
     return hashlib.sha256(data).hexdigest()
 
 
-# Windows' ERROR_ACCESS_DENIED.
-_ACCESS_DENIED = 5
+# Windows' errors for a rename refused because another program holds a file
+# open: ERROR_ACCESS_DENIED when it is the file replaced,
+# ERROR_SHARING_VIOLATION when it is the new temporary file, which a virus
+# scanner or an indexer may open as soon as it is written.
+_HELD_OPEN = frozenset({5, 32})
 
 
 def _held_open(error: PermissionError) -> bool:
-    """Whether `atomic_write`'s rename failed with Windows' access-denied
-    error, after its retry. A read-only file is refused before the rename,
-    so this means another program holds the file open."""
+    """Whether `atomic_write`'s rename failed, after its retry, because
+    another program holds the file or the temporary file open. A read-only
+    file is refused before the rename."""
     renamed = error.filename2 is not None  # os.replace names both files
-    return renamed and getattr(error, "winerror", None) == _ACCESS_DENIED
+    return renamed and getattr(error, "winerror", None) in _HELD_OPEN

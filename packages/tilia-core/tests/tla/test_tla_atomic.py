@@ -364,6 +364,41 @@ def test_a_file_held_open_throughout_the_retry_is_reported_as_in_use(
     assert listing(piece.parent) == ["piece.tla"]
 
 
+@windows_only
+def test_a_temporary_file_held_open_throughout_the_retry_is_reported_as_in_use(
+    piece, monkeypatch
+):
+    # A virus scanner or an indexer may open the new temporary file as soon
+    # as it is written. Windows then refuses the rename with another error
+    # than for a target held open: a sharing violation.
+    before = piece.read_bytes()
+    holders = []
+    real = os.replace
+
+    def replace(src, dst):
+        if not holders:
+            holders.append(HeldOpen(src))
+        real(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
+    try:
+        with pytest.raises(tla.FileInUse) as caught:
+            tla.write(piece, edited())
+    finally:
+        for holder in holders:
+            holder.release()
+    assert caught.value.path == piece
+    assert str(caught.value) == (
+        "piece.tla: in use by another program; nothing was written"
+    )
+    assert caught.value.__cause__.winerror == 32
+    assert piece.read_bytes() == before
+    # A temporary file held open can't be removed either: it stays, as one a
+    # crash leaves, and is_temporary names it.
+    others = [name for name in listing(piece.parent) if name != "piece.tla"]
+    assert all(tla.is_temporary(name) for name in others)
+
+
 def test_a_rename_refused_for_another_reason_raises_the_systems_error(
     piece, monkeypatch
 ):
