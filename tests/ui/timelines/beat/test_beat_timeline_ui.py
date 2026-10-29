@@ -617,7 +617,9 @@ class TestEditBarsDialog:
 
         self.edit_bars(tluis[0], record)
 
-        assert seen["tapped"] == [True, False, False]
+        # The second 4/4, with one of its beats tapped, is listed as tapped,
+        # as its label shows it.
+        assert seen["tapped"] == [True, True, False, False]
         assert seen["text"] == "2[4/4] 3/4 2/4"
 
     def test_ok_without_changes_keeps_the_pattern_for_later_bars(self, tluis):
@@ -2450,6 +2452,18 @@ class TestTimeSignatureInspector:
         add_beats(range(5, 8))
 
         assert time_signatures(tluis[0].timeline) == [("6", 8)] * 4
+
+    def test_an_unfinished_last_measure_shows_as_its_label(self, qtui, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(9))
+        label = all_labels(tluis[0])[-1]
+
+        inspector = self.open_inspector_for_label(tluis[0], label, qtui)
+
+        widgets = inspector.field_name_to_widgets
+        assert label_texts([label]) == [("1", "4")]
+        assert widgets["Time signature"][1].text() == "1/4"
+        assert widgets["Taps"][1].text() == "1"
 
     def test_half_typed_time_signature_is_not_applied(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
