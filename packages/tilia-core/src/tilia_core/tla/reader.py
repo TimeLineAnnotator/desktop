@@ -69,6 +69,8 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
         warnings = check(migrated.content, path=path)
         document = _Reader(path).document(migrated.content)
         document.warnings = migrated.warnings + warnings
+        document._migration_changes = migrated.changes
+        document._migration_warnings = migrated.warnings
         return document
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
