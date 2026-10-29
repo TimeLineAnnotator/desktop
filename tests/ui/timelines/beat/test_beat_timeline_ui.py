@@ -622,9 +622,10 @@ class TestEditBarsDialog:
 
     def test_ok_without_changes_keeps_the_pattern_for_later_bars(self, tluis):
         add_beat_timeline_with_pattern("4/4")
-        add_beats(range(1, 9))
+        add_beats(range(9))
         # A pickup, which the pattern doesn't plan.
-        add_beats([0.5])
+        tluis[0].select_element(tluis[0][0])
+        commands.execute("timeline.beat.set_amount_in_measure", amount=1)
         assert tluis[0].timeline.beats_in_measure == [1, 4, 4]
 
         self.edit_bars(tluis[0], lambda dialog: None)
@@ -2579,14 +2580,13 @@ class TestAssumedBeatUnits:
 
         assert assumed_flags(tluis[0].timeline) == [True]
 
-    def test_pickup_copy_of_the_next_beat_unit_is_assumed(self, tluis):
+    def test_measure_zero_copy_of_the_next_beat_unit_is_assumed(self, tluis):
         add_beat_timeline_with_pattern("1 2")
         add_beats(range(1, 5))
         set_beat_unit(tluis[0], 0, 8, "3")
 
-        # A pickup before the old first beat, in a measure of its own.
-        commands.execute("media.seek", 0)
-        commands.execute("timeline.beat.add")
+        # A measure of its own before the first, as a score's measure 0 adds.
+        tluis[0].timeline.add_measure_zero(0.5)
 
         # It gets the next beat unit's values, but nobody set them there.
         timeline = tluis[0].timeline

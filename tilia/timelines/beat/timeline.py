@@ -958,10 +958,9 @@ class BeatTimeline(Timeline):
         """
         A beat created without saying whether it starts a measure is placed
         by where it falls: after the last beat, it starts a measure once the
-        last one has as many beats as the beat pattern gives it; before the
-        first, it starts a measure of its own, numbered one less than the
-        first, so a pickup is measure 0; anywhere else, it joins the measure
-        it falls in, and every measure keeps its length, so the measures
+        last one has as many beats as the beat pattern gives it; anywhere
+        else, it joins the measure it falls in (before the first beat, the
+        first measure), and every measure keeps its length, so the measures
         after it start one beat later.
         """
         is_placed = kwargs.get("is_first_in_measure") is not None
@@ -991,21 +990,6 @@ class BeatTimeline(Timeline):
         if len(self) == 1:
             self.set_component_data(beat.id, "is_first_in_measure", True)
             self.lay_planned_beat_units(0)
-        elif index == 0:
-            old_first = self[1]
-            number = (
-                1
-                if old_first.measure_number_override is None
-                else old_first.measure_number_override
-            )
-            if number < 1:
-                # Before a pickup (measure 0), the beat is the pickup's start.
-                self.component_manager.move_measure_start(old_first, beat)
-                return
-            if not old_first.is_first_in_measure:
-                self.set_component_data(old_first.id, "is_first_in_measure", True)
-            self.set_component_data(beat.id, "is_first_in_measure", True)
-            self.set_component_data(beat.id, "measure_number_override", number - 1)
         elif index == len(self) - 1:
             measures = self.measures
             last_measure = measures.count - 1
@@ -1014,6 +998,8 @@ class BeatTimeline(Timeline):
                 self.set_component_data(beat.id, "is_first_in_measure", True)
                 self.lay_planned_beat_units(last_measure + 1)
         else:
+            if index == 0:
+                self.component_manager.move_measure_start(self[1], beat)
             measures = self.measures
             measure_index = measures.measure_of_beat[index]
             counts = measures.counts.copy()

@@ -47,29 +47,31 @@ class TestBeatTimeline:
         ]
         assert beat_tlui.timeline.beats_in_measure == [2, 2]
 
-    def test_create_beat_before_the_first_starts_measure_zero(self, beat_tlui):
-        for time in [10, 11, 12]:
+    def test_create_beat_before_the_first_keeps_the_measures_lengths(self, beat_tlui):
+        for time in range(10, 18):
             commands.execute("media.seek", time)
             commands.execute("timeline.beat.add")
 
         commands.execute("media.seek", 5)
         commands.execute("timeline.beat.add")
 
-        assert beat_tlui.timeline.beats_in_measure == [1, 3]
-        assert beat_tlui.timeline.measure_numbers == [0, 1]
+        # It starts the first measure, which keeps its four beats.
+        starts = [b.time for b in beat_tlui.timeline if b.is_first_in_measure]
+        assert starts == [5, 13, 17]
+        assert beat_tlui.timeline.measure_numbers == [1, 2, 3]
 
-    def test_create_beat_before_a_pickup_joins_it(self, beat_tlui):
-        for time in [10, 11, 12, 13, 14]:
+    def test_deleting_a_measures_only_beat_removes_the_measure(self, beat_tlui):
+        for time in range(9, 18):
             commands.execute("media.seek", time)
             commands.execute("timeline.beat.add")
-        commands.execute("media.seek", 9)
-        commands.execute("timeline.beat.add")
+        beat_tlui.select_element(beat_tlui[0])
+        commands.execute("timeline.beat.set_amount_in_measure", amount=1)
 
-        commands.execute("media.seek", 8)
-        commands.execute("timeline.beat.add")
+        beat_tlui.select_element(beat_tlui[0])
+        commands.execute("timeline.component.delete")
 
-        assert beat_tlui.timeline.beats_in_measure == [2, 4, 1]
-        assert beat_tlui.timeline.measure_numbers == [0, 1, 2]
+        assert beat_tlui.timeline.beats_in_measure == [4, 4]
+        assert beat_tlui.timeline.measure_numbers == [1, 2]
 
     def test_recalculate_measures_added_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
