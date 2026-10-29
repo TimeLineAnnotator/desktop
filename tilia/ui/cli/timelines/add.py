@@ -21,8 +21,8 @@ def setup_parser(subparser):
         help="Add a new timeline",
         epilog="""
 Examples:
-  timelines add beat --name "Measures" --beat-pattern 4
-  timelines add beat --name "Measures" --beat-pattern 10[4] 3 15[4]
+  timelines add beat --name "Measures" --beat-pattern 4/4
+  timelines add beat --name "Measures" --beat-pattern 10[4/4] 3/4 15[4/4]
   timelines add hierarchy --name "Form"
   timelines add marker --name "Cadences"
 """,
@@ -56,10 +56,12 @@ Examples:
         type=str,
         nargs="+",
         default=None,
-        help="Beats per measure, separated by spaces (beat timelines only). "
-        "The pattern repeats after its last measure: '3 4' alternates measures "
-        "of 3 and 4 beats. Use n[...] to repeat a group: '10[4] 3' is ten "
-        "measures of 4, then one of 3. Defaults to 4.",
+        help="Time signatures of the bars, separated by spaces (beat timelines "
+        "only). The pattern repeats after its last bar: '3/4 4/4' alternates "
+        "bars of 3/4 and 4/4. Use n[...] to repeat a group: '10[4/4] 3/4' is "
+        "ten bars of 4/4, then one of 3/4. Taps default to one per beat; "
+        "otherwise give their values in brackets, e.g. 6/8(3 3). A number "
+        "alone is that many taps of an assumed quarter note. Defaults to 4.",
     )
     add_subp.add_argument(
         "--row-height",
