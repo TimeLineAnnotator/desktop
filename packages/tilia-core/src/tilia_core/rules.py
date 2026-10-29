@@ -14,6 +14,11 @@ attributes of the component to check, and gives the first rule they break:
 TiLiA's, word for word, where TiLiA has one. A value that isn't one always
 reads `<value> is not a valid <attribute>.`, whatever the kind.
 
+`check_timeline` checks a whole timeline at once with the same rules, finding
+for each component the others that matter rather than comparing it with every
+one: an import checks its components with it once, before it commits, and so
+do reading and writing a file, and a single change, on the timeline it leaves.
+
 A harmony's quality and inversion and a mode's type are checked against the
 installed music21, as TiLiA checks them, so checking a harmony or a mode needs
 the `harmony` extra. Without it, the other rules are checked, and when none is
@@ -24,10 +29,12 @@ a mode is checked.
 
 from __future__ import annotations
 
+import bisect
 import importlib.util
 import math
 import string
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 
@@ -86,6 +93,9 @@ _POINT_NAMES = {
     "beat": "beat",
     "pdf_marker": "PDF page marker",
 }
+_POINT_KINDS = tuple(_POINT_NAMES)
+# The kinds these rules cover.
+_KINDS = (*_POINT_KINDS, "hierarchy", "range")
 
 _TEXTS = ("label", "comments", "custom_text")
 _SEGMENT_TIMES = ("start", "end", "pre_start", "post_end")
@@ -172,11 +182,11 @@ class CantCheck(Exception):
 
 
 # Each kind's rules but the color are one private function, which gives the first
-# rule broken, or None, so that what checks many components at once can call the
-# same rules. `_kept` then raises `CantCheck` when the rules that need music21
-# couldn't be checked, and only then checks the color: an importer keeps a row
-# whose color isn't one, with the default color, so a bad color mustn't hide
-# another broken rule, nor that a rule couldn't be checked.
+# rule broken, or None. The kind's public function and `check_timeline` both call
+# it, so that there is one set of rules. `_kept` then raises `CantCheck` when the
+# rules that need music21 couldn't be checked, and only then checks the color: an
+# importer keeps a row whose color isn't one, with the default color, so a bad
+# color mustn't hide another broken rule, nor that a rule couldn't be checked.
 
 Check = Callable[[], "Outcome | None"]
 
@@ -409,6 +419,83 @@ def not_valid(attribute: str, value: Any) -> str:
     nan, and the importers for a value they can't read, so the two read alike.
     """
     return f"{_shown(value)} is not a valid {attribute.replace('_', ' ')}."
+
+
+@dataclass(frozen=True)
+class Checked:
+    """What `check_timeline` finds for one component.
+
+    `outcome` is what its kind's function gives, but for the color: the first
+    other rule broken, else `OK`. `color` is the color's own outcome, whatever
+    else is broken, so that an importer can keep the component with the default
+    color, and a reader can warn about both. `cant_check`, for a harmony or a key
+    that breaks no rule but its color, is the `CantCheck` its kind's function
+    raises when music21 is missing or won't import: the rules that need it
+    couldn't be checked.
+    """
+
+    outcome: Outcome
+    color: Outcome = OK
+    cant_check: CantCheck | None = None
+
+
+def check_timeline(
+    media_length: float,
+    components: Iterable[tla.Component],
+    *,
+    rows: Sequence[Mapping[str, Any]] | None = None,
+    page_count: int | None = None,
+    skip_broken: bool = False,
+) -> dict[str, Checked]:
+    """A timeline's components, each checked with the others, in one pass.
+
+    Each component is checked by its kind's rules, as its kind's function checks
+    it, with the same reasons. By default each is checked with every other one,
+    as reading or writing a file checks them, and as a single change is checked:
+    on the timeline it leaves, since it can break another component's rule, such
+    as a join. With `skip_broken`, they are checked as an import checks them: in
+    the order given, each with the earlier ones kept, so that one that breaks a
+    rule is left out of what follows. One whose only broken rule is its color is
+    kept, as an importer keeps it with the default color, and so is one whose
+    rules couldn't be checked without music21.
+
+    Ranges need the timeline's `rows`, and PDF markers the PDF's `page_count`.
+    music21 is looked up once, for the first harmony or key.
+
+    Gives what is found for each component, by its id, in the order given. A
+    component of a kind these rules don't cover isn't in it, and isn't compared
+    with the others.
+
+    Rather than compare each component with every other one, it finds those
+    whose rules a component could break: the points at its time, the
+    hierarchies that overlap it (by the order of their starts), the ranges that
+    come next in its row. So n components take about n log n, plus the others
+    found: those the outcomes name, and for a hierarchy, those it lies inside
+    or around.
+    """
+    components = list(components)
+    _needed(components, rows, page_count)
+    kinds = _Kinds(media_length, rows or (), page_count or 0)
+    others = _Others(components)
+    covered = [
+        place for place, component in enumerate(components) if component.kind in _KINDS
+    ]
+    if not skip_broken:
+        for place in covered:
+            others.add(place)
+    found: dict[str, Checked] = {}
+    for place in covered:
+        component = components[place]
+        broken, cant_check = kinds.broken(component, others.of(place))
+        color = _color_of(component.attrs)
+        found[component.id] = Checked(
+            OK if broken is None else broken,
+            OK if color is None else color,
+            cant_check,
+        )
+        if skip_broken and broken is None:
+            others.add(place)
+    return found
 
 
 def _point(
@@ -717,6 +804,217 @@ def _joined(
             following,
         )
     return None
+
+
+def _needed(
+    components: Sequence[tla.Component],
+    rows: Sequence[Mapping[str, Any]] | None,
+    page_count: int | None,
+) -> None:
+    """Refuses components with one id, as no timeline has them, and ranges without
+    rows or PDF markers without a page count, which every one would break."""
+    ids: set[str] = set()
+    for component in components:
+        if component.id in ids:
+            raise ValueError(f"two components have the id {component.id!r}")
+        ids.add(component.id)
+        if component.kind == "range" and rows is None:
+            raise TypeError("checking ranges needs the timeline's rows")
+        if component.kind == "pdf_marker" and page_count is None:
+            raise TypeError("checking PDF markers needs the PDF's page count")
+
+
+class _Kinds:
+    """Each kind's rules, as `check_timeline` checks a timeline with them."""
+
+    def __init__(
+        self,
+        media_length: float,
+        rows: Sequence[Mapping[str, Any]],
+        page_count: int,
+    ) -> None:
+        self._media_length = media_length
+        self._rows = rows
+        self._row_ids = [row.get("id") for row in rows]
+        self._page_count = page_count
+        # music21, looked up for the first harmony or key only, and not kept
+        # once the timeline is checked, so that installing it takes effect.
+        self._music21: tuple[ModuleType | None, Exception | None] | None = None
+
+    def broken(
+        self, component: tla.Component, others: Iterable[tla.Component]
+    ) -> tuple[Outcome | None, CantCheck | None]:
+        """The first rule but the color that `component` breaks, or None; and when
+        it breaks none, whether the rules that need music21 couldn't be checked."""
+        kind, attrs, media_length = component.kind, component.attrs, self._media_length
+        if kind == "harmony" or kind == "mode":
+            if self._music21 is None:
+                self._music21 = _music21()
+            music21, error = self._music21
+            kind_rules = _harmony if kind == "harmony" else _mode
+            broken = kind_rules(media_length, others, attrs, music21)
+            if broken is None and music21 is None:
+                return None, CantCheck(kind, error)
+            return broken, None
+        if kind == "hierarchy":
+            return _hierarchy(media_length, others, attrs), None
+        if kind == "range":
+            return _range(media_length, others, attrs, self._rows, self._row_ids), None
+        if kind == "pdf_marker":
+            return _pdf_marker(media_length, others, attrs, self._page_count), None
+        return _point(kind, media_length, others, attrs), None
+
+
+class _Others:
+    """The other components each component is checked with, found without
+    comparing it with every one: those its rules could find it at odds with,
+    among those added. Every component is added when reading, and each one kept
+    so far when importing."""
+
+    def __init__(self, components: Sequence[tla.Component]) -> None:
+        self._components = components
+        self._at_time = _ByValue()  # points' places, by kind and time
+        self._at_place = _ByValue()  # hierarchies' places, by start, end and level
+        self._spans = _Spans(components)  # hierarchies, by the order of their starts
+        self._rows = _ByValue()  # each row's ranges, as (start, place), by start
+
+    def add(self, place: int) -> None:
+        component = self._components[place]
+        kind, attrs = component.kind, component.attrs
+        if kind == "hierarchy":
+            spot = (attrs.get("start"), attrs.get("end"), attrs.get("level"))
+            self._at_place.at(spot).append(place)
+            self._spans.add(place)
+        elif kind == "range":
+            start = attrs.get("start")
+            if _is_number(start):  # what `_joined` compares
+                bisect.insort(self._rows.at(attrs.get("row_id")), (start, place))
+        elif kind in _POINT_KINDS:
+            self._at_time.at((kind, attrs.get("time"))).append(place)
+
+    def of(self, place: int) -> list[tla.Component]:
+        """The others the rules of the component at `place` could name, in the
+        order given. They need only be found for a component whose own rules are
+        kept, since the rules between components are checked after them."""
+        component = self._components[place]
+        kind, attrs = component.kind, component.attrs
+        places: Iterable[int] = ()
+        if kind == "hierarchy":
+            start, end = attrs.get("start"), attrs.get("end")
+            if _is_number(start) and _is_number(end):
+                spot = (start, end, attrs.get("level"))
+                places = {
+                    *self._at_place.get(spot),
+                    *self._spans.overlapping(start, end),
+                }
+        elif kind == "range":
+            start = attrs.get("start")
+            if attrs.get("joined_right") is not None and _is_number(start):
+                places = _next_starts(self._rows.get(attrs.get("row_id")), start)
+        elif kind in _POINT_KINDS:
+            time = attrs.get("time")
+            if _is_number(time):
+                places = self._at_time.get((kind, time))
+        return [self._components[other] for other in sorted(places) if other != place]
+
+
+class _ByValue:
+    """Lists, each found by a value as `==` finds it: by its hash when it has one,
+    else by comparing it with each value that has none."""
+
+    def __init__(self) -> None:
+        self._hashed: dict[Any, list[Any]] = {}
+        self._unhashable: list[tuple[Any, list[Any]]] = []
+
+    def at(self, value: Any) -> list[Any]:
+        """The list for `value`, which is made, empty, the first time."""
+        try:
+            return self._hashed.setdefault(value, [])
+        except TypeError:
+            for other, items in self._unhashable:
+                if other == value:
+                    return items
+            items: list[Any] = []
+            self._unhashable.append((value, items))
+            return items
+
+    def get(self, value: Any) -> list[Any]:
+        """The list for `value`, or an empty one: not to be changed."""
+        try:
+            return self._hashed.get(value, [])
+        except TypeError:
+            for other, items in self._unhashable:
+                if other == value:
+                    return items
+            return []
+
+
+class _Spans:
+    """Hierarchies by the order of their starts, to find those added that overlap
+    a span without looking at the others: a binary tree whose leaves follow the
+    starts, each node holding the latest end among the hierarchies added below
+    it. A hierarchy whose start or end can't be compared crosses none, and has no
+    leaf."""
+
+    def __init__(self, components: Sequence[tla.Component]) -> None:
+        spans = sorted(
+            (
+                (component.attrs["start"], component.attrs["end"], place)
+                for place, component in enumerate(components)
+                if component.kind == "hierarchy"
+                and _is_comparable(component.attrs.get("start"))
+                and _is_comparable(component.attrs.get("end"))
+            ),
+            key=lambda span: span[0],
+        )
+        self._starts = [start for start, _, _ in spans]
+        self._ends = [end for _, end, _ in spans]
+        self._places = [place for _, _, place in spans]
+        self._leaf_of = {place: leaf for leaf, place in enumerate(self._places)}
+        self._leaves = 1 << max(len(spans) - 1, 0).bit_length()
+        # Node 1 is the root, node n's children are 2n and 2n + 1, and the
+        # leaves come last, in the starts' order.
+        self._latest: list[float] = [-math.inf] * (2 * self._leaves)
+
+    def add(self, place: int) -> None:
+        leaf = self._leaf_of.get(place)
+        if leaf is None:
+            return
+        end = self._ends[leaf]
+        node = self._leaves + leaf
+        while node and not self._latest[node] >= end:
+            self._latest[node] = end
+            node //= 2
+
+    def overlapping(self, start: float, end: float) -> list[int]:
+        """The places of the hierarchies added that start before `end` and end
+        after `start`: every one that a hierarchy from `start` to `end` crosses."""
+        before = bisect.bisect_left(self._starts, end)
+        found = []
+        nodes = [(1, 0, self._leaves)]
+        while nodes:
+            node, low, high = nodes.pop()
+            if low >= before or not self._latest[node] > start:
+                continue
+            if node >= self._leaves:
+                found.append(self._places[low])
+                continue
+            middle = (low + high) // 2
+            nodes.append((2 * node + 1, middle, high))
+            nodes.append((2 * node, low, middle))
+        return found
+
+
+def _next_starts(starts: Sequence[tuple[float, int]], start: float) -> list[int]:
+    """The places of the ranges that start first after `start`, of a row's
+    (start, place)s in order: every one `_joined` could name."""
+    first = bisect.bisect_right(starts, (start, math.inf))
+    places = []
+    for following in range(first, len(starts)):
+        if starts[following][0] != starts[first][0]:
+            break
+        places.append(starts[following][1])
+    return places
 
 
 def _qt_reads(text: str) -> bool:
