@@ -516,6 +516,21 @@ class TestSetBeatUnit:
         assert beat_unit_values(beat_tl) == [(0, 4, "1")]
 
 
+class TestSetTimeSignature:
+    def test_replaces_every_beat_unit_in_a_measure(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+        add_beat_unit(beat_tl, 2, 8, "3")
+        # A second one in the same measure, which governs the measures after.
+        add_beat_unit(beat_tl, 3, 4, "1/2")
+        assert beat_tl.get_measure_meter(1).is_conflicting
+
+        assert beat_tl.set_time_signature("2/4", 0, 3) == ""
+
+        assert time_signatures(beat_tl) == [(2, 4)] * 3
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+
+
 class TestDeletingBeats:
     def test_beat_unit_moves_to_another_beat_of_its_measure(self, beat_tl):
         add_beats(beat_tl, 8)

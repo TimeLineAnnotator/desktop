@@ -1032,7 +1032,15 @@ class BeatTimeline(Timeline):
             bars.append(bar)
 
         meters = self.measure_meters
-        previous = None
+        measure_of_beat = self.measures.measure_of_beat
+        beat_units_in: dict[int, list[BeatUnit]] = {}
+        for beat_unit in self.beat_units:
+            beat = self.get_component(beat_unit.beat_id)
+            measure_index = measure_of_beat[self.get_beat_index(beat)]
+            if start <= measure_index < stop:
+                beat_units_in.setdefault(measure_index, []).append(beat_unit)
+
+        previous: tuple[int, str, bool] | None = None
         with self.component_manager.bulk():
             for measure_index, bar in zip(range(start, stop), bars, strict=True):
                 meter = meters[measure_index]
@@ -1040,12 +1048,15 @@ class BeatTimeline(Timeline):
                     values = previous
                 else:
                     values = (bar.denominator, bar.units_text, bar.assumed)
-                if values != previous:
+                changes = values is not None and values != previous
+                # A measure keeps only the beat unit that governs it, and only
+                # where its values change: another one would carry on past it.
+                kept = meter.beat_unit_id if meter.starts_here and changes else None
+                for beat_unit in beat_units_in.get(measure_index, []):
+                    if beat_unit.beat_id != kept:
+                        self.component_manager.delete_component(beat_unit)
+                if changes:
                     self._put_beat_unit(measure_index, *values, meter=meter)
-                elif meter.starts_here:
-                    self.component_manager.delete_component(
-                        self.get_beat_unit_on_beat(meter.beat_unit_id)
-                    )
                 previous = values
 
             if stop < self.measure_count:
