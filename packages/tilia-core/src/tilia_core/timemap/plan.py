@@ -22,11 +22,19 @@ from tilia_core.timemap.table import (
     format_time_signature,
 )
 from tilia_core.timemap.units import (
+    DEFAULT_DENOMINATOR,
+    DEFAULT_UNITS,
     MAX_DENOMINATOR,
     format_units,
     parse_units,
     validate_denominator,
 )
+
+# A unit as a measure reads it: its denominator, its units, and whether it is
+# assumed.
+_Unit = tuple[int, tuple[Fraction, ...], bool]
+# What a measure reads where no unit governs it (FR-020).
+_DEFAULT: _Unit = (DEFAULT_DENOMINATOR, tuple(parse_units(DEFAULT_UNITS).units), True)
 
 # What each `source` records on the measures it sets; an edit records
 # "edited", unless the measure is "tapped" (WP3's FR-081).
@@ -148,7 +156,7 @@ def plan_time_signatures(
     settings: Sequence[tuple[BarRef | str, TimeSignature]],
     *,
     source: str,
-    after: str,
+    after: str = "restore",
 ) -> Plan:
     """
     The writes that give the measures `settings` name their time signatures,
@@ -158,8 +166,8 @@ def plan_time_signatures(
     more than one movement, with none given, to `ambiguous`; nothing is
     written for either. A table without rows (a beat without a time, say)
     has none of the bars. In a folded table a pass counts the measures in
-    written order (`MeasureRow.folded`). Measures the settings don't name are
-    never written.
+    written order (`MeasureRow.folded`). Measures the settings don't name
+    get no write but the units `after` writes back.
 
     Each measure's own taps share its time signature: its unit is the
     numerator divided by the taps, exactly, or the parts of a grouping with a
@@ -173,17 +181,20 @@ def plan_time_signatures(
     measure whose unit, "assumed" flag and source are already right gets no
     write, unless its mark has its own source and every measure is set.
 
-    `after` says what the measures after a run of set measures get: "carry",
-    the new unit, so nothing more is written. Writes nothing to the document.
-    Raises ValueError for a unit too long to be read back.
+    `after` says what the measures the settings don't name read afterwards.
+    With "restore", the default, each keeps its reading: its unit and its
+    "assumed" flag. The unit it read is written back, with that flag, on the
+    downbeat of a measure that has no unit of its own and either follows a
+    measure set or starts a movement (whose first unit the plan may write,
+    FR-020), when it would read another without it. The measures after it
+    then carry it on as before. With "carry", nothing more is written, so the
+    measures after a run of set measures take its unit, from there on.
+
+    Writes nothing to the document. Raises ValueError for a unit too long to
+    be read back.
     """
-    if after == "restore":
-        raise ValueError(
-            "after='restore' is not available yet: it waits for"
-            " TimeLineAnnotator/project-management#194. Use after='carry'."
-        )
-    if after != "carry":
-        raise ValueError(f"after must be 'carry' or 'restore', not {after!r}.")
+    if after not in ("restore", "carry"):
+        raise ValueError(f"after must be 'restore' or 'carry', not {after!r}.")
     if source not in _SOURCES:
         raise ValueError(f"source must be 'score', 'import' or 'edit', not {source!r}.")
     timeline = document.timelines.get(timeline_id)
@@ -192,7 +203,7 @@ def plan_time_signatures(
 
     rows = build_rows(document, timeline)
     wanted, unmatched, ambiguous = _match(rows, settings)
-    unit_changes = _unit_changes(timeline, rows, wanted)
+    unit_changes = _unit_changes(timeline, rows, wanted, restore=after == "restore")
     timeline_change, mark_changes = _source_changes(timeline, rows, wanted, source)
 
     changes = [] if timeline_change is None else [timeline_change]
@@ -248,28 +259,34 @@ def _unit_changes(
     timeline: tla.Timeline,
     rows: Sequence[MeasureRow],
     wanted: dict[str, TimeSignature],
+    *,
+    restore: bool,
 ) -> dict[str, Change]:
-    """The beat-unit write each measure set needs, by downbeat id.
+    """The beat-unit write each measure set needs, by downbeat id, and with
+    `restore`, those that keep the other measures' readings (`_write_backs`).
 
     The unit that governs each measure once the writes before it are made is
     followed through the table: where the rules start a unit (one set on the
     measure's beats, or one they supply, as on the first measure), the
-    measure's meter gives it; elsewhere it is carried on from the measure before.
+    measure's meter gives it; elsewhere it is carried on from the measure
+    before. With `restore`, a measure not set keeps its reading, so its meter
+    gives it too.
     """
     changes: dict[str, Change] = {}
-    governing: tuple[int, tuple[Fraction, ...], bool] | None = None
+    targets: dict[str, _Unit] = {}
+    governing: _Unit | None = None
     for row in rows:
-        meter = row.meter
-        own = meter.beat_unit_id if meter.beat_unit_id in row.beat_ids else None
-        if own is not None or meter.starts_here:
-            governing = (meter.denominator, tuple(meter.units), meter.is_assumed)
         time_signature = wanted.get(row.id)
+        own = _own(row)
+        kept = restore and time_signature is None
+        if own is not None or row.meter.starts_here or kept:
+            governing = _reading(row)
         if time_signature is None:
             continue
         unit = (time_signature.denominator, _units(time_signature, row.beats), False)
+        targets[row.id] = unit
         if governing != unit:
-            units = format_units(unit[1])
-            readable = parse_units(units)
+            readable = parse_units(format_units(unit[1]))
             if not readable.is_valid:
                 written = format_time_signature(
                     time_signature.parts, time_signature.denominator
@@ -278,14 +295,82 @@ def _unit_changes(
                     f"Measure {row.label}: {written} over {row.beats} taps"
                     f" gives units that can't be read back: {readable.error}"
                 )
-            beat_id = own or row.id
-            old = timeline.components[beat_id].attrs.get("beat_unit")
-            new = {"denominator": unit[0], "units": units}
-            changes[row.id] = Change(
-                timeline.id, beat_id, "beat_unit", copy.deepcopy(old), new
-            )
+            changes[row.id] = _unit_change(timeline, own or row.id, unit)
         governing = unit
+    if restore:
+        changes.update(_write_backs(timeline, rows, targets, changes))
     return changes
+
+
+def _write_backs(
+    timeline: tla.Timeline,
+    rows: Sequence[MeasureRow],
+    targets: dict[str, _Unit],
+    changes: dict[str, Change],
+) -> dict[str, Change]:
+    """
+    The writes that keep every measure not set reading as it did, by downbeat
+    id, given the units of the measures set (`targets`) and their writes.
+
+    A measure with a unit of its own keeps it. One without carries the unit of
+    the measure before, which still reads as it did unless it was set; or, if
+    it starts a movement, it takes a copy of the movement's first unit, which
+    the plan may have written, else of the unit in force before the movement,
+    else the default (FR-020). Where that isn't what it read, the unit it read
+    is written on its downbeat, with its "assumed" flag, and the measures
+    after it carry that on.
+
+    So nothing is written where a measure would read the same anyway
+    (TimeLineAnnotator/project-management#356), and a movement's first
+    measure is kept as the timeline's first is
+    (TimeLineAnnotator/project-management#357, after
+    TimeLineAnnotator/project-management#322).
+    """
+    # Each movement's first unit, once the measures set have theirs.
+    firsts: dict[int, _Unit] = {}
+    for row in rows:
+        if row.movement not in firsts and (_own(row) is not None or row.id in changes):
+            firsts[row.movement] = targets.get(row.id, _reading(row))
+
+    write_backs: dict[str, Change] = {}
+    carried: _Unit | None = None  # what the measure before governs, after the plan
+    for index, row in enumerate(rows):
+        reading = _reading(row)
+        target = targets.get(row.id)
+        if target is not None:
+            carried = target
+            continue
+        if _own(row) is None:
+            if index == 0 or row.movement != rows[index - 1].movement:
+                denominator, units, _ = firsts.get(row.movement) or carried or _DEFAULT
+                would_read: _Unit | None = (denominator, units, True)
+            else:
+                would_read = carried
+            if would_read != reading:
+                write_backs[row.id] = _unit_change(timeline, row.id, reading)
+        carried = reading
+    return write_backs
+
+
+def _own(row: MeasureRow) -> str | None:
+    """The beat of the unit that starts in the measure, if one does."""
+    beat_id = row.meter.beat_unit_id
+    return beat_id if beat_id in row.beat_ids else None
+
+
+def _reading(row: MeasureRow) -> _Unit:
+    """The unit that governs the measure, as it reads it."""
+    meter = row.meter
+    return meter.denominator, tuple(meter.units), meter.is_assumed
+
+
+def _unit_change(timeline: tla.Timeline, beat_id: str, unit: _Unit) -> Change:
+    """The write that puts `unit` on the beat, as the format stores it."""
+    old = timeline.components[beat_id].attrs.get("beat_unit")
+    new: dict[str, Any] = {"denominator": unit[0], "units": format_units(unit[1])}
+    if unit[2]:
+        new["assumed"] = True
+    return Change(timeline.id, beat_id, "beat_unit", copy.deepcopy(old), new)
 
 
 def _units(time_signature: TimeSignature, taps: int) -> tuple[Fraction, ...]:
