@@ -1480,6 +1480,29 @@ def test_a_display_position_that_isnt_an_integer_is_refused(value):
     assert error.value.message == "expected an integer at /timelines/1/display_position"
 
 
+@pytest.mark.parametrize("version", ["0.0.96", "0.1.1", "0.6.0", "0.7.0"])
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        (remove_key(*HIERARCHY, "ordinal"), '"ordinal" is missing'),
+        (
+            set_key(*HIERARCHY, "ordinal", None),
+            '"ordinal" should be an integer, not null',
+        ),
+    ],
+    ids=["missing", "null"],
+)
+def test_a_timeline_without_an_ordinal_is_refused_at_its_old_place(
+    change, message, version
+):
+    # TiLiA 0.7 would give it the next ordinal, but TiLiA has written one in
+    # every file since 0.1.1: only a file edited by hand lacks one, and the
+    # migration doesn't fill it in as it fills in a height.
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(edited(change, set_key("version", version)))
+    assert (error.value.place, error.value.message) == ("/timelines/1/ordinal", message)
+
+
 # The migrated content, checked as a file of the current format is (FR-053):
 # its places are the migrated document's, with the new ids, and have no line.
 
@@ -1540,11 +1563,6 @@ RANGE = ("timelines", "9")
 @pytest.mark.parametrize(
     "changes, place, message",
     [
-        (
-            [set_key(*HIERARCHY, "ordinal", None)],
-            ("1", "ordinal"),
-            '"ordinal" should be an integer, not null',
-        ),
         (
             [set_key(*HIERARCHY, "ordinal", "1")],
             ("1", "ordinal"),
