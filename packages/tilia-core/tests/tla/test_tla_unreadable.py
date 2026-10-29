@@ -931,6 +931,18 @@ def test_of_two_beats_at_the_same_time_the_first_is_the_first_by_id():
     assert error.place == place(BEAT_1)
 
 
+def test_two_beats_at_the_same_time_are_in_id_order_whatever_the_files_order():
+    # beat_2, marked, comes first in the file; beat_1's id comes first.
+    def change(content):
+        beats = timeline(content, "beats")
+        first = beats["components"].pop(IDS["beat_1"])
+        _beat_2(content).update(time=0.0, measure=first.pop("measure"))
+        beats["components"][IDS["beat_1"]] = first
+
+    error = refusal(edited(change))
+    assert error.place == place(BEAT_1)
+
+
 def test_a_beat_timeline_without_beats_needs_no_mark():
     doc = tla.loads(edited(lambda c: timeline(c, "beats").update(components={})))
     assert named(doc, "Beats").measures.rows == []
