@@ -6,6 +6,7 @@ import math
 import pickle
 import random
 import sys
+import time
 from importlib.metadata import metadata
 
 import pytest
@@ -1346,3 +1347,623 @@ class TestNotValid:
     )
     def test_one_text_for_a_value_that_isnt_one(self, attribute, value, text):
         assert rules.not_valid(attribute, value) == text
+
+
+# A whole timeline at once: check_timeline gives each component what its kind's
+# function gives, with the others as an import or a reading sees them.
+
+MISSING = object()  # a key the component doesn't have
+NAN = float("nan")
+ODD_NUMBERS = [NAN, float("inf"), "1.0", None, True, 10**400, -(10**400), [1.0]]
+TEXTS = ([MISSING, MISSING, "", "Exposição"], [3])
+COLORS = ([MISSING, MISSING, None, "", "red", "#f0a"], ["notacolor", 3])
+POINT_POOLS = {
+    # Few times, so that many components share one: 1 and 1.0 are the same.
+    "time": ([0, 0.0, 0.5, 1, 1.0, 2.5, 59.5, 60, 60.0], [-1.0, 60.5, *ODD_NUMBERS]),
+    "label": TEXTS,
+    "comments": TEXTS,
+    "color": COLORS,
+}
+PAGE_POOLS = {"page_number": ([1, 2, PAGES], [0, PAGES + 1, 1.5, None, True])}
+HARMONY_POOLS = {
+    "step": ([MISSING, 0, 3, 6], [7, -1, 1.0]),
+    "applied_to": ([MISSING, 0, 4], [7]),
+    "accidental": ([MISSING, 0, 1, -2], [3, True]),
+    "quality": (
+        [MISSING, "major", "minor", "dominant-seventh", "power"],
+        ["dominant-seventh-flat-ninth", "maj", None],
+    ),
+    "inversion": ([MISSING, 0, 1, 2], [3, -1, 1.0]),
+    "level": ([MISSING, 1, 2], [0, 3]),
+    "display_mode": ([MISSING, "roman", "letter", "custom"], ["roman2"]),
+    "custom_text": TEXTS,
+    "custom_text_font_type": ([MISSING, "analytic", "normal"], ["bold"]),
+}
+MODE_POOLS = {
+    "step": ([MISSING, 0, 3, 6], [7]),
+    "accidental": ([MISSING, 0, -1, 2], [-3]),
+    "type": ([MISSING, "major", "minor", "dorian", "locrian"], ["ionian", "x"]),
+    "level": ([MISSING, 1, 2], [0]),
+}
+# Starts and lengths on a grid, moved now and then by less or more than the
+# tolerance within which hierarchy boundaries meet.
+STARTS = [0, 0.0, 0.5, 1, 1.0, 2, 3, 4]
+LENGTHS = [0.5, 1, 1.0, 2, 3, 4]
+NOISE = [0] * 8 + [1e-13, -1e-13, 5e-10, -5e-10, 2e-9, -2e-9]
+ODD_TIMES = [*ODD_NUMBERS, 61.0, -1.0]
+SEGMENT_POOLS = {"label": TEXTS, "comments": TEXTS, "color": COLORS}
+LEVELS = ([1, 1, 2, 2, 3, 4], [0, -1, 1.0, 1.5, True, 10**400, None, MISSING])
+ROW_IDS = ([ROW, ROW, "Ef34Gh"], ["Zz99Zz", None, MISSING])
+TIMELINE_KINDS = ["marker", "beat", "pdf", "harmony", "hierarchy", "range"]
+SEEDS = 30
+USES = pytest.mark.parametrize(
+    "skip_broken", [True, False], ids=["an import", "a reading"]
+)
+
+
+def draw(rng, pools, odds=0.06):
+    """Attributes from `pools`: each a usual value or, now and then, an odd one."""
+    attrs = {}
+    for name, (usual, odd) in pools.items():
+        value = rng.choice(odd if rng.random() < odds else usual)
+        if value is not MISSING:
+            attrs[name] = value
+    return attrs
+
+
+def segment_times(rng):
+    if rng.random() < 0.06:
+        return rng.choice(ODD_TIMES), rng.choice([2.0, *ODD_TIMES])
+    if rng.random() < 0.04:  # an end not after its start
+        return 2.0, rng.choice([2.0, 1.0])
+    start = rng.choice(STARTS) + rng.choice(NOISE)
+    return start, start + rng.choice(LENGTHS) + rng.choice(NOISE)
+
+
+def margins(rng, attrs):
+    """A pre_start and a post_end now and then, within their bounds or not."""
+    start, end = attrs["start"], attrs["end"]
+    if not (rules._is_number(start) and rules._is_number(end)):
+        return
+    if rng.random() < 0.15:
+        attrs["pre_start"] = rng.choice([None, start, start - 0.25, -1.0, start + 0.25])
+    if rng.random() < 0.15:
+        attrs["post_end"] = rng.choice([None, end, end + 0.25, end - 0.25, MEDIA + 1])
+
+
+def random_timeline(kind, seed, size=40):
+    """A timeline of `kind`'s components, many of which break a rule."""
+    rng = random.Random(f"{kind} {seed}")
+    ids = [f"{kind}{n}" for n in range(size)]
+    components = []
+    for id_ in ids:
+        if kind in ("marker", "beat"):
+            component_kind, attrs = kind, draw(rng, POINT_POOLS)
+        elif kind == "pdf":
+            component_kind = "pdf_marker"
+            attrs = draw(rng, {**POINT_POOLS, **PAGE_POOLS})
+        elif kind == "harmony":
+            component_kind = rng.choice(["harmony", "harmony", "mode"])
+            pools = HARMONY_POOLS if component_kind == "harmony" else MODE_POOLS
+            attrs = draw(rng, {**POINT_POOLS, **pools})
+        else:
+            component_kind = kind
+            start, end = segment_times(rng)
+            attrs = {"start": start, "end": end}
+            if kind == "hierarchy":
+                attrs.update(draw(rng, {"level": LEVELS, **SEGMENT_POOLS}))
+            else:
+                attrs.update(draw(rng, {"row_id": ROW_IDS, **SEGMENT_POOLS}))
+            margins(rng, attrs)
+        components.append(tla.Component(id=id_, kind=component_kind, attrs=attrs))
+    if kind == "range":
+        # Joins: mostly to a range of the row that starts where this one ends,
+        # which may or may not be the next one; else to any component.
+        for joining in components:
+            if rng.random() < 0.6:
+                continue
+            attrs = joining.attrs
+            meeting = [
+                other.id
+                for other in components
+                if other is not joining
+                and other.attrs.get("row_id") == attrs.get("row_id")
+                and other.attrs["start"] == attrs["end"]
+            ]
+            pool = meeting if meeting and rng.random() < 0.7 else [*ids, "nope"]
+            attrs["joined_right"] = rng.choice(pool)
+    return components
+
+
+def kinds_function(component, others, rows=ROWS):
+    """The component's kind's function, as an importer calls it: with a color that
+    isn't one replaced by the default. Gives the outcome, and whether it raised
+    CantCheck."""
+    attrs = dict(component.attrs)
+    if not rules.color(attrs.get("color")):
+        del attrs["color"]
+    kind = component.kind
+    try:
+        if kind == "pdf_marker":
+            outcome = rules.pdf_marker(MEDIA, others, attrs, page_count=PAGES)
+        elif kind == "range":
+            outcome = rules.range_(MEDIA, others, attrs, rows=rows)
+        else:
+            outcome = getattr(rules, kind)(MEDIA, others, attrs)
+    except rules.CantCheck:
+        return rules.OK, True
+    return outcome, False
+
+
+def found_row_by_row(components, skip_broken, rows=ROWS):
+    """What the kinds' functions find, each component checked with every other
+    one, or, as an import, with the earlier ones they kept."""
+    found, kept = {}, []
+    for component in components:
+        if skip_broken:
+            others = list(kept)
+        else:
+            others = [other for other in components if other is not component]
+        outcome, cant_check = kinds_function(component, others, rows)
+        color = rules.color(component.attrs.get("color"))
+        found[component.id] = (outcome, outcome.others, color, cant_check)
+        if outcome:
+            kept.append(component)
+    return found
+
+
+def found_at_once(components, skip_broken, rows=ROWS):
+    checked = rules.check_timeline(
+        MEDIA, components, rows=rows, page_count=PAGES, skip_broken=skip_broken
+    )
+    assert list(checked) == [component.id for component in components]
+    return {
+        id_: (c.outcome, c.outcome.others, c.color, c.cant_check is not None)
+        for id_, c in checked.items()
+    }
+
+
+class TestCheckTimeline:
+    @USES
+    @pytest.mark.parametrize("kind", TIMELINE_KINDS)
+    def test_the_kinds_functions_outcomes_on_random_timelines(self, kind, skip_broken):
+        # One set of rules: check_timeline finds what the kinds' functions find.
+        if kind == "harmony":
+            pytest.importorskip("music21", reason="needs the harmony extra")
+        for seed in range(SEEDS):
+            components = random_timeline(kind, seed)
+
+            found = found_at_once(components, skip_broken)
+
+            assert found == found_row_by_row(components, skip_broken), seed
+
+    @USES
+    def test_without_music21_on_random_timelines(self, skip_broken, without_music21):
+        for seed in range(SEEDS):
+            components = random_timeline("harmony", seed)
+
+            found = found_at_once(components, skip_broken)
+
+            assert found == found_row_by_row(components, skip_broken), seed
+
+    def test_the_random_timelines_break_every_rule_between_components(self):
+        # So that the tests above compare what check_timeline finds for each.
+        reasons = set()
+        for kind in TIMELINE_KINDS:
+            if kind == "harmony" and importlib.util.find_spec("music21") is None:
+                continue
+            for seed in range(SEEDS):
+                components = random_timeline(kind, seed)
+                for skip_broken in (True, False):
+                    found = found_row_by_row(components, skip_broken)
+                    reasons |= {
+                        outcome.reason.split(" on row")[0]
+                        for outcome, others, _, _ in found.values()
+                        if others
+                    }
+
+        expected = {
+            "There is already a marker component at the selected position.",
+            "There is already a beat component at the selected position.",
+            "There is already a PDF page marker component at the selected position.",
+            "There is already a harmony component at the selected position.",
+            "There is already a mode component at the selected position.",
+            "There is already a hierarchy component at the selected position.",
+            "Component would overlap with existing component.",
+            "joined_with_next=true but next range",
+            "joined_with_next=true but the range it joins isn't the next range",
+        }
+        if importlib.util.find_spec("music21") is None:
+            expected -= {
+                "There is already a harmony component at the selected position.",
+                "There is already a mode component at the selected position.",
+            }
+        assert reasons == expected
+
+    def test_each_component_by_its_id_in_the_order_given(self):
+        components = [component("marker", time=t) for t in (3.0, 1.0, 2.0)]
+
+        checked = rules.check_timeline(MEDIA, components)
+
+        assert list(checked) == [c.id for c in components]
+        assert all(c.outcome == OK and c.color == OK for c in checked.values())
+
+    @pytest.mark.parametrize(
+        "first, second, reason",
+        [
+            (
+                component("marker", time=1.0),
+                component("marker", time=1),
+                "There is already a marker component at the selected position.",
+            ),
+            (
+                hierarchy(0, 10, 1),
+                hierarchy(5, 15, 1),
+                "Component would overlap with existing component.",
+            ),
+            (
+                hierarchy(0, 10, 1),
+                hierarchy(0, 10, 1),
+                "There is already a hierarchy component at the selected position.",
+            ),
+        ],
+    )
+    def test_the_reading_use_reports_every_broken_pair_naming_both(
+        self, first, second, reason
+    ):
+        checked = rules.check_timeline(MEDIA, [first, second])
+
+        assert checked[first.id].outcome == (False, reason)
+        assert checked[first.id].outcome.others == (second.id,)
+        assert checked[second.id].outcome == (False, reason)
+        assert checked[second.id].outcome.others == (first.id,)
+
+    def test_the_reading_use_names_every_other_at_the_same_time(self):
+        markers = [component("marker", time=1.0) for _ in range(3)]
+
+        checked = rules.check_timeline(MEDIA, markers)
+
+        for marker in markers:
+            others = tuple(other.id for other in markers if other is not marker)
+            assert checked[marker.id].outcome.others == others
+
+    def test_the_import_use_keeps_the_first_of_two_at_the_same_time(self):
+        first, second, third = [component("marker", time=t) for t in (1.0, 1.0, 2.0)]
+
+        checked = rules.check_timeline(MEDIA, [first, second, third], skip_broken=True)
+
+        assert checked[first.id].outcome == OK
+        assert checked[second.id].outcome == (
+            False,
+            "There is already a marker component at the selected position.",
+        )
+        assert checked[second.id].outcome.others == (first.id,)
+        assert checked[third.id].outcome == OK
+
+    def test_the_import_use_leaves_a_skipped_component_out_of_what_follows(self):
+        # The second crosses the first, and is skipped; the third crosses only
+        # the second, so it is kept. Read, both crossings are reported.
+        kept, crossing = hierarchy(0, 10, 1), hierarchy(5, 15, 1)
+        after = hierarchy(12, 20, 1)
+        components = [kept, crossing, after]
+
+        imported = rules.check_timeline(MEDIA, components, skip_broken=True)
+        read = rules.check_timeline(MEDIA, components)
+
+        assert [imported[c.id].outcome.ok for c in components] == [True, False, True]
+        assert imported[crossing.id].outcome.others == (kept.id,)
+        assert [read[c.id].outcome.ok for c in components] == [False, False, False]
+        assert read[crossing.id].outcome.others == (kept.id, after.id)
+
+    def test_a_component_that_breaks_its_own_rules_is_left_out_on_import(self):
+        level_0, kept = hierarchy(5, 15, 0), hierarchy(0, 10, 1)
+
+        imported = rules.check_timeline(MEDIA, [level_0, kept], skip_broken=True)
+        read = rules.check_timeline(MEDIA, [level_0, kept])
+
+        assert imported[level_0.id].outcome == (
+            False,
+            "Level can't be below 1. Got '0'",
+        )
+        assert imported[kept.id].outcome == OK
+        assert read[kept.id].outcome == (
+            False,
+            "Component would overlap with existing component.",
+        )
+
+    def test_a_single_change_is_checked_on_the_timeline_it_leaves(self):
+        # A range put between two joined ranges breaks the first one's join,
+        # which checking the new range alone can't tell.
+        second = range_in(ROW, 2.0, 3.0)
+        first = range_in(ROW, 1.0, 2.0, joined_right=second.id)
+        between = range_in(ROW, 1.5, 1.8)
+        assert check("range", [first, second], start=1.5, end=1.8) == OK
+
+        checked = rules.check_timeline(MEDIA, [first, second, between], rows=ROWS)
+
+        assert checked[first.id].outcome == (
+            False,
+            "joined_with_next=true but next range on row 'Strings' starts at 1.5"
+            " (must equal 2.0 for ranges to join)",
+        )
+        assert checked[first.id].outcome.others == (between.id,)
+        assert checked[between.id].outcome == OK
+
+    @USES
+    def test_a_bad_color_is_reported_and_another_broken_rule_still_found(
+        self, skip_broken
+    ):
+        broken = hierarchy(1, 2, 0, color="notacolor")
+
+        checked = rules.check_timeline(MEDIA, [broken], skip_broken=skip_broken)
+
+        assert checked[broken.id].outcome == (False, "Level can't be below 1. Got '0'")
+        assert checked[broken.id].color == (False, "notacolor is not a valid color.")
+
+    def test_a_component_whose_only_broken_rule_is_its_color_is_kept_on_import(self):
+        # An importer keeps it, with the default color.
+        colored = component("marker", time=1.0, color="notacolor")
+        later = component("marker", time=1.0)
+
+        checked = rules.check_timeline(MEDIA, [colored, later], skip_broken=True)
+
+        assert checked[colored.id].outcome == OK
+        assert checked[colored.id].color == (False, "notacolor is not a valid color.")
+        assert checked[later.id].outcome.others == (colored.id,)
+
+    @pytest.mark.parametrize("value", ["#f0a", None, "", MISSING])
+    def test_the_default_color_or_one_qt_reads(self, value):
+        attrs = {} if value is MISSING else {"color": value}
+        marker = component("marker", time=1.0, **attrs)
+
+        assert rules.check_timeline(MEDIA, [marker])[marker.id].color == OK
+
+    def test_music21_is_looked_up_once_per_call(self, music21, monkeypatch):
+        calls = []
+        look_up = rules._music21
+
+        def counted():
+            calls.append(1)
+            return look_up()
+
+        monkeypatch.setattr(rules, "_music21", counted)
+        components = [component("harmony", time=float(t)) for t in range(5)]
+        components += [component("mode", time=float(t)) for t in range(5)]
+
+        rules.check_timeline(MEDIA, components)
+        assert len(calls) == 1
+        rules.check_timeline(MEDIA, components, skip_broken=True)
+        assert len(calls) == 2
+
+    def test_music21_isnt_looked_up_without_harmonies_or_keys(self, monkeypatch):
+        def fail():
+            raise AssertionError("looked up music21")
+
+        monkeypatch.setattr(rules, "_music21", fail)
+        components = [component("marker", time=1.0), hierarchy(0, 1, 1)]
+
+        rules.check_timeline(MEDIA, components)
+
+    def test_music21_installed_since_the_last_call_is_found(self, music21, monkeypatch):
+        harmony = component("harmony", time=1.0, quality="maj")
+        find_spec = importlib.util.find_spec
+
+        def find_spec_without_music21(name, *args, **kwargs):
+            if name == "music21":
+                return None
+            return find_spec(name, *args, **kwargs)
+
+        with monkeypatch.context() as uninstalled:
+            uninstalled.setattr(importlib.util, "find_spec", find_spec_without_music21)
+            assert rules.check_timeline(MEDIA, [harmony])[harmony.id].cant_check
+
+        checked = rules.check_timeline(MEDIA, [harmony])[harmony.id]
+        assert checked.cant_check is None
+        assert checked.outcome == (False, "maj is not a valid quality.")
+
+    @USES
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_without_music21_it_reports_what_cant_be_checked(
+        self, kind, skip_broken, without_music21
+    ):
+        unchecked = component(kind, time=1.0, color="notacolor")
+        broken = component(kind, time=2.0, level=3)
+
+        checked = rules.check_timeline(
+            MEDIA, [unchecked, broken], skip_broken=skip_broken
+        )
+
+        cant_check = checked[unchecked.id].cant_check
+        assert isinstance(cant_check, rules.CantCheck)
+        assert cant_check.kind == kind
+        assert cant_check.command == INSTALL
+        assert INSTALL in str(cant_check)
+        assert checked[unchecked.id].outcome == OK
+        assert checked[unchecked.id].color == (
+            False,
+            "notacolor is not a valid color.",
+        )
+        assert checked[broken.id].outcome == (False, "3 is not a valid level.")
+        assert checked[broken.id].cant_check is None
+
+    def test_without_music21_one_that_cant_be_checked_is_kept_on_import(
+        self, without_music21
+    ):
+        first, second = component("harmony", time=1.0), component("harmony", time=1.0)
+
+        checked = rules.check_timeline(MEDIA, [first, second], skip_broken=True)
+
+        assert checked[first.id].cant_check is not None
+        assert checked[second.id].outcome.others == (first.id,)
+        assert checked[second.id].cant_check is None
+
+    def test_ranges_need_the_rows(self):
+        with pytest.raises(TypeError, match="rows"):
+            rules.check_timeline(MEDIA, [range_in(ROW, 1.0, 2.0)])
+
+    def test_pdf_markers_need_the_page_count(self):
+        marker = component("pdf_marker", time=1.0, page_number=1)
+
+        with pytest.raises(TypeError, match="page count"):
+            rules.check_timeline(MEDIA, [marker])
+
+    def test_other_kinds_need_neither(self):
+        checked = rules.check_timeline(MEDIA, [component("marker", time=1.0)])
+
+        assert len(checked) == 1
+
+    @pytest.mark.parametrize("kind", ["note", tla.UnknownKind("MARKERS")])
+    def test_kinds_the_rules_dont_cover_are_left_out(self, kind):
+        other = tla.Component(id="other", kind=kind, attrs={"time": 1.0})
+        marker = component("marker", time=1.0)
+
+        checked = rules.check_timeline(MEDIA, [other, marker])
+
+        assert list(checked) == [marker.id]
+        assert checked[marker.id].outcome == OK
+
+    def test_two_components_with_one_id(self):
+        first = component("marker", time=1.0)
+        second = tla.Component(id=first.id, kind="marker", attrs={"time": 2.0})
+
+        with pytest.raises(ValueError, match=first.id):
+            rules.check_timeline(MEDIA, [first, second])
+
+    @USES
+    @pytest.mark.parametrize(
+        "components, rows",
+        [
+            # Values that can't be hashed, as the time or the level.
+            (
+                [
+                    component("marker", time=[1.0]),
+                    component("marker", time=1.0),
+                    hierarchy(1.0, 2.0, [1]),
+                    hierarchy(1.0, 2.0, 1),
+                ],
+                ROWS,
+            ),
+            # A row whose id is a list, which only a caller in Python can give.
+            (
+                [
+                    range_in(["odd"], 1.0, 2.0, joined_right="second"),
+                    tla.Component(
+                        id="second",
+                        kind="range",
+                        attrs={"start": 2.0, "end": 3.0, "row_id": ["odd"]},
+                    ),
+                    range_in(["odd"], 1.5, 4.0, joined_right="second"),
+                ],
+                [*ROWS, {"id": ["odd"], "name": "Odd"}],
+            ),
+            # True, which is 1, but isn't a time the others are ordered by.
+            (
+                [
+                    component("marker", time=True),
+                    component("marker", time=1),
+                    hierarchy(True, 2.0, 1),
+                    hierarchy(1, 2.0, 1),
+                    hierarchy(1, 2.0, True),
+                    hierarchy(0.5, 2.0, 2),
+                ],
+                ROWS,
+            ),
+        ],
+        ids=["unhashable", "unhashable row id", "true"],
+    )
+    def test_odd_values_are_compared_as_the_functions_compare_them(
+        self, components, rows, skip_broken
+    ):
+        found = found_at_once(components, skip_broken, rows)
+
+        assert found == found_row_by_row(components, skip_broken, rows)
+
+    def test_the_components_are_left_as_they_are(self):
+        components = random_timeline("range", 0)
+        before = copy.deepcopy(components)
+
+        rules.check_timeline(MEDIA, components, rows=ROWS)
+
+        assert repr(components) == repr(before)
+
+
+def nested_hierarchies(total, length):
+    """`total` hierarchies that nest: five at level 4, each split in five at
+    levels 3 and 2, and level 2's spans split among the rest, at level 1."""
+
+    def split(start, end, pieces):
+        bounds = [start + (end - start) * n / pieces for n in range(pieces)] + [end]
+        return list(itertools.pairwise(bounds))
+
+    parents = split(0.0, length, 5)
+    spans = [(start, end, 4) for start, end in parents]
+    for level in (3, 2):
+        parents = [piece for start, end in parents for piece in split(start, end, 5)]
+        spans += [(start, end, level) for start, end in parents]
+    rest = total - len(spans)
+    for n, (start, end) in enumerate(parents):
+        pieces = rest // len(parents) + (n < rest % len(parents))
+        spans += [(s, e, 1) for s, e in split(start, end, pieces)]
+    assert len(spans) == total
+    return [hierarchy(*span) for span in spans]
+
+
+def fastest(run, times=3):
+    """What `run` gives, and the fewest seconds it took in `times` runs."""
+    seconds = []
+    for _ in range(times):
+        start = time.perf_counter()
+        result = run()
+        seconds.append(time.perf_counter() - start)
+    return result, min(seconds)
+
+
+# "Well under a second", for each timeline below.
+WELL_UNDER_A_SECOND = 0.5
+
+
+@pytest.mark.benchmark
+class TestCheckTimelineSpeed:
+    @USES
+    def test_10000_beats(self, skip_broken):
+        beats = [component("beat", time=n * 0.25) for n in range(10_000)]
+
+        checked, seconds = fastest(
+            lambda: rules.check_timeline(2500.0, beats, skip_broken=skip_broken)
+        )
+
+        use = "imported" if skip_broken else "read"
+        print(f"10,000 beats, {use}: {seconds:.3f} s")
+        assert all(c.outcome for c in checked.values())
+        assert seconds < WELL_UNDER_A_SECOND
+
+    @USES
+    def test_3000_hierarchies_with_nesting(self, skip_broken):
+        hierarchies = nested_hierarchies(3000, 3000.0)
+        random.Random(303).shuffle(hierarchies)
+
+        checked, seconds = fastest(
+            lambda: rules.check_timeline(3000.0, hierarchies, skip_broken=skip_broken)
+        )
+
+        use = "imported" if skip_broken else "read"
+        print(f"3,000 hierarchies with nesting, {use}: {seconds:.3f} s")
+        assert all(c.outcome for c in checked.values())
+        assert seconds < WELL_UNDER_A_SECOND
+
+    def test_3000_hierarchies_that_cross_the_first_on_import(self):
+        # Each is checked with the hierarchies kept, not with every earlier one:
+        # every one after the first crosses it, and every other one.
+        hierarchies = [hierarchy(0.0, 10.0, 1)]
+        hierarchies += [
+            hierarchy(5.0 + n / 1000, 15.0 + n / 1000, 1) for n in range(2999)
+        ]
+
+        checked, seconds = fastest(
+            lambda: rules.check_timeline(MEDIA, hierarchies, skip_broken=True)
+        )
+
+        print(f"3,000 hierarchies crossing the first, imported: {seconds:.3f} s")
+        others = [c.outcome.others for c in checked.values()]
+        assert others[1:] == [(hierarchies[0].id,)] * 2999
+        assert seconds < WELL_UNDER_A_SECOND
