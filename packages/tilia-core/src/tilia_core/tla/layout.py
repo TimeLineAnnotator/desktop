@@ -28,7 +28,7 @@ FORMAT_VERSION = "1.0.0-draft.1"
 def schema() -> dict[str, Any]:
     """The JSON Schema of the current format, as this package ships it: a
     copy of its own at each call, which the caller may change (FR-090)."""
-    folder = files("tilia_core.tla").joinpath("schema")
+    folder = files("tilia_core.tla").joinpath("schemas")
     name = f"tla-{FORMAT_VERSION}.schema.json"
     return json.loads(folder.joinpath(name).read_bytes())
 

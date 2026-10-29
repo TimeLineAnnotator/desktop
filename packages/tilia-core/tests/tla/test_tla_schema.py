@@ -7,6 +7,8 @@ Every file the tests write is checked against the schema too, by the fixture
 import codecs
 import hashlib
 import json
+import subprocess
+import sys
 import unicodedata
 from collections import Counter
 from importlib.resources import files
@@ -62,14 +64,52 @@ def test_every_reference_in_the_schema_names_one_of_its_definitions():
     assert {ref.replace("#/$defs/", "", 1) for ref in found} <= set(schema["$defs"])
 
 
+def shipped_schema():
+    """The schema's file, as the installed package has it."""
+    name = f"tla-{tla.FORMAT_VERSION}.schema.json"
+    return files("tilia_core.tla").joinpath("schemas").joinpath(name)
+
+
 def test_the_schema_is_the_file_the_package_ships():
     # scripts/check_packages.py runs this on the installed wheel, so this also
     # checks that the wheel carries the schema, and carries it unchanged.
-    name = f"tla-{tla.FORMAT_VERSION}.schema.json"
-    shipped = files("tilia_core.tla").joinpath("schema").joinpath(name)
+    shipped = shipped_schema()
     assert shipped.is_file()
     assert hashlib.sha256(shipped.read_bytes()).hexdigest() == SCHEMA_SHA256
     assert tla.schema() == json.loads(shipped.read_bytes())
+
+
+IMPORT_EVERY_FOLDER = """
+import json
+from importlib.resources import files
+
+from tilia_core import tla
+
+public = {name: getattr(tla, name) for name in tla.__all__}
+for folder in files("tilia_core.tla").iterdir():
+    if folder.is_dir() and not folder.name.startswith("__"):
+        files(f"tilia_core.tla.{folder.name}")
+print(json.dumps([name for name in public if getattr(tla, name) is not public[name]]))
+print(json.dumps(tla.schema()))
+"""
+
+
+def test_importing_a_folder_of_tla_leaves_schema_a_function(tmp_path):
+    # importlib.resources imports a folder by its dotted name, and a folder of
+    # data, without an __init__.py, becomes a namespace package and an
+    # attribute of tla: a folder named schema would replace tla.schema. Run in
+    # a process of its own, so that it can't change tla for the other tests.
+    result = subprocess.run(
+        [sys.executable, "-c", IMPORT_EVERY_FOLDER],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    lines = result.stdout.splitlines()
+    assert lines, result.stderr
+    assert json.loads(lines[0]) == [], "replaced by a folder of the same name"
+    assert result.returncode == 0, result.stderr
+    assert json.loads(lines[1]) == json.loads(shipped_schema().read_bytes())
 
 
 def test_the_schema_names_the_format_version_it_describes():
