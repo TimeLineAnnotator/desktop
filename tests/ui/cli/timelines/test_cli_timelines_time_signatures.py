@@ -94,6 +94,19 @@ class TestSetTimeSignature:
 
         assert time_signatures(beat_tl)[4] == (6, 8)
 
+    @pytest.mark.parametrize("text", ["2/4", "2/4(1 1)"])
+    def test_a_short_last_measure_takes_one_that_fits_its_taps(self, cli, tls, text):
+        cli.parse_and_run("timelines add beat --name B -b 4/4")
+        tl = tls.get_timelines()[0]
+        for time in range(10):
+            cli.parse_and_run(f"components beat -o 1 --time {time}")
+
+        cli.parse_and_run(f"timelines beat time-signatures set -o 1 -m 3 {text}")
+
+        assert time_signatures(tl) == [(4, 4), (4, 4), (2, 4)]
+        assert tl.measure_meters[2].starts_here
+        assert tl.measure_meters[2].units == (1,)
+
     @pytest.mark.parametrize(
         "args",
         [
