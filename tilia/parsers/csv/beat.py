@@ -141,6 +141,10 @@ def beats_from_csv(
         rows = [row for row in reader if row]
 
     if measure_marks is None:
+        # Times alone may come in any order. The beats follow their times,
+        # so the measures the pattern makes of them, and the time signatures
+        # given for those, must too.
+        rows.sort(key=lambda row: float(row[params_to_indices["time"]]))
         counts = get_extension_from_beat_pattern(timeline.beat_pattern_bars, len(rows))
         measure_marks = _get_measure_marks(counts, list(range(1, len(counts) + 1)), [])
 
