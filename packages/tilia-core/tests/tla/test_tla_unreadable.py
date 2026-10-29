@@ -648,25 +648,52 @@ def test_the_writer_writes_an_integer_given_as_1_0_as_1():
 
 @pytest.fixture
 def lists(monkeypatch):
-    # The schema has no list of integers yet: the check is given one, at a
-    # key of the top level the core doesn't know, which the reader keeps in
-    # `extra`; and a list of numbers beside it.
+    # The schema has no list of integers yet: the check is given some, at
+    # keys of the top level the core doesn't know, which the reader keeps in
+    # `extra`; and a list of numbers beside them.
+    integer, number = {"type": "integer"}, {"type": "number"}
     spec = check._compile(
         {
             "properties": {
-                "counts": {"type": "array", "items": {"type": "integer"}},
-                "weights": {"type": "array", "items": {"type": "number"}},
+                "counts": {"type": "array", "items": integer},
+                "weights": {"type": "array", "items": number},
+                "pairs": {"type": "array", "prefixItems": [integer, number]},
+                "grid": {"type": "array", "items": {"type": "array", "items": integer}},
+                # Items that may be floats, but whose type isn't all there is
+                # to check: a number, or a list of integers.
+                "sizes": {
+                    "type": "array",
+                    "items": {"type": ["number", "array"], "items": integer},
+                },
             }
         }
     )
     monkeypatch.setattr(check, "_DOCUMENT", check._merge(check._DOCUMENT, spec))
 
 
-def test_an_integer_written_as_1_0_in_a_list_is_read_as_the_integer_1(lists):
-    doc = tla.loads(edited(lambda content: content.update(counts=[1.0, 2, -0.0])))
-    assert doc.extra["counts"] == [1, 2, 0]
-    assert [type(value) for value in doc.extra["counts"]] == [int, int, int]
-    with_integers = tla.loads(edited(lambda content: content.update(counts=[1, 2, 0])))
+def _typed(value):
+    """`value`, with the type of each item of its lists: 1 == 1.0."""
+    if isinstance(value, list):
+        return [_typed(item) for item in value]
+    return (type(value), value)
+
+
+@pytest.mark.parametrize(
+    "key, given, expected",
+    [
+        ("counts", [1.0, 2, -0.0], [1, 2, 0]),
+        ("pairs", [1.0, 1.0], [1, 1.0]),
+        ("grid", [[1.0, 2], [3.0]], [[1, 2], [3]]),
+        # Only the integers: a number stays as it is written.
+        ("sizes", [1.0, [1.0]], [1.0, [1]]),
+    ],
+)
+def test_an_integer_written_as_1_0_in_a_list_is_read_as_the_integer_1(
+    lists, key, given, expected
+):
+    doc = tla.loads(edited(lambda content: content.update({key: given})))
+    assert _typed(doc.extra[key]) == _typed(expected)
+    with_integers = tla.loads(edited(lambda content: content.update({key: expected})))
     assert tla.canonical_bytes(doc) == tla.canonical_bytes(with_integers)
 
 
@@ -674,8 +701,10 @@ def test_the_writer_writes_an_integer_given_as_1_0_in_a_list_as_1(lists):
     doc = base_document()
     doc.extra["counts"] = [2.0]
     data = writer.checked_bytes(doc)
-    assert [type(value) for value in json.loads(data)["counts"]] == [int]
+    assert _typed(json.loads(data)["counts"]) == [(int, 2)]
     assert tla.loads(data).extra["counts"] == [2]
+    # The caller's document is left as it is.
+    assert _typed(doc.extra["counts"]) == [(float, 2.0)]
 
 
 def test_a_number_with_a_fraction_in_a_list_of_integers_is_refused_at_its_index(
@@ -690,7 +719,13 @@ def test_a_number_with_a_fraction_in_a_list_of_integers_is_refused_at_its_index(
 
 def test_a_list_of_numbers_keeps_1_0(lists):
     doc = tla.loads(edited(lambda content: content.update(weights=[1.0, 2])))
-    assert [type(value) for value in doc.extra["weights"]] == [float, int]
+    assert _typed(doc.extra["weights"]) == [(float, 1.0), (int, 2)]
+    # Its items are checked, as numbers.
+    error = refusal(edited(lambda content: content.update(weights=["a"])))
+    assert (error.place, error.message) == (
+        "/weights/0",
+        'an item of "weights" should be a number, not text',
+    )
 
 
 class _Float(float):
