@@ -283,7 +283,12 @@ class _Migration:
                     for name, component in kept["components"].items()
                 }
             return kept
-        self._require(timeline, "ordinal", place)
+        if self._require(timeline, "ordinal", place) is None:
+            # Refused, not filled in as a height is: TiLiA 0.7 would give it
+            # the next ordinal, but TiLiA has written one in every file since
+            # 0.1.1, so only a file edited by hand has none.
+            at = pointer_to(place, "ordinal")
+            raise self._refuse('"ordinal" should be an integer, not null', at)
         components = self._object(
             self._require(timeline, "components", place),
             pointer_to(place, "components"),
