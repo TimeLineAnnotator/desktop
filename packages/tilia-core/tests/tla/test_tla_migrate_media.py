@@ -15,6 +15,7 @@ cases run on every system."""
 
 import json
 import os
+import shutil
 import sys
 import unicodedata
 from pathlib import Path
@@ -22,8 +23,10 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
+from tilia_core.tla import writer
 from tilia_core.tla.migrate import media as migrate_media
 
+EVERY_KIND = Path(__file__).parent / "golden" / "every-kind.tla"
 WINDOWS = sys.platform == "win32"
 windows_only = pytest.mark.skipif(not WINDOWS, reason="drives are Windows'")
 posix_only = pytest.mark.skipif(WINDOWS, reason="a POSIX file name")
@@ -467,3 +470,194 @@ def test_a_name_in_decomposed_form_is_found(tmp_path, on_disk):
     found = tla.media(tmp_path / "piece.tla", doc)
     assert found.stored == stored
     assert os.path.samefile(found.path, media)
+
+
+# Writing: paths relative to the folder written into (FR-003, FR-033)
+
+
+@pytest.fixture
+def corpus(tmp_path):
+    """A file of the current format in corpus/, with its media in audio/ and
+    its PDF in scores/: every-kind.tla, whose paths are relative."""
+    media_file(tmp_path / "audio" / f"{NAME}.flac")
+    media_file(tmp_path / "scores" / f"{NAME}.pdf")
+    piece = tmp_path / "corpus" / "piece.tla"
+    piece.parent.mkdir()
+    shutil.copyfile(EVERY_KIND, piece)
+    return piece
+
+
+def pdf_path(doc):
+    (pdf,) = [tl for tl in doc.timelines.values() if tl.kind == "pdf"]
+    return pdf.attrs["path"]
+
+
+def set_pdf_path(doc, value):
+    (pdf,) = [tl for tl in doc.timelines.values() if tl.kind == "pdf"]
+    pdf.attrs["path"] = value
+
+
+def written(path):
+    content = json.loads(Path(path).read_bytes())
+    (pdf,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Pdf"]
+    return content["media"]["path"], pdf["path"]
+
+
+def found(path):
+    """Where the file at `path` finds its media and its PDF."""
+    doc = tla.read(path)
+    pdf = os.path.join(os.path.dirname(path), pdf_path(doc))
+    return tla.media(path, doc).path, Path(os.path.normpath(pdf))
+
+
+@pytest.mark.parametrize(
+    "place, expected",
+    [
+        ("elsewhere/deeper", ("../../audio/", "../../scores/")),
+        ("", ("audio/", "scores/")),
+        ("corpus/sub", ("../../audio/", "../../scores/")),
+        ("audio", ("", "../scores/")),
+    ],
+)
+def test_written_into_another_folder_the_media_is_still_found(
+    corpus, tmp_path, place, expected
+):
+    doc = tla.read(corpus)
+    assert written(corpus) == (f"../audio/{NAME}.flac", f"../scores/{NAME}.pdf")
+    target = tmp_path / place / "copy.tla"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fingerprint = tla.write(target, doc)
+    media_folder, pdf_folder = expected
+    assert written(target) == (f"{media_folder}{NAME}.flac", f"{pdf_folder}{NAME}.pdf")
+    media_found, pdf_found = found(target)
+    assert os.path.samefile(media_found, tmp_path / "audio" / f"{NAME}.flac")
+    assert os.path.samefile(pdf_found, tmp_path / "scores" / f"{NAME}.pdf")
+    # The fingerprint is that of the bytes written (FR-043).
+    assert fingerprint == tla.fingerprint(target)
+
+
+def test_writing_elsewhere_leaves_the_document_as_it_was(corpus, tmp_path):
+    doc = tla.read(corpus)
+    before = tla.canonical_bytes(doc)
+    tla.write(tmp_path / "copy.tla", doc)
+    assert (doc.media_path, pdf_path(doc)) == (
+        f"../audio/{NAME}.flac",
+        f"../scores/{NAME}.pdf",
+    )
+    assert doc.origin == corpus
+    assert tla.canonical_bytes(doc) == before
+    # So writing it back where it was read from changes nothing.
+    tla.write(corpus, doc)
+    assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+
+
+def test_a_copy_of_a_copy_still_finds_its_media(corpus, tmp_path):
+    first = tmp_path / "one" / "piece.tla"
+    second = tmp_path / "two" / "three" / "piece.tla"
+    for path in (first, second):
+        path.parent.mkdir(parents=True)
+    tla.write(first, tla.read(corpus))
+    tla.write(second, tla.read(first))
+    media_found, pdf_found = found(second)
+    assert os.path.samefile(media_found, tmp_path / "audio" / f"{NAME}.flac")
+    assert os.path.samefile(pdf_found, tmp_path / "scores" / f"{NAME}.pdf")
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        lambda path: path,
+        lambda path: path.parent / ".." / path.parent.name / path.name,
+        pytest.param(
+            lambda path: Path(str(path).upper()),
+            marks=windows_only,
+        ),
+    ],
+    ids=["same", "through ..", "in capitals"],
+)
+def test_written_where_it_was_read_its_paths_are_kept_as_they_are(corpus, spelling):
+    # Even spelled otherwise than the writer would compute them.
+    doc = tla.read(corpus)
+    doc.media_path = f"./../audio/./{NAME}.flac"
+    set_pdf_path(doc, f"../corpus/../scores/{NAME}.pdf")
+    tla.write(spelling(corpus), doc)
+    assert written(corpus) == (
+        f"./../audio/./{NAME}.flac",
+        f"../corpus/../scores/{NAME}.pdf",
+    )
+
+
+def test_an_absolute_path_is_written_relative_where_the_document_was_read(
+    corpus, tmp_path
+):
+    # A script opens a file, records media as `build` does, absolute, and
+    # saves it where it was.
+    doc = tla.read(corpus)
+    doc.media_path = (tmp_path / "audio" / f"{NAME}.flac").resolve().as_posix()
+    set_pdf_path(doc, str(tmp_path / "scores" / f"{NAME}.pdf"))
+    tla.write(corpus, doc)
+    assert written(corpus) == (f"../audio/{NAME}.flac", f"../scores/{NAME}.pdf")
+    assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+
+
+def test_an_absolute_path_is_written_relative_from_a_new_document(tmp_path):
+    media = media_file(tmp_path / "audio" / "piece.wav")
+    doc = tla.new_document()
+    doc.media_path, doc.media_length = media.resolve().as_posix(), 10.0
+    target = tmp_path / "corpus" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert json.loads(target.read_bytes())["media"]["path"] == "../audio/piece.wav"
+    assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
+    assert doc.media_path == media.resolve().as_posix()
+
+
+def test_a_relative_path_of_a_document_read_from_nowhere_is_kept(tmp_path):
+    # Nothing tells what it is relative to.
+    doc = tla.new_document()
+    doc.media_path = "audio/piece.wav"
+    tla.write(tmp_path / "piece.tla", doc)
+    assert json.loads((tmp_path / "piece.tla").read_bytes())["media"]["path"] == (
+        "audio/piece.wav"
+    )
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "",
+        "https://www.youtube.com/watch?v=_ORrftU6sGA",
+        "//www.youtube.com/watch?v=_ORrftU6sGA",
+        "https://example.com/audio/piece.mp3",
+        OTHER_SYSTEM_MEDIA,
+        "C:piece.wav",
+        "\\audio\\piece.wav",
+    ],
+)
+def test_written_elsewhere_an_empty_path_a_url_or_another_systems_path_is_kept(
+    corpus, tmp_path, stored
+):
+    doc = tla.read(corpus)
+    doc.media_path = stored
+    set_pdf_path(doc, stored)
+    tla.write(tmp_path / "copy.tla", doc)
+    assert written(tmp_path / "copy.tla") == (stored, stored)
+
+
+@windows_only
+def test_an_absolute_path_on_another_drive_is_written_as_it_is(tmp_path):
+    doc = tla.new_document()
+    doc.media_path = "Z:/audio-176/piece.wav"
+    tla.write(tmp_path / "piece.tla", doc)
+    assert json.loads((tmp_path / "piece.tla").read_bytes())["media"]["path"] == (
+        "Z:/audio-176/piece.wav"
+    )
+
+
+@windows_only
+def test_a_relative_path_written_onto_another_drive_becomes_absolute(corpus, tmp_path):
+    doc = tla.read(corpus)
+    rebased = writer.rebase_paths(doc, "Z:\\elsewhere-176")
+    assert rebased.media_path == (tmp_path / "audio" / f"{NAME}.flac").as_posix()
+    assert pdf_path(rebased) == (tmp_path / "scores" / f"{NAME}.pdf").as_posix()
+    assert doc.media_path == f"../audio/{NAME}.flac"

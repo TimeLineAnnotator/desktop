@@ -13,6 +13,7 @@ it expects to replace, or that it expects no file.
 
 from __future__ import annotations
 
+import dataclasses
 import enum
 import errno
 import hashlib
@@ -49,6 +50,13 @@ from tilia_core.tla.layout import (
     nfc_object,
     nfc_text,
     pointer_to,
+)
+from tilia_core.tla.media import (
+    SYSTEM,
+    absolute_form,
+    is_relative,
+    relative_path,
+    with_slashes,
 )
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -553,6 +561,60 @@ def _found(path: str, expect: str | None = None) -> str | None:
         return None
 
 
+def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
+    """`doc` with its media's path and its PDF timelines' paths as a file in
+    `folder` stores them (FR-003, FR-033), with "/".
+
+    An absolute path becomes relative to `folder` wherever a relative path
+    exists, so not on another drive on Windows. When `folder` isn't the one
+    `doc` was read from, a relative path is resolved against that one and
+    made relative to `folder`, or absolute where no relative path exists. An
+    empty path, a URL, a path of the other system's form, and a relative
+    path in a document read from nowhere, whose base is unknown, are kept as
+    they are. `doc` isn't changed: when a path changes, a copy is returned,
+    sharing with `doc` what didn't change."""
+    folder = os.path.abspath(folder)
+    origin = (
+        None if doc.origin is None else os.path.dirname(os.path.abspath(doc.origin))
+    )
+    if origin is not None and os.path.normcase(origin) == os.path.normcase(folder):
+        origin = None  # its relative paths are already relative to `folder`
+    media_path = _rebased(doc.media_path, origin, folder)
+    changed: dict[str, Timeline] = {}
+    if isinstance(doc.timelines, dict):
+        for key, timeline in doc.timelines.items():
+            if not (
+                isinstance(timeline, Timeline)
+                and timeline.kind == "pdf"
+                and isinstance(timeline.attrs, dict)
+            ):
+                continue
+            path = timeline.attrs.get("path")
+            rebased = _rebased(path, origin, folder)
+            if rebased != path:
+                attrs = {**timeline.attrs, "path": rebased}
+                changed[key] = dataclasses.replace(timeline, attrs=attrs)
+    if media_path == doc.media_path and not changed:
+        return doc
+    timelines = {**doc.timelines, **changed} if changed else doc.timelines
+    return dataclasses.replace(doc, media_path=media_path, timelines=timelines)
+
+
+def _rebased(stored: Any, origin: str | None, folder: str) -> Any:
+    """`stored` as a file in `folder` stores it; `origin` is the folder its
+    relative paths are relative to when that isn't `folder`, or None."""
+    if not isinstance(stored, str):
+        return stored  # for the check to refuse
+    if absolute_form(stored) == SYSTEM:
+        relative = relative_path(stored, folder, SYSTEM)
+        return stored if relative is None else relative
+    if origin is not None and is_relative(stored):
+        found = os.path.normpath(os.path.join(origin, stored))
+        relative = relative_path(found, folder, SYSTEM)
+        return with_slashes(found, SYSTEM) if relative is None else relative
+    return stored
+
+
 def write(
     path: str | os.PathLike[str],
     doc: Document,
@@ -568,6 +630,11 @@ def write(
     and nothing is written (FR-042). The check and the rename are two steps:
     a change between them isn't caught.
 
+    The media's path and PDF timelines' paths are written relative to the
+    folder of `path` wherever a relative path exists, recomputed when it
+    isn't the folder `doc` was read from (`rebase_paths`, FR-033); `doc`
+    itself isn't changed. Its other bytes are `canonical_bytes(doc)`'s.
+
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A folder is refused with `IsADirectoryError`, and a
     read-only file with `PermissionError`, as the system refuses to open
@@ -580,6 +647,9 @@ def write(
     write fails, the file is as it was.
     """
     target = os.path.realpath(path)
+    # Relative to the folder of `path` as given, links not followed, which is
+    # the folder the reader resolves the file's paths against.
+    doc = rebase_paths(doc, os.path.dirname(os.path.abspath(path)))
     data = checked_bytes(doc, path=path)
     if expect is ABSENT:
         if os.path.lexists(target):
