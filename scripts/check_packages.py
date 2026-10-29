@@ -1,9 +1,10 @@
 """Check that the packages in ``packages/`` install and test without Qt.
 
 Builds the wheels of tilia-core and tilia-library, installs each into a fresh
-virtual environment (the library with the core wheel from this checkout), checks
-that neither PySide6 nor the TiLiA app (``tilia``) is importable there, and runs
-the package's tests with that environment's interpreter.
+virtual environment (the library with the core wheel from this checkout), with
+its ``dev`` dependency group, checks that neither PySide6 nor the TiLiA app
+(``tilia``) is importable there, and runs the package's tests with that
+environment's interpreter.
 
 Run it with any Python from 3.10 on: ``python scripts/check_packages.py``.
 Exits with 0 if every step passed and 1 at the first failure.
@@ -20,8 +21,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGES = ROOT / "packages"
 FORBIDDEN = ("PySide6", "shiboken6", "tilia")
-# What the packages' tests need besides the packages: tilia-core's dev group.
-TEST_REQUIREMENTS = ("pytest", "jsonschema>=4.23")
+# pip reads a pyproject.toml's dependency groups from 25.1 on. A fresh
+# environment's own pip can be older: Python 3.10 brings 23.0.1.
+PIP_WITH_GROUPS = "pip>=25.1"
 
 FIND_SPEC = (
     "import importlib.util, sys\n"
@@ -69,7 +71,15 @@ def check_package(name: str, wheels: list[Path], tmp: Path) -> None:
     venv.create(env, with_pip=True)
     python = env_python(env)
     run(
-        [python, "-m", "pip", "install", *TEST_REQUIREMENTS, *map(str, wheels)],
+        [python, "-m", "pip", "install", "--upgrade", PIP_WITH_GROUPS],
+        tmp,
+        f"{name}: a pip that reads dependency groups",
+    )
+    # What the package's tests need besides the package: its dev group, which
+    # pip reads from its pyproject.toml, so that there is no copy to drift.
+    group = f"{PACKAGES / name / 'pyproject.toml'}:dev"
+    run(
+        [python, "-m", "pip", "install", "--group", group, *map(str, wheels)],
         tmp,
         f"{name}: install into a fresh environment",
     )
