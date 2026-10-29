@@ -18,6 +18,7 @@ from tilia_core.tla.model import (
     Score,
     Timeline,
     UnknownKind,
+    measure_table,
 )
 from tilia_core.tla.layout import FORMAT_VERSION, schema
 from tilia_core.tla.reader import loads, read
@@ -56,6 +57,7 @@ __all__ = [
     "fingerprint_of",
     "is_temporary",
     "loads",
+    "measure_table",
     "new_document",
     "new_id",
     "read",

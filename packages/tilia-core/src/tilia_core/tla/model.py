@@ -7,8 +7,10 @@ whatever the file spells them; a kind the core doesn't know is an `UnknownKind`.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
+import copy
+import math
+from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -251,6 +253,187 @@ class Timeline:
     # except its name, ordinal and metadata, which are written from the fields above,
     # not from `raw`: change those, since a change to raw's copies isn't saved.
     raw: dict[str, Any] | None = None
+
+
+# A beat timeline's measure table, built from the marks on its beats
+# (contracts/layout.md, *Beat timelines and their measures*). The reader builds
+# it when it reads a file, and `measure_table` builds it again from a timeline
+# as it is after a change in memory; the writer never writes it.
+#
+# For the code that edits beats, TiLiA (WP6) and the bulk edits (WP14): when a
+# downbeat is deleted, its mark moves to the next beat, and every `next` that
+# named it must name the new downbeat; adding or deleting other beats changes
+# no `next`. A measure a person edits (moves, adds or deletes one of its beats,
+# or changes its number, label or beat unit) gets the source "edited", unless
+# its source is "tapped", which stays; moving a downbeat edits two measures,
+# the one it starts and the one before.
+
+
+def measure_table(timeline: Timeline) -> MeasureTable | None:
+    """A beat timeline's measure table, from the marks on its beats as they
+    are now; None for a timeline of another kind."""
+    if timeline.kind != "beat":
+        return None
+    source = timeline.attrs.get("measure_source")
+    if not isinstance(source, str):
+        source = _default_measure_source()
+    beats = {
+        key: component.attrs
+        for key, component in timeline.components.items()
+        if component.kind == "beat"
+    }
+    return MeasureTable(source=source, rows=measures_of(beats, source))
+
+
+def _default_measure_source() -> str:
+    # The schema's, which the layout reads; imported here, since the layout
+    # imports this module.
+    from tilia_core.tla.layout import TIMELINE_SHAPES
+
+    return TIMELINE_SHAPES["beat"].defaults["measure_source"]
+
+
+def beat_order(beats: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    """The ids of a beat timeline's beats, each given with its attributes, in
+    their order: by time, beats at the same time in id order, then the beats
+    without a time, in id order. TiLiA never writes a beat without a time;
+    the reader keeps one, with a warning
+    (TimeLineAnnotator/project-management#285)."""
+    timed: list[tuple[int | float, str]] = []
+    untimed: list[str] = []
+    for beat_id, attrs in beats.items():
+        time = attrs.get("time")
+        if _is_time(time):
+            timed.append((time, beat_id))
+        else:
+            untimed.append(beat_id)
+    return [beat_id for _, beat_id in sorted(timed)] + sorted(untimed)
+
+
+def _is_time(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return not isinstance(value, float) or math.isfinite(value)
+
+
+def measures_of(beats: Mapping[str, Mapping[str, Any]], source: str) -> list[Measure]:
+    """The rows of a beat timeline's measure table, from its beats, each given
+    by id with its attributes, and the table's `source`.
+
+    A row for each beat with a `measure` mark, in the beats' order
+    (`beat_order`), identified by its downbeat's id. Its number is the mark's,
+    else the previous row's plus one, and the first row's 1; its label the
+    mark's, else its number as text; its source the mark's, else the table's.
+    Its beats run from its downbeat to the next mark, without a tap on a
+    closing barline, which is the barline, not a beat
+    (TimeLineAnnotator/project-management#332). Its `beat_units` are those
+    set on its beats that desktop#621 can read, and `beat_unit` is the unit
+    in force, as WP9's meters take it: the first set in the measure, else
+    the one carried from the measures before; a movement whose first measure
+    has none takes, assumed, the first set in the movement, else the one in
+    force before it, else 4 / "1".
+    """
+    from tilia_core.timemap import units  # here: the time map imports this package
+
+    default = BeatUnit(
+        denominator=units.DEFAULT_DENOMINATOR, units=units.DEFAULT_UNITS, assumed=True
+    )
+    rows: list[Measure] = []
+    for beat_id in beat_order(beats):
+        attrs = beats[beat_id]
+        if attrs.get("closing"):
+            continue
+        mark = attrs.get("measure")
+        if isinstance(mark, dict):
+            rows.append(_measure(beat_id, mark, rows, source, default))
+        if rows:
+            rows[-1].beats.append(beat_id)
+            unit = readable_beat_unit(attrs.get("beat_unit"))
+            if unit is not None:
+                rows[-1].beat_units.append(unit)
+    _set_units_in_force(rows, default)
+    return rows
+
+
+def _measure(
+    beat_id: str,
+    mark: Mapping[str, Any],
+    rows: list[Measure],
+    source: str,
+    default: BeatUnit,
+) -> Measure:
+    number = mark.get("number")
+    if isinstance(number, float) and number.is_integer():
+        number = int(number)
+    if isinstance(number, bool) or not isinstance(number, int):
+        number = rows[-1].number + 1 if rows else 1
+    label = mark.get("label")
+    own_source = mark.get("source")
+    following = mark.get("next")
+    metadata = mark.get("metadata")
+    return Measure(
+        id=beat_id,
+        number=number,
+        label=label if isinstance(label, str) else str(number),
+        beats=[],
+        beat_unit=default,
+        source=own_source if isinstance(own_source, str) else source,
+        force_display=bool(mark.get("force_display")),
+        cadenza=bool(mark.get("cadenza")),
+        restart=bool(mark.get("restart")),
+        next=list(following) if isinstance(following, list) else None,
+        metadata=copy.deepcopy(metadata) if isinstance(metadata, dict) else {},
+    )
+
+
+def _set_units_in_force(rows: list[Measure], default: BeatUnit) -> None:
+    governing: BeatUnit | None = None
+    for movement in _movements(rows):
+        first = next((unit for row in movement for unit in row.beat_units), None)
+        carried = first or governing
+        governing = default if carried is None else replace(carried, assumed=True)
+        for row in movement:
+            if row.beat_units:
+                governing = row.beat_units[0]
+            row.beat_unit = replace(governing)
+
+
+def _movements(rows: list[Measure]) -> Iterator[list[Measure]]:
+    """The rows by movement: one starts at the first row and at each restart."""
+    movement: list[Measure] = []
+    for row in rows:
+        if row.restart and movement:
+            yield movement
+            movement = []
+        movement.append(row)
+    if movement:
+        yield movement
+
+
+def beat_unit_problems(value: Mapping[str, Any]) -> list[str]:
+    """The keys of a stored beat unit whose values desktop#621 can't read:
+    `units` it can't parse, a `denominator` that isn't from 1 to 128."""
+    from tilia_core.timemap import units  # here: the time map imports this package
+
+    problems = []
+    text = value.get("units")
+    if not isinstance(text, str) or not units.parse_units(text).is_valid:
+        problems.append("units")
+    if not units.validate_denominator(value.get("denominator")):
+        problems.append("denominator")
+    return problems
+
+
+def readable_beat_unit(value: Any) -> BeatUnit | None:
+    """A stored beat unit, if desktop#621 can read it; else None, as TiLiA
+    drops one it can't read when it loads a file."""
+    if not isinstance(value, Mapping) or beat_unit_problems(value):
+        return None
+    return BeatUnit(
+        denominator=value["denominator"],
+        units=value["units"],
+        assumed=bool(value.get("assumed")),
+    )
 
 
 @dataclass(kw_only=True)
