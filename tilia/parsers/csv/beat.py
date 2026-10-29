@@ -7,10 +7,7 @@ from tilia.parsers.csv.base import (
     get_params_indices,
 )
 from tilia.timelines.beat.measures import get_extension_from_beat_pattern
-from tilia.timelines.beat.pattern import (
-    format_bars,
-    parse_time_signature_of_tapped_bar,
-)
+from tilia.timelines.beat.pattern import format_bars
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 
@@ -27,9 +24,10 @@ def beats_from_csv(
     At least 'time' should be present.
     'measure' and 'is_first_in_measure' are optional.
     'time_signature' is optional and only needs filling where the time
-    signature changes: it applies to the measure of its row's beat, over
-    that measure's taps, until the next row that gives one. It is written
-    as in the beat pattern, e.g. '6/8', or '4/4(3/2 3/2 1)' with taps.
+    signature changes: it applies to the measures from its row's up to
+    the next row that gives one, each over its own taps. A later row in
+    the same measure replaces an earlier one. It is written as in the
+    beat pattern, e.g. '6/8', or '4/4(3/2 3/2 1)' with taps.
     Returns a boolean indicating if the process was successful and
     an array with descriptions of any errors during the process.
 
@@ -171,19 +169,27 @@ def beats_from_csv(
     if time_signature_index is None:
         return True, errors
 
+    changes: list[tuple[int, str, list[str]]] = []
     for component, row in created:
         if time_signature_index >= len(row) or not row[time_signature_index].strip():
             continue
-        text = row[time_signature_index].strip()
         measure_index, _ = timeline.get_measure_index(
             timeline.get_beat_index(component)
         )
-        beat_count = timeline.beats_in_measure[measure_index]
-        bar, error = parse_time_signature_of_tapped_bar(text, beat_count)
-        if bar is None:
+        change = (measure_index, row[time_signature_index].strip(), row)
+        if changes and changes[-1][0] == measure_index:
+            changes[-1] = change
+        else:
+            changes.append(change)
+
+    for index, (measure_index, text, row) in enumerate(changes):
+        if index + 1 < len(changes):
+            stop = changes[index + 1][0]
+        else:
+            stop = timeline.measure_count
+        error = timeline.set_time_signature(text, measure_index, stop)
+        if error:
             errors.append(f"{row}: '{text}' is not a valid time signature. {error}")
-            continue
-        timeline.set_beat_unit(measure_index, bar.denominator, bar.units_text)
 
     return True, errors
 

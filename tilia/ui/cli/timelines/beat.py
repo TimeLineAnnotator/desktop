@@ -4,7 +4,7 @@ import argparse
 from collections.abc import Callable
 from functools import wraps
 
-from tilia.timelines.beat.pattern import parse, parse_time_signature_of_tapped_bar
+from tilia.timelines.beat.pattern import format_time_signature, parse
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import (
@@ -117,7 +117,8 @@ Examples:
         "--scope",
         choices=["onward", "measure"],
         default="onward",
-        help="Apply until the next change (default) or to this measure only.",
+        help="Apply to this measure and the alike measures after it (default), "
+        "or to this measure only.",
     )
     parser.set_defaults(func=set_time_signature)
 
@@ -248,18 +249,13 @@ def set_time_signature(timeline: BeatTimeline, namespace: argparse.Namespace) ->
     if measure_index is None:
         return
     text = " ".join(namespace.time_signature)
-    beat_count = timeline.beats_in_measure[measure_index]
-    bar, error = parse_time_signature_of_tapped_bar(text, beat_count)
-    if bar is None:
+    if namespace.scope == "measure":
+        stop = measure_index + 1
+    else:
+        stop = timeline.get_alike_measures_end(measure_index)
+    error = timeline.set_time_signature(text, measure_index, stop)
+    if error:
         io.error(f"Invalid time signature '{text}': {error}")
-        return
-
-    timeline.set_beat_unit(
-        measure_index,
-        bar.denominator,
-        bar.units_text,
-        only_this_measure=namespace.scope == "measure",
-    )
 
 
 @with_timeline
@@ -271,7 +267,16 @@ def remove_time_signature(
         return
     meter = timeline.get_measure_meter(measure_index)
     if not meter.starts_here:
-        io.error("The time signature doesn't change at that measure.")
+        bars = timeline.get_measures_as_planned_bars()
+        bar = bars[measure_index]
+        if measure_index and bar.numerator != bars[measure_index - 1].numerator:
+            io.error(
+                f"No time signature was set at that measure: it reads "
+                f"{format_time_signature(bar)} because it has {bar.beat_count} "
+                "taps."
+            )
+        else:
+            io.error("The time signature doesn't change at that measure.")
         return
     timeline.delete_components([timeline.get_beat_unit_on_beat(meter.beat_unit_id)])
 

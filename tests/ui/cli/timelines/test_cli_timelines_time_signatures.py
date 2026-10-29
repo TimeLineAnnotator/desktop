@@ -68,6 +68,32 @@ class TestSetTimeSignature:
 
         assert not beat_tl.measure_meters[0].is_assumed
 
+    def test_a_number_alone_is_assumed(self, cli, beat_tl):
+        cli.parse_and_run("timelines beat time-signatures set -o 1 -m 1 6/8")
+
+        cli.parse_and_run("timelines beat time-signatures set -o 1 -m 1 2")
+
+        assert time_signatures(beat_tl)[0] == (2, 4)
+        assert beat_tl.measure_meters[0].is_assumed
+
+    def test_onward_stops_where_the_time_signature_changes(self, cli, tls):
+        cli.parse_and_run("timelines add beat --name B -b 2[2/4] 3/4")
+        tl = tls.get_timelines()[0]
+        for time in range(9):
+            cli.parse_and_run(f"components beat -o 1 --time {time}")
+
+        cli.parse_and_run("timelines beat time-signatures set -o 1 -m 1 6/8")
+
+        assert time_signatures(tl) == [(6, 8), (6, 8), (3, 4), (2, 4)]
+
+    def test_an_unfinished_last_measure_is_set_over_all_its_beats(self, cli, beat_tl):
+        cli.parse_and_run("components beat -o 1 --time 8")
+
+        cli.parse_and_run("timelines beat time-signatures set -o 1 -m 5 6/8")
+        cli.parse_and_run("components beat -o 1 --time 9")
+
+        assert time_signatures(beat_tl)[4] == (6, 8)
+
     @pytest.mark.parametrize(
         "args",
         [
@@ -113,6 +139,14 @@ class TestRemoveTimeSignature:
             cli.parse_and_run("timelines beat time-signatures remove -o 1 -m 3")
 
         assert len(beat_tl.beat_units) == 2
+
+    def test_a_change_from_the_number_of_taps_is_explained(self, cli, beat_tl):
+        beat_tl.set_beat_amount_in_measure(1, 3)
+
+        with patch("tilia.ui.cli.io.error") as error:
+            cli.parse_and_run("timelines beat time-signatures remove -o 1 -m 2")
+
+        assert "3/4 because it has 3 taps" in error.call_args.args[0]
 
 
 class TestListBars:

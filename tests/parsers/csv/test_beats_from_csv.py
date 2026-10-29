@@ -180,6 +180,30 @@ class TestTimeSignatureColumn:
         # adds one.
         assert beat_unit_values(beat_tl) == [(0, 4, "1"), (6, 8, "3/2")]
 
+    def test_a_time_signature_carries_on_over_other_numbers_of_taps(self, beat_tl):
+        data = "time,is_first_in_measure,time_signature\n0,True,6/8\n1,,\n2,True,\n3,,\n4,,"
+
+        _import_with_patch(beat_tl, data)
+
+        assert beat_tl.beats_in_measure == [2, 3]
+        assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
+
+    def test_a_time_signature_replaces_the_patterns_later_ones(self, beat_tl):
+        beat_tl.beat_pattern = "2[2/4] 3/4"
+        rows = "\n".join(f"{time}," for time in range(1, 9))
+
+        _import_with_patch(beat_tl, f"time,time_signature\n0,6/8\n{rows}")
+
+        assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8)] * 4
+
+    def test_a_number_alone_is_assumed(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+
+        _import_with_patch(beat_tl, "time,time_signature\n0,2\n1,")
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert beat_tl.beat_units[0].assumed
+
     def test_without_the_column(self, beat_tl):
         _import_with_patch(beat_tl, "time\n0\n1")
 
