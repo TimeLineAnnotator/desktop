@@ -4,7 +4,7 @@ import argparse
 from collections.abc import Callable
 from functools import wraps
 
-from tilia.timelines.beat.pattern import parse, parse_time_signature_over_taps
+from tilia.timelines.beat.pattern import parse, parse_time_signature_of_tapped_bar
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import (
@@ -249,10 +249,8 @@ def set_time_signature(timeline: BeatTimeline, namespace: argparse.Namespace) ->
         return
     text = " ".join(namespace.time_signature)
     beat_count = timeline.beats_in_measure[measure_index]
-    bar, error = parse_time_signature_over_taps(text, beat_count)
-    if bar is not None and bar.beat_count != beat_count:
-        error = f"It gives {bar.beat_count} taps, but the measure has {beat_count}."
-    if bar is None or error:
+    bar, error = parse_time_signature_of_tapped_bar(text, beat_count)
+    if bar is None:
         io.error(f"Invalid time signature '{text}': {error}")
         return
 
