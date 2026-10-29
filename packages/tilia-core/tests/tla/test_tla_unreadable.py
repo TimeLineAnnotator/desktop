@@ -61,6 +61,7 @@ def named(doc, name):
 FORM = IDS["form"]
 COMPONENT = "/timelines/{cadences}/components/{cadence}"
 SECTION = "/timelines/{form}/components/{section}"
+BEAT_1 = "/timelines/{beats}/components/{beat_1}"
 MELODY = "/timelines/{texture}/components/{melody_1}"
 
 EXPECTED = {
@@ -159,6 +160,16 @@ EXPECTED = {
         " timeline of the file",
         "/timelines/{cadences}/measure_table",
         58,
+    ),
+    "next-named-nowhere.tla": (
+        'a measure is followed by "{nothing}", which isn\'t a beat of its timeline',
+        BEAT_1 + "/measure/next/0",
+        25,
+    ),
+    "first-beat-without-mark.tla": (
+        'the first beat of the timeline "Beats" has no measure mark',
+        BEAT_1,
+        20,
     ),
 }
 
@@ -729,9 +740,11 @@ def _refused_nulls():
     keys |= {f"/timelines/{{texture}}/rows/0/{key}" for key in ("id", "name")}
     components = {
         # A beat without a time is kept, with a warning
-        # (TimeLineAnnotator/project-management#285).
+        # (TimeLineAnnotator/project-management#285); a null mark on the
+        # first beat is refused, at the beat (FIRST_BEAT_MARK).
         ("beats", "beat_1"): (
             "kind",
+            "measure",
             "beat_unit/denominator",
             "beat_unit/units",
         ),
@@ -778,7 +791,7 @@ def test_a_null_is_refused_only_where_the_key_is_required():
         try:
             doc = tla.loads(make_broken.text_of(content).encode("utf-8"))
         except tla.UnreadableFile as error:
-            assert error.place == where, (where, error.message)
+            assert error.place == REFUSED_AT.get(where, where), (where, error.message)
             found.add(where)
             continue
         assert where not in refused, where
@@ -796,6 +809,9 @@ def test_a_null_is_refused_only_where_the_key_is_required():
 
 # Required, and null when the length is unknown.
 NULL_IS_A_VALUE = {"/media/length"}
+# Without its mark, the first beat starts no measure: refused at the beat.
+FIRST_BEAT_MARK = place("/timelines/{beats}/components/{beat_1}/measure")
+REFUSED_AT = {FIRST_BEAT_MARK: place("/timelines/{beats}/components/{beat_1}")}
 
 
 def test_a_null_label_reads_as_its_default_and_is_left_out():
@@ -873,9 +889,131 @@ def test_a_null_metadata_is_none(kind):
 
 
 def test_a_beats_null_measure_is_no_mark():
-    doc = tla.loads(edited(lambda c: _beat_1(c).update(measure=None)))
-    assert _beat_1_attrs(doc).get("measure") is None
-    assert b'"measure"' not in tla.canonical_bytes(doc)
+    def change(content):
+        timeline(content, "beats")["components"][IDS["beat_2"]]["measure"] = None
+
+    doc = tla.loads(edited(change))
+    beat_2 = named(doc, "Beats").components[IDS["beat_2"]]
+    assert beat_2.attrs.get("measure") is None
+    assert tla.canonical_bytes(doc) == base_bytes()
+    # The first beat must have one (FR-081).
+    error = refusal(edited(lambda c: _beat_1(c).update(measure=None)))
+    assert error.place == place("/timelines/{beats}/components/{beat_1}")
+
+
+# A beat timeline's measures, marked on its beats (FR-081)
+
+
+def _beat_2(content):
+    return timeline(content, "beats")["components"][IDS["beat_2"]]
+
+
+def test_the_first_beat_is_the_first_in_time_whatever_the_files_order():
+    # beat_1 comes first in the file, with the mark, but beat_2 comes first
+    # in time, without one.
+    data = edited(lambda c: _beat_1(c).update(time=2.0))
+    error = refusal(data)
+    assert error.message == 'the first beat of the timeline "Beats" has no measure mark'
+    assert error.place == place("/timelines/{beats}/components/{beat_2}")
+    lines = data.decode().split("\n")
+    assert error.line == lines.index(f'        "{IDS["beat_2"]}": {{') + 1
+
+
+def test_of_two_beats_at_the_same_time_the_first_is_the_first_by_id():
+    # beat_1's id comes first: its mark makes it the first beat.
+    doc = tla.loads(edited(lambda c: _beat_2(c).update(time=0.0)))
+    assert named(doc, "Beats").measures.rows[0].beats == [IDS["beat_1"], IDS["beat_2"]]
+
+    def marked_second(content):
+        _beat_2(content).update(time=0.0, measure=_beat_1(content).pop("measure"))
+
+    error = refusal(edited(marked_second))
+    assert error.place == place(BEAT_1)
+
+
+def test_a_beat_timeline_without_beats_needs_no_mark():
+    doc = tla.loads(edited(lambda c: timeline(c, "beats").update(components={})))
+    assert named(doc, "Beats").measures.rows == []
+
+
+def test_a_closing_tap_before_the_first_beat_isnt_the_first_beat():
+    # A closing tap is a barline, not a beat of a measure
+    # (TimeLineAnnotator/project-management#332).
+    def change(content):
+        _beat_1(content)["time"] = 0.5
+        timeline(content, "beats")["components"][IDS["nothing"]] = {
+            "kind": "BEAT",
+            "time": 0.0,
+            "closing": True,
+        }
+
+    doc = tla.loads(edited(change))
+    assert named(doc, "Beats").measures.rows[0].beats == [IDS["beat_1"], IDS["beat_2"]]
+
+
+def test_while_a_beat_has_no_time_its_first_isnt_known_and_the_file_reads():
+    # The downbeat lost its time: the beat that is now first in time has no
+    # mark, but the file is read, with a warning, so that the beat can be
+    # fixed (TimeLineAnnotator/project-management#285).
+    doc = tla.loads(edited(lambda c: _beat_1(c).pop("time")))
+    assert [w.place for w in doc.warnings] == [place(BEAT_1)]
+    rows = named(doc, "Beats").measures.rows
+    assert [(row.id, row.beats) for row in rows] == [(IDS["beat_1"], [IDS["beat_1"]])]
+
+
+@pytest.mark.parametrize(
+    "names",
+    [
+        "nothing",  # no component of the file
+        "section",  # a hierarchy's, in another timeline
+        "beats",  # a timeline's
+    ],
+)
+def test_a_next_that_names_no_beat_of_its_timeline_is_refused(names):
+    def change(content):
+        _beat_1(content)["measure"]["next"] = [IDS["beat_2"], IDS[names]]
+
+    error = refusal(edited(change))
+    assert error.message == (
+        f'a measure is followed by "{IDS[names]}", which isn\'t a beat of its timeline'
+    )
+    assert error.place == place(BEAT_1 + "/measure/next/1")
+
+
+def test_a_next_that_names_a_component_of_another_kind_in_its_timeline_is_refused():
+    def change(content):
+        components = timeline(content, "beats")["components"]
+        components[IDS["nothing"]] = {"kind": "MARKER", "time": 3.0}
+        _beat_1(content)["measure"]["next"] = [IDS["nothing"]]
+
+    error = refusal(edited(change))
+    assert error.place == place(BEAT_1 + "/measure/next/0")
+
+
+def test_a_next_that_names_a_beat_of_its_timeline_is_read():
+    data = edited(lambda c: _beat_1(c)["measure"].update(next=[IDS["beat_2"]]))
+    doc = tla.loads(data)
+    assert named(doc, "Beats").measures.rows[0].next == [IDS["beat_2"]]
+    assert tla.canonical_bytes(doc) == data
+
+
+@pytest.mark.parametrize(
+    "change, where",
+    [
+        (lambda attrs: attrs.pop("measure"), BEAT_1),
+        (
+            lambda attrs: attrs["measure"].update(next=[IDS["nothing"]]),
+            BEAT_1 + "/measure/next/0",
+        ),
+    ],
+)
+def test_the_writer_refuses_marks_the_reader_would_refuse(change, where):
+    doc = base_document()
+    change(_beat_1_attrs(doc))
+    with pytest.raises(tla.UnreadableFile) as error:
+        writer.checked_bytes(doc)
+    assert error.value.place == place(where)
+    tla.canonical_bytes(doc)  # written as it is, unchecked
 
 
 # The schema states only structure

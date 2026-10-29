@@ -323,3 +323,162 @@ def test_unknown_keys_at_every_level_are_written_after_the_known_ones_in_code_po
     assert tla.canonical_bytes(again) == tla.canonical_bytes(doc)
     assert again.extra["ä"] == {"b": 1, "a": 2}  # their own content as it is
     assert list(again.extra["ä"]) == ["b", "a"]
+
+
+# Beat timelines
+
+
+BEATS = IDS["beats"]
+BEAT_1 = f"/timelines/{BEATS}/components/{IDS['beat_1']}"
+BEAT_2 = f"/timelines/{BEATS}/components/{IDS['beat_2']}"
+
+
+def beat(content, name):
+    return content["timelines"][BEATS]["components"][IDS[name]]
+
+
+def line_of(data, text):
+    """The line of the first line of `data` that is `text`, stripped."""
+    lines = [line.strip() for line in data.decode().split("\n")]
+    return lines.index(text) + 1
+
+
+def read_back_unchanged(data):
+    doc = tla.loads(data)
+    assert writer.checked_bytes(doc) == tla.canonical_bytes(doc) == data
+    return doc
+
+
+@pytest.mark.parametrize("units", ["x", "0", "1/0", "2+", "", "1/256", "-1"])
+def test_units_tilia_cant_read_are_kept_with_a_warning(units):
+    data = file_with(lambda c: beat(c, "beat_1")["beat_unit"].update(units=units))
+    doc = read_back_unchanged(data)
+    (warning,) = doc.warnings
+    assert warning.place == f"{BEAT_1}/beat_unit/units"
+    assert warning.line == line_of(data, f'"units": {json.dumps(units)}')
+    assert warning.message == (
+        f'a beat unit in the timeline "Beats" has units TiLiA can\'t read:'
+        f" {json.dumps(units)}"
+    )
+    attrs = doc.timelines[BEATS].components[IDS["beat_1"]].attrs
+    assert attrs["beat_unit"]["units"] == units
+
+
+@pytest.mark.parametrize("denominator", [0, -4, 129])
+def test_a_denominator_tilia_cant_read_is_kept_with_a_warning(denominator):
+    def change(content):
+        beat(content, "beat_1")["beat_unit"]["denominator"] = denominator
+
+    doc = read_back_unchanged(file_with(change))
+    (warning,) = doc.warnings
+    assert warning.place == f"{BEAT_1}/beat_unit/denominator"
+    assert warning.message == (
+        'a beat unit in the timeline "Beats" has a denominator TiLiA can\'t'
+        f" read: {denominator}"
+    )
+
+
+@pytest.mark.parametrize("units", ["1", "3", "1/2", "2+3", "1/3+1/3+1/3"])
+def test_units_tilia_reads_have_no_warning(units):
+    data = file_with(lambda c: beat(c, "beat_1")["beat_unit"].update(units=units))
+    assert tla.loads(data).warnings == []
+
+
+def test_two_beat_units_in_one_measure_are_kept_with_a_warning():
+    def change(content):
+        beat(content, "beat_2")["beat_unit"] = {"denominator": 8, "units": "3"}
+
+    data = file_with(change)
+    doc = read_back_unchanged(data)
+    (warning,) = doc.warnings
+    assert warning.place == f"{BEAT_2}/beat_unit"
+    assert warning.message == (
+        'measure "1" of the timeline "Beats" has more than one beat unit'
+    )
+    (row,) = doc.timelines[BEATS].measures.rows
+    assert len(row.beat_units) == 2
+    assert row.beat_unit == tla.BeatUnit(denominator=4, units="1")
+
+
+def test_two_beat_units_in_two_measures_have_no_warning():
+    def change(content):
+        beat(content, "beat_2")["measure"] = {}
+        beat(content, "beat_2")["beat_unit"] = {"denominator": 8, "units": "3"}
+
+    assert tla.loads(file_with(change)).warnings == []
+
+
+def test_a_beat_unit_tilia_cant_read_doesnt_count_as_a_second_one():
+    def change(content):
+        beat(content, "beat_2")["beat_unit"] = {"denominator": 8, "units": "x"}
+
+    doc = tla.loads(file_with(change))
+    assert [w.place for w in doc.warnings] == [f"{BEAT_2}/beat_unit/units"]
+
+
+def test_a_beat_without_a_time_is_kept_with_a_warning():
+    data = file_with(lambda c: beat(c, "beat_2").pop("time"))
+    doc = read_back_unchanged(data)
+    assert doc.warnings == [
+        tla.ReadWarning(
+            place=BEAT_2,
+            line=line_of(data, f'"{IDS["beat_2"]}": {{'),
+            message='a beat of the timeline "Beats" has no time',
+        )
+    ]
+
+
+def with_role(content, name, role):
+    """The timeline's role, in its place: before its components."""
+    timeline = content["timelines"][IDS[name]]
+    components = timeline.pop("components")
+    timeline["metadata"] = {**timeline.get("metadata", {}), "role": role}
+    timeline["components"] = components
+
+
+def second_beat_timeline(content, ordinal=6, role="time_map"):
+    content["timelines"][IDS["nothing"]] = {
+        "kind": "Beat",
+        "name": "Bars",
+        "ordinal": ordinal,
+        "height": 35,
+        "metadata": {"role": role},
+        "components": {
+            make_broken.make_id(100): {"kind": "BEAT", "time": 0.0, "measure": {}}
+        },
+    }
+
+
+def test_two_beat_timelines_claiming_time_map_warn_and_the_first_by_ordinal_wins():
+    def change(content):
+        with_role(content, "beats", "time_map")
+        second_beat_timeline(content)
+
+    data = file_with(change)
+    doc = read_back_unchanged(data)
+    (warning,) = doc.warnings
+    assert warning.place == f"/timelines/{IDS['nothing']}/metadata/role"
+    assert warning.message == (
+        'the timeline "Bars" claims the role time_map, as the timeline "Beats"'
+        " does, which comes first by ordinal and is the default"
+    )
+
+
+def test_the_first_by_ordinal_wins_whatever_the_files_order():
+    # "Bars" comes last in the file, first by ordinal.
+    def change(content):
+        with_role(content, "beats", ["time_map", "analysis"])
+        second_beat_timeline(content, ordinal=0)
+
+    (warning,) = tla.loads(file_with(change)).warnings
+    assert warning.place == f"/timelines/{BEATS}/metadata/role"
+    assert 'as the timeline "Bars" does' in warning.message
+
+
+def test_one_beat_timeline_claiming_time_map_has_no_warning():
+    def change(content):
+        with_role(content, "beats", "time_map")
+        with_role(content, "form", "time_map")  # not a beat timeline: no table
+        second_beat_timeline(content, role="analysis")
+
+    assert tla.loads(file_with(change)).warnings == []

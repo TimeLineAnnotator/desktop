@@ -248,7 +248,7 @@ def named_nothing(content):
             ):
                 following = measure.get("next")
                 for item in following if isinstance(following, list) else ():
-                    refs.append((item, components, "next"))
+                    refs.append((item, beats_of(timeline), "next"))
         found += [
             f"{name} in {key}"
             for ref, targets, name in refs
@@ -257,10 +257,42 @@ def named_nothing(content):
     return found
 
 
+def beats_of(timeline):
+    """A beat timeline's beats, by id: its components of kind BEAT."""
+    return {
+        key: component
+        for key, component in entries(timeline.get("components"))
+        if isinstance(component, dict) and component.get("kind") == "BEAT"
+    }
+
+
+def first_beat_unmarked(content):
+    """The beat timelines whose first beat, in time order, has no measure
+    mark: by time, then id; a closing tap is no beat of a measure. While a
+    beat has no time, which is first isn't known, and nothing is found."""
+    found = []
+    for key, (kind, timeline) in known_timelines(content).items():
+        if kind != "beat":
+            continue
+        beats = [
+            (beat.get("time"), beat_id, beat)
+            for beat_id, beat in beats_of(timeline).items()
+            if beat.get("closing") is not True
+        ]
+        times = [time for time, _, _ in beats]
+        if not beats or not all(isinstance(t, (int, float)) for t in times):
+            continue
+        _, _, first = min(beats, key=lambda item: item[:2])
+        if not isinstance(first.get("measure"), dict):
+            found.append(f"a first beat without a mark in {key}")
+    return found
+
+
 def only_the_core_checks(content, repeated_key):
     """What in a file JSON Schema can't check, and only the core refuses: an
     object that repeats a key, an id used twice in the file or a row's in its
-    timeline, and a reference that names nothing (FR-090, research R17)."""
+    timeline, a reference that names nothing (FR-090, research R17), and a
+    beat timeline's first beat, in time order, without a measure mark."""
     found = ["a repeated key"] if repeated_key else []
     if not isinstance(content, dict):
         return found
@@ -281,7 +313,7 @@ def only_the_core_checks(content, repeated_key):
             for row_id, n in row_ids.items()
             if isinstance(row_id, str) and n > 1
         ]
-    return found + named_nothing(content)
+    return found + named_nothing(content) + first_beat_unmarked(content)
 
 
 def verdicts(data):
@@ -442,6 +474,31 @@ def first_marker(content):
     return first_component(timeline_of(content, "Marker"))
 
 
+def with_the_first_beat_unmarked(content):
+    del first_component(timeline_of(content, "Beat"))["measure"]
+
+
+def with_a_next_naming_a_marker(content):
+    # An id of the file, but not a beat of the timeline.
+    marker = next(iter(timeline_of(content, "Marker")["components"]))
+    first_component(timeline_of(content, "Beat"))["measure"]["next"] = [marker]
+
+
+def with_a_beat_without_a_time(content):
+    beats = timeline_of(content, "Beat")["components"]
+    del beats[list(beats)[1]]["time"]
+
+
+def with_a_closing_tap_first(content):
+    # A closing tap is no beat of a measure: the first beat is the next one.
+    beats = timeline_of(content, "Beat")["components"]
+    beats["019a0000-0000-7000-8000-00000000000e"] = {
+        "kind": "BEAT",
+        "time": -1.0,
+        "closing": True,
+    }
+
+
 AGREEMENT = [
     # The core and the schema both refuse these...
     pytest.param(b"", True, True, id="empty"),
@@ -527,6 +584,12 @@ AGREEMENT = [
         False,
         id="two rows of one id in NFC",
     ),
+    pytest.param(
+        changed(with_the_first_beat_unmarked), True, False, id="first beat unmarked"
+    ),
+    pytest.param(
+        changed(with_a_next_naming_a_marker), True, False, id="next naming no beat"
+    ),
     # ...and both accept these.
     pytest.param(EVERY_KIND.read_bytes(), False, False, id="golden"),
     pytest.param(
@@ -602,6 +665,18 @@ AGREEMENT = [
         id="unknown timeline repeating an id",
     ),
     pytest.param(changed(with_a_row_named_in_nfd), False, False, id="row named in NFD"),
+    pytest.param(
+        changed(with_a_beat_without_a_time), False, False, id="beat without a time"
+    ),
+    pytest.param(
+        changed(lambda c: first_component(timeline_of(c, "Beat")).update(time=None)),
+        False,
+        False,
+        id="downbeat with a null time",
+    ),
+    pytest.param(
+        changed(with_a_closing_tap_first), False, False, id="closing tap first"
+    ),
 ]
 
 
@@ -632,9 +707,12 @@ def test_what_only_the_core_checks_is_found():
     timeline_of(content, "Score")["score"] = "no score"
     form["measure_table"] = unit_id  # a component's id, not a beat timeline's
     first_component(timeline_of(content, "Beat"))["measure"]["next"] = ["gone"]
+    bars = [tl for tl in content["timelines"].values() if tl["kind"] == "Beat"][1]
+    del first_component(bars)["measure"]
     ranges, score, hierarchy, beats = (
         key_of(content, kind) for kind in ("Range", "Score", "Hierarchy", "Beat")
     )
+    bars_key = next(key for key, tl in content["timelines"].items() if tl is bars)
     assert sorted(only_the_core_checks(content, False)) == sorted(
         [
             f"the id {unit_id} used twice",
@@ -644,5 +722,6 @@ def test_what_only_the_core_checks_is_found():
             f"score in {score}",
             f"measure_table in {hierarchy}",
             f"next in {beats}",
+            f"a first beat without a mark in {bars_key}",
         ]
     )
