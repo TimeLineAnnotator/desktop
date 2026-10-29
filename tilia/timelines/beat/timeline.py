@@ -37,6 +37,7 @@ from tilia.timelines.beat.pattern import (
     format_taps,
     format_time_signature,
     parse,
+    parse_time_signature_of_tapped_bar,
 )
 from tilia.timelines.beat.units import (
     DEFAULT_DENOMINATOR,
@@ -513,23 +514,29 @@ class BeatTimeline(Timeline):
     def get_measures_as_planned_bars(self) -> list[PlannedBar]:
         """
         Each measure as a bar of a pattern: its beats, with the values its
-        beat unit gives them. The last measure, while it has only the first
-        of the beats the pattern plans for it, is the planned bar.
+        beat unit gives them. The last measure counts as many beats as it
+        will have once tapped (see `get_full_beat_count`).
         """
-        bars = []
+        bars: list[PlannedBar] = []
         for measure_index, meter in enumerate(self.measure_meters):
-            values = list(meter.beat_values)
-            bar = PlannedBar.from_values(values, meter.denominator, meter.is_assumed)
-            planned = self.get_planned_bar(measure_index)
-            if (
-                measure_index == self.measure_count - 1
-                and len(values) < planned.beat_count
-                and planned.denominator == meter.denominator
-                and planned.values[: len(values)] == values
-            ):
-                bar = planned
-            bars.append(bar)
+            values = fit_units(
+                list(meter.units), self.get_full_beat_count(measure_index)
+            )
+            bars.append(
+                PlannedBar.from_values(values, meter.denominator, meter.is_assumed)
+            )
         return bars
+
+    def get_full_beat_count(self, measure_index: int) -> int:
+        """
+        A measure's number of beats; for the last measure, while it has
+        fewer than the pattern plans for it, that many, as tapping adds
+        beats to it until it has them.
+        """
+        count = self.beats_in_measure[measure_index]
+        if measure_index == self.measure_count - 1:
+            return max(count, self.get_planned_bar(measure_index).beat_count)
+        return count
 
     @property
     def default_height(self):
@@ -932,14 +939,84 @@ class BeatTimeline(Timeline):
         return True
 
     def _put_beat_unit(
-        self, measure_index: int, denominator: int, units: str, assumed: bool
+        self,
+        measure_index: int,
+        denominator: int,
+        units: str,
+        assumed: bool,
+        meter: MeasureMeter | None = None,
     ) -> None:
-        meter = self.get_measure_meter(measure_index)
+        """
+        Puts a beat unit on a measure, editing the one that starts there if
+        any. `meter` is the measure's, if the caller already has it.
+        """
+        meter = meter or self.get_measure_meter(measure_index)
         if meter.starts_here:
             beat_id = meter.beat_unit_id
         else:
             beat_id = self[self.beats_that_start_measures[measure_index]].id
         self.put_beat_unit_on_beat(beat_id, denominator, units, assumed)
+
+    def get_alike_measures_end(self, measure_index: int) -> int:
+        """
+        The index past the measures from `measure_index` on that are alike
+        (the same time signature and taps), as the bars dialog groups them.
+        """
+        bars = self.get_measures_as_planned_bars()
+        end = measure_index + 1
+        while end < len(bars) and bars[end] == bars[measure_index]:
+            end += 1
+        return end
+
+    def set_time_signature(self, text: str, start: int, stop: int) -> str:
+        """
+        Gives the measures from `start` up to `stop` the time signature
+        `text`, each over its own beats (see `get_full_beat_count`), as
+        `parse_time_signature_of_tapped_bar` reads it. The measure at `stop`
+        keeps the time signature it had. Returns why `text` can't be set
+        there, or "" once it is.
+        """
+        if not 0 <= start < stop <= self.measure_count:
+            return "There are no such measures."
+
+        bars: list[PlannedBar] = []
+        for measure_index in range(start, stop):
+            bar, error = parse_time_signature_of_tapped_bar(
+                text, self.get_full_beat_count(measure_index)
+            )
+            if bar is None:
+                if stop - start > 1:
+                    number = self.measure_numbers[measure_index]
+                    error = f"Measure {number}: {error}"
+                return error
+            bars.append(bar)
+
+        meters = self.measure_meters
+        previous = None
+        with self.component_manager.bulk():
+            for measure_index, bar in zip(range(start, stop), bars, strict=True):
+                meter = meters[measure_index]
+                values = (bar.denominator, bar.units_text, bar.assumed)
+                if values != previous:
+                    self._put_beat_unit(measure_index, *values, meter=meter)
+                elif meter.starts_here:
+                    self.component_manager.delete_component(
+                        self.get_beat_unit_on_beat(meter.beat_unit_id)
+                    )
+                previous = values
+
+            if stop < self.measure_count:
+                after = meters[stop]
+                values = (
+                    after.denominator,
+                    format_units(after.units),
+                    after.is_assumed,
+                )
+                if not after.starts_here and values != previous:
+                    self._put_beat_unit(stop, *values, meter=after)
+
+        self.refresh_measures()
+        return ""
 
     @staticmethod
     def get_extension_from_beat_pattern(
