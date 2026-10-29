@@ -109,7 +109,7 @@ COMPONENT_ATTRIBUTES: dict[str, tuple[str, ...]] = {
         "custom_text_font_type",
     ),
     "mode": ("time", "step", "accidental", "type", "comments", "level"),
-    "beat": ("time", "measure", "beat_unit"),
+    "beat": ("time", "measure", "beat_unit", "closing"),
     "pdf_marker": ("time", "page_number"),
     # A legacy score's components: every attribute is written, as TiLiA 0.7 did.
     "note": (
