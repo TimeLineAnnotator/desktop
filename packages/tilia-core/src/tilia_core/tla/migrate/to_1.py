@@ -19,7 +19,8 @@ takes it to the current format:
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
   components get ids derived from it and from their old ids; a range's
-  `joined_right` follows the new ids, rows keep theirs.
+  `joined_right` follows the new ids, rows keep theirs, and one that names
+  nothing in its timeline is refused.
 
 The migration keeps each new id's old id, and where the keys it moves were
 (`places`), so that what the check after it refuses or warns about can be
@@ -221,6 +222,16 @@ class _Migration:
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
 
+    def _names_nothing(self, parent: str, key: str, reference: Any) -> UnreadableFile:
+        """The refusal of a reference, at `key` in `parent`, that names
+        nothing the new ids can follow it to."""
+        name = json.dumps(key, ensure_ascii=False)
+        shown = json.dumps(reference, ensure_ascii=False)
+        return self._refuse(
+            f"{printable(name)} names nothing: {printable(shown)}",
+            pointer_to(parent, key),
+        )
+
     def _object(self, value: Any, place: str) -> dict[str, Any]:
         if not isinstance(value, dict):
             raise self._refuse(f"expected an object at {place}", place)
@@ -355,7 +366,22 @@ class _Migration:
                 name: self._component(name, value, components_place)
                 for name, value in components.items()
             }
+            if kind == "range":
+                self._joined(converted["components"], components_place)
         return converted
+
+    def _joined(self, components: dict[str, Any], parent: str) -> None:
+        """Refuse a range joined to a component its timeline doesn't have:
+        a reference the new ids can't follow (`_follow`), which names
+        nothing. Another value isn't a reference: the check refuses it."""
+        for key, component in components.items():
+            if component_kind_from_file(component["kind"]) != "range":
+                continue  # its references aren't followed or checked
+            joined = component.get("joined_right")
+            if _is_reference(joined) and str(joined) not in components:
+                raise self._names_nothing(
+                    pointer_to(parent, key), "joined_right", joined
+                )
 
     def _component(self, key: str, value: Any, parent: str) -> dict[str, Any]:
         place = pointer_to(parent, key)
@@ -381,6 +407,14 @@ class _Migration:
         if isinstance(kind, UnknownKind):
             return converted
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
+
+
+def _is_reference(value: Any) -> bool:
+    """Whether an old file's value names a component, as `_follow` reads
+    it: text, or an integer, which TiLiA never wrote."""
+    return isinstance(value, str) or (
+        isinstance(value, int) and not isinstance(value, bool)
+    )
 
 
 def _follow(reference: Any, new_ids: dict[str, str]) -> Any:
