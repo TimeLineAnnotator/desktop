@@ -7,6 +7,8 @@ import pickle
 import random
 import sys
 import time
+from decimal import Decimal
+from fractions import Fraction
 from importlib.metadata import metadata
 
 import pytest
@@ -2044,8 +2046,22 @@ class TestCheckTimeline:
                 ],
                 ROWS,
             ),
+            # Other values equal to a number: some can be ordered with one,
+            # one can't.
+            (
+                [
+                    component("marker", time=Decimal("1")),
+                    component("marker", time=1 + 0j),
+                    component("marker", time=1.0),
+                    hierarchy(Decimal("1"), 2.0, 1),
+                    hierarchy(Fraction(1), 2, 1),
+                    hierarchy(1 + 0j, 2.0, 1),
+                    hierarchy(1, 2.0, 1),
+                ],
+                ROWS,
+            ),
         ],
-        ids=["unhashable", "unhashable row id", "set", "true"],
+        ids=["unhashable", "unhashable row id", "set", "true", "numbers"],
     )
     def test_odd_values_are_compared_as_the_functions_compare_them(
         self, components, rows, skip_broken
