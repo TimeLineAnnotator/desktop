@@ -13,6 +13,8 @@ folder. Paths of the other system's form (Windows paths read on macOS or
 Linux, and the reverse) are never looked up on this computer, so those
 cases run on every system."""
 
+import importlib
+import inspect
 import json
 import os
 import shutil
@@ -427,6 +429,14 @@ def test_a_youtube_link(tmp_path, url):
     assert found == tla.Media(
         kind="youtube", stored=url, path=None, youtube_id="_ORrftU6sGA", length=245.5
     )
+
+
+def test_the_lookup_doesnt_hide_its_module():
+    # tla.media is the function the contract names; the module it comes from
+    # has a name of its own, so importing the module gives the module.
+    module = importlib.import_module("tilia_core.tla.media_files")
+    assert inspect.ismodule(module)
+    assert tla.media is module.media
 
 
 @pytest.mark.parametrize(
