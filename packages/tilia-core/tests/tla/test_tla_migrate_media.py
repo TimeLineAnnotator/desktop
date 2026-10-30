@@ -431,6 +431,17 @@ def test_a_youtube_link(tmp_path, url):
     )
 
 
+@pytest.mark.parametrize("stored", ["youtu_be/clip.mp4", "youtuxbe/clip.mp4"])
+def test_a_relative_path_isnt_taken_for_a_youtube_link(tmp_path, stored):
+    # The dot in "youtu.be" is a dot, not any character, as in TiLiA's pattern.
+    media = media_file(tmp_path / stored)
+    doc = tla.new_document()
+    doc.media_path = stored
+    found = tla.media(tmp_path / "piece.tla", doc)
+    assert (found.kind, found.youtube_id) == ("local", None)
+    assert os.path.samefile(found.path, media)
+
+
 def test_the_lookup_doesnt_hide_its_module():
     # tla.media is the function the contract names; the module it comes from
     # has a name of its own, so importing the module gives the module.
@@ -718,6 +729,15 @@ def test_an_absolute_path_on_another_drive_is_written_as_it_is(tmp_path):
     assert json.loads((tmp_path / "piece.tla").read_bytes())["media"]["path"] == (
         "Z:/audio-176/piece.wav"
     )
+
+
+def test_written_elsewhere_a_path_like_a_short_youtube_link_is_rebased(
+    corpus, tmp_path
+):
+    doc = tla.read(corpus)
+    doc.media_path = "youtu_be/clip.mp4"
+    tla.write(tmp_path / "copy.tla", doc)
+    assert written(tmp_path / "copy.tla")[0] == "corpus/youtu_be/clip.mp4"
 
 
 @windows_only

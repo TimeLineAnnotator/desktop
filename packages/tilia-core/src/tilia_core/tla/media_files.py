@@ -27,9 +27,10 @@ from tilia_core.tla.model import Document, Media
 logger = logging.getLogger(__name__)
 
 # TiLiA's own pattern for a YouTube link, copied from
-# tilia.constants.YOUTUBE_URL_REGEX: group 6 is the video's id.
+# tilia.constants.YOUTUBE_URL_REGEX, with the dot in "youtu.be" escaped,
+# which TiLiA's leaves to match any character: group 6 is the video's id.
 YOUTUBE_URL = re.compile(
-    r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))"
+    r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu\.be))"
     r"(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
 )
 # Any other URL: a scheme of two characters or more, so that a Windows
