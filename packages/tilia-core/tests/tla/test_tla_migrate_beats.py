@@ -624,6 +624,19 @@ def test_a_beat_units_missing_key_is_tilias_default(unit, made):
     assert components[0]["beat_unit"] == made
 
 
+@pytest.mark.parametrize(
+    "units, written_units",
+    [("2 + 3", "2+3"), ("2/4", "1/2"), ("03", "3"), ("1/3+1/3", "1/3+1/3")],
+)
+def test_a_beat_units_units_are_written_as_tilia_writes_them(units, written_units):
+    # desktop#621's BeatUnit stores the units it parses in their canonical
+    # form, and so saves them.
+    doc = read(with_beat_units([0.0, 1.0], beat_unit(10, 8, units)))
+    assert doc.warnings == []
+    _, components = written(doc)
+    assert components[0]["beat_unit"] == {"denominator": 8, "units": written_units}
+
+
 def test_only_a_beat_unit_tilia_would_make_takes_its_beat():
     # desktop#621 skips the first, so the second is the one on beat 10.
     content = with_beat_units(
