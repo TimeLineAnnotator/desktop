@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 import math
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -318,41 +318,75 @@ def _is_time(value: Any) -> bool:
     return not isinstance(value, float) or math.isfinite(value)
 
 
+def measure_beats(
+    beats: Mapping[str, Mapping[str, Any]], order: list[str] | None = None
+) -> list[list[str]]:
+    """The beats of each measure, by id, in the beats' order (`beat_order`,
+    unless `order` gives it): from each beat with a `measure` mark to the
+    next. In no measure: a tap on a closing barline, which is the barline,
+    not a beat (TimeLineAnnotator/project-management#332); a beat without a
+    time, whose measure isn't known, so that a downbeat without one starts
+    none, as the time map reads its rows; and the beats before the first
+    mark."""
+    groups: list[list[str]] = []
+    for beat_id in beat_order(beats) if order is None else order:
+        attrs = beats[beat_id]
+        if attrs.get("closing") or not _is_time(attrs.get("time")):
+            continue
+        if isinstance(attrs.get("measure"), dict):
+            groups.append([])
+        if groups:
+            groups[-1].append(beat_id)
+    return groups
+
+
+def measure_numbers(marks: Iterable[Mapping[str, Any]]) -> Iterator[tuple[int, str]]:
+    """Each measure's number and label, from the marks in their order: the
+    mark's number, else the previous measure's plus one, and the first
+    measure's 1; the mark's label, else the number as text."""
+    previous: int | None = None
+    for mark in marks:
+        number = mark.get("number")
+        if isinstance(number, float) and number.is_integer():
+            number = int(number)
+        if isinstance(number, bool) or not isinstance(number, int):
+            number = 1 if previous is None else previous + 1
+        label = mark.get("label")
+        yield number, label if isinstance(label, str) else str(number)
+        previous = number
+
+
 def measures_of(beats: Mapping[str, Mapping[str, Any]], source: str) -> list[Measure]:
     """The rows of a beat timeline's measure table, from its beats, each given
     by id with its attributes, and the table's `source`.
 
-    A row for each beat with a `measure` mark, in the beats' order
-    (`beat_order`), identified by its downbeat's id. Its number is the mark's,
-    else the previous row's plus one, and the first row's 1; its label the
-    mark's, else its number as text; its source the mark's, else the table's.
-    Its beats run from its downbeat to the next mark, without a tap on a
-    closing barline, which is the barline, not a beat
-    (TimeLineAnnotator/project-management#332). Its `beat_units` are those
-    set on its beats that desktop#621 can read, and `beat_unit` is the unit
-    in force, as WP9's meters take it: the first set in the measure, else
-    the one carried from the measures before; a movement whose first measure
-    has none takes, assumed, the first set in the movement, else the one in
-    force before it, else 4 / "1".
+    A row for each measure (`measure_beats`), identified by its downbeat's
+    id, numbered and labelled by `measure_numbers`; its source the mark's,
+    else the table's. Its `beat_units` are those set on its beats that
+    desktop#621 can read, and `beat_unit` is the unit in force, as WP9's
+    meters take it: the first set in the measure, else the one carried from
+    the measures before; a movement whose first measure has none takes,
+    assumed, the first set in the movement, else the one in force before it,
+    else 4 / "1".
     """
     from tilia_core.timemap import units  # here: the time map imports this package
 
     default = BeatUnit(
         denominator=units.DEFAULT_DENOMINATOR, units=units.DEFAULT_UNITS, assumed=True
     )
+    groups = measure_beats(beats)
+    marks = [beats[group[0]]["measure"] for group in groups]
     rows: list[Measure] = []
-    for beat_id in beat_order(beats):
-        attrs = beats[beat_id]
-        if attrs.get("closing"):
-            continue
-        mark = attrs.get("measure")
-        if isinstance(mark, dict):
-            rows.append(_measure(beat_id, mark, rows, source, default))
-        if rows:
-            rows[-1].beats.append(beat_id)
-            unit = readable_beat_unit(attrs.get("beat_unit"))
+    for group, mark, (number, label) in zip(
+        groups, marks, measure_numbers(marks), strict=True
+    ):
+        row = _measure(group[0], mark, number, label, source, default)
+        row.beats = group
+        for beat_id in group:
+            unit = readable_beat_unit(beats[beat_id].get("beat_unit"))
             if unit is not None:
-                rows[-1].beat_units.append(unit)
+                row.beat_units.append(unit)
+        rows.append(row)
     _set_units_in_force(rows, default)
     return rows
 
@@ -360,23 +394,18 @@ def measures_of(beats: Mapping[str, Mapping[str, Any]], source: str) -> list[Mea
 def _measure(
     beat_id: str,
     mark: Mapping[str, Any],
-    rows: list[Measure],
+    number: int,
+    label: str,
     source: str,
     default: BeatUnit,
 ) -> Measure:
-    number = mark.get("number")
-    if isinstance(number, float) and number.is_integer():
-        number = int(number)
-    if isinstance(number, bool) or not isinstance(number, int):
-        number = rows[-1].number + 1 if rows else 1
-    label = mark.get("label")
     own_source = mark.get("source")
     following = mark.get("next")
     metadata = mark.get("metadata")
     return Measure(
         id=beat_id,
         number=number,
-        label=label if isinstance(label, str) else str(number),
+        label=label,
         beats=[],
         beat_unit=default,
         source=own_source if isinstance(own_source, str) else source,

@@ -59,8 +59,8 @@ from tilia_core.tla.model import (
     beat_order,
     beat_unit_problems,
     component_kind_from_file,
-    measures_of,
-    readable_beat_unit,
+    measure_beats,
+    measure_numbers,
     timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import lines_of, pointer
@@ -642,14 +642,16 @@ class _Checker:
         is no beat of a measure (TimeLineAnnotator/project-management#332),
         so the first beat is the first other one. Which beat is first isn't
         known while one has no time: the file is then read, so that the beat
-        can be fixed."""
+        can be fixed. A beat without a time is in no measure, nor is its beat
+        unit. Each beat unit is parsed once."""
         beats = {
             key: component
             for key, component in timeline["components"].items()
             if component["kind"] == COMPONENT_KINDS["beat"]
         }
         at = (place, "components")
-        order = [key for key in beat_order(beats) if not beats[key].get("closing")]
+        everyone = beat_order(beats)
+        order = [key for key in everyone if not beats[key].get("closing")]
         timed = all(beats[key].get("time") is not None for key in order)
         if order and timed and not isinstance(beats[order[0]].get("measure"), dict):
             raise _Broken(
@@ -666,33 +668,36 @@ class _Checker:
                         " beat of its timeline",
                         ((((at, key), "measure"), "next"), index),
                     )
+        readable: set[str] = set()  # the beats with a unit desktop#621 reads
         for key, beat in beats.items():
             if beat.get("time") is None:
                 self.warnings.append(
                     ((at, key), f"a beat of {_which(timeline)} has no time")
                 )
             unit = beat.get("beat_unit")
-            if isinstance(unit, dict):
-                for name in beat_unit_problems(unit):
-                    what = "units" if name == "units" else f"a {name}"
-                    self.warnings.append(
-                        (
-                            (((at, key), "beat_unit"), name),
-                            f"a beat unit in {_which(timeline)} has {what} TiLiA"
-                            f" can't read: {_quoted(unit.get(name))}",
-                        )
+            if not isinstance(unit, dict):
+                continue
+            problems = beat_unit_problems(unit)
+            if not problems:
+                readable.add(key)
+            for name in problems:
+                what = "units" if name == "units" else f"a {name}"
+                self.warnings.append(
+                    (
+                        (((at, key), "beat_unit"), name),
+                        f"a beat unit in {_which(timeline)} has {what} TiLiA"
+                        f" can't read: {_quoted(unit.get(name))}",
                     )
-        for row in measures_of(beats, ""):
-            units = [
-                key
-                for key in row.beats
-                if readable_beat_unit(beats[key].get("beat_unit")) is not None
-            ]
+                )
+        groups = measure_beats(beats, everyone)
+        marks = (beats[group[0]]["measure"] for group in groups)
+        for group, (_, label) in zip(groups, measure_numbers(marks), strict=True):
+            units = [key for key in group if key in readable]
             if len(units) > 1:
                 self.warnings.append(
                     (
                         ((at, units[1]), "beat_unit"),
-                        f"measure {_quoted(row.label)} of {_which(timeline)} has"
+                        f"measure {_quoted(label)} of {_which(timeline)} has"
                         " more than one beat unit",
                     )
                 )
