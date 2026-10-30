@@ -2013,6 +2013,25 @@ class TestCheckTimeline:
                 ],
                 [*ROWS, {"id": ["odd"], "name": "Odd"}],
             ),
+            # A row whose id is a frozenset, which a set equals, and the other
+            # way round: one can be hashed, the other can't.
+            (
+                [
+                    range_in(frozenset({"x"}), 1.0, 2.0, joined_right="set"),
+                    tla.Component(
+                        id="set",
+                        kind="range",
+                        attrs={"start": 2.0, "end": 3.0, "row_id": {"x"}},
+                    ),
+                    range_in({"x"}, 3.0, 4.0, joined_right="frozenset"),
+                    tla.Component(
+                        id="frozenset",
+                        kind="range",
+                        attrs={"start": 4.0, "end": 5.0, "row_id": frozenset({"x"})},
+                    ),
+                ],
+                [*ROWS, {"id": frozenset({"x"}), "name": "Set"}],
+            ),
             # True, which is 1, but isn't a time the others are ordered by.
             (
                 [
@@ -2026,7 +2045,7 @@ class TestCheckTimeline:
                 ROWS,
             ),
         ],
-        ids=["unhashable", "unhashable row id", "true"],
+        ids=["unhashable", "unhashable row id", "set", "true"],
     )
     def test_odd_values_are_compared_as_the_functions_compare_them(
         self, components, rows, skip_broken

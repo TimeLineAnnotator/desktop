@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import bisect
 import importlib.util
+import itertools
 import math
 import string
 from collections.abc import (
@@ -1067,14 +1068,25 @@ class _ByValue:
             return items
 
     def get(self, value: Any) -> list[Any]:
-        """The list for `value`, or an empty one: not to be changed."""
+        """What the lists for the values `==` finds equal to `value` hold, in
+        order: not to be changed.
+
+        A value with a hash is found by it, and is compared with each value that
+        has none, which `==` can find equal to it: a frozenset and a set with
+        the same members are. A value without one is compared with every value.
+        Only a caller in Python can give one, since the reader refuses a value
+        of the wrong type.
+        """
         try:
-            return self._hashed.get(value, [])
+            hashed = self._hashed.get(value)
         except TypeError:
-            for other, items in self._unhashable:
-                if other == value:
-                    return items
-            return []
+            found = [items for other, items in self._hashed.items() if other == value]
+        else:
+            found = [] if hashed is None else [hashed]
+        found += [items for other, items in self._unhashable if other == value]
+        if len(found) == 1:
+            return found[0]
+        return sorted(itertools.chain.from_iterable(found))
 
 
 class _Spans:
