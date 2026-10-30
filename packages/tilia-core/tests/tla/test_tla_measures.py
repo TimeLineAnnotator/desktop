@@ -645,9 +645,9 @@ def test_a_beat_without_a_time_is_kept_with_a_warning_and_written_back():
     assert warning.line == data.decode().split("\n").index(f'        "{B[1]}": {{') + 1
     assert warning.message == 'a beat of the timeline "Beats" has no time'
     assert tla.canonical_bytes(doc) == data
-    # The table keeps it, after the beats that have a time, so that the time
-    # map can say which measure lacks one.
-    assert rows_of(doc)[0].beats == [B[0], B[2], B[1]]
+    # Kept in the file, and out of the table: which measure it is in isn't
+    # known.
+    assert rows_of(doc)[0].beats == [B[0], B[2]]
 
 
 def test_a_beat_whose_time_is_null_is_a_beat_without_a_time():
@@ -662,7 +662,8 @@ def test_a_beat_whose_time_is_null_is_a_beat_without_a_time():
     assert content["timelines"][BEATS]["components"][B[1]] == {"kind": "BEAT"}
 
 
-def test_beats_without_a_time_come_last_in_id_order():
+def test_beats_without_a_time_are_in_no_row():
+    # As the time map reads its rows: a downbeat without a time starts none.
     doc = tla.loads(
         one_timeline(
             [
@@ -670,13 +671,30 @@ def test_beats_without_a_time_come_last_in_id_order():
                 (B[1], beat(1.0, measure={})),
                 (B[2], beat(None, measure={"label": "x"})),
                 (B[3], beat(2.0)),
+                (B[4], beat(3.0, measure={})),
             ]
         )
     )
     assert [(r.label, r.beats) for r in rows_of(doc)] == [
-        ("1", [B[1], B[3], B[0]]),
-        ("x", [B[2]]),
+        ("1", [B[1], B[3]]),
+        ("2", [B[4]]),
     ]
+
+
+def test_the_beat_unit_of_a_beat_without_a_time_counts_in_no_measure():
+    data = one_timeline(
+        [
+            (B[0], beat(0.0, measure={}, beat_unit={"denominator": 4, "units": "1"})),
+            (B[1], beat(1.0)),
+            (B[2], beat(None, beat_unit={"denominator": 8, "units": "3"})),
+        ]
+    )
+    doc = tla.loads(data)
+    # Its own warning only: no measure has two units.
+    assert [w.place for w in doc.warnings] == [f"/timelines/{BEATS}/components/{B[2]}"]
+    (row,) = rows_of(doc)
+    assert row.beat_units == [tla.BeatUnit(denominator=4, units="1")]
+    assert tla.canonical_bytes(doc) == data
 
 
 def test_a_document_with_a_beat_without_a_time_is_written():
@@ -695,3 +713,40 @@ def test_the_golden_files_read_without_warnings():
         for timeline in doc.timelines.values():
             if timeline.kind == "beat":
                 assert copy.deepcopy(timeline.measures) == tla.measure_table(timeline)
+
+
+# What reading costs: each beat unit parsed once by the check, and once more
+# for the table
+
+
+@pytest.fixture
+def parsed(monkeypatch):
+    """The units text of each beat unit desktop#621's parser is given."""
+    from tilia_core.timemap import units
+
+    calls = []
+    parse = units.parse_units
+
+    def counted(text):
+        calls.append(text)
+        return parse(text)
+
+    monkeypatch.setattr(units, "parse_units", counted)
+    return calls
+
+
+def test_the_check_parses_each_beat_unit_once(parsed):
+    from tilia_core.tla.check import check
+
+    data = one_timeline(unfolded())
+    check(json.loads(data), data)
+    assert sorted(parsed) == ["1", "3"]
+
+
+def test_reading_parses_each_beat_unit_twice_and_writing_once(parsed):
+    data = one_timeline(unfolded())
+    doc = tla.loads(data)
+    assert sorted(parsed) == ["1", "1", "3", "3"]
+    parsed.clear()
+    writer.checked_bytes(doc)
+    assert sorted(parsed) == ["1", "3"]
