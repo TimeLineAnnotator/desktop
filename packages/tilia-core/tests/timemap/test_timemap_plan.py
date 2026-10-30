@@ -2,6 +2,7 @@
 
 import builtins
 import copy
+import dataclasses
 import io
 import logging
 import os
@@ -12,6 +13,8 @@ import pytest
 
 from docs import beat_timeline, document
 from tilia_core import tla
+from tilia_core.timemap import plan as timemap_plan
+from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.plan import (
     BarRef,
     Change,
@@ -945,6 +948,29 @@ class TestRestore:
         )
 
         assert tl.components == components
+
+    def test_it_ends_even_if_a_bar_never_reads_as_it_did(self, monkeypatch):
+        # Should the rules ever read a bar otherwise than the unit written
+        # back on it, the plan still ends, with one write-back there.
+        reads = []
+
+        def misread(rows):
+            reads.append(rows)
+            if len(reads) > 10:
+                raise AssertionError("the plan doesn't end")
+            meters = meters_of(rows)
+            flipped = dataclasses.replace(meters[2], is_assumed=False)
+            return [*meters[:2], flipped, *meters[3:]]
+
+        monkeypatch.setattr(timemap_plan, "meters_of", misread)
+        doc, tl = piece([2, 2, 2])
+
+        p = plan(doc, tl, bars(2, text="6/8"))
+
+        assert unit_writes(p) == {
+            downbeat(tl, 1): unit(8, "3"),
+            downbeat(tl, 2): DEFAULT,
+        }
 
 
 UNREADABLE = {"denominator": 200, "units": "x"}  # a unit the reader ignores
