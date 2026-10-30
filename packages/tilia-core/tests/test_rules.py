@@ -1517,15 +1517,31 @@ def kinds_function(component, others, rows=ROWS):
     return outcome, None
 
 
+def without_join(component):
+    attrs = dict(component.attrs)
+    attrs.pop("joined_right", None)
+    return tla.Component(id=component.id, kind=component.kind, attrs=attrs)
+
+
 def found_row_by_row(components, skip_broken, rows=ROWS):
     """What the kinds' functions find, each component checked with every other
-    one, or, as an import, with the earlier ones they kept."""
+    one, or, as an import, with the earlier ones they kept. An import checks a
+    range's join once every range is kept or left out by its own rules, with all
+    the ranges kept, since a join names a range that starts later."""
     found, kept = {}, []
+    ranges_kept = [
+        component
+        for component in components
+        if component.kind == "range"
+        and kinds_function(without_join(component), [], rows)[0]
+    ]
     for component in components:
-        if skip_broken:
-            others = list(kept)
-        else:
+        if not skip_broken:
             others = [other for other in components if other is not component]
+        elif component.kind == "range":
+            others = [other for other in ranges_kept if other is not component]
+        else:
+            others = list(kept)
         outcome, cant_check = kinds_function(component, others, rows)
         color = rules.color(component.attrs.get("color"))
         found[component.id] = (outcome, outcome.others, color, cant_check)
@@ -1715,6 +1731,70 @@ class TestCheckTimeline:
         )
         assert checked[first.id].outcome.others == (between.id,)
         assert checked[between.id].outcome == OK
+
+    def test_the_import_use_checks_a_join_with_the_range_given_after_it(self):
+        # A join names a range that starts later: an import checks it once every
+        # range is kept or left out.
+        first = range_in(ROW, 1.0, 2.0, joined_right="second")
+        second = tla.Component(
+            id="second", kind="range", attrs={"start": 2.0, "end": 3.0, "row_id": ROW}
+        )
+
+        checked = rules.check_timeline(
+            MEDIA, [first, second], rows=ROWS, skip_broken=True
+        )
+
+        assert checked[first.id].outcome == OK
+        assert checked[second.id].outcome == OK
+
+    def test_the_import_use_checks_a_join_with_every_range_kept(self):
+        second = range_in(ROW, 2.0, 3.0)
+        first = range_in(ROW, 1.0, 2.0, joined_right=second.id)
+        between = range_in(ROW, 1.5, 1.8)  # given last, but it comes next
+
+        checked = rules.check_timeline(
+            MEDIA, [first, second, between], rows=ROWS, skip_broken=True
+        )
+
+        assert checked[first.id].outcome == (
+            False,
+            "joined_with_next=true but next range on row 'Strings' starts at 1.5"
+            " (must equal 2.0 for ranges to join)",
+        )
+        assert checked[first.id].outcome.others == (between.id,)
+
+    def test_the_import_use_checks_a_join_without_the_ranges_left_out(self):
+        beyond = range_in(ROW, 2.0, 61.0)  # beyond the media: left out
+        first = range_in(ROW, 1.0, 2.0, joined_right=beyond.id)
+
+        checked = rules.check_timeline(
+            MEDIA, [first, beyond], rows=ROWS, skip_broken=True
+        )
+
+        assert checked[beyond.id].outcome == (False, "Range is outside media bounds.")
+        assert checked[first.id].outcome == (
+            False,
+            "joined_with_next=true on last range of row 'Strings';"
+            " no next neighbor to join with",
+        )
+
+    def test_a_range_whose_join_is_broken_counts_among_the_kept_on_import(self):
+        # Until TimeLineAnnotator/project-management#374 settles what a broken
+        # join does to its range in an import, the other joins are checked with
+        # the range among the kept.
+        broken = range_in(ROW, 2.0, 3.0, joined_right="nowhere")
+        first = range_in(ROW, 1.0, 2.0, joined_right=broken.id)
+
+        checked = rules.check_timeline(
+            MEDIA, [first, broken], rows=ROWS, skip_broken=True
+        )
+
+        assert checked[broken.id].outcome == (
+            False,
+            "joined_with_next=true on last range of row 'Strings';"
+            " no next neighbor to join with",
+        )
+        assert checked[first.id].outcome == OK
 
     @USES
     def test_a_bad_color_is_reported_and_another_broken_rule_still_found(
