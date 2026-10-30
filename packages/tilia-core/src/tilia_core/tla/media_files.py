@@ -7,6 +7,9 @@ are told apart here, for the migration, the writer and the lookup alike. An
 absolute path has the form of the system that wrote it, whichever system
 reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
 one. A path of the other system's form is never looked up on this one.
+
+The lookup is `tla.media`; this module has a name of its own, so that the
+function doesn't hide it.
 """
 
 from __future__ import annotations

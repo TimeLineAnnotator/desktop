@@ -24,7 +24,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from tilia_core.tla.media import (
+from tilia_core.tla.media_files import (
     SYSTEM,
     absolute_form,
     folder_of,

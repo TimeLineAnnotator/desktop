@@ -51,7 +51,7 @@ from tilia_core.tla.layout import (
     nfc_text,
     pointer_to,
 )
-from tilia_core.tla.media import (
+from tilia_core.tla.media_files import (
     SYSTEM,
     absolute_form,
     is_relative,
