@@ -1846,6 +1846,32 @@ class TestCheckTimeline:
         assert list(checked) == [marker.id]
         assert checked[marker.id].outcome == OK
 
+    def test_one_table_gives_each_kind_its_rules(self, monkeypatch):
+        # The kinds' functions and check_timeline find a kind's rules in one
+        # place, so a kind can't get rules of its own in one of them.
+        def refused(*args):
+            return rules.Outcome(False, "refused")
+
+        kinds = [
+            "marker",
+            "beat",
+            "pdf_marker",
+            "harmony",
+            "mode",
+            "hierarchy",
+            "range",
+        ]
+        assert sorted(rules._RULES) == sorted(kinds)
+        for kind in kinds:
+            monkeypatch.setitem(rules._RULES, kind, refused)
+        for kind in kinds:
+            checked = component(kind, **VALID[kind])
+
+            found = rules.check_timeline(MEDIA, [checked], rows=ROWS, page_count=PAGES)
+
+            assert kinds_function(checked, [])[0] == (False, "refused"), kind
+            assert found[checked.id].outcome == (False, "refused"), kind
+
     def test_two_components_with_one_id(self):
         first = component("marker", time=1.0)
         second = tla.Component(id=first.id, kind="marker", attrs={"time": 2.0})
