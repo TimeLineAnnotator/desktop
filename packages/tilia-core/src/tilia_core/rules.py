@@ -980,7 +980,10 @@ class _Others:
     def __init__(self, components: Sequence[tla.Component]) -> None:
         self._components = components
         self._at_time = _ByValue()  # points' places, by kind and time
-        self._at_place = _ByValue()  # hierarchies' places, by start, end and level
+        # Hierarchies' places, by start, end and level, for those at the same
+        # place as one with a start or an end that `==` finds equal to a number
+        # but `_Spans` can't order with one: a bool, a Decimal, a complex.
+        self._at_place = _ByValue()
         self._spans = _Spans(components)  # hierarchies, by the order of their starts
         self._rows = _ByValue()  # each row's ranges, as (start, place), by start
 
