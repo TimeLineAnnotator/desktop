@@ -81,8 +81,7 @@ def parse(
         try:
             check(content)
         except UnreadableFile as error:
-            if error.place is not None and error.line is None:
-                error.line = lines_of(text, [error.place])[error.place]
+            add_line(error, text)
             raise
     if "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
@@ -163,23 +162,52 @@ def _json_message(text: str, error: json.JSONDecodeError) -> str:
     return error.msg
 
 
+def text_of(source: str | bytes) -> str:
+    """A file's text: its bytes decoded, without the byte-order mark `parse`
+    skips; text as it is."""
+    if isinstance(source, str):
+        return source
+    return source.removeprefix(_BOM).decode("utf-8")
+
+
+def add_line(error: UnreadableFile, text: str) -> None:
+    """Give a refusal that names a place, but no line, the line of its place
+    in `text`, the file's."""
+    if error.place is not None and error.line is None:
+        error.line = lines_of(text, [error.place])[error.place]
+
+
+class _AllFound(Exception):
+    """Each place looked for is found, or isn't in the text: the walk stops."""
+
+
 def lines_of(text: str, places: Iterable[str]) -> dict[str, int]:
     """The line of each place in `text`, a JSON document, given as a JSON
     Pointer: the line of its key, or of its first character for an item of
     a list or the whole. A place the text doesn't have, such as a missing
     key, gets the line of the nearest value that holds it.
 
-    Walks the text, going into only the values that hold a place, and is
-    called only when there is something to report: lines aren't counted
-    while a file is read (research R3).
+    Walks the text, going into only the values that hold a place, and stops
+    once each place is found, or once it has gone through what would hold
+    one without finding it, so that a large file isn't read to its end for
+    a place near its start. It is called only when there is something to
+    report: lines aren't counted while a file is read (research R3).
     """
     wanted = set(places)
-    # Every value that holds a place wanted, so that the walk goes into it.
+    if not wanted:
+        return {}
+    # Every value that holds a place wanted, so that the walk goes into it,
+    # with the places wanted in it.
     holders = {""}
+    held_in: dict[str, list[str]] = {}
     for place in wanted:
         steps = place.split("/")
-        holders.update("/".join(steps[:end]) for end in range(1, len(steps)))
+        for end in range(1, len(steps)):
+            holder = "/".join(steps[:end])
+            holders.add(holder)
+            held_in.setdefault(holder, []).append(place)
     found: dict[str, int] = {}
+    looked_for = set(wanted)  # neither found nor known to be missing
     counted = [0, 1]  # a position, and the line it is on
 
     def line_at(position: int) -> int:
@@ -188,6 +216,11 @@ def lines_of(text: str, places: Iterable[str]) -> dict[str, int]:
         counted[:] = [position, line]
         return line
 
+    def done(places: Iterable[str]) -> None:
+        looked_for.difference_update(places)
+        if not looked_for:
+            raise _AllFound
+
     skip = json.JSONDecoder().raw_decode
 
     def walk(position: int, place: str, line: int) -> int:
@@ -195,9 +228,18 @@ def lines_of(text: str, places: Iterable[str]) -> dict[str, int]:
         whose key, if any, is on `line`; return where the value ends."""
         if place in wanted or place in holders:
             found[place] = line
+            if place in looked_for:
+                done([place])
         position = WHITESPACE.match(text, position).end()
         if place not in holders:
             return skip(text, position)[1]
+        end = walk_in(position, place)
+        # What it holds and isn't found by now isn't in the text.
+        done(held_in.get(place, ()))
+        return end
+
+    def walk_in(position: int, place: str) -> int:
+        """Walk the value at `position`, which holds a place wanted."""
         if text[position] == "{":
             position = WHITESPACE.match(text, position + 1).end()
             if text[position] == "}":
@@ -227,7 +269,10 @@ def lines_of(text: str, places: Iterable[str]) -> dict[str, int]:
         return skip(text, position)[1]
 
     start = WHITESPACE.match(text, 0).end()
-    walk(start, "", line_at(start))
+    try:
+        walk(start, "", line_at(start))
+    except _AllFound:
+        pass
     result = {}
     for place in wanted:
         held = place

@@ -21,6 +21,14 @@ takes it to the current format:
   components get ids derived from it and from their old ids; a range's
   `joined_right` follows the new ids, rows keep theirs.
 
+The migration keeps each new id's old id, and where the keys it moves were
+(`places`), so that what the check after it refuses or warns about can be
+named at its place in the old file. Its own refusals and warnings name the
+place in the old file as it reads it, with the old ids. A reference the new
+ids can't follow, which names nothing, is left for the check to refuse,
+after what it refuses in the structure and among the other references in
+the file's order, as it refuses one in a file of the current format.
+
 Keys and kinds the core doesn't know are kept as they are; a timeline of a
 kind it doesn't know keeps its content, its components' ids included, under
 a new id, without the stored hashes, its own and its components'.
@@ -45,6 +53,7 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.migrate import old as old_migrations
+from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import (
     ReadWarning,
     UnknownKind,
@@ -78,11 +87,14 @@ _NUMBER = re.compile(r"\s*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]
 class Migrated:
     """An old file's content in the current format, as the reader reads it,
     with `version` the old file's version; what the migration dropped or
-    changed, as warnings; and the counts for a migration report."""
+    changed, as warnings, at their places in the old file, without a line;
+    the counts for a migration report; and where each place of the content
+    was in the old file."""
 
     content: dict[str, Any]
     warnings: list[ReadWarning] = field(default_factory=list)
     changes: dict[str, int] = field(default_factory=dict)
+    places: OldPlaces = field(default_factory=OldPlaces, compare=False)
 
 
 def migrate(
@@ -111,11 +123,11 @@ def migrate(
     # others and renumbers them, and clears a media path it can't find when
     # the user doesn't show it where the media is.
     document_id = derived_document_id(content)
-    content = _with_new_ids(content, document_id)
+    content = _with_new_ids(content, document_id, migration.places)
     # The media's and PDF timelines' paths are made relative here, from the
     # old file's `file_path` (TimeLineAnnotator/project-management#176).
     content["document_id"] = document_id
-    return Migrated(content, migration.warnings, migration.changes)
+    return Migrated(content, migration.warnings, migration.changes, migration.places)
 
 
 def _is_number(value: Any) -> bool:
@@ -199,6 +211,7 @@ class _Migration:
         self.path = path
         self.warnings: list[ReadWarning] = []
         self.changes: dict[str, int] = {}
+        self.places = OldPlaces()
 
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
@@ -249,6 +262,10 @@ class _Migration:
             if renames and "display_position" in timeline and type(position) is not int:
                 at = pointer_to(place, "display_position")
                 raise self._refuse(f"expected an integer at {at}", at)
+            if renames and "display_position" in timeline:
+                self.places.moved(
+                    pointer_to(place, "ordinal"), pointer_to(place, "display_position")
+                )
 
     def to_current(self, old: dict[str, Any]) -> dict[str, Any]:
         """The content in the current format, with the old ids."""
@@ -361,21 +378,34 @@ class _Migration:
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 
 
+# What a reference the new ids can't follow becomes: a UUID that no migrated
+# component has (theirs are UUIDv7s), so that the check refuses it as a
+# reference that names nothing, in the order it refuses what a file of the
+# current format breaks. The reader names it as the old file has it.
+NOTHING = "00000000-0000-0000-0000-000000000000"
+
+
 def _follow(reference: Any, new_ids: dict[str, str]) -> Any:
-    """The new id of the component an old reference names, or the reference
-    as it is when it names none."""
+    """The new id of the component an old reference names: text, or an
+    integer, which TiLiA never wrote; NOTHING for one that names none. A
+    value of another type isn't a reference, and stays as it is, for the
+    check to refuse."""
     if isinstance(reference, int) and not isinstance(reference, bool):
         reference = str(reference)
-    if isinstance(reference, str) and reference in new_ids:
-        return new_ids[reference]
-    return reference
+    elif not isinstance(reference, str):
+        return reference
+    return new_ids.get(reference, NOTHING)
 
 
-def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
+def _with_new_ids(
+    content: dict[str, Any], document_id: str, places: OldPlaces
+) -> dict[str, Any]:
+    """The content with the new ids, each new id's old id kept in `places`."""
     timelines: dict[str, Any] = {}
     for position, (old_id, timeline) in enumerate(content["timelines"].items()):
         new_id = migrated_id(document_id, "timeline", old_id, position=position)
         kind = timeline_kind_from_file(timeline["kind"])
+        new_ids: dict[str, str] = {}
         if not isinstance(kind, UnknownKind):
             components = timeline["components"]
             new_ids = {
@@ -384,12 +414,25 @@ def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
             }
             renamed = {}
             for key, component in components.items():
-                if kind == "range" and "joined_right" in component:
-                    component = {
-                        **component,
-                        "joined_right": _follow(component["joined_right"], new_ids),
-                    }
+                # A range's only: a component of another kind is kept as it
+                # is, its keys the core doesn't know included.
+                if (
+                    kind == "range"
+                    and "joined_right" in component
+                    and component_kind_from_file(component["kind"]) == "range"
+                ):
+                    joined = _follow(component["joined_right"], new_ids)
+                    if joined == NOTHING:
+                        place = "/".join(
+                            ["", "timelines", new_id, "components", new_ids[key]]
+                        )
+                        places.names_nothing(
+                            pointer_to(place, "joined_right"),
+                            component["joined_right"],
+                        )
+                    component = {**component, "joined_right": joined}
                 renamed[new_ids[key]] = component
             timeline = {**timeline, "components": renamed}
+        places.timeline(new_id, old_id, new_ids)
         timelines[new_id] = timeline
     return {**content, "timelines": timelines}
