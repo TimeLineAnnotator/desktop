@@ -175,7 +175,7 @@ class TestImportTimeline:
         beat_tl.create_beat(4)
 
         # A 0th measure is necessary to import the pickup measure
-        beat_tl.measure_numbers = [0, 1, 2, 3]
+        beat_tl.set_measure_numbers([0, 1, 2, 3])
         beat_tl.recalculate_measures()
 
         cli.parse_and_run(

@@ -1,10 +1,48 @@
 VALIDATE_BOUNDED_INTEGER = "{0} must be a value between {1} and {2}."
-BEAT_PATTERN_DIALOG_TITLE = "Beat pattern"
-BEAT_PATTERN_DIALOG_PROMPT = "Insert initial beat pattern (can be changed later):"
-BEAT_PATTERN_DIALOG_TOOLTIP = """Empty spaces separate measures, line breaks are ignored.
-Examples:
-  - '5' = 5 beats per measure;
-  - '4 3 3' = a cycle of 4, then 3, then 3 beats per measure."""
+BEAT_PATTERN_DIALOG_TITLE = "Bars and time signatures"
+BEAT_PATTERN_DIALOG_PROMPT = (
+    "Time signatures of the bars, separated by spaces. Tapping past the last"
+    " bar starts the list again. Double-click a cell below to change its bars."
+)
+BEAT_PATTERN_DIALOG_TOOLTIP = """Examples:
+  - '4/4' = 4/4 in every bar, tapped on each quarter note;
+  - '4[4/4] 3/4 3[4/4]' = 4 bars of 4/4, a bar of 3/4, then 3 bars of 4/4;
+  - '2[4/4 3[3/4]]' = 4/4 3/4 3/4 3/4 4/4 3/4 3/4 3/4;
+  - '6/8(3 3)' = 6/8 tapped in two, three eighth notes per tap;
+  - '4/4(3/2 3/2 1)' = 4/4 tapped as 3+3+2 eighth notes;
+  - '2+3/8' = 5/8 tapped as 2+3 eighth notes;
+  - '4' = 4 taps in every bar, of an assumed quarter note."""
+BEAT_PATTERN_TABLE_HEADERS = ["Bars", "Time signature", "Taps"]
+BEAT_PATTERN_TABLE_TOOLTIP = """Double-click a cell to change it:
+  - Bars: their numbers, e.g. '9', or '1-8, 1-8' for a repeat;
+  - Time signature: e.g. '6/8'. Tapped bars keep their taps, so 6/8 over
+    two taps is two dotted quarters;
+  - Taps: what each tap is worth, in units of the denominator, e.g. '3/2 3/2 1'.
+Highlighted bars change when you press OK. Grey bars aren't tapped yet."""
+BEAT_PATTERN_ASSUMED_TIME_SIGNATURE = "{} (assumed)"
+BEAT_PATTERN_SUMMARY = "{} bar{}, then the list starts again from bar 1."
+BEAT_PATTERN_TAPPED = "{} beat{} tapped, in {} bar{}."
+BEAT_PATTERN_OVERWRITE_TITLE = "Overwrite bars set by hand"
+BEAT_PATTERN_OVERWRITE_PROMPT = (
+    "This pattern will overwrite bars set by hand (bars {})."
+    "\nDo you want to continue?"
+)
+TIME_SIGNATURE_SCOPE_TITLE = "Time signature"
+TIME_SIGNATURE_TAPS_ERROR = (
+    "This measure has {} taps. To change them, use Edit bars and time signatures."
+)
+BEAT_UNIT_SCOPE_ONWARD = "From this measure until the next change"
+BEAT_UNIT_SCOPE_MEASURE = "This measure only"
+BEAT_UNIT_SCOPE_PROMPT = "Where should this change apply?"
+BEAT_UNIT_CONFLICT_TOOLTIP = (
+    "This measure has more than one time signature. The first one applies."
+)
+BEAT_UNIT_AMBIGUOUS_TOOLTIP = (
+    "{} taps, where the time signature has a pattern of taps worth {}: read as {}."
+)
+BEAT_UNIT_ASSUMED_TOOLTIP = (
+    "Assumed from the tapped beats." " Edit bars and time signatures to set it."
+)
 PROMPT_CREATE_LEVEL_BELOW_TITLE = "Create level below"
 PROMPT_CREATE_LEVEL_BELOW_MESSAGE = (
     "Node is at already lowest level."

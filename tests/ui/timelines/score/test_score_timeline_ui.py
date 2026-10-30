@@ -126,7 +126,7 @@ def test_attribute_positions(qtui, score_tl, beat_tl, tmp_path):
     beat_tl.beat_pattern = [1]
     for i in range(0, 3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.set_measure_numbers([0, 1, 2])
     beat_tl.recalculate_measures()
 
     notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
@@ -138,7 +138,7 @@ def test_attribute_positions_without_measure_zero(qtui, score_tl, beat_tl, tmp_p
     beat_tl.beat_pattern = [1]
     for i in range(1, 3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 2]
+    beat_tl.set_measure_numbers([1, 2])
     beat_tl.recalculate_measures()
 
     with patch_yes_or_no_dialog(False):
@@ -151,7 +151,7 @@ def test_correct_clef_to_staff(qtui, score_tl, beat_tl):
     beat_tl.beat_pattern = [1]
     for i in range(1, 3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 2]
+    beat_tl.set_measure_numbers([1, 2])
     beat_tl.recalculate_measures()
 
     with patch_yes_or_no_dialog(False):
@@ -252,7 +252,7 @@ def test_symbols_do_not_collide_with_staff_without_notes(
     beat_tl.beat_pattern = [1]
     for i in range(1, 3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 2]
+    beat_tl.set_measure_numbers([1, 2])
     beat_tl.recalculate_measures()
 
     with (
@@ -720,7 +720,7 @@ def test_reload_file_places_notes_in_same_position(qtui, score_tl, beat_tl, tmp_
     beat_tl.beat_pattern = [1]
     for i in range(0, 3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.set_measure_numbers([0, 1, 2])
     beat_tl.recalculate_measures()
 
     notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
@@ -756,7 +756,7 @@ def test_import_score_then_delete_all_beats_does_not_crash(
     beat_tl.beat_pattern = [1]
     for i in range(0, 3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.set_measure_numbers([0, 1, 2])
     beat_tl.recalculate_measures()
 
     notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)

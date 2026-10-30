@@ -180,3 +180,69 @@ class TestExportImage:
         commands.execute("file.export.img", image_path)
 
         assert not image_path.exists()
+
+
+class TestExportTimeSignatures:
+    @staticmethod
+    def export(tmp_path):
+        commands.execute("file.export.json", path=tmp_path / "test.json")
+        with open(tmp_path / "test.json", encoding="utf-8") as f:
+            return json.load(f)["timelines"][0]["components"]
+
+    def test_time_signatures_are_exported(self, tilia, beat_tlui, tmp_path):
+        for time in range(4):
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+        commands.execute("timeline.beat.set_pattern", beat_tlui, pattern="6/8(2 1 2 1)")
+
+        components = self.export(tmp_path)
+
+        assert [c["kind"] for c in components] == ["BEAT"] * 4 + ["TIME_SIGNATURE"]
+        assert components[-1] == {
+            "time": 0,
+            "measure": 1,
+            "time_signature": "6/8",
+            "taps": "2 1 2 1",
+            "assumed": False,
+            "kind": "TIME_SIGNATURE",
+        }
+
+    @pytest.mark.parametrize(
+        "pattern, beat_count, time_signature, exported",
+        [("2", 7, "6/8", ["6/8", "3/8"]), ("4", 10, "4/4", ["4/4", "2/4"])],
+    )
+    def test_an_unfinished_last_measure_is_exported_as_tapped(
+        self, tilia, beat_tlui, tmp_path, pattern, beat_count, time_signature, exported
+    ):
+        commands.execute("timeline.beat.set_pattern", beat_tlui, pattern=pattern)
+        for time in range(beat_count):
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+        timeline = beat_tlui.timeline
+        timeline.set_time_signature(time_signature, 0, timeline.measure_count)
+
+        components = self.export(tmp_path)
+
+        # As the timeline's labels show it.
+        assert [c["time_signature"] for c in components if "time_signature" in c] == (
+            exported
+        )
+
+    def test_one_per_change(self, tilia, beat_tlui, tmp_path):
+        commands.execute("timeline.beat.set_pattern", beat_tlui, pattern="2[2/4] 3/4")
+        for time in range(9):
+            commands.execute("media.seek", time)
+            commands.execute("timeline.beat.add")
+
+        components = self.export(tmp_path)
+
+        time_signatures = [
+            (c["time"], c["measure"], c["time_signature"], c["assumed"])
+            for c in components
+            if c["kind"] == "TIME_SIGNATURE"
+        ]
+        assert time_signatures == [
+            (0, 1, "2/4", False),
+            (4, 3, "3/4", False),
+            (7, 4, "2/4", False),
+        ]

@@ -1,0 +1,679 @@
+import sys
+from fractions import Fraction as F
+
+import pytest
+
+from tilia.timelines.beat.units import (
+    MAX_DENOMINATOR,
+    MAX_UNIT_LENGTH,
+    MeasureMeter,
+    fit_units,
+    format_units,
+    is_fit_ambiguous,
+    parse_units,
+)
+from tilia.timelines.component_kinds import ComponentKind
+
+
+class TestParseUnits:
+    @pytest.mark.parametrize(
+        "text, units",
+        [
+            ("1", [F(1)]),
+            ("3", [F(3)]),
+            ("2+3", [F(2), F(3)]),
+            (" 2 + 2 + 3 ", [F(2), F(2), F(3)]),
+            ("1/2", [F(1, 2)]),
+            ("1/3+2/3", [F(1, 3), F(2, 3)]),
+            ("2/4", [F(1, 2)]),
+        ],
+    )
+    def test_valid(self, text, units):
+        result = parse_units(text)
+        assert result.is_valid
+        assert result.units == units
+
+    @pytest.mark.parametrize(
+        "text", ["", " ", "2+", "+2", "2++3", "0", "1/0", "1.5", "-1", "a", "1e2"]
+    )
+    def test_invalid(self, text):
+        result = parse_units(text)
+        assert not result.is_valid
+        assert result.error
+        assert result.units == []
+
+    @pytest.mark.parametrize(
+        "text, units",
+        [
+            ("1/128", [F(1, 128)]),
+            ("127/128", [F(127, 128)]),
+            ("1+1/128", [F(1), F(1, 128)]),
+            # The limit is on the fraction in lowest terms, as it is stored.
+            ("2/256", [F(1, 128)]),
+        ],
+    )
+    def test_denominator_up_to_the_limit_is_read(self, text, units):
+        result = parse_units(text)
+        assert result.is_valid
+        assert result.units == units
+
+    @pytest.mark.parametrize(
+        "text, item",
+        [
+            ("1/129", "1/129"),
+            ("3/7919", "3/7919"),
+            ("1+1/129", "1/129"),
+            ("1/" + str(10**29 + 1), "1/" + str(10**29 + 1)),
+        ],
+    )
+    def test_larger_denominator_is_refused(self, text, item):
+        result = parse_units(text)
+
+        assert not result.is_valid
+        assert result.units == []
+        assert (
+            result.error == f"'{item}' is not a whole number or fraction such as 1/2."
+        )
+
+    @pytest.mark.parametrize(
+        "text, units",
+        [("129", [F(129)]), ("7919", [F(7919)]), ("258/2", [F(129)])],
+    )
+    def test_whole_numbers_have_no_denominator_to_limit(self, text, units):
+        result = parse_units(text)
+        assert result.is_valid
+        assert result.units == units
+
+    def test_longest_unit_is_read(self):
+        assert parse_units("1" * MAX_UNIT_LENGTH).is_valid
+
+    def test_longer_unit_is_refused_and_cut_short_in_the_message(self):
+        result = parse_units("1" * (MAX_UNIT_LENGTH + 1))
+
+        assert not result.is_valid
+        assert result.units == []
+        assert result.error == (
+            f"'{'1' * MAX_UNIT_LENGTH}…' is longer than {MAX_UNIT_LENGTH} characters."
+        )
+
+    @pytest.mark.skipif(
+        not hasattr(sys, "set_int_max_str_digits"),
+        reason="this Python has no limit on the digits int() reads",
+    )
+    @pytest.mark.parametrize("digit_limit", [0, 4300])
+    def test_very_long_unit_is_refused_whatever_the_digit_limit(self, digit_limit):
+        # Python 3.10.7 and later refuse to read an integer of more than 4300
+        # digits by default; earlier versions read any length, as 0 does.
+        before = sys.get_int_max_str_digits()
+        sys.set_int_max_str_digits(digit_limit)
+        try:
+            result = parse_units("1" * 5000)
+        finally:
+            sys.set_int_max_str_digits(before)
+
+        assert not result.is_valid
+        assert result.units == []
+        assert result.error == (
+            f"'{'1' * MAX_UNIT_LENGTH}…' is longer than {MAX_UNIT_LENGTH} characters."
+        )
+
+    def test_format(self):
+        assert format_units([F(2), F(3)]) == "2+3"
+        assert format_units([F(1, 3)]) == "1/3"
+        assert format_units(parse_units(" 2/4 + 1 ").units) == "1/2+1"
+
+
+class TestFitUnits:
+    @pytest.mark.parametrize(
+        "units, beat_count, values",
+        [
+            ([F(1)], 4, [F(1)] * 4),
+            ([F(2), F(3)], 2, [F(2), F(3)]),
+            ([F(2), F(3)], 4, [F(2), F(3), F(2), F(3)]),
+            ([F(2), F(3)], 3, [F(2), F(3), F(2)]),
+            ([F(3), F(2)], 1, [F(3)]),
+            ([F(2), F(2), F(3)], 2, [F(2), F(2)]),
+            ([F(1), F(2), F(3)], 2, [F(1), F(2)]),
+            ([F(1)], 0, []),
+        ],
+    )
+    def test_fit(self, units, beat_count, values):
+        assert fit_units(units, beat_count) == values
+
+    @pytest.mark.parametrize(
+        "units, beat_count, ambiguous",
+        [
+            ([F(1)], 3, False),
+            ([F(3)], 1, False),
+            ([F(1, 2)], 3, False),
+            ([F(2), F(3)], 2, False),
+            ([F(2), F(3)], 4, False),
+            ([F(2), F(3)], 1, True),
+            ([F(2), F(3)], 3, True),
+            ([F(2), F(2)], 3, False),
+        ],
+    )
+    def test_ambiguous(self, units, beat_count, ambiguous):
+        assert is_fit_ambiguous(units, beat_count) == ambiguous
+
+
+def make_meter(**fields):
+    values = dict(
+        denominator=4,
+        units=(F(1),),
+        beat_values=(F(1), F(1)),
+        beat_unit_id=None,
+        starts_here=True,
+        is_ambiguous=False,
+        is_conflicting=False,
+        is_assumed=True,
+    )
+    return MeasureMeter(**(values | fields))
+
+
+class TestMeasureMeter:
+    def test_built_from_lists_it_holds_tuples(self):
+        from_lists = make_meter(units=[F(1)], beat_values=[F(1), F(1)])
+
+        assert from_lists.units == (F(1),)
+        assert from_lists.beat_values == (F(1), F(1))
+        assert hash(from_lists) == hash(make_meter())
+        assert from_lists == make_meter()
+
+    def test_quarter_length_reads_no_text(self):
+        with pytest.raises(TypeError):
+            make_meter().quarter_length("1/2")
+
+
+def add_beats(beat_tl, count, start=0):
+    for i in range(count):
+        beat_tl.create_beat(start + i)
+
+
+def time_signatures(beat_tl):
+    return [(m.numerator, m.denominator) for m in beat_tl.measure_meters]
+
+
+def add_beat_unit(beat_tl, beat_index, denominator, units):
+    # The first beat always has a beat unit, which this edits.
+    beat_id = beat_tl[beat_index].id
+    beat_tl.put_beat_unit_on_beat(beat_id, denominator, units)
+    return beat_tl.get_beat_unit_on_beat(beat_id)
+
+
+def first_beat_unit(beat_tl):
+    return beat_tl.get_beat_unit_on_beat(beat_tl[0].id)
+
+
+def beat_unit_values(beat_tl):
+    return [
+        (
+            beat_tl.get_beat_index(beat_tl.get_component(u.beat_id)),
+            u.denominator,
+            u.units,
+        )
+        for u in beat_tl.beat_units
+    ]
+
+
+class TestMeasureMeters:
+    def test_first_beat_gets_the_default_beat_unit(self, beat_tl):
+        add_beats(beat_tl, 7)
+
+        assert time_signatures(beat_tl) == [(4, 4), (3, 4)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        first = first_beat_unit(beat_tl)
+        assert [m.beat_unit_id for m in beat_tl.measure_meters] == [first.beat_id] * 2
+        assert [m.starts_here for m in beat_tl.measure_meters] == [True, False]
+
+    def test_empty_timeline(self, beat_tl):
+        assert beat_tl.measure_meters == []
+
+    def test_beat_unit_applies_until_next_change(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 8)
+        beat_unit = add_beat_unit(beat_tl, 2, 8, "3")
+
+        assert time_signatures(beat_tl) == [(2, 4), (6, 8), (6, 8), (6, 8)]
+        meters = beat_tl.measure_meters
+        assert [m.starts_here for m in meters] == [True, True, False, False]
+        first = first_beat_unit(beat_tl)
+        assert [m.beat_unit_id for m in meters] == [first.beat_id] + [
+            beat_unit.beat_id
+        ] * 3
+
+    def test_beat_unit_on_a_later_beat_applies_from_its_measure(self, beat_tl):
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 6, 8, "1")
+
+        assert time_signatures(beat_tl) == [(4, 4), (4, 8)]
+
+    def test_numerator_follows_bar_length(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [5, 7, 3])
+        add_beats(beat_tl, 15)
+        add_beat_unit(beat_tl, 0, 8, "1")
+
+        assert time_signatures(beat_tl) == [(5, 8), (7, 8), (3, 8)]
+
+    def test_fractional_units(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [4, 3])
+        add_beats(beat_tl, 7)
+        add_beat_unit(beat_tl, 0, 2, "1/2")
+
+        assert time_signatures(beat_tl) == [(2, 2), (F(3, 2), 2)]
+
+    def test_ambiguous_fit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2, 3])
+        add_beats(beat_tl, 5)
+        add_beat_unit(beat_tl, 0, 4, "2+3")
+
+        meters = beat_tl.measure_meters
+        assert [m.beat_values for m in meters] == [(2, 3), (2, 3, 2)]
+        assert [m.is_ambiguous for m in meters] == [False, True]
+
+    def test_short_measures_take_the_start_of_the_pattern(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+        add_beat_unit(beat_tl, 0, 4, "1+2+3")
+
+        meters = beat_tl.measure_meters
+        assert [m.beat_values for m in meters] == [(1, 2)] * 3
+        assert all(m.is_ambiguous for m in meters)
+
+    def test_a_shorter_measure_takes_the_start_of_the_units(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [1, 2])
+        add_beats(beat_tl, 3)
+        add_beat_unit(beat_tl, 0, 4, "3+2")
+
+        assert beat_tl.get_measure_meter(0).beat_values == (3,)
+        assert beat_tl.get_measure_meter(1).beat_values == (3, 2)
+
+    def test_two_beat_units_in_a_measure_first_wins(self, beat_tl):
+        add_beats(beat_tl, 8)
+        first = add_beat_unit(beat_tl, 4, 8, "1")
+        add_beat_unit(beat_tl, 6, 2, "1")
+
+        meter = beat_tl.get_measure_meter(1)
+        assert meter.is_conflicting
+        assert meter.beat_unit_id == first.beat_id
+        assert meter.denominator == 8
+
+    def test_inserted_beats_keep_each_measures_length_and_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+        add_beat_unit(beat_tl, 4, 8, "3")
+        assert time_signatures(beat_tl) == [(2, 4), (2, 4), (6, 8)]
+
+        # A forgotten bar's beats go in the first measure, which keeps its
+        # two beats, so the barlines after them move. The beat unit moves
+        # with the third measure, and the beats left over make a fourth.
+        beat_tl.create_beat(0.25)
+        beat_tl.create_beat(0.5)
+
+        assert time_signatures(beat_tl) == [(2, 4), (2, 4), (6, 8), (6, 8)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (4, 8, "3")]
+
+    def test_remeasuring_keeps_each_measures_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 4, 8, "3")
+
+        # The measures after the first keep their beat counts, so their first
+        # beats move, and each beat unit moves with its measure.
+        beat_tl.set_beat_amount_in_measure(0, 3)
+
+        assert beat_tl.beats_in_measure == [3, 2, 2, 1]
+        assert time_signatures(beat_tl) == [(3, 4), (2, 4), (6, 8), (3, 8)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (5, 8, "3")]
+
+    def test_meters_can_be_hashed(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+
+        first, second, third = beat_tl.measure_meters
+
+        # The last two are both 2/4 under the first measure's beat unit.
+        assert hash(second) == hash(third)
+        assert set(beat_tl.measure_meters) == {first, second}
+
+    @pytest.mark.parametrize("beat_value", [1, F(1)])
+    def test_quarter_length_is_exact(self, beat_tl, beat_value):
+        add_beats(beat_tl, 3)
+        add_beat_unit(beat_tl, 0, 6, "1")
+
+        length = beat_tl.get_measure_meter(0).quarter_length(beat_value)
+
+        assert isinstance(length, F)
+        assert length == F(2, 3)
+
+    def test_cache_is_refreshed_when_units_change(self, beat_tl):
+        add_beats(beat_tl, 4)
+        beat_unit = add_beat_unit(beat_tl, 0, 4, "1")
+        assert time_signatures(beat_tl) == [(4, 4)]
+
+        beat_tl.set_component_data(beat_unit.id, "units", "1/2")
+
+        assert time_signatures(beat_tl) == [(2, 4)]
+
+
+class TestCreateBeatUnit:
+    def test_on_missing_beat_fails(self, beat_tl):
+        add_beats(beat_tl, 1)
+        beat_unit, error = beat_tl.create_component(
+            ComponentKind.BEAT_UNIT, beat_id=-1, denominator=4, units="1"
+        )
+        assert beat_unit is None
+        assert error
+
+    def test_two_on_the_same_beat_fails(self, beat_tl):
+        add_beats(beat_tl, 1)
+        # The first beat already has one.
+        beat_unit, error = beat_tl.create_component(
+            ComponentKind.BEAT_UNIT, beat_id=beat_tl[0].id, denominator=8, units="1"
+        )
+        assert beat_unit is None
+        assert error
+
+    @pytest.mark.parametrize(
+        "denominator, units",
+        [(0, "1"), (MAX_DENOMINATOR + 1, "1"), (4, "0"), (4, "a"), (4, "1/129")],
+    )
+    def test_invalid_values_fail(self, beat_tl, denominator, units):
+        add_beats(beat_tl, 2)
+        beat_unit, error = beat_tl.create_component(
+            ComponentKind.BEAT_UNIT,
+            beat_id=beat_tl[1].id,
+            denominator=denominator,
+            units=units,
+        )
+        assert beat_unit is None
+        assert error
+
+    def test_units_are_stored_canonically(self, beat_tl):
+        add_beats(beat_tl, 1)
+        beat_unit = add_beat_unit(beat_tl, 0, 4, " 2/4 + 1 ")
+        assert beat_unit.units == "1/2+1"
+        beat_tl.set_component_data(beat_unit.id, "units", "3 + 2")
+        assert beat_unit.units == "3+2"
+
+    def test_beat_units_do_not_count_as_beats(self, beat_tl):
+        add_beats(beat_tl, 4)
+        add_beat_unit(beat_tl, 0, 8, "1")
+
+        assert len(beat_tl) == 4
+        assert all(c.KIND == ComponentKind.BEAT for c in beat_tl)
+        assert beat_tl.beats_in_measure == [4]
+
+
+class TestFirstBeatUnit:
+    def test_none_without_beats(self, beat_tl):
+        assert beat_tl.beat_units == []
+
+    def test_a_beat_before_the_first_takes_over_its_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 4, start=1)
+        add_beat_unit(beat_tl, 0, 8, "3")
+
+        # It starts the first measure, which keeps its two beats.
+        beat_tl.create_beat(0)
+
+        assert beat_tl.beats_in_measure == [2, 2, 1]
+        assert beat_unit_values(beat_tl) == [(0, 8, "3")]
+
+    def test_measure_zero_copies_the_next_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 4, start=1)
+        add_beat_unit(beat_tl, 0, 8, "3")
+
+        # A measure of its own before the first, as a score's measure 0 adds.
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
+
+        assert beat_tl.beats_in_measure == [1, 2, 2]
+        assert beat_unit_values(beat_tl) == [(0, 8, "3"), (1, 8, "3")]
+
+    def test_deleting_the_first_beat_keeps_the_values(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [1])
+        add_beats(beat_tl, 3)
+        add_beat_unit(beat_tl, 0, 8, "3")
+
+        beat_tl.delete_components([beat_tl[0]])
+
+        assert beat_unit_values(beat_tl) == [(0, 8, "3")]
+
+
+class TestSetTimeSignature:
+    @staticmethod
+    def set_onward(beat_tl, measure_index, text):
+        stop = beat_tl.get_alike_measures_end(measure_index)
+        return beat_tl.set_time_signature(text, measure_index, stop)
+
+    @staticmethod
+    def set_measure(beat_tl, measure_index, text):
+        return beat_tl.set_time_signature(text, measure_index, measure_index + 1)
+
+    def test_onward_creates_on_the_first_beat(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+
+        assert self.set_onward(beat_tl, 1, "6/8") == ""
+
+        assert time_signatures(beat_tl) == [(2, 4), (6, 8), (6, 8)]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (2, 8, "3")]
+
+    def test_onward_edits_in_place(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+        self.set_onward(beat_tl, 1, "6/8")
+
+        self.set_onward(beat_tl, 1, "1/4")
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (2, 4, "1/2")]
+        assert time_signatures(beat_tl) == [(2, 4), (1, 4), (1, 4)]
+
+    def test_onward_from_a_later_measure_splits(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 8)
+        self.set_onward(beat_tl, 1, "6/8")
+
+        self.set_onward(beat_tl, 2, "2/4")
+
+        assert time_signatures(beat_tl) == [(2, 4), (6, 8), (2, 4), (2, 4)]
+
+    def test_this_measure_only(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 8)
+        self.set_onward(beat_tl, 1, "6/8")
+
+        self.set_measure(beat_tl, 2, "2/4")
+
+        assert time_signatures(beat_tl) == [(2, 4), (6, 8), (2, 4), (6, 8)]
+
+    def test_this_measure_only_restores_the_default(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+
+        self.set_measure(beat_tl, 0, "6/8")
+
+        assert time_signatures(beat_tl) == [(6, 8), (2, 4), (2, 4)]
+
+    def test_this_measure_only_keeps_a_following_change(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+        self.set_onward(beat_tl, 1, "2/2")
+
+        self.set_measure(beat_tl, 0, "6/8")
+
+        assert time_signatures(beat_tl) == [(6, 8), (2, 2), (2, 2)]
+        assert len(beat_tl.beat_units) == 2
+
+    def test_this_measure_only_on_the_last_measure(self, beat_tl):
+        add_beats(beat_tl, 4)
+
+        self.set_measure(beat_tl, 0, "4/8")
+
+        assert time_signatures(beat_tl) == [(4, 8)]
+        assert len(beat_tl.beat_units) == 1
+
+    @pytest.mark.parametrize(
+        "start, stop, text",
+        [
+            (5, 6, "4/4"),
+            (-1, 0, "4/4"),
+            (0, 1, "4/0"),
+            (0, 1, f"4/{MAX_DENOMINATOR + 1}"),
+            (0, 1, "4/4(1 1 1 1 1)"),
+        ],
+    )
+    def test_invalid(self, beat_tl, start, stop, text):
+        add_beats(beat_tl, 4)
+
+        assert beat_tl.set_time_signature(text, start, stop) != ""
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+
+    def test_replaces_every_beat_unit_in_a_measure(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 6)
+        add_beat_unit(beat_tl, 2, 8, "3")
+        # A second one in the same measure, which governs the measures after.
+        add_beat_unit(beat_tl, 3, 4, "1/2")
+        assert beat_tl.get_measure_meter(1).is_conflicting
+
+        assert beat_tl.set_time_signature("2/4", 0, 3) == ""
+
+        assert time_signatures(beat_tl) == [(2, 4)] * 3
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+
+
+class TestDeletingBeats:
+    def test_beat_unit_moves_to_another_beat_of_its_measure(self, beat_tl):
+        add_beats(beat_tl, 8)
+        beat_unit = add_beat_unit(beat_tl, 4, 8, "1")
+
+        beat_tl.delete_components([beat_tl[4]])
+
+        assert beat_unit.beat_id == beat_tl[4].id
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (4, 8, "1")]
+
+    def test_beat_unit_moves_to_the_next_measure_when_its_measure_goes(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [1])
+        add_beats(beat_tl, 3)
+        add_beat_unit(beat_tl, 1, 8, "1")
+
+        beat_tl.delete_components([beat_tl[1]])
+
+        # The measures it governed keep it.
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (1, 8, "1")]
+        assert time_signatures(beat_tl) == [(1, 4), (1, 8)]
+
+    def test_beat_unit_is_dropped_with_the_last_measure(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [1])
+        add_beats(beat_tl, 3)
+        add_beat_unit(beat_tl, 2, 8, "1")
+
+        beat_tl.delete_components([beat_tl[2]])
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+
+    def test_beat_unit_is_dropped_if_the_destination_has_one(self, beat_tl):
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 4, 8, "1")
+        kept = add_beat_unit(beat_tl, 5, 2, "1")
+
+        beat_tl.delete_components([beat_tl[4]])
+
+        assert beat_tl.beat_units == [first_beat_unit(beat_tl), kept]
+
+    def test_deleting_a_beat_unit(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 4)
+        beat_unit = add_beat_unit(beat_tl, 2, 8, "1")
+
+        beat_tl.delete_components([beat_unit])
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert len(beat_tl) == 4
+        assert time_signatures(beat_tl) == [(2, 4), (2, 4)]
+
+    def test_deleting_the_first_beat_unit_resets_it(self, beat_tl):
+        add_beats(beat_tl, 4)
+        beat_unit = add_beat_unit(beat_tl, 0, 8, "1")
+
+        beat_tl.delete_components([beat_unit])
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert time_signatures(beat_tl) == [(4, 4)]
+
+    def test_clear_removes_beat_units(self, beat_tl):
+        add_beats(beat_tl, 4)
+        add_beat_unit(beat_tl, 0, 8, "1")
+
+        beat_tl.clear()
+
+        assert beat_tl.beat_units == []
+        assert len(beat_tl) == 0
+
+
+class TestState:
+    def test_restore_state(self, beat_tl):
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 4, 8, "3")
+        state = beat_tl.get_state()["components"]
+
+        beat_tl.delete_components([beat_tl[4], beat_tl[5], beat_tl[6], beat_tl[7]])
+        add_beat_unit(beat_tl, 0, 2, "1")
+        assert beat_unit_values(beat_tl) == [(0, 2, "1")]
+
+        beat_tl.component_manager.restore_state(state)
+
+        assert len(beat_tl) == 8
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (4, 8, "3")]
+        assert time_signatures(beat_tl) == [(4, 4), (12, 8)]
+
+    def test_serialized_components_include_beat_units(self, beat_tl):
+        add_beats(beat_tl, 4)
+        beat_unit = add_beat_unit(beat_tl, 0, 8, "2+2")
+
+        components = beat_tl.get_state()["components"]
+
+        assert components[beat_unit.id] == {
+            "beat_id": beat_tl[0].id,
+            "denominator": 8,
+            "units": "2+2",
+            "assumed": False,
+            "kind": "BEAT_UNIT",
+            "hash": beat_unit.hash,
+        }
+
+    def test_duplicate_keeps_beat_units_on_its_own_beats(
+        self, beat_tl, tls, tilia_errors
+    ):
+        add_beats(beat_tl, 8)
+        add_beat_unit(beat_tl, 4, 8, "3")
+
+        duplicate = tls.duplicate_timeline(beat_tl, "copy")
+
+        tilia_errors.assert_no_error()
+        beat_ids = {beat.id for beat in duplicate}
+        assert all(u.beat_id in beat_ids for u in duplicate.beat_units)
+        assert beat_unit_values(duplicate) == [(0, 4, "1"), (4, 8, "3")]
+        assert [u.assumed for u in duplicate.beat_units] == [True, False]
+
+    def test_hash_changes_with_beat_units(self, beat_tl):
+        add_beats(beat_tl, 4)
+        before = beat_tl.component_manager.hash_components()
+
+        add_beat_unit(beat_tl, 0, 8, "1")
+
+        assert beat_tl.component_manager.hash_components() != before
+
+    def test_hash_does_not_depend_on_creation_order(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [2])
+        add_beats(beat_tl, 4)
+        add_beat_unit(beat_tl, 2, 8, "3")
+        before = beat_tl.component_manager.hash_components()
+
+        # Recreated with the same default values, but after the other one.
+        beat_tl.delete_components([first_beat_unit(beat_tl)])
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (2, 8, "3")]
+
+        assert beat_tl.component_manager.hash_components() == before

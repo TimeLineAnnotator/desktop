@@ -167,3 +167,24 @@ def patch_ask_for_string_dialog(success: bool | list[bool], string: str | list[s
     return_values = list(zip(string, success, strict=True))
     with patch.object(QInputDialog, "getText", side_effect=return_values):
         yield
+
+
+@contextmanager
+def patch_ask_for_int_dialog(success: bool | list[bool], number: int | list[int]):
+    """Patches QInputDialog.getInt to return the specified success values and numbers.
+
+    Args:
+        success: Whether the dialog was successful. If a list, the success value for each iteration.
+        number: Number input by user. If a list of numbers, the input values for each iteration.
+    """
+
+    if not isinstance(success, list):
+        success = [success]
+        if not isinstance(number, list):
+            number = [number]
+        else:
+            raise ValueError("number must be an int if success is a bool.")
+
+    return_values = list(zip(number, success, strict=True))
+    with patch.object(QInputDialog, "getInt", side_effect=return_values):
+        yield

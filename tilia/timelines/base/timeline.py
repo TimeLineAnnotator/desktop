@@ -274,6 +274,17 @@ class Timeline(ABC, Generic[TC]):
     def deserialize_components(self, components: dict[int, dict[str]]):
         return self.component_manager.deserialize_components(components)
 
+    @staticmethod
+    def update_component_references(
+        components: dict[int | str, dict[str, Any]],
+        new_ids: dict[int | str, int | str],
+    ) -> None:
+        """
+        Points serialized components that refer to other components by id
+        to the ids those components get in `new_ids`, for a copy of the
+        timeline whose components get fresh ids.
+        """
+
     def _get_base_state(self) -> dict:
         """Returns a dict with serializable timeline attributes, excluding components."""
         state = {"kind": self.type_name()}
@@ -284,8 +295,6 @@ class Timeline(ABC, Generic[TC]):
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
             state[attr] = value
-            string_to_hash += str(value) + "|"
-
             string_to_hash += str(value) + "|"
         state["hash"] = hash_function(f"{state['kind']}|{string_to_hash}")
 

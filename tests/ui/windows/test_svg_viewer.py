@@ -157,7 +157,7 @@ def scored_beat_tl(beat_tl):
     beat_tl.beat_pattern = [1]
     for i in range(3):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.set_measure_numbers([0, 1, 2])
     beat_tl.recalculate_measures()
     return beat_tl
 

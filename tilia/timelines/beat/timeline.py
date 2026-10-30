@@ -2,132 +2,273 @@ from __future__ import annotations
 
 import itertools
 import math
-from bisect import bisect
-from collections.abc import Iterator
+from bisect import bisect, bisect_left
+from collections import Counter
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from enum import Enum
+from fractions import Fraction
 from math import isclose
 from typing import Any, cast
 
 import tilia.errors
+from tilia.log import logger
 from tilia.requests import Get, LongOperation, Post, get, long_operation, post
 from tilia.settings import settings
-from tilia.timelines.base.component.pointlike import crop_pointlike
+from tilia.timelines import serialize
+from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import (
     TC,
     Timeline,
     TimelineComponentManager,
     TimelineFlag,
 )
-from tilia.timelines.beat.components import Beat
-from tilia.timelines.beat.validators import validate_integer_list
+from tilia.timelines.base.validators import validate_bool
+from tilia.timelines.beat.components import Beat, BeatUnit
+from tilia.timelines.beat.measures import (
+    Measures,
+    build_measures,
+    fit_legacy_lists,
+    get_extension_from_beat_pattern,
+)
+from tilia.timelines.beat.pattern import (
+    PlannedBar,
+    format_taps,
+    format_time_signature,
+    parse,
+    parse_time_signature,
+    parse_time_signature_of_tapped_bar,
+)
+from tilia.timelines.beat.units import (
+    DEFAULT_DENOMINATOR,
+    DEFAULT_UNITS,
+    MeasureMeter,
+    fit_units,
+    format_units,
+    is_fit_ambiguous,
+    parse_units,
+)
+from tilia.timelines.beat.validators import validate_beat_pattern
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hash_timelines import hash_function
+
+DEFAULT_BEAT_PATTERN = "4"
+
+
+@dataclass(frozen=True)
+class TimeStampTable:
+    """
+    Per beat: its time, its quarter stamp and how many seconds a quarter note
+    lasts from it to the next beat, for converting between the two.
+    """
+
+    times: list[float]
+    stamps: list[float]
+    seconds_per_quarter: list[float]
+
+
+class _BeatTimes:
+    """
+    Whether a beat is at a time, found by bisection in the beats, which are
+    kept in time order, rather than by building a set of every time.
+    """
+
+    def __init__(self, beats: list[Beat]) -> None:
+        self._beats = beats
+
+    def __contains__(self, time: float) -> bool:
+        index = bisect_left(self._beats, time, key=lambda beat: beat.time)
+        return index < len(self._beats) and self._beats[index].time == time
 
 
 class BeatTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: BeatTimeline):
-        super().__init__(timeline, [ComponentKind.BEAT])
+        super().__init__(timeline, [ComponentKind.BEAT, ComponentKind.BEAT_UNIT])
         self.timeline = cast(BeatTimeline, self.timeline)
-        self.compute_is_first_in_measure = True
-        self.compute_metric_fraction_dict = True
+        # Beat units are kept apart from beats, so everything that treats the
+        # timeline's components as its beats (len, indexing, iteration) keeps
+        # doing so.
+        self._beat_units: list[BeatUnit] = []
+        self._beat_unit_by_beat_id: dict[int | str, BeatUnit] = {}
+        # Set while undo/redo rebuilds components from a snapshot, which
+        # already says which beats start measures and where beat units are.
+        self.is_restoring = False
+        # Set while beats are changed in bulk (loading, filling, cropping).
+        # A beat created then is not placed in a measure by the rules for a
+        # single beat, and the UI relabels the beats once at the end.
+        self.is_bulk = False
+        # Bumped on every change to beats or beat units. Caches built from
+        # them (the measures, quarter stamps, the time/stamp table) rebuild
+        # when it moves, so a change can't leave them stale by missing an
+        # invalidation.
+        self.version = 0
+
+    def bump_version(self) -> None:
+        self.version += 1
 
     @contextmanager
-    def suppressing_is_first_in_measure(self) -> Iterator[bool]:
+    def bulk(self) -> Iterator[bool]:
         """
-        Suppress per-beat measure recomputation for the duration of the block.
-
-        Yields the value the flag had on entry, so a caller can tell whether it
-        owns the recomputation or an outer block will do it once at the end.
-        Restoring that value rather than a literal True is what keeps nested
-        blocks correct; the try/finally keeps a raising body from leaving the
-        flag off for the rest of the timeline's life, which would silently stop
-        every beat created afterwards from getting any measure data.
+        Marks the block as a bulk change (see `is_bulk`). Yields the value
+        the flag had on entry, so a caller can tell whether it owns the final
+        refresh or an outer block will do it. The flag is restored even when
+        the body raises.
         """
-        was_computing = self.compute_is_first_in_measure
-        self.compute_is_first_in_measure = False
+        was_bulk = self.is_bulk
+        self.is_bulk = True
         try:
-            yield was_computing
+            yield was_bulk
         finally:
-            self.compute_is_first_in_measure = was_computing
+            self.is_bulk = was_bulk
 
     @property
-    def beat_times(self):
-        return {b.time for b in self._components}
+    def beat_units(self) -> list[BeatUnit]:
+        return list(self._beat_units)
 
-    def update_is_first_in_measure_of_subsequent_beats(self, start_index):
-        self.compute_metric_fraction_dict = False
-        beats_that_start_measure = set(self.timeline.beats_that_start_measures)
-        for i, beat in enumerate(self.timeline[start_index:]):
-            is_first_in_measure = start_index + i in beats_that_start_measure
-            if is_first_in_measure != beat.is_first_in_measure:
-                self.timeline.set_component_data(
-                    beat.id,
-                    "is_first_in_measure",
-                    is_first_in_measure,
-                )
+    def get_beat_unit_on_beat(self, beat_id: int) -> BeatUnit | None:
+        return self._beat_unit_by_beat_id.get(beat_id)
 
-        self.compute_metric_fraction_dict = True
-        self.timeline.update_metric_fraction_dicts()
+    def _add_to_components(self, component: TC) -> None:
+        if component.KIND == ComponentKind.BEAT_UNIT:
+            self._beat_units.append(component)
+            self._beat_unit_by_beat_id[component.beat_id] = component
+            self.id_to_component[component.id] = component
+        else:
+            super()._add_to_components(component)
+
+    def _remove_from_components_set(self, component: TC) -> None:
+        if component.KIND == ComponentKind.BEAT_UNIT:
+            self._beat_units.remove(component)
+            if self._beat_unit_by_beat_id.get(component.beat_id) is component:
+                del self._beat_unit_by_beat_id[component.beat_id]
+            self.id_to_component.pop(component.id)
+        else:
+            super()._remove_from_components_set(component)
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
-        success, beat, reason = super().create_component(
+        success, component, reason = super().create_component(
             kind, timeline, id, *args, **kwargs
         )
-
         if success:
-            if self.compute_is_first_in_measure:
-                self.timeline.recalculate_measures()
-                beat.is_first_in_measure = self.timeline.is_first_in_measure(beat)
-                beat_index = self.get_components().index(beat) + 1
-                self.update_is_first_in_measure_of_subsequent_beats(beat_index)
-                measure_index = self.timeline.get_measure_index(beat_index)[0]
-                post(
-                    Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
-                    self.timeline.id,
-                    measure_index - 1,
-                )
-
-        return success, beat, reason
+            self.bump_version()
+        return success, component, reason
 
     def _validate_component_creation(
         self,
-        _: ComponentKind,
-        time: float,
+        kind: ComponentKind,
         *args,
         **kwargs,
     ):
-        return Beat.validate_creation(time, self.beat_times)
+        if kind == ComponentKind.BEAT_UNIT:
+            return BeatUnit.validate_creation(
+                *args,
+                beat_ids=self._get_beat_ids(),
+                taken_beat_ids=self._beat_unit_by_beat_id,
+                **kwargs,
+            )
+        time = args[0] if args else kwargs["time"]
+        return Beat.validate_creation(time, _BeatTimes(self._components))
+
+    def _get_beat_ids(self) -> set[int | str]:
+        return {
+            id
+            for id, component in self.id_to_component.items()
+            if component.KIND == ComponentKind.BEAT
+        }
+
+    def move_measure_start(self, beat: Beat, destination: Beat) -> None:
+        """
+        Moves the start of the measure that `beat` starts to `destination`,
+        with its number, its display and its beat unit.
+        """
+        for attr in ("measure_number_override", "measure_number_always_shown"):
+            value = getattr(beat, attr)
+            if value != getattr(destination, attr):
+                self.set_component_data(destination.id, attr, value)
+        if not destination.is_first_in_measure:
+            self.set_component_data(destination.id, "is_first_in_measure", True)
+        if beat.is_first_in_measure:
+            self.set_component_data(beat.id, "is_first_in_measure", False)
+        if beat.measure_number_override is not None:
+            self.set_component_data(beat.id, "measure_number_override", None)
+        if beat.measure_number_always_shown:
+            self.set_component_data(beat.id, "measure_number_always_shown", False)
+
+        beat_unit = self.get_beat_unit_on_beat(beat.id)
+        if beat_unit is None:
+            return
+        if self.get_beat_unit_on_beat(destination.id):
+            self.delete_component(beat_unit)
+        else:
+            self.set_component_data(beat_unit.id, "beat_id", destination.id)
+
+    def _on_beat_deleted(self, beat: Beat) -> None:
+        """
+        Keeps the other beats' measures as they are. A deleted beat that
+        starts a measure hands the measure to the beat after it; if it was
+        the measure's only beat, the measure goes, and its beat unit moves to
+        the next measure, so the measures it governed keep it. A beat unit on
+        a beat that doesn't start a measure moves to the first beat of the
+        measure. Outside bulk changes, `BeatTimeline.delete_components` then
+        gives the measures back their lengths.
+        """
+        beats = self._components
+        index = beats.index(beat)
+        next_beat = beats[index + 1] if index + 1 < len(beats) else None
+        starts_measure = index == 0 or beat.is_first_in_measure
+        if starts_measure and next_beat and not next_beat.is_first_in_measure:
+            self.move_measure_start(beat, next_beat)
+            return
+
+        beat_unit = self.get_beat_unit_on_beat(beat.id)
+        if beat_unit is None:
+            return
+        if starts_measure:
+            destination = next_beat
+        else:
+            measures = self.timeline.measures
+            destination = beats[measures.starts[measures.measure_of_beat[index]]]
+        if destination is None or self.get_beat_unit_on_beat(destination.id):
+            self.delete_component(beat_unit)
+        else:
+            self.set_component_data(beat_unit.id, "beat_id", destination.id)
 
     def delete_component(self, component: TC) -> None:
-        component_idx = self.get_components().index(component)
+        if component.KIND == ComponentKind.BEAT_UNIT:
+            super().delete_component(component)
+            self.bump_version()
+            return
+
+        if not self.is_restoring:
+            self._on_beat_deleted(component)
+
         super().delete_component(component)
-        if self.compute_is_first_in_measure:
-            self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
+        self.bump_version()
 
     def set_component_data(self, id: int, attr: str, value: Any):
+        component = self.get_component(id)
+        old_beat_id = getattr(component, "beat_id", None)
         value, success = super().set_component_data(id, attr, value)
-        if success and self.compute_metric_fraction_dict:
-            self.timeline.update_metric_fraction_dicts()
+        if success:
+            self.bump_version()
+        if success and component.KIND == ComponentKind.BEAT_UNIT:
+            if self._beat_unit_by_beat_id.get(old_beat_id) is component:
+                del self._beat_unit_by_beat_id[old_beat_id]
+            self._beat_unit_by_beat_id[component.beat_id] = component
         return value, success
 
     def update_component_order(self, component: TC):
         super().update_component_order(component)
-        for component in self:
-            self.update_component_is_first_in_measure(component)
+        if not self.is_restoring and not self.is_bulk:
+            self.timeline.ensure_first_beat_starts_measure()
 
-    def update_component_is_first_in_measure(self, component):
-        component.is_first_in_measure = self.timeline.is_first_in_measure(component)
-
-    def get_beats_in_measure(self, measure_index: int) -> list[Beat] | None:
-        if self.timeline is None:
-            raise ValueError("self.timeline is None.")
-
-        beats = self.get_components().copy()
-        measure_start = self.timeline.beats_that_start_measures[measure_index]
-        measure_end = self.timeline.beats_that_start_measures[measure_index + 1]
-        return beats[measure_start:measure_end]
+    def get_beats_in_measure(self, measure_index: int) -> list[Beat]:
+        measures = self.timeline.measures
+        start = measures.starts[measure_index]
+        return self._components[start : start + measures.counts[measure_index]]
 
     def distribute_beats(self, measure_index: int) -> None:
         if self.timeline is None:
@@ -150,70 +291,126 @@ class BeatTLComponentManager(TimelineComponentManager):
             )
 
     def scale(self, factor: float) -> None:
-        # Order, indices, and metric positions are unaffected by uniform
-        # positive scaling, so the only stale state is the time-keyed
-        # metric_fraction dicts. Skip per-beat side-effects of calling
-        # set_component_data and rebuild once.
+        # Order and measures are unaffected by uniform positive scaling, so
+        # the per-beat side effects of set_component_data are skipped.
         for beat in self._components:
             beat.time *= factor
             beat.update_hash()
-        self.timeline.update_metric_fraction_dicts()
+        # Times were written directly, so nothing else bumps the version.
+        self.bump_version()
 
     def crop(self, length: float) -> None:
-        self.compute_is_first_in_measure = False
-        crop_pointlike(self, length)
-        self.compute_is_first_in_measure = True
+        # From the last beat back, so a deleted beat that starts a measure
+        # never hands it to a beat that is about to go too.
+        with self.bulk() as was_bulk:
+            for beat in reversed(self._components.copy()):
+                if beat.time > length:
+                    self.delete_component(beat)
+
+        if not was_bulk:
+            self.timeline.refresh_measures()
 
     def clear(self):
-        self.compute_is_first_in_measure = False
-        for component in self._components.copy():
-            self.delete_component(component)
-        self.compute_is_first_in_measure = True
+        with self.bulk() as was_bulk:
+            for beat_unit in self._beat_units.copy():
+                self.delete_component(beat_unit)
+            for component in reversed(self._components.copy()):
+                self.delete_component(component)
+
+        if not was_bulk:
+            self.timeline.refresh_measures()
+
+    def _get_beats_and_beat_units(self) -> list[TC]:
+        # Beat units in the order of their beats, not of creation, so equal
+        # states hash and serialize alike however they were reached.
+        return self._components + self.timeline.beat_units
+
+    def hash_components(self) -> str:
+        str_to_hash = ""
+        for component in self._get_beats_and_beat_units():
+            str_to_hash += component.hash + "|"
+
+        return hash_function(str_to_hash)
+
+    def serialize_components(self) -> dict[int | str, dict[str, Any]]:
+        return serialize.serialize_components(self._get_beats_and_beat_units())
+
+    @staticmethod
+    def _split_beat_units(
+        serialized_components: dict[int | str, dict[str, Any]],
+    ) -> tuple[dict, dict]:
+        beats, beat_units = {}, {}
+        for id, data in serialized_components.items():
+            if data["kind"] == ComponentKind.BEAT_UNIT.name:
+                beat_units[id] = data
+            else:
+                beats[id] = data
+        return beats, beat_units
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
-        # Storing these attributes so we can restore them below.
-        beats_in_measure = self.timeline.beats_in_measure.copy()
-        measure_numbers = self.timeline.measure_numbers.copy()
-        measures_to_force_display = self.timeline.measures_to_force_display.copy()
+        beats, beat_units = self._split_beat_units(serialized_components)
+        # Files from before measures were marked on their beats keep them in
+        # lists by measure, which the timeline was given when it was created.
+        is_legacy = any("is_first_in_measure" not in data for data in beats.values())
+        with self.bulk():
+            # Beat units refer to beats, so they are created once all beats are.
+            super().deserialize_components(beats)
+            if is_legacy:
+                self.timeline.mark_measures_from_legacy_lists()
+            super().deserialize_components(beat_units)
 
-        self.compute_is_first_in_measure = False
-
-        # This call will change the attributes above.
-        super().deserialize_components(serialized_components)
-
-        # But we restore them here.
-        self.timeline.set_data("measure_numbers", measure_numbers)
-        self.timeline.set_data("beats_in_measure", beats_in_measure)
-        self.timeline.set_data("measures_to_force_display", measures_to_force_display)
-
-        self.compute_is_first_in_measure = True
-
-        self.timeline.recalculate_measures()
-        # Files saved by earlier versions can hold duplicate or out-of-range
-        # indices.
-        self.timeline.measures_to_force_display = [
-            i
-            for i in dict.fromkeys(self.timeline.measures_to_force_display)
-            if 0 <= i < self.timeline.measure_count
-        ]
+        self.timeline.refresh_measures()
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
-        self.timeline.clear_cached_metric_positions()
-        self.compute_is_first_in_measure = False
-        super().restore_state(prev_state)
-        self.compute_is_first_in_measure = True
-        self.timeline.recalculate_measures()
-        self.update_is_first_in_measure_of_subsequent_beats(0)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.timeline.id, 0)
+        """
+        Restores beats and beat units by id: those the snapshot lacks are
+        deleted, those it adds are created, and those both have get the
+        snapshot's values. Remeasuring changes many beats' measure data, so
+        they are edited rather than recreated.
+        """
+        beats, beat_units = self._split_beat_units(prev_state)
+        with self.bulk():
+            self.is_restoring = True
+            try:
+                # Beat units go first, so no beat deletion below moves them.
+                for beat_unit in self._beat_units.copy():
+                    data = beat_units.get(beat_unit.id)
+                    if data is None or data.get("hash") != beat_unit.hash:
+                        self.delete_component(beat_unit)
+                self._restore_components(ComponentKind.BEAT, beats)
+                self._restore_components(ComponentKind.BEAT_UNIT, beat_units)
+            finally:
+                self.is_restoring = False
+        self.bump_version()
+        self.timeline.refresh_measures()
+
+    def _restore_components(
+        self, kind: ComponentKind, prev_state: dict[int | str, dict[str, Any]]
+    ) -> None:
+        current = {
+            component.id: component
+            for component in self.id_to_component.values()
+            if component.KIND == kind
+        }
+        self.timeline.delete_components(
+            [component for id, component in current.items() if id not in prev_state]
+        )
+        for id, data in prev_state.items():
+            data = {k: v for k, v in data.items() if k not in ("kind", "hash")}
+            component = current.get(id)
+            if component is None:
+                self.timeline.create_component(kind, id=id, **data)
+                continue
+            for attr, value in data.items():
+                if getattr(component, attr) != value:
+                    self.set_component_data(id, attr, value)
 
 
 class BeatTimeline(Timeline):
     SERIALIZABLE = [
         "beat_pattern",
-        "measure_numbers",  # order matters, m. ns. need to be restored
-        "beats_in_measure",  # before beats in measure
-        "measures_to_force_display",
+        "show_time_signatures",
         "height",
         "is_visible",
         "name",
@@ -223,16 +420,30 @@ class BeatTimeline(Timeline):
     COMPONENT_MANAGER_CLASS = BeatTLComponentManager
     FLAGS = [TimelineFlag.COMPONENTS_COPYABLE, TimelineFlag.COMPONENTS_IMPORTABLE]
 
+    @staticmethod
+    def update_component_references(
+        components: dict[int | str, dict[str, Any]],
+        new_ids: dict[int | str, int | str],
+    ) -> None:
+        # A beat unit names the beat it is on by its id.
+        for data in components.values():
+            if data["kind"] == ComponentKind.BEAT_UNIT.name:
+                data["beat_id"] = new_ids.get(data["beat_id"], data["beat_id"])
+
     def __init__(
         self,
-        beat_pattern: list[int] = None,
+        beat_pattern: str | list[int] | None = None,
         name: str = "",
         height: int | None = None,
         beats_in_measure: list[int] | None = None,
         measure_numbers: list[int] | None = None,
         measures_to_force_display: list[int] | None = None,
+        show_time_signatures: bool = False,
         **kwargs,
     ):
+        # Caches keyed by the component manager's version; see _cached.
+        self._caches: dict[str, tuple[int, Any]] = {}
+        self._metric_fraction_version: int | None = None
         super().__init__(
             name=name,
             height=height,
@@ -240,16 +451,123 @@ class BeatTimeline(Timeline):
         )
 
         self.validators = self.validators | {
-            "beat_pattern": validate_integer_list,
-            "beats_in_measure": validate_integer_list,
-            "measure_numbers": validate_integer_list,
-            "measures_to_force_display": validate_integer_list,
+            "beat_pattern": validate_beat_pattern,
+            "show_time_signatures": validate_bool,
         }
 
-        self.beat_pattern = beat_pattern or [4]
-        self._beats_in_measure = beats_in_measure or []
-        self.measure_numbers = measure_numbers or []
-        self.measures_to_force_display = measures_to_force_display or []
+        self.beat_pattern = beat_pattern or DEFAULT_BEAT_PATTERN
+        # Files from before measures were marked on their beats keep them in
+        # these lists by measure. They are read once, when the file's beats
+        # are loaded; see mark_measures_from_legacy_lists.
+        self._legacy_measure_lists = (
+            beats_in_measure or [],
+            measure_numbers or [],
+            measures_to_force_display or [],
+        )
+        # False for files saved before time signatures existed, so their
+        # layout doesn't change; new timelines are created with it on.
+        self.show_time_signatures = show_time_signatures
+
+    @property
+    def beat_pattern(self) -> str:
+        """The pattern as the user wrote it, e.g. "10[4/4] 3/4"."""
+        return self._beat_pattern
+
+    @beat_pattern.setter
+    def beat_pattern(self, value: str | list[int]) -> None:
+        # Files and callers from before patterns were text pass a list of bar
+        # lengths, which is always valid pattern text once joined.
+        text = " ".join(map(str, value)) if isinstance(value, list) else value
+        result = parse(text)
+        if not result.is_complete:
+            logger.error(
+                f"Invalid beat pattern {text!r} on {self}: {result.error} "
+                f"Using {DEFAULT_BEAT_PATTERN!r} instead."
+            )
+            text = DEFAULT_BEAT_PATTERN
+            result = parse(text)
+        self._beat_pattern = text
+        self._planned_bars = result.planned_bars
+
+    @property
+    def beat_pattern_bars(self) -> list[int]:
+        """The bar lengths the pattern expands to."""
+        return [bar.beat_count for bar in self._planned_bars]
+
+    @property
+    def planned_bars(self) -> list[PlannedBar]:
+        """The bars the pattern expands to."""
+        return self._planned_bars
+
+    @property
+    def plans_time_signatures(self) -> bool:
+        """
+        Whether the pattern gives time signatures, rather than only the number
+        of beats in each bar, as patterns from before time signatures did.
+        """
+        return any(not bar.assumed for bar in self._planned_bars)
+
+    def get_planned_bar(self, measure_index: int) -> PlannedBar:
+        """The bar the pattern plans for a measure, repeating from its start."""
+        return self._planned_bars[measure_index % len(self._planned_bars)]
+
+    def get_measures_as_planned_bars(self) -> list[PlannedBar]:
+        """
+        Each measure as a bar of a pattern: its beats, with the values its
+        beat unit gives them.
+        """
+        return [
+            self.get_measure_as_planned_bar(measure_index)
+            for measure_index in range(self.measure_count)
+        ]
+
+    def get_measure_as_planned_bar(
+        self, measure_index: int, beat_count: int | None = None
+    ) -> PlannedBar:
+        """
+        A measure as a bar of a pattern: `beat_count` beats, by default the
+        ones it has, with the values its beat unit gives them.
+        """
+        meter = self.measure_meters[measure_index]
+        if beat_count is None:
+            beat_count = self.beats_in_measure[measure_index]
+        values = fit_units(list(meter.units), beat_count)
+        return PlannedBar.from_values(values, meter.denominator, meter.is_assumed)
+
+    def get_full_beat_count(self, measure_index: int) -> int:
+        """
+        A measure's number of beats; for the last measure, while it has
+        fewer than the pattern plans for it, that many, as tapping adds
+        beats to it until it has them.
+        """
+        count = self.beats_in_measure[measure_index]
+        if measure_index == self.measure_count - 1:
+            return self._get_open_beat_count(measure_index, count)
+        return count
+
+    def _get_open_beat_count(self, measure_index: int, count: int) -> int:
+        """
+        The beats a last measure that has `count` takes: as many as the
+        pattern plans for it, if that is more.
+        """
+        return max(count, self.get_planned_bar(measure_index).beat_count)
+
+    def get_beat_count_to_set(self, text: str, measure_index: int) -> int:
+        """
+        The beats the time signature `text` is read over when it is set on a
+        measure: the ones it has, or, for the last measure, the ones it will
+        have once tapped (see `get_full_beat_count`), unless `text` fits the
+        ones it has as it is written. So "6/8" on a last bar with one of its
+        two taps is 3 and 3, and "2/4" on one with two taps of four makes it
+        a bar of 2/4.
+        """
+        count = self.beats_in_measure[measure_index]
+        if measure_index != self.measure_count - 1:
+            return count
+        as_written, _ = parse_time_signature(text)
+        if as_written is not None and as_written.beat_count == count:
+            return count
+        return self._get_open_beat_count(measure_index, count)
 
     @property
     def default_height(self):
@@ -260,14 +578,29 @@ class BeatTimeline(Timeline):
         return settings.get("beat_timeline", "display_measure_periodicity")
 
     @property
-    def beats_in_measure(self):
-        return self._beats_in_measure
+    def measures(self) -> Measures:
+        """The measures, read from the beats that start them."""
+        return self._cached("measures", lambda: build_measures(self.components))
 
-    @beats_in_measure.setter
-    def beats_in_measure(self, value):
-        self._beats_in_measure = value
-        self.recalculate_measures()
-        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+    @property
+    def beats_in_measure(self) -> list[int]:
+        return self.measures.counts
+
+    @property
+    def measure_numbers(self) -> list[int]:
+        return self.measures.numbers
+
+    @property
+    def measures_to_force_display(self) -> list[int]:
+        return self.measures.always_shown
+
+    @property
+    def beats_that_start_measures(self) -> list[int]:
+        return self.measures.starts
+
+    @property
+    def beats_that_start_measures_set(self) -> set[int]:
+        return set(self.measures.starts)
 
     def should_display_measure_number(self, measure_index):
         # this is a cheap workaround to deal with pickup measures
@@ -282,7 +615,7 @@ class BeatTimeline(Timeline):
 
     @property
     def measure_count(self):
-        return len(self.beats_in_measure)
+        return self.measures.count
 
     def get_time_by_measure(
         self, number: int, fraction: float = 0, is_segment_end: bool = False
@@ -297,6 +630,8 @@ class BeatTimeline(Timeline):
 
         if not self.measure_count:
             raise ValueError("No beats in timeline. Can't get time.")
+
+        self._ensure_metric_fraction_dicts()
 
         if not (0 <= fraction <= 1.0):
             tilia.errors.display(tilia.errors.INVALID_MEASURE_FRACTION, fraction)
@@ -386,6 +721,7 @@ class BeatTimeline(Timeline):
         return sorted(times)
 
     def get_metric_fraction_by_time(self, time: float) -> float:
+        self._ensure_metric_fraction_dicts()
         if mf := self.time_to_metric_fraction.get(time):
             return mf
         times = list(self.time_to_metric_fraction.keys())
@@ -402,23 +738,292 @@ class BeatTimeline(Timeline):
         ) + metric_fraction[idx - 1]
 
     def is_first_in_measure(self, beat):
-        return self.components.index(beat) in self.beats_that_start_measures_set
+        return self.get_beat_index(beat) in self.beats_that_start_measures_set
 
-    def clear_cached_metric_positions(self):
-        for beat in self:
-            beat.clear_cached_metric_position()
+    def get_metric_position_of_beat(self, beat: Beat) -> MetricPosition:
+        measures = self.measures
+        index = self.get_beat_index(beat)
+        measure_index = measures.measure_of_beat[index]
+        return MetricPosition(
+            measures.numbers[measure_index],
+            index - measures.starts[measure_index] + 1,
+            measures.counts[measure_index],
+        )
 
-    def recalculate_measures(self):
-        beat_delta = (len(self)) - sum(self.beats_in_measure)
-        if beat_delta > 0:
-            self.extend_beats_in_measure(beat_delta)
-            self.extend_measure_numbers()
-        elif beat_delta < 0:
-            self.reduce_beats_in_measure(-beat_delta)
-            self.reduce_measure_numbers()
+    @property
+    def beat_units(self) -> list[BeatUnit]:
+        """Beat units in the order of the beats they are on."""
+        beat_index = {beat.id: i for i, beat in enumerate(self)}
+        return sorted(
+            self.component_manager.beat_units,
+            key=lambda u: beat_index.get(u.beat_id, len(beat_index)),
+        )
 
-        self.clear_cached_metric_positions()
-        self.update_beats_that_start_measures()
+    def get_beat_unit_on_beat(self, beat_id: int) -> BeatUnit | None:
+        return self.component_manager.get_beat_unit_on_beat(beat_id)
+
+    @property
+    def measure_meters(self) -> list[MeasureMeter]:
+        """The meter of every measure, from the beat units in effect."""
+        return self._cached("measure_meters", self._compute_measure_meters)
+
+    def get_measure_meter(self, measure_index: int) -> MeasureMeter:
+        return self.measure_meters[measure_index]
+
+    def get_beat_units_in_measure(self, measure_index: int) -> list[BeatUnit]:
+        """Beat units on the beats of a measure, in beat order."""
+        start = self.beats_that_start_measures[measure_index]
+        beats = self.components[start : start + self.beats_in_measure[measure_index]]
+        return [
+            beat_unit
+            for beat in beats
+            if (beat_unit := self.get_beat_unit_on_beat(beat.id)) is not None
+        ]
+
+    @property
+    def beat_quarter_lengths(self) -> list[Fraction]:
+        """How long each beat is, in quarter notes."""
+        return [
+            meter.quarter_length(value)
+            for meter in self.measure_meters
+            for value in meter.beat_values
+        ][: len(self)]
+
+    def _cached(self, name: str, build: Callable[[], Any]) -> Any:
+        """
+        The value of `build()`, rebuilt only when the component manager's
+        version has changed since it was last built.
+        """
+        version = self.component_manager.version
+        cached = self._caches.get(name)
+        if cached is None or cached[0] != version:
+            cached = (version, build())
+            self._caches[name] = cached
+        return cached[1]
+
+    @property
+    def quarter_stamps(self) -> list[Fraction]:
+        """
+        Each beat's position in quarter notes, counted in playback order from
+        the first beat, as Verovio's and the Measure Map's "qstamp".
+        """
+        return self._cached("quarter_stamps", self._build_quarter_stamps)
+
+    def _build_quarter_stamps(self) -> list[Fraction]:
+        stamps = [Fraction(0)] + list(
+            itertools.accumulate(self.beat_quarter_lengths[:-1])
+        )
+        return stamps[: len(self)]
+
+    def get_quarter_stamp_of_beat(self, beat: Beat) -> Fraction:
+        return self.quarter_stamps[self.get_beat_index(beat)]
+
+    def _build_time_stamp_table(self) -> TimeStampTable:
+        times = [beat.time for beat in self.components]
+        lengths = self.beat_quarter_lengths
+        seconds_per_quarter = [
+            (times[index + 1] - times[index]) / float(lengths[index])
+            for index in range(len(times) - 1)
+        ]
+        # The last beat has no next beat to measure against, so the tempo of
+        # the gap before it carries on past it. Its own length doesn't enter:
+        # that gap lasted the previous beat's length, not the last one's.
+        seconds_per_quarter.append(seconds_per_quarter[-1])
+        return TimeStampTable(
+            times=times,
+            stamps=[float(stamp) for stamp in self.quarter_stamps],
+            seconds_per_quarter=seconds_per_quarter,
+        )
+
+    def _get_time_stamp_table(self) -> TimeStampTable:
+        return self._cached("time_stamp_table", self._build_time_stamp_table)
+
+    def get_quarter_stamp_by_time(self, time: float) -> float | None:
+        """
+        The quarter stamp at `time`, interpolated between beats and
+        extrapolated beyond them. None with fewer than two beats.
+        """
+        if len(self) < 2:
+            return None
+        table = self._get_time_stamp_table()
+        index = max(0, min(bisect(table.times, time) - 1, len(table.times) - 1))
+        return (
+            table.stamps[index]
+            + (time - table.times[index]) / table.seconds_per_quarter[index]
+        )
+
+    def get_time_by_quarter_stamp(self, stamp: float) -> float | None:
+        """
+        The time of quarter stamp `stamp`, interpolated between beats and
+        extrapolated beyond them. None with fewer than two beats.
+        """
+        if len(self) < 2:
+            return None
+        table = self._get_time_stamp_table()
+        index = max(0, min(bisect(table.stamps, stamp) - 1, len(table.stamps) - 1))
+        return (
+            table.times[index]
+            + (stamp - table.stamps[index]) * table.seconds_per_quarter[index]
+        )
+
+    def _compute_measure_meters(self) -> list[MeasureMeter]:
+        beats = self.components
+        units_by_beat_id = {u.beat_id: u for u in self.component_manager.beat_units}
+        measures = self.measures
+        default_units = parse_units(DEFAULT_UNITS).units
+
+        meters = []
+        governing: BeatUnit | None = None
+        for start, beat_count in zip(measures.starts, measures.counts, strict=True):
+            in_measure = [
+                units_by_beat_id[beat.id]
+                for beat in beats[start : start + beat_count]
+                if beat.id in units_by_beat_id
+            ]
+            if in_measure:
+                governing = in_measure[0]
+
+            if governing is None:
+                denominator, units = DEFAULT_DENOMINATOR, default_units
+            else:
+                denominator, units = governing.denominator, governing.unit_values
+
+            meters.append(
+                MeasureMeter(
+                    denominator=denominator,
+                    units=tuple(units),
+                    beat_values=tuple(fit_units(units, beat_count)),
+                    beat_unit_id=governing.beat_id if governing else None,
+                    starts_here=bool(in_measure),
+                    is_ambiguous=is_fit_ambiguous(units, beat_count),
+                    is_conflicting=len(in_measure) > 1,
+                    is_assumed=governing is None or governing.assumed,
+                )
+            )
+        return meters
+
+    def get_export_data(self) -> dict[str, Any]:
+        """
+        The beats, then a time signature at each measure where it or its
+        taps change, as the bars dialog lists them. Beat units, which store
+        them, aren't exported: the base export iterates the component
+        manager, which keeps them apart from beats.
+        """
+        result = super().get_export_data()
+        previous = None
+        bars = self.get_measures_as_planned_bars()
+        for measure_index, bar in enumerate(bars):
+            if bar == previous:
+                continue
+            previous = bar
+            result["components"].append(
+                {
+                    "time": self._get_first_beat_of_measure(measure_index).time,
+                    "measure": self.measure_numbers[measure_index],
+                    "time_signature": format_time_signature(bar),
+                    "taps": format_taps(bar),
+                    "assumed": bar.assumed,
+                    "kind": "TIME_SIGNATURE",
+                }
+            )
+        return result
+
+    def get_alike_measures_end(self, measure_index: int) -> int:
+        """
+        The index past the measures from `measure_index` on that are alike
+        (the same time signature and taps), as the bars dialog groups them,
+        but with the last measure as it will be once tapped (see
+        `get_full_beat_count`), so a time signature set on the measures
+        being tapped carries on to the one being tapped.
+        """
+
+        def get_bar(index: int) -> PlannedBar:
+            return self.get_measure_as_planned_bar(
+                index, self.get_full_beat_count(index)
+            )
+
+        bar = get_bar(measure_index)
+        end = measure_index + 1
+        while end < self.measure_count and get_bar(end) == bar:
+            end += 1
+        return end
+
+    def set_time_signature(self, text: str, start: int, stop: int) -> str:
+        """
+        Gives the measures from `start` up to `stop` the time signature
+        `text`, each over its own beats (see `get_beat_count_to_set`), as
+        `parse_time_signature_of_tapped_bar` reads it. A measure after
+        `start` whose beats `text` doesn't fit, such as one of three taps
+        under 6/8(3 3), carries on the beat unit before it, as a measure
+        with other taps does: there, 9/8. The measure at `stop` keeps the
+        time signature it had. Returns why `text` can't be set on the
+        measure at `start`, or "" once it is.
+
+        No beat moves, so no beat is relabelled: the UI redraws the time
+        signatures as their beat units change, or, in a bulk change, once
+        the caller refreshes the measures (see `refresh_measures`).
+        """
+        measure_count = self.measure_count
+        if not 0 <= start < stop <= measure_count:
+            return "There are no such measures."
+
+        # Measures with as many beats read `text` alike.
+        parsed: dict[int, tuple[PlannedBar | None, str]] = {}
+        bars: list[PlannedBar | None] = []
+        for measure_index in range(start, stop):
+            beat_count = self.get_beat_count_to_set(text, measure_index)
+            if beat_count not in parsed:
+                parsed[beat_count] = parse_time_signature_of_tapped_bar(
+                    text, beat_count
+                )
+            bar, error = parsed[beat_count]
+            if bar is None and measure_index == start:
+                return error
+            bars.append(bar)
+
+        # Read before any beat unit changes, as each change makes the
+        # measures be computed again the next time they are read.
+        meters = self.measure_meters
+        measures = self.measures
+        beats = self.components
+        beat_units_in: dict[int, list[BeatUnit]] = {}
+        for beat_unit in self.beat_units:
+            beat = self.get_component(beat_unit.beat_id)
+            measure_index = measures.measure_of_beat[self.get_beat_index(beat)]
+            if start <= measure_index < stop:
+                beat_units_in.setdefault(measure_index, []).append(beat_unit)
+
+        def get_beat_id(measure_index: int) -> int | str:
+            """Where a measure's beat unit goes: on the one governing it."""
+            meter = meters[measure_index]
+            if meter.starts_here and meter.beat_unit_id is not None:
+                return meter.beat_unit_id
+            return beats[measures.starts[measure_index]].id
+
+        previous: tuple[int, str, bool] | None = None
+        for measure_index, bar in zip(range(start, stop), bars, strict=True):
+            meter = meters[measure_index]
+            if bar is None:
+                values = previous
+            else:
+                values = (bar.denominator, bar.units_text, bar.assumed)
+            changes = values is not None and values != previous
+            # A measure keeps only the beat unit that governs it, and only
+            # where its values change: another one would carry on past it.
+            kept = meter.beat_unit_id if meter.starts_here and changes else None
+            for beat_unit in beat_units_in.get(measure_index, []):
+                if beat_unit.beat_id != kept:
+                    self.component_manager.delete_component(beat_unit)
+            if changes:
+                self.put_beat_unit_on_beat(get_beat_id(measure_index), *values)
+            previous = values
+
+        if stop < measure_count:
+            after = meters[stop]
+            values = (after.denominator, format_units(after.units), after.is_assumed)
+            if not after.starts_here and values != previous:
+                self.put_beat_unit_on_beat(get_beat_id(stop), *values)
+        return ""
 
     @staticmethod
     def get_extension_from_beat_pattern(
@@ -427,130 +1032,256 @@ class BeatTimeline(Timeline):
         start_index: int = 0,
         beats_on_starting_measure: int = 0,
     ) -> list[int]:
-        if amount == 0:
-            return []
-
-        if start_index < 0:
-            raise ValueError(f"Start index must be a positive value. Got {start_index}")
-
-        beat_pattern_cycle = itertools.cycle(beat_pattern)
-
-        # iterate up to start index
-        for _ in range(start_index):
-            next(beat_pattern_cycle)
-
-        if beats_on_starting_measure:
-            beats = next(beat_pattern_cycle)
-            if beats_on_starting_measure < beats:
-                diff = beats - beats_on_starting_measure
-                extension = [min(diff, amount)]
-                remaining_beats = amount - diff
-            else:
-                # A measure may hold more beats than the beat pattern
-                # prescribes for it, as "Set amount in measure" sets an
-                # arbitrary amount. There is nothing left to fill in that
-                # case, so the extension starts a new measure.
-                extension = []
-                remaining_beats = amount
-        else:
-            extension = []
-            remaining_beats = amount
-
-        if remaining_beats > 0:
-            for beats in beat_pattern_cycle:
-                if remaining_beats > beats:
-                    remaining_beats -= beats
-                    extension.append(beats)
-                else:
-                    extension.append(remaining_beats)
-                    break
-
-        return extension
-
-    def _get_beats_in_measure_extension(self, amount: int):
-        if not self.beat_pattern:
-            raise ValueError("Beat pattern is empty, can't get measure extension.")
-
-        if self.beats_in_measure:
-            beats_on_starting_measure = self.beats_in_measure[-1]
-            start_index = (
-                self.measure_count % len(self.beat_pattern) - 1
-            ) % self.measure_count
-
-            if start_index == -1 and beats_on_starting_measure == self.beat_pattern[-1]:
-                beats_on_starting_measure = 0
-                start_index = 0
-        else:
-            beats_on_starting_measure = 0
-            start_index = 0
-
-        return self.get_extension_from_beat_pattern(
-            self.beat_pattern,
-            amount,
-            start_index=start_index,
-            beats_on_starting_measure=beats_on_starting_measure,
+        return get_extension_from_beat_pattern(
+            beat_pattern, amount, start_index, beats_on_starting_measure
         )
 
-    def extend_beats_in_measure(self, amount: int) -> None:
-        extension = self._get_beats_in_measure_extension(amount)
+    def create_component(
+        self, kind: ComponentKind, *args, id=None, **kwargs
+    ) -> tuple[TC | None, str | None]:
+        """
+        A beat created without saying whether it starts a measure is placed
+        by where it falls: after the last beat, it starts a measure once the
+        last one has as many beats as the beat pattern gives it; anywhere
+        else, it joins the measure it falls in (before the first beat, the
+        first measure), and every measure keeps its length, so the measures
+        after it start one beat later.
+        """
+        is_placed = kwargs.get("is_first_in_measure") is not None
+        component, reason = super().create_component(kind, *args, id=id, **kwargs)
+        manager = self.component_manager
+        if (
+            component is None
+            or kind != ComponentKind.BEAT
+            or manager.is_bulk
+            or manager.is_restoring
+        ):
+            return component, reason
 
-        if not self._beats_in_measure:
-            self._beats_in_measure += extension
+        if not is_placed:
+            self._place_new_beat(component)
+        self.ensure_first_beat_starts_measure()
+        self._ensure_first_beat_unit()
+        post(
+            Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+            self.id,
+            max(self.get_beat_index(component) - 1, 0),
+        )
+        return component, reason
+
+    @contextmanager
+    def adding_beats_together(self) -> Iterator[None]:
+        """
+        Places the beats created in the block once, at its end, as adding
+        them one at a time would (see `create_component`): every measure
+        keeps its length. Into an empty timeline, they are added one at a
+        time, as that only appends them.
+        """
+        if not len(self):
+            yield
             return
 
-        bp_index = (self.measure_count % len(self.beat_pattern)) - 1
-        is_last_measure_complete = (
-            self._beats_in_measure[-1] >= self.beat_pattern[bp_index]
-        )
+        counts = self.beats_in_measure.copy()
+        old_ids = {beat.id for beat in self}
+        old_first = self[0]
+        manager = self.component_manager
+        with manager.bulk() as was_bulk:
+            yield
+            new_indices = [
+                index for index, beat in enumerate(self) if beat.id not in old_ids
+            ]
+            if new_indices:
+                if self[0] is not old_first:
+                    # Beats before the first join the first measure.
+                    manager.move_measure_start(old_first, self[0])
+                from_measure = self.measures.measure_of_beat[new_indices[0]]
+                self._remeasure(self._with_last_measure_open(counts), from_measure)
+        if not was_bulk:
+            self.refresh_measures()
 
-        if is_last_measure_complete:
-            self._beats_in_measure += extension
+    def _place_new_beat(self, beat: Beat) -> None:
+        index = self.get_beat_index(beat)
+        if len(self) == 1:
+            self.set_component_data(beat.id, "is_first_in_measure", True)
+            self.lay_planned_beat_units(0)
+        elif index == len(self) - 1:
+            measures = self.measures
+            last_measure = measures.count - 1
+            beats_before = measures.counts[last_measure] - 1
+            if beats_before >= self.get_planned_bar(last_measure).beat_count:
+                self.set_component_data(beat.id, "is_first_in_measure", True)
+                self.lay_planned_beat_units(last_measure + 1)
         else:
-            self._beats_in_measure[-1] += extension[0]
-            self._beats_in_measure += extension[1:]
+            if index == 0:
+                self.component_manager.move_measure_start(self[1], beat)
+            measures = self.measures
+            measure_index = measures.measure_of_beat[index]
+            counts = measures.counts.copy()
+            counts[measure_index] -= 1
+            self._remeasure(self._with_last_measure_open(counts), measure_index)
 
-    def reduce_beats_in_measure(self, amount: int) -> None:
-        remaining_beats = amount
-        for beats_in_measure in reversed(self._beats_in_measure):
-            if beats_in_measure < remaining_beats:
-                self._beats_in_measure.pop(-1)
-                remaining_beats -= beats_in_measure
-            elif beats_in_measure > remaining_beats:
-                self._beats_in_measure[-1] -= remaining_beats
-                break
-            else:
-                self._beats_in_measure.pop(-1)
-                break
-
-    def extend_measure_numbers(self):
-        extra_measure_count = len(self.beats_in_measure) - len(self.measure_numbers)
-
-        for _ in range(extra_measure_count):
-            if not self.measure_numbers:
-                self.measure_numbers.append(1)
-            else:
-                self.measure_numbers.append(self.measure_numbers[-1] + 1)
-
-    def reduce_measure_numbers(self):
-        extra_measure_count = len(self.measure_numbers) - len(self.beats_in_measure)
-        if not extra_measure_count:
+    def lay_planned_beat_units(
+        self, from_measure: int, bars: list[PlannedBar] | None = None
+    ) -> None:
+        """
+        Gives the measures from `from_measure` on the beat units of `bars`,
+        one per measure from the first, and of the pattern for the measures
+        past them, replacing theirs. A measure gets a beat unit on its first
+        beat where its time signature differs from the measure before's.
+        Past `bars`, that is only where the pattern's own time signature
+        changes, so a time signature set on an earlier measure carries on,
+        and nowhere if the pattern gives no time signatures.
+        """
+        bars = bars or []
+        measures = self.measures
+        if from_measure >= measures.count or (
+            not bars and not self.plans_time_signatures
+        ):
             return
-        self.measure_numbers = self.measure_numbers[:-extra_measure_count]
-        # measures_to_force_display is not sorted, so every index has to be
-        # checked, not just the ones at the end of the list.
-        self.measures_to_force_display = [
-            i for i in self.measures_to_force_display if i < self.measure_count
-        ]
 
-    def update_beats_that_start_measures(self):
-        # noinspection PyAttributeOutsideInit
-        self.beats_that_start_measures = [0] + list(
-            itertools.accumulate(self.beats_in_measure[:-1])
+        def get_bar(measure_index: int) -> PlannedBar:
+            if measure_index < len(bars):
+                return bars[measure_index]
+            return self.get_planned_bar(measure_index)
+
+        def get_meter(bar: PlannedBar) -> tuple[int, tuple[Fraction, ...], bool]:
+            return bar.denominator, bar.units, bar.assumed
+
+        beats = self.components
+        managed = set()
+        planned: dict[int | str, tuple[int, str, bool]] = {}
+        for measure_index in range(from_measure, measures.count):
+            if measure_index >= len(bars) and not self.plans_time_signatures:
+                break
+            managed.add(measure_index)
+            bar = get_bar(measure_index)
+            if measure_index == 0:
+                previous = None
+            elif measure_index >= len(bars):
+                previous = get_meter(self.get_planned_bar(measure_index - 1))
+            else:
+                previous = get_meter(get_bar(measure_index - 1))
+            if get_meter(bar) != previous:
+                beat_id = beats[measures.starts[measure_index]].id
+                planned[beat_id] = (bar.denominator, bar.units_text, bar.assumed)
+
+        # Beat units already as planned are left in place, so the change
+        # touches only what it changes.
+        with self.component_manager.bulk():
+            for beat_unit in self.beat_units:
+                beat_index = self.get_beat_index(self.get_component(beat_unit.beat_id))
+                if (
+                    measures.measure_of_beat[beat_index] in managed
+                    and beat_unit.beat_id not in planned
+                ):
+                    self.component_manager.delete_component(beat_unit)
+
+            for beat_id, (denominator, units, assumed) in planned.items():
+                beat_unit = self.get_beat_unit_on_beat(beat_id)
+                if beat_unit is None or (
+                    beat_unit.denominator,
+                    beat_unit.units,
+                    beat_unit.assumed,
+                ) != (denominator, units, assumed):
+                    self.put_beat_unit_on_beat(beat_id, denominator, units, assumed)
+
+    def ensure_first_beat_starts_measure(self) -> None:
+        if len(self) and not self[0].is_first_in_measure:
+            self.set_component_data(self[0].id, "is_first_in_measure", True)
+
+    def mark_measures_from_legacy_lists(self) -> None:
+        """
+        Marks the beats that start measures from the lists by measure that
+        files from before measures were marked on their beats store, fitted
+        to the beats as TiLiA fitted them on loading. A measure gets a number
+        of its own where it isn't one more than the measure before (or 1, for
+        the first).
+        """
+        beats_in_measure, measure_numbers, always_shown = self._legacy_measure_lists
+        self._legacy_measure_lists = ([], [], [])
+        if not len(self):
+            return
+
+        counts, numbers = fit_legacy_lists(
+            len(self), self.beat_pattern_bars, beats_in_measure, measure_numbers
         )
-        self.beats_that_start_measures_set = set(self.beats_that_start_measures)
-        self.update_metric_fraction_dicts()
+        starts = [0] + list(itertools.accumulate(counts[:-1]))
+        for measure_index, start in enumerate(starts):
+            beat = self[start]
+            expected = numbers[measure_index - 1] + 1 if measure_index else 1
+            if not beat.is_first_in_measure:
+                self.set_component_data(beat.id, "is_first_in_measure", True)
+            if numbers[measure_index] != expected:
+                self.set_component_data(
+                    beat.id, "measure_number_override", numbers[measure_index]
+                )
+            if measure_index in always_shown:
+                self.set_component_data(beat.id, "measure_number_always_shown", True)
+
+    def _ensure_first_beat_unit(self, copy_next: bool = True) -> None:
+        """
+        Keeps a beat unit in the first measure, so every measure is governed
+        by one and every time signature label can be selected and edited.
+
+        When one is missing, e.g. because a measure was added before the old
+        first measure (a score's measure 0), it copies the next beat unit's
+        values, as measures before the first beat unit do in tilia_core; with
+        no other beat units, or `copy_next` False, it gets the default. Either way it is assumed: nobody set a time
+        signature on the measures before the next beat unit. Skipped while
+        beats are being changed in bulk, which refreshes and calls this once
+        at the end.
+        """
+        manager = self.component_manager
+        if manager.is_restoring or manager.is_bulk or not len(self):
+            return
+
+        first_measure = self.components[: self.beats_in_measure[0]]
+        if any(self.get_beat_unit_on_beat(beat.id) for beat in first_measure):
+            return
+
+        beat_units = self.beat_units
+        if copy_next and beat_units:
+            denominator, units = beat_units[0].denominator, beat_units[0].units
+        else:
+            denominator, units = DEFAULT_DENOMINATOR, DEFAULT_UNITS
+        self.create_component(
+            ComponentKind.BEAT_UNIT,
+            beat_id=self[0].id,
+            denominator=denominator,
+            units=units,
+            assumed=True,
+        )
+
+    def put_beat_unit_on_beat(
+        self,
+        beat_id: int | str,
+        denominator: int,
+        units: str,
+        assumed: bool = False,
+    ) -> None:
+        """Sets the beat unit on a beat, creating it or editing the one there."""
+        beat_unit = self.get_beat_unit_on_beat(beat_id)
+        if beat_unit is None:
+            self.create_component(
+                ComponentKind.BEAT_UNIT,
+                beat_id=beat_id,
+                denominator=denominator,
+                units=units,
+                assumed=assumed,
+            )
+        else:
+            self.set_component_data(beat_unit.id, "denominator", denominator)
+            self.set_component_data(beat_unit.id, "units", units)
+            self.set_component_data(beat_unit.id, "assumed", assumed)
+
+    def _ensure_metric_fraction_dicts(self) -> None:
+        # get_time_by_measure memoizes into the dicts, so they are rebuilt
+        # only when the beats have changed since they were last built.
+        if self._metric_fraction_version != self.component_manager.version:
+            self.update_metric_fraction_dicts()
 
     def update_metric_fraction_dicts(self):
+        self._metric_fraction_version = self.component_manager.version
         self.metric_fraction_to_beat_dict = {}
         self.metric_fraction_to_time = {}
         self.time_to_metric_fraction = {}
@@ -591,100 +1322,319 @@ class BeatTimeline(Timeline):
         }
 
     def get_measure_index(self, beat_index: int) -> tuple[int, int]:
-        prev_n = 0
-        for measure_index, n in enumerate(self.beats_that_start_measures):
-            if beat_index < n:
-                return measure_index - 1, beat_index - prev_n
-            elif beat_index == n:
-                return measure_index, 0
-            prev_n = n
-
-        if beat_index > n:
-            return measure_index, 1
-        else:
+        """The index of the measure a beat is in, and its index there."""
+        measures = self.measures
+        if not 0 <= beat_index < len(measures.measure_of_beat):
             raise ValueError(f'No beat with index "{beat_index}" at {self}.')
+        measure_index = measures.measure_of_beat[beat_index]
+        return measure_index, beat_index - measures.starts[measure_index]
 
     def get_beat_index(self, beat: Beat) -> int:
-        return self.components.index(beat)
+        indices = self._cached(
+            "beat_indices", lambda: {b.id: i for i, b in enumerate(self.components)}
+        )
+        return indices[beat.id]
 
-    def propagate_measure_number_change(self, start_index: int):
-        for j in range(len(self.measure_numbers[start_index + 1 :])):
-            propagate_index = j + start_index + 1
-            if propagate_index in self.measures_to_force_display:
-                break
-            else:
-                self.measure_numbers[propagate_index] = (
-                    self.measure_numbers[propagate_index - 1] + 1
-                )
+    def _get_first_beat_of_measure(self, measure_index: int) -> Beat:
+        return self[self.measures.starts[measure_index]]
+
+    def _post_measures_changed(self, measure_index: int) -> None:
+        post(
+            Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+            self.id,
+            self.measures.starts[measure_index],
+        )
 
     def set_measure_number(self, measure_index: int, number: int) -> None:
-        self.clear_cached_metric_positions()
-        self.measure_numbers[measure_index] = number
-        self.propagate_measure_number_change(measure_index)
+        """
+        Numbers a measure by hand. The measures after it that have no number
+        of their own count on from it.
+        """
+        beat = self._get_first_beat_of_measure(measure_index)
+        self.set_component_data(beat.id, "measure_number_override", number)
         if not number == 0:
             self.force_display_measure_number(measure_index)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
-        self.update_metric_fraction_dicts()
+        self._post_measures_changed(measure_index)
+
+    def set_measure_numbers(self, numbers: list[int], start_measure: int = 0) -> None:
+        """
+        Numbers the measures from `start_measure` on, one per entry. A measure
+        gets a number of its own, always shown unless it is 0, only where
+        its number isn't the previous measure's plus one (or 1, for the first
+        measure); elsewhere it counts on from the measure before.
+        """
+        measures = self.measures
+        numbers = numbers[: measures.count - start_measure]
+        with self.component_manager.bulk():
+            for offset, number in enumerate(numbers):
+                measure_index = start_measure + offset
+                if offset:
+                    previous = numbers[offset - 1]
+                elif measure_index:
+                    previous = measures.numbers[measure_index - 1]
+                else:
+                    previous = 0
+                beat = self._get_first_beat_of_measure(measure_index)
+                override = None if number == previous + 1 else number
+                if beat.measure_number_override != override:
+                    self.set_component_data(
+                        beat.id, "measure_number_override", override
+                    )
+                if override not in (None, 0) and not beat.measure_number_always_shown:
+                    self.set_component_data(
+                        beat.id, "measure_number_always_shown", True
+                    )
+        self.refresh_measures()
 
     def reset_measure_number(self, measure_index: int) -> None:
-        self.clear_cached_metric_positions()
-        if measure_index == 0:
-            self.measure_numbers[0] = 1
-        else:
-            self.measure_numbers[measure_index] = (
-                self.measure_numbers[measure_index - 1] + 1
-            )
-        self.propagate_measure_number_change(measure_index)
-        self.update_metric_fraction_dicts()
-
-        try:
-            self.unforce_display_measure_number(measure_index)
-        except ValueError:
-            pass
+        beat = self._get_first_beat_of_measure(measure_index)
+        self.set_component_data(beat.id, "measure_number_override", None)
+        self.unforce_display_measure_number(measure_index)
 
     def force_display_measure_number(self, measure_index: int) -> None:
-        self.clear_cached_metric_positions()
-        if measure_index not in self.measures_to_force_display:
-            self.measures_to_force_display.append(measure_index)
+        beat = self._get_first_beat_of_measure(measure_index)
+        if not beat.measure_number_always_shown:
+            self.set_component_data(beat.id, "measure_number_always_shown", True)
 
     def unforce_display_measure_number(self, measure_index: int) -> None:
-        self.clear_cached_metric_positions()
-        self.measures_to_force_display.remove(measure_index)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
+        beat = self._get_first_beat_of_measure(measure_index)
+        if beat.measure_number_always_shown:
+            self.set_component_data(beat.id, "measure_number_always_shown", False)
+        self._post_measures_changed(measure_index)
 
     def set_beat_amount_in_measure(self, measure_index: int, beat_amount: int) -> None:
-        self.clear_cached_metric_positions()
-        new_beats_in_measure = self.beats_in_measure.copy()
-        new_beats_in_measure[measure_index] = beat_amount
-        self.set_data("beats_in_measure", new_beats_in_measure)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
+        """
+        Gives a measure `beat_amount` beats. The measures after it keep their
+        number of beats, so their first beats move.
+        """
+        counts = self.beats_in_measure.copy()
+        counts[measure_index] = beat_amount
+        if measure_index != len(counts) - 1:
+            counts = self._with_last_measure_open(counts)
+        self._remeasure(counts, measure_index)
+        self.refresh_measures()
+
+    def _with_last_measure_open(self, counts: list[int]) -> list[int]:
+        """
+        `counts`, with the last measure able to take as many beats as the
+        pattern plans for it, as it may not have all its beats yet.
+        """
+        last = len(counts) - 1
+        return counts[:last] + [self._get_open_beat_count(last, counts[last])]
+
+    def _remeasure(self, counts: list[int], from_measure: int) -> None:
+        """
+        Makes the measures from `from_measure` on hold `counts[from_measure:]`
+        beats each. Each keeps its number, display and the beat unit on its
+        first beat, by position. Beats left over at the end make measures
+        from the beat pattern; measures past the last beat go. The caller
+        refreshes the measures (see `refresh_measures`) once it is done.
+        """
+        measures = self.measures
+        if not 0 <= from_measure < measures.count:
+            return
+
+        beats = self.components
+        old_first_beats = [beats[start] for start in measures.starts[from_measure:]]
+        kept_data = [
+            (
+                beat.measure_number_override,
+                beat.measure_number_always_shown,
+                self.get_beat_unit_on_beat(beat.id),
+            )
+            for beat in old_first_beats
+        ]
+
+        first = measures.starts[from_measure]
+        remaining = len(beats) - first
+        new_counts = []
+        for count in counts[from_measure:]:
+            if remaining <= 0:
+                break
+            new_counts.append(min(count, remaining))
+            remaining -= new_counts[-1]
+        if remaining:
+            pattern = self.beat_pattern_bars
+            new_counts += get_extension_from_beat_pattern(
+                pattern,
+                remaining,
+                start_index=(from_measure + len(new_counts)) % len(pattern),
+            )
+        new_starts = [first] + [
+            first + offset for offset in itertools.accumulate(new_counts[:-1])
+        ]
+
+        with self.component_manager.bulk():
+            # Beat units that move are recreated on their measures' new first
+            # beats, as moving them one by one could land one on a beat that
+            # still holds another. Those that stay are left in place.
+            beat_unit_values: list[tuple[int, str, bool] | None] = []
+            for index, (_, _, beat_unit) in enumerate(kept_data):
+                new_start = new_starts[index] if index < len(new_starts) else None
+                old_first = old_first_beats[index]
+                if beat_unit is None:
+                    beat_unit_values.append(None)
+                    continue
+                if new_start is not None and beats[new_start] is old_first:
+                    beat_unit_values.append(None)
+                    continue
+                beat_unit_values.append(
+                    (beat_unit.denominator, beat_unit.units, beat_unit.assumed)
+                )
+                self.component_manager.delete_component(beat_unit)
+
+            new_data = dict(zip(new_starts, kept_data, strict=False))
+            new_starts_set = set(new_starts)
+            for index in range(first, len(beats)):
+                beat = beats[index]
+                override, always_shown, _ = new_data.get(index, (None, False, None))
+                values = {
+                    "is_first_in_measure": index in new_starts_set,
+                    "measure_number_override": override,
+                    "measure_number_always_shown": always_shown,
+                }
+                for attr, value in values.items():
+                    if getattr(beat, attr) != value:
+                        self.set_component_data(beat.id, attr, value)
+
+            for start, values in zip(new_starts, beat_unit_values, strict=False):
+                if values is not None:
+                    self.put_beat_unit_on_beat(beats[start].id, *values)
+
+            if len(new_starts) > len(kept_data):
+                # Measures made from the pattern for the beats left over.
+                self.lay_planned_beat_units(from_measure + len(kept_data))
 
     def distribute_beats(self, measure_index: int) -> None:
         self.component_manager.distribute_beats(measure_index)
 
+    def refresh_measures(self) -> None:
+        """
+        Keeps the first beat starting a measure and carrying a beat unit, and
+        has the UI relabel every beat. Run this after any bulk operation that
+        added or removed beats.
+        """
+        self.ensure_first_beat_starts_measure()
+        self._ensure_first_beat_unit()
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+
+    def recalculate_measures(self) -> None:
+        self.refresh_measures()
+
+    def get_hand_set_bars(self) -> list[int]:
+        """
+        Indices of bars whose length differs from the pattern, i.e. bars set
+        with "Set amount in measure". The last bar is left out: it may simply
+        not have all its beats yet.
+        """
+        bars = self.beat_pattern_bars
+        return [
+            i
+            for i, beats in enumerate(self.beats_in_measure[:-1])
+            if beats != bars[i % len(bars)]
+        ]
+
+    def get_bars_overwritten_by(self, pattern_bars: list[int]) -> list[int]:
+        """Indices of hand-set bars that applying `pattern_bars` would change."""
+        return [
+            i
+            for i in self.get_hand_set_bars()
+            if self.beats_in_measure[i] != pattern_bars[i % len(pattern_bars)]
+        ]
+
+    def set_bars(
+        self,
+        pattern: str,
+        bars: list[PlannedBar],
+        numbers: list[int] | None = None,
+    ) -> bool:
+        """
+        Sets the pattern, which measures tapped from now on follow, and lays
+        `bars` over the beats from the first: each bar takes its beats and
+        its time signature. Beats left over make measures from the pattern,
+        going on from the measure after the last bar; bars past the last
+        beat go. Then numbers the measures, if `numbers` are given.
+        """
+        _, success = self.set_data("beat_pattern", pattern)
+        if not success:
+            return False
+
+        if len(self):
+            self._remeasure([bar.beat_count for bar in bars], 0)
+            self.lay_planned_beat_units(0, bars)
+            if numbers is not None:
+                self.set_measure_numbers(numbers)
+            self.refresh_measures()
+        return True
+
+    def set_beat_pattern(self, pattern: str) -> bool:
+        """
+        Sets the pattern and remeasures every beat from it, discarding bars
+        set by hand. Each measure keeps its number and display by position.
+        A pattern with time signatures gives every measure its beat unit; one
+        with only numbers of beats leaves each measure the beat unit it had.
+        """
+        _, success = self.set_data("beat_pattern", pattern)
+        if not success:
+            return False
+
+        if len(self):
+            self._remeasure(
+                get_extension_from_beat_pattern(self.beat_pattern_bars, len(self)), 0
+            )
+            self.lay_planned_beat_units(0)
+            self.refresh_measures()
+        return True
+
     def delete_components(self, components: list[TC]) -> None:
+        """
+        Every measure keeps its length, so the measures after a deleted beat
+        start one beat earlier. A measure whose beats are all deleted goes.
+        """
         self._validate_delete_components(components)
 
-        self.clear_cached_metric_positions()
+        manager = self.component_manager
+        beat_units = [c for c in components if c.KIND == ComponentKind.BEAT_UNIT]
+        # From the last beat back, so each deletion leaves the measures of
+        # the beats still to be deleted as they were.
+        beats = sorted(
+            (c for c in components if c.KIND == ComponentKind.BEAT),
+            key=self.get_beat_index,
+            reverse=True,
+        )
+        lengths = None
+        if beats and not (manager.is_restoring or manager.is_bulk):
+            lengths = self._get_lengths_after_deleting(beats)
+        for component in beat_units + beats:
+            manager.delete_component(component)
 
-        component_manager = self.component_manager
-        with component_manager.suppressing_is_first_in_measure() as was_computing:
-            for component in list(reversed(components)):
-                component_manager.delete_component(component)
-
-        if not was_computing:
-            # BeatTLComponentManager.restore_state, reached on every undo and
-            # redo, suppresses recomputation across a whole delete-then-create
-            # pass and recomputes once at the end. Recomputing here would make
-            # every beat it re-creates afterwards sweep the whole timeline.
+        if manager.is_restoring or manager.is_bulk:
             return
 
-        # Unconditional, including when the timeline is now empty: otherwise it
-        # keeps a beats_in_measure / measure_numbers describing beats that no
-        # longer exist, and the UI keeps their labels.
-        self.recalculate_measures()
-        component_manager.update_is_first_in_measure_of_subsequent_beats(0)
-        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+        # Deleting the first measure's beat unit resets it to the default,
+        # rather than copying the next one as a structural change would.
+        if beat_units:
+            self._ensure_first_beat_unit(copy_next=False)
+
+        if lengths is not None and len(self):
+            self._remeasure(*lengths)
+        self.refresh_measures()
+
+    def _get_lengths_after_deleting(self, beats: list[Beat]) -> tuple[list[int], int]:
+        """
+        The lengths of the measures left once `beats` go, as they are now,
+        and the first measure one of them is in.
+        """
+        measures = self.measures
+        lost = Counter(
+            measures.measure_of_beat[self.get_beat_index(beat)] for beat in beats
+        )
+        counts = [
+            count
+            for measure_index, count in enumerate(measures.counts)
+            if lost[measure_index] < count
+        ]
+        return counts, min(lost)
 
     class FillMethod(Enum):
         BY_AMOUNT = 0
@@ -693,23 +1643,22 @@ class BeatTimeline(Timeline):
     @long_operation("Creating beats...")
     def fill_with_beats(self, method: BeatTimeline.FillMethod, value: int | float):
         duration = get(Get.MEDIA_DURATION)
-        self.component_manager.compute_is_first_in_measure = False
-        # only compute at end
-
         if method == BeatTimeline.FillMethod.BY_AMOUNT:
-            total = int(value)
-            for i in range(total):
-                self.create_component(ComponentKind.BEAT, i * duration / value)
-                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, total)
-        elif method == BeatTimeline.FillMethod.BY_INTERVAL:
-            total = math.floor(duration / value)
-            for i in range(total):
-                self.create_component(ComponentKind.BEAT, i * value)
-                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, total)
+            times = [i * duration / value for i in range(int(value))]
+        else:
+            times = [i * value for i in range(math.floor(duration / value))]
 
-        self.component_manager.compute_is_first_in_measure = True
-        self.recalculate_measures()
-        self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+        counts = get_extension_from_beat_pattern(self.beat_pattern_bars, len(times))
+        starts = {0, *itertools.accumulate(counts[:-1])}
+        with self.component_manager.bulk():
+            for i, time in enumerate(times):
+                self.create_component(
+                    ComponentKind.BEAT, time, is_first_in_measure=i in starts
+                )
+                post(Post.LONG_OPERATION, LongOperation.PROGRESS, i + 1, len(times))
+            self.lay_planned_beat_units(0)
+
+        self.refresh_measures()
 
     def add_measure_zero(self, fraction_of_measure_one: float) -> tuple[bool, str]:
         if self.measure_count < 2:
@@ -731,9 +1680,11 @@ class BeatTimeline(Timeline):
                 "There is not enough available space before the first measure.",
             )
 
-        self.create_component(ComponentKind.BEAT, measure_zero_start)
-
-        self.set_measure_number(0, 0)
-        self.set_beat_amount_in_measure(0, 1)
+        self.create_component(
+            ComponentKind.BEAT,
+            measure_zero_start,
+            is_first_in_measure=True,
+            measure_number_override=0,
+        )
 
         return True, ""
