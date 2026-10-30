@@ -447,12 +447,22 @@ class TestColor:
             " #fff",
             "rgb(1, 2, 3)",
             "red\n",
+            "re\ud83d",
             0,
             True,
         ],
     )
     def test_a_color_that_isnt_one(self, value):
         assert rules.color(value) == (False, f"{value} is not a valid color.")
+
+    def test_a_lone_surrogate_ends_a_name_as_another_character_beyond_latin_1(self):
+        # A file can hold one, written as \ud83d. Qt reads a name up to it.
+        assert rules.color("red\ud83d") == OK
+        assert rules.color("\ud83dred") == (False, "\ud83dred is not a valid color.")
+        assert rules.color(" " * 252 + "red\ud83d") == (
+            False,
+            " " * 252 + "red\ud83d is not a valid color.",
+        )
 
     @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range"])
     def test_each_kind_with_a_color_checks_it(self, kind):
@@ -525,6 +535,12 @@ class TestColor:
             "ſteelblue",
             "ＲＥＤ",
             "red\U0001f3bb",
+            "re\ud83d",
+            "red\ud83d",
+            "\ud83dred",
+            "red\udfbb",
+            " " * 251 + "red\ud83d",
+            " " * 252 + "red\ud83d",
             "notacolor",
             "a" * 300,
             " " * 300 + "red",
@@ -1356,7 +1372,7 @@ MISSING = object()  # a key the component doesn't have
 NAN = float("nan")
 ODD_NUMBERS = [NAN, float("inf"), "1.0", None, True, 10**400, -(10**400), [1.0]]
 TEXTS = ([MISSING, MISSING, "", "Exposição"], [3])
-COLORS = ([MISSING, MISSING, None, "", "red", "#f0a"], ["notacolor", 3])
+COLORS = ([MISSING, MISSING, None, "", "red", "#f0a"], ["notacolor", 3, "re\ud83d"])
 POINT_POOLS = {
     # Few times, so that many components share one: 1 and 1.0 are the same.
     "time": ([0, 0.0, 0.5, 1, 1.0, 2.5, 59.5, 60, 60.0], [-1.0, 60.5, *ODD_NUMBERS]),
@@ -1717,6 +1733,14 @@ class TestCheckTimeline:
         marker = component("marker", time=1.0, **attrs)
 
         assert rules.check_timeline(MEDIA, [marker])[marker.id].color == OK
+
+    def test_a_color_with_a_lone_surrogate_is_reported(self):
+        # A file can hold one, written as \ud83d.
+        marker = component("marker", time=1.0, color="re\ud83d")
+
+        checked = rules.check_timeline(MEDIA, [marker])[marker.id]
+
+        assert checked.color == (False, "re\ud83d is not a valid color.")
 
     def test_music21_is_looked_up_once_per_call(self, music21, monkeypatch):
         calls = []

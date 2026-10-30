@@ -1023,8 +1023,9 @@ def _qt_reads(text: str) -> bool:
         digits = text[1:]
         return len(digits) in _HEX_LENGTHS and all(c in _HEX_DIGITS for c in digits)
     # Qt reads a name of up to 255 UTF-16 units, in any case, leaving out spaces
-    # and tabs. A NUL, or a character beyond Latin-1, ends it.
-    if len(text.encode("utf-16-le")) // 2 > 255:
+    # and tabs. A NUL, or a character beyond Latin-1, ends it, and so does a lone
+    # surrogate, which a file can hold (as "\ud83d"): it counts one unit.
+    if len(text.encode("utf-16-le", "surrogatepass")) // 2 > 255:
         return False
     name = []
     for character in text:
