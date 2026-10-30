@@ -161,16 +161,20 @@ def get_overrides(numbers: list[int]) -> dict[int, int]:
     }
 
 
-def parse_bar_numbers(text: str, count: int) -> tuple[list[int] | None, str]:
+def parse_bar_numbers(
+    text: str, count: int, limit: int
+) -> tuple[list[int] | None, str]:
     """
-    Reads the numbers of `count` bars: a first number to count on from
-    ("9"), or ranges and numbers separated by commas that name `count` bars
-    ("1-8, 1-8"), where a number that doesn't follow the one before is a
-    repeat or a jump.
+    Reads the numbers of a row of `count` bars: a first number to count on
+    from ("9"), or ranges and numbers separated by commas ("1-8, 1-8"), as
+    printed, where a number that doesn't follow the one before is a repeat
+    or a jump. Ranges and numbers name as many bars as the row is to have,
+    up to `limit`.
     """
+    items = text.replace("–", "-").split(",")
     numbers: list[int] = []
     total = 0
-    for item in text.replace("–", "-").split(","):
+    for item in items:
         item = item.strip()
         bounds = [bound.strip() for bound in item.split("-")]
         if not 1 <= len(bounds) <= 2 or not all(
@@ -180,17 +184,19 @@ def parse_bar_numbers(text: str, count: int) -> tuple[list[int] | None, str]:
         first, last = int(bounds[0]), int(bounds[-1])
         if last < first:
             return None, f"'{item}' counts down."
+        if len(items) == 1 and len(bounds) == 1:
+            return list(range(first, first + count)), ""
         total += last - first + 1
-        # Counted rather than listed past the row's bars, as a range may be
-        # huge.
-        if total <= count:
+        # Counted rather than listed past the limit, as a range may be huge.
+        if total <= limit:
             numbers += range(first, last + 1)
 
-    if total == 1:
-        return list(range(numbers[0], numbers[0] + count)), ""
-    if total != count:
-        bars = "bar" if count == 1 else "bars"
-        return None, f"'{text}' numbers {total} bars, not {count} {bars}."
+    if total > limit:
+        bars = "bar fits" if limit == 1 else "bars fit"
+        return None, (
+            f"'{text}' numbers {total} bars, but only {limit} {bars} the beats"
+            " tapped from here."
+        )
     return numbers, ""
 
 
@@ -465,21 +471,36 @@ class BeatPatternDialog(QDialog):
             self._is_writing_plan = False
 
     def _edit_numbers(self, row: BarRow, text: str) -> None:
-        numbers, error = parse_bar_numbers(text, row.count)
+        """
+        Numbers a row of tapped bars as printed. Numbers for more or fewer
+        bars than the row has make it that many bars long; the bars after it
+        keep their beats, so their barlines move.
+        """
+        bars, tapped = self._lay_out()
+        bars = bars[:tapped]
+        beats_left = self._beat_count - sum(bar.beat_count for bar in bars[: row.start])
+        # The last of them may have only some of its beats so far.
+        fit = -(-beats_left // row.bar.beat_count)
+        numbers, error = parse_bar_numbers(text, row.count, fit)
         if numbers is None:
             self._show_error(error)
             self._update_table()
             return
 
         self._show_error("")
-        _, tapped = self._lay_out()
+        end = row.start + row.count
         all_numbers = get_numbers(tapped, self._overrides)
-        all_numbers[row.start : row.start + row.count] = numbers
+        bars[row.start : end] = [row.bar] * len(numbers)
+        all_numbers[row.start : end] = numbers
         # The bars after the row count on from it, unless numbered by hand.
-        for index in range(row.start + row.count, tapped):
-            if index not in self._overrides:
+        shift = len(numbers) - row.count
+        numbered = {index + shift for index in self._overrides if index >= end}
+        for index in range(row.start + len(numbers), len(all_numbers)):
+            if index not in numbered:
                 all_numbers[index] = all_numbers[index - 1] + 1
-        self._overrides = get_overrides(all_numbers)
+        self._bars = bars
+        _, tapped = self._lay_out()
+        self._overrides = get_overrides(all_numbers[:tapped])
         self._update_table()
 
     @classmethod
