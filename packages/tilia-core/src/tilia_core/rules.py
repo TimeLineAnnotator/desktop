@@ -975,7 +975,8 @@ class _Others:
     """The other components each component is checked with, found without
     comparing it with every one: those its rules could find it at odds with,
     among those added. Every component is added when reading, and each one kept
-    so far when importing."""
+    so far when importing, so that the joins an import checks last are checked
+    with every range kept."""
 
     def __init__(self, components: Sequence[tla.Component]) -> None:
         self._components = components
@@ -1005,11 +1006,12 @@ class _Others:
         """The others the rules of the component at `place` could name, in the
         order given, found when a rule between components first reads them.
 
-        A rule between components comes after the component's own rules but for
-        the point kinds, whose time is compared with the others' once it is a
-        time within the media, before a harmony's or a key's values or a PDF
-        marker's page are checked. The others are needed only from there: one
-        that breaks a rule of its own before it never looks for them.
+        A rule between components comes after the component's own rules, but
+        for the point kinds: their time is compared with the others' as soon as
+        it is a time within the media and their texts are text, before a
+        harmony's or a key's values, or a PDF marker's page, are checked. The
+        others are needed only from there, so one that breaks a rule of its own
+        before it never looks for them.
         """
         return _Found(lambda: self._found(place))
 
