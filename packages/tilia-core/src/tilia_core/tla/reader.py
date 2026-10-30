@@ -81,22 +81,23 @@ def _old(
     the old file's bytes (TimeLineAnnotator/project-management#347). The
     migration names its places so itself; the check names places in the
     migrated document, which the migration's `places` takes back to the old
-    file.
+    file, with what it says about them.
     """
     try:
         migrated = migrate(content, path=path)
         try:
             warnings = check(migrated.content, path=path)
         except UnreadableFile as error:
-            if error.place is not None:
-                error.place = migrated.places.old(error.place)
-            raise
+            if error.place is None:
+                raise
+            place, message = migrated.places.in_old_file(error.place, error.message)
+            raise UnreadableFile(message, path=path, place=place) from None
     except UnreadableFile as error:
         if error.place is not None and error.line is None:
             error.line = _lines(data, [error.place])[error.place]
         raise
     named = [(w.place, w.message) for w in migrated.warnings]
-    named += [(migrated.places.old(w.place), w.message) for w in warnings]
+    named += [migrated.places.in_old_file(w.place, w.message) for w in warnings]
     lines = _lines(data, [place for place, _ in named]) if named else {}
     document = _Reader(path).document(migrated.content)
     document.warnings = [
