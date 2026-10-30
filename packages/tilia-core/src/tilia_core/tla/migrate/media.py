@@ -6,8 +6,8 @@ relative to the file's folder, starting from where TiLiA would find the
 media now (contracts/migration.md, *Media paths*):
 
 1. empty, or a URL: kept as it is;
-2. absolute, and it exists on this computer: made relative from the file's
-   current folder;
+2. absolute, and it exists on this computer, as `tla.media` would find it:
+   made relative from the file's current folder;
 3. absolute, and it doesn't exist here: made relative from the folder of the
    old `file_path`, computed with that path's own conventions, Windows or
    POSIX, which is where TiLiA looks when the file and its media moved
@@ -29,6 +29,7 @@ from tilia_core.tla.media_files import (
     absolute_form,
     folder_of,
     is_relative,
+    local_file,
     relative_path,
     relative_with_slashes,
     with_slashes,
@@ -67,23 +68,19 @@ def migrated_path(stored: Any, *, file_path: Any, folder: str | None) -> Any:
     if form is None:
         # Empty, a URL, or relative: kept, a relative path with "/".
         return relative_with_slashes(stored) if is_relative(stored) else stored
-    if form == SYSTEM and os.path.exists(stored):
-        # Where TiLiA finds it now, whatever file_path says.
-        return _relative_or_absolute(stored, form, folder)
     saved = file_path if isinstance(file_path, str) else ""
     saved_form = absolute_form(saved)
-    if saved_form is None:
+    base: str | None
+    if local_file(stored, folder) is not None:  # never another system's path
+        base = folder  # where TiLiA finds it now, whatever file_path says
+    elif saved_form is None:
         # Never saved under this name (an autosave), or a file_path that
         # doesn't say where: from the current folder, whether or not the
         # media is there.
-        return _relative_or_absolute(stored, form, folder if form == SYSTEM else None)
-    if saved_form != form:
-        return with_slashes(stored, form)  # no relative path between them
-    return _relative_or_absolute(stored, form, folder_of(saved, form))
-
-
-def _relative_or_absolute(stored: str, form: str, folder: str | None) -> str:
-    """`stored` relative to `folder`, or absolute where no relative path
-    exists, or without a folder; with "/" either way."""
-    relative = None if folder is None else relative_path(stored, folder, form)
+        base = folder if form == SYSTEM else None
+    elif saved_form == form:
+        base = folder_of(saved, form)
+    else:
+        base = None  # no relative path between two systems' paths
+    relative = None if base is None else relative_path(stored, base, form)
     return relative if relative is not None else with_slashes(stored, form)
