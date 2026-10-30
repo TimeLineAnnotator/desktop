@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import sysconfig
@@ -448,3 +449,50 @@ def test_a_change_the_command_has_no_words_for_is_printed_as_counted(
         "  a.tla                   dropped 2 formal_type and formal_function values;"
         " dropped 3 amplitude bars; marks_counted: 4\n"
     ) in capsys.readouterr().out
+
+
+# Nothing but the report
+
+
+PRINT_ONLY = """\
+import os
+import sys
+from pathlib import Path
+
+scandir = os.scandir
+
+
+def refusing(path):
+    if Path(path).name == "locked":
+        raise PermissionError(13, "Permission denied", str(path))
+    return scandir(path)
+
+
+os.scandir = refusing
+from tilia_core.commands import main
+
+sys.exit(main())
+"""
+
+
+def test_the_command_prints_its_report_and_nothing_else(clean):
+    place(clean / "locked" / "piece.tla", OLD / "0.7.0.tla")
+    read_only = clean / "a.tla"
+    os.chmod(read_only, stat.S_IREAD)
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", PRINT_ONLY, "migrate", "clean", "--apply"],
+            cwd=clean.parent,
+            env=env,
+            capture_output=True,
+            encoding="utf-8",
+            timeout=120,
+        )
+    finally:
+        os.chmod(read_only, stat.S_IREAD | stat.S_IWRITE)
+
+    assert result.returncode == 1
+    assert "  a.tla                   can't write: " in result.stdout
+    assert "  locked/                 can't read: Permission denied" in result.stdout
+    assert result.stderr == ""
