@@ -26,7 +26,9 @@ def listing(folder):
 
 
 def edited(note="edited"):
-    doc = tla.read(EVERY_KIND)
+    # Read from nowhere, so that its relative media paths are written as they
+    # are into any folder (FR-033).
+    doc = tla.loads(EVERY_KIND.read_bytes())
     doc.metadata["note"] = note
     return doc
 
@@ -65,8 +67,9 @@ def test_another_edit_gives_another_fingerprint(piece):
 
 def with_value(where, key, value):
     """every-kind.tla with `key` set to `value` on its first component of the
-    kind `where`, or on its first hierarchy timeline."""
-    doc = tla.read(EVERY_KIND)
+    kind `where`, or on its first hierarchy timeline; read from nowhere, as
+    `edited` reads it."""
+    doc = tla.loads(EVERY_KIND.read_bytes())
     timeline = next(tl for tl in doc.timelines.values() if tl.kind == "hierarchy")
     if where == "timeline":
         setattr(timeline, key, value)
