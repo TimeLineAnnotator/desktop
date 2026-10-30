@@ -1878,6 +1878,81 @@ def test_a_joined_right_names_nothing_unless_its_timeline_has_it(value, shown):
     assert error.value.line == line_of(data, b'"joined_right"')
 
 
+# A reference is refused as naming nothing as a file of the current format
+# refuses one: once its structure has nothing to refuse, and in the file's
+# order among the other references.
+
+
+@pytest.mark.parametrize(
+    "changes, place, message",
+    [
+        # Before it in the file.
+        (
+            [set_key(*HIERARCHY, "height", "x"), with_range(joined_right="99")],
+            "/timelines/1/height",
+            '"height" should be an integer, not text',
+        ),
+        # In the same range.
+        (
+            [
+                with_range(joined_right="99"),
+                remove_key(*RANGE, "components", "10", "row_id"),
+            ],
+            "/timelines/9/components/10/row_id",
+            '"row_id" is missing',
+        ),
+        # After it in the file.
+        (
+            [
+                with_range(joined_right="99"),
+                set_key(*RANGE, "components", "11", "start", "1"),
+            ],
+            "/timelines/9/components/11/start",
+            '"start" should be a number, not text',
+        ),
+    ],
+    ids=["before", "in the same range", "after"],
+)
+def test_what_its_structure_breaks_is_refused_before_what_names_nothing(
+    changes, place, message
+):
+    data = indented(edited(*changes))
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert (error.value.place, error.value.message) == (place, message)
+
+
+@pytest.mark.parametrize(
+    "changes, place, message",
+    [
+        (
+            [
+                with_range(joined_right="99"),
+                set_key(*RANGE, "components", "11", "row_id", "s"),
+            ],
+            "/timelines/9/components/10/joined_right",
+            '"joined_right" names nothing: "99"',
+        ),
+        (
+            [
+                with_range(row_id="s"),
+                set_key(*RANGE, "components", "11", "joined_right", "99"),
+            ],
+            "/timelines/9/components/10/row_id",
+            'a range names row "s", which its timeline doesn\'t have',
+        ),
+    ],
+    ids=["joined_right first", "row_id first"],
+)
+def test_references_that_name_nothing_are_refused_in_the_files_order(
+    changes, place, message
+):
+    data = indented(edited(*changes))
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert (error.value.place, error.value.message) == (place, message)
+
+
 @pytest.mark.parametrize("joined", ["10", "99"], ids=["names a range", "names none"])
 def test_only_a_ranges_joined_right_is_a_reference(joined):
     # A component of another kind in a range timeline is kept as it is, as

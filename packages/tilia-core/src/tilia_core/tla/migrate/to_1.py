@@ -19,13 +19,15 @@ takes it to the current format:
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
   components get ids derived from it and from their old ids; a range's
-  `joined_right` follows the new ids, rows keep theirs, and one that names
-  nothing in its timeline is refused.
+  `joined_right` follows the new ids, rows keep theirs.
 
 The migration keeps each new id's old id, and where the keys it moves were
 (`places`), so that what the check after it refuses or warns about can be
 named at its place in the old file. Its own refusals and warnings name the
-place in the old file as it reads it, with the old ids.
+place in the old file as it reads it, with the old ids. A reference the new
+ids can't follow, which names nothing, is left for the check to refuse,
+after what it refuses in the structure and among the other references in
+the file's order, as it refuses one in a file of the current format.
 
 Keys and kinds the core doesn't know are kept as they are; a timeline of a
 kind it doesn't know keeps its content, its components' ids included, under
@@ -222,16 +224,6 @@ class _Migration:
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
 
-    def _names_nothing(self, parent: str, key: str, reference: Any) -> UnreadableFile:
-        """The refusal of a reference, at `key` in `parent`, that names
-        nothing the new ids can follow it to."""
-        name = json.dumps(key, ensure_ascii=False)
-        shown = json.dumps(reference, ensure_ascii=False)
-        return self._refuse(
-            f"{printable(name)} names nothing: {printable(shown)}",
-            pointer_to(parent, key),
-        )
-
     def _object(self, value: Any, place: str) -> dict[str, Any]:
         if not isinstance(value, dict):
             raise self._refuse(f"expected an object at {place}", place)
@@ -366,22 +358,7 @@ class _Migration:
                 name: self._component(name, value, components_place)
                 for name, value in components.items()
             }
-            if kind == "range":
-                self._joined(converted["components"], components_place)
         return converted
-
-    def _joined(self, components: dict[str, Any], parent: str) -> None:
-        """Refuse a range joined to a component its timeline doesn't have:
-        a reference the new ids can't follow (`_follow`), which names
-        nothing. Another value isn't a reference: the check refuses it."""
-        for key, component in components.items():
-            if component_kind_from_file(component["kind"]) != "range":
-                continue  # its references aren't followed or checked
-            joined = component.get("joined_right")
-            if _is_reference(joined) and str(joined) not in components:
-                raise self._names_nothing(
-                    pointer_to(parent, key), "joined_right", joined
-                )
 
     def _component(self, key: str, value: Any, parent: str) -> dict[str, Any]:
         place = pointer_to(parent, key)
@@ -409,22 +386,23 @@ class _Migration:
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 
 
-def _is_reference(value: Any) -> bool:
-    """Whether an old file's value names a component, as `_follow` reads
-    it: text, or an integer, which TiLiA never wrote."""
-    return isinstance(value, str) or (
-        isinstance(value, int) and not isinstance(value, bool)
-    )
+# What a reference the new ids can't follow becomes: a UUID that no migrated
+# component has (theirs are UUIDv7s), so that the check refuses it as a
+# reference that names nothing, in the order it refuses what a file of the
+# current format breaks. The reader names it as the old file has it.
+NOTHING = "00000000-0000-0000-0000-000000000000"
 
 
 def _follow(reference: Any, new_ids: dict[str, str]) -> Any:
-    """The new id of the component an old reference names, or the reference
-    as it is when it names none."""
+    """The new id of the component an old reference names: text, or an
+    integer, which TiLiA never wrote; NOTHING for one that names none. A
+    value of another type isn't a reference, and stays as it is, for the
+    check to refuse."""
     if isinstance(reference, int) and not isinstance(reference, bool):
         reference = str(reference)
-    if isinstance(reference, str) and reference in new_ids:
-        return new_ids[reference]
-    return reference
+    elif not isinstance(reference, str):
+        return reference
+    return new_ids.get(reference, NOTHING)
 
 
 def _with_new_ids(
@@ -452,10 +430,16 @@ def _with_new_ids(
                     and "joined_right" in component
                     and component_kind_from_file(component["kind"]) == "range"
                 ):
-                    component = {
-                        **component,
-                        "joined_right": _follow(component["joined_right"], new_ids),
-                    }
+                    joined = _follow(component["joined_right"], new_ids)
+                    if joined == NOTHING:
+                        place = "/".join(
+                            ["", "timelines", new_id, "components", new_ids[key]]
+                        )
+                        places.names_nothing(
+                            pointer_to(place, "joined_right"),
+                            component["joined_right"],
+                        )
+                    component = {**component, "joined_right": joined}
                 renamed[new_ids[key]] = component
             timeline = {**timeline, "components": renamed}
         timelines[new_id] = timeline
