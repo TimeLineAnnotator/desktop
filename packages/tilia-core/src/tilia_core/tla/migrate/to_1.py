@@ -102,12 +102,12 @@ def migrate(
     migration.check(old)
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
-    # With the old ids still in place, the beat timelines' measures
-    # (TimeLineAnnotator/project-management#181), the legacy scores
-    # (TimeLineAnnotator/project-management#182) are converted here, as the
-    # comments' marks (TimeLineAnnotator/project-management#180) are in
-    # `to_current`, so that the document id is derived from the content they
-    # give.
+    # `to_current` has moved the comments' marks into fields
+    # (TimeLineAnnotator/project-management#180), with the old ids still in
+    # place, so that the document id is derived from the content they give.
+    # The beat timelines' measures (TimeLineAnnotator/project-management#181)
+    # and the legacy scores (TimeLineAnnotator/project-management#182) are to
+    # be converted here, before the id is derived, for the same reason.
     #
     # A file saved again by TiLiA 0.7 without an edit gets the same id, but
     # for three changes TiLiA 0.7 makes itself, which change it (accepted in
