@@ -1471,6 +1471,55 @@ def test_a_broken_old_file_is_refused_naming_the_place(change, place, message):
     assert (error.value.place, error.value.message) == (place, message)
 
 
+# A timeline's keys of the current format, which no old file has: the
+# migration couldn't keep their values (contracts/migration.md).
+CURRENT_TIMELINE_KEYS = [(kind, "measure_table") for kind in TIMELINE_KINDS] + [
+    ("beat", "measure_source"),
+    ("score", "score"),
+]
+
+
+@pytest.mark.parametrize("kind, key", CURRENT_TIMELINE_KEYS)
+def test_a_timeline_key_of_the_current_format_is_refused_at_its_old_place(kind, key):
+    content = edited(with_timeline_of_kind(kind, 30))
+    content["timelines"]["9"][key] = "3"
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(content)
+    assert (error.value.place, error.value.message) == (
+        f"/timelines/9/{key}",
+        f'a file from TiLiA 0.6.0 can\'t hold "{key}", a key of the current format',
+    )
+
+
+def test_a_timeline_key_of_the_current_format_is_refused_in_any_old_spelling():
+    content = edited(kinds_before_0_7, set_key(*HIERARCHY, "measure_table", "3"))
+    assert content["timelines"]["1"]["kind"] == "HIERARCHY_TIMELINE"
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(content)
+    assert error.value.place == "/timelines/1/measure_table"
+
+
+@pytest.mark.parametrize("kind, key", CURRENT_TIMELINE_KEYS)
+def test_a_null_timeline_key_of_the_current_format_is_a_missing_one(kind, key):
+    without = loads(edited(with_timeline_of_kind(kind, 30)))
+    content = edited(with_timeline_of_kind(kind, 30))
+    content["timelines"]["9"][key] = None
+    assert loads(content).document_id == without.document_id
+
+
+def test_a_timeline_of_an_unknown_kind_keeps_its_keys_of_the_current_format():
+    content = old_file_content()
+    content["timelines"]["9"] = {
+        "kind": "Lyrics",
+        "ordinal": 3,
+        "measure_table": "3",
+        "score": "4",
+        "components": {},
+    }
+    lyrics = by_kind(loads(content), tla.UnknownKind("Lyrics"))
+    assert (lyrics.raw["measure_table"], lyrics.raw["score"]) == ("3", "4")
+
+
 @pytest.mark.parametrize("value", ["1", 1.0, True, None])
 def test_a_display_position_that_isnt_an_integer_is_refused(value):
     content = timeline_without_ordinal("0.0.96", display_position=value)

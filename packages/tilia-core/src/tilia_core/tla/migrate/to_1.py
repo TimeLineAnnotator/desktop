@@ -50,6 +50,7 @@ from tilia_core.tla.layout import (
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.migrate import scores
 from tilia_core.tla.model import (
+    TIMELINE_KINDS,
     ReadWarning,
     UnknownKind,
     component_kind_from_file,
@@ -72,6 +73,14 @@ _OLD_TOP_LEVEL = frozenset(
 # Keys of the current format that no old file has: one that does can't be
 # migrated without losing its value.
 _CURRENT_ONLY = ("document_id", "time_unit", "media", "metadata", "scores")
+# And a timeline's, by its kind; a null is a missing key. Not its `metadata`,
+# which the migration doesn't set, and keeps as it is; nor `rows`,
+# `default_row_height` or `show_time_signatures`, which TiLiA 0.x writes.
+_CURRENT_ONLY_IN_TIMELINES: dict[str, tuple[str, ...]] = {
+    **{kind: ("measure_table",) for kind in TIMELINE_KINDS},
+    "beat": ("measure_source", "measure_table"),
+    "score": ("score", "measure_table"),
+}
 _STORED_HASHES = ("hash", "components_hash")
 _MEDIA_LENGTH = "media length"
 # A number written as text, in ASCII.
@@ -209,6 +218,16 @@ class _Migration:
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
 
+    def _current_key(self, key: str, place: str) -> UnreadableFile:
+        """A key of the current format in the old file: the migration
+        couldn't keep it without losing its value."""
+        name = json.dumps(key, ensure_ascii=False)
+        return self._refuse(
+            f"a file from TiLiA {printable(self.version)} can't hold"
+            f" {printable(name)}, a key of the current format",
+            place,
+        )
+
     def _object(self, value: Any, place: str) -> dict[str, Any]:
         if not isinstance(value, dict):
             raise self._refuse(f"expected an object at {place}", place)
@@ -235,12 +254,7 @@ class _Migration:
         """Check the shapes TiLiA's own migrations read, before they run."""
         for key in _CURRENT_ONLY:
             if key in old:
-                name = json.dumps(key, ensure_ascii=False)
-                raise self._refuse(
-                    f"a file from TiLiA {printable(self.version)} can't hold"
-                    f" {printable(name)}, a key of the current format",
-                    pointer_to("", key),
-                )
+                raise self._current_key(key, pointer_to("", key))
         if "media_path" in old and not isinstance(old["media_path"], str):
             raise self._refuse("expected text at /media_path", "/media_path")
         if "media_metadata" in old:
@@ -250,7 +264,10 @@ class _Migration:
         for key, timeline in timelines.items():
             place = pointer_to("/timelines", key)
             self._object(timeline, place)
-            self._text(timeline, "kind", place)
+            kind = timeline_kind_from_file(self._text(timeline, "kind", place))
+            for name in _CURRENT_ONLY_IN_TIMELINES.get(kind, ()):
+                if timeline.get(name) is not None:
+                    raise self._current_key(name, pointer_to(place, name))
             position = timeline.get("display_position")
             if renames and "display_position" in timeline and type(position) is not int:
                 at = pointer_to(place, "display_position")
@@ -305,6 +322,8 @@ class _Migration:
             for name, value in timeline.items()
             if name not in _STORED_HASHES and name != "components"
         }
+        for name in _CURRENT_ONLY_IN_TIMELINES[kind]:
+            converted.pop(name, None)  # null, which check let through
         # In the format's spelling, which the current format reads exactly:
         # an old file may have any letter case, and TiLiA's own migration
         # spells an old "AUDIOWAVE_TIMELINE" "Audiowave".

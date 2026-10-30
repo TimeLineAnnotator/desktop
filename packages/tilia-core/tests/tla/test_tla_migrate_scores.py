@@ -439,18 +439,24 @@ def test_beat_positions_without_svg_stay_on_the_timeline():
     assert score_timeline_of(again).extra == {"viewer_beat_x": OLD_BEAT_X}
 
 
+# Keys of the current format in an old score timeline: refused, as the
+# migration couldn't keep their values (contracts/migration.md).
+
+
+@pytest.mark.parametrize("key", ["score", "measure_table"])
 @pytest.mark.parametrize("svg", [SVG, ""], ids=["with svg", "without"])
-def test_a_score_key_in_an_old_score_timeline_is_refused(svg):
-    # A key of the current format: the migration couldn't keep its value.
+def test_a_key_of_the_current_format_in_an_old_score_timeline_is_refused(svg, key):
     with pytest.raises(tla.UnreadableFile) as error:
-        loads(old_file_content(svg_data=svg, score="another"))
+        loads(old_file_content(svg_data=svg, **{key: "1"}))
     assert (error.value.place, error.value.message) == (
-        "/timelines/7/score",
-        'a file from TiLiA 0.7.0 can\'t hold "score", a key of the current format',
+        f"/timelines/7/{key}",
+        f'a file from TiLiA 0.7.0 can\'t hold "{key}", a key of the current format',
     )
 
 
-def test_a_null_score_key_in_an_old_score_timeline_is_a_missing_one():
-    doc = loads(old_file_content(score=None))
+@pytest.mark.parametrize("key", ["score", "measure_table"])
+def test_a_null_key_of_the_current_format_in_a_score_timeline_is_a_missing_one(key):
+    doc = loads(old_file_content(**{key: None}))
     assert score_timeline_of(doc).attrs["score"] == score_of(doc).id
+    assert score_timeline_of(doc).attrs["measure_table"] is None
     assert doc.document_id == loads(old_file_content()).document_id
