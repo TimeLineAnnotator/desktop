@@ -363,14 +363,18 @@ def test_a_url_or_another_systems_path_is_never_looked_up_here(
     piece = old_file(tmp_path / "corpus", where, stored, file_path)
     looked_up = []
 
-    def exists(path):
+    def found(path):
         looked_up.append(os.fspath(path))
         return True
 
-    monkeypatch.setattr(os.path, "exists", exists)
+    # Whichever the migration asks, each says the path is there.
+    monkeypatch.setattr(os.path, "exists", found)
+    monkeypatch.setattr(os.path, "isfile", found)
     doc = tla.read(piece)
     monkeypatch.undo()
-    assert stored not in looked_up
+    assert [
+        path for path in looked_up if "someone-176" in path or "youtube" in path
+    ] == []
     assert stored_in(doc, where) == expected
 
 
