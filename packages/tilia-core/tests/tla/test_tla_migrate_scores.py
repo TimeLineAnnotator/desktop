@@ -216,6 +216,21 @@ def test_beat_x_is_in_the_order_of_its_positions_by_value():
     ]
 
 
+@pytest.mark.parametrize(
+    "beat_x, expected",
+    [
+        ({"1": 10.0, "0.5": 5, "1.0": 20.0}, [[0.5, 5], [1.0, 20.0]]),
+        ({"0": 1.0, "-0": 2.0}, [[0.0, 2.0]]),
+        ({"2.5": 1.0, "25e-1": 2.0, "2.50": 3.0}, [[2.5, 3.0]]),
+    ],
+    ids=["1 and 1.0", "0 and -0", "three of 2.5"],
+)
+def test_of_two_beat_positions_of_one_value_the_last_counts(beat_x, expected):
+    # As TiLiA 0.7 reads them: {float(beat): float(x) for beat, x in ...}.
+    doc = loads(old_file_content(viewer_beat_x=beat_x))
+    assert score_of(doc).extra["beat_x"] == expected
+
+
 @pytest.mark.parametrize("beat_x", [None, {}, "missing"])
 def test_a_score_without_beat_positions_has_an_empty_beat_x(beat_x):
     # TiLiA's default, {}, until its viewer draws the score.

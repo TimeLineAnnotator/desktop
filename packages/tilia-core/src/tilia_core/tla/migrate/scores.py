@@ -90,7 +90,7 @@ def _beat_x(migration: _Migration, positions: Any, place: str) -> list[list[Any]
     if positions is None:
         return []
     migration._object(positions, place)
-    pairs = []
+    by_position: dict[float, Any] = {}
     for key, x in positions.items():
         at = pointer_to(place, key)
         position = _position(key)
@@ -99,10 +99,11 @@ def _beat_x(migration: _Migration, positions: Any, place: str) -> list[list[Any]
             raise migration._refuse(f"{name} in viewer_beat_x isn't a number", at)
         if not to_1._is_number(x):
             raise migration._refuse(f"expected a number at {at}", at)
-        pairs.append([position, x])
+        # Of two keys of one value, "1" and "1.0", the last counts, as TiLiA
+        # 0.7 reads them: {float(beat): float(x) for beat, x in ...}.
+        by_position[position] = x
     # By value: in text order, "10.0" would come before "2.0".
-    pairs.sort(key=itemgetter(0))
-    return pairs
+    return [list(pair) for pair in sorted(by_position.items(), key=itemgetter(0))]
 
 
 def _position(key: str) -> float | None:
