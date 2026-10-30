@@ -563,6 +563,15 @@ def test_a_url_or_another_systems_media_is_never_looked_up_here(
     assert (found.kind, found.path, looked_up) == ("local", None, [])
 
 
+def test_a_relative_path_with_backslashes_is_found(tmp_path):
+    # A backslash separates its parts on every system, as the migration and
+    # the writer read it.
+    media = media_file(tmp_path / "audio" / "piece.wav")
+    doc = tla.new_document()
+    doc.media_path = "audio\\piece.wav"
+    assert os.path.samefile(tla.media(tmp_path / "piece.tla", doc).path, media)
+
+
 NAME = "Ständchen"
 
 
