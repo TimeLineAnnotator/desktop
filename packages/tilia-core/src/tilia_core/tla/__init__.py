@@ -3,7 +3,12 @@
 The names here are provisional until they are documented.
 """
 
-from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
+from tilia_core.tla.errors import (
+    FileChanged,
+    FileInUse,
+    NewerFormat,
+    UnreadableFile,
+)
 from tilia_core.tla.folder import migrate_folder
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.model import (
@@ -47,6 +52,7 @@ __all__ = [
     "MeasureTable",
     "Media",
     "MigrationReport",
+    "NewerFormat",
     "ReadWarning",
     "Score",
     "Timeline",

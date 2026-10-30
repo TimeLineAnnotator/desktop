@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from tilia_core.tla.check import check
-from tilia_core.tla.errors import UnreadableFile, printable
+from tilia_core.tla.errors import NewerFormat, UnreadableFile, printable
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
     COMPONENT_SHAPES,
@@ -150,9 +150,8 @@ def _check_version(
             f"a draft of the format ({printable(version)}):"
             " convert it again from its sources"
         )
-    else:
-        message = f"written by a newer TiLiA (format {printable(version)})"
-    raise UnreadableFile(message, path=path, place="/version")
+        raise UnreadableFile(message, path=path, place="/version")
+    raise NewerFormat(version, path=path)
 
 
 _TIMELINE_FIELDS = frozenset({"kind", "name", "ordinal", "metadata", "components"})

@@ -520,6 +520,18 @@ def test_a_file_of_a_newer_format_is_read_once(clean_corpus, monkeypatch):
     assert len(reads["newer.tla"]) == 1
 
 
+def test_a_newer_format_is_refused_as_one():
+    with pytest.raises(tla.NewerFormat) as caught:
+        tla.read(BROKEN / "newer-format.tla")
+    assert caught.value.version == "2.0.0"
+    assert caught.value.message == "written by a newer TiLiA (format 2.0.0)"
+    assert caught.value.place == "/version"
+    assert caught.value.line == 3
+    with pytest.raises(tla.UnreadableFile) as caught:
+        tla.read(BROKEN / "older-draft.tla")
+    assert not isinstance(caught.value, tla.NewerFormat)
+
+
 # What can go wrong between reading and writing
 
 
