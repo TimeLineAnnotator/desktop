@@ -445,7 +445,13 @@ def _with_new_ids(
             renamed = {}
             for key, component in components.items():
                 places.component(new_id, new_ids[key], key)
-                if kind == "range" and "joined_right" in component:
+                # A range's only: a component of another kind is kept as it
+                # is, its keys the core doesn't know included.
+                if (
+                    kind == "range"
+                    and "joined_right" in component
+                    and component_kind_from_file(component["kind"]) == "range"
+                ):
                     component = {
                         **component,
                         "joined_right": _follow(component["joined_right"], new_ids),
