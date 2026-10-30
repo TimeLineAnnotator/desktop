@@ -15,6 +15,8 @@ takes it to the current format:
   which TiLiA computes from the media, with one warning per timeline;
 - a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
   `[4, 4, 3]` becomes `"4 4 3"`;
+- the prototype's `tag=` and `gen=` marks in components' comments move into
+  their metadata's `tags` and `generated_by` (`marks`), and are counted;
 - a `pre_start` or `post_end` equal to its `start` or `end` is left unset,
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
@@ -44,8 +46,10 @@ from tilia_core.tla.layout import (
     Shape,
     pointer_to,
 )
+from tilia_core.tla.migrate import marks
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     ReadWarning,
     UnknownKind,
     component_kind_from_file,
@@ -98,11 +102,12 @@ def migrate(
     migration.check(old)
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
-    # With the old ids still in place, the beat timelines' measures
-    # (TimeLineAnnotator/project-management#181), the legacy scores
-    # (TimeLineAnnotator/project-management#182) and the comments' marks
-    # (TimeLineAnnotator/project-management#180) are converted here, so that
-    # the document id is derived from the content they give.
+    # `to_current` has moved the comments' marks into fields
+    # (TimeLineAnnotator/project-management#180), with the old ids still in
+    # place, so that the document id is derived from the content they give.
+    # The beat timelines' measures (TimeLineAnnotator/project-management#181)
+    # and the legacy scores (TimeLineAnnotator/project-management#182) are to
+    # be converted here, before the id is derived, for the same reason.
     #
     # A file saved again by TiLiA 0.7 without an edit gets the same id, but
     # for three changes TiLiA 0.7 makes itself, which change it (accepted in
@@ -223,7 +228,13 @@ class _Migration:
 
     def _warn(self, place: str, message: str, change: str, count: int = 1) -> None:
         self.warnings.append(ReadWarning(place=place, line=None, message=message))
-        self.changes[change] = self.changes.get(change, 0) + count
+        self._count(change, count)
+
+    def _count(self, change: str, count: int) -> None:
+        """Add `count` to a count of the report; a count stays out until it
+        is above zero."""
+        if count:
+            self.changes[change] = self.changes.get(change, 0) + count
 
     def check(self, old: dict[str, Any]) -> None:
         """Check the shapes TiLiA's own migrations read, before they run."""
@@ -330,12 +341,14 @@ class _Migration:
             converted["components"] = {}
         else:
             converted["components"] = {
-                name: self._component(name, value, components_place)
+                name: self._component(name, value, components_place, kind)
                 for name, value in components.items()
             }
         return converted
 
-    def _component(self, key: str, value: Any, parent: str) -> dict[str, Any]:
+    def _component(
+        self, key: str, value: Any, parent: str, timeline_kind: str
+    ) -> dict[str, Any]:
         place = pointer_to(parent, key)
         component = self._object(value, place)
         kind = component_kind_from_file(self._text(component, "kind", place))
@@ -358,6 +371,13 @@ class _Migration:
                         del converted[derived]
         if isinstance(kind, UnknownKind):
             return converted
+        held = kind in TIMELINE_COMPONENTS[timeline_kind]
+        if held and "comments" in COMPONENT_SHAPES[kind].known:
+            # Not in a component of a kind its timeline doesn't hold, which is
+            # kept as it is, as the check keeps it. Before the attributes at
+            # their default go, so that a comment left empty goes with them,
+            # where it has a default: a legacy score's note writes it empty.
+            self._count("marks_moved", marks.move(converted))
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 
 
