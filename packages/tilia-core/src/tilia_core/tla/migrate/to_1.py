@@ -49,6 +49,7 @@ from tilia_core.tla.layout import (
 from tilia_core.tla.migrate import marks
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     ReadWarning,
     UnknownKind,
     component_kind_from_file,
@@ -340,12 +341,14 @@ class _Migration:
             converted["components"] = {}
         else:
             converted["components"] = {
-                name: self._component(name, value, components_place)
+                name: self._component(name, value, components_place, kind)
                 for name, value in components.items()
             }
         return converted
 
-    def _component(self, key: str, value: Any, parent: str) -> dict[str, Any]:
+    def _component(
+        self, key: str, value: Any, parent: str, timeline_kind: str
+    ) -> dict[str, Any]:
         place = pointer_to(parent, key)
         component = self._object(value, place)
         kind = component_kind_from_file(self._text(component, "kind", place))
@@ -368,8 +371,12 @@ class _Migration:
                         del converted[derived]
         if isinstance(kind, UnknownKind):
             return converted
-        if "comments" in COMPONENT_SHAPES[kind].known:
-            # Before the defaults go, so that a comment left empty goes too.
+        held = kind in TIMELINE_COMPONENTS[timeline_kind]
+        if held and "comments" in COMPONENT_SHAPES[kind].known:
+            # Not in a component of a kind its timeline doesn't hold, which is
+            # kept as it is, as the check keeps it. Before the attributes at
+            # their default go, so that a comment left empty goes with them,
+            # where it has a default: a legacy score's note writes it empty.
             self._count("marks_moved", marks.move(converted))
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 

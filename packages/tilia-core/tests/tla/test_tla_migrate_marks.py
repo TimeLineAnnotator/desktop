@@ -319,6 +319,57 @@ def test_a_comments_key_on_a_kind_without_comments_is_unchanged():
     assert beat.metadata == {}
 
 
+MISPLACED = {
+    "a marker in a hierarchy timeline": ("HIERARCHY", {"time": 1, "kind": "MARKER"}),
+    "a hierarchy in a marker timeline": (
+        "MARKER",
+        {"start": 0, "end": 1, "level": 1, "kind": "HIERARCHY"},
+    ),
+    "a mode in a marker timeline": ("MARKER", {"time": 1, "kind": "MODE"}),
+}
+
+
+@pytest.mark.parametrize("case", MISPLACED)
+def test_marks_stay_in_a_component_its_timeline_doesnt_hold(case):
+    # Such a component is kept as it is, as the check keeps it, with a
+    # warning: its comments aren't read for marks.
+    timeline_kind, component = MISPLACED[case]
+    content = old_file(kind=timeline_kind)
+    content["timelines"]["1"]["components"]["3"] = {
+        **component,
+        "comments": "y tag=check gen=group/A",
+    }
+    migrated = to_1.migrate(copy.deepcopy(content))
+    (timeline,) = migrated.content["timelines"].values()
+    (kept,) = [
+        c for c in timeline["components"].values() if c["kind"] == component["kind"]
+    ]
+    assert kept["comments"] == "y tag=check gen=group/A"
+    assert "metadata" not in kept
+    assert "marks_moved" not in migrated.changes
+    doc = loads(content)
+    (timeline,) = doc.timelines.values()
+    (read,) = [
+        c for c in timeline.components.values() if isinstance(c.kind, tla.UnknownKind)
+    ]
+    assert read.extra["comments"] == "y tag=check gen=group/A"
+    assert read.metadata == {}
+
+
+def test_marks_still_move_beside_a_component_its_timeline_doesnt_hold():
+    content = old_file("x tag=check", kind="HIERARCHY")
+    content["timelines"]["1"]["components"]["3"] = {
+        "time": 1,
+        "comments": "y tag=check",
+        "kind": "MARKER",
+    }
+    migrated = to_1.migrate(copy.deepcopy(content))
+    assert migrated.changes == {"marks_moved": 1}
+    (timeline,) = loads(content).timelines.values()
+    (section,) = [c for c in timeline.components.values() if c.kind == "hierarchy"]
+    assert (section.attrs["comments"], section.metadata) == ("x", {"tags": ["check"]})
+
+
 # An old component that already has metadata (only a file made by hand has)
 
 
