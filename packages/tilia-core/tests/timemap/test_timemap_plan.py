@@ -2,15 +2,20 @@
 
 import builtins
 import copy
+import dataclasses
 import io
 import logging
 import os
+import random
+import time
 from fractions import Fraction as F
 
 import pytest
 
 from docs import beat_timeline, document
 from tilia_core import tla
+from tilia_core.timemap import plan as timemap_plan
+from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.plan import (
     BarRef,
     Change,
@@ -82,8 +87,9 @@ def bars(*numbers, text):
     return [(BarRef(number), ts(text)) for number in numbers]
 
 
-def plan(doc, timeline, settings, source="score", after="carry"):
-    return plan_time_signatures(doc, timeline.id, settings, source=source, after=after)
+def plan(doc, timeline, settings, source="score", **after):
+    """A plan, with `after` if given, else its default."""
+    return plan_time_signatures(doc, timeline.id, settings, source=source, **after)
 
 
 def read(doc, timeline):
@@ -94,6 +100,16 @@ def read(doc, timeline):
 def written(p):
     """The components a plan writes to."""
     return {change.component_id for change in p.changes}
+
+
+def unit_writes(p):
+    """The units a plan writes, by component."""
+    return {c.component_id: c.new for c in p.changes if c.key == "beat_unit"}
+
+
+# A second song, numbered from 1 again, from the fourth bar on. Only the first
+# bar has a unit, the default, so the second song reads it, assumed.
+SONGS = {3: {"number": 1, "restart": True}}
 
 
 def with_copies():
@@ -157,6 +173,9 @@ class TestTimeSignature:
         with pytest.raises(ValueError):
             TimeSignature.parse(text)
 
+    def test_a_grouping_is_read_as_scores_print_it(self):
+        assert TimeSignature.parse("2+2+3/8") == TimeSignature((2, 2, 3), 8)
+
     def test_parts_are_fractions(self):
         assert TimeSignature((6,), 8).parts == (F(6),)
         assert isinstance(TimeSignature((6,), 8).parts[0], F)
@@ -192,6 +211,8 @@ class TestTheUnit:
             changes=[
                 Change(tl.id, d, "beat_unit", None, unit(8, "3")),
                 Change(tl.id, d, "measure.source", None, "score"),
+                # Bar 3 keeps its 2/4, assumed.
+                Change(tl.id, downbeat(tl, 2), "beat_unit", None, DEFAULT),
             ],
             unmatched=[],
             ambiguous=[],
@@ -238,8 +259,7 @@ class TestTheUnit:
         p = plan(doc, tl, bars(1, 2, 3, 4, text="6/8"))
         apply_plan(doc, p)
 
-        units = {c.component_id: c.new for c in p.changes if c.key == "beat_unit"}
-        assert units == {
+        assert unit_writes(p) == {
             beat(tl, 0, 0): unit(8, "3"),
             downbeat(tl, 1): unit(8, "2"),
             downbeat(tl, 2): unit(8, "3"),
@@ -280,9 +300,12 @@ class TestTheUnit:
                 Change(tl.id, downbeat(tl, m), "measure.source", None, "import")
                 for m in range(120)
             ],
+            Change(tl.id, downbeat(tl, 120), "beat_unit", None, DEFAULT),
         ]
         apply_plan(doc, p)
-        assert read(doc, tl)[:120] == [("3/4", False, "import")] * 120
+        assert read(doc, tl) == [("3/4", False, "import")] * 120 + [
+            ("1/4", True, "tapped")
+        ]
 
     def test_a_unit_too_long_to_read_back_is_refused(self):
         doc, tl = piece([2, 3, 2])
@@ -363,6 +386,7 @@ class TestSources:
                 Change(tl.id, downbeat(tl, m), "measure.source", None, "import")
                 for m in range(3)
             ],
+            Change(tl.id, downbeat(tl, 3), "beat_unit", None, DEFAULT),
         ]
 
     def test_when_every_measure_is_set_from_it_the_marks_lose_their_own(self):
@@ -390,15 +414,21 @@ class TestSources:
             Change(tl.id, beat(tl, 0, 0), "beat_unit", DEFAULT, unit(4, "1")),
             Change(tl.id, downbeat(tl, 0), "measure.source", None, "import"),
             Change(tl.id, downbeat(tl, 1), "measure.source", None, "import"),
+            Change(tl.id, downbeat(tl, 2), "beat_unit", None, DEFAULT),
         ]
-        assert read(doc, tl) == [("2/4", False, "import")] * 3
+        assert read(doc, tl) == [
+            ("2/4", False, "import"),
+            ("2/4", False, "import"),
+            ("2/4", True, "import"),
+        ]
 
     def test_when_every_measure_reads_it_through_its_own_mark_it_moves_to_the_timeline(
         self,
     ):
         # Bars 1 and 2 imported in one plan and bar 3 in another: each mark
-        # records the source, and the timeline doesn't
-        # (TimeLineAnnotator/project-management#340).
+        # records the source, and the timeline doesn't. From
+        # TimeLineAnnotator/project-management#340 (the source moves to the
+        # timeline).
         doc, tl = piece([3, 3, 3])
         for numbers in [(1, 2), (3,)]:
             apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), source="import"))
@@ -421,14 +451,18 @@ class TestSources:
         ] * 3
 
     def test_a_table_set_in_several_plans_is_written_as_one_set_in_one(self):
+        # With "carry": with "restore", bar 3 keeps the unit plan (1, 2) wrote
+        # back on it, which TimeLineAnnotator/project-management#361 (split
+        # plans and the same file) is to settle.
         doc, tl = piece([3, 3, 3])
         once = copy.deepcopy(doc)
+        carry = {"source": "import", "after": "carry"}
 
         for numbers in [(1, 2), (3,), (1, 2, 3)]:
-            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), source="import"))
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), **carry))
         apply_plan(
             once,
-            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), "import"),
+            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), **carry),
         )
 
         assert tla.canonical_bytes(doc) == tla.canonical_bytes(once)
@@ -436,7 +470,8 @@ class TestSources:
     def test_a_plan_of_every_measure_from_the_timeline_s_source_drops_the_copies(
         self,
     ):
-        # TimeLineAnnotator/project-management#343
+        # TimeLineAnnotator/project-management#343 (a mark that repeats the
+        # timeline's source)
         doc, tl = with_copies()
         assert read(doc, tl) == [("3/4", False, "import")] * 3
 
@@ -569,9 +604,10 @@ class TestNoNeedlessWrites:
         assert [(c.key, c.new) for c in p.changes] == [
             ("beat_unit", unit(4, "1")),
             ("measure.source", "import"),
+            ("beat_unit", DEFAULT),  # bar 2 stays assumed
         ]
         apply_plan(doc, p)
-        assert read(doc, tl)[0] == ("3/4", False, "import")
+        assert read(doc, tl) == [("3/4", False, "import"), ("3/4", True, "tapped")]
         assert plan(doc, tl, bars(1, text="3/4"), source="import").changes == []
 
     def test_a_bar_that_reads_it_from_the_source_is_skipped(self):
@@ -650,17 +686,14 @@ class TestAfter:
             ("6/8", False, "tapped"),
         ]
 
-    def test_restore_waits_for_its_decision(self):
+    def test_restore_is_the_default(self):
         doc, tl = piece([2, 2, 2])
+        settings = bars(2, text="6/8")
 
-        with pytest.raises(ValueError, match="#194"):
-            plan(doc, tl, bars(2, text="6/8"), after="restore")
+        default = plan_time_signatures(doc, tl.id, settings, source="score")
 
-    def test_after_has_no_default(self):
-        doc, tl = piece([2, 2, 2])
-
-        with pytest.raises(TypeError):
-            plan_time_signatures(doc, tl.id, bars(2, text="6/8"), source="score")
+        assert default == plan(doc, tl, settings, after="restore")
+        assert default != plan(doc, tl, settings, after="carry")
 
     @pytest.mark.parametrize(
         "kwargs",
@@ -685,8 +718,463 @@ class TestAfter:
             )
 
 
+class TestRestore:
+    def test_the_bar_after_a_run_gets_its_old_unit_back(self):
+        doc, tl = piece([2, 2, 2, 2])
+
+        p = plan(doc, tl, bars(2, text="6/8"))
+        apply_plan(doc, p)
+
+        assert p.changes == [
+            Change(tl.id, downbeat(tl, 1), "beat_unit", None, unit(8, "3")),
+            Change(tl.id, downbeat(tl, 1), "measure.source", None, "score"),
+            Change(tl.id, downbeat(tl, 2), "beat_unit", None, DEFAULT),
+        ]
+        assert read(doc, tl) == [
+            ("2/4", True, "tapped"),
+            ("6/8", False, "score"),
+            ("2/4", True, "tapped"),
+            ("2/4", True, "tapped"),
+        ]
+
+    def test_with_its_old_assumed(self):
+        doc, tl = piece([2, 2, 2], units={(0, 0): unit(4, "1")})
+
+        p = plan(doc, tl, bars(2, text="6/8"))
+
+        assert p.changes[-1] == Change(
+            tl.id, downbeat(tl, 2), "beat_unit", None, unit(4, "1")
+        )
+
+    def test_confirming_a_bar_keeps_the_next_one_assumed(self):
+        doc, tl = piece([2, 2, 2])
+
+        p = plan(doc, tl, bars(2, text="2/4"))
+        apply_plan(doc, p)
+
+        assert unit_writes(p) == {
+            downbeat(tl, 1): unit(4, "1"),
+            downbeat(tl, 2): DEFAULT,
+        }
+        assert [assumed for _, assumed, _ in read(doc, tl)] == [True, False, True]
+
+    def test_each_run_gets_its_own_write_back(self):
+        # The example of TimeLineAnnotator/project-management#194 (a SET's
+        # time signature as beat units): bars 45-50 and 55-60 set, write-backs
+        # on 51 and 61.
+        doc, tl = piece([2] * 65)
+        matched = [*range(45, 51), *range(55, 61)]
+
+        p = plan(doc, tl, bars(*matched, text="6/8"))
+        apply_plan(doc, p)
+
+        assert unit_writes(p) == {
+            downbeat(tl, 44): unit(8, "3"),
+            downbeat(tl, 50): DEFAULT,
+            downbeat(tl, 54): unit(8, "3"),
+            downbeat(tl, 60): DEFAULT,
+        }
+        assert read(doc, tl) == [
+            ("6/8", False, "score") if n in matched else ("2/4", True, "tapped")
+            for n in range(1, 66)
+        ]
+
+    @pytest.mark.parametrize("b", [0, 1], ids=["on its downbeat", "on a later beat"])
+    def test_a_bar_after_a_run_that_starts_its_own_unit_gets_none(self, b):
+        doc, tl = piece([2, 2, 2], units={(2, b): unit(4, "1")})
+
+        p = plan(doc, tl, bars(2, text="6/8"))
+
+        assert written(p) == {downbeat(tl, 1)}
+
+    def test_a_run_at_the_end_needs_none(self):
+        doc, tl = piece([2, 2, 2])
+
+        p = plan(doc, tl, bars(2, 3, text="6/8"))
+
+        assert written(p) == {downbeat(tl, 1), downbeat(tl, 2)}
+
+    def test_the_bars_before_the_timeline_s_first_unit_keep_their_reading(self):
+        # The case of TimeLineAnnotator/project-management#322 (the bars
+        # before a plan's first unit): four bars of two taps, with no unit,
+        # and bar 3 set to 6/8.
+        doc, tl = piece([2, 2, 2, 2], units={(0, 0): None})
+        assert read(doc, tl) == [("2/4", True, "tapped")] * 4
+
+        p = plan(doc, tl, bars(3, text="6/8"))
+        apply_plan(doc, p)
+
+        assert p.changes == [
+            Change(tl.id, downbeat(tl, 0), "beat_unit", None, DEFAULT),
+            Change(tl.id, downbeat(tl, 2), "beat_unit", None, unit(8, "3")),
+            Change(tl.id, downbeat(tl, 2), "measure.source", None, "score"),
+            Change(tl.id, downbeat(tl, 3), "beat_unit", None, DEFAULT),
+        ]
+        assert read(doc, tl) == [
+            ("2/4", True, "tapped"),
+            ("2/4", True, "tapped"),
+            ("6/8", False, "score"),
+            ("2/4", True, "tapped"),
+        ]
+
+    def test_they_keep_the_values_they_took_from_a_later_unit(self):
+        doc, tl = piece([2, 2, 2, 2], units={(0, 0): None, (3, 0): unit(8, "3")})
+        assert read(doc, tl)[0] == ("6/8", True, "tapped")
+
+        p = plan(doc, tl, bars(2, text="3/4"))
+        apply_plan(doc, p)
+
+        assert unit_writes(p) == {
+            downbeat(tl, 0): unit(8, "3", assumed=True),
+            downbeat(tl, 1): unit(4, "3/2"),
+            downbeat(tl, 2): unit(8, "3", assumed=True),
+        }
+        assert read(doc, tl) == [
+            ("6/8", True, "tapped"),
+            ("3/4", False, "score"),
+            ("6/8", True, "tapped"),
+            ("6/8", False, "tapped"),
+        ]
+
+    def test_the_first_bar_set_needs_no_opening_unit(self):
+        doc, tl = piece([2, 2, 2], units={(0, 0): None})
+
+        p = plan(doc, tl, bars(1, text="6/8"))
+
+        assert unit_writes(p) == {
+            downbeat(tl, 0): unit(8, "3"),
+            downbeat(tl, 1): DEFAULT,
+        }
+
+    @pytest.mark.parametrize(
+        "m, settings",
+        [(2, bars(2, text="6/8")), (0, bars(2, text="6/8"))],
+        ids=["after a run", "the opening unit"],
+    )
+    def test_a_write_back_replaces_a_unit_that_cant_be_read(self, m, settings):
+        # Until TimeLineAnnotator/project-management#373 (a write-back over a
+        # unit that can't be read) is answered, the plan replaces it; the
+        # preview shows it as the old value. The bar reads 2/4, assumed, either
+        # way, since the reader ignores such a unit.
+        unreadable = {"denominator": 200, "units": "x"}
+        doc, tl = piece([2, 2, 2], units={(m, 0): unreadable})
+        replaced = Change(tl.id, downbeat(tl, m), "beat_unit", unreadable, DEFAULT)
+
+        p = plan(doc, tl, settings)
+        apply_plan(doc, p)
+
+        assert replaced in p.changes
+        assert read(doc, tl)[m] == ("2/4", True, "tapped")
+
+    class TestOnlyWhereABarWouldReadDifferently:
+        # TimeLineAnnotator/project-management#356 (write-backs that change
+        # nothing)
+
+        def test_no_write_back_where_the_bar_after_reads_the_same(self):
+            # 3/4 set by a person; a score gives bars 3-5 the same 3/4.
+            doc, tl = piece(
+                [3] * 8, units={(0, 0): unit(4, "1")}, measure_source="edited"
+            )
+
+            p = plan(doc, tl, bars(3, 4, 5, text="3/4"))
+
+            assert {c.key for c in p.changes} == {"measure.source"}
+
+        def test_no_opening_unit_where_the_bars_before_read_the_same(self):
+            doc, tl = piece([2, 2, 2, 2], units={(0, 0): None})
+
+            p = plan(doc, tl, bars(3, text="2/4"))
+
+            assert unit_writes(p) == {
+                downbeat(tl, 2): unit(4, "1"),
+                downbeat(tl, 3): DEFAULT,  # it would lose "assumed"
+            }
+
+    class TestMovements:
+        # TimeLineAnnotator/project-management#357 (a later movement's bars)
+
+        def test_a_movement_s_first_unit_keeps_its_bars_before_it(self):
+            doc, tl = piece([2] * 6, marks=SONGS)
+
+            p = plan(doc, tl, [(BarRef(3, movement=2), ts("6/8"))])
+            apply_plan(doc, p)
+
+            assert unit_writes(p) == {
+                downbeat(tl, 3): DEFAULT,
+                downbeat(tl, 5): unit(8, "3"),
+            }
+            assert read(doc, tl) == [("2/4", True, "tapped")] * 5 + [
+                ("6/8", False, "score")
+            ]
+
+        def test_a_run_that_ends_a_movement_keeps_the_next_one_s_reading(self):
+            doc, tl = piece([2] * 6, marks=SONGS)
+
+            p = plan(doc, tl, [(BarRef(3, movement=1), ts("6/8"))])
+            apply_plan(doc, p)
+
+            assert unit_writes(p) == {
+                downbeat(tl, 2): unit(8, "3"),
+                downbeat(tl, 3): DEFAULT,
+            }
+            assert read(doc, tl) == [
+                ("2/4", True, "tapped"),
+                ("2/4", True, "tapped"),
+                ("6/8", False, "score"),
+                *[("2/4", True, "tapped")] * 3,
+            ]
+
+        def test_a_movement_with_a_unit_of_its_own_needs_none(self):
+            # Song 2's bar 1 reads a copy of the unit on its bar 2.
+            doc, tl = piece([2] * 6, marks=SONGS, units={(4, 0): unit(4, "1")})
+
+            p = plan(doc, tl, [(BarRef(3, movement=1), ts("6/8"))])
+
+            assert written(p) == {downbeat(tl, 2)}
+
+    def test_the_reverse_plan_restores_the_components(self):
+        doc, tl = piece([2, 2, 2, 2], units={(0, 0): None})
+        components = copy.deepcopy(tl.components)
+        p = plan(doc, tl, bars(3, text="6/8"))
+        apply_plan(doc, p)
+
+        apply_plan(
+            doc,
+            Plan(
+                [
+                    Change(c.timeline_id, c.component_id, c.key, c.new, c.old)
+                    for c in reversed(p.changes)
+                ]
+            ),
+        )
+
+        assert tl.components == components
+
+    def test_it_ends_even_if_a_bar_never_reads_as_it_did(self, monkeypatch):
+        # Should the rules ever read a bar otherwise than the unit written
+        # back on it, the plan still ends, with one write-back there.
+        doc, tl = piece([2, 2, 2])
+        bar_3 = downbeat(tl, 2)
+        reads = []
+
+        def misread(rows):
+            reads.append(rows)
+            if len(reads) > 10:
+                raise AssertionError("the plan doesn't end")
+            return [
+                dataclasses.replace(meter, is_assumed=False)
+                if row.id == bar_3
+                else meter
+                for row, meter in zip(rows, meters_of(rows), strict=True)
+            ]
+
+        monkeypatch.setattr(timemap_plan, "meters_of", misread)
+
+        p = plan(doc, tl, bars(2, text="6/8"))
+
+        assert unit_writes(p) == {
+            downbeat(tl, 1): unit(8, "3"),
+            bar_3: DEFAULT,
+        }
+
+    class TestTheStretchAWriteBackChanges:
+        # A write-back is followed by a reading of the bars it can change
+        # only, up to the next bar with a unit of its own; a last reading of
+        # the whole table checks it.
+
+        def test_a_bar_set_that_carries_its_unit_doesn_t_end_it(self):
+            # 2/4 throughout; bar 1 set to 6/8, bar 3 to the 2/4 it carries.
+            doc, tl = piece([2, 2, 2, 2], units={(0, 0): unit(4, "1")})
+
+            p = plan(doc, tl, [*bars(1, text="6/8"), *bars(3, text="2/4")])
+            apply_plan(doc, p)
+
+            assert unit_writes(p) == {
+                downbeat(tl, 0): unit(8, "3"),
+                downbeat(tl, 1): unit(4, "1"),
+            }
+            assert [sig for sig, _, _ in read(doc, tl)] == ["6/8", "2/4", "2/4", "2/4"]
+
+        def test_a_restart_doesn_t_end_it(self):
+            # Song 2, without a unit, reads the unit in force before it.
+            doc, tl = piece([2] * 6, marks=SONGS)
+
+            p = plan(doc, tl, [(BarRef(1, movement=1), ts("6/8"))])
+
+            assert unit_writes(p) == {
+                downbeat(tl, 0): unit(8, "3"),
+                downbeat(tl, 1): DEFAULT,
+            }
+
+        def test_a_stretch_read_wrongly_is_caught_by_the_last_reading(
+            self, monkeypatch
+        ):
+            # Each stretch is read as if nothing had changed in it. Song 2's
+            # first bar, which needs its own write-back after bar 3's, is then
+            # found by the reading of the whole table.
+            doc, tl = piece([2] * 6, marks=SONGS)
+            as_before = {row.id: row.meter for row in build_rows(doc, tl)}
+            whole = len(as_before)
+
+            def misread(rows):
+                if len(rows) == whole:
+                    return meters_of(rows)
+                return [as_before[row.id] for row in rows]
+
+            monkeypatch.setattr(timemap_plan, "meters_of", misread)
+            settings = [(BarRef(2, movement=1), ts("6/8"))]
+            settings.append((BarRef(3, movement=2), ts("6/8")))
+
+            p = plan(doc, tl, settings)
+
+            assert unit_writes(p) == {
+                downbeat(tl, 1): unit(8, "3"),
+                downbeat(tl, 2): DEFAULT,
+                downbeat(tl, 3): DEFAULT,
+                downbeat(tl, 5): unit(8, "3"),
+            }
+
+    @pytest.mark.benchmark
+    def test_every_other_bar_of_2000_is_planned_in_well_under_a_second(self):
+        beats = [
+            {"time": float(t), "measure": {} if t % 2 == 0 else None}
+            for t in range(4000)
+        ]
+        tl = beat_timeline(beats)
+        doc = document(tl)
+        settings = bars(*range(1, 2001, 2), text="6/8")
+
+        start = time.perf_counter()
+        p = plan(doc, tl, settings)
+        took = time.perf_counter() - start
+
+        assert len(unit_writes(p)) == 2000
+        assert took < 0.5, f"{took:.2f} s"
+
+
+UNREADABLE = {"denominator": 200, "units": "x"}  # a unit the reader ignores
+
+
+class TestRestoreOnAnyTable:
+    """Plans for tables made at random: units of every kind on any beat,
+    restarts on any bar, the first included, and time signatures on any bars."""
+
+    UNITS = [
+        unit(4, "1"),
+        DEFAULT,
+        unit(8, "3"),
+        unit(8, "2", assumed=True),
+        unit(4, "3/2"),
+        unit(8, "2+3"),
+        UNREADABLE,
+    ]
+    TIME_SIGNATURES = ["2/4", "3/4", "6/8", "2+2+3/8", "(3/2)/4"]
+    SEEDS = range(300)
+
+    def case(self, seed):
+        rng = random.Random(seed)
+        taps = [rng.randint(1, 4) for _ in range(rng.randint(1, 7))]
+        marks = {m: {"restart": True} for m in range(len(taps)) if rng.random() < 0.2}
+        units = {
+            (m, b): rng.choice(self.UNITS) if rng.random() < 0.2 else None
+            for m, count in enumerate(taps)
+            for b in range(count)
+        }
+        doc, tl = piece(taps, marks=marks, units=units)
+        settings = [
+            (row.id, ts(rng.choice(self.TIME_SIGNATURES)))
+            for row in tl.measures.rows
+            if rng.random() < 0.4
+        ]
+        return doc, tl, settings, rng.choice(["score", "import", "edit"])
+
+    @staticmethod
+    def readings(doc, tl):
+        """Each bar's unit as it reads it, and its flags."""
+        return [
+            (r.meter.denominator, r.meter.units, r.assumed, r.conflicting, r.ambiguous)
+            for r in build_rows(doc, tl)
+        ]
+
+    def test_only_the_bars_set_change(self):
+        for seed in self.SEEDS:
+            doc, tl, settings, source = self.case(seed)
+            rows = build_rows(doc, tl)
+            before = self.readings(doc, tl)
+            stored = copy.deepcopy(tl.components)
+            wanted = dict(settings)
+            p = plan(doc, tl, settings, source)
+            not_set = {row.id for row in rows if row.id not in wanted}
+            written_back = set(unit_writes(p)) & not_set
+
+            apply_plan(doc, p)
+
+            now_read = self.readings(doc, tl)
+            after = zip(rows, before, now_read, build_rows(doc, tl), strict=True)
+            for row, old, new, now in after:
+                where = f"seed {seed}, bar {row.label}"
+                time_signature = wanted.get(row.id)
+                if time_signature is not None:
+                    assert not now.assumed, where
+                    assert now.ts_numerator == sum(time_signature.parts), where
+                    assert now.ts_denominator == time_signature.denominator, where
+                    continue
+                assert new == old, where
+                # Its beats and its mark are as they were, but for a unit
+                # written back on its downbeat where there was none, or one
+                # that can't be read (TimeLineAnnotator/project-management#373,
+                # a write-back over a unit that can't be read).
+                for beat_id in row.beat_ids:
+                    was = dict(stored[beat_id].attrs)
+                    is_now = dict(tl.components[beat_id].attrs)
+                    if beat_id in written_back:
+                        assert was.pop("beat_unit", None) in (None, UNREADABLE), where
+                        is_now.pop("beat_unit")
+                    assert is_now == was, where
+
+    def test_planning_again_gives_an_empty_plan(self):
+        for seed in self.SEEDS:
+            doc, tl, settings, source = self.case(seed)
+
+            apply_plan(doc, plan(doc, tl, settings, source))
+
+            assert plan(doc, tl, settings, source).changes == [], f"seed {seed}"
+
+    def test_a_bar_not_set_is_written_only_where_it_must_be(self):
+        # On the downbeat of a bar after one set, or of a movement's first
+        # bar, and only where the bars not set would read differently without it.
+        for seed in self.SEEDS:
+            doc, tl, settings, source = self.case(seed)
+            rows = build_rows(doc, tl)
+            wanted = {bar for bar, _ in settings}
+            before = self.readings(doc, tl)
+            p = plan(doc, tl, settings, source)
+
+            set_beats = {b for row in rows if row.id in wanted for b in row.beat_ids}
+            for change in p.changes:
+                if change.component_id is None or change.component_id in set_beats:
+                    continue
+                index = next(
+                    i for i, row in enumerate(rows) if row.id == change.component_id
+                )
+                assert change.key == "beat_unit", f"seed {seed}"
+                assert index == 0 or (
+                    rows[index - 1].id in wanted
+                    or rows[index].movement != rows[index - 1].movement
+                ), f"seed {seed}"
+                without = copy.deepcopy(doc)
+                apply_plan(without, Plan([c for c in p.changes if c != change]))
+                after = self.readings(without, without.timelines[tl.id])
+                assert any(
+                    old != new
+                    for row, old, new in zip(rows, before, after, strict=True)
+                    if row.id not in wanted
+                ), f"seed {seed}: a needless write on bar {rows[index].label}"
+
+
 class TestMatching:
-    # Bars 11, 12, 13, then 12 and 13 again.
+    # Bars 11, 12, 13, then 12 and 13 again. The bar after each bar set gets
+    # its old unit back.
     REPEAT = {0: {"number": 11}, 3: {"number": 12}}
 
     def test_a_bar_number_sets_every_time_through(self):
@@ -695,7 +1183,13 @@ class TestMatching:
         p = plan(doc, tl, bars(12, text="6/8"))
         apply_plan(doc, p)
 
-        assert written(p) == {downbeat(tl, 1), downbeat(tl, 3)}
+        assert written(p) == {downbeat(tl, m) for m in (1, 2, 3, 4)}
+        assert unit_writes(p) == {
+            downbeat(tl, 1): unit(8, "3"),
+            downbeat(tl, 2): DEFAULT,
+            downbeat(tl, 3): unit(8, "3"),
+            downbeat(tl, 4): DEFAULT,
+        }
         rows = read(doc, tl)
         assert rows[1] == rows[3] == ("6/8", False, "score")
 
@@ -704,7 +1198,11 @@ class TestMatching:
 
         p = plan(doc, tl, [(BarRef(12, pass_=2), ts("6/8"))])
 
-        assert written(p) == {downbeat(tl, 3)}
+        assert written(p) == {downbeat(tl, 3), downbeat(tl, 4)}
+        assert unit_writes(p) == {
+            downbeat(tl, 3): unit(8, "3"),
+            downbeat(tl, 4): DEFAULT,
+        }
 
     def test_a_bar_the_table_doesnt_have_is_reported_and_nothing_written(self):
         doc, tl = piece([2] * 5, marks=self.REPEAT)
@@ -720,7 +1218,11 @@ class TestMatching:
         p = plan(doc, tl, bars(14, 11, text="6/8"))
 
         assert p.unmatched == [BarRef(14)]
-        assert written(p) == {beat(tl, 0, 0), downbeat(tl, 0)}
+        assert written(p) == {downbeat(tl, 0), downbeat(tl, 1)}
+        assert unit_writes(p) == {
+            downbeat(tl, 0): unit(8, "3"),
+            downbeat(tl, 1): DEFAULT,
+        }
 
     def test_a_cadenza_is_matched_by_its_label_only(self):
         # Bars 1, 2, 2c and 3.
@@ -730,8 +1232,16 @@ class TestMatching:
         by_number = plan(doc, tl, bars(2, text="6/8"))
         by_label = plan(doc, tl, [(BarRef(label="2c"), ts("6/8"))])
 
-        assert written(by_number) == {downbeat(tl, 1)}
-        assert written(by_label) == {downbeat(tl, 2)}
+        assert written(by_number) == {downbeat(tl, 1), downbeat(tl, 2)}
+        assert unit_writes(by_number) == {
+            downbeat(tl, 1): unit(8, "3"),
+            downbeat(tl, 2): DEFAULT,
+        }
+        assert written(by_label) == {downbeat(tl, 2), downbeat(tl, 3)}
+        assert unit_writes(by_label) == {
+            downbeat(tl, 2): unit(8, "3"),
+            downbeat(tl, 3): DEFAULT,
+        }
 
     def test_a_downbeat_s_id_names_its_measure(self):
         doc, tl = piece([2, 2, 2])
@@ -748,38 +1258,45 @@ class TestMatching:
 
     class TestMovements:
         # Bars 1, 2, 3, then a second song's 1 and 2.
-        SONGS = {3: {"number": 1, "restart": True}}
 
         @pytest.mark.parametrize("bar", [BarRef(1), BarRef(1, pass_=1)])
         def test_a_bar_found_in_more_than_one_movement_is_ambiguous(self, bar):
-            doc, tl = piece([2] * 5, marks=self.SONGS)
+            doc, tl = piece([2] * 5, marks=SONGS)
 
             p = plan(doc, tl, [(bar, ts("6/8"))])
 
             assert p == Plan(changes=[], unmatched=[], ambiguous=[bar])
 
         def test_a_movement_names_one(self):
-            doc, tl = piece([2] * 5, marks=self.SONGS)
+            doc, tl = piece([2] * 5, marks=SONGS)
 
             p = plan(doc, tl, [(BarRef(1, movement=2), ts("6/8"))])
 
-            assert written(p) == {downbeat(tl, 3)}
+            assert written(p) == {downbeat(tl, 3), downbeat(tl, 4)}
+            assert unit_writes(p) == {
+                downbeat(tl, 3): unit(8, "3"),
+                downbeat(tl, 4): DEFAULT,
+            }
 
         def test_a_bar_found_in_one_movement_needs_none(self):
-            doc, tl = piece([2] * 5, marks=self.SONGS)
+            doc, tl = piece([2] * 5, marks=SONGS)
 
             p = plan(doc, tl, bars(3, text="6/8"))
 
-            assert written(p) == {downbeat(tl, 2)}
+            assert written(p) == {downbeat(tl, 2), downbeat(tl, 3)}
+            assert unit_writes(p) == {
+                downbeat(tl, 2): unit(8, "3"),
+                downbeat(tl, 3): DEFAULT,
+            }
 
         def test_a_movement_without_the_bar_finds_nothing(self):
-            doc, tl = piece([2] * 5, marks=self.SONGS)
+            doc, tl = piece([2] * 5, marks=SONGS)
             bar = BarRef(3, movement=2)
 
             assert plan(doc, tl, [(bar, ts("6/8"))]).unmatched == [bar]
 
         def test_a_plan_across_a_restart_reads_as_planned(self):
-            doc, tl = piece([2] * 5, marks=self.SONGS)
+            doc, tl = piece([2] * 5, marks=SONGS)
             settings = [(BarRef(n, movement=2), ts("6/8")) for n in (1, 2)]
 
             apply_plan(doc, plan(doc, tl, settings))
@@ -805,7 +1322,7 @@ class TestApply:
         assert read(doc, tl) == [
             ("2/4", True, "tapped"),
             ("6/8", False, "score"),
-            ("4/8", False, "tapped"),  # two taps under the unit carried on
+            ("2/4", True, "tapped"),  # its old unit, written back
         ]
 
     def test_the_measure_table_follows(self):
@@ -824,28 +1341,29 @@ class TestApply:
         assert rows[0].beat_units == [tla.BeatUnit(denominator=8, units="3")]
 
     # Edits to bar 4 after planning bar 2 to 6/8 and bar 4 to 2/4, whose two
-    # changes are the plan's last, and the change each makes stale.
+    # changes are the plan's last (after bar 3's write-back), and the change
+    # each makes stale.
     STALE = [
         pytest.param(
             lambda tl: tl.components[downbeat(tl, 3)].attrs.update(
                 beat_unit=unit(4, "2")
             ),
-            2,
+            3,
             id="a unit set",
         ),
         pytest.param(
             lambda tl: tl.components[downbeat(tl, 3)]
             .attrs["measure"]
             .update(source="import"),
-            3,
+            4,
             id="a source set",
         ),
         pytest.param(
             lambda tl: tl.components[downbeat(tl, 3)].attrs.pop("measure"),
-            3,
+            4,
             id="no longer a downbeat",
         ),
-        pytest.param(lambda tl: tl.components.pop(downbeat(tl, 3)), 2, id="deleted"),
+        pytest.param(lambda tl: tl.components.pop(downbeat(tl, 3)), 3, id="deleted"),
     ]
 
     @pytest.mark.parametrize("edit, refused", STALE)
