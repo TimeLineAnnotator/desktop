@@ -57,6 +57,11 @@ def absolute_form(path: str) -> str | None:
     drive (`C:piece.wav`) or to the current drive's root (`\\piece.wav`)."""
     if not path or is_url(path):
         return None
+    return _form(path)
+
+
+def _form(path: str) -> str | None:
+    """`absolute_form` of a path that isn't a URL."""
     if PureWindowsPath(path).is_absolute():  # a drive and its root, or a share
         return WINDOWS
     if path.startswith("/"):
@@ -69,6 +74,11 @@ def is_relative(path: str) -> bool:
     and with no drive or root of either system's form."""
     if not path or is_url(path):
         return False
+    return _is_relative(path)
+
+
+def _is_relative(path: str) -> bool:
+    """`is_relative` of a path that isn't empty or a URL."""
     windows = PureWindowsPath(path)  # "/" and "\\" both separate its parts
     return not windows.drive and not windows.root
 
@@ -106,10 +116,9 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
 
     A relative path is resolved against the file's folder, an absolute one is
     taken as it is, and a URL is a YouTube link when it matches TiLiA's
-    pattern. A local file that isn't found is tried with its name, then its
-    whole path, in decomposed form (NFD), as named on macOS's older file
-    system; when none is found, `path` is None. TiLiA's further fallbacks
-    are its own."""
+    pattern; another URL is never looked up. A local file is found as
+    `local_file` finds it; when none is found, `path` is None. TiLiA's
+    further fallbacks are its own."""
     stored = doc.media_path
     found: Path | None = None
     youtube_id: str | None = None
@@ -119,7 +128,8 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
         kind, youtube_id = "youtube", youtube[6]
     else:
         kind = "local"
-        found = _found(stored, os.path.dirname(os.path.abspath(path)))
+        if not _URL.match(stored):
+            found = local_file(stored, os.path.dirname(os.path.abspath(path)))
     return Media(
         kind=kind,
         stored=stored,
@@ -129,23 +139,34 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
     )
 
 
-def _found(stored: str, folder: str) -> Path | None:
-    """The local file `stored` names, from the file's `folder`, or None."""
-    form = absolute_form(stored)
-    if is_url(stored) or (form is not None and form != SYSTEM):
-        # Joined to the folder, a Windows path would name a file below it on
-        # macOS and Linux.
+def local_file(stored: str, folder: str | None) -> Path | None:
+    """The file that `stored`, a local path and not a URL, names from
+    `folder`, the folder of the file that stores it; None when it names no
+    file. Without a folder, only an absolute path is looked up.
+
+    It is tried as stored, then with its name, then all of it, in decomposed
+    form (NFD), as named on macOS's older file system and copied elsewhere.
+    The migration asks this whether an old file's media exists, so that it
+    and `tla.media` agree. A path of the other system's form is never looked
+    up: joined to the folder, a Windows path would name a file below it on
+    macOS and Linux."""
+    form = _form(stored)
+    if form is not None and form != SYSTEM:
         return None
-    if is_relative(stored):
-        stored = relative_with_slashes(stored)
+    if form is None:
+        if folder is None:
+            return None
+        if _is_relative(stored):
+            stored = relative_with_slashes(stored)
     head, name = os.path.split(stored)
     spellings = (
         stored,
         os.path.join(head, unicodedata.normalize("NFD", name)),
         unicodedata.normalize("NFD", stored),
     )
+    base = folder or ""  # an absolute path ignores it
     candidates = dict.fromkeys(
-        os.path.normpath(os.path.join(folder, spelling)) for spelling in spellings
+        os.path.normpath(os.path.join(base, spelling)) for spelling in spellings
     )
     for candidate in candidates:
         if os.path.isfile(candidate):
