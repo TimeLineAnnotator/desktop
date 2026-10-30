@@ -24,9 +24,9 @@ def _step(key: str) -> str:
     return pointer([key])[1:]
 
 
-def _key(step: str) -> str:
-    """The key a step of a JSON Pointer names."""
-    return step.replace("~1", "/").replace("~0", "~")
+def _name(place: str) -> str:
+    """The key the last step of a JSON Pointer names."""
+    return place.rpartition("/")[2].replace("~1", "/").replace("~0", "~")
 
 
 def _quoted(value: Any) -> str:
@@ -77,6 +77,12 @@ class OldPlaces:
         document: its new ids made the old ones again, then a key the
         migration moved put back where it was. A place the old file doesn't
         have, such as a key the migration added, is given as it is."""
+        return self._back(place)[0]
+
+    def _back(self, place: str) -> tuple[str, tuple[str, str, bool] | None]:
+        """The old place of `place`; and when it is in a key the migration
+        moved, that key's name once migrated and in the old file, and
+        whether `place` is the key's own."""
         steps = place.split("/")  # "" first: a pointer starts with "/"
         if len(steps) > 2 and steps[1] == "timelines":
             timeline = steps[2]
@@ -88,18 +94,30 @@ class OldPlaces:
         held = place
         while held:
             if held in self._moved:
-                return self._moved[held] + place[len(held) :]
+                old = self._moved[held]
+                names = (_name(held), _name(old), held == place)
+                return old + place[len(held) :], names
             held = held.rpartition("/")[0]
-        return place
+        return place, None
 
     def in_old_file(self, place: str, message: str) -> tuple[str, str]:
         """`place`, a place in the migrated document, and a message the
         check gives about what is there, as the old file has them: the
-        place there, and a reference that names nothing named as the old
-        file writes it (`"joined_right" names nothing: "99"`), not as the
-        UUID the migration put in its place."""
-        old = self.old(place)
+        place there; a key the migration renamed by the name the old file
+        gives it (`"display_position" should be …`, not `"ordinal" …`); and a
+        reference that names nothing as the old file writes it
+        (`"joined_right" names nothing: "99"`), not as the UUID the
+        migration put in its place."""
+        old, moved = self._back(place)
         if place in self._nothing:
-            key = _key(old.rpartition("/")[2])
-            message = f"{_quoted(key)} names nothing: {_quoted(self._nothing[place])}"
+            key = _name(old)
+            return old, f"{_quoted(key)} names nothing: {_quoted(self._nothing[place])}"
+        if moved is not None and moved[0] != moved[1]:
+            # The check's messages start with what they are about: the key,
+            # or an item of the nearest key's value.
+            name, old_name, own = moved
+            about = "" if own else "an item of "
+            subject = f"{about}{_quoted(name)} "
+            if message.startswith(subject):
+                message = f"{about}{_quoted(old_name)} {message[len(subject) :]}"
         return old, message

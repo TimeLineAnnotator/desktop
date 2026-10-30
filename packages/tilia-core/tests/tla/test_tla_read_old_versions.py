@@ -20,6 +20,7 @@ from tilia_core import tla
 from tilia_core.tla.ids import MIGRATED_BASE_MS, derived_document_id, migrated_id
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.migrate import to_1
+from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import TIMELINE_KINDS
 
 OLD = Path(__file__).parent / "old"
@@ -1830,6 +1831,66 @@ def test_the_components_of_a_timeline_of_an_unknown_kind_keep_their_ids():
     migrated, ids = migrated_ids(content)
     place = f"/timelines/{ids['7']}/components/8/text"
     assert migrated.places.old(place) == "/timelines/7/components/8/text"
+
+
+def test_a_renamed_key_is_named_in_a_message_as_the_old_file_names_it():
+    # No read gets here today: an ordinal made from a display_position, which
+    # must be an integer, is one. The check's messages name the key.
+    content = timeline_without_ordinal("0.0.96", display_position=1)
+    migrated, ids = migrated_ids(content)
+    ordinal = f"/timelines/{ids['1']}/ordinal"
+    assert migrated.places.in_old_file(
+        ordinal, '"ordinal" should be an integer, not text'
+    ) == (
+        "/timelines/1/display_position",
+        '"display_position" should be an integer, not text',
+    )
+
+
+@pytest.mark.parametrize(
+    "place, message, old_place, old_message",
+    [
+        (
+            "/media/length",
+            '"length" should be a number or null, not text',
+            "/media_metadata/media length",
+            '"media length" should be a number or null, not text',
+        ),
+        (
+            "/metadata",
+            '"metadata" should be an object, not a list',
+            "/media_metadata",
+            '"media_metadata" should be an object, not a list',
+        ),
+        # What a moved key holds keeps its own names.
+        (
+            "/metadata/composer",
+            '"composer" should be text, not a number',
+            "/media_metadata/composer",
+            '"composer" should be text, not a number',
+        ),
+        # A message that doesn't start with the key.
+        (
+            "/media/path",
+            'the media "path" is odd',
+            "/media_path",
+            'the media "path" is odd',
+        ),
+    ],
+)
+def test_a_moved_key_is_named_in_a_message_as_the_old_file_names_it(
+    place, message, old_place, old_message
+):
+    migrated, _ = migrated_ids(old_file_content())
+    assert migrated.places.in_old_file(place, message) == (old_place, old_message)
+
+
+def test_an_item_of_a_renamed_key_is_named_by_the_old_key():
+    places = OldPlaces()
+    places.moved("/a/new~1name", "/a/old~1name")
+    assert places.in_old_file(
+        "/a/new~1name/0", 'an item of "new/name" should be text, not a number'
+    ) == ("/a/old~1name/0", 'an item of "old/name" should be text, not a number')
 
 
 # Ranges
