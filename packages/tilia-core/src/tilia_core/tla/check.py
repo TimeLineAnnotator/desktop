@@ -653,3 +653,17 @@ _ENTRY_CHECKS: dict[str, Entry] = {
     "component": _Checker.component,
     "score": _Checker.score,
 }
+
+
+# What a metadata field holds, as the schema's `metadata` states it.
+_FIELD = _defined("metadata").additional
+
+
+def is_field_value(value: Any) -> bool:
+    """Whether a metadata field may hold `value`, by the rule the check
+    applies to every field: a text or a list of texts (FR-070)."""
+    try:
+        _Checker().value(value, _FIELD, None, None)
+    except _Broken:
+        return False
+    return True

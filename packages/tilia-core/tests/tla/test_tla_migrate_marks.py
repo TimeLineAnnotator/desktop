@@ -520,13 +520,20 @@ def test_marks_are_added_after_the_fields_a_component_already_has():
     [
         (["x"], "/metadata"),
         ({"tags": 5}, "/metadata/tags"),
+        ({"tags": None}, "/metadata/tags"),
         ({"generated_by": ["a", 5]}, "/metadata/generated_by/1"),
+        ({"generated_by": {"a": "b"}}, "/metadata/generated_by"),
     ],
 )
 def test_marks_stay_where_the_metadata_is_refused(metadata, place):
     # The check refuses such a metadata; the marks aren't moved into it.
     content = old_file("tag=check gen=group/A")
     content["timelines"]["1"]["components"]["2"]["metadata"] = metadata
+    migrated = to_1.migrate(copy.deepcopy(content))
+    (timeline,) = migrated.content["timelines"].values()
+    (component,) = timeline["components"].values()
+    assert component["comments"] == "tag=check gen=group/A"
+    assert component["metadata"] == metadata
     with pytest.raises(tla.UnreadableFile) as raised:
         loads(content)
     assert raised.value.place.endswith(place)

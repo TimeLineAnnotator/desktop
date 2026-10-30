@@ -10,7 +10,7 @@ import unicodedata
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import writer
+from tilia_core.tla import check, writer
 
 TIMELINE_ID = "019a0000-0000-7000-8000-000000000001"
 SECTION_ID = "019a0000-0000-7000-8000-000000000002"
@@ -315,3 +315,31 @@ def test_a_field_that_isnt_text_or_a_list_of_texts_is_refused_on_reading(level, 
     with pytest.raises(tla.UnreadableFile) as raised:
         tla.loads(json.dumps(content).encode())
     assert raised.value.place == f"{place}/x{under}"
+
+
+# The rule as the migration calls it (`check.is_field_value`)
+
+FIELD_VALUES = ["", "Beethoven", [], ["sonata", "piano music"], ["", ""]]
+NOT_FIELD_VALUES = [given for given, _ in NOT_TEXT.values()] + [None, 1.0]
+
+
+@pytest.mark.parametrize("value", FIELD_VALUES)
+def test_a_text_or_a_list_of_texts_is_a_field_value(value):
+    assert check.is_field_value(value)
+
+
+@pytest.mark.parametrize("value", NOT_FIELD_VALUES)
+def test_anything_else_isnt_a_field_value(value):
+    assert not check.is_field_value(value)
+
+
+@pytest.mark.parametrize("value", FIELD_VALUES + NOT_FIELD_VALUES)
+def test_is_field_value_gives_the_checks_verdict(value):
+    doc = document(component={"x": value})
+    try:
+        written(doc)
+    except tla.UnreadableFile:
+        accepted = False
+    else:
+        accepted = True
+    assert check.is_field_value(value) is accepted
