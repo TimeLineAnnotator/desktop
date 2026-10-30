@@ -12,7 +12,7 @@ media now (contracts/migration.md, *Media paths*):
    old `file_path`, computed with that path's own conventions, Windows or
    POSIX, which is where TiLiA looks when the file and its media moved
    together; without a `file_path`, from the file's current folder;
-4. already relative (written by hand): kept as it is.
+4. already relative (written by hand): kept, with "/" between its parts.
 
 Where no relative path exists, on another drive or of the other system's
 form, the path stays absolute. Separators become "/". The document id is
@@ -28,7 +28,9 @@ from tilia_core.tla.media_files import (
     SYSTEM,
     absolute_form,
     folder_of,
+    is_relative,
     relative_path,
+    relative_with_slashes,
     with_slashes,
 )
 from tilia_core.tla.model import timeline_kind_from_current_file
@@ -63,7 +65,8 @@ def migrated_path(stored: Any, *, file_path: Any, folder: str | None) -> Any:
         return stored
     form = absolute_form(stored)
     if form is None:
-        return stored  # empty, a URL, or relative
+        # Empty, a URL, or relative: kept, a relative path with "/".
+        return relative_with_slashes(stored) if is_relative(stored) else stored
     if form == SYSTEM and os.path.exists(stored):
         # Where TiLiA finds it now, whatever file_path says.
         return _relative_or_absolute(stored, form, folder)
