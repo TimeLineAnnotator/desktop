@@ -10,7 +10,7 @@ Score files for the tests of scores inside `.tla` files (`test_tla_scores.py`, `
 
 ## Making the MEI again
 
-Verovio is an optional extra of the core, never a dependency of its tests, so it runs outside the package, in an environment of its own:
+Verovio isn't a dependency of the core or of its tests. The MEI was made once, outside the package, in an environment of its own, with:
 
 ```bash
 uv run --no-project --python 3.12 --with verovio==6.3.0 python -I to_mei.py serenade.musicxml serenade.mei
