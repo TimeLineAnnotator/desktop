@@ -24,6 +24,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
+from tilia_core.tla.check import is_field_value
 from tilia_core.tla.layout import nfc_text
 
 _TAG = "tag="
@@ -90,20 +91,15 @@ def split(comment: str) -> Marks:
     return marks
 
 
-_NOT_TEXTS = object()
-
-
-def _texts(metadata: dict[str, Any], name: str) -> Any:
+def _texts(metadata: dict[str, Any], name: str) -> list[str] | None:
     """A field's value as a list of texts: an empty one when it is missing,
-    and `_NOT_TEXTS` when it isn't a text or a list of texts."""
+    and None when it isn't a value a field may hold."""
     if name not in metadata:
         return []
     value = metadata[name]
-    if isinstance(value, str):
-        return [value]
-    if isinstance(value, list) and all(isinstance(item, str) for item in value):
-        return list(value)
-    return _NOT_TEXTS
+    if not is_field_value(value):
+        return None
+    return [value] if isinstance(value, str) else list(value)
 
 
 def move(component: dict[str, Any]) -> int:
@@ -129,7 +125,7 @@ def move(component: dict[str, Any]) -> int:
         return 0
     tags = _texts(metadata, "tags")
     generated_by = _texts(metadata, "generated_by")
-    if tags is _NOT_TEXTS or generated_by is _NOT_TEXTS:
+    if tags is None or generated_by is None:
         return 0
     metadata = dict(metadata)
     if marks.tags:
