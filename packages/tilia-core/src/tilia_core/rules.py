@@ -94,8 +94,8 @@ _POINT_NAMES = {
     "pdf_marker": "PDF page marker",
 }
 _POINT_KINDS = tuple(_POINT_NAMES)
-# The kinds these rules cover.
-_KINDS = (*_POINT_KINDS, "hierarchy", "range")
+# The kinds whose rules read music21.
+_NEED_MUSIC21 = ("harmony", "mode")
 
 _TEXTS = ("label", "comments", "custom_text")
 _SEGMENT_TIMES = ("start", "end", "pre_start", "post_end")
@@ -182,11 +182,12 @@ class CantCheck(Exception):
 
 
 # Each kind's rules but the color are one private function, which gives the first
-# rule broken, or None. The kind's public function and `check_timeline` both call
-# it, so that there is one set of rules. `_kept` then raises `CantCheck` when the
-# rules that need music21 couldn't be checked, and only then checks the color: an
-# importer keeps a row whose color isn't one, with the default color, so a bad
-# color mustn't hide another broken rule, nor that a rule couldn't be checked.
+# rule broken, or None. `_RULES` names it for its kind, and the kind's public
+# function and `check_timeline` both find it there, so that there is one set of
+# rules. `_kept` then raises `CantCheck` when the rules that need music21
+# couldn't be checked, and only then checks the color: an importer keeps a row
+# whose color isn't one, with the default color, so a bad color mustn't hide
+# another broken rule, nor that a rule couldn't be checked.
 
 Check = Callable[[], "Outcome | None"]
 
@@ -221,14 +222,14 @@ def marker(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A marker."""
-    return _kept(attrs, _point("marker", media_length, others, attrs))
+    return _checked("marker", media_length, others, attrs)
 
 
 def beat(
     media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
 ) -> Outcome:
     """A beat. Its measure mark and beat unit follow the measure table's rules."""
-    return _kept(attrs, _point("beat", media_length, others, attrs))
+    return _checked("beat", media_length, others, attrs)
 
 
 def pdf_marker(
@@ -239,7 +240,7 @@ def pdf_marker(
     page_count: int,
 ) -> Outcome:
     """A PDF marker, in a PDF of `page_count` pages: 0 for a PDF that can't be read."""
-    return _kept(attrs, _pdf_marker(media_length, others, attrs, page_count))
+    return _checked("pdf_marker", media_length, others, attrs, page_count=page_count)
 
 
 def harmony(
@@ -247,12 +248,7 @@ def harmony(
 ) -> Outcome:
     """A harmony. Without music21, raises `CantCheck` when no rule but the color is
     broken: the color is checked after it."""
-    music21, error = _music21()
-    return _kept(
-        attrs,
-        _harmony(media_length, others, attrs, music21),
-        None if music21 else CantCheck("harmony", error),
-    )
+    return _checked("harmony", media_length, others, attrs)
 
 
 def mode(
@@ -260,12 +256,7 @@ def mode(
 ) -> Outcome:
     """A key. Without music21, raises `CantCheck` when no rule but the color is
     broken: the color is checked after it."""
-    music21, error = _music21()
-    return _kept(
-        attrs,
-        _mode(media_length, others, attrs, music21),
-        None if music21 else CantCheck("mode", error),
-    )
+    return _checked("mode", media_length, others, attrs)
 
 
 def hierarchy(
@@ -273,7 +264,7 @@ def hierarchy(
 ) -> Outcome:
     """A hierarchy. Hierarchies nest: one that overlaps another lies inside it,
     at a lower level."""
-    return _kept(attrs, _hierarchy(media_length, others, attrs))
+    return _checked("hierarchy", media_length, others, attrs)
 
 
 def range_(
@@ -287,20 +278,76 @@ def range_(
 
     Ranges in a row may overlap.
     """
-    row_ids = [row.get("id") for row in rows]
-    return _kept(attrs, _range(media_length, others, attrs, rows, row_ids))
+    return _checked("range", media_length, others, attrs, rows=rows)
+
+
+def _checked(
+    kind: str,
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    *,
+    page_count: int = 0,
+    rows: Sequence[Mapping[str, Any]] = (),
+) -> Outcome:
+    """What a kind's public function gives: its rules, from `_RULES`, then
+    `CantCheck`, then the color."""
+    music21: ModuleType | None = None
+    cant_check = None
+    if kind in _NEED_MUSIC21:
+        music21, error = _music21()
+        if music21 is None:
+            cant_check = CantCheck(kind, error)
+    context = _Context(page_count=page_count, rows=rows, music21=music21)
+    return _kept(attrs, _RULES[kind](media_length, others, attrs, context), cant_check)
+
+
+class _Context:
+    """What a kind's rules read besides the component and the others: the PDF's
+    page count, the range timeline's rows and their ids, and music21, which is
+    None without it."""
+
+    def __init__(
+        self,
+        *,
+        page_count: int = 0,
+        rows: Sequence[Mapping[str, Any]] = (),
+        music21: ModuleType | None = None,
+    ) -> None:
+        self.page_count = page_count
+        self.rows = rows
+        self.row_ids = [row.get("id") for row in rows]
+        self.music21 = music21
+
+
+def _marker(
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    context: _Context,
+) -> Outcome | None:
+    return _point("marker", media_length, others, attrs)
+
+
+def _beat(
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    context: _Context,
+) -> Outcome | None:
+    return _point("beat", media_length, others, attrs)
 
 
 def _pdf_marker(
     media_length: float,
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
-    page_count: int,
+    context: _Context,
 ) -> Outcome | None:
-    """A PDF marker's rules, in a PDF of `page_count` pages."""
+    """A PDF marker's rules, in a PDF of `context.page_count` pages."""
     return _first(
         lambda: _point("pdf_marker", media_length, others, attrs),
-        lambda: _page(attrs.get("page_number"), page_count),
+        lambda: _page(attrs.get("page_number"), context.page_count),
     )
 
 
@@ -308,9 +355,10 @@ def _harmony(
     media_length: float,
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
-    music21: ModuleType | None,
+    context: _Context,
 ) -> Outcome | None:
     """A harmony's rules; without music21, those that don't need it."""
+    music21 = context.music21
     return _first(
         lambda: _point("harmony", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
@@ -327,9 +375,10 @@ def _mode(
     media_length: float,
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
-    music21: ModuleType | None,
+    context: _Context,
 ) -> Outcome | None:
     """A key's rules; without music21, those that don't need it."""
+    music21 = context.music21
     return _first(
         lambda: _point("mode", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
@@ -340,7 +389,10 @@ def _mode(
 
 
 def _hierarchy(
-    media_length: float, others: Iterable[tla.Component], attrs: Mapping[str, Any]
+    media_length: float,
+    others: Iterable[tla.Component],
+    attrs: Mapping[str, Any],
+    context: _Context,
 ) -> Outcome | None:
     start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
     hierarchies = [other for other in others if other.kind == "hierarchy"]
@@ -359,18 +411,36 @@ def _range(
     media_length: float,
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
-    rows: Sequence[Mapping[str, Any]],
-    row_ids: Sequence[Any],
+    context: _Context,
 ) -> Outcome | None:
-    """A range's rules, in a timeline whose rows are `rows`, with the ids `row_ids`."""
+    """A range's rules, in a timeline whose rows are `context.rows`."""
     start, end = attrs.get("start"), attrs.get("end")
     return _first(
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
-        lambda: _range_place(attrs.get("row_id"), row_ids, start, end, media_length),
+        lambda: _range_place(
+            attrs.get("row_id"), context.row_ids, start, end, media_length
+        ),
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
-        lambda: _joined(attrs, others, rows),
+        lambda: _joined(attrs, others, context.rows),
     )
+
+
+Rules = Callable[
+    [float, Iterable["tla.Component"], Mapping[str, Any], _Context], "Outcome | None"
+]
+# Each kind's rules: the one place a kind finds them.
+_RULES: dict[str, Rules] = {
+    "marker": _marker,
+    "beat": _beat,
+    "pdf_marker": _pdf_marker,
+    "harmony": _harmony,
+    "mode": _mode,
+    "hierarchy": _hierarchy,
+    "range": _range,
+}
+# The kinds these rules cover.
+_KINDS = tuple(_RULES)
 
 
 def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
@@ -825,7 +895,8 @@ def _needed(
 
 
 class _Kinds:
-    """Each kind's rules, as `check_timeline` checks a timeline with them."""
+    """Each kind's rules, from `_RULES`, as `check_timeline` checks a timeline
+    with them."""
 
     def __init__(
         self,
@@ -834,9 +905,7 @@ class _Kinds:
         page_count: int,
     ) -> None:
         self._media_length = media_length
-        self._rows = rows
-        self._row_ids = [row.get("id") for row in rows]
-        self._page_count = page_count
+        self._context = _Context(page_count=page_count, rows=rows)
         # music21, looked up for the first harmony or key only, and not kept
         # once the timeline is checked, so that installing it takes effect.
         self._music21: tuple[ModuleType | None, Exception | None] | None = None
@@ -846,23 +915,17 @@ class _Kinds:
     ) -> tuple[Outcome | None, CantCheck | None]:
         """The first rule but the color that `component` breaks, or None; and when
         it breaks none, whether the rules that need music21 couldn't be checked."""
-        kind, attrs, media_length = component.kind, component.attrs, self._media_length
-        if kind == "harmony" or kind == "mode":
+        kind, error = component.kind, None
+        if kind in _NEED_MUSIC21:
             if self._music21 is None:
                 self._music21 = _music21()
-            music21, error = self._music21
-            kind_rules = _harmony if kind == "harmony" else _mode
-            broken = kind_rules(media_length, others, attrs, music21)
-            if broken is None and music21 is None:
-                return None, CantCheck(kind, error)
-            return broken, None
-        if kind == "hierarchy":
-            return _hierarchy(media_length, others, attrs), None
-        if kind == "range":
-            return _range(media_length, others, attrs, self._rows, self._row_ids), None
-        if kind == "pdf_marker":
-            return _pdf_marker(media_length, others, attrs, self._page_count), None
-        return _point(kind, media_length, others, attrs), None
+                self._context.music21 = self._music21[0]
+            error = self._music21[1]
+        rules = _RULES[kind]
+        broken = rules(self._media_length, others, component.attrs, self._context)
+        if broken is None and kind in _NEED_MUSIC21 and self._context.music21 is None:
+            return None, CantCheck(kind, error)
+        return broken, None
 
 
 class _Others:
