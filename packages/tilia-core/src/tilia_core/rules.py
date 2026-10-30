@@ -543,6 +543,12 @@ def check_timeline(
     kept, as an importer keeps it with the default color, and so is one whose
     rules couldn't be checked without music21.
 
+    A join names a range that starts later, so an import checks it last: once
+    every range has been kept or left out by its own rules, each range's join is
+    checked against its row's next ranges among all the ranges kept. A range
+    whose join is broken is reported, and is among the kept when the other joins
+    are checked.
+
     Ranges need the timeline's `rows`, and PDF markers the PDF's `page_count`.
     music21 is looked up once, for the first harmony or key.
 
@@ -568,18 +574,36 @@ def check_timeline(
         for place in covered:
             others.add(place)
     found: dict[str, Checked] = {}
+    joining: list[int] = []  # an import's ranges whose joins are checked last
     for place in covered:
         component = components[place]
-        broken, cant_check = kinds.broken(component, others.of(place))
-        color_outcome = _color_of(component.attrs)
-        found[component.id] = Checked(
-            OK if broken is None else broken,
-            OK if color_outcome is None else color_outcome,
-            cant_check,
-        )
+        kind, attrs = component.kind, component.attrs
+        if skip_broken and kind == "range" and attrs.get("joined_right") is not None:
+            broken, cant_check = kinds.broken(kind, {**attrs, "joined_right": None}, ())
+            if broken is None:
+                joining.append(place)
+        else:
+            broken, cant_check = kinds.broken(kind, attrs, others.of(place))
+        found[component.id] = _found(attrs, broken, cant_check)
         if skip_broken and broken is None:
             others.add(place)
+    for place in joining:
+        component = components[place]
+        kind, attrs = component.kind, component.attrs
+        broken, cant_check = kinds.broken(kind, attrs, others.of(place))
+        found[component.id] = _found(attrs, broken, cant_check)
     return found
+
+
+def _found(
+    attrs: Mapping[str, Any], broken: Outcome | None, cant_check: CantCheck | None
+) -> Checked:
+    color_outcome = _color_of(attrs)
+    return Checked(
+        OK if broken is None else broken,
+        OK if color_outcome is None else color_outcome,
+        cant_check,
+    )
 
 
 def _point(
@@ -925,18 +949,19 @@ class _Kinds:
         self._music21: tuple[ModuleType | None, Exception | None] | None = None
 
     def broken(
-        self, component: tla.Component, others: Iterable[tla.Component]
+        self, kind: str, attrs: Mapping[str, Any], others: Iterable[tla.Component]
     ) -> tuple[Outcome | None, CantCheck | None]:
-        """The first rule but the color that `component` breaks, or None; and when
-        it breaks none, whether the rules that need music21 couldn't be checked."""
-        kind, error = component.kind, None
+        """The first rule but the color that a component of `kind` with `attrs`
+        breaks, or None; and when it breaks none, whether the rules that need
+        music21 couldn't be checked."""
+        error = None
         if kind in _NEED_MUSIC21:
             if self._music21 is None:
                 self._music21 = _music21()
                 self._context.music21 = self._music21[0]
             error = self._music21[1]
         rules = _RULES[kind]
-        broken = rules(self._media_length, others, component.attrs, self._context)
+        broken = rules(self._media_length, others, attrs, self._context)
         if broken is None and kind in _NEED_MUSIC21 and self._context.music21 is None:
             # The cause the kind's function raises it from.
             cant_check = CantCheck(kind, error)
