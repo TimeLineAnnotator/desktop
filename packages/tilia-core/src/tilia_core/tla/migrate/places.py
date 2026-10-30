@@ -33,9 +33,18 @@ def _quoted(value: Any) -> str:
     return printable(json.dumps(value, ensure_ascii=False))
 
 
+# Where what the migration moves to the top level was in every old file.
+_TOP_LEVEL = {
+    "/media/path": "/media_path",
+    "/media/length": "/media_metadata/media length",
+    "/metadata": "/media_metadata",
+}
+
+
 class OldPlaces:
     """Maps a place in a migrated document to the place in the old file that
-    it comes from."""
+    it comes from. It knows from the start where the top level's keys were;
+    the migration tells it the rest."""
 
     def __init__(self) -> None:
         # The old id of each timeline, by its new id, and of each of its
@@ -45,7 +54,7 @@ class OldPlaces:
         self._components: dict[str, dict[str, str]] = {}
         # Where each key the migration moved or renamed was in the old file,
         # by its place as the migration leaves it, with the old ids.
-        self._moved: dict[str, str] = {}
+        self._moved: dict[str, str] = dict(_TOP_LEVEL)
         # Each reference that names nothing, by its place in the migrated
         # document, with its value in the old file.
         self._nothing: dict[str, Any] = {}

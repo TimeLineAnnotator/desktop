@@ -1893,6 +1893,18 @@ def test_an_item_of_a_renamed_key_is_named_by_the_old_key():
     ) == ("/a/old~1name/0", 'an item of "old/name" should be text, not a number')
 
 
+def test_places_made_without_a_migration_know_where_the_top_level_was():
+    # As a Migrated made without its places has them.
+    places = to_1.Migrated({}).places
+    assert places.old("/media/path") == "/media_path"
+    assert places.old("/media/length") == "/media_metadata/media length"
+    assert places.old("/metadata/title") == "/media_metadata/title"
+
+
+def test_two_migrations_of_one_file_are_equal():
+    assert to_1.migrate(old_file_content()) == to_1.migrate(old_file_content())
+
+
 # Ranges
 
 

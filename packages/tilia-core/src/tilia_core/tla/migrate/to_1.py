@@ -79,12 +79,6 @@ _OLD_TOP_LEVEL = frozenset(
 _CURRENT_ONLY = ("document_id", "time_unit", "media", "metadata", "scores")
 _STORED_HASHES = ("hash", "components_hash")
 _MEDIA_LENGTH = "media length"
-# Where what the migration moves to the top level was in an old file.
-_MOVED = {
-    "/media/path": "/media_path",
-    "/media/length": pointer_to("/media_metadata", _MEDIA_LENGTH),
-    "/metadata": "/media_metadata",
-}
 # A number written as text, in ASCII.
 _NUMBER = re.compile(r"\s*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\s*")
 
@@ -100,7 +94,7 @@ class Migrated:
     content: dict[str, Any]
     warnings: list[ReadWarning] = field(default_factory=list)
     changes: dict[str, int] = field(default_factory=dict)
-    places: OldPlaces = field(default_factory=OldPlaces)
+    places: OldPlaces = field(default_factory=OldPlaces, compare=False)
 
 
 def migrate(
@@ -218,8 +212,6 @@ class _Migration:
         self.warnings: list[ReadWarning] = []
         self.changes: dict[str, int] = {}
         self.places = OldPlaces()
-        for place, old_place in _MOVED.items():
-            self.places.moved(place, old_place)
 
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
