@@ -112,10 +112,11 @@ def migrate(
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
     # With the old ids still in place, the beat timelines' measures
-    # (TimeLineAnnotator/project-management#181), the legacy scores
-    # (TimeLineAnnotator/project-management#182) and the comments' marks
-    # (TimeLineAnnotator/project-management#180) are converted here, so that
-    # the document id is derived from the content they give.
+    # (TimeLineAnnotator/project-management#181) and the comments' marks
+    # (TimeLineAnnotator/project-management#180) are converted here, as the
+    # legacy scores (TimeLineAnnotator/project-management#182) are in
+    # to_current, so that the document id is derived from the content they
+    # give.
     #
     # A file saved again by TiLiA 0.7 without an edit gets the same id, but
     # for three changes TiLiA 0.7 makes itself, which change it (accepted in
@@ -123,9 +124,7 @@ def migrate(
     # a file without one, moves timelines of kinds it doesn't know after the
     # others and renumbers them, and clears a media path it can't find when
     # the user doesn't show it where the media is.
-    scores.to_legacy_scores(content, version=version, path=path)
     document_id = derived_document_id(content)
-    scores.name_by_new_ids(content, document_id)
     content = _with_new_ids(content, document_id)
     # The media's and PDF timelines' paths are made relative here, from the
     # old file's `file_path` (TimeLineAnnotator/project-management#176).
@@ -214,6 +213,8 @@ class _Migration:
         self.path = path
         self.warnings: list[ReadWarning] = []
         self.changes: dict[str, int] = {}
+        # The legacy scores of score timelines, under their old ids.
+        self.scores: list[dict[str, Any]] = []
 
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
@@ -287,7 +288,8 @@ class _Migration:
                 key: self._timeline(key, timeline)
                 for key, timeline in old["timelines"].items()
             },
-            "scores": [],
+            # Once the timelines have given their legacy scores.
+            "scores": scores.in_old_id_order(self.scores),
         }
         for key, value in old.items():
             if key not in _OLD_TOP_LEVEL:
@@ -328,6 +330,13 @@ class _Migration:
         # an old file may have any letter case, and TiLiA's own migration
         # spells an old "AUDIOWAVE_TIMELINE" "Audiowave".
         converted["kind"] = timeline_kind_to_file(kind)
+        if kind == "score":
+            # The SVG leaves the old content too, which the reader still
+            # holds, so that a long one is held once, as the score's lines.
+            timeline.pop("svg_data", None)
+            score = scores.legacy_score(self, key, converted)
+            if score is not None:
+                self.scores.append(score)
         if kind == "beat" and isinstance(converted.get("beat_pattern"), list):
             # Text, as the current format writes it (contracts/migration.md,
             # *Beat timelines*, step 6); "4", the default, is then left out.
@@ -398,6 +407,7 @@ def _follow(reference: Any, new_ids: dict[str, str]) -> Any:
 
 def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
     timelines: dict[str, Any] = {}
+    score_ids: dict[str, str] = {}  # by the old ids they had, their timelines'
     for position, (old_id, timeline) in enumerate(content["timelines"].items()):
         new_id = migrated_id(document_id, "timeline", old_id, position=position)
         kind = timeline_kind_from_file(timeline["kind"])
@@ -416,5 +426,15 @@ def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
                     }
                 renamed[new_ids[key]] = component
             timeline = {**timeline, "components": renamed}
+            if kind == "score" and "score" in timeline:
+                # Its legacy score's, derived as its own is, from the same
+                # old id and position.
+                score_ids[old_id] = migrated_id(
+                    document_id, "score", old_id, position=position
+                )
+                timeline["score"] = score_ids[old_id]
         timelines[new_id] = timeline
-    return {**content, "timelines": timelines}
+    renamed_scores = [
+        {**score, "id": score_ids[score["id"]]} for score in content["scores"]
+    ]
+    return {**content, "timelines": timelines, "scores": renamed_scores}
