@@ -1878,13 +1878,15 @@ def test_a_joined_right_names_nothing_unless_its_timeline_has_it(value, shown):
     assert error.value.line == line_of(data, b'"joined_right"')
 
 
-def test_only_a_ranges_joined_right_is_a_reference():
+@pytest.mark.parametrize("joined", ["10", "99"], ids=["names a range", "names none"])
+def test_only_a_ranges_joined_right_is_a_reference(joined):
     # A component of another kind in a range timeline is kept as it is, as
-    # the check keeps it, with what it names.
-    marker = {"kind": "MARKER", "time": 1, "joined_right": "99"}
+    # the check keeps it, with what it names: its joined_right isn't
+    # followed to the new ids, even where it names a component.
+    marker = {"kind": "MARKER", "time": 1, "joined_right": joined}
     doc = loads(edited(with_range(), set_key(*RANGE, "components", "11", marker)))
     (kept,) = [c for c in by_kind(doc, "range").components.values() if c.extra]
-    assert kept.extra["joined_right"] == "99"
+    assert kept.extra["joined_right"] == joined
     assert [w.message for w in doc.warnings] == [
         'the timeline "Rows" holds a component of kind "MARKER", which a'
         ' timeline of kind "Range" doesn\'t have: it is kept as it is'
