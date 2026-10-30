@@ -97,15 +97,6 @@ class _Timeline:
         """The timeline's legacy score, under its timeline's old id, which the
         timeline then names; None when it has no SVG."""
         timeline = self.timeline
-        if timeline.get("score") is not None:
-            # A key of the current format, which the migration sets itself:
-            # it couldn't keep the value. A null is a missing key, and the
-            # migration has already left it out, at its default.
-            raise self._refuse(
-                f"a file from TiLiA {printable(self.version)} can't hold"
-                ' "score", a key of the current format',
-                pointer_to(self.place, "score"),
-            )
         svg = timeline.pop("svg_data", None)
         if svg is not None and not isinstance(svg, str):
             at = pointer_to(self.place, "svg_data")
