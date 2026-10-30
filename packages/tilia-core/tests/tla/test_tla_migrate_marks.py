@@ -6,11 +6,14 @@ marks*; research R12). Other `key=value` tokens stay (Q5)."""
 import copy
 import json
 import unicodedata
+from pathlib import Path
 
 import pytest
 
 from tilia_core import tla
 from tilia_core.tla.migrate import marks, to_1
+
+OLD = Path(__file__).parent / "old"
 
 
 def old_file(comments="", *, kind="MARKER", **attrs):
@@ -237,6 +240,8 @@ def test_the_marks_change_nothing_else_in_the_component():
 
 
 def test_a_comment_left_empty_is_left_out_of_the_file():
+    # As `comments` is at its default; a legacy score's note, which keeps
+    # every attribute, writes it empty (below).
     component = stored_component("tag=check gen=group/A")
     assert "comments" not in component
     assert component["metadata"] == {"tags": ["check"], "generated_by": "group/A"}
@@ -368,6 +373,106 @@ def test_marks_still_move_beside_a_component_its_timeline_doesnt_hold():
     (timeline,) = loads(content).timelines.values()
     (section,) = [c for c in timeline.components.values() if c.kind == "hierarchy"]
     assert (section.attrs["comments"], section.metadata) == ("x", {"tags": ["check"]})
+
+
+# A legacy score's notes, which keep every attribute (FR-022)
+
+
+def with_note_comment(comments):
+    """TiLiA 0.7.0's file, its score timeline's note with these comments."""
+    content = json.loads((OLD / "0.7.0.tla").read_bytes())
+    (score,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Score"]
+    (note,) = [c for c in score["components"].values() if c["kind"] == "NOTE"]
+    note["comments"] = comments
+    return content
+
+
+def the_note(doc):
+    (score,) = [tl for tl in doc.timelines.values() if tl.kind == "score"]
+    (note,) = [c for c in score.components.values() if c.kind == "note"]
+    return note
+
+
+def test_marks_move_in_a_legacy_scores_note():
+    note = the_note(loads(with_note_comment("x  tag=check gen=group/A")))
+    assert note.metadata == {"tags": ["check"], "generated_by": "group/A"}
+    assert note.attrs["comments"] == "x "
+
+
+def test_a_notes_comment_left_empty_is_written_empty():
+    # A legacy score's components write every attribute, as TiLiA 0.7 did,
+    # so the comment the marks leave empty is written "", not left out.
+    doc = loads(with_note_comment("tag=check gen=group/A"))
+    assert the_note(doc).attrs["comments"] == ""
+    content = json.loads(tla.canonical_bytes(doc))
+    (score,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Score"]
+    (note,) = [c for c in score["components"].values() if c["kind"] == "NOTE"]
+    assert note["comments"] == ""
+    assert note["metadata"] == {"tags": ["check"], "generated_by": "group/A"}
+    assert list(note)[-2:] == ["display_accidental", "metadata"]
+
+
+def test_a_notes_marks_are_counted():
+    migrated = to_1.migrate(with_note_comment("tag=check gen=group/A"))
+    plain = to_1.migrate(with_note_comment(""))
+    assert migrated.changes["marks_moved"] == plain.changes["marks_moved"] + 2
+
+
+# The old files the tests read (tests/tla/old/README.md), whose comments
+# hold marks
+
+EXPOSITION = (
+    "hierarchy",
+    "Exposição",
+    {"tags": ["p1"], "generated_by": "ai"},
+    "first theme",
+)
+# Each file's components with metadata, as (kind, label, metadata,
+# comments), in timeline order, and the number of marks moved.
+OLD_FILES_MARKS = {
+    "0.0.96.tla": ([EXPOSITION], 2),
+    "0.0.96-saved-by-0.7.0.tla": ([EXPOSITION], 2),
+    "0.5.15.tla": ([EXPOSITION], 2),
+    "0.5.15-saved-by-0.7.0.tla": ([EXPOSITION], 2),
+    "0.5.15.0-many-beats.tla": ([], 0),
+    "0.6.0-s4-10.tla": ([], 0),
+    "0.7.0.tla": ([EXPOSITION, ("range", "", {"tags": ["bass"]}, "")], 3),
+}
+
+
+def test_there_is_an_entry_for_each_old_file():
+    assert sorted(OLD_FILES_MARKS) == sorted(path.name for path in OLD.glob("*.tla"))
+
+
+@pytest.mark.parametrize("name", sorted(OLD_FILES_MARKS))
+def test_the_old_files_marks_move(name):
+    # "tag=p1 first theme gen=ai" on a section, and "tag=bass" on a range.
+    expected, _ = OLD_FILES_MARKS[name]
+    doc = tla.read(OLD / name)
+    timelines = sorted(doc.timelines.values(), key=lambda tl: tl.ordinal)
+    found = [
+        (c.kind, c.attrs.get("label"), c.metadata, c.attrs.get("comments"))
+        for tl in timelines
+        if not isinstance(tl.kind, tla.UnknownKind)
+        for c in tl.components.values()
+        if c.metadata
+    ]
+    assert found == expected
+
+
+@pytest.mark.parametrize("name", sorted(OLD_FILES_MARKS))
+def test_the_old_files_marks_are_counted(name):
+    _, count = OLD_FILES_MARKS[name]
+    changes = to_1.migrate(json.loads((OLD / name).read_bytes())).changes
+    assert changes.get("marks_moved", 0) == count
+
+
+def test_the_old_files_range_is_written_without_its_emptied_comment():
+    content = json.loads(tla.canonical_bytes(tla.read(OLD / "0.7.0.tla")))
+    (voices,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Range"]
+    (bass,) = [c for c in voices["components"].values() if "metadata" in c]
+    assert bass["metadata"] == {"tags": ["bass"]}
+    assert "comments" not in bass
 
 
 # An old component that already has metadata (only a file made by hand has)
