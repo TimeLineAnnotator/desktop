@@ -33,7 +33,14 @@ import bisect
 import importlib.util
 import math
 import string
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from collections.abc import (
+    Callable,
+    Collection,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
@@ -395,15 +402,22 @@ def _hierarchy(
     context: _Context,
 ) -> Outcome | None:
     start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
-    hierarchies = [other for other in others if other.kind == "hierarchy"]
+    found: list[list[tla.Component]] = []
+
+    def hierarchies() -> list[tla.Component]:
+        # Read from `others` once, when a rule between hierarchies first asks.
+        if not found:
+            found.append([other for other in others if other.kind == "hierarchy"])
+        return found[0]
+
     return _first(
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _hierarchy_times(start, end, media_length),
         lambda: _hierarchy_level(level),
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
-        lambda: _same_place(start, end, level, hierarchies),
-        lambda: _crossed(start, end, level, hierarchies),
+        lambda: _same_place(start, end, level, hierarchies()),
+        lambda: _crossed(start, end, level, hierarchies()),
     )
 
 
@@ -958,10 +972,19 @@ class _Others:
         elif kind in _POINT_KINDS:
             self._at_time.at((kind, attrs.get("time"))).append(place)
 
-    def of(self, place: int) -> list[tla.Component]:
+    def of(self, place: int) -> _Found:
         """The others the rules of the component at `place` could name, in the
-        order given. They need only be found for a component whose own rules are
-        kept, since the rules between components are checked after them."""
+        order given, found when a rule between components first reads them.
+
+        A rule between components comes after the component's own rules but for
+        the point kinds, whose time is compared with the others' once it is a
+        time within the media, before a harmony's or a key's values or a PDF
+        marker's page are checked. The others are needed only from there: one
+        that breaks a rule of its own before it never looks for them.
+        """
+        return _Found(lambda: self._found(place))
+
+    def _found(self, place: int) -> list[tla.Component]:
         component = self._components[place]
         kind, attrs = component.kind, component.attrs
         places: Iterable[int] = ()
@@ -982,6 +1005,20 @@ class _Others:
             if _is_number(time):
                 places = self._at_time.get((kind, time))
         return [self._components[other] for other in sorted(places) if other != place]
+
+
+class _Found:
+    """The others a component is checked with, found the first time a rule
+    between components reads them."""
+
+    def __init__(self, find: Callable[[], list[tla.Component]]) -> None:
+        self._find = find
+        self._others: list[tla.Component] | None = None
+
+    def __iter__(self) -> Iterator[tla.Component]:
+        if self._others is None:
+            self._others = self._find()
+        return iter(self._others)
 
 
 class _ByValue:

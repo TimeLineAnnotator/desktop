@@ -2028,6 +2028,44 @@ class TestCheckTimelineSpeed:
         assert all(c.outcome for c in checked.values())
         assert seconds < WELL_UNDER_A_SECOND
 
+    @USES
+    def test_10000_beats_at_one_time_that_break_a_rule_of_their_own(self, skip_broken):
+        # The others at their time are looked for only once their own rules
+        # are kept, which they never are.
+        beats = [component("beat", time=0.0, label=3) for _ in range(10_000)]
+
+        checked, seconds = fastest(
+            lambda: rules.check_timeline(2500.0, beats, skip_broken=skip_broken)
+        )
+
+        use = "imported" if skip_broken else "read"
+        print(
+            f"10,000 beats at one time, each with a label of 3, {use}: {seconds:.3f} s"
+        )
+        assert {c.outcome for c in checked.values()} == {
+            (False, "3 is not a valid label.")
+        }
+        assert seconds < WELL_UNDER_A_SECOND
+
+    @USES
+    def test_3000_hierarchies_at_one_place_that_break_a_rule_of_their_own(
+        self, skip_broken
+    ):
+        hierarchies = [hierarchy(0.0, 10.0, 0) for _ in range(3000)]
+
+        checked, seconds = fastest(
+            lambda: rules.check_timeline(MEDIA, hierarchies, skip_broken=skip_broken)
+        )
+
+        use = "imported" if skip_broken else "read"
+        print(
+            f"3,000 hierarchies at one place, each at level 0, {use}: {seconds:.3f} s"
+        )
+        assert {c.outcome for c in checked.values()} == {
+            (False, "Level can't be below 1. Got '0'")
+        }
+        assert seconds < WELL_UNDER_A_SECOND
+
     def test_3000_hierarchies_that_cross_the_first_on_import(self):
         # Each is checked with the hierarchies kept, not with every earlier one:
         # every one after the first crosses it, and every other one.
