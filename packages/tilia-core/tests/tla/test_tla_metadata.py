@@ -206,7 +206,8 @@ def test_an_author_reads_back_as_the_file_stores_it():
     assert tla.canonical_bytes(tla.loads(data)) == data
 
 
-# A timeline's vocabulary (FR-072, #31)
+# A timeline's vocabulary (FR-072, TimeLineAnnotator/project-management#31 (the
+# vocabulary syntax))
 
 
 @pytest.mark.parametrize("vocabulary", ["lcma-form@0.3.0", "cadences"])
@@ -231,7 +232,8 @@ def test_an_invalid_vocabulary_is_written_and_read_with_a_warning():
     ]
 
 
-# An empty metadata (#161, points 6 and 15)
+# An empty metadata (TimeLineAnnotator/project-management#161 (the format's
+# layout), points 6 and 15)
 
 
 def test_an_empty_metadata_is_left_out_of_timelines_and_components():
