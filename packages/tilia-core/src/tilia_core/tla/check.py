@@ -54,9 +54,7 @@ from tilia_core.tla.model import (
     component_kind_from_file,
     timeline_kind_from_current_file,
 )
-from tilia_core.tla.parse import lines_of, pointer
-
-_BOM = b"\xef\xbb\xbf"
+from tilia_core.tla.parse import lines_of, pointer, text_of
 
 
 def check(
@@ -81,7 +79,7 @@ def check(
         place = _pointer(broken.place)
         line = None
         if source is not None:
-            line = lines_of(_text(source), [place])[place]
+            line = lines_of(text_of(source), [place])[place]
         raise UnreadableFile(
             broken.message, path=path, line=line, place=place
         ) from None
@@ -90,17 +88,11 @@ def check(
     warnings = [(_pointer(place), message) for place, message in checker.warnings]
     lines: dict[str, int] = {}
     if source is not None:
-        lines = lines_of(_text(source), [place for place, _ in warnings])
+        lines = lines_of(text_of(source), [place for place, _ in warnings])
     return [
         ReadWarning(place=place, line=lines.get(place), message=message)
         for place, message in warnings
     ]
-
-
-def _text(source: str | bytes) -> str:
-    if isinstance(source, str):
-        return source
-    return source.removeprefix(_BOM).decode("utf-8")
 
 
 def _quoted(value: Any) -> str:

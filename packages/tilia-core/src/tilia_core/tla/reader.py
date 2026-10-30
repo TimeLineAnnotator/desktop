@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import codecs
 import json
 import os
 import re
@@ -42,7 +41,7 @@ from tilia_core.tla.model import (
     component_kind_from_file,
     timeline_kind_from_current_file,
 )
-from tilia_core.tla.parse import lines_of, parse
+from tilia_core.tla.parse import add_line, lines_of, parse, text_of
 
 
 def read(path: str | os.PathLike[str]) -> Document:
@@ -93,23 +92,17 @@ def _old(
             place, message = migrated.places.in_old_file(error.place, error.message)
             raise UnreadableFile(message, path=path, place=place) from None
     except UnreadableFile as error:
-        if error.place is not None and error.line is None:
-            error.line = _lines(data, [error.place])[error.place]
+        add_line(error, text_of(data))
         raise
     named = [(w.place, w.message) for w in migrated.warnings]
     named += [migrated.places.in_old_file(w.place, w.message) for w in warnings]
-    lines = _lines(data, [place for place, _ in named]) if named else {}
+    lines = lines_of(text_of(data), [place for place, _ in named]) if named else {}
     document = _Reader(path).document(migrated.content)
     document.warnings = [
         ReadWarning(place=place, line=lines[place], message=message)
         for place, message in named
     ]
     return document
-
-
-def _lines(data: bytes, places: list[str]) -> dict[str, int]:
-    """The line of each place in a file's bytes, which `parse` has read."""
-    return lines_of(data.removeprefix(codecs.BOM_UTF8).decode("utf-8"), places)
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.
