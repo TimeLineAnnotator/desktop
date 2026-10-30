@@ -81,8 +81,7 @@ def parse(
         try:
             check(content)
         except UnreadableFile as error:
-            if error.place is not None and error.line is None:
-                error.line = lines_of(text, [error.place])[error.place]
+            add_line(error, text)
             raise
     if "timelines" not in content:
         raise UnreadableFile("not a TiLiA file", path=path)
@@ -161,6 +160,21 @@ def _json_message(text: str, error: json.JSONDecodeError) -> str:
         if error.msg.endswith(end):
             return error.msg[: -len(end)]
     return error.msg
+
+
+def text_of(source: str | bytes) -> str:
+    """A file's text: its bytes decoded, without the byte-order mark `parse`
+    skips; text as it is."""
+    if isinstance(source, str):
+        return source
+    return source.removeprefix(_BOM).decode("utf-8")
+
+
+def add_line(error: UnreadableFile, text: str) -> None:
+    """Give a refusal that names a place, but no line, the line of its place
+    in `text`, the file's."""
+    if error.place is not None and error.line is None:
+        error.line = lines_of(text, [error.place])[error.place]
 
 
 class _AllFound(Exception):
