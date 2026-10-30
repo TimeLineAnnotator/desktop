@@ -4,7 +4,7 @@ One file for each way a file can be broken: invalid JSON, an empty file, a file 
 
 They are made by `make_broken.py`, which writes them with `json.dumps` directly, so they don't depend on the code under test. Most are one valid file with one thing broken, laid out as the writer lays a file out, so that the line a refusal names is exact. Don't edit them by hand: change the script and run it again.
 
-The last column says whether the format's JSON Schema refuses the file too. Three checks are the core's alone, since JSON Schema can't express them: an id used twice, a reference that names nothing, and a key repeated in one object (FR-090).
+The last column says whether the format's JSON Schema refuses the file too. Four checks are the core's alone, since JSON Schema can't express them: an id used twice, a reference that names nothing, a key repeated in one object (FR-090), and a beat timeline's first beat, in time order, without a measure mark.
 
 | File | What is wrong | The schema |
 | --- | --- | --- |
@@ -13,6 +13,7 @@ The last column says whether the format's JSON Schema refuses the file too. Thre
 | `cut-short.tla` | a file cut off while it was being saved | can't parse |
 | `empty-file.tla` | nothing in it | can't parse |
 | `error-page.tla` | a web page saved under the file's name | can't parse |
+| `first-beat-without-mark.tla` | a beat timeline whose first beat has no measure mark: the mark is on its second | core only |
 | `id-in-two-timelines.tla` | a component's id used again in another timeline | core only |
 | `id-not-a-uuid.tla` | a component whose id isn't a UUID | refuses |
 | `imported-measure-table-named-nowhere.tla` | a timeline imported by measure names a measure table the file doesn't have | core only |
@@ -21,6 +22,7 @@ The last column says whether the format's JSON Schema refuses the file too. Thre
 | `measure-table-not-a-beat-timeline.tla` | a measure table that names a timeline that isn't a beat timeline | core only |
 | `metadata-not-an-object.tla` | a timeline's metadata given as a list | refuses |
 | `newer-format.tla` | written by a newer TiLiA (format 2.0.0) | refuses |
+| `next-named-nowhere.tla` | a measure's `next` names a beat its timeline doesn't have | core only |
 | `not-json.tla` | a comma missing | can't parse |
 | `older-draft.tla` | an earlier draft of the format | refuses |
 | `repeated-key.tla` | a key given twice in one object | core only |

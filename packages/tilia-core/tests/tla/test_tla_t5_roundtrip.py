@@ -998,10 +998,11 @@ def test_a_marks_defaults_are_filled_in_except_those_from_other_marks():
         "time": 0.0,
         "measure": {"number": 0, **flags},
         "beat_unit": {"denominator": 4, "units": "1", "assumed": False},
+        "closing": False,
     }
-    assert nth(beats, 1).attrs == {"time": 1.0, "measure": flags}
+    assert nth(beats, 1).attrs == {"time": 1.0, "measure": flags, "closing": False}
     assert nth(beats, 1).metadata == {"tags": ["check"]}
-    assert nth(beats, 2).attrs == {"time": 2.0}
+    assert nth(beats, 2).attrs == {"time": 2.0, "closing": False}
     assert nth(beats, 4).attrs["measure"] == {
         **flags,
         "label": "2a",

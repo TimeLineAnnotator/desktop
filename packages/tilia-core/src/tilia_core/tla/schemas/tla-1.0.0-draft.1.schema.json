@@ -242,7 +242,7 @@
           "default": false
         },
         "restart": {
-          "description": "The first bar of a new movement or song in the same file: every pass count starts again here (TimeLineAnnotator/project-management#191).",
+          "description": "The first measure of a new movement or song in the same file, its pickup if it has one: every pass count starts again here (TimeLineAnnotator/project-management#191, TimeLineAnnotator/project-management#181).",
           "type": ["boolean", "null"],
           "default": false
         },
@@ -358,11 +358,16 @@
         {
           "if": { "properties": { "kind": { "const": "BEAT" } } },
           "then": {
-            "required": ["time"],
+            "description": "A beat without a time is kept, with a warning that says where (TimeLineAnnotator/project-management#285): TiLiA never writes one.",
             "properties": {
-              "time": { "$ref": "#/$defs/time" },
+              "time": { "oneOf": [{ "$ref": "#/$defs/time" }, { "type": "null" }] },
               "measure": { "oneOf": [{ "$ref": "#/$defs/measure" }, { "type": "null" }] },
-              "beat_unit": { "oneOf": [{ "$ref": "#/$defs/beat_unit" }, { "type": "null" }] }
+              "beat_unit": { "oneOf": [{ "$ref": "#/$defs/beat_unit" }, { "type": "null" }] },
+              "closing": {
+                "description": "A tap on the closing barline, the end of the last bar of the piece or of a movement, rather than a beat: not one of its measure's beats (TimeLineAnnotator/project-management#332).",
+                "type": ["boolean", "null"],
+                "default": false
+              }
             }
           }
         },

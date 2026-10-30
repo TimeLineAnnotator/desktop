@@ -14,12 +14,16 @@ line:
   them: the reader reads a value that breaks one;
 - a score whose content has no lines;
 - what JSON Schema can't check: an id used twice in the file, or a row's
-  used twice in its timeline, and a reference that names nothing.
+  used twice in its timeline, a reference that names nothing, a measure's
+  `next` among them, and a beat timeline whose first beat has no `measure`
+  mark.
 
 Kept, with a warning: a timeline's `vocabulary` that isn't a reference to a
 vocabulary (FR-072); a component of a kind its timeline doesn't hold, kept as
 one of a kind the core doesn't know, its structure checked as its kind's, as
-the schema checks it, but not its references.
+the schema checks it, but not its references; a beat without a time; a beat
+unit desktop#621 can't read, and a measure with more than one; and a second
+beat timeline whose role is time_map.
 
 A null is a missing key: the schema allows one on every key it doesn't
 require. A number written with a fraction of zero, such as 1.0, is an integer,
@@ -40,6 +44,7 @@ import os
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from operator import itemgetter
 from typing import Any, TypeAlias
 
 from tilia_core.tla.errors import UnreadableFile, printable
@@ -51,7 +56,11 @@ from tilia_core.tla.model import (
     Kind,
     ReadWarning,
     UnknownKind,
+    beat_order,
+    beat_unit_problems,
     component_kind_from_file,
+    measure_beats,
+    measure_numbers,
     timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import lines_of, pointer
@@ -411,6 +420,7 @@ class _Checker:
         self.value(content, _DOCUMENT, None, None)
         self.ids()
         self.references()
+        self.time_maps()
 
     # Structure
 
@@ -596,8 +606,8 @@ class _Checker:
                         " the file doesn't have",
                         (place, "score"),
                     )
-            # A beat timeline's own, the measure mark on its first beat and the
-            # downbeats a measure's `next` names, go with its measure table.
+            elif kind == "beat":
+                self.measures(value, place)
 
     def range_references(self, timeline: Mapping[str, Any], place: Place) -> None:
         # Compared as the reader gives them: in NFC.
@@ -622,7 +632,100 @@ class _Checker:
                     (at, "joined_right"),
                 )
 
+    def measures(self, timeline: Mapping[str, Any], place: Place) -> None:
+        """A beat timeline's measures, marked on its beats (FR-081). Refused:
+        a first beat without a `measure` mark, and a `next` that names no beat
+        of the timeline. Kept, with a warning: a beat without a time
+        (TimeLineAnnotator/project-management#285), a beat unit desktop#621
+        can't read, and a measure with more than one beat unit (point 10 of
+        TimeLineAnnotator/project-management#161). A tap on a closing barline
+        is no beat of a measure (TimeLineAnnotator/project-management#332),
+        so the first beat is the first other one. Which beat is first isn't
+        known while one has no time: the file is then read, so that the beat
+        can be fixed. A beat without a time is in no measure, nor is its beat
+        unit. Each beat unit is parsed once."""
+        beats = {
+            key: component
+            for key, component in timeline["components"].items()
+            if component["kind"] == COMPONENT_KINDS["beat"]
+        }
+        at = (place, "components")
+        everyone = beat_order(beats)
+        order = [key for key in everyone if not beats[key].get("closing")]
+        timed = all(beats[key].get("time") is not None for key in order)
+        if order and timed and not isinstance(beats[order[0]].get("measure"), dict):
+            raise _Broken(
+                f"the first beat of {_which(timeline)} has no measure mark",
+                (at, order[0]),
+            )
+        for key, beat in beats.items():
+            mark = beat.get("measure")
+            following = mark.get("next") if isinstance(mark, dict) else None
+            for index, item in enumerate(following or ()):
+                if item not in beats:
+                    raise _Broken(
+                        f"a measure is followed by {_quoted(item)}, which isn't a"
+                        " beat of its timeline",
+                        ((((at, key), "measure"), "next"), index),
+                    )
+        readable: set[str] = set()  # the beats with a unit desktop#621 reads
+        for key, beat in beats.items():
+            if beat.get("time") is None:
+                self.warnings.append(
+                    ((at, key), f"a beat of {_which(timeline)} has no time")
+                )
+            unit = beat.get("beat_unit")
+            if not isinstance(unit, dict):
+                continue
+            problems = beat_unit_problems(unit)
+            if not problems:
+                readable.add(key)
+            for name in problems:
+                what = "units" if name == "units" else f"a {name}"
+                self.warnings.append(
+                    (
+                        (((at, key), "beat_unit"), name),
+                        f"a beat unit in {_which(timeline)} has {what} TiLiA"
+                        f" can't read: {_quoted(unit.get(name))}",
+                    )
+                )
+        groups = measure_beats(beats, everyone)
+        marks = (beats[group[0]]["measure"] for group in groups)
+        for group, (_, label) in zip(groups, measure_numbers(marks), strict=True):
+            units = [key for key in group if key in readable]
+            if len(units) > 1:
+                self.warnings.append(
+                    (
+                        ((at, units[1]), "beat_unit"),
+                        f"measure {_quoted(label)} of {_which(timeline)} has"
+                        " more than one beat unit",
+                    )
+                )
+
     # Warnings
+
+    def time_maps(self) -> None:
+        """Warn about each beat timeline that claims the role time_map after
+        another: the first by ordinal is the default for bar and beat (T12),
+        and of two with one ordinal, the first by id, as the time map takes
+        them in the document's order."""
+        claiming = sorted(
+            (
+                (value["ordinal"], timeline_id, place, value)
+                for place, timeline_id, kind, value in self.timelines
+                if kind == "beat" and _claims_time_map(value)
+            ),
+            key=itemgetter(0, 1),
+        )
+        for _, _, place, value in claiming[1:]:
+            self.warnings.append(
+                (
+                    ((place, "metadata"), "role"),
+                    f"{_which(value)} claims the role time_map, as"
+                    f" {_which(claiming[0][3])} does, which comes first by ordinal"
+                    " and is the default",
+                )
+            )
 
     def vocabulary(self, timeline: Mapping[str, Any], place: Place) -> None:
         """Warn about a vocabulary that isn't a reference to one (FR-072)."""
@@ -645,6 +748,15 @@ def _which(timeline: Mapping[str, Any]) -> str:
     """A timeline, as a warning names it."""
     name = timeline.get("name")
     return f"the timeline {_quoted(name)}" if name else "a timeline without a name"
+
+
+def _claims_time_map(timeline: Mapping[str, Any]) -> bool:
+    """Whether a timeline's role is time_map, or a list that holds it."""
+    metadata = timeline.get("metadata")
+    role = metadata.get("role") if isinstance(metadata, dict) else None
+    if isinstance(role, list):
+        return "time_map" in role
+    return role == "time_map"
 
 
 Entry: TypeAlias = "Callable[[_Checker, Any, Place, str | None], None]"

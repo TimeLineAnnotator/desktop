@@ -38,6 +38,7 @@ from tilia_core.tla.model import (
     Timeline,
     UnknownKind,
     component_kind_from_file,
+    measure_table,
     timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import parse
@@ -297,7 +298,7 @@ class _Reader:
             )
         shape = TIMELINE_SHAPES[kind]
         components = self._require(timeline, "components", place)
-        return Timeline(
+        read = Timeline(
             id=timeline_id,
             kind=kind,
             ordinal=self._require(timeline, "ordinal", place),
@@ -309,6 +310,9 @@ class _Reader:
             ),
             extra=_unknown(timeline, shape.known),
         )
+        # A beat timeline's, built from the marks on its beats (FR-081).
+        read.measures = measure_table(read)
+        return read
 
     def _components(
         self, value: Any, place: str, holds: frozenset[str]
