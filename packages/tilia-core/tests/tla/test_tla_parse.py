@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core.tla import UnreadableFile
-from tilia_core.tla.parse import parse
+from tilia_core.tla.parse import lines_of, parse
 
 BOM = b"\xef\xbb\xbf"
 MINIMAL = b'{\n  "timelines": {}\n}\n'
@@ -329,3 +329,27 @@ def test_invalid_utf8_gives_its_byte_and_line(prefix, ends):
     error = refusal(data)
     assert error.message == f"not UTF-8, at byte {offset}"
     assert error.line == 3
+
+
+# The lines of places: the walk stops once nothing more can be found, so
+# that a large file isn't read to its end for a place near its start. The
+# texts below stop being JSON after what is looked for.
+
+
+def test_lines_are_found_up_to_the_last_place():
+    text = '{\n  "a": 1,\n  "b": {\n    "c": [\n      2\n    ]\n  },\n  "d": [?'
+    assert lines_of(text, ["/a", "/b/c/0"]) == {"/a": 2, "/b/c/0": 5}
+
+
+def test_a_place_the_text_doesnt_have_is_looked_for_only_in_what_holds_it():
+    text = '{\n  "a": {\n    "b": 1\n  },\n  "d": [?'
+    assert lines_of(text, ["/a/x", "/a/x/y"]) == {"/a/x": 2, "/a/x/y": 2}
+
+
+def test_a_place_under_a_value_that_holds_nothing_has_its_line():
+    text = '{\n  "a": 1,\n  "d": [?'
+    assert lines_of(text, ["/a/x"]) == {"/a/x": 2}
+
+
+def test_no_place_reads_nothing():
+    assert lines_of("[?", []) == {}
