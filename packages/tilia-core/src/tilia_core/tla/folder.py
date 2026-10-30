@@ -24,7 +24,7 @@ from collections.abc import Callable
 from operator import itemgetter
 from pathlib import Path
 
-from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
+from tilia_core.tla.errors import FileChanged, FileInUse, NewerFormat, UnreadableFile
 from tilia_core.tla.layout import FORMAT_VERSION
 from tilia_core.tla.model import Document, FileResult, MigrationReport
 from tilia_core.tla.reader import read
@@ -36,9 +36,6 @@ EXTENSION = ".tla"
 # A file that can't be read is read once more after this many seconds (T1):
 # another program may have been writing it.
 RETRY_AFTER = 0.2
-
-# The reader's message for a file of a newer format (FR-014).
-_NEWER = "written by a newer TiLiA"
 
 
 def corpus_files(
@@ -198,7 +195,7 @@ def _read(path: Path) -> Document:
 
 
 def _is_newer(error: UnreadableFile) -> bool:
-    return error.place == "/version" and error.message.startswith(_NEWER)
+    return isinstance(error, NewerFormat)
 
 
 def _write(path: Path, document: Document) -> tuple[str, str | None]:

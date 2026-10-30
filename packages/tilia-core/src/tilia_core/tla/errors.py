@@ -47,6 +47,27 @@ class UnreadableFile(ValueError):
         return f"{', '.join(where)}: {self.message}"
 
 
+class NewerFormat(UnreadableFile):
+    """A file written by a newer TiLiA, in a format this core doesn't read
+    (FR-014). `version` is the file's. Nothing in it need be wrong: a newer
+    core reads it."""
+
+    def __init__(
+        self,
+        version: str,
+        *,
+        path: str | os.PathLike[str] | None = None,
+        line: int | None = None,
+    ) -> None:
+        super().__init__(
+            f"written by a newer TiLiA (format {printable(version)})",
+            path=path,
+            line=line,
+            place="/version",
+        )
+        self.version = version
+
+
 class FileChanged(Exception):
     """The file on disk isn't the version the caller expected to replace.
 
