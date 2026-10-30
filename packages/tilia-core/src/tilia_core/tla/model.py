@@ -7,6 +7,7 @@ whatever the file spells them; a kind the core doesn't know is an `UnknownKind`.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -307,16 +308,56 @@ class Media:
     length: float | None
 
 
-@dataclass(kw_only=True)
-class FileResult:
+class Outcome(str, enum.Enum):
     """What migrating a folder did, or would do, to one file."""
 
-    path: str  # relative to the folder, with "/"
-    outcome: str
+    WOULD_MIGRATE = "would_migrate"  # an old file, without `apply`
+    MIGRATED = "migrated"
+    CURRENT = "current"
+    NEWER = "newer"  # of a newer format, which this core can't migrate
+    UNREADABLE = "unreadable"
+    CHANGED_SINCE_READ = "changed_since_read"
+    IN_USE = "in_use"  # another program held it open
+    WRITE_FAILED = "write_failed"
+
+
+# The outcomes of a file the migration should have written, and didn't.
+LEFT_ALONE_ON_FAILURE = frozenset(
+    {
+        Outcome.UNREADABLE,
+        Outcome.CHANGED_SINCE_READ,
+        Outcome.IN_USE,
+        Outcome.WRITE_FAILED,
+    }
+)
+
+
+@dataclass(kw_only=True)
+class FileResult:
+    """What migrating a folder did, or would do, to one file.
+
+    `path` is the file's path relative to the folder, with "/", as the
+    system names it. `reason` says why a file was left alone, for users.
+    `changes` counts what the migration dropped or changed, and `warnings`
+    are the rules the migrated file breaks, which don't stop it being
+    migrated; the migration's own warnings are what `changes` counts.
+    """
+
+    path: str
+    outcome: Outcome
     from_version: str | None = None
     reason: str | None = None
     changes: dict[str, int] = field(default_factory=dict)
     warnings: list[ReadWarning] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class FolderNotListed:
+    """A folder below the one migrated that couldn't be listed: no file in
+    it was found, so no old file in it was migrated."""
+
+    path: str  # relative to the folder, with "/", ending in "/"
+    reason: str
 
 
 @dataclass(kw_only=True)
@@ -325,3 +366,13 @@ class MigrationReport:
     shared_ids: list[list[str]] = field(
         default_factory=list
     )  # paths whose files share an id
+    folders_not_listed: list[FolderNotListed] = field(default_factory=list)
+
+    @property
+    def status(self) -> int:
+        """`tilia migrate`'s exit status: 1 when it left alone a file it
+        should have migrated, or a folder it couldn't list, else 0. A file
+        of a newer format isn't one: this core can't migrate it, and nothing
+        failed."""
+        failed = any(Outcome(f.outcome) in LEFT_ALONE_ON_FAILURE for f in self.files)
+        return 1 if failed or self.folders_not_listed else 0

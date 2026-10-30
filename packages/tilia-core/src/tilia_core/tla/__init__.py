@@ -3,17 +3,25 @@
 The names here are provisional until they are documented.
 """
 
-from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
+from tilia_core.tla.errors import (
+    FileChanged,
+    FileInUse,
+    NewerFormat,
+    UnreadableFile,
+)
+from tilia_core.tla.folder import migrate_folder
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.model import (
     BeatUnit,
     Component,
     Document,
     FileResult,
+    FolderNotListed,
     Measure,
     MeasureTable,
     Media,
     MigrationReport,
+    Outcome,
     ReadWarning,
     Score,
     Timeline,
@@ -42,10 +50,13 @@ __all__ = [
     "FileChanged",
     "FileInUse",
     "FileResult",
+    "FolderNotListed",
     "Measure",
     "MeasureTable",
     "Media",
     "MigrationReport",
+    "NewerFormat",
+    "Outcome",
     "ReadWarning",
     "Score",
     "Timeline",
@@ -56,6 +67,7 @@ __all__ = [
     "fingerprint_of",
     "is_temporary",
     "loads",
+    "migrate_folder",
     "new_document",
     "new_id",
     "read",
