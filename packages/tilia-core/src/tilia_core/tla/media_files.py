@@ -6,7 +6,9 @@ drive on Windows), a URL as it is, or empty (FR-033). The forms of a path
 are told apart here, for the migration, the writer and the lookup alike. An
 absolute path has the form of the system that wrote it, whichever system
 reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
-one. A path of the other system's form is never looked up on this one.
+one. A path of the other system's form is never looked up on this one. In a
+relative path, a backslash separates its parts, as on Windows, where a name
+can't hold one.
 
 The lookup is `tla.media`; this module has a name of its own, so that the
 function doesn't hide it.
@@ -77,6 +79,12 @@ def with_slashes(path: str, form: str) -> str:
     return path.replace("\\", "/") if form == WINDOWS else path
 
 
+def relative_with_slashes(path: str) -> str:
+    """A relative path with "/" between its parts, which a backslash also
+    separates."""
+    return path.replace("\\", "/")
+
+
 def folder_of(path: str, form: str) -> str:
     """The folder of `path`, a path of `form`, with that system's conventions."""
     return _MODULES[form].dirname(path)
@@ -128,6 +136,8 @@ def _found(stored: str, folder: str) -> Path | None:
         # Joined to the folder, a Windows path would name a file below it on
         # macOS and Linux.
         return None
+    if is_relative(stored):
+        stored = relative_with_slashes(stored)
     head, name = os.path.split(stored)
     spellings = (
         stored,

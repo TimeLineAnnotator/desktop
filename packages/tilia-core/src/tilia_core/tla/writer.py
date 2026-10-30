@@ -56,6 +56,7 @@ from tilia_core.tla.media_files import (
     absolute_form,
     is_relative,
     relative_path,
+    relative_with_slashes,
     with_slashes,
 )
 from tilia_core.tla.model import (
@@ -568,10 +569,11 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     An absolute path becomes relative to `folder` wherever a relative path
     exists, so not on another drive on Windows. When `folder` isn't the one
     `doc` was read from, a relative path is resolved against that one and
-    made relative to `folder`, or absolute where no relative path exists. An
-    empty path, a URL, a path of the other system's form, and a relative
-    path in a document read from nowhere, whose base is unknown, are kept as
-    they are. `doc` isn't changed: when a path changes, a copy is returned,
+    made relative to `folder`, or absolute where no relative path exists. A
+    backslash in a relative path separates its parts, and becomes "/", as
+    do a Windows path's that stays absolute. An empty path, a URL, and a
+    relative path in a document read from nowhere, whose base is unknown,
+    are kept. `doc` isn't changed: when a path changes, a copy is returned,
     sharing with `doc` what didn't change."""
     folder = os.path.abspath(folder)
     origin = (
@@ -605,14 +607,19 @@ def _rebased(stored: Any, origin: str | None, folder: str) -> Any:
     relative paths are relative to when that isn't `folder`, or None."""
     if not isinstance(stored, str):
         return stored  # for the check to refuse
-    if absolute_form(stored) == SYSTEM:
-        relative = relative_path(stored, folder, SYSTEM)
-        return stored if relative is None else relative
-    if origin is not None and is_relative(stored):
-        found = os.path.normpath(os.path.join(origin, stored))
-        relative = relative_path(found, folder, SYSTEM)
-        return with_slashes(found, SYSTEM) if relative is None else relative
-    return stored
+    form = absolute_form(stored)
+    if form is not None:
+        # One of the other system's form has no relative path from here.
+        relative = relative_path(stored, folder, form) if form == SYSTEM else None
+        return with_slashes(stored, form) if relative is None else relative
+    if not is_relative(stored):
+        return stored  # empty, a URL, or relative to a drive or its root
+    stored = relative_with_slashes(stored)
+    if origin is None:
+        return stored
+    found = os.path.normpath(os.path.join(origin, stored))
+    relative = relative_path(found, folder, SYSTEM)
+    return with_slashes(found, SYSTEM) if relative is None else relative
 
 
 def write(

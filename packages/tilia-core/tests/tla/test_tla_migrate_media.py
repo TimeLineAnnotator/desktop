@@ -127,12 +127,29 @@ def test_an_empty_path_or_a_url_is_kept(tmp_path, where, stored):
 
 
 @pytest.mark.parametrize(
-    "stored", ["piece.mp3", "audio/piece.mp3", "../audio/piece.mp3", "audio\\piece.mp3"]
+    "stored", ["piece.mp3", "audio/piece.mp3", "../audio/piece.mp3"]
 )
 def test_a_relative_path_written_by_hand_is_kept(tmp_path, where, stored):
     media_file(tmp_path / "audio" / "piece.mp3")
     piece = old_file(tmp_path / "corpus", where, stored, WINDOWS_SAVED)
     assert stored_in(tla.read(piece), where) == stored
+
+
+@pytest.mark.parametrize(
+    "stored, expected",
+    [
+        ("audio\\piece.mp3", "audio/piece.mp3"),
+        ("..\\audio\\piece.mp3", "../audio/piece.mp3"),
+        ("../audio\\piece.mp3", "../audio/piece.mp3"),
+    ],
+)
+def test_a_relative_path_written_by_hand_gets_slashes(
+    tmp_path, where, stored, expected
+):
+    # Separators become "/" (FR-033): a backslash in a relative path separates
+    # its parts, as on Windows, where a name can't hold one.
+    piece = old_file(tmp_path / "corpus", where, stored, WINDOWS_SAVED)
+    assert stored_in(tla.read(piece), where) == expected
 
 
 @pytest.mark.parametrize("stored", ["C:piece.mp3", "\\audio\\piece.mp3"])
@@ -721,14 +738,40 @@ def test_written_elsewhere_an_empty_path_a_url_or_another_systems_path_is_kept(
     assert written(tmp_path / "copy.tla") == (stored, stored)
 
 
-@windows_only
-def test_an_absolute_path_on_another_drive_is_written_as_it_is(tmp_path):
-    doc = tla.new_document()
-    doc.media_path = "Z:/audio-176/piece.wav"
-    tla.write(tmp_path / "piece.tla", doc)
-    assert json.loads((tmp_path / "piece.tla").read_bytes())["media"]["path"] == (
-        "Z:/audio-176/piece.wav"
+def test_an_absolute_path_without_a_relative_one_is_written_with_slashes(corpus):
+    # On another drive on Windows, of the other system's form on macOS and
+    # Linux: written as the migration writes it, so that the same document
+    # gives the same bytes.
+    doc = tla.read(corpus)
+    doc.media_path = "Z:\\audio-176\\piece.wav"
+    set_pdf_path(doc, "Z:\\scores-176\\piece.pdf")
+    tla.write(corpus, doc)
+    assert written(corpus) == ("Z:/audio-176/piece.wav", "Z:/scores-176/piece.pdf")
+
+
+@pytest.mark.parametrize(
+    "place, expected",
+    [("corpus", "../"), ("elsewhere/deeper", "../../")],
+    ids=["where it was read", "elsewhere"],
+)
+def test_a_relative_path_with_backslashes_is_written_with_slashes(
+    corpus, tmp_path, place, expected
+):
+    # A backslash in a relative path separates its parts, as on Windows, where
+    # a name can't hold one (FR-033).
+    doc = tla.read(corpus)
+    doc.media_path = f"..\\audio\\{NAME}.flac"
+    set_pdf_path(doc, f"..\\scores\\{NAME}.pdf")
+    target = tmp_path / place / "piece.tla"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tla.write(target, doc)
+    assert written(target) == (
+        f"{expected}audio/{NAME}.flac",
+        f"{expected}scores/{NAME}.pdf",
     )
+    media_found, pdf_found = found(target)
+    assert os.path.samefile(media_found, tmp_path / "audio" / f"{NAME}.flac")
+    assert os.path.samefile(pdf_found, tmp_path / "scores" / f"{NAME}.pdf")
 
 
 def test_written_elsewhere_a_path_like_a_short_youtube_link_is_rebased(
