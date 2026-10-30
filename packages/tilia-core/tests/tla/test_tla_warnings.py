@@ -475,6 +475,26 @@ def test_the_first_by_ordinal_wins_whatever_the_files_order():
     assert 'as the timeline "Bars" does' in warning.message
 
 
+def test_of_two_claimants_with_one_ordinal_the_default_is_the_time_maps():
+    # "Bars" comes first in the file, "Beats" first by id: the time map takes
+    # the timelines in the document's order, which is id order, and the
+    # warning names the same default.
+    from tilia_core.timemap import find_time_map
+
+    def change(content):
+        with_role(content, "beats", "time_map")
+        second_beat_timeline(content, ordinal=1)
+        timelines = content["timelines"]
+        bars = timelines.pop(IDS["nothing"])
+        content["timelines"] = {IDS["nothing"]: bars, **timelines}
+
+    doc = tla.loads(file_with(change))
+    (warning,) = doc.warnings
+    assert warning.place == f"/timelines/{IDS['nothing']}/metadata/role"
+    assert 'as the timeline "Beats" does' in warning.message
+    assert find_time_map(doc).timeline_id == BEATS
+
+
 def test_one_beat_timeline_claiming_time_map_has_no_warning():
     def change(content):
         with_role(content, "beats", "time_map")

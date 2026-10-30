@@ -969,8 +969,9 @@ def test_while_a_beat_has_no_time_its_first_isnt_known_and_the_file_reads():
     # fixed (TimeLineAnnotator/project-management#285).
     doc = tla.loads(edited(lambda c: _beat_1(c).pop("time")))
     assert [w.place for w in doc.warnings] == [place(BEAT_1)]
-    rows = named(doc, "Beats").measures.rows
-    assert [(row.id, row.beats) for row in rows] == [(IDS["beat_1"], [IDS["beat_1"]])]
+    # The downbeat without a time starts no row, and the beat after it has
+    # no mark: the table is empty until the beat is fixed.
+    assert named(doc, "Beats").measures.rows == []
 
 
 @pytest.mark.parametrize(

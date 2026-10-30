@@ -95,7 +95,8 @@ def test_whole_numbers_written_with_a_fraction_are_read():
 def test_a_last_measure_fuller_than_its_pattern_entry_ends_before_new_beats():
     # TiLiA 0.7.1 and later: the new beats start a measure of their own.
     # TiLiA 0.7.0 couldn't open such a timeline, and the prototype follows
-    # it (TimeLineAnnotator/project-management#360, a decision).
+    # it; the migration follows TiLiA 0.7.1
+    # (TimeLineAnnotator/project-management#360).
     assert fit(8, [6], [1]) == beats.Fitted([6, 2], [1, 2])
     assert fit(13, [4, 6], [1, 2], [4]) == beats.Fitted([4, 6, 3], [1, 2, 3])
 
@@ -112,7 +113,7 @@ def test_a_last_measure_fuller_than_its_pattern_entry_ends_before_new_beats():
         (8, [4, "4"], [1, 2], ([4], [1])),
         (8, [4, 0, 4], [1, 2, 3], ([4], [1])),
         (8, [4, -4, 8], [1, 2, 3], ([4], [1])),
-        (8, [4, True], [1, 2], ([4], [1])),
+        (8, [4, False], [1, 2], ([4], [1])),  # a measure of 0 beats
         (8, [4, 4], [1.5, 2], ([], [])),
         (8, [4, 4], [1, None], ([4], [1])),
         (8, "4 4", [1, 2], ([], [])),
@@ -148,6 +149,12 @@ def test_lists_tilia_cant_open_keep_the_measures_it_would_show(
 )
 def test_the_beat_pattern_is_read_by_the_cores_parser(pattern, bars):
     assert beats.pattern_bars(pattern) == bars
+
+
+def test_true_in_a_list_by_measure_is_1_as_tilia_reads_it():
+    # TiLiA's validate_integer_list accepts it: True is an int in Python.
+    assert fit(8, [4, True], [1, 2]) == beats.Fitted([4, 4], [1, 2])
+    assert fit(8, [4, 4], [True, 2]) == beats.Fitted([4, 4], [1, 2])
 
 
 # The marks on the downbeats
@@ -191,7 +198,7 @@ def test_measures_to_force_display_become_force_display():
     }
 
 
-@pytest.mark.parametrize("force", [[3], [-1], [7], ["1"], [1.5], [True], [None]])
+@pytest.mark.parametrize("force", [[3], [-1], [7], ["1"], [1.5], [None]])
 def test_measures_to_force_display_tilia_wouldnt_show_are_left_out(force):
     # Out of range, as TiLiA drops them when it opens the file, or not a
     # measure's index.
@@ -206,6 +213,11 @@ def test_force_display_written_with_a_fraction_is_read():
     assert marks([4, 4], [1, 2], force=[1.0])[4] == {"force_display": True}
 
 
+def test_force_display_given_as_true_is_the_second_measure():
+    # As TiLiA reads it: True is 1.
+    assert marks([4, 4], [1, 2], force=[True])[4] == {"force_display": True}
+
+
 def test_no_measure_gives_a_mark_on_the_first_beat():
     # The first beat always has one (FR-081); TiLiA shows no measure there.
     assert marks([], [], beat_count=8) == {0: {"number": 1}}
@@ -215,12 +227,16 @@ def test_no_measure_gives_a_mark_on_the_first_beat():
 # Through the migration
 
 
-def old_file(*timelines, version="0.7.0"):
-    """An old file holding these timelines, each a pair (old id, timeline)."""
+def old_file(*timelines, version="0.7.0", length=100):
+    """An old file holding these timelines, each a pair (old id, timeline),
+    and a media of `length` seconds, or of none."""
+    fields = {"title": "Piece"}
+    if length is not None:
+        fields["media length"] = length
     return {
         "file_path": "C:/Users/user/Documents/TiLiA/piece.tla",
         "media_path": "",
-        "media_metadata": {"title": "Piece", "media length": 100},
+        "media_metadata": fields,
         "timelines": {
             "1": {
                 "kind": "Slider",
@@ -547,12 +563,79 @@ def test_beat_units_move_onto_the_beats_they_name():
     assert doc.warnings == []
 
 
-def test_a_beat_unit_keeps_units_tilia_cant_read_with_the_readers_warning():
-    doc = read(with_beat_units([0.0, 1.0], beat_unit(10, 4, "x")))
-    _, components = written(doc)
-    assert components[0]["beat_unit"] == {"denominator": 4, "units": "x"}
+def changes_of(content):
+    return to_1.migrate(json.loads(json.dumps(content))).changes
+
+
+@pytest.mark.parametrize(
+    "unit",
+    [
+        # What desktop#621's BeatUnit.validate_creation refuses, so that
+        # TiLiA opens the file without it.
+        beat_unit(10, 4, None),
+        beat_unit(10, 4, 3),
+        beat_unit(10, 4, ["1"]),
+        beat_unit(10, 4, "x"),
+        beat_unit(10, 4, "0"),
+        beat_unit(10, "8", "3"),
+        beat_unit(10, 8.5, "3"),
+        beat_unit(10, None, "3"),
+        beat_unit(10, True, "3"),
+        beat_unit(10, 0, "3"),
+        beat_unit(10, 129, "3"),
+    ],
+)
+def test_a_beat_unit_tilia_wouldnt_make_is_dropped_with_a_warning(unit):
+    content = with_beat_units([0.0, 1.0, 2.0], unit)
+    doc = read(content)
     (warning,) = doc.warnings
-    assert warning.place.endswith("/beat_unit/units")
+    assert warning.place == "/timelines/9/components/100"
+    assert "dropped, as TiLiA drops it" in warning.message
+    # With no unit left, the first beat gets the default.
+    _, components = written(doc)
+    assert components[0]["beat_unit"] == {
+        "denominator": 4,
+        "units": "1",
+        "assumed": True,
+    }
+    assert changes_of(content)["beat_units_dropped"] == 1
+
+
+@pytest.mark.parametrize(
+    "unit, made",
+    [
+        # desktop#621 makes a unit from the keys the file has, its defaults
+        # for the others.
+        (
+            {"kind": "BEAT_UNIT", "beat_id": 10, "units": "3"},
+            {"denominator": 4, "units": "3"},
+        ),
+        (
+            {"kind": "BEAT_UNIT", "beat_id": 10, "denominator": 8},
+            {"denominator": 8, "units": "1"},
+        ),
+        ({"kind": "BEAT_UNIT", "beat_id": 10}, {"denominator": 4, "units": "1"}),
+    ],
+)
+def test_a_beat_units_missing_key_is_tilias_default(unit, made):
+    doc = read(with_beat_units([0.0, 1.0], unit))
+    assert doc.warnings == []
+    _, components = written(doc)
+    assert components[0]["beat_unit"] == made
+
+
+def test_only_a_beat_unit_tilia_would_make_takes_its_beat():
+    # desktop#621 skips the first, so the second is the one on beat 10.
+    content = with_beat_units(
+        [0.0, 1.0, 2.0],
+        beat_unit(10, 4, "x"),
+        beat_unit(10, 8, "3"),
+    )
+    doc = read(content)
+    _, components = written(doc)
+    assert components[0]["beat_unit"] == {"denominator": 8, "units": "3"}
+    assert [w.place for w in doc.warnings] == ["/timelines/9/components/100"]
+    assert changes_of(content)["beat_units_dropped"] == 1
 
 
 def test_two_beat_units_in_one_measure_are_kept_with_a_warning_and_counted():
@@ -591,6 +674,10 @@ def test_a_beat_unit_naming_no_beat_is_dropped_with_a_warning():
         "/timelines/9/components/101",
         "/timelines/9/components/102",
     ]
+    content = with_beat_units(
+        [0.0, 1.0, 2.0], beat_unit(10, 8, "3"), beat_unit(99), beat_unit(10)
+    )
+    assert changes_of(content)["beat_units_dropped"] == 2
 
 
 def test_a_beat_unit_on_a_dropped_beat_goes_with_it():
@@ -611,6 +698,61 @@ def test_a_beat_unit_on_a_dropped_beat_goes_with_it():
         "/timelines/9/components/12",
         "/timelines/9/components/100",
     ]
+
+
+# Beats outside the media: TiLiA refuses them when it opens the file
+# (validate_time_is_inbounds), once a time less than 2 s past the end has been
+# moved onto it (_clamp_jitter_overflow): TiLiA 0.7.0 and 0.7.1 alike.
+
+
+def test_a_beat_outside_the_media_is_dropped_with_a_warning():
+    content = old_file(
+        beat_timeline([0.0, 4.0, -0.5, 8.0, 12.5, 9.0]),
+        length=10,
+    )
+    doc = read(content)
+    _, components = written(doc)
+    assert [b["time"] for b in components] == [0.0, 4.0, 8.0, 9.0]
+    assert [w.place for w in doc.warnings] == [
+        "/timelines/9/components/12",
+        "/timelines/9/components/14",
+    ]
+    assert all("outside the media" in w.message for w in doc.warnings)
+    assert table(doc) == [(1, "1", 4)]
+
+
+def test_a_beat_less_than_2_s_past_the_end_is_moved_onto_it_with_a_warning():
+    content = old_file(beat_timeline([0.0, 4.0, 8.0, 11.5]), length=10)
+    doc = read(content)
+    _, components = written(doc)
+    assert [b["time"] for b in components] == [0.0, 4.0, 8.0, 10]
+    (warning,) = doc.warnings
+    assert warning.place == "/timelines/9/components/13/time"
+    assert "moved onto" in warning.message
+
+
+def test_two_beats_moved_onto_the_end_are_one():
+    doc = read(old_file(beat_timeline([0.0, 10.5, 11.0]), length=10))
+    _, components = written(doc)
+    assert [b["time"] for b in components] == [0.0, 10]
+    assert [w.place for w in doc.warnings] == [
+        "/timelines/9/components/11/time",
+        "/timelines/9/components/12",
+    ]
+
+
+@pytest.mark.parametrize("time", [10, 10.0])
+def test_a_beat_at_the_end_of_the_media_is_kept(time):
+    doc = read(old_file(beat_timeline([0.0, time]), length=10))
+    assert doc.warnings == []
+    assert len(beat_timeline_of(doc).components) == 2
+
+
+def test_without_a_media_length_only_a_beat_before_0_is_dropped():
+    # TiLiA then takes the length from the media, which the core doesn't open.
+    doc = read(old_file(beat_timeline([0.0, -1.0, 1000.0]), length=None))
+    assert [w.place for w in doc.warnings] == ["/timelines/9/components/11"]
+    assert len(beat_timeline_of(doc).components) == 2
 
 
 def test_a_timeline_tilia_cant_open_keeps_its_beats_with_a_warning():
