@@ -97,35 +97,51 @@ class TestBarNumbers:
         "text, count, numbers",
         [
             ("5", 3, [5, 6, 7]),
+            ("0", 3, [0, 1, 2]),
             ("5-7", 3, [5, 6, 7]),
             ("5–7", 3, [5, 6, 7]),
             ("1-4, 1-4", 8, [1, 2, 3, 4, 1, 2, 3, 4]),
             ("1-3, 3, 4", 5, [1, 2, 3, 3, 4]),
             (" 2 ", 1, [2]),
+            # More or fewer bars than the row has.
+            ("0-8", 1, [0, 1, 2, 3, 4, 5, 6, 7, 8]),
+            ("1-2", 4, [1, 2]),
+            ("5-5", 3, [5]),
         ],
     )
     def test_valid(self, text, count, numbers):
-        assert parse_bar_numbers(text, count) == (numbers, "")
+        assert parse_bar_numbers(text, count, 10) == (numbers, "")
 
     @pytest.mark.parametrize(
-        "text, count, error",
+        "text, limit, error",
         [
-            ("1-4", 3, "'1-4' numbers 4 bars, not 3 bars."),
-            ("1-2, 1", 4, "'1-2, 1' numbers 3 bars, not 4 bars."),
-            ("a", 2, "'a' is not a bar number or a range such as 1-4."),
+            (
+                "1-4",
+                3,
+                "'1-4' numbers 4 bars, but only 3 bars fit the beats tapped"
+                " from here.",
+            ),
+            (
+                "1, 2",
+                1,
+                "'1, 2' numbers 2 bars, but only 1 bar fits the beats tapped"
+                " from here.",
+            ),
+            ("a", 3, "'a' is not a bar number or a range such as 1-4."),
             ("1-2-3", 3, "'1-2-3' is not a bar number or a range such as 1-4."),
             ("4-1", 4, "'4-1' counts down."),
-            ("", 2, "'' is not a bar number or a range such as 1-4."),
+            ("", 3, "'' is not a bar number or a range such as 1-4."),
         ],
     )
-    def test_invalid(self, text, count, error):
-        assert parse_bar_numbers(text, count) == (None, error)
+    def test_invalid(self, text, limit, error):
+        assert parse_bar_numbers(text, 1, limit) == (None, error)
 
     @pytest.mark.timeout(1)
     def test_a_huge_range_is_counted_not_listed(self):
-        assert parse_bar_numbers("1-999999999", 3) == (
+        assert parse_bar_numbers("1-999999999", 3, 3) == (
             None,
-            "'1-999999999' numbers 999999999 bars, not 3 bars.",
+            "'1-999999999' numbers 999999999 bars, but only 3 bars fit the beats"
+            " tapped from here.",
         )
 
 
@@ -319,6 +335,41 @@ class TestEditingCells:
             "1–6",
         ]
         assert dialog.get_result().numbers == [1, 2, 3, 4, 1, 2, 3, 4, 5, 6]
+
+    def test_numbers_for_more_bars_lengthen_the_row(self, qtui):
+        dialog = BeatPatternDialog("2[4/4] 3/4", beat_count=14)
+        assert dialog.get_table_rows()[:2] == [
+            ("1–2", "4/4", "1 1 1 1"),
+            ("3", "3/4", "1 1 1"),
+        ]
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
+
+        # The 3/4 bar comes after the third 4/4 bar, with the two beats left.
+        result = dialog.get_result()
+        assert [bar.beat_count for bar in result.bars] == [4, 4, 4, 3]
+        assert result.numbers == [1, 2, 3, 4]
+        assert dialog.error.text() == ""
+
+    def test_numbers_for_fewer_bars_shorten_the_row(self, qtui):
+        dialog = BeatPatternDialog("2[4/4] 3/4", beat_count=14)
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-1")
+
+        # The beats left over after the 3/4 bar follow the pattern.
+        result = dialog.get_result()
+        assert [bar.beat_count for bar in result.bars] == [4, 3, 4, 4]
+        assert result.numbers == [1, 2, 3, 4]
+
+    def test_more_bars_than_the_beats_fit_are_refused(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=8)
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
+
+        assert dialog.error.text() == (
+            "'1-3' numbers 3 bars, but only 2 bars fit the beats tapped from here."
+        )
+        assert dialog.get_table_rows() == [("1–2", "4/4", "1 1 1 1")]
 
     def test_bars_after_count_on(self, qtui):
         dialog = BeatPatternDialog("4/4 3/4", beat_count=21)

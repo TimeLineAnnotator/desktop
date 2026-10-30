@@ -595,6 +595,23 @@ class TestEditBarsDialog:
         save_and_reopen(tmp_path)
         assert tluis[0].timeline.measure_numbers == [1, 2, 3, 1, 2, 3]
 
+    def test_numbering_more_bars_lengthens_the_row(self, tluis):
+        add_beat_timeline_with_pattern("2[4/4] 3/4")
+        add_beats(range(14))
+        assert tluis[0].timeline.beats_in_measure == [4, 4, 3, 3]
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3"),
+            )
+
+        # A third 4/4 bar, then the 3/4 bar with the two beats left.
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4, 4, 4, 2]
+        assert timeline.measure_numbers == [1, 2, 3, 4]
+        assert time_signatures(timeline)[:3] == [("4", 4)] * 3
+
     def test_rows_reflect_the_numbers(self, tluis):
         add_beat_timeline_with_pattern("4/4")
         add_beats(range(16))

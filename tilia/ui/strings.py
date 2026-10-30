@@ -14,7 +14,8 @@ BEAT_PATTERN_DIALOG_TOOLTIP = """Examples:
   - '4' = 4 taps in every bar, of an assumed quarter note."""
 BEAT_PATTERN_TABLE_HEADERS = ["Bars", "Time signature", "Taps"]
 BEAT_PATTERN_TABLE_TOOLTIP = """Double-click a cell to change it:
-  - Bars: their numbers, e.g. '9', or '1-8, 1-8' for a repeat;
+  - Bars: their numbers as printed, e.g. '9', or '1-8, 1-8' for a repeat.
+    Numbers for more or fewer bars than the row has make it that long;
   - Time signature: e.g. '6/8'. Tapped bars keep their taps, so 6/8 over
     two taps is two dotted quarters;
   - Taps: what each tap is worth, in units of the denominator, e.g. '3/2 3/2 1'.
