@@ -227,7 +227,13 @@ class _Migration:
 
     def _warn(self, place: str, message: str, change: str, count: int = 1) -> None:
         self.warnings.append(ReadWarning(place=place, line=None, message=message))
-        self.changes[change] = self.changes.get(change, 0) + count
+        self._count(change, count)
+
+    def _count(self, change: str, count: int) -> None:
+        """Add `count` to a count of the report; a count stays out until it
+        is above zero."""
+        if count:
+            self.changes[change] = self.changes.get(change, 0) + count
 
     def check(self, old: dict[str, Any]) -> None:
         """Check the shapes TiLiA's own migrations read, before they run."""
@@ -364,9 +370,7 @@ class _Migration:
             return converted
         if "comments" in COMPONENT_SHAPES[kind].known:
             # Before the defaults go, so that a comment left empty goes too.
-            moved = marks.move(converted)
-            if moved:
-                self.changes["marks_moved"] = self.changes.get("marks_moved", 0) + moved
+            self._count("marks_moved", marks.move(converted))
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 
 
