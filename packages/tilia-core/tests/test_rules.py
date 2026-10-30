@@ -81,8 +81,9 @@ def default_int_digits():
     sys.set_int_max_str_digits(limit)
 
 
-@pytest.fixture
-def without_music21(monkeypatch):
+def uninstall_music21(patch):
+    """Makes music21 look uninstalled, through `patch`: a monkeypatch, or one of
+    its contexts."""
     find_spec = importlib.util.find_spec
 
     def find_spec_without_music21(name, *args, **kwargs):
@@ -90,7 +91,12 @@ def without_music21(monkeypatch):
             return None
         return find_spec(name, *args, **kwargs)
 
-    monkeypatch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+    patch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+
+
+@pytest.fixture
+def without_music21(monkeypatch):
+    uninstall_music21(monkeypatch)
 
 
 @pytest.fixture
@@ -1770,15 +1776,9 @@ class TestCheckTimeline:
 
     def test_music21_installed_since_the_last_call_is_found(self, music21, monkeypatch):
         harmony = component("harmony", time=1.0, quality="maj")
-        find_spec = importlib.util.find_spec
-
-        def find_spec_without_music21(name, *args, **kwargs):
-            if name == "music21":
-                return None
-            return find_spec(name, *args, **kwargs)
 
         with monkeypatch.context() as uninstalled:
-            uninstalled.setattr(importlib.util, "find_spec", find_spec_without_music21)
+            uninstall_music21(uninstalled)
             assert rules.check_timeline(MEDIA, [harmony])[harmony.id].cant_check
 
         checked = rules.check_timeline(MEDIA, [harmony])[harmony.id]
