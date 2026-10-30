@@ -701,11 +701,13 @@ class _Checker:
 
     def time_maps(self) -> None:
         """Warn about each beat timeline that claims the role time_map after
-        another: the first by ordinal is the default for bar and beat (T12)."""
+        another: the first by ordinal is the default for bar and beat (T12),
+        and of two with one ordinal, the first by id, as the time map takes
+        them in the document's order."""
         claiming = sorted(
             (
-                (value["ordinal"], index, place, value)
-                for index, (place, _, kind, value) in enumerate(self.timelines)
+                (value["ordinal"], timeline_id, place, value)
+                for place, timeline_id, kind, value in self.timelines
                 if kind == "beat" and _claims_time_map(value)
             ),
             key=itemgetter(0, 1),
