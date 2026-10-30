@@ -42,8 +42,13 @@ from tilia_core.tla.model import (
     timeline_kind_from_file,
 )
 
-# The report's count of measures with more than one beat unit.
+# The report's counts: measures with more than one beat unit, and
+# desktop#621's beat units that TiLiA drops when it opens the file.
 TWO_BEAT_UNITS = "measures_with_two_beat_units"
+UNITS_DROPPED = "beat_units_dropped"
+# How far past the end of the media TiLiA moves a time onto it when it opens
+# a file (its DURATION_JITTER_TOLERANCE), rather than dropping its component.
+_JITTER = 2.0
 # The lists by measure, which marks on the beats replace.
 _LISTS = ("beats_in_measure", "measure_numbers", "measures_to_force_display")
 _UNIT = "BEAT_UNIT"  # desktop#621's beat units, in the files it writes
@@ -113,16 +118,16 @@ def _whole_numbers(value: Any, minimum: int | None = None) -> tuple[list[int], b
     """A list of whole numbers, as TiLiA reads it, and whether all of it could
     be read: a missing list is an empty one; else the items before the first
     that isn't a whole number, or is below `minimum`. A number written with a
-    fraction of zero, such as 4.0, is a whole number."""
+    fraction of zero, such as 4.0, is a whole number, and so are true and
+    false, 1 and 0, which TiLiA's validate_integer_list takes as integers."""
     if value is None:
         return [], True
     if not isinstance(value, list):
         return [], False
     read: list[int] = []
     for item in value:
-        if isinstance(item, float) and item.is_integer():
-            item = int(item)
-        if isinstance(item, bool) or not isinstance(item, int):
+        item = _whole(item)
+        if item is None:
             return read, False
         if minimum is not None and item < minimum:
             return read, False
@@ -237,12 +242,20 @@ def _forced(value: Any, measure_count: int) -> set[int]:
         return set()
     forced = set()
     for item in value:
-        if isinstance(item, float) and item.is_integer():
-            item = int(item)
-        if isinstance(item, int) and not isinstance(item, bool):
-            if 0 <= item < measure_count:
-                forced.add(item)
+        item = _whole(item)
+        if item is not None and 0 <= item < measure_count:
+            forced.add(item)
     return forced
+
+
+def _whole(value: Any) -> int | None:
+    """An item of a list by measure as TiLiA reads it, an integer, or None
+    when it isn't one: 4.0 is 4, and true is 1, as Python counts it."""
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, int):
+        return int(value)
+    return None
 
 
 def _default_beat_unit() -> dict[str, Any]:
@@ -255,6 +268,11 @@ def _default_beat_unit() -> dict[str, Any]:
         "units": units.DEFAULT_UNITS,
         "assumed": True,
     }
+
+
+def _json(value: Any) -> str:
+    """A value as a warning shows it: as JSON writes it."""
+    return printable(json.dumps(value, ensure_ascii=False))
 
 
 def _is_number(value: Any) -> bool:
@@ -273,6 +291,7 @@ def convert(
     What is dropped is added to `warnings`, with its place in the old file,
     and the measures with more than one beat unit are counted in
     `changes`."""
+    length = content["media"]["length"]
     for key, timeline in content["timelines"].items():
         if timeline_kind_from_file(timeline["kind"]) != "beat":
             continue
@@ -282,7 +301,7 @@ def convert(
             # Files from before time signatures: written, since the default
             # is true (desktop#621's rule).
             timeline["show_time_signatures"] = False
-        _Converted(timeline, place, warnings, changes).convert()
+        _Converted(timeline, place, length, warnings, changes).convert()
 
 
 class _Converted:
@@ -292,13 +311,18 @@ class _Converted:
         self,
         timeline: dict[str, Any],
         place: str,
+        length: int | float | None,
         warnings: list[ReadWarning],
         changes: dict[str, int],
     ) -> None:
         self.timeline = timeline
         self.place = place
+        self.length = length  # the media's, in seconds, when the file says
         self.warnings = warnings
         self.changes = changes
+
+    def _count(self, change: str) -> None:
+        self.changes[change] = self.changes.get(change, 0) + 1
 
     def _warn(self, place: str, message: str) -> None:
         self.warnings.append(ReadWarning(place=place, line=None, message=message))
@@ -348,23 +372,46 @@ class _Converted:
         return f"the beat timeline {printable(quoted)}"
 
     def beats(self, components: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-        """The beats TiLiA keeps when it opens the file, in the file's order:
-        a beat without a time, or at the time of a beat before it, is dropped
-        from `components`, with a warning, as TiLiA drops it."""
+        """The beats TiLiA keeps when it opens the file, in the file's order,
+        as TiLiA 0.7.0 and 0.7.1 make them. A time less than 2 s past the end
+        of the media is moved onto it (`_clamp_jitter_overflow`), with a
+        warning. Then a beat without a time, outside the media
+        (`validate_time_is_inbounds`), or at the time of a beat before it, is
+        dropped from `components`, with a warning. The media's length is the
+        file's: without one, TiLiA takes the media's own, which the core
+        doesn't open, and only a time before 0 is outside."""
         kept: list[tuple[str, dict[str, Any]]] = []
         times: set[int | float] = set()
+        length = self.length
         for component_id, component in list(components.items()):
             if component.get("kind") != "BEAT":
                 continue
-            time = component.get("time")
+            time = given = component.get("time")
+            moved = _is_number(time) and length is not None
+            moved = moved and length < time < length + _JITTER
+            if moved:
+                time = length
+            outside = _is_number(time) and (
+                time < 0 or (length is not None and time > length)
+            )
             if time is None:
                 message = "a beat without a time"
+            elif outside:
+                end = "" if length is None else f" to {_json(length)}"
+                message = f"a beat at {_json(time)}, outside the media (0{end}),"
             elif _is_number(time) and time in times:
-                shown = printable(json.dumps(time))
-                message = f"a beat at the same time as another ({shown})"
+                message = f"a beat at the same time as another ({_json(time)})"
             else:
                 if _is_number(time):
                     times.add(time)
+                if moved:
+                    component["time"] = time
+                    self._warn(
+                        pointer_to(self._at(component_id), "time"),
+                        f"a beat at {_json(given)}, past the end of the media"
+                        f" ({_json(length)}), moved onto it, as TiLiA moves it"
+                        " when it opens the file",
+                    )
                 kept.append((component_id, component))
                 continue
             del components[component_id]
@@ -377,10 +424,17 @@ class _Converted:
     def beat_units(
         self, components: dict[str, Any], beats: dict[str, dict[str, Any]]
     ) -> None:
-        """desktop#621's beat units, moved onto the beats they name, without
-        the beat's id: the first on each beat, as TiLiA keeps it. One that
-        names no beat TiLiA keeps, or a beat that has one already, is dropped,
-        with a warning."""
+        """desktop#621's beat units, moved onto the beats they name, as
+        desktop#621 makes them when it opens the file, in the file's order
+        (`BeatUnit.validate_creation`): a key the unit lacks takes
+        desktop#621's default, its units are written as desktop#621 writes
+        them, and the first unit made on a beat is its unit. One TiLiA
+        wouldn't make, since it names no beat TiLiA keeps, or a beat that has
+        one already, or its denominator or units can't be read, is dropped,
+        with a warning, and counted."""
+        # Imported here: the time map imports this package.
+        from tilia_core.timemap import units as rules
+
         for component_id, component in list(components.items()):
             if component.get("kind") != _UNIT:
                 continue
@@ -389,19 +443,25 @@ class _Converted:
             if isinstance(named, int) and not isinstance(named, bool):
                 named = str(named)
             beat = beats.get(named) if isinstance(named, str) else None
+            denominator = component.get("denominator", rules.DEFAULT_DENOMINATOR)
+            text = component.get("units", rules.DEFAULT_UNITS)
+            parsed = rules.parse_units(text) if isinstance(text, str) else None
             if beat is None:
-                shown = printable(json.dumps(component.get("beat_id")))
-                reason = f"names {shown}, which isn't a beat TiLiA keeps"
+                named = _json(component.get("beat_id"))
+                reason = f"names {named}, which isn't a beat TiLiA keeps"
             elif "beat_unit" in beat:
                 reason = "is on a beat that has one already"
+            elif not rules.validate_denominator(denominator):
+                reason = f"has the denominator {_json(denominator)}"
+            elif parsed is None or not parsed.is_valid:
+                reason = f"has the units {_json(text)}"
             else:
-                unit = {
-                    name: value
-                    for name, value in component.items()
-                    if name not in ("kind", "beat_id") and value is not None
+                unit: dict[str, Any] = {
+                    "denominator": denominator,
+                    "units": rules.format_units(parsed.units),
                 }
-                if unit.get("assumed") is False:
-                    del unit["assumed"]  # its default
+                if component.get("assumed"):
+                    unit["assumed"] = True
                 beat["beat_unit"] = unit
                 continue
             self._warn(
@@ -409,3 +469,4 @@ class _Converted:
                 f"a beat unit that {reason} dropped, as TiLiA drops it when it"
                 " opens the file",
             )
+            self._count(UNITS_DROPPED)
