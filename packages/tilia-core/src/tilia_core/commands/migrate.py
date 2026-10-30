@@ -11,19 +11,21 @@ when the command was used wrongly.
 from __future__ import annotations
 
 import argparse
+import errno
 import io
 import os
 import re
 import shlex
 import subprocess
 import sys
+import unicodedata
 from collections import Counter
 from collections.abc import Iterator
 from typing import TextIO
 
 from tilia_core.tla.folder import migrate_folder
 from tilia_core.tla.layout import FORMAT_VERSION
-from tilia_core.tla.model import MigrationReport
+from tilia_core.tla.model import FileResult, MigrationReport, Outcome
 
 PROG = "tilia migrate"
 
@@ -58,19 +60,44 @@ def main(argv: list[str] | None = None) -> int:
         arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
     except SystemExit as stop:  # --help, or wrong use, which argparse printed
         return stop.code if isinstance(stop.code, int) else 2
+    # As given: the shell has expanded any "~" that names a home folder, so
+    # one left is part of a name.
     folder: str = arguments.folder
-    path = os.path.expanduser(folder)
-    if not os.path.isdir(path):
-        what = "not a folder" if os.path.exists(path) else "no such folder"
+    if not os.path.isdir(folder):
+        what = "not a folder" if os.path.exists(folder) else "no such folder"
         return _wrong_use(parser, f"{what}: {folder}")
     try:
-        report = migrate_folder(path, apply=arguments.apply)
+        report = migrate_folder(folder, apply=arguments.apply)
     except OSError as error:
         why = error.strerror or str(error)
         print(f"{PROG}: can't read {folder}: {why}", file=sys.stderr)
         return 1
-    print("\n".join(report_lines(report, folder, apply=arguments.apply)))
+    _print("\n".join(report_lines(report, folder, apply=arguments.apply)))
     return report.status
+
+
+def _print(text: str) -> None:
+    """Print `text`. A reader that stops reading, as `head` does once it has
+    its lines, ends the output there, without an error."""
+    try:
+        print(text)
+        sys.stdout.flush()
+    except OSError as error:
+        if not _reader_gone(error):
+            raise
+        # Python flushes stdout again as it exits: into nothing, now.
+        try:
+            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        except (OSError, ValueError):
+            pass
+
+
+def _reader_gone(error: OSError) -> bool:
+    """Whether writing failed because the other end of a pipe was closed:
+    EPIPE, or EINVAL, as a write to a closed pipe can fail on Windows."""
+    if isinstance(error, BrokenPipeError):
+        return True
+    return os.name == "nt" and error.errno == errno.EINVAL
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -111,19 +138,37 @@ def _tolerate_unencodable(stream: TextIO) -> None:
         stream.reconfigure(errors="backslashreplace")
 
 
+# The part of the report that lists the files of each outcome. Every outcome
+# has one, so that no file is left out of the report.
+_SECTIONS: dict[Outcome, str] = {
+    Outcome.WOULD_MIGRATE: "migrated",
+    Outcome.MIGRATED: "migrated",
+    Outcome.CURRENT: "current",
+    Outcome.NEWER: "left alone",
+    Outcome.UNREADABLE: "left alone",
+    Outcome.CHANGED_SINCE_READ: "left alone",
+    Outcome.WRITE_FAILED: "left alone",
+    Outcome.IN_USE: "in use",
+}
+
+
 def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[str]:
     """The report, as contracts/command.md shows it; `folder` as given."""
     files = report.files
-    migrated = [f for f in files if f.outcome in ("migrated", "would_migrate")]
-    current = [f for f in files if f.outcome == "current"]
-    left = [
-        f
-        for f in files
-        if f.outcome in ("newer", "unreadable", "changed_since_read", "write_failed")
-    ]
-    in_use = [f for f in files if f.outcome == "in_use"]
+    sections: dict[str, list[FileResult]] = {name: [] for name in _SECTIONS.values()}
+    for f in files:
+        sections[_SECTIONS[Outcome(f.outcome)]].append(f)
+    migrated, current = sections["migrated"], sections["current"]
+    in_use = sections["in use"]
+    # A folder that couldn't be listed is left alone too, among the files.
+    left = sorted(
+        [(f.path, f.reason or "") for f in sections["left alone"]]
+        + [(unlisted.path, unlisted.reason) for unlisted in report.folders_not_listed],
+        key=lambda row: _path_order(row[0]),
+    )
     changed = [f for f in migrated if f.changes or f.warnings]
-    width = max([_PATH_WIDTH, *(len(f.path) + 2 for f in left + changed)])
+    paths = [path for path, _ in left] + [f.path for f in changed]
+    width = max([_PATH_WIDTH, *(len(path) + 2 for path in paths)])
 
     def row(path: str, text: str) -> str:
         return f"  {path:<{width}}{text}"
@@ -136,7 +181,7 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
         lines.append(f"  from {version}: {_files(versions[version])}")
     lines.append(f"Already in the new format: {_files(len(current))}")
     lines.append(f"Left alone: {_files(len(left))}")
-    lines += [row(f.path, f.reason or "") for f in left]
+    lines += [row(path, reason) for path, reason in left]
     if in_use:
         lines.append(f"In use by another program: {_files(len(in_use))}")
         lines += [f"  {f.path}" for f in in_use]
@@ -151,7 +196,7 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
             lines.append(row(f.path, texts[0]))
             lines += [row("", text) for text in texts[1:]]
     lines.append("")
-    written = sum(f.outcome == "migrated" for f in files)
+    written = sum(Outcome(f.outcome) is Outcome.MIGRATED for f in files)
     if apply and written:
         lines.append(f"Wrote {_files(written)}.")
     elif not apply and migrated:
@@ -160,6 +205,11 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     else:
         lines.append("Nothing was written.")
     return lines
+
+
+def _path_order(path: str) -> tuple[str, str]:
+    """Paths in the order of their NFC forms, as `migrate_folder` orders them."""
+    return unicodedata.normalize("NFC", path), path
 
 
 def _files(count: int) -> str:

@@ -371,21 +371,21 @@ def test_apply_lists_files_changed_since_read_and_files_in_use(
     clean, monkeypatch, capsys
 ):
     place(clean / "c.tla", OLD / "0.0.96.tla")
-    read = folder_module.read
+    read = folder_module.read_with_migration
     write = folder_module.write
 
     def then_changed(path):
-        document = read(path)
+        read_result = read(path)
         if Path(path).name == "c.tla":
             shutil.copyfile(OLD / "0.5.15.tla", path)
-        return document
+        return read_result
 
     def held_open(target, doc, **kwargs):
         if Path(target).name == "a.tla":
             raise tla.FileInUse(target)
         return write(target, doc, **kwargs)
 
-    monkeypatch.setattr(folder_module, "read", then_changed)
+    monkeypatch.setattr(folder_module, "read_with_migration", then_changed)
     monkeypatch.setattr(folder_module, "write", held_open)
 
     assert migrate_command.main([str(clean), "--apply"]) == 1
@@ -451,6 +451,69 @@ def test_a_change_the_command_has_no_words_for_is_printed_as_counted(
     ) in capsys.readouterr().out
 
 
+def test_a_subfolder_that_cant_be_listed_is_listed_as_left_alone(
+    clean, monkeypatch, capsys
+):
+    place(clean / "locked" / "piece.tla", OLD / "0.7.0.tla")
+    scandir = os.scandir
+
+    def refusing(path):
+        if Path(path).name == "locked":
+            raise PermissionError(13, "Permission denied", str(path))
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", refusing)
+
+    assert migrate_command.main([str(clean)]) == 1
+
+    assert (
+        "Left alone: 2 files\n"
+        "  locked/                 can't read: Permission denied\n"
+        "  newer.tla               written by a newer TiLiA (format 2.0.0)\n"
+    ) in capsys.readouterr().out
+
+
+def test_every_outcome_has_its_place_in_the_report():
+    from tilia_core.tla.model import FileResult, MigrationReport, Outcome
+
+    # A migrated file is listed when the migration changes something in it.
+    files = [
+        FileResult(
+            path=f"{outcome.value}.tla",
+            outcome=outcome,
+            reason="why",
+            changes={"formal_values_dropped": 1},
+        )
+        for outcome in Outcome
+    ]
+    report = MigrationReport(files=files)
+
+    text = "\n".join(migrate_command.report_lines(report, "corpus", apply=True))
+
+    assert "Already in the new format: 1 file" in text
+    for outcome in Outcome:
+        if outcome is not Outcome.CURRENT:
+            assert f"  {outcome.value}.tla" in text
+
+
+# The folder, as given
+
+
+def test_a_tilde_is_part_of_the_folder_name(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    place(home / "elsewhere.tla", OLD / "0.5.15.tla")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    place(tmp_path / "work" / "~" / "piece.tla", OLD / "0.7.0.tla")
+    monkeypatch.chdir(tmp_path / "work")
+
+    assert migrate_command.main(["~"]) == 0
+
+    out = capsys.readouterr().out
+    assert "  piece.tla " in out
+    assert "elsewhere.tla" not in out
+
+
 # Nothing but the report
 
 
@@ -496,3 +559,20 @@ def test_the_command_prints_its_report_and_nothing_else(clean):
     assert "  a.tla                   can't write: " in result.stdout
     assert "  locked/                 can't read: Permission denied" in result.stdout
     assert result.stderr == ""
+
+
+def test_a_reader_that_stops_reading_doesnt_end_in_a_traceback(sqx):
+    script = shutil.which("tilia", path=sysconfig.get_path("scripts"))
+    process = subprocess.Popen(
+        [script, "migrate", "sqx"],
+        cwd=sqx.parent,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    process.stdout.close()  # as `| head` does once it has its lines
+    err = process.stderr.read().decode("utf-8")
+    process.wait(timeout=120)
+
+    assert err == ""
+    assert process.returncode == 1  # the report's status: a file can't be read

@@ -3,6 +3,7 @@ writes only old files, and only with `apply` (FR-100–FR-105)."""
 
 import dataclasses
 import json
+import logging
 import os
 import shutil
 import stat
@@ -15,6 +16,7 @@ import pytest
 
 from tilia_core import tla
 from tilia_core.tla import folder as folder_module
+from tilia_core.tla import reader
 from tilia_core.tla.folder import corpus_files, migrate_folder
 from tilia_core.tla.model import FileResult, MigrationReport
 
@@ -205,14 +207,44 @@ def test_the_walk_takes_a_link_to_a_file(tmp_path):
     assert found == ["link.tla"]
 
 
-def test_the_walk_gives_paths_with_slashes_in_nfc(tmp_path):
+def test_the_walk_gives_paths_as_found_with_slashes(tmp_path):
     decomposed = unicodedata.normalize("NFD", "Bartók")
     place(tmp_path / decomposed / f"{decomposed}.tla", OLD / "0.7.0.tla")
+    # As the system names them: on a file system that normalises names,
+    # in its form.
+    [folder] = os.listdir(tmp_path)
+    [name] = os.listdir(tmp_path / folder)
 
     [(relative, path)] = corpus_files(tmp_path)
 
-    assert relative == "Bartók/Bartók.tla"
-    assert path.exists()
+    assert relative == f"{folder}/{name}"
+    assert (tmp_path / relative).exists()
+    assert path == tmp_path / folder / name
+
+
+def test_the_walk_sorts_paths_by_their_nfc_form(tmp_path):
+    # "e" and a combining accent sorts before "f"; "é" composed after it.
+    place(tmp_path / "f.tla", OLD / "0.7.0.tla")
+    place(tmp_path / unicodedata.normalize("NFD", "éz.tla"), OLD / "0.7.0.tla")
+    [accented] = [name for name in os.listdir(tmp_path) if name != "f.tla"]
+
+    found = [relative for relative, _ in corpus_files(tmp_path)]
+
+    assert found == ["f.tla", accented]
+
+
+def test_the_report_gives_each_path_as_found(tmp_path):
+    decomposed = unicodedata.normalize("NFD", "Bartók.tla")
+    place(tmp_path / decomposed, OLD / "0.7.0.tla")
+    place(tmp_path / "copy.tla", OLD / "0.7.0.tla")
+    [name] = [name for name in os.listdir(tmp_path) if name != "copy.tla"]
+
+    report = migrate_folder(tmp_path)
+
+    assert [f.path for f in report.files] == [name, "copy.tla"]
+    assert report.shared_ids == [[name, "copy.tla"]]
+    for result in report.files:
+        tla.read(tmp_path / result.path)
 
 
 def test_the_walk_reports_a_subfolder_it_cant_list_and_goes_on(tmp_path, monkeypatch):
@@ -341,11 +373,13 @@ def test_a_subfolder_that_cant_be_listed_is_reported(tmp_path, monkeypatch):
 
     report = migrate_folder(tmp_path)
 
-    assert outcomes(report) == [
-        ("locked/", "unreadable"),
-        ("piece.tla", "would_migrate"),
+    # One result per file; the folder apart.
+    assert outcomes(report) == [("piece.tla", "would_migrate")]
+    from tilia_core.tla.model import FolderNotListed
+
+    assert report.folders_not_listed == [
+        FolderNotListed(path="locked/", reason="can't read: Permission denied")
     ]
-    assert report.files[0].reason == "can't read: Permission denied"
     assert report.status == 1
 
 
@@ -442,14 +476,15 @@ def test_a_second_run_on_a_folder_without_problems_says_every_file_is_current(
 # A file that can't be read is read again
 
 
-def record_reads(monkeypatch, then=None):
-    """The times `migrate_folder` reads each file at; `then(path, error)` runs
-    after a read that failed."""
-    reads = {}
-    read = folder_module.read
+def record(monkeypatch, then=None):
+    """What `migrate_folder` does, in order: ("read", name) for each read of
+    a file, and ("pause", seconds) for each pause, which doesn't pause.
+    `then(path, error)` runs after a read that failed."""
+    events = []
+    read = folder_module.read_with_migration
 
     def recorded(path):
-        reads.setdefault(Path(path).name, []).append(time.monotonic())
+        events.append(("read", Path(path).name))
         try:
             return read(path)
         except (OSError, ValueError) as error:
@@ -457,25 +492,57 @@ def record_reads(monkeypatch, then=None):
                 then(Path(path), error)
             raise
 
-    monkeypatch.setattr(folder_module, "read", recorded)
-    return reads
+    monkeypatch.setattr(folder_module, "read_with_migration", recorded)
+    monkeypatch.setattr(
+        time, "sleep", lambda seconds: events.append(("pause", seconds))
+    )
+    return events
 
 
 def test_a_file_that_cant_be_read_is_read_again_after_a_pause(
     clean_corpus, monkeypatch
 ):
     place(clean_corpus / "broken.tla", BROKEN / "cut-short.tla")
-    reads = record_reads(monkeypatch)
+    events = record(monkeypatch)
 
     report = migrate_folder(clean_corpus)
 
-    first, second = reads["broken.tla"]
-    assert second - first >= 0.2
+    pause = events.index(("pause", 0.2))
+    assert events[:pause].count(("read", "broken.tla")) == 1
+    assert events[pause:].count(("read", "broken.tla")) == 1
     assert by_path(report)["broken.tla"].outcome == "unreadable"
     assert by_path(report)["broken.tla"].reason == (
         "can't read (line 49): not valid JSON (Unterminated string)"
     )
-    assert reads["a.tla"] == reads["a.tla"][:1]  # a file that reads, once
+    assert events.count(("read", "a.tla")) == 1  # a file that reads, once
+
+
+def test_files_that_cant_be_read_are_read_again_after_one_pause(
+    clean_corpus, monkeypatch
+):
+    broken = ["broken-1.tla", "broken-2.tla", "sub/broken-3.tla"]
+    for name in broken:
+        place(clean_corpus / name, BROKEN / "cut-short.tla")
+    events = record(monkeypatch)
+
+    report = migrate_folder(clean_corpus)
+
+    [pause] = [event for event in events if event[0] == "pause"]
+    assert pause == ("pause", 0.2)
+    before, after = events[: events.index(pause)], events[events.index(pause) + 1 :]
+    names = [Path(name).name for name in broken]
+    assert [name for _, name in before if name in names] == names
+    assert after == [("read", name) for name in names]
+    for name in broken:
+        assert by_path(report)[name].outcome == "unreadable"
+
+
+def test_a_folder_whose_files_all_read_has_no_pause(clean_corpus, monkeypatch):
+    events = record(monkeypatch)
+
+    migrate_folder(clean_corpus)
+
+    assert not [event for event in events if event[0] == "pause"]
 
 
 def test_a_file_that_reads_the_second_time_is_migrated(tmp_path, monkeypatch):
@@ -485,11 +552,11 @@ def test_a_file_that_reads_the_second_time_is_migrated(tmp_path, monkeypatch):
     def finished(path, error):
         shutil.copyfile(OLD / "0.7.0.tla", path)
 
-    reads = record_reads(monkeypatch, then=finished)
+    events = record(monkeypatch, then=finished)
 
     report = migrate_folder(tmp_path, apply=True)
 
-    assert len(reads["piece.tla"]) == 2
+    assert events.count(("read", "piece.tla")) == 2
     assert outcomes(report) == [("piece.tla", "migrated")]
     assert report.status == 0
 
@@ -502,8 +569,11 @@ def test_a_file_that_cant_be_opened_is_read_again_then_reported(tmp_path, monkey
 
     reads = []
     monkeypatch.setattr(
-        folder_module, "read", lambda path: reads.append(path) or refusing(path)
+        folder_module,
+        "read_with_migration",
+        lambda path: reads.append(path) or refusing(path),
     )
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
 
     report = migrate_folder(tmp_path)
 
@@ -513,11 +583,11 @@ def test_a_file_that_cant_be_opened_is_read_again_then_reported(tmp_path, monkey
 
 
 def test_a_file_of_a_newer_format_is_read_once(clean_corpus, monkeypatch):
-    reads = record_reads(monkeypatch)
+    events = record(monkeypatch)
 
     migrate_folder(clean_corpus)
 
-    assert len(reads["newer.tla"]) == 1
+    assert events.count(("read", "newer.tla")) == 1
 
 
 def test_a_newer_format_is_refused_as_one():
@@ -532,21 +602,164 @@ def test_a_newer_format_is_refused_as_one():
     assert not isinstance(caught.value, tla.NewerFormat)
 
 
+def test_a_newer_format_is_told_by_its_error_not_by_its_words(tmp_path, monkeypatch):
+    place(tmp_path / "piece.tla", BROKEN / "newer-format.tla")
+
+    def newer(path):
+        error = tla.NewerFormat("3.0.0", path=path)
+        error.message = "worded otherwise"
+        raise error
+
+    monkeypatch.setattr(folder_module, "read_with_migration", newer)
+
+    report = migrate_folder(tmp_path)
+
+    assert outcomes(report) == [("piece.tla", "newer")]
+    assert report.files[0].reason == "worded otherwise"
+    assert report.status == 0
+
+
+# An error in one file doesn't stop the others
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        TypeError("unsupported operand type(s) for +: 'int' and 'str'"),
+        RecursionError("maximum recursion depth exceeded"),
+        MemoryError(),
+        KeyError("ordinal"),
+    ],
+    ids=lambda error: type(error).__name__,
+)
+def test_an_error_reading_one_file_doesnt_stop_the_others(
+    clean_corpus, monkeypatch, caplog, error
+):
+    read = folder_module.read_with_migration
+
+    def failing(path):
+        if Path(path).name == "a.tla":
+            raise error
+        return read(path)
+
+    monkeypatch.setattr(folder_module, "read_with_migration", failing)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+
+    with caplog.at_level(logging.ERROR, logger="tilia_core"):
+        report = migrate_folder(clean_corpus, apply=True)
+
+    result = by_path(report)["a.tla"]
+    assert result.outcome == "unreadable"
+    text = str(error)
+    assert result.reason == (
+        f"can't read: {type(error).__name__}: {text}"
+        if text
+        else f"can't read: {type(error).__name__}"
+    )
+    assert by_path(report)["sub/old.tla"].outcome == "migrated"
+    assert report.status == 1
+    [logged] = [r for r in caplog.records if r.exc_info]
+    assert logged.exc_info[1] is error
+
+
+def test_an_error_writing_one_file_doesnt_stop_the_others(
+    clean_corpus, monkeypatch, caplog
+):
+    write = folder_module.write
+    error = TypeError("an unexpected value")
+
+    def failing(target, doc, **kwargs):
+        if Path(target).name == "a.tla":
+            raise error
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", failing)
+
+    with caplog.at_level(logging.ERROR, logger="tilia_core"):
+        report = migrate_folder(clean_corpus, apply=True)
+
+    result = by_path(report)["a.tla"]
+    assert result.outcome == "write_failed"
+    assert result.reason == "can't write: TypeError: an unexpected value"
+    assert by_path(report)["sub/old.tla"].outcome == "migrated"
+    [logged] = [r for r in caplog.records if r.exc_info]
+    assert logged.exc_info[1] is error
+
+
+def test_a_document_the_writer_refuses_is_reported_without_its_path(
+    clean_corpus, monkeypatch
+):
+    write = folder_module.write
+
+    def refusing(target, doc, **kwargs):
+        if Path(target).name == "a.tla":
+            raise tla.UnreadableFile('"level" is missing', path=target, line=44)
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", refusing)
+
+    report = migrate_folder(clean_corpus, apply=True)
+
+    assert by_path(report)["a.tla"].reason == (
+        'can\'t write (line 44): "level" is missing'
+    )
+
+
+# The folder, as given
+
+
+@pytest.mark.parametrize("name", ["~", "~drafts"])
+def test_a_folder_named_with_a_tilde_is_the_folder_of_that_name(
+    tmp_path, monkeypatch, name
+):
+    home = tmp_path / "home"
+    place(home / "elsewhere.tla", OLD / "0.5.15.tla")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    place(tmp_path / "work" / name / "piece.tla", OLD / "0.7.0.tla")
+    monkeypatch.chdir(tmp_path / "work")
+
+    report = migrate_folder(name)
+
+    assert outcomes(report) == [("piece.tla", "would_migrate")]
+
+
+# What the reader gives the folder
+
+
+def test_a_document_carries_nothing_of_the_migration():
+    names = {field.name for field in dataclasses.fields(tla.Document)}
+
+    assert not {name for name in names if name.startswith("_migration")}
+
+
+def test_the_reader_gives_the_migration_with_an_old_files_document():
+    document, migrated = reader.read_with_migration(OLD / "0.7.0.tla")
+
+    assert document == tla.read(OLD / "0.7.0.tla")
+    assert migrated.changes == {
+        "formal_values_dropped": 2,
+        "amplitude_bars_dropped": 3,
+    }
+    assert migrated.warnings == document.warnings
+    assert reader.read_with_migration(GOLDEN / "every-kind.tla")[1] is None
+
+
 # What can go wrong between reading and writing
 
 
 def change_after_reading(monkeypatch, name, change):
     """`change(path)` runs once `migrate_folder` has read the file `name`, as
     another program would change it before the migration writes it."""
-    read = folder_module.read
+    read = folder_module.read_with_migration
 
     def then_changed(path):
-        document = read(path)
+        read_result = read(path)
         if Path(path).name == name:
             change(Path(path))
-        return document
+        return read_result
 
-    monkeypatch.setattr(folder_module, "read", then_changed)
+    monkeypatch.setattr(folder_module, "read_with_migration", then_changed)
 
 
 @pytest.mark.parametrize(
