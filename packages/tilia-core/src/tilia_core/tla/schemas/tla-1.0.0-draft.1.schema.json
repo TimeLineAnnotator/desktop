@@ -429,7 +429,7 @@
             "required": ["beat_x"],
             "properties": {
               "beat_x": {
-                "description": "The old viewer's beat positions (viewer_beat_x), as [time, x] pairs in time order.",
+                "description": "The old viewer's beat positions (viewer_beat_x), as [position, x] pairs in the order of their positions. A position is a place in the score, not a time: the measure number plus the fraction of the measure. x is the beat's x coordinate in the SVG.",
                 "type": "array",
                 "items": {
                   "type": "array",

@@ -15,6 +15,9 @@ takes it to the current format:
   which TiLiA computes from the media, with one warning per timeline;
 - a beat timeline's `beat_pattern`, a list of bar lengths, becomes text:
   `[4, 4, 3]` becomes `"4 4 3"`;
+- a score timeline's SVG and its viewer's beat positions become a legacy
+  score in `scores`, which the timeline names, with an id derived as the
+  timeline's is (`scores`);
 - a `pre_start` or `post_end` equal to its `start` or `end` is left unset,
   and other attributes equal to their default are left out;
 - the document id is derived from that content, and the timelines and
@@ -45,7 +48,9 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.migrate import old as old_migrations
+from tilia_core.tla.migrate import scores
 from tilia_core.tla.model import (
+    TIMELINE_KINDS,
     ReadWarning,
     UnknownKind,
     component_kind_from_file,
@@ -68,6 +73,14 @@ _OLD_TOP_LEVEL = frozenset(
 # Keys of the current format that no old file has: one that does can't be
 # migrated without losing its value.
 _CURRENT_ONLY = ("document_id", "time_unit", "media", "metadata", "scores")
+# And a timeline's, by its kind; a null is a missing key. Not its `metadata`,
+# which the migration doesn't set, and keeps as it is; nor `rows`,
+# `default_row_height` or `show_time_signatures`, which TiLiA 0.x writes.
+_CURRENT_ONLY_IN_TIMELINES: dict[str, tuple[str, ...]] = {
+    **{kind: ("measure_table",) for kind in TIMELINE_KINDS},
+    "beat": ("measure_source", "measure_table"),
+    "score": ("score", "measure_table"),
+}
 _STORED_HASHES = ("hash", "components_hash")
 _MEDIA_LENGTH = "media length"
 # A number written as text, in ASCII.
@@ -99,10 +112,11 @@ def migrate(
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
     # With the old ids still in place, the beat timelines' measures
-    # (TimeLineAnnotator/project-management#181), the legacy scores
-    # (TimeLineAnnotator/project-management#182) and the comments' marks
-    # (TimeLineAnnotator/project-management#180) are converted here, so that
-    # the document id is derived from the content they give.
+    # (TimeLineAnnotator/project-management#181) and the comments' marks
+    # (TimeLineAnnotator/project-management#180) are converted here, as the
+    # legacy scores (TimeLineAnnotator/project-management#182) are in
+    # to_current, so that the document id is derived from the content they
+    # give.
     #
     # A file saved again by TiLiA 0.7 without an edit gets the same id, but
     # for three changes TiLiA 0.7 makes itself, which change it (accepted in
@@ -199,9 +213,21 @@ class _Migration:
         self.path = path
         self.warnings: list[ReadWarning] = []
         self.changes: dict[str, int] = {}
+        # The legacy scores of score timelines, under their old ids.
+        self.scores: list[dict[str, Any]] = []
 
     def _refuse(self, message: str, place: str) -> UnreadableFile:
         return UnreadableFile(message, path=self.path, place=place)
+
+    def _current_key(self, key: str, place: str) -> UnreadableFile:
+        """A key of the current format in the old file: the migration
+        couldn't keep it without losing its value."""
+        name = json.dumps(key, ensure_ascii=False)
+        return self._refuse(
+            f"a file from TiLiA {printable(self.version)} can't hold"
+            f" {printable(name)}, a key of the current format",
+            place,
+        )
 
     def _object(self, value: Any, place: str) -> dict[str, Any]:
         if not isinstance(value, dict):
@@ -229,12 +255,7 @@ class _Migration:
         """Check the shapes TiLiA's own migrations read, before they run."""
         for key in _CURRENT_ONLY:
             if key in old:
-                name = json.dumps(key, ensure_ascii=False)
-                raise self._refuse(
-                    f"a file from TiLiA {printable(self.version)} can't hold"
-                    f" {printable(name)}, a key of the current format",
-                    pointer_to("", key),
-                )
+                raise self._current_key(key, pointer_to("", key))
         if "media_path" in old and not isinstance(old["media_path"], str):
             raise self._refuse("expected text at /media_path", "/media_path")
         if "media_metadata" in old:
@@ -244,7 +265,10 @@ class _Migration:
         for key, timeline in timelines.items():
             place = pointer_to("/timelines", key)
             self._object(timeline, place)
-            self._text(timeline, "kind", place)
+            kind = timeline_kind_from_file(self._text(timeline, "kind", place))
+            for name in _CURRENT_ONLY_IN_TIMELINES.get(kind, ()):
+                if timeline.get(name) is not None:
+                    raise self._current_key(name, pointer_to(place, name))
             position = timeline.get("display_position")
             if renames and "display_position" in timeline and type(position) is not int:
                 at = pointer_to(place, "display_position")
@@ -264,7 +288,8 @@ class _Migration:
                 key: self._timeline(key, timeline)
                 for key, timeline in old["timelines"].items()
             },
-            "scores": [],
+            # Once the timelines have given their legacy scores.
+            "scores": scores.in_old_id_order(self.scores),
         }
         for key, value in old.items():
             if key not in _OLD_TOP_LEVEL:
@@ -299,10 +324,19 @@ class _Migration:
             for name, value in timeline.items()
             if name not in _STORED_HASHES and name != "components"
         }
+        for name in _CURRENT_ONLY_IN_TIMELINES[kind]:
+            converted.pop(name, None)  # null, which check let through
         # In the format's spelling, which the current format reads exactly:
         # an old file may have any letter case, and TiLiA's own migration
         # spells an old "AUDIOWAVE_TIMELINE" "Audiowave".
         converted["kind"] = timeline_kind_to_file(kind)
+        if kind == "score":
+            # The SVG leaves the old content too, which the reader still
+            # holds, so that a long one is held once, as the score's lines.
+            timeline.pop("svg_data", None)
+            score = scores.legacy_score(self, key, converted)
+            if score is not None:
+                self.scores.append(score)
         if kind == "beat" and isinstance(converted.get("beat_pattern"), list):
             # Text, as the current format writes it (contracts/migration.md,
             # *Beat timelines*, step 6); "4", the default, is then left out.
@@ -373,6 +407,7 @@ def _follow(reference: Any, new_ids: dict[str, str]) -> Any:
 
 def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
     timelines: dict[str, Any] = {}
+    score_ids: dict[str, str] = {}  # by the old ids they had, their timelines'
     for position, (old_id, timeline) in enumerate(content["timelines"].items()):
         new_id = migrated_id(document_id, "timeline", old_id, position=position)
         kind = timeline_kind_from_file(timeline["kind"])
@@ -391,5 +426,15 @@ def _with_new_ids(content: dict[str, Any], document_id: str) -> dict[str, Any]:
                     }
                 renamed[new_ids[key]] = component
             timeline = {**timeline, "components": renamed}
+            if kind == "score" and "score" in timeline:
+                # Its legacy score's, derived as its own is, from the same
+                # old id and position.
+                score_ids[old_id] = migrated_id(
+                    document_id, "score", old_id, position=position
+                )
+                timeline["score"] = score_ids[old_id]
         timelines[new_id] = timeline
-    return {**content, "timelines": timelines}
+    renamed_scores = [
+        {**score, "id": score_ids[score["id"]]} for score in content["scores"]
+    ]
+    return {**content, "timelines": timelines, "scores": renamed_scores}

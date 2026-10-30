@@ -253,6 +253,19 @@ class Timeline:
     raw: dict[str, Any] | None = None
 
 
+def score_lines(text: str) -> list[str]:
+    """A score's content as the file stores it: its lines, without NFC.
+
+    CRs before an LF go, so no line ends in CR, and splitting the joined
+    lines again gives the same lines; a lone CR stays in its line. A final newline
+    leaves a final empty line, so joining the lines with LF gives the text
+    back, with LF for CRLF. Stripping each line, not a regex, keeps a long
+    run of CRs linear.
+    """
+    *lines, last = text.split("\n")
+    return [line.rstrip("\r") for line in lines] + [last]
+
+
 @dataclass(kw_only=True)
 class Score:
     """A score stored in the file. Its content is kept as lines, without NFC."""
@@ -271,12 +284,8 @@ class Score:
 
     @text.setter
     def text(self, value: str) -> None:
-        # CRs before an LF go, so no line ends in CR, and setting the text back
-        # changes nothing; a lone CR stays in its line. A final newline leaves
-        # a final empty line, so the text comes back as it was. Stripping each
-        # line, not a regex, keeps a long run of CRs linear.
-        *lines, last = value.split("\n")
-        self.lines = [line.rstrip("\r") for line in lines] + [last]
+        # Setting the text back changes nothing.
+        self.lines = score_lines(value)
 
 
 @dataclass(kw_only=True)
