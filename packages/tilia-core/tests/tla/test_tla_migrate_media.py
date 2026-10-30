@@ -195,6 +195,27 @@ def test_the_media_is_looked_up_on_every_read(tmp_path, where):
     assert before.document_id == after.document_id
 
 
+def test_a_folder_at_the_stored_path_isnt_the_media(tmp_path, where):
+    # Whether the media exists is asked as tla.media asks it: a folder isn't
+    # media, so the path is made relative from the old file_path's folder.
+    stored = tmp_path / "audio" / "piece.wav"
+    stored.mkdir(parents=True)
+    saved = str(tmp_path / "elsewhere" / "piece.tla")
+    piece = old_file(tmp_path / "a" / "b", where, str(stored), saved)
+    assert stored_in(tla.read(piece), where) == "../audio/piece.wav"
+
+
+def test_media_named_in_decomposed_form_exists(tmp_path, where):
+    # Found as tla.media finds it, so made relative from the file's folder,
+    # not from the old file_path's.
+    name = "Ständchen"
+    media_file(tmp_path / "audio" / f"{unicodedata.normalize('NFD', name)}.wav")
+    stored = str(tmp_path / "audio" / f"{name}.wav")
+    saved = str(tmp_path / "elsewhere" / "piece.tla")
+    piece = old_file(tmp_path / "a" / "b", where, stored, saved)
+    assert stored_in(tla.read(piece), where) == f"../../audio/{name}.wav"
+
+
 @windows_only
 def test_media_that_exists_on_another_drive_stays_absolute(tmp_path):
     # The file in a folder on another drive than its media: the folder needn't
