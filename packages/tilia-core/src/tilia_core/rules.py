@@ -571,10 +571,10 @@ def check_timeline(
     for place in covered:
         component = components[place]
         broken, cant_check = kinds.broken(component, others.of(place))
-        color = _color_of(component.attrs)
+        color_outcome = _color_of(component.attrs)
         found[component.id] = Checked(
             OK if broken is None else broken,
-            OK if color is None else color,
+            OK if color_outcome is None else color_outcome,
             cant_check,
         )
         if skip_broken and broken is None:
