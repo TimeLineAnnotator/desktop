@@ -1499,8 +1499,8 @@ def random_timeline(kind, seed, size=40):
 
 def kinds_function(component, others, rows=ROWS):
     """The component's kind's function, as an importer calls it: with a color that
-    isn't one replaced by the default. Gives the outcome, and whether it raised
-    CantCheck."""
+    isn't one replaced by the default. Gives the outcome, and, when it raised
+    CantCheck, that exception's cause, shown; else None."""
     attrs = dict(component.attrs)
     if not rules.color(attrs.get("color")):
         del attrs["color"]
@@ -1512,9 +1512,9 @@ def kinds_function(component, others, rows=ROWS):
             outcome = rules.range_(MEDIA, others, attrs, rows=rows)
         else:
             outcome = getattr(rules, kind)(MEDIA, others, attrs)
-    except rules.CantCheck:
-        return rules.OK, True
-    return outcome, False
+    except rules.CantCheck as cant_check:
+        return rules.OK, repr(cant_check.__cause__)
+    return outcome, None
 
 
 def found_row_by_row(components, skip_broken, rows=ROWS):
@@ -1540,7 +1540,12 @@ def found_at_once(components, skip_broken, rows=ROWS):
     )
     assert list(checked) == [component.id for component in components]
     return {
-        id_: (c.outcome, c.outcome.others, c.color, c.cant_check is not None)
+        id_: (
+            c.outcome,
+            c.outcome.others,
+            c.color,
+            None if c.cant_check is None else repr(c.cant_check.__cause__),
+        )
         for id_, c in checked.items()
     }
 
@@ -1820,6 +1825,28 @@ class TestCheckTimeline:
         assert checked[first.id].cant_check is not None
         assert checked[second.id].outcome.others == (first.id,)
         assert checked[second.id].cant_check is None
+
+    @pytest.mark.parametrize(
+        "missing, cause",
+        [
+            ("without_music21", type(None)),
+            ("broken_music21", ImportError),
+            ("music21_raising", AttributeError),
+        ],
+    )
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_cant_check_has_the_cause_the_kinds_function_raises_it_from(
+        self, request, missing, cause, kind
+    ):
+        request.getfixturevalue(missing)
+        unchecked = component(kind, time=1.0)
+        with pytest.raises(rules.CantCheck) as raised:
+            getattr(rules, kind)(MEDIA, [], unchecked.attrs)
+
+        cant_check = rules.check_timeline(MEDIA, [unchecked])[unchecked.id].cant_check
+
+        assert isinstance(cant_check.__cause__, cause)
+        assert repr(cant_check.__cause__) == repr(raised.value.__cause__)
 
     def test_ranges_need_the_rows(self):
         with pytest.raises(TypeError, match="rows"):

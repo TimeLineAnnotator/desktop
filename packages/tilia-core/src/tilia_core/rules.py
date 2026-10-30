@@ -924,7 +924,10 @@ class _Kinds:
         rules = _RULES[kind]
         broken = rules(self._media_length, others, component.attrs, self._context)
         if broken is None and kind in _NEED_MUSIC21 and self._context.music21 is None:
-            return None, CantCheck(kind, error)
+            # The cause the kind's function raises it from.
+            cant_check = CantCheck(kind, error)
+            cant_check.__cause__ = error
+            return None, cant_check
         return broken, None
 
 
