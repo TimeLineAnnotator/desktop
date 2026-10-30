@@ -1,10 +1,16 @@
 """Old score timelines through the migration (FR-022, contracts/migration.md,
 *Scores*): the SVG TiLiA 0.x stored in a score timeline, with its viewer's
 beat positions, becomes a legacy score in the file's `scores`, which the
-timeline names; the timeline's components stay with it, with new ids."""
+timeline names; the timeline's components stay with it, with new ids.
+
+A beat position is a position in the score, not a time: the measure number
+plus the fraction of the measure, as TiLiA's viewer computes it
+(`SvgViewer._get_beat_x_pos`); TiLiA turns it into a time through the beat
+timeline."""
 
 import copy
 import json
+import tracemalloc
 import unicodedata
 from pathlib import Path
 
@@ -12,6 +18,7 @@ import pytest
 
 from tilia_core import tla
 from tilia_core.tla.ids import derived_document_id, migrated_id
+from tilia_core.tla.migrate import to_1
 
 HERE = Path(__file__).parent
 OLD = HERE / "old"
@@ -197,7 +204,7 @@ def score_timeline_of(doc):
     return next(tl for tl in doc.timelines.values() if tl.kind == "score")
 
 
-def test_beat_x_is_in_time_order_by_value():
+def test_beat_x_is_in_the_order_of_its_positions_by_value():
     # In text order, "10.0" would come before "2.0".
     beat_x = {"10.0": 300.5, "2.0": 120, "0.5": 48.0, "1.3333333333333333": 100.25}
     doc = loads(old_file_content(viewer_beat_x=beat_x))
@@ -232,6 +239,29 @@ def test_the_svg_is_stored_as_its_lines_without_nfc():
     data = tla.canonical_bytes(doc)
     assert "Sta\u0308ndchen".encode() in data
     assert unicodedata.normalize("NFC", "Sta\u0308ndchen").encode() not in data
+
+
+def test_a_long_svg_is_held_once_as_its_lines():
+    # The reader keeps the old file's content while it migrates it: the SVG
+    # leaves it, so that it isn't held both as text and as lines.
+    line = "<path d='" + "M 1 2 " * 160 + "'/>"
+    data = json.dumps(old_file_content(svg_data="\n".join([line] * 4000))).encode()
+    size = len(line) * 4000  # 4 MB, in ASCII: one byte a character
+    # Leaves tracing as it found it, for a run with -X tracemalloc.
+    tracing = tracemalloc.is_tracing()
+    if not tracing:
+        tracemalloc.start()
+    try:
+        content = json.loads(data)  # holds the SVG as text, once
+        before, _ = tracemalloc.get_traced_memory()
+        migrated = to_1.migrate(content)
+        after, _ = tracemalloc.get_traced_memory()
+    finally:
+        if not tracing:
+            tracemalloc.stop()
+    assert len(migrated.content["scores"][0]["content"]) == 4000
+    assert "svg_data" not in content["timelines"]["7"]
+    assert after - before < size / 4
 
 
 @pytest.mark.parametrize("svg", ["", None, "missing"])
@@ -366,7 +396,8 @@ def test_the_document_id_ignores_the_order_of_the_scores_timelines():
 
 
 # Shapes TiLiA never writes, from files edited by hand: refused, naming the
-# place in the old file (TimeLineAnnotator/project-management#359, pending).
+# place in the old file (TimeLineAnnotator/project-management#359 (old score
+# timelines TiLiA never wrote), pending).
 
 
 @pytest.mark.parametrize("svg", [7, ["<svg/>"], {"svg": "<svg/>"}, True])
@@ -403,7 +434,7 @@ def test_beat_positions_that_arent_an_object_are_refused(beat_x):
         ("\u0661.0", "\u0661.0"),  # an Arabic-Indic digit, which float() reads
     ],
 )
-def test_a_beat_position_whose_time_isnt_a_number_is_refused(key, place):
+def test_a_beat_position_that_isnt_a_number_is_refused(key, place):
     with pytest.raises(tla.UnreadableFile) as error:
         loads(old_file_content(viewer_beat_x={"0.0": 12.5, key: 48.0}))
     assert error.value.place == f"/timelines/7/viewer_beat_x/{place}"
@@ -413,13 +444,13 @@ def test_a_beat_position_whose_time_isnt_a_number_is_refused(key, place):
 
 
 @pytest.mark.parametrize("key", ["-0.5", "1e-05", "1E+16", "2", "0.30000000000000004"])
-def test_beat_positions_times_are_numbers_as_json_writes_them(key):
+def test_beat_positions_are_numbers_as_json_writes_them(key):
     doc = loads(old_file_content(viewer_beat_x={key: 7.0}))
     assert score_of(doc).extra["beat_x"] == [[float(key), 7.0]]
 
 
 @pytest.mark.parametrize("x", ["12.5", None, True, [12.5], {}])
-def test_a_beat_position_that_isnt_a_number_is_refused(x):
+def test_an_x_that_isnt_a_number_is_refused(x):
     with pytest.raises(tla.UnreadableFile) as error:
         loads(old_file_content(viewer_beat_x={"0.0": 12.5, "0.5": x}))
     assert (error.value.place, error.value.message) == (
