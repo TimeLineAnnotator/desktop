@@ -13,6 +13,7 @@ Places are JSON Pointers (RFC 6901).
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import Any
 
 from tilia_core.tla.errors import printable
@@ -47,11 +48,13 @@ class OldPlaces:
     the migration tells it the rest."""
 
     def __init__(self) -> None:
-        # The old id of each timeline, by its new id, and of each of its
-        # components, by the timeline's new id and the component's; all as
-        # steps of a pointer.
-        self._timelines: dict[str, str] = {}
-        self._components: dict[str, dict[str, str]] = {}
+        # Each timeline's old id, and its components' new ids by their old
+        # ones, as the migration made them, by the timeline's new id, a UUID,
+        # which a pointer writes as it is. Nothing is done for each component
+        # on every read: the ids are turned around, by timeline, only for a
+        # place asked for.
+        self._timelines: dict[str, tuple[str, Mapping[str, str]]] = {}
+        self._old_ids: dict[str, dict[str, str]] = {}
         # Where each key the migration moved or renamed was in the old file,
         # by its place as the migration leaves it, with the old ids.
         self._moved: dict[str, str] = dict(_TOP_LEVEL)
@@ -59,15 +62,13 @@ class OldPlaces:
         # document, with its value in the old file.
         self._nothing: dict[str, Any] = {}
 
-    def timeline(self, new_id: str, old_id: str) -> None:
-        """The timeline `new_id` was `old_id` in the old file."""
-        self._timelines[_step(new_id)] = _step(old_id)
-
-    def component(self, timeline_id: str, new_id: str, old_id: str) -> None:
-        """The component `new_id`, of the timeline whose new id is
-        `timeline_id`, was `old_id` in the old file."""
-        components = self._components.setdefault(_step(timeline_id), {})
-        components[_step(new_id)] = _step(old_id)
+    def timeline(
+        self, new_id: str, old_id: str, components: Mapping[str, str] | None = None
+    ) -> None:
+        """The timeline `new_id`, a UUID, was `old_id` in the old file, and
+        `components` gives the new id of each of its components by its old
+        one; it is kept as it is given."""
+        self._timelines[new_id] = (old_id, {} if components is None else components)
 
     def moved(self, place: str, old_place: str) -> None:
         """What is at `place` once migrated, named with the old ids, was at
@@ -93,12 +94,17 @@ class OldPlaces:
         moved, that key's name once migrated and in the old file, and
         whether `place` is the key's own."""
         steps = place.split("/")  # "" first: a pointer starts with "/"
-        if len(steps) > 2 and steps[1] == "timelines":
+        if len(steps) > 2 and steps[1] == "timelines" and steps[2] in self._timelines:
             timeline = steps[2]
-            steps[2] = self._timelines.get(timeline, timeline)
+            old_id, components = self._timelines[timeline]
+            steps[2] = _step(old_id)
             if len(steps) > 4 and steps[3] == "components":
-                components = self._components.get(timeline, {})
-                steps[4] = components.get(steps[4], steps[4])
+                old_ids = self._old_ids.get(timeline)
+                if old_ids is None:
+                    old_ids = {new: old for old, new in components.items()}
+                    self._old_ids[timeline] = old_ids
+                if steps[4] in old_ids:
+                    steps[4] = _step(old_ids[steps[4]])
         place = "/".join(steps)
         held = place
         while held:

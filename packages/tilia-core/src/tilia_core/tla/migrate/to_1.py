@@ -404,8 +404,8 @@ def _with_new_ids(
     timelines: dict[str, Any] = {}
     for position, (old_id, timeline) in enumerate(content["timelines"].items()):
         new_id = migrated_id(document_id, "timeline", old_id, position=position)
-        places.timeline(new_id, old_id)
         kind = timeline_kind_from_file(timeline["kind"])
+        new_ids: dict[str, str] = {}
         if not isinstance(kind, UnknownKind):
             components = timeline["components"]
             new_ids = {
@@ -414,7 +414,6 @@ def _with_new_ids(
             }
             renamed = {}
             for key, component in components.items():
-                places.component(new_id, new_ids[key], key)
                 # A range's only: a component of another kind is kept as it
                 # is, its keys the core doesn't know included.
                 if (
@@ -434,5 +433,6 @@ def _with_new_ids(
                     component = {**component, "joined_right": joined}
                 renamed[new_ids[key]] = component
             timeline = {**timeline, "components": renamed}
+        places.timeline(new_id, old_id, new_ids)
         timelines[new_id] = timeline
     return {**content, "timelines": timelines}

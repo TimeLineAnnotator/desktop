@@ -19,6 +19,7 @@ import pytest
 from tilia_core import tla
 from tilia_core.tla.ids import MIGRATED_BASE_MS, derived_document_id, migrated_id
 from tilia_core.tla.migrate import old as old_migrations
+from tilia_core.tla.migrate import places as old_places
 from tilia_core.tla.migrate import to_1
 from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import TIMELINE_KINDS
@@ -1903,6 +1904,16 @@ def test_places_made_without_a_migration_know_where_the_top_level_was():
 
 def test_two_migrations_of_one_file_are_equal():
     assert to_1.migrate(old_file_content()) == to_1.migrate(old_file_content())
+
+
+def test_a_read_with_nothing_to_report_takes_no_id_back(monkeypatch):
+    # The new ids' old ids are kept as the migration makes the new ones, and
+    # looked up only for what is reported.
+    steps = []
+    step = old_places._step
+    monkeypatch.setattr(old_places, "_step", lambda key: steps.append(key) or step(key))
+    assert loads(old_file_content()).warnings == []
+    assert steps == []
 
 
 # Ranges
