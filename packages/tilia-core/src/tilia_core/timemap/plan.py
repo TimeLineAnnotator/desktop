@@ -313,12 +313,15 @@ def _write_backs(
     With "restore": the writes that keep every measure not set reading as it
     did, by downbeat id.
 
-    `meters_of` reads the rows again with the units the plan writes. From the
-    left, the first measure not set that reads otherwise than it did (its
-    unit or its "assumed" flag) gets the unit it read, with that flag, on its
-    downbeat, and the rows are read again, until every measure not set reads
-    as it did. Such a measure has no unit of its own, which would still
-    govern it, so the unit written back is the one that governs it.
+    `meters_of` reads the rows with the units the plan writes. From the left,
+    a measure not set that reads otherwise than it did (its unit or its
+    "assumed" flag) gets the unit it read, with that flag, on its downbeat.
+    Such a measure has no unit of its own, which would still govern it, so
+    the unit written back is the one that governs it. Only the stretch that
+    write can change is read again: from that measure to the next with a
+    unit of its own (`_stretch_end`). Then a reading of the whole table
+    checks that every measure not set reads as it did; if one doesn't, it is
+    written back, and the table read again, until none is left.
 
     So nothing is written where a measure would read the same anyway
     (TimeLineAnnotator/project-management#356), and a movement's first
@@ -335,25 +338,53 @@ def _write_backs(
         planned[index_of[row_id]] = _put(planned[index_of[row_id]], change)
     before = [_reading(row.meter) for row in rows]
     write_backs: dict[str, Change] = {}
-    while True:
-        meters = meters_of(planned)
+
+    def reads_otherwise(index: int) -> bool:
         # One write-back per measure at most, so that this ends whatever the
         # rules read.
-        index = next(
-            (
-                i
-                for i, row in enumerate(rows)
-                if row.id not in wanted
-                and row.id not in write_backs
-                and _reading(meters[i]) != before[i]
-            ),
-            None,
+        row_id = rows[index].id
+        return (
+            row_id not in wanted
+            and row_id not in write_backs
+            and _reading(meters[index]) != before[index]
         )
-        if index is None:
-            return write_backs
+
+    def write_back(index: int) -> None:
         row_id = rows[index].id
         write_backs[row_id] = _unit_change(timeline, row_id, before[index])
         planned[index] = _put(planned[index], write_backs[row_id])
+
+    meters = meters_of(planned)
+    for index in range(len(rows)):
+        if reads_otherwise(index):
+            write_back(index)
+            end = _stretch_end(planned, index)
+            meters[index:end] = meters_of(planned[index:end])
+    while True:
+        meters = meters_of(planned)
+        found = next((i for i in range(len(rows)) if reads_otherwise(i)), None)
+        if found is None:
+            return write_backs
+        write_back(found)
+
+
+def _stretch_end(planned: Sequence[RowIn], index: int) -> int:
+    """
+    The end of the stretch of readings that a unit written on measure
+    `index` can change: just after the next measure with a unit of its own.
+    That measure is governed by its own unit and hands it on as before, so
+    nothing from there on depends on the measures before it.
+
+    The measures in between have no unit of its own and read what comes
+    before them, a measure set whose unit is carried included. A movement
+    that starts among them takes the unit in force before it, or a copy of
+    its first unit, which can only be the one that ends the stretch: read
+    with the stretch, it gives `meters_of` all it needs.
+    """
+    for after in range(index + 1, len(planned)):
+        if planned[after].units:
+            return after + 1
+    return len(planned)
 
 
 def _put(row: RowIn, change: Change) -> RowIn:

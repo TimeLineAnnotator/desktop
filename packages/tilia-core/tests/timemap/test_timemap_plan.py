@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import random
+import time
 from fractions import Fraction as F
 
 import pytest
@@ -952,25 +953,103 @@ class TestRestore:
     def test_it_ends_even_if_a_bar_never_reads_as_it_did(self, monkeypatch):
         # Should the rules ever read a bar otherwise than the unit written
         # back on it, the plan still ends, with one write-back there.
+        doc, tl = piece([2, 2, 2])
+        bar_3 = downbeat(tl, 2)
         reads = []
 
         def misread(rows):
             reads.append(rows)
             if len(reads) > 10:
                 raise AssertionError("the plan doesn't end")
-            meters = meters_of(rows)
-            flipped = dataclasses.replace(meters[2], is_assumed=False)
-            return [*meters[:2], flipped, *meters[3:]]
+            return [
+                dataclasses.replace(meter, is_assumed=False)
+                if row.id == bar_3
+                else meter
+                for row, meter in zip(rows, meters_of(rows), strict=True)
+            ]
 
         monkeypatch.setattr(timemap_plan, "meters_of", misread)
-        doc, tl = piece([2, 2, 2])
 
         p = plan(doc, tl, bars(2, text="6/8"))
 
         assert unit_writes(p) == {
             downbeat(tl, 1): unit(8, "3"),
-            downbeat(tl, 2): DEFAULT,
+            bar_3: DEFAULT,
         }
+
+    class TestTheStretchAWriteBackChanges:
+        # A write-back is followed by a reading of the bars it can change
+        # only, up to the next bar with a unit of its own; a last reading of
+        # the whole table checks it.
+
+        def test_a_bar_set_that_carries_its_unit_doesn_t_end_it(self):
+            # 2/4 throughout; bar 1 set to 6/8, bar 3 to the 2/4 it carries.
+            doc, tl = piece([2, 2, 2, 2], units={(0, 0): unit(4, "1")})
+
+            p = plan(doc, tl, [*bars(1, text="6/8"), *bars(3, text="2/4")])
+            apply_plan(doc, p)
+
+            assert unit_writes(p) == {
+                downbeat(tl, 0): unit(8, "3"),
+                downbeat(tl, 1): unit(4, "1"),
+            }
+            assert [sig for sig, _, _ in read(doc, tl)] == ["6/8", "2/4", "2/4", "2/4"]
+
+        def test_a_restart_doesn_t_end_it(self):
+            # Song 2, without a unit, reads the unit in force before it.
+            doc, tl = piece([2] * 6, marks=SONGS)
+
+            p = plan(doc, tl, [(BarRef(1, movement=1), ts("6/8"))])
+
+            assert unit_writes(p) == {
+                downbeat(tl, 0): unit(8, "3"),
+                downbeat(tl, 1): DEFAULT,
+            }
+
+        def test_a_stretch_read_wrongly_is_caught_by_the_last_reading(
+            self, monkeypatch
+        ):
+            # Each stretch is read as if nothing had changed in it. Song 2's
+            # first bar, which needs its own write-back after bar 3's, is then
+            # found by the reading of the whole table.
+            doc, tl = piece([2] * 6, marks=SONGS)
+            as_before = {row.id: row.meter for row in build_rows(doc, tl)}
+            whole = len(as_before)
+
+            def misread(rows):
+                if len(rows) == whole:
+                    return meters_of(rows)
+                return [as_before[row.id] for row in rows]
+
+            monkeypatch.setattr(timemap_plan, "meters_of", misread)
+            settings = [(BarRef(2, movement=1), ts("6/8"))]
+            settings.append((BarRef(3, movement=2), ts("6/8")))
+
+            p = plan(doc, tl, settings)
+
+            assert unit_writes(p) == {
+                downbeat(tl, 1): unit(8, "3"),
+                downbeat(tl, 2): DEFAULT,
+                downbeat(tl, 3): DEFAULT,
+                downbeat(tl, 5): unit(8, "3"),
+            }
+
+    @pytest.mark.benchmark
+    def test_every_other_bar_of_2000_is_planned_in_well_under_a_second(self):
+        beats = [
+            {"time": float(t), "measure": {} if t % 2 == 0 else None}
+            for t in range(4000)
+        ]
+        tl = beat_timeline(beats)
+        doc = document(tl)
+        settings = bars(*range(1, 2001, 2), text="6/8")
+
+        start = time.perf_counter()
+        p = plan(doc, tl, settings)
+        took = time.perf_counter() - start
+
+        assert len(unit_writes(p)) == 2000
+        assert took < 0.5, f"{took:.2f} s"
 
 
 UNREADABLE = {"denominator": 200, "units": "x"}  # a unit the reader ignores
