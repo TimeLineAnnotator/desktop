@@ -29,7 +29,7 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
-from tilia_core.tla.migrate.to_1 import migrate
+from tilia_core.tla.migrate.to_1 import Migrated, migrate
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
     Component,
@@ -57,6 +57,23 @@ def read(path: str | os.PathLike[str]) -> Document:
 
 def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Document:
     """Read a `.tla` file's bytes. `path`, when given, is where the file is."""
+    return _loads(data, path)[0]
+
+
+def read_with_migration(
+    path: str | os.PathLike[str],
+) -> tuple[Document, Migrated | None]:
+    """`read`, with what the migration did to an old file: its counts and
+    its own warnings, for a migration report; None for a file in the
+    current format. Internal to the core: `migrate_folder` reads with it."""
+    with open(path, "rb") as file:
+        data = file.read()
+    return _loads(data, path)
+
+
+def _loads(
+    data: bytes, path: str | os.PathLike[str] | None
+) -> tuple[Document, Migrated | None]:
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
@@ -64,12 +81,12 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
-    return document
+    return document, None
 
 
 def _old(
     content: dict[str, Any], data: bytes, path: str | os.PathLike[str] | None
-) -> Document:
+) -> tuple[Document, Migrated]:
     """A file from TiLiA 0.x, migrated in memory; its document's
     format_version is the version it was read from. The migrated content is
     checked as a file of the current format is (FR-053), and its warnings
@@ -102,9 +119,7 @@ def _old(
         ReadWarning(place=place, line=lines[place], message=message)
         for place, message in named
     ]
-    document._migration_changes = migrated.changes
-    document._migration_warnings = document.warnings[: len(migrated.warnings)]
-    return document
+    return document, migrated
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.
