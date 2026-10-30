@@ -395,6 +395,48 @@ def test_the_document_id_ignores_the_order_of_the_scores_timelines():
     assert loads(reordered).document_id == loads(content).document_id
 
 
+NFD_E = unicodedata.normalize("NFD", "é")
+
+
+def with_score_timelines(*old_ids):
+    """The old file with one score timeline under each of these old ids, each
+    with an SVG of its own, in this order."""
+    content = old_file_content()
+    template = content["timelines"].pop("7")
+    for ordinal, old_id in enumerate(old_ids, start=2):
+        timeline = copy.deepcopy(template)
+        svg = SVG.replace("</svg>", f"<text>{old_id}</text></svg>")
+        timeline.update(name=f"Score {old_id}", ordinal=ordinal, svg_data=svg)
+        content["timelines"][old_id] = timeline
+    return content
+
+
+def test_the_document_id_of_a_file_with_several_legacy_scores_never_changes():
+    # Old ids of two lengths, and two that aren't integers, one decomposed,
+    # which sorts before "f" as it is and after it in NFC.
+    doc = loads(with_score_timelines("7", "12", "f", NFD_E))
+    assert doc.document_id == "1d90dec8-e38b-8f0c-ac87-b7a7122b48c7"
+    assert len(doc.scores) == 4
+
+
+def test_the_scores_are_hashed_in_the_order_of_their_old_ids_in_nfc():
+    # As the document id is derived: its text in NFC. "é" sorts after "f",
+    # decomposed before it.
+    nfd = loads(with_score_timelines("f", NFD_E))
+    nfc = loads(with_score_timelines("f", "é"))
+    assert nfd.document_id == nfc.document_id
+
+
+@pytest.mark.parametrize(
+    "old_ids", [("7", "12"), ("f", NFD_E), ("12", "x", "7")], ids=repr
+)
+def test_the_document_id_ignores_the_order_of_score_timelines_with_any_ids(old_ids):
+    content = with_score_timelines(*old_ids)
+    reordered = copy.deepcopy(content)
+    reordered["timelines"] = dict(reversed(list(content["timelines"].items())))
+    assert loads(reordered).document_id == loads(content).document_id
+
+
 # Shapes TiLiA never writes, from files edited by hand: refused, naming the
 # place in the old file (TimeLineAnnotator/project-management#359 (old score
 # timelines TiLiA never wrote), pending).

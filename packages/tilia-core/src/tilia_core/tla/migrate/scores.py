@@ -31,7 +31,7 @@ from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 
 from tilia_core.tla.errors import printable
-from tilia_core.tla.layout import pointer_to
+from tilia_core.tla.layout import nfc_text, pointer_to
 from tilia_core.tla.migrate import to_1
 from tilia_core.tla.model import score_lines
 
@@ -76,9 +76,11 @@ def legacy_score(
 
 def in_old_id_order(scores: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The legacy scores, still under their timelines' old ids, in the order
-    of those ids, so that the timelines' order in the old file doesn't change
-    the document id."""
-    return sorted(scores, key=itemgetter("id"))
+    the document id hashes them: by their old ids as text in NFC, as the
+    document id is derived, and the text as it is when NFC makes two alike.
+    So neither the order of the timelines in the old file nor the normal
+    form of its text changes the document id."""
+    return sorted(scores, key=lambda score: (nfc_text(score["id"]), score["id"]))
 
 
 def _beat_x(migration: _Migration, positions: Any, place: str) -> list[list[Any]]:
