@@ -185,6 +185,48 @@ def test_timemap_downbeat():
     assert _point(time_map, -0.05).downbeat
 
 
+def test_timemap_downbeat_is_beat_one_on_the_nearest_beat():
+    # A beat at 3.95 s and a downbeat at 4 s: 3.97 s moves onto the nearer
+    # beat, 3.95, the fourth of bar 1, though the downbeat is within 0.1 s.
+    timeline = beat_timeline(
+        [{"time": 0.0, "measure": {"number": 1}}, {"time": 1.0}, {"time": 2.0}]
+        + [{"time": 3.95}, {"time": 4.0, "measure": {}}, {"time": 5.0}]
+    )
+    time_map = _map(timeline)
+
+    point = _point(time_map, 3.97)
+    assert (point.bar, point.beat, point.downbeat) == (1, 4.0, False)
+    on = _point(time_map, 3.99)
+    assert (on.bar, on.beat, on.downbeat) == (2, 1.0, True)
+
+
+@pytest.mark.parametrize(
+    "last, media_length, inside, outside",
+    [
+        (11, None, 11.95, 12.15),  # a complete last bar, 8-11 s: ends at 12 s
+        (8, None, 8.95, 9.15),  # a last bar tapped only on its downbeat: 9 s
+        (11, 11.7, 11.65, 11.85),  # the media ends sooner, at 11.7 s
+    ],
+)
+def test_timemap_where_the_last_bar_ends(last, media_length, inside, outside):
+    timeline = _timeline({0: {"number": 1}, 4: {}, 8: {}}, last=last)
+    time_map = _map(timeline, media_length=media_length)
+
+    assert _point(time_map, inside - 0.2).bar == 3
+    assert _point(time_map, outside) is None
+    # a unit that ends past the closing barline has no end bar
+    assert time_map.positions(8.0, outside + 0.2).end_bar is None
+
+
+def test_timemap_the_last_bar_holds_only_the_tapped_beats():
+    # three beats at 18, 19 and 20 s after a one-beat pickup: the bar ends at
+    # 21 s, so 21.5 s has no bar
+    time_map = _map(pickup_piece())
+
+    assert (_point(time_map, 20.5).bar, _point(time_map, 20.5).bar_beat_count) == (5, 3)
+    assert _point(time_map, 21.5) is None
+
+
 def test_timemap_off_the_map():
     time_map = _four_four()
 

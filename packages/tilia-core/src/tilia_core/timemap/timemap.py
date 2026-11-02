@@ -168,7 +168,8 @@ class TimeMap:
             bar_count=row.count,
             bar_label=row.label,
             bar_beat_count=row.beats,
-            downbeat=self._is_downbeat(start),
+            # on a downbeat once moved onto its nearest beat: always beat 1
+            downbeat=fraction == 0 and slot == self._first[measure],
             cadenza=row.cadenza,
             movement=row.movement,
         )
@@ -300,14 +301,6 @@ class TimeMap:
         if snapped_end is None or snapped_end <= self.start or snapped_end > self.end:
             return None
         return self._rows[bisect.bisect_left(self._downbeats, snapped_end) - 1].number
-
-    def _is_downbeat(self, t: float) -> bool:
-        downbeats = self._downbeats
-        k = bisect.bisect_left(downbeats, t)
-        nearest = min(
-            abs(downbeats[x] - t) for x in (k - 1, k) if 0 <= x < len(downbeats)
-        )
-        return nearest <= self.tolerance + EPS
 
 
 def _is_unit(unit: str) -> bool:
