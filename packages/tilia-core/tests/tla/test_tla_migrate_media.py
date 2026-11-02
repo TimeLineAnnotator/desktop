@@ -13,6 +13,7 @@ folder. Paths of the other system's form (Windows paths read on macOS or
 Linux, and the reverse) are never looked up on this computer, so those
 cases run on every system."""
 
+import hashlib
 import importlib
 import inspect
 import json
@@ -401,6 +402,115 @@ def test_bytes_without_a_place_make_the_path_relative_from_the_old_file_path(whe
 def test_bytes_without_a_place_or_a_file_path_keep_the_path(where):
     data = json.dumps(old_content(where, WINDOWS_MEDIA, "")).encode()
     assert stored_in(tla.loads(data), where) == WINDOWS_MEDIA
+
+
+# An old file's fingerprint: from its paths as stored (FR-043, #368)
+
+
+@pytest.fixture
+def linked_folder(tmp_path):
+    """A folder, and a link to it: a junction on Windows, which needs no
+    privilege, a symbolic link elsewhere."""
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    if WINDOWS:
+        import _winapi
+
+        _winapi.CreateJunction(str(real), str(link))
+    else:
+        link.symlink_to(real, target_is_directory=True)
+    yield real, link
+    if WINDOWS:
+        os.rmdir(link)  # the junction, not what it names
+    else:
+        link.unlink()
+
+
+def test_an_old_file_read_through_a_link_is_written_as_expected(linked_folder, where):
+    # write reads the file again at its real path, where its media path is
+    # made relative from another folder than the one it was read through.
+    real, link = linked_folder
+    media = media_file(real / "audio" / "piece.wav")
+    old_file(real / "corpus", where, str(media), SAVED_HERE)
+    piece = link / "corpus" / "piece.tla"
+    expected = tla.fingerprint(piece)
+    assert tla.fingerprint(real / "corpus" / "piece.tla") == expected
+    doc = tla.read(piece)
+    assert tla.write(piece, doc, expect=expected) == tla.fingerprint(piece)
+    assert json.loads((real / "corpus" / "piece.tla").read_bytes())["version"] == (
+        tla.FORMAT_VERSION
+    )
+
+
+@pytest.mark.parametrize("appears", [True, False], ids=["appears", "goes"])
+def test_an_old_files_media_that_comes_or_goes_doesnt_refuse_its_write(
+    tmp_path, where, appears
+):
+    # The drive is plugged in or out between the fingerprint and the write:
+    # the media path is made relative by rule 3, then rule 2, or the reverse.
+    media = tmp_path / "audio" / "piece.wav"
+    if not appears:
+        media_file(media)
+    piece = old_file(tmp_path / "corpus", where, str(media), SAVED_HERE)
+    expected = tla.fingerprint(piece)
+    doc = tla.read(piece)
+    if appears:
+        media_file(media)
+    else:
+        media.unlink()
+    assert tla.fingerprint(piece) == expected
+    tla.write(piece, doc, expect=expected)
+    assert tla.read(piece).format_version == tla.FORMAT_VERSION
+
+
+def test_copies_of_an_old_file_in_two_folders_have_one_fingerprint(tmp_path, where):
+    # Their media paths are made relative from each one's folder.
+    stored = WINDOWS_MEDIA if WINDOWS else POSIX_MEDIA
+    here = old_file(tmp_path / "here", where, stored, "")
+    elsewhere = old_file(tmp_path / "elsewhere" / "deeper", where, stored, "")
+    assert stored_in(tla.read(here), where) != stored_in(tla.read(elsewhere), where)
+    assert tla.fingerprint(here) == tla.fingerprint(elsewhere)
+
+
+def test_an_old_files_fingerprint_is_that_of_its_paths_as_stored(tmp_path, where):
+    # Not that of the document read from it, whose paths are made relative:
+    # a write states the fingerprint the file gave (contracts/python-api.md).
+    media = media_file(tmp_path / "audio" / "piece.wav")
+    piece = old_file(tmp_path / "corpus", where, str(media), SAVED_HERE)
+    doc = tla.read(piece)
+    as_stored = tla.loads(piece.read_bytes(), path=piece)
+    if where == "media":
+        as_stored.media_path = str(media)
+    else:
+        (pdf,) = [tl for tl in as_stored.timelines.values() if tl.kind == "pdf"]
+        pdf.attrs["path"] = str(media)
+    assert tla.fingerprint(piece) == tla.fingerprint_of(as_stored)
+    assert tla.fingerprint(piece) != tla.fingerprint_of(doc)
+
+
+def test_an_old_file_whose_media_path_is_edited_changes_fingerprint(tmp_path, where):
+    piece = old_file(tmp_path / "corpus", where, WINDOWS_MEDIA, WINDOWS_SAVED)
+    expected = tla.fingerprint(piece)
+    doc = tla.read(piece)
+    old_file(tmp_path / "corpus", where, WINDOWS_MEDIA.replace("piece", "other"))
+    assert tla.fingerprint(piece) != expected
+    with pytest.raises(tla.FileChanged):
+        tla.write(piece, doc, expect=expected)
+
+
+def test_a_current_files_fingerprint_is_that_of_its_bytes_through_a_link(
+    linked_folder,
+):
+    real, link = linked_folder
+    shutil.copyfile(EVERY_KIND, real / "piece.tla")
+    data = (real / "piece.tla").read_bytes()
+    expected = hashlib.sha256(data).hexdigest()
+    assert tla.fingerprint(link / "piece.tla") == expected
+    assert tla.fingerprint(real / "piece.tla") == expected
+    doc = tla.read(link / "piece.tla")
+    doc.metadata["note"] = "edited"
+    tla.write(link / "piece.tla", doc, expect=expected)
 
 
 # The rest of the file

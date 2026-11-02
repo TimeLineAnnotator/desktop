@@ -120,9 +120,17 @@ class Migrated:
 
 
 def migrate(
-    old: dict[str, Any], *, path: str | os.PathLike[str] | None = None
+    old: dict[str, Any],
+    *,
+    path: str | os.PathLike[str] | None = None,
+    paths_as_stored: bool = False,
 ) -> Migrated:
     """Migrate an old file's parsed content, which is changed in place.
+
+    With `paths_as_stored`, the media's path and PDF timelines' paths are
+    kept as the old file stores them, not made relative: the content the
+    file's fingerprint is taken from, which mustn't change with where the
+    file is read from or whether its media is there (FR-043).
 
     Raises `UnreadableFile`, naming the place in the old file, for a shape
     the migration can't read.
@@ -151,7 +159,8 @@ def migrate(
     content = _with_new_ids(content, document_id, migration.places)
     # The media's and PDF timelines' paths are made relative after the id is
     # derived, since they depend on where the file is.
-    media_paths.make_relative(content, file_path=file_path, path=path)
+    if not paths_as_stored:
+        media_paths.make_relative(content, file_path=file_path, path=path)
     content["document_id"] = document_id
     return Migrated(content, migration.warnings, migration.changes, migration.places)
 

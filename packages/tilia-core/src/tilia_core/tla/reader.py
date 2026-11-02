@@ -61,6 +61,17 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     return _loads(data, path)[0]
 
 
+def loads_for_fingerprint(
+    data: bytes, *, path: str | os.PathLike[str] | None = None
+) -> Document:
+    """The document a file's fingerprint is taken from (FR-043): `loads`'s,
+    except that an old file's media path and PDF timelines' paths are as the
+    file stores them, not made relative from where it is read (FR-021), so
+    that its fingerprint changes only when the file does: not when its media
+    comes or goes, nor with the folder it is read through (#368)."""
+    return _loads(data, path, paths_as_stored=True)[0]
+
+
 def read_with_migration(
     path: str | os.PathLike[str],
 ) -> tuple[Document, Migrated | None]:
@@ -73,12 +84,15 @@ def read_with_migration(
 
 
 def _loads(
-    data: bytes, path: str | os.PathLike[str] | None
+    data: bytes,
+    path: str | os.PathLike[str] | None,
+    *,
+    paths_as_stored: bool = False,
 ) -> tuple[Document, Migrated | None]:
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
-        return _old(content, data, path)
+        return _old(content, data, path, paths_as_stored=paths_as_stored)
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
@@ -86,7 +100,11 @@ def _loads(
 
 
 def _old(
-    content: dict[str, Any], data: bytes, path: str | os.PathLike[str] | None
+    content: dict[str, Any],
+    data: bytes,
+    path: str | os.PathLike[str] | None,
+    *,
+    paths_as_stored: bool,
 ) -> tuple[Document, Migrated]:
     """A file from TiLiA 0.x, migrated in memory; its document's
     format_version is the version it was read from. The migrated content is
@@ -101,7 +119,7 @@ def _old(
     file, with what it says about them.
     """
     try:
-        migrated = migrate(content, path=path)
+        migrated = migrate(content, path=path, paths_as_stored=paths_as_stored)
         try:
             warnings = check(migrated.content, path=path)
         except UnreadableFile as error:

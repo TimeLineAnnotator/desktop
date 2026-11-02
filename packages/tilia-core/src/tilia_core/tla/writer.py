@@ -72,7 +72,7 @@ from tilia_core.tla.model import (
     timeline_kind_to_file,
 )
 from tilia_core.tla.parse import MAX_DEPTH
-from tilia_core.tla.reader import loads, read
+from tilia_core.tla.reader import loads, loads_for_fingerprint
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -535,15 +535,27 @@ ABSENT = _Absent.ABSENT
 
 
 def fingerprint_of(doc: Document) -> str:
-    """The SHA-256 of `doc`'s canonical bytes, in lower-case hexadecimal (FR-043)."""
+    """The SHA-256 of `doc`'s canonical bytes, in lower-case hexadecimal
+    (FR-043). For a document read from an old file, that isn't the old
+    file's fingerprint: a write states the one `fingerprint` gave."""
     return hashlib.sha256(canonical_bytes(doc)).hexdigest()
 
 
 def fingerprint(path: str | os.PathLike[str]) -> str:
     """The fingerprint of the file at `path`: that of its canonical bytes, so
     that its line endings, a byte-order mark or its key order don't change
-    it (FR-043). Raises as `read` does."""
-    return fingerprint_of(read(path))
+    it (FR-043). An old file's is that of its migration with the media and
+    PDF timelines' paths as it stores them, so that it doesn't change with
+    where its media is or the folder it is read through. Raises as `read`
+    does."""
+    with open(path, "rb") as file:
+        data = file.read()
+    return _fingerprint_of_bytes(data, path)
+
+
+def _fingerprint_of_bytes(data: bytes, path: str | os.PathLike[str]) -> str:
+    """The fingerprint of a file whose bytes are `data`."""
+    return fingerprint_of(loads_for_fingerprint(data, path=path))
 
 
 def _found(path: str, expect: str | None = None) -> str | None:
@@ -557,7 +569,7 @@ def _found(path: str, expect: str | None = None) -> str | None:
             data = file.read()
         if expect is not None and hashlib.sha256(data).hexdigest() == expect:
             return expect
-        return fingerprint_of(loads(data, path=path))
+        return _fingerprint_of_bytes(data, path)
     except (OSError, ValueError):  # UnreadableFile is a ValueError
         return None
 
