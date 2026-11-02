@@ -431,6 +431,17 @@ class Log(Protocol):
         ...
 
 
+PIECE_FIELDS = ("start", "time", "end", "duration")  # read on a unit's piece
+
+
+def _piece_value(name: str, piece: tuple[float, float]) -> float:
+    """``start``, ``time``, ``end`` or ``duration`` of a piece of a unit."""
+    start, end = piece
+    if name in ("start", "time"):
+        return start
+    return end if name == "end" else end - start
+
+
 def _is_position(f: syntax.FieldRef) -> bool:
     return not f.scope and f.name in tql_compile.POSITION_FIELDS
 
@@ -807,6 +818,23 @@ class Scope:
             return [u for slot in subject.slots for u in slot]
         return list(subject.slots[f.index - 1]) if f.index <= len(subject.slots) else []
 
+    def subject_pieces(
+        self, f: syntax.FieldRef, subject: values.Subject
+    ) -> list[tuple[float, float] | None]:
+        """Beside :meth:`subject_units`, the time each of those units fills in
+        the lane, where the subject knows it; None where it does not."""
+        segs = subject.segments
+        n = len(self.subject_units(f, subject))
+        if not segs or len(segs) != len(subject.slots):
+            return [None] * n
+        if f.index is None:
+            got: list[tuple[float, float] | None] = list(segs[0])
+        elif f.index == 0:
+            got = [p for slot in segs for p in slot]
+        else:
+            got = list(segs[f.index - 1]) if f.index <= len(segs) else []
+        return got if len(got) == n else [None] * n
+
     def place(self, f: syntax.FieldRef, subject: values.Subject) -> str:
         """Whose field ``f`` is: ``unit``, ``tl`` or ``file``."""
         if f.scope:
@@ -841,8 +869,12 @@ class Scope:
                     dict.fromkeys(u.timeline_id for u in self.subject_units(f, subject))
                 )
             return [self.facts.timeline(t).get(f.name) for t in ids]
-        for comp in self.subject_units(f, subject):
-            value = self.unit_value(f.name, comp)
+        pieces = self.subject_pieces(f, subject)
+        for comp, piece in zip(self.subject_units(f, subject), pieces, strict=True):
+            if piece is not None and f.name in PIECE_FIELDS:
+                value = _piece_value(f.name, piece)
+            else:
+                value = self.unit_value(f.name, comp)
             if isinstance(value, list):
                 out.extend(value or [""])  # no tags: a unit with none to equal
             else:
