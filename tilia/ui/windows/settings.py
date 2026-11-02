@@ -249,7 +249,7 @@ def get_widget_for_value(parent, value, text="") -> QWidget:
             return int_input
 
         case list():
-            if len(value[0]) and value[0][0] == "#":
+            if value and value[0].startswith("#"):
                 widget = QWidget()
                 widget.setObjectName("list")
                 layout = QVBoxLayout(widget)

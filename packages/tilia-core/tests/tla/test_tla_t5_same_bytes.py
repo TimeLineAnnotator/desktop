@@ -135,7 +135,7 @@ def test_the_golden_files_are_what_make_golden_writes():
 SCHEMA = json.loads(
     (
         Path(layout.__file__).parent
-        / "schema"
+        / "schemas"
         / f"tla-{tla.FORMAT_VERSION}.schema.json"
     ).read_bytes()
 )

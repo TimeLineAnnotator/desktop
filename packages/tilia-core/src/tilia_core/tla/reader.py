@@ -9,6 +9,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
+from tilia_core.tla.check import check
 from tilia_core.tla.errors import UnreadableFile, printable
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -18,6 +19,7 @@ from tilia_core.tla.layout import (
     MEDIA_SHAPE,
     RANGE_ROW_SHAPE,
     SCORE_SHAPES,
+    SCORE_SOURCE_SHAPE,
     TIMELINE_SHAPES,
     TOP_SHAPE,
     UNKNOWN_COMPONENT,
@@ -27,14 +29,16 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
+from tilia_core.tla.migrate.to_1 import migrate
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     Component,
     Document,
     Score,
     Timeline,
     UnknownKind,
     component_kind_from_file,
-    timeline_kind_from_file,
+    timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import parse
 
@@ -54,12 +58,22 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     """Read a `.tla` file's bytes. `path`, when given, is where the file is."""
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
-    version = content.get("version", "0.0.0")
-    if _is_old(version):
-        raise NotImplementedError(
-            f"reading files from TiLiA {printable(version)} needs the migration"
-        )
-    return _Reader(path).document(content)
+    if _is_old(content.get("version", "0.0.0")):
+        # A file from TiLiA 0.x, migrated in memory; its document's
+        # format_version is the version it was read from. The migrated
+        # content is checked as a file of the current format is (FR-053):
+        # what the check refuses or warns about is at a place in the
+        # migrated document, which has no line. Its warnings come after the
+        # migration's, which name places in the old file.
+        migrated = migrate(content, path=path)
+        warnings = check(migrated.content, path=path)
+        document = _Reader(path).document(migrated.content)
+        document.warnings = migrated.warnings + warnings
+        return document
+    warnings = check(content, data, path=path)
+    document = _Reader(path).document(content)
+    document.warnings = warnings
+    return document
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.
@@ -105,11 +119,11 @@ def _is_old(version: str) -> bool:
 def _check_version(
     content: dict[str, Any], path: str | os.PathLike[str] | None
 ) -> None:
-    """Return if the file is in the current format or an old one, which the
-    migration reads, and raise otherwise: a draft other than the current one
-    is converted again from its sources, never read (FR-007), and a newer
-    format is refused, naming its version (FR-014). Nothing else in the file
-    is looked at."""
+    """Return if the file is in the current format, spelled exactly so, or an
+    old one, which the migration reads, and raise otherwise: a draft other
+    than the current one is converted again from its sources, never read
+    (FR-007), and a newer format is refused, naming its version (FR-014).
+    Nothing else in the file is looked at."""
     version = content.get("version", "0.0.0")
     if not isinstance(version, str):
         raise UnreadableFile(
@@ -118,13 +132,17 @@ def _check_version(
     if version == FORMAT_VERSION or _is_old(version):
         return
     ours, theirs = _precedence(FORMAT_VERSION), _precedence(version)
-    if theirs is not None and version.partition("+")[0] == FORMAT_VERSION:
-        # The current version with build metadata, which Semantic Versioning
-        # ignores when it compares versions. Compared as text, since
-        # _precedence reads draft.01, which isn't in its form, as draft.1.
-        return
-    if theirs is not None and (
-        theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE)
+    # The current version with build metadata, which Semantic Versioning
+    # ignores when it compares versions, is refused too, as the schema's
+    # `const` refuses it (FR-091). It isn't another draft, to convert again
+    # from its sources, so it is refused as a version this TiLiA doesn't
+    # know. Compared as text, since _precedence reads draft.01, which isn't
+    # in its form, as draft.1.
+    with_build = version.partition("+")[0] == FORMAT_VERSION
+    if (
+        theirs is not None
+        and not with_build
+        and (theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE))
     ):
         message = (
             f"a draft of the format ({printable(version)}):"
@@ -138,6 +156,7 @@ def _check_version(
 _TIMELINE_FIELDS = frozenset({"kind", "name", "ordinal", "metadata", "components"})
 _COMPONENT_FIELDS = frozenset({"kind", "metadata"})
 _SCORE_FIELDS = frozenset({"id", "format", "content"})
+_SCORE_OWN = frozenset({"source", "license"})  # the fields of an MEI score
 # Inside an attribute, the objects whose defaults are filled in as well. A
 # mark's number, label and source aren't: they depend on the marks before it,
 # and the timeline's measure table is where they are resolved.
@@ -146,10 +165,12 @@ _NESTED = {"measure": MEASURE_SHAPE, "beat_unit": BEAT_UNIT_SHAPE}
 
 def _filled(value: Any, shape: Shape) -> Any:
     """An object with the defaults of its shape filled in, from the schema's
-    `default`s; anything else as it is."""
+    `default`s, a null for a key of its shape read as a missing key; anything
+    else as it is."""
     if not isinstance(value, dict):
         return value
-    filled = dict(value)
+    known = shape.known
+    filled = {k: v for k, v in value.items() if v is not None or k not in known}
     for key, default in shape.defaults.items():
         filled.setdefault(key, default)
     return filled
@@ -160,13 +181,16 @@ def _attrs(
 ) -> dict[str, Any]:
     """An entry's attributes, with those at their default filled in. One whose
     default is derived from another value (`pre_start` from `start`) stays
-    unset when the file doesn't have it, and follows that value."""
+    unset when the file doesn't have it, and follows that value. A null is a
+    missing key, except for an attribute always written, a legacy score's,
+    which is kept as it is."""
     attrs: dict[str, Any] = {}
+    always = shape.always
     for key in shape.keys:
         if key in fields:
             continue
-        if key in value:
-            item = value[key]
+        item = value.get(key)
+        if item is not None or (key in always and key in value):
             kind = type(item)
             if kind is float or kind is int or (kind is str and item.isascii()):
                 attrs[key] = item  # what most values are: nothing to normalise
@@ -180,6 +204,11 @@ def _attrs(
     if isinstance(attrs.get("rows"), list):
         attrs["rows"] = [_filled(row, RANGE_ROW_SHAPE) for row in attrs["rows"]]
     return attrs
+
+
+def _or_default(value: Any, default: Any) -> Any:
+    """`value`, or `default` when it is None: a null is a missing key."""
+    return default if value is None else value
 
 
 def _unknown(value: dict[str, Any], known: frozenset[str]) -> dict[str, Any]:
@@ -217,7 +246,7 @@ class _Reader:
         return value[key]
 
     def _metadata(self, value: dict[str, Any], place: str) -> dict[str, Any]:
-        if "metadata" not in value:
+        if value.get("metadata") is None:  # a null is a missing key
             return {}
         return nfc_value(self._object(value["metadata"], pointer_to(place, "metadata")))
 
@@ -254,7 +283,7 @@ class _Reader:
     def _timeline(self, timeline_id: str, value: Any, place: str) -> Timeline:
         timeline = self._object(value, place)
         spelling = self._text(self._require(timeline, "kind", place), place, "kind")
-        kind = timeline_kind_from_file(spelling)
+        kind = timeline_kind_from_current_file(spelling)
         if isinstance(kind, UnknownKind):
             # Kept whole in `raw`. Its name, ordinal and metadata are fields
             # too, copies the writer writes in place of raw's.
@@ -262,8 +291,8 @@ class _Reader:
                 id=timeline_id,
                 kind=kind,
                 ordinal=nfc_value(timeline.get("ordinal", 0)),
-                name=nfc_value(timeline.get("name", "")),
-                metadata=nfc_value(timeline.get("metadata", {})),
+                name=nfc_value(_or_default(timeline.get("name"), "")),
+                metadata=nfc_value(timeline.get("metadata") or {}),
                 raw=nfc_value(timeline),
             )
         shape = TIMELINE_SHAPES[kind]
@@ -272,24 +301,34 @@ class _Reader:
             id=timeline_id,
             kind=kind,
             ordinal=self._require(timeline, "ordinal", place),
-            name=nfc_value(timeline.get("name", shape.defaults["name"])),
+            name=nfc_value(_or_default(timeline.get("name"), shape.defaults["name"])),
             metadata=self._metadata(timeline, place),
             attrs=_attrs(timeline, shape, _TIMELINE_FIELDS),
-            components=self._components(components, pointer_to(place, "components")),
+            components=self._components(
+                components, pointer_to(place, "components"), TIMELINE_COMPONENTS[kind]
+            ),
             extra=_unknown(timeline, shape.known),
         )
 
-    def _components(self, value: Any, place: str) -> dict[str, Component]:
+    def _components(
+        self, value: Any, place: str, holds: frozenset[str]
+    ) -> dict[str, Component]:
         components = self._object(value, place)
         return {
-            key: self._component(key, components[key], pointer_to(place, key))
+            key: self._component(key, components[key], pointer_to(place, key), holds)
             for key in sorted(components)
         }
 
-    def _component(self, component_id: str, value: Any, place: str) -> Component:
+    def _component(
+        self, component_id: str, value: Any, place: str, holds: frozenset[str]
+    ) -> Component:
+        """A component, of one of the kinds its timeline `holds`, or kept as it
+        is, as one of a kind the core doesn't know."""
         component = self._object(value, place)
         spelling = self._text(self._require(component, "kind", place), place, "kind")
         kind = component_kind_from_file(spelling)
+        if kind not in holds:
+            kind = UnknownKind(spelling)
         metadata = self._metadata(component, place)
         if isinstance(kind, UnknownKind):
             known = UNKNOWN_COMPONENT.known
@@ -335,21 +374,20 @@ class _Reader:
             raise self._refuse(f"expected a list at {lines}", lines)
         for index, line in enumerate(content):
             self._text(line, lines, index)
-        # None is no source or licence: a null in the file stays in extra.
-        fields = {
-            k: score[k] for k in ("source", "license") if score.get(k) is not None
-        }
-        license = fields.get("license")
-        if "license" not in score:
-            # Its default, as for any key: NOASSERTION for an MEI score.
-            shape = SCORE_SHAPES.get(score_format, UNKNOWN_SCORE)
-            license = shape.defaults.get("license")
+        # The source and licence of a format that has them; for another,
+        # they are keys the core doesn't know, kept in extra with their
+        # values. A null is a missing key.
+        shape = SCORE_SHAPES.get(score_format, UNKNOWN_SCORE)
+        named = _SCORE_OWN.intersection(shape.known)
+        fields = {k: score[k] for k in named if score.get(k) is not None}
+        # Its default when it is missing: NOASSERTION for an MEI score.
+        license = fields.get("license", shape.defaults.get("license"))
         return Score(
             id=nfc_value(score_id),
             format=nfc_value(score_format),
             lines=list(content),  # as imported: never in NFC
-            source=nfc_value(fields.get("source")),
+            source=nfc_value(_filled(fields.get("source"), SCORE_SOURCE_SHAPE)),
             license=nfc_value(license),
             # A legacy score's beat_x among them.
-            extra=_unknown(score, _SCORE_FIELDS.union(fields)),
+            extra=_unknown(score, _SCORE_FIELDS.union(named)),
         )

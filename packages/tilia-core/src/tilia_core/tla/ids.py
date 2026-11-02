@@ -195,36 +195,23 @@ def _without(data: Any, keys: tuple[str, ...]) -> Any:
     return {key: value for key, value in data.items() if key not in keys}
 
 
-def derived_document_id(old: dict[str, Any]) -> str:
+def derived_document_id(content: dict[str, Any]) -> str:
     """The document id of a file from an older TiLiA version, a version-8 UUID.
 
-    It comes from a SHA-256 of `old`, in NFC, with numbers by value (10.0 as
-    10), as sorted-key JSON, leaving out what changes without an edit:
-    `file_path`, `version`, `app_name`, the stored hashes and the media
-    length. So a moved file, a file with other line endings, and a file saved
-    again without an edit by a TiLiA version that writes the same keys keep
-    their id. A version that renames or adds keys changes it, unless the
-    caller passes the content after the migrations that bring every version
-    to the same keys.
+    `content` is the file as the migration brings it to the current format,
+    before the new ids replace the old ones and before media and PDF paths
+    are made relative, with attributes at their default left out: the
+    migration has already dropped `file_path` and the stored hashes, and
+    made alike what TiLiA versions spell differently. The id comes from a
+    SHA-256 of it, in NFC, with numbers by value (10.0 as 10), as sorted-key
+    JSON, leaving out what else changes without an edit: `version`,
+    `app_name` and the media's `length`, and a `document_id` if it has one.
+    So a moved file, a file with other line endings, and a file saved again
+    without an edit by another TiLiA version keep their id.
     """
-    content = _without(old, ("file_path", "version", "app_name", "timelines_hash"))
-    if "media_metadata" in content:
-        content["media_metadata"] = _without(
-            content["media_metadata"], ("media length",)
-        )
-    timelines = content.get("timelines")
-    if isinstance(timelines, dict):
-        content["timelines"] = {}
-        for timeline_id, timeline in timelines.items():
-            timeline = _without(timeline, ("hash", "components_hash"))
-            if isinstance(timeline, dict) and isinstance(
-                timeline.get("components"), dict
-            ):
-                timeline["components"] = {
-                    component_id: _without(component, ("hash",))
-                    for component_id, component in timeline["components"].items()
-                }
-            content["timelines"][timeline_id] = timeline
+    content = _without(content, ("version", "app_name", "document_id"))
+    if "media" in content:
+        content["media"] = _without(content["media"], ("length",))
     digest = hashlib.sha256()
     for part in _json_parts(content, _TAKEN_APART):
         # surrogatepass: a label cut inside an emoji is a lone surrogate, which

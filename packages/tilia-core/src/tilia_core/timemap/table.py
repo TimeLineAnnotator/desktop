@@ -1,5 +1,6 @@
 """A beat timeline's measure table: each measure's position, pass, movement,
-start and end, meter and time signature."""
+start and end, meter and time signature, and its start and length in quarter
+notes."""
 
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from typing import Any, NoReturn, TypeGuard
 from tilia_core import tla
 from tilia_core.timemap._rows import RowIn, rows_of
 from tilia_core.timemap.meters import meters_of
+from tilia_core.timemap.qstamps import beat_lengths
 from tilia_core.timemap.units import MeasureMeter, format_units
 
 # Float noise: two beats closer than this are at the same time, and a time this
@@ -78,6 +80,7 @@ class MeasureRow:
     beat_ids: tuple[str, ...]
     beats: int  # the beats tapped
     meter: MeasureMeter  # desktop#621's, from the beat units in effect
+    qstamp: Fraction  # its downbeat's position in quarter notes, from the first beat
     # Computed from the meter, so nothing can make them disagree with it:
     time_signature: str = field(init=False)  # "6/8", "2+2+3/8", "(4/3)/4"
     ts_numerator: Fraction = field(init=False)  # the beat values' sum, however grouped
@@ -85,6 +88,7 @@ class MeasureRow:
     assumed: bool = field(init=False)  # nobody set the unit that governs it
     ambiguous: bool = field(init=False)  # the taps don't hold whole patterns
     conflicting: bool = field(init=False)  # more than one unit is set on its beats
+    quarters: Fraction = field(init=False)  # how long it lasts in quarter notes
     source: str
     force_display: bool
     next: tuple[str, ...] | None
@@ -92,15 +96,19 @@ class MeasureRow:
 
     def __post_init__(self) -> None:
         meter = self.meter
+        numerator = meter.numerator
         computed = {
             "time_signature": format_time_signature(
                 meter.beat_values, meter.denominator
             ),
-            "ts_numerator": meter.numerator,
+            "ts_numerator": numerator,
             "ts_denominator": meter.denominator,
             "assumed": meter.is_assumed,
             "ambiguous": meter.is_ambiguous,
             "conflicting": meter.is_conflicting,
+            # The sum of its beats' lengths, as its time signature's numerator
+            # is the sum of their values.
+            "quarters": meter.quarter_length(numerator),
         }
         for name, value in computed.items():
             object.__setattr__(self, name, value)
@@ -161,8 +169,9 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     """The warning, with the timeline's id, that its last beat is at or after
     the end of the media; None when it isn't, or when the table has no rows.
 
-    With more than one beat, the last measure ends one gap after the last
-    beat, and the warning says so; with one, it ends on the beat.
+    With more than one beat, the last beat lasts its own length at the tempo
+    of the gap before it, and the warning says the last measure ends one gap
+    after it; with one, it ends on the beat.
     """
     reason, times = _checked(timeline)
     if reason is not None or not times:
@@ -238,12 +247,13 @@ def build_rows_from(
     if not rows:
         return []
     folded = is_folded(rows)
+    meters = meters_of(rows)
     ends = [row.beat_times[0] for row in rows[1:]]
-    ends.append(_closing_barline(document, rows))
+    ends.append(_closing_barline(document, rows, meters))
     passes: dict[int, int] = {}
     movement = 1
+    qstamp = Fraction(0)
     out: list[MeasureRow] = []
-    meters = meters_of(rows)
     for index, (row, end, meter) in enumerate(zip(rows, ends, meters, strict=True)):
         count = index + 1
         if row.restart and count > 1:  # the first row is in movement 1 anyway
@@ -268,12 +278,14 @@ def build_rows_from(
                 beat_ids=row.beat_ids,
                 beats=len(row.beat_ids),
                 meter=meter,
+                qstamp=qstamp,
                 source=row.source,
                 force_display=row.force_display,
                 next=row.next,
                 metadata=FrozenMetadata(row.metadata),
             )
         )
+        qstamp += out[-1].quarters
     return out
 
 
@@ -300,14 +312,22 @@ def is_folded(rows: Sequence[RowIn]) -> bool:
     return any(row.next is not None for row in rows)
 
 
-def _closing_barline(document: tla.Document, rows: Sequence[RowIn]) -> float:
-    # The last beat lasts as long as the gap before it, or until the end of the
-    # media if that comes sooner. No beats are added to the last measure.
+def _closing_barline(
+    document: tla.Document, rows: Sequence[RowIn], meters: Sequence[MeasureMeter]
+) -> float:
+    # The last beat lasts its own length at the tempo of the gap before it, or
+    # until the end of the media if that comes sooner: the tempo at which the
+    # time map's quarter notes go on past it (FR-011, FR-051). When the last
+    # two beats are worth the same, that is the gap itself. No beats are added
+    # to the last measure.
     last, gap = _last_gap([t for row in rows[-2:] for t in row.beat_times])
+    lengths = [length for meter in meters[-2:] for length in beat_lengths(meter)]
+    if len(lengths) > 1:
+        gap *= float(lengths[-1] / lengths[-2])
     end = last + gap
     media_length = _media_length(document)
     if media_length is None or _ends_by(media_length, last):
-        return end  # past the media, the gap alone; find_time_map warns
+        return end  # past the media, that length alone; find_time_map warns
     return min(end, media_length)
 
 

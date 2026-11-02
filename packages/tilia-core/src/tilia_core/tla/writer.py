@@ -5,17 +5,29 @@ attributes at their default left out, timelines, components and scores in id
 order, text in NFC except a score's lines, then `json.dumps` with two-space
 indentation and a final newline, in UTF-8 without a byte-order mark. The
 order and the defaults are the layout's (`tla.layout`).
+
+A file is written atomically, through the core's one atomic write
+(`state.atomic_write`), and a write may state the fingerprint of the version
+it expects to replace, or that it expects no file.
 """
 
 from __future__ import annotations
 
+import enum
+import errno
+import hashlib
 import json
 import math
+import os
 import re
 from collections.abc import Callable, Mapping
 from operator import itemgetter
+from pathlib import Path
 from typing import Any
 
+from tilia_core.state import atomic_write
+from tilia_core.tla.check import check
+from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -39,16 +51,19 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     Component,
     Document,
     Kind,
     Score,
     Timeline,
     UnknownKind,
+    component_kind_from_file,
     component_kind_to_file,
     timeline_kind_to_file,
 )
 from tilia_core.tla.parse import MAX_DEPTH
+from tilia_core.tla.reader import loads, read
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -130,6 +145,8 @@ def _object(
         item = values[key]
         kind = type(item)
         if key not in always:
+            if item is None:
+                continue  # None is a missing key, as a null in a file is
             if key in defaults:
                 default = defaults[key]
                 if kind is type(default) and item == default:
@@ -137,8 +154,6 @@ def _object(
             elif key in empty:
                 if kind is dict and not item:
                     continue
-            elif item is None:
-                continue
         writer = writers.get(key) if writers else None
         if writer is not None:
             written[key] = writer(item, place, key)
@@ -229,8 +244,18 @@ def _lines(value: Any, parent: str, key: str | int) -> Any:
     ]
 
 
-def _component(component: Component, place: str) -> dict[str, Any]:
-    kind = _spelling(component_kind_to_file, component.kind, place)
+def _component(
+    component: Component, place: str, holds: frozenset[str]
+) -> dict[str, Any]:
+    """A component of a timeline that holds the kinds `holds`."""
+    if isinstance(component.kind, UnknownKind) and (
+        component_kind_from_file(component.kind.spelling) not in holds
+    ):
+        # Read back as it is spelled, as an UnknownKind: of a kind the core
+        # doesn't know, or of one its timeline doesn't hold.
+        kind = component.kind.spelling
+    else:
+        kind = _spelling(component_kind_to_file, component.kind, place)
     value = _merged(
         place,
         (
@@ -250,10 +275,12 @@ def _component(component: Component, place: str) -> dict[str, Any]:
     return _object(value, shape, place, writers=writers)
 
 
-def _components(components: dict[str, Component], place: str) -> dict[str, Any]:
+def _components(
+    components: dict[str, Component], place: str, holds: frozenset[str]
+) -> dict[str, Any]:
     """A timeline's components, in id order."""
     return {
-        key: _component(component, pointer_to(place, key))
+        key: _component(component, pointer_to(place, key), holds)
         for key, component in _entries(components, place)
     }
 
@@ -291,15 +318,20 @@ def _raw_timeline(
     value = dict(raw)
     for key, item in edits.items():
         at_default = key in _RAW_FIELD_DEFAULTS and item == _RAW_FIELD_DEFAULTS[key]
-        if key in value or not at_default:
+        if value.get(key) is not None or not at_default:
             value[key] = item
+        elif key in value:
+            del value[key]  # a null in the file was a missing key
     return _object(value, UNKNOWN_TIMELINE, place)
 
 
-def _components_writer(item: Any, parent: str, key: str | int) -> Any:
-    if not isinstance(item, dict):
-        return _value(item, parent, key)
-    return _components(item, pointer_to(parent, key))
+def _components_writer(holds: frozenset[str]) -> Writer:
+    def write(item: Any, parent: str, key: str | int) -> Any:
+        if not isinstance(item, dict):
+            return _value(item, parent, key)
+        return _components(item, pointer_to(parent, key), holds)
+
+    return write
 
 
 def _timeline(timeline: Timeline, place: str) -> dict[str, Any]:
@@ -320,7 +352,8 @@ def _timeline(timeline: Timeline, place: str) -> dict[str, Any]:
         ("extra", timeline.extra),
     )
     shape = TIMELINE_SHAPES.get(timeline.kind, UNKNOWN_TIMELINE)
-    writers: dict[str, Writer] = {"components": _components_writer}
+    holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+    writers: dict[str, Writer] = {"components": _components_writer(holds)}
     if timeline.kind == "range":
         writers["rows"] = _rows
     return _object(value, shape, place, writers=writers)
@@ -404,16 +437,58 @@ def _utf8(text: str) -> bytes:
 def canonical_bytes(doc: Document) -> bytes:
     """The bytes `doc` is written as: the one way to write it, the same on every
     system (FR-016, FR-031, FR-032). For a document read from a file the core
-    wrote, they are the file's bytes.
+    wrote, they are the file's bytes. A float that is an integer, where the
+    format has an integer, is written as that integer, as the reader reads
+    it (FR-051a); a document the reader would refuse is written as it is.
 
     Raises ValueError, naming the place as a JSON Pointer, for a value JSON
     can't hold: NaN, an infinity, an integer too long to read back, or a
     value of another type than JSON's; and for one nested deeper than the
     reader reads, as a value that holds itself is (FR-034).
     """
+    return _utf8(_canonical(doc, refuse=False))
+
+
+def checked_bytes(
+    doc: Document, *, path: str | os.PathLike[str] | None = None
+) -> bytes:
+    """The bytes `write` writes: `canonical_bytes(doc)`, once checked as the
+    reader checks a file. Raises `UnreadableFile`, with its place and line,
+    for a document the reader would refuse; one the reader only warns about
+    gives its bytes (FR-034). `path`, where they are to be written, is for
+    messages."""
+    return _utf8(_canonical(doc, path=path, refuse=True))
+
+
+def _canonical(
+    doc: Document,
+    *,
+    path: str | os.PathLike[str] | None = None,
+    refuse: bool,
+) -> str:
+    """`doc`'s text, checked as the reader checks a file. The check turns
+    each float that is an integer, where the format has an integer, into
+    that integer. When it turned any, the text is that of the document
+    reading the checked text gives: a value at its default, such as a step
+    of 0 given as 0.0, is then left out, as the reader fills it in. A
+    document the reader would refuse raises `UnreadableFile` with `refuse`,
+    and is written as it is without."""
     content = _document(doc)
-    text = json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False)
-    return _utf8(text + "\n")
+    text = _text(content)
+    try:
+        check(content, text, path=path)
+    except UnreadableFile:
+        if refuse:
+            raise
+        return text
+    checked = _text(content)
+    if checked == text:
+        return text
+    return _text(_document(loads(_utf8(checked))))
+
+
+def _text(content: dict[str, Any]) -> str:
+    return json.dumps(content, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
 
 
 def new_document(*, time_unit: str = "seconds") -> Document:
@@ -424,3 +499,122 @@ def new_document(*, time_unit: str = "seconds") -> Document:
     return Document(
         document_id=new_id(), format_version=FORMAT_VERSION, time_unit=time_unit
     )
+
+
+# The temporary files of `state.atomic_write`, `.<name>.<8 hex digits>.tmp`
+# beside the file they replace: hidden on macOS and Linux, and never ending in
+# `.tla`, so that they are never taken for a TiLiA file (FR-017, FR-041). A
+# crash during a write may leave one behind.
+TEMPORARY_PATTERN = r"^\..+\.[0-9a-f]{8}\.tmp$"
+_TEMPORARY = re.compile(TEMPORARY_PATTERN)
+
+
+def is_temporary(name: str) -> bool:
+    """Whether a file name is one of the writer's temporary files."""
+    return _TEMPORARY.fullmatch(name) is not None
+
+
+class _Absent(enum.Enum):
+    ABSENT = "ABSENT"
+
+    def __repr__(self) -> str:
+        return "ABSENT"
+
+
+ABSENT = _Absent.ABSENT
+"""`write`'s `expect` for a write that expects no file at its path."""
+
+
+def fingerprint_of(doc: Document) -> str:
+    """The SHA-256 of `doc`'s canonical bytes, in lower-case hexadecimal (FR-043)."""
+    return hashlib.sha256(canonical_bytes(doc)).hexdigest()
+
+
+def fingerprint(path: str | os.PathLike[str]) -> str:
+    """The fingerprint of the file at `path`: that of its canonical bytes, so
+    that its line endings, a byte-order mark or its key order don't change
+    it (FR-043). Raises as `read` does."""
+    return fingerprint_of(read(path))
+
+
+def _found(path: str, expect: str | None = None) -> str | None:
+    """The fingerprint of the file at `path`, or None when it is missing or
+    can't be read. A file the core wrote holds its canonical bytes: when the
+    SHA-256 of its bytes is `expect`, that is its fingerprint, and it isn't
+    read as a document. Any other file is, so that a file in another form,
+    such as with CRLF line endings, is still the one expected."""
+    try:
+        with open(path, "rb") as file:
+            data = file.read()
+        if expect is not None and hashlib.sha256(data).hexdigest() == expect:
+            return expect
+        return fingerprint_of(loads(data, path=path))
+    except (OSError, ValueError):  # UnreadableFile is a ValueError
+        return None
+
+
+def write(
+    path: str | os.PathLike[str],
+    doc: Document,
+    *,
+    expect: str | _Absent | None = None,
+) -> str:
+    """Write `doc` to `path` atomically, and return the fingerprint of the
+    bytes written (FR-040–FR-044).
+
+    `expect` is the fingerprint of the version the caller read, `ABSENT` when
+    no file may be at `path`, or None for no check. When the file on disk is
+    something else, or is missing, or can't be read, `FileChanged` is raised
+    and nothing is written (FR-042). The check and the rename are two steps:
+    a change between them isn't caught.
+
+    A link stays a link, and the file it names is written; the file keeps its
+    permission bits. A folder is refused with `IsADirectoryError`, and a
+    read-only file with `PermissionError`, as the system refuses to open
+    either for writing. On Windows, a file another program holds open, or
+    whose new temporary file it holds open, is retried for about a second,
+    then refused with `FileInUse`. A document the reader would refuse raises
+    `UnreadableFile`, with its place and line, and one `canonical_bytes`
+    refuses raises its `ValueError`, both before anything is read or written
+    (FR-034). Any other failure raises the system's `OSError`. Whenever a
+    write fails, the file is as it was.
+    """
+    target = os.path.realpath(path)
+    data = checked_bytes(doc, path=path)
+    if expect is ABSENT:
+        if os.path.lexists(target):
+            raise FileChanged(path, None, _found(target))
+    elif expect is not None:
+        found = _found(target, expect)
+        if found != expect:
+            raise FileChanged(path, expect, found)
+    if os.path.isdir(target):
+        # On Windows, the rename would be refused as if the file were held open.
+        raise IsADirectoryError(
+            errno.EISDIR, os.strerror(errno.EISDIR), os.fspath(path)
+        )
+    if os.path.exists(target) and not os.access(target, os.W_OK):
+        # The rename would replace it on macOS and Linux.
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), os.fspath(path))
+    try:
+        atomic_write(Path(target), data)
+    except PermissionError as error:
+        if _held_open(error):
+            raise FileInUse(path) from error
+        raise
+    return hashlib.sha256(data).hexdigest()
+
+
+# Windows' errors for a rename refused because another program holds a file
+# open: ERROR_ACCESS_DENIED when it is the file replaced,
+# ERROR_SHARING_VIOLATION when it is the new temporary file, which a virus
+# scanner or an indexer may open as soon as it is written.
+_HELD_OPEN = frozenset({5, 32})
+
+
+def _held_open(error: PermissionError) -> bool:
+    """Whether `atomic_write`'s rename failed, after its retry, because
+    another program holds the file or the temporary file open. A read-only
+    file and a folder are refused before the rename."""
+    renamed = error.filename2 is not None  # os.replace names both files
+    return renamed and getattr(error, "winerror", None) in _HELD_OPEN

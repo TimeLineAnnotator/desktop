@@ -9,6 +9,7 @@ it leave out and fill in the same values.
 
 from __future__ import annotations
 
+import copy
 import json
 import unicodedata
 from collections import Counter
@@ -25,13 +26,22 @@ from tilia_core.tla.parse import pointer
 FORMAT_VERSION = "1.0.0-draft.1"
 
 
-def _load_schema() -> dict[str, Any]:
-    schema = files("tilia_core.tla").joinpath("schema")
+def _read_schema() -> dict[str, Any]:
+    folder = files("tilia_core.tla").joinpath("schemas")
     name = f"tla-{FORMAT_VERSION}.schema.json"
-    return json.loads(schema.joinpath(name).read_bytes())
+    return json.loads(folder.joinpath(name).read_bytes())
 
 
-_SCHEMA = _load_schema()
+# Read once, on import. The reader, the writer and their checks use it, and
+# never change it.
+_SCHEMA = _read_schema()
+
+
+def schema() -> dict[str, Any]:
+    """The JSON Schema of the current format, as this package ships it: a
+    copy of its own at each call, which the caller may change (FR-090)."""
+    return copy.deepcopy(_SCHEMA)
+
 
 # Each object's keys, in the order they are written. Keys that aren't listed
 # come after these, in code-point order.
@@ -287,7 +297,8 @@ UNKNOWN_SCORE = _shape(SCORE, _SCORE)
 SCORE_SOURCE_SHAPE = _shape(
     SCORE_SOURCE, _branch(_SCORE, "format", "mei")["properties"]["source"]
 )
-TIME_UNITS: tuple[str, ...] = tuple(_SCHEMA["properties"]["time_unit"]["enum"])
+# As the schema describes them; it doesn't check them.
+TIME_UNITS: tuple[str, ...] = ("seconds", "quarters")
 # Every key the layout names: an object whose keys are all among them has its
 # keys in ASCII, and so in NFC, without looking at each.
 _LAYOUT_KEYS = frozenset(

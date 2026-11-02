@@ -85,6 +85,7 @@ def test_entries_are_written_in_id_order_whatever_the_documents_order():
     assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
 
 
+@pytest.mark.writes_outside_the_schema("ids that aren't UUIDs: NFC changes none")
 def test_entries_are_written_in_the_order_of_their_ids_in_nfc():
     # Decomposed, "é" sorts before "f"; composed, after it.
     doc = tla.read(EMPTY)
@@ -152,16 +153,40 @@ def test_integers_stay_integers():
     assert [type(c.attrs["time"]) for c in beats.components.values()] == [int, int]
 
 
-@pytest.mark.parametrize("value", [0.0, False], ids=["0.0", "False"])
-def test_a_value_equal_to_its_default_in_another_type_is_written(value):
-    # A step's default is 0: left out, either would read back as 0.
+@pytest.mark.writes_outside_the_schema("a step that isn't a number")
+def test_a_value_equal_to_its_default_in_another_type_is_written():
+    # A step's default is 0: left out, false would read back as 0.
     doc = tla.read(EVERY_KIND)
     harmony = named(doc, "Harmony")
     chord = nth(harmony, 0)
-    chord.attrs["step"] = value
+    chord.attrs["step"] = False
     content = json.loads(tla.canonical_bytes(doc))
     step = content["timelines"][harmony.id]["components"][chord.id]["step"]
-    assert (type(step), step) == (type(value), value)
+    assert (type(step), step) == (bool, False)
+
+
+def test_an_integer_given_as_a_float_at_its_default_is_left_out():
+    # A step of 0.0 is read as the integer 0 (FR-051a), its default.
+    doc = tla.read(EVERY_KIND)
+    harmony = named(doc, "Harmony")
+    chord = nth(harmony, 0)
+    chord.attrs["step"] = 0.0
+    content = json.loads(tla.canonical_bytes(doc))
+    assert "step" not in content["timelines"][harmony.id]["components"][chord.id]
+
+
+class _Float(float):
+    """A float of a type of its own, as NumPy's float64 is."""
+
+
+def test_a_whole_float_of_another_type_at_its_default_is_left_out():
+    # As a float is: read back, it would be the integer 0 (FR-051a).
+    doc = tla.read(EVERY_KIND)
+    harmony = named(doc, "Harmony")
+    chord = nth(harmony, 0)
+    chord.attrs["step"] = _Float(0.0)
+    content = json.loads(tla.canonical_bytes(doc))
+    assert "step" not in content["timelines"][harmony.id]["components"][chord.id]
 
 
 @pytest.mark.parametrize(
@@ -280,6 +305,9 @@ def test_an_empty_mark_is_never_left_out():
     assert marks.count(True) == 8
 
 
+B1, B2, B3 = (f"019a0000-0000-7000-8000-0000000000b{n}" for n in (1, 2, 3))
+
+
 def beat_timeline(*beats):
     """A document with one beat timeline, its beats given as (id, time, mark)."""
     doc = tla.new_document()
@@ -305,9 +333,9 @@ def test_a_marks_number_label_and_source_are_written_when_set():
     # Whatever the marks before it would give: the previous number plus one,
     # the number as text, the timeline's measure_source.
     doc, timeline = beat_timeline(
-        ("b1", 0.0, {"number": 1, "label": "1", "source": "score"}),
-        ("b2", 1.0, {"number": 2, "label": "2", "source": "score"}),
-        ("b3", 2.0, {}),
+        (B1, 0.0, {"number": 1, "label": "1", "source": "score"}),
+        (B2, 1.0, {"number": 2, "label": "2", "source": "score"}),
+        (B3, 2.0, {}),
     )
     timeline.attrs["measure_source"] = "score"
     assert written_marks(doc, timeline) == [
@@ -386,7 +414,7 @@ def test_a_save_and_reopen_between_two_edits_changes_no_mark(case):
 def test_none_for_a_derived_default_means_unset():
     # A mark's number is never null: None is the default, and is left out.
     doc, timeline = beat_timeline(
-        ("b1", 0.0, {"number": 1}), ("b2", 1.0, {"number": None, "label": None})
+        (B1, 0.0, {"number": 1}), (B2, 1.0, {"number": None, "label": None})
     )
     assert written_marks(doc, timeline) == [{"number": 1}, {}]
     doc = tla.read(EVERY_KIND)
@@ -435,13 +463,14 @@ def test_edits_to_a_timeline_of_an_unknown_kind_are_written():
 
 def test_a_timeline_of_an_unknown_kind_gains_no_key_it_didnt_have():
     content = json.loads(UNKNOWN.read_bytes())
+    # Its ordinal it has, as every timeline does.
     lyrics = list(content["timelines"])[3]
-    for key in ("name", "ordinal", "metadata"):
+    for key in ("name", "metadata"):
         del content["timelines"][lyrics][key]
     data = (json.dumps(content, indent=2, ensure_ascii=False) + "\n").encode()
     doc = tla.loads(data)
     timeline = doc.timelines[lyrics]
-    assert (timeline.name, timeline.ordinal, timeline.metadata) == ("", 0, {})
+    assert (timeline.name, timeline.ordinal, timeline.metadata) == ("", 4, {})
     assert tla.canonical_bytes(doc) == data
 
 
@@ -488,10 +517,32 @@ def test_a_timeline_of_an_unknown_kind_keeps_its_components_in_raw():
         tla.canonical_bytes(doc)
 
 
-@pytest.mark.parametrize("format", ["mei", "musicxml"])
-def test_a_null_source_or_licence_is_kept(format):
+def test_a_null_licence_on_an_mei_score_reads_as_its_default():
+    # A null is a missing key: NOASSERTION, left out when written, and not
+    # kept in extra.
     content = json.loads(UNKNOWN.read_bytes())
-    content["scores"][0].update(format=format, source=None, license=None)
+    content["scores"][0]["license"] = None
+    doc = tla.loads(json.dumps(content).encode())
+    (score,) = doc.scores.values()
+    assert score.license == "NOASSERTION"
+    assert "license" not in score.extra
+    assert tla.canonical_bytes(doc) == UNKNOWN.read_bytes()
+
+
+def test_a_null_source_on_an_mei_score_is_refused():
+    # A null is a missing key, and an MEI score requires its source.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0]["source"] = None
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.place == "/scores/0/source"
+
+
+def test_a_null_source_or_licence_on_a_score_of_an_unknown_format_is_kept():
+    # Keys the core doesn't know for that format, kept with their values as
+    # any key the core doesn't know is.
+    content = json.loads(UNKNOWN.read_bytes())
+    content["scores"][0].update(format="musicxml", source=None, license=None)
     doc = tla.loads(json.dumps(content).encode())
     (score,) = doc.scores.values()
     assert (score.source, score.license) == (None, None)
@@ -555,11 +606,11 @@ def test_an_unknown_kind_spelled_like_a_known_one_is_refused():
     # The reader would read it back as the known kind, with its defaults.
     doc = tla.read(UNKNOWN)
     beats, markers, _, lyrics = doc.timelines.values()
-    lyrics.kind = tla.UnknownKind("MARKER_TIMELINE")
+    lyrics.kind = tla.UnknownKind("Marker")
     with pytest.raises(ValueError, match=re.escape(f"/timelines/{lyrics.id}/kind")):
         tla.canonical_bytes(doc)
     lyrics.kind = tla.UnknownKind("Lyrics")
-    beats.kind = tla.UnknownKind("beat")
+    beats.kind = tla.UnknownKind("Beat")
     with pytest.raises(ValueError, match=re.escape(f"/timelines/{beats.id}/kind")):
         tla.canonical_bytes(doc)
     beats.kind = "beat"
@@ -569,6 +620,25 @@ def test_an_unknown_kind_spelled_like_a_known_one_is_refused():
     place = f"/timelines/{markers.id}/components/{other.id}/kind"
     with pytest.raises(ValueError, match=re.escape(place)):
         tla.canonical_bytes(doc)
+
+
+@pytest.mark.parametrize("spelling", ["marker", "MARKER_TIMELINE", "HIERARCHY"])
+def test_a_timeline_kind_spelled_otherwise_is_a_kind_the_core_doesnt_know(spelling):
+    # In a file of the current format, kinds are read as the writer writes
+    # them; only an old file's are read in any letter case.
+    content = json.loads(UNKNOWN.read_bytes())
+    lyrics_id = list(content["timelines"])[3]
+    content["timelines"][lyrics_id]["kind"] = spelling
+    data = json.dumps(content, indent=2, ensure_ascii=False).encode() + b"\n"
+    lyrics = tla.loads(data).timelines[lyrics_id]
+    assert lyrics.kind == tla.UnknownKind(spelling)
+    assert lyrics.raw == content["timelines"][lyrics_id]
+    assert tla.canonical_bytes(tla.loads(data)) == data
+    doc = tla.read(UNKNOWN)
+    doc.timelines[lyrics_id].kind = tla.UnknownKind(spelling)
+    assert tla.loads(tla.canonical_bytes(doc)).timelines[lyrics_id].kind == (
+        tla.UnknownKind(spelling)
+    )
 
 
 @pytest.fixture(params=[None, 0, 100_000], ids=["as it is", "none", "a higher one"])
@@ -604,8 +674,8 @@ def test_an_integer_too_long_to_read_back_is_refused(any_limit_on_integers):
 def test_a_measure_number_too_long_to_read_back_is_refused_naming_its_place(
     any_limit_on_integers,
 ):
-    doc, timeline = beat_timeline(("b1", 0.0, {"number": 10**5000}))
-    place = f"/timelines/{timeline.id}/components/b1/measure/number"
+    doc, timeline = beat_timeline((B1, 0.0, {"number": 10**5000}))
+    place = f"/timelines/{timeline.id}/components/{B1}/measure/number"
     with pytest.raises(ValueError, match=re.escape(place)):
         tla.canonical_bytes(doc)
 
@@ -1029,13 +1099,17 @@ def with_version(version):
 
 
 @pytest.mark.parametrize("build", ["+build.5", "+20261009", "+exp.sha.5114f85"])
-def test_the_current_version_with_build_metadata_is_current(build):
-    # Semantic Versioning ignores build metadata when it compares versions.
+def test_the_current_version_with_build_metadata_is_refused(build):
+    # The current version is read only as it is written, as the schema's
+    # `const` says. With build metadata, it isn't another draft either: it is
+    # refused as a version this TiLiA doesn't know.
+    version = tla.FORMAT_VERSION + build
     content = json.loads(EVERY_KIND.read_bytes())
-    content["version"] = tla.FORMAT_VERSION + build
-    doc = tla.loads(json.dumps(content).encode())
-    assert doc.format_version == tla.FORMAT_VERSION + build
-    assert tla.canonical_bytes(doc) == EVERY_KIND.read_bytes()
+    content["version"] = version
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(json.dumps(content).encode())
+    assert error.value.message == f"written by a newer TiLiA (format {version})"
+    assert error.value.place == "/version"
 
 
 @pytest.mark.parametrize(
@@ -1067,9 +1141,13 @@ def test_a_newer_format_is_refused_naming_its_version(version):
 
 
 @pytest.mark.parametrize("version", ["0.7.0", "0.5.15", "0.7.0rc1", "", None])
-def test_older_files_wait_for_the_migration(version):
-    with pytest.raises(NotImplementedError):
-        tla.loads(with_version(version))
+def test_older_files_are_read_through_the_migration(version):
+    content = {"timelines": {}}
+    if version is not None:
+        content["version"] = version
+    doc = tla.loads(json.dumps(content).encode())
+    assert doc.format_version == ("0.0.0" if version is None else version)
+    assert uuid.UUID(doc.document_id).version == 8  # derived from the content
 
 
 def test_a_version_must_be_text():

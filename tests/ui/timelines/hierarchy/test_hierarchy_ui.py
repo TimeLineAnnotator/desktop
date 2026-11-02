@@ -2,10 +2,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import save_and_reopen, undoable
 from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
-from tilia.ui.timelines.hierarchy import HierarchyUI
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
+from tilia.ui.timelines.hierarchy.drag import DRAG_PROXIMITY_LIMIT
+from tilia.ui.windows import WindowKind
 
 
 @pytest.fixture
@@ -88,6 +91,60 @@ class TestHierarchyUI:
         assert hierarchy_tlui[0].dragged
         assert hierarchy_tlui[0].end_x == time_x_converter.get_x_by_time(time_to_drag)
 
+    def test_drag_end_handle_beyond_timeline_end_is_clamped(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.end_handle)
+
+        x_to_drag = time_x_converter.get_x_by_time(tilia_state.duration) + 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("end") == pytest.approx(tilia_state.duration)
+
+    def test_drag_end_handle_cannot_pass_units_start(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.end_handle)
+
+        x_to_drag = hui.start_x - 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("end") > hui.get_data("start")
+        assert hui.end_x == pytest.approx(hui.start_x + DRAG_PROXIMITY_LIMIT)
+
+    def test_drag_start_handle_cannot_pass_units_end(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.start_handle)
+
+        x_to_drag = hui.end_x + 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("start") < hui.get_data("end")
+        assert hui.start_x == pytest.approx(hui.end_x - DRAG_PROXIMITY_LIMIT)
+
+    def test_drag_start_handle_beyond_timeline_start_is_clamped(
+        self, tlui, hierarchy_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        hui = hierarchy_tlui[0]
+        hierarchy_tlui._trigger_left_click_side_effects(hui, hui.start_handle)
+
+        x_to_drag = time_x_converter.get_x_by_time(0) - 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("start") == pytest.approx(0)
+
 
 class TestPreStartIndicator:
     def test_has_pre_start_when_element_has_pre_start(self, tlui):
@@ -163,7 +220,6 @@ class TestPreStartIndicator:
         assert tlui[1].pre_start_handle.isVisible() is True
         assert tlui[0].pre_start_handle.isVisible() is False
 
-    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self, tlui):
         commands.execute(
             "timeline.hierarchy.add", start=0.1, end=1, level=2, pre_start=0
@@ -212,6 +268,50 @@ class TestPreStartIndicator:
         tlui.deselect_element(tlui[0])
 
         assert tlui[0].pre_start_handle.isVisible() is False
+
+    def test_drag_pre_start_handle_cannot_pass_units_start(self, tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        hui = tlui[0]
+        tlui.select_element(hui)
+        tlui._trigger_left_click_side_effects(hui, hui.pre_start_handle.vertical_line)
+
+        x_to_drag = hui.start_x + 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("pre_start") == pytest.approx(hui.get_data("start"))
+
+    def test_drag_pre_start_handle_beyond_timeline_start_is_clamped(
+        self, tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        hui = tlui[0]
+        tlui.select_element(hui)
+        tlui._trigger_left_click_side_effects(hui, hui.pre_start_handle.vertical_line)
+
+        x_to_drag = time_x_converter.get_x_by_time(0) - 500
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("pre_start") == pytest.approx(0)
+
+    def test_drag_pre_start_handle_normal_drag(self, tlui, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        hui = tlui[0]
+        tlui.select_element(hui)
+        tlui._trigger_left_click_side_effects(hui, hui.pre_start_handle.vertical_line)
+
+        x_to_drag = time_x_converter.get_x_by_time(2)
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+
+        assert hui.get_data("pre_start") == pytest.approx(2)
 
 
 class TestPostEndIndicator:
@@ -288,7 +388,6 @@ class TestPostEndIndicator:
         assert tlui[1].post_end_handle.isVisible() is True
         assert tlui[0].post_end_handle.isVisible() is False
 
-    @pytest.mark.xfail(reason="feature not reimplemented")
     def test_display_as_deselected_with_selected_descendant(self, tlui):
         commands.execute(
             "timeline.hierarchy.add", start=0.1, end=1, level=2, post_end=1.10
@@ -336,6 +435,31 @@ class TestPostEndIndicator:
         tlui.deselect_element(tlui[0])
 
         assert tlui[0].post_end_handle.isVisible() is False
+
+    def test_drag_post_end_handle_onto_end_removes_it_with_child_present(
+        self, tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=50, level=2, post_end=70
+        )
+        parent = tlui[0]
+        tlui.select_element(parent)
+        commands.execute("timeline.hierarchy.create_child")
+        child = next(e for e in tlui if e is not parent)
+
+        tlui.select_element(parent)
+        tlui._trigger_left_click_side_effects(
+            parent, parent.post_end_handle.vertical_line
+        )
+        x_to_drag = parent.end_x
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_DRAG, x_to_drag, 0)
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+        assert not parent.has_post_end
+        assert parent.get_data("post_end") == pytest.approx(parent.get_data("end"))
+        assert child.get_data("start") == 0
+        assert child.get_data("end") == 50
 
 
 class TestCommentsIndicator:
@@ -409,3 +533,79 @@ class TestDoubleClick:
         tlui[0].on_double_left_click(None)
 
         mock.assert_not_called()
+
+
+class TestFieldInspectorEdit:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def open_inspector_for(self, tlui, element, qtui):
+        tlui.select_element(element)
+        commands.execute("timeline.element.inspect")
+        return qtui._windows[WindowKind.INSPECT]
+
+    @pytest.mark.parametrize(
+        "field_name, attr, new_value",
+        [
+            pytest.param("Label", "label", "new label", id="hierarchy-label"),
+            pytest.param(
+                "Formal type",
+                "formal_type",
+                "phrase",
+                id="hierarchy-formal-type",
+            ),
+            pytest.param(
+                "Formal function",
+                "formal_function",
+                "antecedent",
+                id="hierarchy-formal-function",
+            ),
+        ],
+    )
+    def test_single_line_field_edit_changes_component_and_ui(
+        self, qtui, tlui, tluis, tmp_path, field_name, attr, new_value
+    ):
+        # formal_type/formal_function have no on-canvas glyph (grep of
+        # tilia/ finds them only in components.py, csv parser and
+        # get_inspector_dict — see tilia/ui/timelines/hierarchy/element.py),
+        # so "what its UI shows" is checked via get_inspector_dict(), the
+        # element's own UI-facing readback of the field. Label does have a
+        # canvas glyph, checked separately below.
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+        hui = tlui[0]
+        inspector = self.open_inspector_for(tlui, hui, qtui)
+        line_edit = inspector.field_name_to_widgets[field_name][1]
+
+        with undoable():
+            line_edit.setText(new_value)
+
+        assert hui.get_data(attr) == new_value
+        assert hui.get_inspector_dict()[field_name] == new_value
+        if field_name == "Label":
+            assert hui.label.toPlainText() == new_value
+            assert hui.full_name.endswith(new_value)
+
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
+        assert reloaded_tlui[0].get_data(attr) == new_value
+
+    def test_comments_edit_changes_component_and_ui(self, qtui, tlui, tluis, tmp_path):
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+        hui = tlui[0]
+        assert not hui.comments_icon.isVisible()
+        inspector = self.open_inspector_for(tlui, hui, qtui)
+        comments_edit = inspector.field_name_to_widgets["Comments"][1]
+
+        with undoable():
+            comments_edit.setPlainText("some comments")
+
+        assert hui.get_data("comments") == "some comments"
+        assert hui.comments_icon.isVisible()
+
+        save_and_reopen(tmp_path)
+        reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
+        reloaded_hui = reloaded_tlui[0]
+        assert reloaded_hui.get_data("comments") == "some comments"
+        assert reloaded_hui.comments_icon.isVisible()
