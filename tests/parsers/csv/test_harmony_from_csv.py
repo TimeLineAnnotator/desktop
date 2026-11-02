@@ -4,10 +4,14 @@ from unittest.mock import mock_open, patch
 import pytest
 
 import tilia.parsers.csv.harmony
+from tests.mock import patch_file_dialog
 from tests.parsers.csv.common import assert_in_errors
+from tests.ui.timelines.harmony.interact import label_as_typed
+from tests.utils import undoable
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia.ui import commands
 
 
 def call_patched_import_by_time_func(timeline: HarmonyTimeline, data: str):
@@ -35,6 +39,8 @@ TEST_HARMONY_PARAMETERS = [
     ("C#", 0, 1, "major"),
     ("Dm", 1, 0, "minor"),
     ("Ebo7", 2, -1, "diminished-seventh"),
+    ("Bb7b9", 6, -1, "dominant-seventh-flat-ninth"),
+    ("F#7#9", 3, 1, "dominant-seventh-sharp-ninth"),
 ]
 
 TEST_MODE_PARAMETERS = [
@@ -45,7 +51,19 @@ TEST_MODE_PARAMETERS = [
 
 
 class TestByTime:
-    @pytest.mark.parametrize("symbol,step,accidental,quality", [("C#", 0, 1, "major")])
+    @pytest.mark.parametrize(
+        "symbol,step,accidental,quality",
+        [
+            ("C#", 0, 1, "major"),
+            ("C7b9", 0, 0, "dominant-seventh-flat-ninth"),
+            ("V7b9", 4, 0, "dominant-seventh-flat-ninth"),
+            ("C6/9", 0, 0, "major-sixth-added-ninth"),
+            ("Dm7(11)", 1, 0, "minor-seventh-added-eleventh"),
+            ("Iadd9", 0, 0, "major-added-ninth"),
+            ("V(64)", 4, 0, "cadential-six-four"),
+            ("Cad64", 4, 0, "cadential-six-four"),
+        ],
+    )
     def test_harmony_by_time(self, symbol, step, accidental, quality, harmony_tl):
         data = "\n".join(["time,harmony_or_key,symbol", f"0,harmony,{symbol}"])
 
@@ -145,6 +163,14 @@ class TestByTime:
         success, errors = call_patched_import_by_time_func(harmony_tl, data)
         assert_in_errors("Must be", errors)
 
+    def test_added_tone_in_the_bass_is_reported(self, harmony_tl):
+        data = "\n".join(["time,harmony_or_key,symbol", "0,harmony,C7b9/Db"])
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert_in_errors("C7b9/Db", errors)
+        assert len(harmony_tl) == 0
+
     def test_harmony_considers_existing_key(self, harmony_tl):
         harmony_tl.create_mode(step=2)
         data = "\n".join(
@@ -166,6 +192,56 @@ class TestByTime:
         )
         call_patched_import_by_time_func(harmony_tl, data)
         assert harmony_tl.harmonies()[0].get_data("step") == 5
+
+
+class TestRomanNumeralsInAMinorKey:
+    # In a minor key, the case of a numeral chooses the sixth and seventh
+    # degrees, as in music21's RomanNumeral, which the CSV import reads.
+    A_MINOR_NUMERALS = [
+        ("vi", 3, 1, "minor"),  # F#m
+        ("vio", 3, 1, "diminished"),  # F#o
+        ("vii", 4, 1, "minor"),  # G#m
+        ("viio", 4, 1, "diminished"),  # G#o
+        ("viio7", 4, 1, "diminished-seventh"),  # G#o7
+        ("VI", 3, 0, "major"),  # F
+        ("VII", 4, 0, "major"),  # G
+        ("#VII", 4, 1, "major"),  # G#
+        ("bvi", 3, 0, "minor"),  # Fm
+        ("bvii", 4, 0, "minor"),  # Gm
+    ]
+
+    @pytest.mark.parametrize("symbol,step,accidental,quality", A_MINOR_NUMERALS)
+    def test_numeral_is_read_in_the_key(
+        self, symbol, step, accidental, quality, harmony_tl
+    ):
+        data = "\n".join(
+            ["time,harmony_or_key,symbol", "0,key,a", f"1,harmony,{symbol}"]
+        )
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert not errors
+        harmony = harmony_tl.harmonies()[0]
+        assert harmony.get_data("step") == step
+        assert harmony.get_data("accidental") == accidental
+        assert harmony.get_data("quality") == quality
+
+    @pytest.mark.parametrize("symbol,_step,_accidental,_quality", A_MINOR_NUMERALS)
+    def test_imported_numeral_is_labelled_as_it_was_written(
+        self, symbol, _step, _accidental, _quality, harmony_tlui
+    ):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol,display_mode",
+                "0,key,a,roman",
+                f"1,harmony,{symbol},roman",
+            ]
+        )
+
+        success, errors = call_patched_import_by_time_func(harmony_tlui.timeline, data)
+
+        assert not errors
+        assert label_as_typed(harmony_tlui.harmonies()[0].label) == symbol
 
 
 class TestByMeasure:
@@ -224,3 +300,197 @@ class TestByMeasure:
         assert harmony_tl[0].get_data("step") == step
         assert harmony_tl[0].get_data("accidental") == accidental
         assert harmony_tl[0].get_data("type") == type
+
+
+OPTIONAL_HARMONY_VALUES = {
+    "comments": "a comment",
+    "display_mode": "roman",
+    "custom_text": "my text",
+    "custom_text_font_type": "normal",
+}
+OPTIONAL_HEADER = "comments,display_mode,custom_text,custom_text_font_type"
+OPTIONAL_ROW = "a comment,roman,my text,normal"
+
+
+def make_beats(beat_tl):
+    beat_tl.set_data("beat_pattern", [2])
+    for i in range(6):
+        beat_tl.create_beat(i * 10)
+
+
+class TestOptionalColumns:
+    def test_harmony_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                f"time,harmony_or_key,symbol,{OPTIONAL_HEADER}",
+                f"0,harmony,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert not errors
+        for attr, value in OPTIONAL_HARMONY_VALUES.items():
+            assert harmony_tl[0].get_data(attr) == value
+
+    def test_harmony_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                f"harmony_or_key,measure,fraction,symbol,{OPTIONAL_HEADER}",
+                f"harmony,2,0,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert not errors
+        assert harmony_tl[0].get_data("time") == 20
+        for attr, value in OPTIONAL_HARMONY_VALUES.items():
+            assert harmony_tl[0].get_data(attr) == value
+
+    def test_key_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                f"time,harmony_or_key,symbol,{OPTIONAL_HEADER}",
+                f"0,key,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert not errors
+        assert isinstance(harmony_tl[0], Mode)
+        assert harmony_tl[0].get_data("comments") == "a comment"
+
+    def test_key_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                f"harmony_or_key,measure,fraction,symbol,{OPTIONAL_HEADER}",
+                f"key,2,0,C,{OPTIONAL_ROW}",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert not errors
+        assert isinstance(harmony_tl[0], Mode)
+        assert harmony_tl[0].get_data("comments") == "a comment"
+
+    def test_absent_columns_keep_defaults_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,harmony,C",
+                "10,key,D",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert not errors
+        harmony = harmony_tl.harmonies()[0]
+        assert harmony.get_data("comments") == ""
+        assert harmony.get_data("display_mode") == "letter"
+        assert harmony.get_data("custom_text") == ""
+        assert harmony.get_data("custom_text_font_type") == "analytic"
+        assert harmony_tl.modes()[0].get_data("comments") == ""
+
+    def test_absent_columns_keep_defaults_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                "harmony_or_key,measure,fraction,symbol",
+                "harmony,1,0,C",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert not errors
+        assert harmony_tl[0].get_data("display_mode") == "letter"
+        assert harmony_tl[0].get_data("custom_text_font_type") == "analytic"
+
+    def test_invalid_value_is_reported_and_default_kept(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol,display_mode,comments",
+                "0,harmony,C,nonsense,hello",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert_in_errors("nonsense", errors)
+        assert harmony_tl[0].get_data("display_mode") == "letter"
+        assert harmony_tl[0].get_data("comments") == "hello"
+
+
+class TestSymbolsThatRaise:
+    def test_key_symbol_without_note_name_is_reported(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,key,X",
+                "10,key,D",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert success
+        assert_in_errors("X", errors)
+        assert len(harmony_tl.modes()) == 1
+
+    def test_by_time(self, harmony_tl):
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "0,key,C",
+                "10,key,F:min",
+                "20,harmony,V42/bVII",
+                "30,harmony,D",
+            ]
+        )
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+        assert success
+        assert_in_errors("F:min", errors)
+        assert_in_errors("V42/bVII", errors)
+        assert len(harmony_tl.modes()) == 1
+        assert len(harmony_tl.harmonies()) == 1
+
+    def test_by_measure(self, harmony_tl, beat_tl):
+        make_beats(beat_tl)
+        data = "\n".join(
+            [
+                "harmony_or_key,measure,fraction,symbol",
+                "key,1,0,C",
+                "key,2,0,F:min",
+                "harmony,2,0,V42/bVII",
+                "harmony,3,0,D",
+            ]
+        )
+        success, errors = call_patched_import_by_measure_func(harmony_tl, beat_tl, data)
+        assert success
+        assert_in_errors("F:min", errors)
+        assert_in_errors("V42/bVII", errors)
+        assert len(harmony_tl.modes()) == 1
+        assert len(harmony_tl.harmonies()) == 1
+
+
+class TestImportCommand:
+    def test_import_with_symbols_that_raise_is_one_undo_step(
+        self, harmony_tlui, tmp_path
+    ):
+        path = tmp_path / "harmonies.csv"
+        path.write_text(
+            "\n".join(
+                [
+                    "time,harmony_or_key,symbol,comments",
+                    "0,key,C,home key",
+                    "10,key,F:min,",
+                    "20,harmony,V42/bVII,",
+                    "30,harmony,D,a comment",
+                ]
+            )
+        )
+
+        with (
+            patch(
+                "tilia.ui.timelines.collection.import_._get_by_time_or_by_measure_from_user",
+                return_value=(True, "time"),
+            ),
+            patch_file_dialog(True, [str(path)]),
+            undoable(),
+        ):
+            commands.execute("timelines.import.harmony")
+
+        harmony_tl = harmony_tlui.timeline
+        assert len(harmony_tl.modes()) == 1
+        assert len(harmony_tl.harmonies()) == 1
+        assert harmony_tl.harmonies()[0].get_data("comments") == "a comment"

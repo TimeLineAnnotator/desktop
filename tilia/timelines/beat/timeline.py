@@ -189,6 +189,13 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.compute_is_first_in_measure = True
 
         self.timeline.recalculate_measures()
+        # Files saved by earlier versions can hold duplicate or out-of-range
+        # indices.
+        self.timeline.measures_to_force_display = [
+            i
+            for i in dict.fromkeys(self.timeline.measures_to_force_display)
+            if 0 <= i < self.timeline.measure_count
+        ]
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
@@ -438,13 +445,13 @@ class BeatTimeline(Timeline):
                 diff = beats - beats_on_starting_measure
                 extension = [min(diff, amount)]
                 remaining_beats = amount - diff
-            elif beats_on_starting_measure == beats:
+            else:
+                # A measure may hold more beats than the beat pattern
+                # prescribes for it, as "Set amount in measure" sets an
+                # arbitrary amount. There is nothing left to fill in that
+                # case, so the extension starts a new measure.
                 extension = []
                 remaining_beats = amount
-            else:
-                raise ValueError(
-                    "More beats on starting measure than found in the iterator"
-                )
         else:
             extension = []
             remaining_beats = amount
@@ -493,7 +500,7 @@ class BeatTimeline(Timeline):
 
         bp_index = (self.measure_count % len(self.beat_pattern)) - 1
         is_last_measure_complete = (
-            self._beats_in_measure[-1] == self.beat_pattern[bp_index]
+            self._beats_in_measure[-1] >= self.beat_pattern[bp_index]
         )
 
         if is_last_measure_complete:
@@ -529,12 +536,11 @@ class BeatTimeline(Timeline):
         if not extra_measure_count:
             return
         self.measure_numbers = self.measure_numbers[:-extra_measure_count]
-        if self.measures_to_force_display:
-            while (
-                self.measures_to_force_display
-                and self.measures_to_force_display[-1] >= self.measure_count
-            ):
-                self.measures_to_force_display.pop(-1)
+        # measures_to_force_display is not sorted, so every index has to be
+        # checked, not just the ones at the end of the list.
+        self.measures_to_force_display = [
+            i for i in self.measures_to_force_display if i < self.measure_count
+        ]
 
     def update_beats_that_start_measures(self):
         # noinspection PyAttributeOutsideInit
@@ -638,7 +644,8 @@ class BeatTimeline(Timeline):
 
     def force_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()
-        self.measures_to_force_display.append(measure_index)
+        if measure_index not in self.measures_to_force_display:
+            self.measures_to_force_display.append(measure_index)
 
     def unforce_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()
