@@ -126,7 +126,7 @@ class _Builder:
             "INSERT INTO files VALUES (?,?,?,?,?)",
             (
                 fid,
-                fid + ".tla",
+                fixture.get("path", fid + ".tla"),
                 fixture["length"],
                 "seconds",
                 f"{fid}:t{beats[0][0]}" if beats else None,

@@ -547,7 +547,9 @@ class TestWhereOneUnit:
         got = run("verse+ IN form WHERE $1.start = 10", form)
         assert [[c.start for c in m.slots[0]] for m in got.matches] == [[0, 10]]
         # negated: none of the units has it, as `!=` means none
-        assert run("verse+ IN form WHERE NOT CONTAINS PAC IN cadences", form).matches == []
+        assert (
+            run("verse+ IN form WHERE NOT CONTAINS PAC IN cadences", form).matches == []
+        )
         assert run("chorus IN form WHERE NOT CONTAINS PAC IN cadences", form).matches
 
     def test_a_unit_s_own_name_is_the_relation_s_left_unit(self):
@@ -660,12 +662,18 @@ class TestWhereSequences:
             ],
         }
         # a+ took red and blue; b is red: some pair is equal, so != fails
-        assert len(run("a+ THEN b IN form WHERE $1.color = $2.color", mixed).matches) == 1
+        assert (
+            len(run("a+ THEN b IN form WHERE $1.color = $2.color", mixed).matches) == 1
+        )
         assert run("a+ THEN b IN form WHERE $1.color != $2.color", mixed).matches == []
-        assert run("a+ THEN b IN form WHERE NOT $1.color = $2.color", mixed).matches == []
+        assert (
+            run("a+ THEN b IN form WHERE NOT $1.color = $2.color", mixed).matches == []
+        )
         # c has no colour: != is NOT = (#104, R2)
         assert run("b THEN c IN form WHERE $1.color = $2.color", mixed).matches == []
-        assert len(run("b THEN c IN form WHERE $1.color != $2.color", mixed).matches) == 1
+        assert (
+            len(run("b THEN c IN form WHERE $1.color != $2.color", mixed).matches) == 1
+        )
 
 
 class TestCaptures:
@@ -696,6 +704,7 @@ class TestWhereOnly:
         assert got.rows == [
             {
                 "file": "other",
+                "path": "other.tla",
                 "title": "Other",
                 "timeline": "Form (Ben)",
                 "kind": "hierarchy",
@@ -704,6 +713,7 @@ class TestWhereOnly:
             },
             {
                 "file": "song",
+                "path": "song.tla",
                 "title": "Song",
                 "timeline": "Form (Ana)",
                 "kind": "hierarchy",
@@ -729,27 +739,58 @@ class TestWhereOnly:
     def test_files_when_it_names_only_file_fields(self):
         got = run("WHERE file.composer = Mozart", SONG, OTHER)
         assert got.grain == "file"
-        assert got.rows == [{"file": "song", "title": "Song", "composer": "Mozart"}]
+        assert got.rows == [
+            {"file": "song", "path": "song.tla", "title": "Song", "composer": "Mozart"}
+        ]
         assert all(m.slots == [] for m in got.matches)
         assert [m.key for m in got.matches] == ["song|file"]
 
     def test_a_bare_file_field_lists_files(self):
         got = run("WHERE composer = Bach", SONG, OTHER)
         assert got.grain == "file"
-        assert got.rows == [{"file": "other", "title": "Other", "composer": "Bach"}]
+        assert got.rows == [
+            {"file": "other", "path": "other.tla", "title": "Other", "composer": "Bach"}
+        ]
 
     def test_a_column_for_each_file_field_it_names(self):
         got = run("WHERE file.genre = rock AND file.composer = Mozart", SONG, OTHER)
         assert got.rows == [
             {
                 "file": "song",
+                "path": "song.tla",
                 "title": "Song",
                 "genre": "rock, pop",
                 "composer": "Mozart",
             }
         ]
         got = run("WHERE NOT file.genre = rock", SONG, OTHER)
-        assert got.rows == [{"file": "other", "title": "Other", "genre": None}]
+        assert got.rows == [
+            {"file": "other", "path": "other.tla", "title": "Other", "genre": None}
+        ]
+
+    def test_listings_are_ordered_by_path(self):
+        # ids say song, other; paths say other, song: the paths win (§10, Q55)
+        song = {**SONG, "path": "b/song.tla"}
+        other = {**OTHER, "path": "c/other.tla"}
+        first = {**BARE, "name": "zzz", "path": "a/first.tla"}
+        got = run("WHERE tl.kind = hierarchy", song, other, first)
+        assert [r["path"] for r in got.rows] == [
+            "a/first.tla",
+            "b/song.tla",
+            "c/other.tla",
+        ]
+        got = run("WHERE file.composer ~ /./", song, other, first)
+        assert [r["path"] for r in got.rows] == ["b/song.tla", "c/other.tla"]
+
+    def test_results_are_ordered_by_path_then_start(self):
+        song = {**SONG, "path": "b/song.tla"}
+        first = {**OTHER, "name": "zzz", "path": "a/first.tla"}
+        got = run("verse IN form", song, first)
+        assert [(r["path"], r["start"]) for r in got.rows] == [
+            ("a/first.tla", 0),
+            ("b/song.tla", 0),
+            ("b/song.tla", 10),
+        ]
 
     def test_a_file_field_with_a_pattern(self):
         got = run(r"WHERE file.composer ~ /^(M)/", SONG, OTHER)
@@ -783,7 +824,12 @@ class TestWhereOnly:
             "timelines": [
                 hierarchy(
                     "Form (X)",
-                    [["a", 1, 0, 10], ["b", 1, 10, 20], ["P", 2, 0, 20], ["Q", 2, 20, 40]],
+                    [
+                        ["a", 1, 0, 10],
+                        ["b", 1, 10, 20],
+                        ["P", 2, 0, 20],
+                        ["Q", 2, 20, 40],
+                    ],
                 )
             ],
         }
@@ -1026,7 +1072,10 @@ class TestAmbiguousNames:
         assert "write $1.key or file.key" in err.msg
         assert err.pos == text.index("key =")
         assert units('* IN keys WHERE $1.key = "C"', with_key) == ["C@0"]
-        assert units('* IN keys WHERE file.key = "C major"', with_key) == ["C@0", "Eb@20"]
+        assert units('* IN keys WHERE file.key = "C major"', with_key) == [
+            "C@0",
+            "Eb@20",
+        ]
 
     def test_a_name_only_the_file_has_is_the_file_s(self):
         assert units("* IN form WHERE genre = rock") == units("* IN form")

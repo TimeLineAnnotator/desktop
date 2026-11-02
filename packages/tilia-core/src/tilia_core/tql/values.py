@@ -229,12 +229,16 @@ class Subject:
     """The units a condition is about: ``slots`` are the units each step of the
     match took (``$1`` is ``slots[0]``), in the timeline ``timeline_id``. In
     brackets (``bracket``) a bare name is the one unit's field; in ``WHERE`` it
-    is the unit's when ``single`` (one step), else a timeline's or a file's."""
+    is the unit's when ``single`` (one step), else a timeline's or a file's.
+    ``segments``, when given, are the times each unit fills in the lane, as
+    ``Match.segments``: a step's ``start``, ``end`` and ``duration`` are those
+    of its piece of the unit (#104 R1)."""
 
     slots: list[list[Component]]
     timeline_id: str | None
     single: bool = True
     bracket: bool = False
+    segments: list[list[tuple[float, float]]] | None = None
 
 
 class Log(Protocol):
