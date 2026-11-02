@@ -360,7 +360,10 @@ def test_marks_and_beat_units_round_trip_with_every_key_in_its_place():
 def test_the_keys_of_a_mark_are_written_in_the_layouts_order():
     marks = every_key()[0][1]["measure"]
     shuffled = dict(reversed(list(marks.items())))
-    data = one_timeline([(B[0], beat(0.0, measure=shuffled)), (B[1], beat(1.0))])
+    # B[1] is the downbeat the mark's next names.
+    data = one_timeline(
+        [(B[0], beat(0.0, measure=shuffled)), (B[1], beat(1.0, measure={}))]
+    )
     written = json.loads(tla.canonical_bytes(tla.loads(data)))
     assert list(written["timelines"][BEATS]["components"][B[0]]["measure"]) == list(
         layout.MEASURE
