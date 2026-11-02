@@ -916,6 +916,13 @@ class TestRestore:
 
             assert p == Plan(changes=[], unreadable=[reported])
 
+        def test_the_whole_run_is_left_out(self):
+            doc, tl = piece([2] * 4, units={(0, 0): DEFAULT, (3, 0): UNREADABLE})
+
+            p = plan(doc, tl, bars(2, 3, text="6/8"))
+
+            assert p == Plan(changes=[], unreadable=[BarRef(4, "4", 1, 1)])
+
         def test_the_rest_of_the_plan_goes_ahead(self):
             doc, tl = piece([2] * 6, units={(0, 0): DEFAULT, (2, 0): UNREADABLE})
 
