@@ -630,16 +630,21 @@ class _Checker:
 
     def measures(self, timeline: Mapping[str, Any], place: Place) -> None:
         """A beat timeline's measures, marked on its beats (FR-081). Refused:
-        a first beat without a `measure` mark, and a `next` that names no beat
-        of the timeline. Kept, with a warning: a beat without a time
+        a first beat without a `measure` mark, and a `next` that names
+        anything but a downbeat of the timeline, a beat with a mark that isn't
+        a closing tap (TimeLineAnnotator/project-management#370). Kept, with a
+        warning: a beat without a time
         (TimeLineAnnotator/project-management#285), a beat unit desktop#621
-        can't read, and a measure with more than one beat unit (point 10 of
-        TimeLineAnnotator/project-management#161). A tap on a closing barline
-        is no beat of a measure (TimeLineAnnotator/project-management#332),
-        so the first beat is the first other one. Which beat is first isn't
-        known while one has no time: the file is then read, so that the beat
-        can be fixed. A beat without a time is in no measure, nor is its beat
-        unit. Each beat unit is parsed once."""
+        can't read, a measure with more than one beat unit (point 10 of
+        TimeLineAnnotator/project-management#161), and a closing tap with a
+        mark, which starts no measure
+        (TimeLineAnnotator/project-management#375). A tap on a closing
+        barline is no beat of a measure
+        (TimeLineAnnotator/project-management#332), so the first beat is the
+        first other one. Which beat is first isn't known while one has no
+        time: the file is then read, so that the beat can be fixed. A beat
+        without a time is in no measure, nor is its beat unit. Each beat unit
+        is parsed once."""
         beats = {
             key: component
             for key, component in timeline["components"].items()
@@ -654,21 +659,38 @@ class _Checker:
                 f"the first beat of {_which(timeline)} has no measure mark",
                 (at, order[0]),
             )
+        downbeats = {
+            key
+            for key, beat in beats.items()
+            if isinstance(beat.get("measure"), dict) and not beat.get("closing")
+        }
         for key, beat in beats.items():
             mark = beat.get("measure")
             following = mark.get("next") if isinstance(mark, dict) else None
             for index, item in enumerate(following or ()):
-                if item not in beats:
-                    raise _Broken(
-                        f"a measure is followed by {_quoted(item)}, which isn't a"
-                        " beat of its timeline",
-                        ((((at, key), "measure"), "next"), index),
-                    )
+                if item in downbeats:
+                    continue
+                if item in beats:
+                    what = "a beat of its timeline that starts no measure"
+                else:
+                    what = "which isn't a beat of its timeline"
+                raise _Broken(
+                    f"a measure is followed by {_quoted(item)}, {what}",
+                    ((((at, key), "measure"), "next"), index),
+                )
         readable: set[str] = set()  # the beats with a unit desktop#621 reads
         for key, beat in beats.items():
             if beat.get("time") is None:
                 self.warnings.append(
                     ((at, key), f"a beat of {_which(timeline)} has no time")
+                )
+            if beat.get("closing") and isinstance(beat.get("measure"), dict):
+                self.warnings.append(
+                    (
+                        (at, key),
+                        f"a closing tap in {_which(timeline)} has a measure mark,"
+                        " which starts no measure",
+                    )
                 )
             unit = beat.get("beat_unit")
             if not isinstance(unit, dict):
