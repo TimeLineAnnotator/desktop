@@ -151,7 +151,7 @@ def test_negated_conditions():
 
 
 def test_literals():
-    q = parse('bridge.modern THEN "Chorus 1" THEN /^_?v/ THEN verse/chorus')
+    q = parse('bridge.modern THEN "Chorus 1" THEN /^_?v/ THEN verse AND chorus')
     lits = [st.item.term.alts[0].lits for st in q.pattern.seq.steps]
     assert lits[0][0].text == "bridge" and lits[0][0].sub == "modern"
     assert lits[1][0].kind == "exact" and lits[1][0].text == "Chorus 1"
@@ -159,8 +159,8 @@ def test_literals():
     assert [lit.text for lit in lits[3]] == ["verse", "chorus"]
 
 
-def test_slash_with_a_wildcard():
-    q = parse("chorus / *")
+def test_and_with_a_wildcard():
+    q = parse("chorus AND *")
     kinds = [lit.kind for lit in q.pattern.seq.steps[0].item.term.alts[0].lits]
     assert kinds == ["word", "any"]
 
@@ -193,7 +193,10 @@ def test_keywords_are_case_insensitive_and_contextual():
     assert len(q.pattern.seq.steps) == 2 and q.pattern.lane.text == "form"
     # 'end' is a label here
     assert lit0("end THEN coda").text == "end"
-    assert parse("end/cad").pattern.seq.steps[0].item.term.alts[0].lits[1].text == "cad"
+    assert (
+        parse("end AND cad").pattern.seq.steps[0].item.term.alts[0].lits[1].text
+        == "cad"
+    )
 
 
 def test_regex_after_a_contextual_start():
@@ -300,25 +303,27 @@ def test_a_string_ending_in_a_backslash_may_be_followed_by_a_comment():
 
 
 def test_two_regular_expressions_on_one_unit():
-    # alt := literal ('/' literal)*: after a joining '/' the next literal starts,
-    # so a '/' there opens a regular expression
-    for text in ("/a/ / /b/", "/a///b/"):
-        lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
-        assert [(lit.kind, lit.text) for lit in lits] == [
-            ("regex", "a"),
-            ("regex", "b"),
-        ]
-    for text in ("verse//^c/", "verse / /^c/"):
-        lits = parse(text).pattern.seq.steps[0].item.term.alts[0].lits
-        assert [(lit.kind, lit.text) for lit in lits] == [
-            ("word", "verse"),
-            ("regex", "^c"),
-        ]
-    lits = parse("/^v/ / chorus").pattern.seq.steps[0].item.term.alts[0].lits
+    lits = parse("/a/ AND /b/").pattern.seq.steps[0].item.term.alts[0].lits
+    assert [(lit.kind, lit.text) for lit in lits] == [("regex", "a"), ("regex", "b")]
+    lits = parse("verse AND /^c/").pattern.seq.steps[0].item.term.alts[0].lits
+    assert [(lit.kind, lit.text) for lit in lits] == [
+        ("word", "verse"),
+        ("regex", "^c"),
+    ]
+    lits = parse("/^v/ AND chorus").pattern.seq.steps[0].item.term.alts[0].lits
     assert [(lit.kind, lit.text) for lit in lits] == [
         ("regex", "^v"),
         ("word", "chorus"),
     ]
+
+
+@pytest.mark.parametrize(
+    "text", ["/a/ / /b/", "/a///b/", "verse//^c/", "verse / /^c/", "/^v/ / chorus"]
+)
+def test_a_slash_beside_a_regular_expression_points_to_and(text):
+    # until 0.2 '/' joined two literals on one unit; AND does now
+    with pytest.raises(TQLError, match="AND combines labels"):
+        parse(text)
 
 
 @pytest.mark.parametrize(
@@ -358,13 +363,13 @@ def test_duration_in_a_where_keeps_its_raw_text():
 )
 def test_values_in_milliseconds_are_refused(text, form):
     err = refused(text)
-    assert err.msg == f"{form} is not part of TQL v0.1.1"
+    assert err.msg == f"{form} is not part of TQL v0.2"
     assert text[err.pos : err.end] == form
 
 
 def test_times_as_hours_minutes_seconds_are_refused():
     err = refused("* WHERE start > 1:30:00")
-    assert err.msg == "1:30:00 is not part of TQL v0.1.1"
+    assert err.msg == "1:30:00 is not part of TQL v0.2"
     assert (err.pos, err.end) == (16, 23)
     refused("*[start = 0:10:00..1:00:00]")
     refused("a THEN b WHERE $1.start >= $2.start + 1:30:00")
@@ -377,22 +382,22 @@ def test_minutes_and_seconds_are_still_times():
 
 def test_a_percentage_with_duration_is_refused():
     err = refused("*[duration >= 10%]")
-    assert err.msg == "duration >= 10% is not part of TQL v0.1.1"
+    assert err.msg == "duration >= 10% is not part of TQL v0.2"
     refused("*[duration = 10%..20%]")
     refused("a THEN b WHERE $1.duration >= 10%")
 
 
 def test_unit_numbers_pick_nothing_by_name():
     err = refused("a THEN b WHERE $1.first.label = x")
-    assert err.msg == "$1.first is not part of TQL v0.1.1"
+    assert err.msg == "$1.first is not part of TQL v0.2"
     err = refused("a THEN b -> SET $2.last.label = x")
-    assert err.msg == "$2.last is not part of TQL v0.1.1"
+    assert err.msg == "$2.last is not part of TQL v0.2"
     refused('a THEN b -> TAG $1.last "x"')
 
 
 def test_negative_unit_numbers_are_refused():
     err = refused("a THEN b -> UNTAG $-1 *")
-    assert err.msg == "$-1 is not part of TQL v0.1.1"
+    assert err.msg == "$-1 is not part of TQL v0.2"
     assert (err.pos, err.end) == (18, 21)
     refused("a THEN b WHERE $-1.label = x")
 

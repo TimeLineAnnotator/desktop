@@ -14,13 +14,17 @@ file's time map gives, and ``fields`` the user-set fields of files and others.
 (``count``), its printed ``number`` and ``label``, its ``start`` and ``end``,
 its ``beats`` and its ``pass``, which pass through a repeat it belongs to: 1 for
 a bar played once or the first time, 2 the second time, and so on. A file
-without repeats has pass 1 throughout.
+without repeats has pass 1 throughout. ``cadenza`` is 1 for a cadenza bar,
+``movement`` counts movements or songs from 1 (a bar marked ``restart`` begins
+the next), and ``time_signature`` is the bar's as a musician reads it
+(``"6/8"``, ``"2+2+3/8"``). ``positions`` gives a unit the ``cadenza`` and
+``movement`` of the bar it starts in.
 
 ``categories`` holds each component's categories under its corpus's label
 grammar, each with the category it is a subtype of (``supertype``), which only
 a grammar with subtypes gives: with none, a dot is part of the label.
 
-``PRAGMA user_version`` is 1: the version of these names. They are a stand-in
+``PRAGMA user_version`` is 2: the version of these names. They are a stand-in
 that WP12's index will own. They, the SQL that ``show SQL`` prints and the
 ``tql_*`` functions of :mod:`tilia_core.tql.sqlfuncs` may change, and nothing
 in them is promised yet. Tests pin the names, and any change to a name that SQL
@@ -114,7 +118,9 @@ CREATE TABLE positions (
     bar_count INTEGER,
     bar_label TEXT,
     bar_beat_count INTEGER,
-    downbeat INTEGER
+    downbeat INTEGER,
+    bar_cadenza INTEGER,
+    bar_movement INTEGER
 );
 
 CREATE TABLE measures (
@@ -125,7 +131,10 @@ CREATE TABLE measures (
     start REAL,
     "end" REAL,
     beats INTEGER,
-    pass INTEGER
+    pass INTEGER,
+    cadenza INTEGER,
+    movement INTEGER,
+    time_signature TEXT
 );
 
 CREATE TABLE fields (
@@ -139,7 +148,7 @@ CREATE INDEX components_by_timeline ON components (file_id, timeline_id, start);
 CREATE INDEX categories_by_category ON categories (category);
 CREATE INDEX categories_by_component ON categories (component_id);
 
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 """
 
 

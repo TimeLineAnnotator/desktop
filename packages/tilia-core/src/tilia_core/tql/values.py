@@ -294,7 +294,8 @@ class Facts:
             "SELECT c.id, c.color, c.comments, h.depth, ch.quality, ch.inversion, "
             "ch.applied_to, ch.root, ch.roman, ch.symbol, COALESCE(ch.key, k.key), "
             "k.tonic, k.mode, p.bar, p.end_bar, p.beat, p.pass, p.bar_count, "
-            "p.bar_label, p.bar_beat_count, p.downbeat FROM components c "
+            "p.bar_label, p.bar_beat_count, p.downbeat, p.bar_cadenza, p.bar_movement "
+            "FROM components c "
             "LEFT JOIN hierarchies h ON h.component_id = c.id "
             "LEFT JOIN chords ch ON ch.component_id = c.id "
             "LEFT JOIN keys k ON k.component_id = c.id "
@@ -304,7 +305,7 @@ class Facts:
         names = (
             "color comments depth quality inversion applied_to root roman symbol "
             "key tonic mode bar end_bar beat pass bar.count bar.label "
-            "bar.beat_count downbeat"
+            "bar.beat_count downbeat bar.cadenza bar.movement"
         ).split()
         units = {r[0]: dict(zip(names, r[1:], strict=True)) for r in rows}
         units.update(self._load_bars())
@@ -326,7 +327,8 @@ class Facts:
         row holds: each bar starts on its downbeat, at its first beat, and its
         ``pass`` is the one ``measures`` records."""
         rows = self.log.execute(
-            "SELECT count, number, label, beats, pass FROM measures "
+            "SELECT count, number, label, beats, pass, cadenza, movement, "
+            "time_signature FROM measures "
             "WHERE file_id = ? ORDER BY count",
             (self.file_id,),
         )
@@ -340,8 +342,11 @@ class Facts:
                 "bar.label": label,
                 "bar.beat_count": beats,
                 "downbeat": 1,
+                "bar.cadenza": cadenza,
+                "bar.movement": movement,
+                "time_signature": signature,
             }
-            for count, number, label, beats, nth in rows
+            for count, number, label, beats, nth, cadenza, movement, signature in rows
         }
 
     def timeline(self, timeline_id: str | None) -> dict[str, Any]:

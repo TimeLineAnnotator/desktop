@@ -1,6 +1,6 @@
 """The TQL parser: query text in, one syntax tree out, or a :class:`TQLError`.
 
-This module is TQL 0.1.1's lexer, syntax tree and parser. It is **corpus-free**
+This module is TQL 0.2's lexer, syntax tree and parser. It is **corpus-free**
 (matching against timelines lives elsewhere), so the grammar can be tested
 without loading a file. The grammar, as implemented (``:=`` is "is", ``|``
 "or", ``[…]`` "optional", ``(…)*`` "repeated")::
@@ -13,12 +13,15 @@ without loading a file. The grammar, as implemented (``:=`` is "is", ``|``
     seq       := step (THEN step)*
     step      := ['@'] item [quant]                 -- '@': this step is the target
     item      := term [brackets] | brackets         -- one component
-               | '(' seq ')' (OR '(' seq ')')*      -- a group
+               | [NOT] '(' seq ')' (OR '(' seq ')')*  -- a group; NOT only when
+                                                    --   each option is one unit
     brackets  := '[' conds ']'
-    term      := [NOT] alt (OR alt)*
-    alt       := literal ('/' literal)*             -- AND within one component
-    literal   := word ['.' subtype] | "exact label" | /regex/ | '*'
-    quant     := '+' | '?' | '*' | '{' m [',' [n]] '}'
+    term      := conj (OR conj)*                    -- NOT, then AND, then OR
+    conj      := neg (AND neg)*                     -- all of them on one unit
+    neg       := [NOT] (literal | '(' term ')')
+    literal   := word ['.' subtype] | chord | "exact label" | /regex/ | '*'
+    chord     := word ('/' word)+                   -- in chords lanes only: C/E
+    quant     := '+' | '?' | '*' | '{' m [',' [n]] '}' | '{' ',' n '}'
     lane      := role | "timeline name" | kind | word
     relation  := [NOT] rel target [IN lane] [within]
     rel       := DURING | CONTAINS | STARTS [WITH] | ENDS [WITH] | CONSISTS OF
@@ -27,11 +30,14 @@ without loading a file. The grammar, as implemented (``:=`` is "is", ``|``
     within    := WITHIN amount unit                 -- after a sequence: the largest
                                                     --   gap a THEN crosses
     where     := WHERE conds
-    conds     := cond (AND cond)*
-    cond      := [NOT] field op value | downbeat | [NOT] seq | [NOT] relation
+    conds     := clause (OR clause)*                -- AND binds tighter than OR
+    clause    := cond (AND cond)*
+    cond      := [NOT] '(' conds ')'                -- when it starts as a condition
+               | [NOT] field op value | [NOT] downbeat | [NOT] seq | [NOT] relation
     field     := [$n.] [file. | tl.] name
     op        := = | != | ~ | < | > | <= | >=       -- ranges: a..b
     value     := number | time | "text" | word | /regex/ | a..b | $n.field
+               | true | false
                | $n.time (+ | -) amount [unit]       -- a distance: $2.start + 16 bars
     action    := '->' SET field = value (',' field = value)*
                | '->' DELETE
@@ -55,34 +61,43 @@ Lexical rules:
   ``_?verse``, ``#ffc0cb``). One trailing ``+ ? *`` is a quantifier. ``@``
   marks the target of a sequence.
 * ``/`` starts a regular expression where a literal or a value is expected
-  (after ``[``, ``(``, an operator or a keyword) and means "and" between two
-  literals otherwise, so ``verse/chorus`` and ``NOT /^_/`` both read as meant.
+  (after ``[``, ``(``, an operator or a keyword). Between two words, with no
+  space, it is part of a chord symbol (``C/E``, ``V/V``), and only where every
+  lane searched is a chords lane; elsewhere it is an error that points to
+  ``AND``, which combines labels.
 * ``"…"`` is a string (``\\"`` and ``\\\\`` escape); ``-- …`` to the end of a
   line is a comment. ``-->`` is refused: it is a mistyped ``->``, and as a
   comment it would turn an edit into a read.
 * Text in any script: words, strings and regular expressions are read in one
   Unicode normal form (NFC), and keywords are ASCII. Error offsets count the
   characters as typed.
-* Forms the prototype accepts and TQL 0.1.1 leaves out (``$n.first``,
-  ``$n.last``, ``$-1``, ``1:30:00``, a value in milliseconds, a percentage with
+* Forms the prototype accepts and TQL leaves out (``$n.first``, ``$n.last``,
+  ``$-1``, ``1:30:00``, a value in milliseconds, a percentage with
   ``duration``) raise a :class:`TQLError` saying so.
+
+Brackets and ``WHERE`` read ``AND``, ``OR`` and ``NOT`` outside parentheses
+as joining their tests, so a sequence of children there takes one literal, or
+parentheses, per step: ``ST[presentation AND continuation]`` has both children,
+``ST[(verse AND chorus)]`` a child with both labels. Parentheses there hold
+conditions when what they hold starts as a condition does (a field with an
+operator, a relation word, ``downbeat``), and describe a child otherwise.
 """
 
 from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Iterator, Union
 
 from tilia_core import colors
-from tilia_core.labels import nfc
+from tilia_core.labels import fold, nfc
 
 __all__ = ["TQLError", "parse", "format_error", "KEYWORDS", "Query", "VERSION"]
 
-# The version of tql.md this parser reads: 0.1.1 since 2026-10-27, when the
-# changes the port made to what some queries do got a number of their own.
-VERSION = "0.1.1"
+# The version of tql.md this parser reads: 0.2 since 2026-11-02, with the
+# decisions of TimeLineAnnotator/project-management#104 (0.1.1 since 2026-10-27).
+VERSION = "0.2"
 
 
 class TQLError(ValueError):
@@ -142,7 +157,7 @@ SEQ_RELATIONS = frozenset({"CONTAINS", "STARTS_WITH", "ENDS_WITH", "CONSISTS_OF"
 
 _STOP = set('[](){}",=<>!~/$@')
 # Numbers take the digits 0-9 only (re.ASCII): \d alone would read ١٢ as 12.
-_COUNT_RE = re.compile(r"\{\s*(\d+)\s*(?:(,)\s*(\d*)\s*)?\}", re.ASCII)
+_COUNT_RE = re.compile(r"\{\s*(\d*)\s*(?:(,)\s*(\d*)\s*)?\}", re.ASCII)
 _REF_RE = re.compile(r"\$(-?\d+)((?:\.[A-Za-z_][A-Za-z_0-9]*)*)", re.ASCII)
 _NUM_RE = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)$", re.ASCII)
 _NUM_UNIT_RE = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+))([A-Za-z]+)$", re.ASCII)
@@ -163,6 +178,16 @@ _UNITS = {
     "measures": "bar",
 }
 _UNIT_NAMES = ", ".join(_UNITS)  # for the errors: the aliases are units too
+TIME_SIGNATURE_RE = re.compile(r"^[1-9][0-9]*(\+[1-9][0-9]*)*/[1-9][0-9]*$")
+_POSITION_NUMBERS = (
+    "bar",
+    "end_bar",
+    "beat",
+    "pass",
+    "bar.count",
+    "bar.beat_count",
+    "bar.movement",
+)
 _BAR_NUMBERS = ("bar", "end_bar", "bar.count", "bar.label", "pass")
 
 
@@ -261,13 +286,15 @@ def lex(text: str) -> list[Tok]:
             continue
         if ch == "{":
             m = _COUNT_RE.match(text, i)
+            if m and not m.group(1) and not (m.group(2) and m.group(3)):
+                m = None  # {} and {,}: no count; {,n} is {0,n}
             if not m:
                 raise TQLError(
                     "'{' starts a count such as {2} or {2,4}; a label "
                     "with braces must be quoted",
                     i,
                 )
-            lo = int(m.group(1))
+            lo = int(m.group(1) or 0)
             hi = lo if not m.group(2) else (int(m.group(3)) if m.group(3) else None)
             add(Tok("QUANT", m.group(0), i, m.end(), (lo, hi)))
             i = m.end()
@@ -376,25 +403,32 @@ def lex(text: str) -> list[Tok]:
 # --------------------------------------------------------------------------- #
 @dataclass
 class Literal:
-    kind: str  # "word" | "exact" | "regex" | "any"
-    text: str  # word head / exact label / regex pattern
+    kind: str  # "word" | "chord" | "exact" | "regex" | "any"
+    text: str  # word head / chord symbol / exact label / regex pattern
     sub: str | None = None  # word subtype: bridge.modern -> sub "modern"
     raw: str = ""  # as written
     pos: int = 0
+    negate: bool = False  # NOT: a unit this literal does not fit
 
 
 @dataclass
-class Alt:  # literals joined by '/': all on one component
+class Alt:  # literals joined by AND: all of them on one component
     lits: list[Literal]
     raw: str = ""
     pos: int = 0
 
 
 @dataclass
-class Term:  # [NOT] alt (OR alt)*
+class Term:
+    """The labels of one unit, as written, read as alternatives: a unit fits
+    when it fits every literal of one of ``alts``. ``NOT verse OR chorus`` is
+    ``[[NOT verse], [chorus]]``, ``NOT (verse OR chorus) AND NOT bridge``
+    ``[[NOT verse, NOT chorus, NOT bridge]]`` (tql.md §5)."""
+
     alts: list[Alt]
-    negate: bool = False
     pos: int = 0
+    raw: str = ""  # as written
+    end: int = 0  # the offset after it
 
 
 @dataclass
@@ -405,9 +439,11 @@ class Unit:  # one component: a term and/or bracket conditions
 
 
 @dataclass
-class Group:  # ( seq ) (OR ( seq ))*
+class Group:  # [NOT] ( seq ) (OR ( seq ))*
     options: list[Seq]
     pos: int = 0
+    negate: bool = False  # NOT: one unit that fits no option; each option is one
+    # unit without a quantifier
 
 
 @dataclass
@@ -503,7 +539,28 @@ class RelCond:
     pos: int = 0
 
 
-Cond = Union[Compare, Downbeat, Children, RelCond]
+@dataclass
+class AnyOf:
+    """Conditions in parentheses or joined by ``OR``: some clause holds, each
+    clause being conditions joined by ``AND``; with ``NOT``, none does."""
+
+    clauses: list[list[Cond]]
+    negate: bool = False
+    pos: int = 0
+
+
+Cond = Union[Compare, Downbeat, Children, RelCond, AnyOf]
+
+
+def leaf_conds(conds: list[Cond]) -> Iterator[Cond]:
+    """The conditions of ``conds`` other than groups, those inside ``OR`` and
+    parentheses included, in order."""
+    for c in conds:
+        if isinstance(c, AnyOf):
+            for clause in c.clauses:
+                yield from leaf_conds(clause)
+        else:
+            yield c
 
 
 @dataclass
@@ -652,6 +709,8 @@ class _Parser:
         q = Query(pattern, where, action, self.text)
         self.check_refs(q)
         self.check_targets(q)
+        check_chords(q)
+        check_time_signature(q)
         return q
 
     def trailing_hint(self, t: Tok) -> str:
@@ -748,12 +807,16 @@ class _Parser:
         return SeqPattern(seq, lane, order, within)
 
     # -- sequences --------------------------------------------------------- #
-    def seq(self) -> Seq:
+    def seq(self, bare: bool = False) -> Seq:
+        """A sequence. ``bare``: a children's or a relation's sequence inside
+        brackets or ``WHERE``, where ``AND``, ``OR`` and ``NOT`` outside
+        parentheses join conditions, so each step takes one literal or
+        parentheses (tql.md §7.1)."""
         start = self.peek().pos
-        steps = [self.step()]
+        steps = [self.step(bare)]
         while self.at_kw("THEN"):
             self.next()
-            steps.append(self.step())
+            steps.append(self.step(bare))
         self.check_anchor_words(steps)
         return Seq(steps, start)
 
@@ -788,7 +851,7 @@ class _Parser:
                 steps[-1].pos,
             )
 
-    def step(self) -> Step:
+    def step(self, bare: bool = False) -> Step:
         t = self.peek()
         target = t.type == "AT"
         if target:
@@ -804,11 +867,20 @@ class _Parser:
             raise self.err(
                 "a quantifier needs a step before it, as in verse+", self.peek()
             )
-        item = self.item()
+        head = self.peek()
+        item = self.item(bare)
         lo, hi = 1, 1
         if self.at("QUANT"):
             q = self.next()
             lo, hi = q.value
+            if head.type == "WORD" and head.upper == "NOT":
+                inner = _flat(self.text[head.pos : q.pos])
+                raise TQLError(
+                    f"{_NOT_RUN} - for a run of units of which none fits, "
+                    f"write ({inner}){q.text}",
+                    head.pos,
+                    q.end,
+                )
             if hi is not None and hi < 1:
                 raise self.err(
                     f"quantifier {q.text} would match nothing "
@@ -821,24 +893,35 @@ class _Parser:
                 raise self.err("one quantifier per step", self.peek())
         return Step(item, lo, hi, t.pos, target)
 
-    def item(self) -> Unit | Group:
+    def item(self, bare: bool = False) -> Unit | Group:
         t = self.peek()
-        if t.type == "(":
-            return self.group()
         if t.type == "[":
             return Unit(None, self.brackets(), t.pos)
-        if self.at_kw("NOT") and self.at("(", k=1):
+        if bare and self.at_kw("NOT"):
             raise self.err(
-                "NOT does not apply to groups - for 'has no ...' use NOT "
-                "in brackets, e.g. ST[NOT continuation]",
+                "NOT here joins conditions - for a child that is not a verse, "
+                "put it in parentheses: ST[(NOT verse)]",
                 t,
             )
-        term = self.term()
+        if t.type == "(" or (self.at_kw("NOT") and self.at("(", k=1)):
+            # labels in parentheses, (verse OR chorus), else a group of steps
+            save = self.i
+            try:
+                term = self.term()
+            except TQLError:
+                self.i = save
+                return self.group()
+        else:
+            term = self.term(bare)
         conds = self.brackets() if self.at("[") else []
         return Unit(term, conds, t.pos)
 
     def group(self) -> Group:
         start = self.peek().pos
+        negate = False
+        if self.at_kw("NOT"):
+            self.next()
+            negate = True
         options = []
         while True:
             self.expect("(", "'('")
@@ -855,42 +938,111 @@ class _Parser:
                     "(a THEN b) OR (c THEN d)",
                     self.peek(),
                 )
-            return Group(options, start)
+            break
+        end = self.toks[self.i - 1].end
+        if negate and len(options) > 1:
+            raise TQLError(
+                "NOT before (a) OR (b) leaves unclear what it covers - write "
+                "NOT ((a) OR (b)) for one unit that fits neither, or "
+                "(NOT a) OR (b)",
+                start,
+                end,
+            )
+        if negate and not all(_one_unit(o) for o in options):
+            raise TQLError(
+                f"{_NOT_RUN} - NOT verse THEN NOT chorus is a unit that is "
+                "not a verse, then one that is not a chorus; brackets, "
+                "ST[NOT (verse THEN chorus)], find a section without a verse "
+                "directly followed by a chorus",
+                start,
+                end,
+            )
+        return Group(options, start, negate)
 
-    def term(self) -> Term:
+    def term(self, bare: bool = False) -> Term:
+        """Labels joined by ``NOT``, ``AND``, ``OR`` and parentheses, read
+        into :class:`Term`'s alternatives; ``bare`` takes one literal or
+        parentheses (see :meth:`seq`)."""
         start = self.peek().pos
-        negate = False
-        if self.at_kw("NOT"):
-            self.next()
-            negate = True
-        alts = [self.alt()]
+        alts = self.neg(allow_not=False) if bare else self.disj()
+        end = self.toks[self.i - 1].end
+        return Term(alts, start, nfc(self.text[start:end]), end)
+
+    def disj(self) -> list[Alt]:
+        alts = self.conj()
         while self.at_kw("OR"):
             self.next()
-            if self.at("("):
-                raise self.err(
-                    "OR between a label and a group is not allowed - "
-                    "wrap both sides in ( )",
-                    self.peek(),
-                )
-            alts.append(self.alt())
-        return Term(alts, negate, start)
+            self.no_group("OR")
+            alts = alts + self.conj()
+            self.check_alts(alts)
+        return alts
 
-    def alt(self) -> Alt:
-        start = self.peek().pos
-        lits = [self.literal()]
-        while self.at("SLASH"):
+    def conj(self) -> list[Alt]:
+        alts = self.neg()
+        while self.at_kw("AND"):
             self.next()
-            lits.append(self.literal())
-        end = self.toks[self.i - 1].end
-        return Alt(lits, nfc(self.text[start:end]), start)
+            self.no_group("AND")
+            alts = _and(alts, self.neg())
+            self.check_alts(alts)
+        return alts
+
+    def no_group(self, word: str) -> None:
+        """After ``OR`` or ``AND`` between labels, parentheses hold labels: a
+        group of steps there is refused."""
+        k = 1 if self.at_kw("NOT") else 0
+        if not self.at("(", k=k) or self.at(")", k=k + 1):
+            return  # no parentheses, or empty ones: neg() says so
+        save = self.i
+        self.i += k
+        try:
+            self.neg(allow_not=False)
+        except TQLError:
+            raise self.err(
+                f"{word} between a label and a group is not allowed - wrap "
+                "both sides in ( ): (a) OR (b THEN c)",
+                self.toks[save + k],
+            ) from None
+        finally:
+            self.i = save
+
+    def neg(self, allow_not: bool = True) -> list[Alt]:
+        """``[NOT] (literal | '(' labels ')')``, as alternatives; ``NOT``
+        negates them by De Morgan's laws."""
+        flip = False
+        if allow_not and self.at_kw("NOT"):
+            self.next()
+            flip = True
+        if self.at("("):
+            self.next()
+            if self.at(")"):
+                raise self.err("empty parentheses ()", self.peek())
+            alts = self.disj()
+            self.expect(")", "')' to close the parentheses")
+        else:
+            lit = self.literal()
+            alts = [Alt([lit], lit.raw, lit.pos)]
+        if flip:
+            alts = _not(alts)
+            self.check_alts(alts)
+        return alts
+
+    def check_alts(self, alts: list[Alt]) -> None:
+        if len(alts) > _MAX_ALTS:
+            raise self.err(
+                f"these labels make more than {_MAX_ALTS} alternatives once "
+                "multiplied out - write fewer of them",
+                self.toks[self.i - 1],
+            )
 
     def literal(self) -> Literal:
         t = self.peek()
         if t.type == "STRING":
             self.next()
+            self.no_slash()
             return Literal("exact", t.value, None, t.text, t.pos)
         if t.type == "REGEX":
             self.next()
+            self.no_slash()
             return Literal("regex", t.value, None, t.text, t.pos)
         if t.type == "WORD":
             if t.upper in KEYWORDS:
@@ -900,6 +1052,8 @@ class _Parser:
                     t,
                 )
             self.next()
+            if self.at("SLASH"):
+                return self.chord(t)
             if t.text == "*":
                 return Literal("any", "*", None, "*", t.pos)
             head, dot, sub = t.text.partition(".")
@@ -909,12 +1063,33 @@ class _Parser:
                 raise self.err(f"missing subtype after '.' in {t.text!r}", t)
             return Literal("word", head, sub or None, t.text, t.pos)
         if t.type == "SLASH":
-            raise self.err(
-                "'/' joins two labels on one unit (verse/chorus); a "
-                "regular expression goes where a label starts",
-                t,
-            )
+            raise self.err(_SLASH_HINT, t)
         raise self.err(f"expected a label, found {self.describe(t)}", t)
+
+    def chord(self, first: Tok) -> Literal:
+        """``C/E``, ``V/V``: words joined by ``/`` with no space, a chord
+        symbol; :meth:`check_chords` keeps it to chords lanes."""
+        end = first.end
+        while self.at("SLASH"):
+            sl, nxt = self.peek(), self.peek(1)
+            if (
+                first.text == "*"
+                or sl.pos != end
+                or nxt.type != "WORD"
+                or nxt.pos != sl.end
+                or nxt.upper in KEYWORDS
+                or nxt.text == "*"
+            ):
+                raise self.err(_SLASH_HINT, sl)
+            self.next()
+            self.next()
+            end = nxt.end
+        raw = nfc(self.text[first.pos : end])
+        return Literal("chord", raw, None, raw, first.pos)
+
+    def no_slash(self) -> None:
+        if self.at("SLASH"):
+            raise self.err(_SLASH_HINT, self.peek())
 
     # -- lanes, relations -------------------------------------------------- #
     def lane_opt(self) -> Lane | None:
@@ -934,7 +1109,7 @@ class _Parser:
             t,
         )
 
-    def relation(self) -> Relation:
+    def relation(self, bare: bool = False) -> Relation:
         start = self.peek().pos
         negate = False
         if self.at_kw("NOT"):
@@ -978,7 +1153,7 @@ class _Parser:
             rel = head
         else:
             raise self.err(f"expected a relation, found {self.describe(t)}", t)
-        target = self.seq()
+        target = self.seq(bare)
         if rel not in SEQ_RELATIONS:
             if (
                 len(target.steps) != 1
@@ -1035,23 +1210,68 @@ class _Parser:
                 "empty brackets [] - put a condition inside, or use *", self.peek()
             )
         conds = self.conds(context="bracket")
-        self.expect(
-            "]", "']' to close the brackets (conditions inside are joined by AND)"
-        )
+        self.expect("]", "']' to close the brackets")
         return conds
 
     def conds(self, context: str) -> list[Cond]:
+        """Conditions joined by ``AND`` and ``OR``, ``AND`` binding tighter:
+        a list joined by ``AND``, or one :class:`AnyOf` when ``OR`` is there."""
+        clauses = [self.clause(context)]
+        while self.at_kw("OR"):
+            self.next()
+            clauses.append(self.clause(context))
+        if len(clauses) == 1:
+            return clauses[0]
+        return [AnyOf(clauses, False, _cond_pos(clauses[0][0]))]
+
+    def clause(self, context: str) -> list[Cond]:
         out = [self.cond(context)]
         while self.at_kw("AND"):
             self.next()
             out.append(self.cond(context))
-        if self.at_kw("OR"):
-            raise self.err(
-                "conditions are joined by AND; OR only joins labels "
-                "(a OR b) or groups",
-                self.peek(),
-            )
         return out
+
+    def parens_hold_conds(self, k: int) -> bool:
+        """Whether the parentheses at ``peek(k)`` hold conditions: what they
+        hold starts as a condition does (a field with an operator, a relation
+        word, ``downbeat``), after any ``NOT`` and ``(``."""
+        k += 1
+        while self.at_kw("NOT", k=k) or self.at("(", k=k):
+            k += 1
+        return (
+            self.looks_like_compare(k)
+            or self.at_kw(*RELATION_HEADS, k=k)
+            or self.at_downbeat(k)
+        )
+
+    def refuse_mixed_parens(self, k: int) -> None:
+        """Parentheses that describe a child hold no condition (tql.md §7.1)."""
+        depth, square, j = 0, 0, self.i + k
+        while j < len(self.toks) - 1:
+            t = self.toks[j]
+            if t.type == "(":
+                depth += 1
+            elif t.type == ")":
+                depth -= 1
+                if depth == 0:
+                    return
+            elif t.type == "[":
+                square += 1
+            elif t.type == "]":
+                if square == 0:
+                    return
+                square -= 1
+            elif t.type == "OP" and square == 0:
+                raise TQLError(
+                    "parentheses hold either conditions or the labels of a "
+                    "child, not both - [(verse AND chorus)] is a child with "
+                    "both labels, [(level = 2 OR level = 3)] conditions; "
+                    "a condition on the child goes in its brackets: "
+                    "[verse[level = 2]]",
+                    self.toks[self.i + k].pos,
+                    t.end,
+                )
+            j += 1
 
     def looks_like_compare(self, k: int = 0) -> bool:
         t = self.peek(k)
@@ -1071,7 +1291,8 @@ class _Parser:
             and t.text.lower() == "downbeat"
             and (
                 self.at("]", k=k + 1)
-                or self.at_kw("AND", k=k + 1)
+                or self.at(")", k=k + 1)
+                or self.at_kw("AND", "OR", k=k + 1)
                 or self.at("EOF", k=k + 1)
                 or self.at("ARROW", k=k + 1)
             )
@@ -1079,9 +1300,24 @@ class _Parser:
 
     def cond(self, context: str) -> Cond:
         t = self.peek()
-        if self.at_kw("NOT"):
+        negated = self.at_kw("NOT")
+        k = 1 if negated else 0
+        if self.at("(", k=k):
+            if self.parens_hold_conds(k):
+                if negated:
+                    self.next()
+                self.next()
+                inner = self.conds(context)
+                self.expect(")", "')' to close the conditions")
+                if len(inner) == 1 and isinstance(inner[0], AnyOf):
+                    group = inner[0]
+                    group.negate, group.pos = negated, t.pos
+                    return group
+                return AnyOf([inner], negated, t.pos)
+            self.refuse_mixed_parens(k)
+        if negated:
             if self.at_kw(*RELATION_HEADS, k=1):
-                return RelCond(self.relation(), t.pos)
+                return RelCond(self.relation(bare=True), t.pos)
             if self.looks_like_compare(1):
                 self.next()
                 c = self.compare()
@@ -1093,22 +1329,30 @@ class _Parser:
                 w = self.next()
                 return Downbeat(t.pos, True, w.pos + len(w.text))
             self.next()
-            return Children(self.seq(), True, t.pos)
+            return Children(self.seq(bare=True), True, t.pos)
         if self.at_kw(*RELATION_HEADS):
-            return RelCond(self.relation(), t.pos)
+            return RelCond(self.relation(bare=True), t.pos)
         if self.looks_like_compare():
             return self.compare()
         if self.at_downbeat():
             self.next()
             return Downbeat(t.pos, False, t.pos + len(t.text))
-        if t.type in ("EOF", "]", "ARROW"):
+        if t.type in ("EOF", "]", ")", "ARROW"):
             raise self.err(f"expected a condition, found {self.describe(t)}", t)
-        seq = self.seq()
+        after = self.peek(-1) if self.i else None
+        seq = self.seq(bare=True)
         if self.at_kw("IN"):
+            joined = after is not None and after.upper in ("AND", "OR")
             raise self.err(
                 "children are always in the unit's own hierarchy - "
                 "for another timeline use a relation, e.g. "
-                "[CONTAINS PAC IN cadences]",
+                "[CONTAINS PAC IN cadences]"
+                + (
+                    f"; {after.upper} here joins conditions, so labels of one "
+                    f"unit go in parentheses: [DURING (a {after.upper} b) IN form]"
+                    if joined
+                    else ""
+                ),
                 self.peek(),
             )
         return Children(seq, False, t.pos)
@@ -1143,6 +1387,10 @@ class _Parser:
         v = self.unit_opt(self.value())
         if v.kind == "ref":
             v = self.distance_opt(f, op_t, v)
+        if not f.scope and f.name == "time_signature":
+            self.time_signature_value(v)
+        if not f.scope and f.name == "bar.cadenza" and v.kind != "ref":
+            v = self.truth_value(f, op_t, v)
         if v.unit == "%" and not f.scope and f.name == "duration":
             end = v.pos + len(v.raw)
             raise _not_in_v01(self.text[f.pos : end], f.pos, end)
@@ -1156,9 +1404,7 @@ class _Parser:
         if v.unit and v.unit != "%" and (f.scope or f.name != "duration"):
             hint = (
                 f"; {f.raw} is a position, written without a unit ({f.raw} = 12)"
-                if not f.scope
-                and f.name
-                in ("bar", "end_bar", "beat", "pass", "bar.count", "bar.beat_count")
+                if not f.scope and f.name in _POSITION_NUMBERS
                 else ""
             )
             raise TQLError(
@@ -1182,6 +1428,38 @@ class _Parser:
         if v.kind == "range" and op_t.text not in ("=", "!="):
             raise self.err("a range a..b goes with = or !=", op_t)
         return Compare(f, op_t.text, v, False, start)
+
+    def truth_value(self, f: FieldRef, op_t: Tok, v: Value) -> Value:
+        """``true`` or ``false``, the values of ``bar.cadenza``, as the 1 or 0
+        the index stores."""
+        word = str(v.value).lower() if v.kind == "word" else None
+        if word not in ("true", "false"):
+            raise TQLError(
+                f"{f.raw} is true or false, as in [{f.raw} = true] - not {v.raw}",
+                v.pos,
+                v.pos + max(1, len(v.raw)),
+            )
+        if op_t.text not in ("=", "!="):
+            raise self.err(f"{f.raw} is true or false: compare it with = or !=", op_t)
+        return Value("number", 1.0 if word == "true" else 0.0, v.raw, v.pos)
+
+    def time_signature_value(self, v: Value) -> None:
+        """A time signature is quoted, since '/' outside a chord is an error:
+        ``"6/8"``, or a grouping as scores print additive metres, ``"2+2+3/8"``."""
+        if self.at("SLASH") or (v.kind == "number" and self.at("WORD")):
+            end = self.peek(1).end if self.at("SLASH") else self.peek().end
+            raise TQLError(
+                f'quote a time signature: "{self.text[v.pos:end].replace(" ", "")}"',
+                v.pos,
+                end,
+            )
+        if v.kind == "string" and not TIME_SIGNATURE_RE.match(v.value.strip()):
+            raise TQLError(
+                f'{v.raw} is not a time signature - write it as "6/8", or a '
+                'grouping as "2+2+3/8"',
+                v.pos,
+                v.pos + len(v.raw),
+            )
 
     def value(self) -> Value:
         t = self.peek()
@@ -1552,6 +1830,15 @@ class _Parser:
         if op.text != "=":
             raise self.err("SET assigns with '='", op)
         v = self.value()
+        if f.name == "time_signature" and not f.scope:
+            self.time_signature_value(v)
+            if v.kind != "string":
+                raise TQLError(
+                    "SET time_signature takes a quoted time signature, as in "
+                    'SET time_signature = "6/8"',
+                    v.pos,
+                    v.pos + max(1, len(v.raw)),
+                )
         u = self.peek()
         if v.unit in ("bar", "beat") or (
             v.kind in ("number", "range")
@@ -1623,7 +1910,7 @@ class _Parser:
         refs: list[FieldRef] = []
 
         def walk_conds(conds: list[Cond], in_where: bool) -> None:
-            for c in conds:
+            for c in leaf_conds(conds):
                 if isinstance(c, Compare):
                     for f in (
                         c.field,
@@ -1648,7 +1935,7 @@ class _Parser:
                         walk_seq(opt)
                 for u in items:
                     walk_conds(u.conds, False)
-                    for c in u.conds:
+                    for c in leaf_conds(u.conds):
                         if isinstance(c, Children):
                             walk_seq(c.seq)
                         elif isinstance(c, RelCond):
@@ -1660,7 +1947,7 @@ class _Parser:
         elif isinstance(p, RelPattern):
             walk_conds(p.left.conds, False)
             walk_seq(p.relation.target)
-        for c in q.where:
+        for c in leaf_conds(q.where):
             if isinstance(c, Children):
                 walk_seq(c.seq)
             elif isinstance(c, RelCond):
@@ -1699,6 +1986,163 @@ _REL_NO_AT = (
 )
 
 
+_NOT_RUN = "NOT applies to one unit, not to a run"
+_SLASH_HINT = (
+    "'/' between two labels is only part of a chord symbol (C/E, V/V) - "
+    "AND combines labels: verse AND chorus is a unit with both"
+)
+_MAX_ALTS = 64  # alternatives a unit's labels may multiply out to
+_CHORDS_LANES = frozenset({"harmony", "chords"})  # a role and a kind
+
+
+def _and(left: list[Alt], right: list[Alt]) -> list[Alt]:
+    """``left AND right``, both alternatives of literals: every pair joined."""
+    return [
+        Alt(a.lits + b.lits, f"{a.raw} AND {b.raw}", a.pos) for a in left for b in right
+    ]
+
+
+def _not(alts: list[Alt]) -> list[Alt]:
+    """``NOT alts``: none of the alternatives, by De Morgan's laws - each
+    alternative fails when one of its literals does."""
+    out: list[Alt] = [Alt([], "", alts[0].pos if alts else 0)]
+    for a in alts:
+        flipped = [
+            Alt(
+                [replace(lit, negate=not lit.negate)],
+                _lit_text(lit, not lit.negate),
+                lit.pos,
+            )
+            for lit in a.lits
+        ]
+        out = [
+            Alt(o.lits + f.lits, f.raw if not o.lits else f"{o.raw} AND {f.raw}", o.pos)
+            for o in out
+            for f in flipped
+        ]
+        if len(out) > _MAX_ALTS:
+            break
+    return out
+
+
+def _lit_text(lit: Literal, negate: bool) -> str:
+    return f"NOT {lit.raw}" if negate else lit.raw
+
+
+def _cond_pos(c: Cond) -> int:
+    return c.pos
+
+
+def _one_unit(seq: Seq) -> bool:
+    """Whether ``seq`` takes exactly one unit: one step without a quantifier
+    or ``@``, a unit or a group whose options are each one unit."""
+    if len(seq.steps) != 1:
+        return False
+    st = seq.steps[0]
+    if (st.lo, st.hi) != (1, 1) or st.target:
+        return False
+    return isinstance(st.item, Unit) or all(_one_unit(o) for o in st.item.options)
+
+
+def _terms(
+    seq: Seq, lane: Lane | None, own: bool
+) -> Iterator[tuple[Term, Lane | None, bool]]:
+    """Every term of ``seq`` with the lane it is read in: ``lane``, or the
+    unit's own hierarchy (``own``); and so for the terms in its brackets."""
+    for st in seq.steps:
+        if isinstance(st.item, Group):
+            for o in st.item.options:
+                yield from _terms(o, lane, own)
+            continue
+        if st.item.term is not None:
+            yield st.item.term, lane, own
+        yield from _cond_terms(st.item.conds)
+
+
+def _cond_terms(conds: list[Cond]) -> Iterator[tuple[Term, Lane | None, bool]]:
+    for c in leaf_conds(conds):
+        if isinstance(c, Children):
+            yield from _terms(c.seq, None, True)
+        elif isinstance(c, RelCond):
+            r = c.relation
+            yield from _terms(r.target, r.lane, r.lane is None)
+
+
+def check_chords(q: Query) -> None:
+    """``/`` between words is a chord symbol, and only where every lane the
+    unit is looked for in is a chords lane (tql.md §5): ``IN harmony`` or
+    ``IN chords``. A timeline named in quotes is checked once its kind is
+    known. Without ``IN``, or with ``IN *``, the lanes are mixed."""
+    p = q.pattern
+    found: list[tuple[Term, Lane | None, bool]] = []
+    if isinstance(p, SeqPattern):
+        found += _terms(p.seq, p.lane, False)
+    elif isinstance(p, RelPattern):
+        if p.left.term is not None:
+            found.append((p.left.term, p.lane, False))
+        found += _cond_terms(p.left.conds)
+        r = p.relation
+        found += _terms(r.target, r.lane, r.lane is None and r.rel in SEQ_RELATIONS)
+    found += _cond_terms(q.where)
+    for term, lane, own in found:
+        for alt in term.alts:
+            for lit in alt.lits:
+                if lit.kind != "chord":
+                    continue
+                if lane is not None and lane.quoted and not own:
+                    continue  # its kind is known once the corpus is
+                if lane is not None and not own and fold(lane.text) in _CHORDS_LANES:
+                    continue
+                raise TQLError(
+                    _chord_hint(
+                        lit, mixed=not own and (lane is None or lane.text == "*")
+                    ),
+                    lit.pos,
+                    lit.pos + len(lit.raw),
+                )
+
+
+def check_time_signature(q: Query) -> None:
+    """``SET time_signature`` writes bars, so it goes on a query of one unit
+    in the bars lane: ``*[bar = 1..16] IN bars -> SET time_signature = "6/8"``."""
+    if q.action is None:
+        return
+    for a in q.action.assigns:
+        f = a.field
+        if f.scope or f.name != "time_signature":
+            continue
+        p = q.pattern
+        on_bars = (
+            isinstance(p, SeqPattern)
+            and p.lane is not None
+            and not p.lane.quoted
+            and fold(p.lane.text.strip()) in ("bar", "bars", "measure", "measures")
+            and f.index in (None, 0, 1)
+            and len(p.seq.steps) == 1
+            and isinstance(p.seq.steps[0].item, Unit)
+        )
+        if not on_bars:
+            raise TQLError(
+                "SET time_signature writes bars - find them in the bars lane, "
+                'as in *[bar = 1..16] IN bars -> SET time_signature = "6/8"',
+                f.pos,
+                f.pos + len(f.raw),
+            )
+
+
+def _chord_hint(lit: Literal, mixed: bool) -> str:
+    """The error for a chord symbol outside the chords lanes."""
+    parts = lit.raw.split("/")
+    msg = (
+        f"{lit.raw}: '/' between labels belongs to chord symbols, and only in "
+        f"a chords lane - {' AND '.join(parts)} is a unit with both "
+        f'categories, "{lit.raw}" the label as written'
+    )
+    if mixed:
+        msg += f"; to search chords, name their lane: {lit.raw} IN harmony"
+    return msg
+
+
 def _marked(seq: Seq) -> Iterator[Step]:
     """The steps of ``seq`` marked with ``@``, inside its groups too."""
     for st in seq.steps:
@@ -1712,7 +2156,7 @@ def _marked(seq: Seq) -> Iterator[Step]:
 def _tests(conds: list[Cond]) -> Iterator[Seq]:
     """The sequences that bracket conditions test (children, relation targets),
     at any depth: their units are tests, never part of a match."""
-    for c in conds:
+    for c in leaf_conds(conds):
         seq = (
             c.seq
             if isinstance(c, Children)

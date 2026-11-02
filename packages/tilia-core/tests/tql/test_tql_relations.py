@@ -688,7 +688,7 @@ class TestLabelsAndMatches:
                 "a OR b IN form CONTAINS p OR q IN Marks",
                 ["a@0 | p@2", "b@4 | q@6", "a@0 | q@2", "b@4 | p@6"],
             ),
-            ("*[DURING a OR b IN form] IN Marks", ["p@2", "q@6", "q@2", "p@6"]),
+            ("*[DURING (a OR b) IN form] IN Marks", ["p@2", "q@6", "q@2", "p@6"]),
         ],
     )
     def test_an_or_keeps_its_file_lane_and_timing_tests(self, query, expected):

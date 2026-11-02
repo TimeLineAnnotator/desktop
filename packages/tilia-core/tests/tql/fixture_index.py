@@ -276,7 +276,7 @@ class _Builder:
     def _add_positions(self, fid: str, tmap: FakeTimeMap) -> None:
         for count, (start, end, number, label) in enumerate(tmap.measures(), 1):
             self.con.execute(
-                "INSERT INTO measures VALUES (?,?,?,?,?,?,?,?)",
+                "INSERT INTO measures VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     fid,
                     count,
@@ -286,6 +286,9 @@ class _Builder:
                     end,
                     tmap.beats_per_bar,
                     tmap.pass_of(start),
+                    int(count in tmap.cadenzas),
+                    tmap.movement_of(count),
+                    tmap.time_signature,
                 ),
             )
         rows = self.con.execute(
@@ -296,7 +299,7 @@ class _Builder:
             if bar is None:
                 continue
             self.con.execute(
-                "INSERT INTO positions VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO positions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     cid,
                     bar,
@@ -307,6 +310,8 @@ class _Builder:
                     tmap.bar_label(start),
                     tmap.measure_beats(start),
                     1 if tmap.is_downbeat(start) else 0,
+                    tmap.cadenza(start),
+                    tmap.movement(start),
                 ),
             )
 
