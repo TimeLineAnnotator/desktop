@@ -23,6 +23,7 @@ The last column says whether the format's JSON Schema refuses the file too. Four
 | `metadata-not-an-object.tla` | a timeline's metadata given as a list | refuses |
 | `newer-format.tla` | written by a newer TiLiA (format 2.0.0) | refuses |
 | `next-named-nowhere.tla` | a measure's `next` names a beat its timeline doesn't have | core only |
+| `next-names-no-downbeat.tla` | a measure's `next` names a beat of its timeline that starts no measure | core only |
 | `not-json.tla` | a comma missing | can't parse |
 | `older-draft.tla` | an earlier draft of the format | refuses |
 | `repeated-key.tla` | a key given twice in one object | core only |
