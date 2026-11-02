@@ -417,9 +417,7 @@ class TestProject:
             ("Transition", 23.535, 32.322),
         ]
         assert spans_of("FirstGroup THEN Transition", items) == []
-        assert spans_of("FirstGroup THEN Exposition THEN Transition", items) == [
-            (1, 4)
-        ]
+        assert spans_of("FirstGroup THEN Exposition THEN Transition", items) == [(1, 4)]
 
 
 class TestFastPath:
