@@ -229,12 +229,18 @@ class TestWarnings:
     def test_a_good_query_does_not_warn(self):
         assert run(HARMONY, "V7 IN harmony").warnings == []
 
-    def test_a_regular_expression_beside_another_literal_warns(self):
-        message = "a regular expression in a harmony lane must stand alone"
-        for text in ("V7//x/ IN harmony", "/x//y IN harmony", "/x//y IN keys"):
+    def test_a_regular_expression_beside_another_literal_is_an_and(self):
+        # until 0.2 V7//x/ put both on one chord; AND does now, without a warning
+        for text in (
+            "V7 AND /x/ IN harmony",
+            "/x/ AND /y/ IN harmony",
+            "/x/ AND /y/ IN keys",
+        ):
             got = run(HARMONY, text)
             assert got.matches == [], text
-            assert got.warnings == [message], text
+            assert got.warnings == [], text
+        both = run(HARMONY, "V7 AND /V/ IN harmony").matches
+        assert both and both == run(HARMONY, "V7 IN harmony").matches[: len(both)]
 
     def test_warnings_do_not_carry_over_between_runs(self):
         index = fixture_index.build_index(HARMONY)

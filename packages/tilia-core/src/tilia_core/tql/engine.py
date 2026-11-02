@@ -302,7 +302,7 @@ def _unit_units(
     unit: syntax.Unit, lane: syntax.Lane | None
 ) -> Iterator[tuple[syntax.Unit, syntax.Lane | None]]:
     yield unit, lane
-    for cond in unit.conds:
+    for cond in syntax.leaf_conds(unit.conds):
         if isinstance(cond, syntax.RelCond):
             rel = cond.relation
             yield from _seq_units(rel.target, rel.lane or lane)
@@ -369,7 +369,7 @@ def _lanes_with_labels_and_more(
 
 def _lanes_of_seq(seq: syntax.Seq) -> Iterator[syntax.Lane]:
     for unit in relations.units_of(seq):
-        for cond in unit.conds:
+        for cond in syntax.leaf_conds(unit.conds):
             yield from _lanes_of_cond(cond)
 
 
@@ -394,10 +394,10 @@ def _named_lanes(query: syntax.Query) -> Iterator[syntax.Lane]:
     if isinstance(pattern, syntax.SeqPattern):
         yield from _lanes_of_seq(pattern.seq)
     elif isinstance(pattern, syntax.RelPattern):
-        for cond in pattern.left.conds:
+        for cond in syntax.leaf_conds(pattern.left.conds):
             yield from _lanes_of_cond(cond)
         yield from _lanes_of_relation(pattern.relation)
-    for cond in query.where:
+    for cond in syntax.leaf_conds(query.where):
         yield from _lanes_of_cond(cond)
 
 

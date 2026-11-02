@@ -19,9 +19,15 @@ Run = tuple[int, int, list[int], "list[bool] | None"]
 
 def nullable(item: Unit | Group) -> bool:
     """Whether ``item`` can match nothing: a group with an option whose every
-    step may take nothing (``(c*)``, ``(a? THEN (b?))``). A unit never can."""
-    return isinstance(item, Group) and any(
-        all(st.lo == 0 or nullable(st.item) for st in opt.steps) for opt in item.options
+    step may take nothing (``(c*)``, ``(a? THEN (b?))``). A unit never can,
+    nor a group with ``NOT``, which is one unit."""
+    return (
+        isinstance(item, Group)
+        and not item.negate
+        and any(
+            all(st.lo == 0 or nullable(st.item) for st in opt.steps)
+            for opt in item.options
+        )
     )
 
 
@@ -106,6 +112,14 @@ class Runs:
         return out
 
     def ends_item(self, item: Unit | Group, pos: int) -> frozenset[int]:
+        if isinstance(item, Group) and item.negate:
+            # one unit that fits no option; each option is one unit
+            if pos < self.n and all(
+                pos + 1 not in self.ends_steps(opt.steps, 0, pos)
+                for opt in item.options
+            ):
+                return frozenset((pos + 1,))
+            return frozenset()
         if isinstance(item, Group):
             acc: set[int] = set()
             for opt in item.options:

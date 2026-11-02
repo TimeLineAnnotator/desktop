@@ -330,8 +330,8 @@ class TestLiterals:
         assert "verse 2" not in matched("verse_")
 
     def test_both_needs_two_categories(self):
-        assert matched("verse/chorus") == ["verse/chorus"]
-        assert matched("verse/verse") == []
+        assert matched("verse AND chorus") == ["verse/chorus"]
+        assert matched("verse AND verse") == []
 
     def test_exact_label(self):
         assert matched('"verse"') == ["verse"]
@@ -376,13 +376,33 @@ class TestLiterals:
             "verse/chorus",
         ]
 
-    def test_not_applies_to_the_whole_or(self):
-        got = matched("NOT verse OR chorus")
+    def test_not_in_parentheses_applies_to_the_whole_or(self):
+        got = matched("NOT (verse OR chorus)")
         assert got == ["bridge.modern", "it's", "verse_", "Straße", "", "100%"] + [
             unicodedata.normalize("NFD", "Sätze"),
             "Sätze ",
         ]
         assert "Chorus" not in got and "verse/chorus" not in got
+        assert matched("NOT verse AND NOT chorus") == got
+
+    def test_not_binds_tighter_than_or(self):
+        # tql.md §5: NOT verse OR chorus is "(not a verse) or a chorus"
+        got = matched("NOT verse OR chorus")
+        assert sorted(got) == sorted(set(matched("NOT verse")) | set(matched("chorus")))
+        assert "Chorus" in got and "verse/chorus" in got
+
+    def test_and_binds_tighter_than_or(self):
+        assert matched("verse AND chorus OR bridge") == sorted(
+            set(matched("verse AND chorus")) | set(matched("bridge")),
+            key=matched("*").index,
+        )
+        assert matched("verse AND (chorus OR bridge)") == matched("verse AND chorus")
+
+    def test_a_negated_literal_beside_another(self):
+        assert matched("verse AND NOT chorus") == [
+            x for x in matched("verse") if x not in matched("chorus")
+        ]
+        assert matched("NOT /^v/ AND NOT *") == []
 
     def test_wildcard_matches_an_unlabelled_unit(self):
         got = matched("*")

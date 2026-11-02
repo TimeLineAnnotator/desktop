@@ -440,21 +440,24 @@ def _known(vals: list[Any]) -> bool:
 
 
 def _bar_alt(alt: syntax.Alt, label: str) -> bool:
-    """Whether the literals of ``alt`` (``a/b/…``, all on one unit) fit a bar
-    whose printed number is ``label``: it has that one category and that label."""
+    """Whether the literals of ``alt`` (``a AND NOT b AND …``, all on one unit)
+    fit a bar whose printed number is ``label``: it has that one category and
+    that label."""
     text = nfc(label).strip()
     words = 0
     for lit in alt.lits:
         if lit.kind == "any":
-            continue
-        if lit.kind == "exact":
+            fits = True
+        elif lit.kind == "exact":
             fits = nfc(lit.text) == text
         elif lit.kind == "regex":
             fits = bool(sqlfuncs.regexp(lit.text, text))
         else:
-            words += 1
-            fits = words == 1 and lit.sub is None and fold(lit.text) == fold(text)
-        if not fits:
+            same = lit.sub is None and fold(lit.text) == fold(text)
+            if not lit.negate:
+                words += 1
+            fits = same and words <= 1
+        if fits == lit.negate:
             return False
     return True
 
@@ -717,7 +720,6 @@ class Scope:
             got = True
             if term is not None:
                 got = any(_bar_alt(alt, comp.label) for alt in term.alts)
-                got = got != term.negate
             got = got and all(self.cond_ok(c, comp) for c in unit.conds)
             self._bar_fit[key] = got
         return got
@@ -725,7 +727,12 @@ class Scope:
     def cond_ok(self, cond: syntax.Cond, comp: Component) -> bool:
         """Whether ``comp`` meets a bracket condition SQL does not test: its
         children, or a relation to a sequence, an order relation, a relation
-        without ``IN``."""
+        without ``IN``, or conditions joined by ``OR`` or in parentheses."""
+        if isinstance(cond, syntax.AnyOf):
+            got = any(
+                all(self.cond_ok(c, comp) for c in clause) for clause in cond.clauses
+            )
+            return got != cond.negate
         if isinstance(cond, syntax.Children):
             if comp.kind != "hierarchy":
                 return cond.negate
@@ -997,21 +1004,36 @@ class Scope:
         reads the first step as a bare comparison does, any unit it took (Q7):
         it holds when one has it, negated when none has."""
         caps: list[str] = []
-        for cond in conds:
-            if isinstance(cond, syntax.Compare):
-                ok = self.compare(cond, subject, caps)
-            else:
-                units = list(subject.slots[0]) if subject.slots else []
-                negate = (
-                    cond.relation.negate
-                    if isinstance(cond, syntax.RelCond)
-                    else cond.negate
-                )
-                hits = [self.cond_ok(cond, u) for u in units]
-                ok = bool(units) and (all(hits) if negate else any(hits))
-            if not ok:
-                return False, ()
+        if not self._where_all(conds, subject, caps):
+            return False, ()
         return True, tuple(caps)
+
+    def _where_all(
+        self, conds: list[syntax.Cond], subject: values.Subject, caps: list[str]
+    ) -> bool:
+        return all(self._where_one(c, subject, caps) for c in conds)
+
+    def _where_one(
+        self, cond: syntax.Cond, subject: values.Subject, caps: list[str]
+    ) -> bool:
+        """One condition of ``WHERE``: the groups of the first clause of an
+        ``OR`` that holds are the ones captured, and ``NOT`` captures none."""
+        if isinstance(cond, syntax.AnyOf):
+            for clause in cond.clauses:
+                got: list[str] = []
+                if self._where_all(clause, subject, got):
+                    if not cond.negate:
+                        caps.extend(got)
+                    return not cond.negate
+            return cond.negate
+        if isinstance(cond, syntax.Compare):
+            return self.compare(cond, subject, caps)
+        units = list(subject.slots[0]) if subject.slots else []
+        negate = (
+            cond.relation.negate if isinstance(cond, syntax.RelCond) else cond.negate
+        )
+        hits = [self.cond_ok(cond, u) for u in units]
+        return bool(units) and (all(hits) if negate else any(hits))
 
     def joiner(
         self, within: syntax.Within | None

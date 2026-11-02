@@ -53,6 +53,8 @@ COLUMNS = {
         "bar_label",
         "bar_beat_count",
         "downbeat",
+        "bar_cadenza",
+        "bar_movement",
     ],
     "measures": [
         "file_id",
@@ -63,6 +65,9 @@ COLUMNS = {
         "end",
         "beats",
         "pass",
+        "cadenza",
+        "movement",
+        "time_signature",
     ],
     "fields": ["scope", "owner_id", "name", "value"],
 }
@@ -87,7 +92,7 @@ def test_tables_and_columns():
 
 def test_the_schema_has_version_1():
     # the version of the names show SQL makes public
-    assert make().execute("PRAGMA user_version").fetchone() == (1,)
+    assert make().execute("PRAGMA user_version").fetchone() == (2,)
 
 
 def test_indexes():
