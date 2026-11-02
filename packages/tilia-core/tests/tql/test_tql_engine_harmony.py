@@ -238,7 +238,8 @@ class TestWarnings:
         ):
             got = run(HARMONY, text)
             assert got.matches == [], text
-            assert got.warnings == [], text
+            # a regular expression that matches nothing says so (R4), no more
+            assert all("occurs nowhere" in w for w in got.warnings), text
         both = run(HARMONY, "V7 AND /V/ IN harmony").matches
         assert both and both == run(HARMONY, "V7 IN harmony").matches[: len(both)]
 
@@ -248,7 +249,10 @@ class TestWarnings:
         assert tql.run(index, "V7 IN harmony").warnings == []
 
     def test_a_label_over_other_lanes_does_not_warn(self):
-        assert run(FIXTURES["sonata"], "Xyz IN form").warnings == []
+        # only that it occurs nowhere (R4): no lane searched holds chords
+        assert run(FIXTURES["sonata"], "Xyz IN form").warnings == [
+            "Xyz occurs nowhere in the lanes searched (IN form)"
+        ]
 
     def test_a_lane_of_both_kinds_warns_only_for_a_literal_that_is_neither(self):
         # IN "Harmony" names the chords and the keys: a good chord is no key,

@@ -587,6 +587,7 @@ class TestRows:
         row = got.rows[0]
         assert list(row) == [
             "file",
+            "path",
             "title",
             "timeline",
             "lane",
@@ -612,6 +613,7 @@ class TestRows:
             "$2.ids",
         ]
         assert row["file"] == "f1"
+        assert row["path"] == "f1.tla"
         assert row["title"] is None
         assert row["timeline"] == "Form (B)"
         assert row["lane"] == "level 1"

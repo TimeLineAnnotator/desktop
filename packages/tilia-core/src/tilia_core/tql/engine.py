@@ -19,7 +19,7 @@ from tilia_core import derived
 from tilia_core.labels import fold
 
 from . import compile as tql_compile
-from . import names, regexes, relations, showsql, sqlfuncs, syntax, values
+from . import hints, names, regexes, relations, showsql, sqlfuncs, syntax, values
 from .explain import explain
 from .inuse import in_use
 from .lanes import BAR_KIND
@@ -69,9 +69,11 @@ def _sequence_matches(
             yield Match(
                 [[it[0] for it in s] for s in slot_items],
                 spec.description,
-                None
-                if flags is None
-                else slots_of(flags, 0, j - i, assign, n_steps),  # type: ignore[arg-type]
+                (
+                    None
+                    if flags is None
+                    else slots_of(flags, 0, j - i, assign, n_steps)
+                ),  # type: ignore[arg-type]
                 segments=[[(it[1], it[2]) for it in s] for s in slot_items],
                 lane_level=spec.level,
                 lane_row=spec.row,
@@ -86,6 +88,7 @@ def _timeline_row(log: Recorder, m: Match, title: str | None) -> dict[str, Any]:
     )[0]
     return {
         "file": m.file_id,
+        "path": _file_path(log, m.file_id),
         "title": title,
         "timeline": name,
         "kind": kind,
@@ -97,10 +100,14 @@ def _timeline_row(log: Recorder, m: Match, title: str | None) -> dict[str, Any]:
 def _file_row(
     log: Recorder, m: Match, title: str | None, file_fields: list[str]
 ) -> dict[str, Any]:
-    """A row of a query of only ``WHERE`` that lists files: ``file``, ``title``
-    and a column for each file field the query names (several values joined by
-    ``, ``)."""
-    row: dict[str, Any] = {"file": m.file_id, "title": title}
+    """A row of a query of only ``WHERE`` that lists files: ``file``, ``path``,
+    ``title`` and a column for each file field the query names (several values
+    joined by ``, ``)."""
+    row: dict[str, Any] = {
+        "file": m.file_id,
+        "path": _file_path(log, m.file_id),
+        "title": title,
+    }
     for name in file_fields:
         if name in row:
             continue
@@ -114,6 +121,19 @@ def _file_row(
         )
         row[name] = ", ".join(str(r[0]) for r in found) if found else None
     return row
+
+
+def _file_path(log: Recorder, file_id: str) -> str | None:
+    # not logged, as for positions: one lookup per row
+    row = log.con.execute("SELECT path FROM files WHERE id = ?", (file_id,)).fetchone()
+    return row[0] if row else None
+
+
+def _by_path(matches: list[Match], files: list[tuple[str]]) -> None:
+    """Sort ``matches`` by their file's path, then by start (tql.md §10):
+    ``files`` are the file ids as the search read them, ordered by path."""
+    rank = {f: k for k, (f,) in enumerate(files)}
+    matches.sort(key=lambda m: (rank.get(_file_of(m), len(rank)), _extent(m)[0]))
 
 
 def _file_title(log: Recorder, file_id: str) -> str | None:
@@ -195,6 +215,14 @@ def _run_on(
                 matches, stopped = _pattern_matches(
                     index, log, query, pattern, max_matches, warn, limits
                 )
+                if not matches and stopped is None and limits.stopped is None:
+                    units = _lane_units(query)
+                    warn.other.extend(
+                        hints.empty(con, index, query, units, limits.ensure)
+                    )
+                    if limits.stopped == "time_limit":
+                        limits.stopped = None  # the search was whole; the hints
+                        # ran out, and are left out
     finally:
         con.set_progress_handler(None, 0)
     if pattern is not None:
@@ -438,9 +466,11 @@ def _pattern_matches(
     stopped: str | None = None
     labels = showsql.describe_units(query)
     any_lane = False
+    files: list[tuple[str]] = []
     try:
         limits.ensure()
-        for (file_id,) in log.execute("SELECT id FROM files ORDER BY id"):
+        files = log.execute("SELECT id FROM files ORDER BY path, id")
+        for (file_id,) in files:
             limits.ensure()
             scope = relations.Scope(
                 log, file_id, index.time_map(file_id), labels, limits.ensure
@@ -459,7 +489,9 @@ def _pattern_matches(
                 limits.ensure()
                 if query.where:
                     first = next(c for slot in match.slots for c in slot)
-                    subject = values.Subject(match.slots, first.timeline_id, single)
+                    subject = values.Subject(
+                        match.slots, first.timeline_id, single, segments=match.segments
+                    )
                     ok, caps = scope.where_ok(query.where, subject)
                     if not ok:
                         continue
@@ -491,7 +523,7 @@ def _pattern_matches(
         stopped = limits.reason_of(err)
 
     matches = [found[k] for k in order]
-    matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
+    _by_path(matches, files)
     return matches, stopped
 
 
@@ -542,11 +574,11 @@ def _where_only(
         matches.append(match)
         return True
 
+    files: list[tuple[str]] = []
     try:
         limits.ensure()
-        for (file_id,) in log.execute(
-            "SELECT id FROM files ORDER BY id", part=files_part
-        ):
+        files = log.execute("SELECT id FROM files ORDER BY path, id", part=files_part)
+        for (file_id,) in files:
             limits.ensure()
             scope = relations.Scope(
                 log, file_id, index.time_map(file_id), labels, limits.ensure
@@ -554,9 +586,11 @@ def _where_only(
             timelines = log.execute(
                 "SELECT id, name FROM timelines WHERE file_id = ? ORDER BY ordinal",
                 (file_id,),
-                part=f"{where}: the timelines of {file_id}"
-                if grain == "timeline"
-                else None,
+                part=(
+                    f"{where}: the timelines of {file_id}"
+                    if grain == "timeline"
+                    else None
+                ),
             )
             if grain == "file":
                 ok, caps = scope.where_ok(query.where, values.Subject([], None))
@@ -598,7 +632,7 @@ def _where_only(
         stopped = limits.reason_of(err)
     if grain == "match":
         log.note(stage)
-        matches.sort(key=lambda m: (_file_of(m), _extent(m)[0]))
+        _by_path(matches, files)
     return grain, matches, names.named_file_fields(cat, query), stopped
 
 
@@ -702,10 +736,10 @@ def _position(log: Recorder, comp: Component | None) -> tuple[Any, Any]:
     return (rows[0][0], rows[0][1]) if rows else (None, None)
 
 
-RESULT_COLUMNS = ("file", "title", "timeline", "lane", "ids", "label")
+RESULT_COLUMNS = ("file", "path", "title", "timeline", "lane", "ids", "label")
 RESULT_COLUMNS += ("symbol", "roman", "start", "end", "bar", "beat")
 STEP_COLUMNS = ("label", "timeline", "start", "end", "bar", "ids")
-TIMELINE_COLUMNS = ("file", "title", "timeline", "kind", "role", "author")
+TIMELINE_COLUMNS = ("file", "path", "title", "timeline", "kind", "role", "author")
 
 
 def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[str]:
@@ -717,8 +751,9 @@ def _columns(grain: str, query: syntax.Query, file_fields: list[str]) -> list[st
     if grain == "file":
         return [
             "file",
+            "path",
             "title",
-            *(f for f in file_fields if f not in ("file", "title")),
+            *(f for f in file_fields if f not in ("file", "path", "title")),
         ]
     steps = query.slot_count if query.pattern is not None else 1
     return [
@@ -765,6 +800,7 @@ def _row(
     bar, beat = _position(log, first)
     row: dict[str, Any] = {
         "file": first.file_id,
+        "path": _file_path(log, first.file_id),
         "title": title,
         "timeline": names.get(first.timeline_id),
         "lane": _lane_column(m),
