@@ -1,4 +1,5 @@
 import itertools
+import re
 from bisect import bisect
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,15 +12,16 @@ from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.harmony.constants import NOTE_NAME_TO_INT
 from tilia.timelines.score.components import Note
 from tilia.timelines.score.components.clef import Clef
+from tilia.timelines.score.components.time_signature import validate_numerator
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui.strings import (
     INSERT_MEASURE_ZERO_FAILED,
     INSERT_MEASURE_ZERO_PROMPT,
     INSERT_MEASURE_ZERO_TITLE,
 )
-from tilia.ui.timelines.harmony.constants import NOTE_NAME_TO_INT
 
 
 class TiliaMXLReader:
@@ -96,6 +98,10 @@ def notes_from_musicXML(
                 )
 
     def _create_components(elem: dict) -> None:
+        if metric_division.measure_num not in beat_tl.measure_numbers:
+            # The beat timeline skips this measure, so its notes aren't
+            # imported, as after the beat timeline's last measure.
+            return
         start_times, end_times = _get_note_times(
             metric_division.measure_num, elem["div_pos"], elem["duration"]
         )
@@ -109,7 +115,9 @@ def notes_from_musicXML(
                 start_times.pop(0)
                 end_times.pop(0)
                 continue
-            while len(end_times) and start_times[0] > end_times[0]:
+            # An end equal to the start is dropped too: a note can't end
+            # where it starts, and keeping it would loop forever.
+            while len(end_times) and start_times[0] >= end_times[0]:
                 end_times.pop(0)
 
     def _metric_to_time(
@@ -190,9 +198,8 @@ def notes_from_musicXML(
                     measure_nums = list(metric_pos_to_attr[staff_no][attr_type].keys())
                     current_mp_index = bisect(measure_nums, measure)
                     if current_mp_index == 0:
-                        errors.append(
-                            f"Cannot create {attr_type} for measure {measure}. {measure} is smaller than the smallest measure found in the provided file {measure_nums[0]}."
-                        )
+                        # The file gives none up to this measure, or none at
+                        # all, such as no key signature.
                         continue
                     if measure_nums[current_mp_index - 1] == measure:
                         continue
@@ -214,7 +221,7 @@ def notes_from_musicXML(
 
                     to_create[staff_no][attr_type] = measure_nums[current_mp_index - 1]
 
-            if not to_create:
+            if not any(to_create.values()):
                 return
 
             times = beat_tl.get_time_by_measure(measure // 1, measure % 1)
@@ -250,6 +257,13 @@ def notes_from_musicXML(
         for attribute in attributes:
             match attribute.tag:
                 case "key":
+                    if attribute.find("fifths") is None:
+                        # A non-traditional key, written with <key-step> and
+                        # <key-alter>.
+                        errors.append(
+                            f"<{attribute.tag}> - non-traditional key not implemented"
+                        )
+                        continue
                     constructor_kwargs = {
                         "fifths": int(attribute.find("fifths").text),
                     }
@@ -260,12 +274,46 @@ def notes_from_musicXML(
                     )
                     component_kind = ComponentKind.KEY_SIGNATURE
                 case "time":
-                    ts_numerator = int(attribute.find("beats").text)
-                    ts_denominator = int(attribute.find("beat-type").text)
-                    constructor_kwargs = {
-                        "numerator": ts_numerator,
-                        "denominator": ts_denominator,
-                    }
+                    if attribute.find("beats") is None:
+                        # <senza-misura/>: no time signature.
+                        continue
+                    # As written: a numerator can be composite ("3+2"), and
+                    # there can be several pairs (2/4 + 3/8).
+                    numerators = [
+                        "".join((beats.text or "").split())
+                        for beats in attribute.findall("beats")
+                    ]
+                    denominators = [
+                        "".join((beat_type.text or "").split())
+                        for beat_type in attribute.findall("beat-type")
+                    ]
+                    if (
+                        len(numerators) != len(denominators)
+                        or not all(map(validate_numerator, numerators))
+                        or not all(
+                            re.fullmatch("[0-9]+", d) and int(d) > 0
+                            for d in denominators
+                        )
+                    ):
+                        written = " + ".join(
+                            f"{n}/{d}"
+                            for n, d in itertools.zip_longest(
+                                numerators, denominators, fillvalue="?"
+                            )
+                        )
+                        errors.append(f"<{attribute.tag}> - {written} not implemented")
+                        continue
+                    pairs = [
+                        [numerator, int(denominator)]
+                        for numerator, denominator in zip(
+                            numerators, denominators, strict=True
+                        )
+                    ]
+                    constructor_kwargs = (
+                        {"numerator": pairs[0][0], "denominator": pairs[0][1]}
+                        if len(pairs) == 1
+                        else {"pairs": pairs}
+                    )
                     staff_numbers = (
                         [attribute.get("number")]
                         if attribute.get("number") is not None
@@ -274,6 +322,9 @@ def notes_from_musicXML(
                     component_kind = ComponentKind.TIME_SIGNATURE
                 case "clef":
                     sign = attribute.find("sign").text
+                    if sign == "none":
+                        # No clef: the staff is shown as if in treble clef.
+                        continue
                     if sign not in {"C", "F", "G"}:
                         errors.append(f"<{attribute.tag}> - {sign} not implemented")
                         continue
@@ -285,12 +336,16 @@ def notes_from_musicXML(
                     ) - 3
                     octave_change = (
                         int(o.text)
-                        if (o := attribute.find("clef-octave-change"))
+                        if (o := attribute.find("clef-octave-change")) is not None
                         else 0
                     )
                     constructor_kwargs = {
                         "line_number": line,
-                        "icon": Clef.ICON.get(sign),
+                        # Such as "G-8", for treble 8vb. An octave change
+                        # without its own icon gets the plain clef's.
+                        "icon": Clef.ICON.get(
+                            f"{sign}{octave_change * 8:+d}", Clef.ICON[sign]
+                        ),
                         "step": NOTE_NAME_TO_INT[sign],
                         "octave": sign_to_octave[sign] + octave_change,
                     }
@@ -445,6 +500,10 @@ def notes_from_musicXML(
                 elements_to_create.append(_parse_element(element, part_id))
             _create_elements(elements_to_create)
 
+            if metric_division.measure_num not in beat_tl.measure_numbers:
+                # The beat timeline skips this measure: it gets no bar line,
+                # as it gets no notes.
+                continue
             times = _metric_to_time(
                 metric_division.measure_num, metric_division.div_position[1]
             )
@@ -496,7 +555,6 @@ def notes_from_musicXML(
             "Add beats to the beat timeline before importing a score."
         ]
 
-    svg_converter = musicxml_to_svg(score_tl.id)
     with TiliaMXLReader(path, file_kwargs, reader_kwargs) as file:
         parser = etree.XMLParser(remove_blank_text=True)
         tree = etree.parse(file, parser=parser, **reader_kwargs).getroot()
@@ -524,6 +582,8 @@ def notes_from_musicXML(
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))
     post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)
+    # Only now, so that a file that fails above leaves no converter behind.
+    svg_converter = musicxml_to_svg(score_tl.id)
     svg_converter.to_svg(str(etree.tostring(tree, xml_declaration=True), "utf-8"))
 
     return True, errors

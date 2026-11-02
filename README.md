@@ -53,7 +53,8 @@ TiLiA can also be run and built from source.
 ### Prerequisites
 
 Before you start, you will need:
-- Python 3.10 - 3.12. Download from the [Python website](https://www.python.org/downloads/). (Support for Python 3.13 is variable due to the dependencies used.)
+- Python 3.12 - 3.14. Download from the [Python website](https://www.python.org/downloads/).
+  To run from source on Python 3.10 or 3.11, use [v0.7.4](https://github.com/TimeLineAnnotator/desktop/releases/tag/v0.7.4), the last release that supports them.
 - <details>
   <summary>Other pre-requisites</summary>
 

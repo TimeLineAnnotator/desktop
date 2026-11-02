@@ -1,6 +1,8 @@
 import json
 
 import pytest
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QEvent, QVariantAnimation
 from PySide6.QtGui import QColor
 
 from tests.constants import (
@@ -12,14 +14,26 @@ from tests.mock import (
     patch_file_dialog,
     patch_yes_or_no_dialog,
 )
-from tests.utils import get_blank_file_data, reloadable
+from tests.ui.timelines.interact import press_key
+from tests.utils import (
+    get_blank_file_data,
+    get_command_action,
+    get_main_window_menu,
+    get_submenu,
+    reloadable,
+    undoable,
+    wait_for_smooth_movement,
+)
 from tilia.errors import SCORE_STAFF_ID_ERROR
+from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
+from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
+from tilia.ui.windows import WindowKind
 
 
 def test_create(tluis):
@@ -253,3 +267,509 @@ def test_symbols_do_not_collide_with_staff_without_notes(
     staff_top_y = score_tlui.get_element(staff.id).staff_lines.lines[0].line().y1()
 
     assert clef_bottom_y <= staff_top_y
+
+
+SVG_WITH_MARKERS = (
+    "<svg>"
+    "<g class='vf-text'><text font-size='0.00001px' x='100'>1␟0␟4</text></g>"
+    "<g class='vf-text'><text font-size='0.00001px' x='150'>1␟2␟4</text></g>"
+    "</svg>"
+)
+
+
+class TestSvgView:
+    def test_is_none_when_no_viewer_exists(self, score_tlui):
+        assert score_tlui.svg_view is None
+
+    def test_reading_it_does_not_register_a_viewer(self, score_tlui):
+        assert score_tlui.svg_view is None
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
+
+    def test_get_or_create_creates_and_loads(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert score_tlui.get_or_create_svg_view().is_svg_loaded
+
+    def test_get_or_create_returns_existing_viewer(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        assert score_tlui.get_or_create_svg_view() is score_tlui.svg_view
+
+    def test_viewer_and_tracker_come_back_after_reloading(
+        self, score_tlui, note, tls, tmp_path
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        @reloadable(tmp_path / "file.tla")
+        def check() -> None:
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            assert score.svg_view is not None
+            assert score.measure_tracker.isVisible()
+
+
+class TestResetSvg:
+    def test_deletes_existing_viewer(self, score_tlui, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        score_tlui.reset_svg()
+
+        assert score_tlui.svg_view is None
+
+    def test_does_not_raise_when_no_viewer_exists(self, score_tlui):
+        score_tlui.reset_svg()
+
+        assert score_tlui.svg_view is None
+
+    def test_does_not_raise_when_another_timeline_owns_the_viewer(
+        self, score_tlui, tls, tluis
+    ):
+        other = tls.create_timeline(ScoreTimeline)
+        tls.set_timeline_data(other.id, "svg_data", SVG_WITH_MARKERS)
+
+        score_tlui.reset_svg()
+
+        assert tluis.get_timeline_ui(other.id).svg_view is not None
+
+
+class TestSmoothMovementAfterDelete:
+    # The tests start the tracker's movement as the viewer does when the
+    # measures it shows change: in tests, the viewer is only painted with
+    # measure times when a whole score and beat timeline are set up.
+
+    def test_measure_tracker_stops_when_the_timeline_is_deleted(self, score_tlui, tls):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.smooth_tracker.animation
+        score_tlui.svg_view.update_measure_tracker(0.0, 2.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        commands.execute("timeline.delete", score_tlui, confirm=False)
+
+        assert animation.state() is QVariantAnimation.State.Stopped
+
+    def test_measure_tracker_stops_when_the_timeline_is_cleared(
+        self, score_tlui, note, tls
+    ):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.smooth_tracker.animation
+        score_tlui.svg_view.update_measure_tracker(0.0, 2.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        assert animation.state() is QVariantAnimation.State.Stopped
+
+    def test_viewer_scroll_is_deleted_with_the_viewer(
+        self, score_tlui, note, tls, tluis
+    ):
+        settings.set("general", "prioritise_performance", False)
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        animation = score_tlui.svg_view.view.smooth_x.animation
+        commands.execute("media.seek", 50.0)
+        assert animation.state() is QVariantAnimation.State.Running
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert not shiboken6.isValid(animation)
+        wait_for_smooth_movement(tluis.smooth_playback_lines)
+
+
+class TestAudioTimeChange:
+    def test_does_not_create_a_viewer(self, score_tlui):
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 1.0, None)
+
+        assert score_tlui.svg_view is None
+
+
+class TestClear:
+    @staticmethod
+    def _clear(score_tlui):
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+    def test_closes_the_svg_viewer(self, score_tlui, note, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        self._clear(score_tlui)
+
+        assert score_tlui.svg_view is None
+
+    def test_viewer_stays_closed_during_playback(self, score_tlui, note, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+
+        post(Post.PLAYER_CURRENT_TIME_CHANGED, 1.0, None)
+
+        assert score_tlui.svg_view is None
+
+    def test_discards_svg_data(self, score_tlui, note, tls):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        self._clear(score_tlui)
+
+        assert score_tlui.get_data("svg_data") == ""
+
+    def test_viewer_stays_closed_after_zooming_and_renaming(
+        self, score_tlui, note, tls
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+
+        commands.execute("view.zoom.in")
+        commands.execute("timeline.set_name", score_tlui, name="Renamed")
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
+
+    def test_redoing_clear_with_an_annotation_does_not_reopen_the_viewer(
+        self, score_tlui, note, tls
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        score_tlui.timeline.create_component(
+            ComponentKind.SCORE_ANNOTATION,
+            x=10.0,
+            y=20.0,
+            viewer_id=0,
+            text="annotation",
+            font_size=14,
+        )
+        post(Post.APP_STATE_RECORD, "setup")
+        self._clear(score_tlui)
+
+        commands.execute("edit.undo")
+        commands.execute("edit.redo")
+
+        with pytest.raises(NoReplyToRequest):
+            get(Get.SCORE_VIEWER, score_tlui.id)
+
+    def test_restoring_a_cleared_state_closes_the_viewer(self, score_tlui, note, tls):
+        # The path undo/redo takes when it lands on a cleared state.
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+        cleared_state, _ = tls.serialize_timelines()
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+
+        tls.restore_state(cleared_state)
+
+        assert score_tlui.get_data("svg_data") == ""
+        assert score_tlui.svg_view is None
+
+    def test_score_does_not_come_back_after_saving_and_reloading(
+        self, score_tlui, note, tls, tmp_path
+    ):
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        self._clear(score_tlui)
+
+        @reloadable(tmp_path / "file.tla")
+        def check() -> None:
+            score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+            assert score.get_data("svg_data") == ""
+            assert score.svg_view is None
+
+    def test_undo_redo(self, score_tlui, note, tls):
+        # `undoable()` can't be used here: TimelineComponentManager.restore_state
+        # recreates components in set-iteration order while hash_components()
+        # hashes them in list order, so a restored state's components_hash
+        # depends on PYTHONHASHSEED. That is a pre-existing defect in the base
+        # timeline, unrelated to clearing; assert the restored values directly.
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        svg_data = score_tlui.get_data("svg_data")
+        post(Post.APP_STATE_RECORD, "setup")
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.clear", score_tlui)
+
+        commands.execute("edit.undo")
+
+        assert len(score_tlui.timeline) == 3
+        assert score_tlui.get_data("svg_data") == svg_data
+        assert score_tlui.svg_view is not None
+
+        commands.execute("edit.redo")
+
+        assert len(score_tlui.timeline) == 0
+        assert score_tlui.get_data("svg_data") == ""
+        assert score_tlui.svg_view is None
+
+
+FOUR_FOUR = "<time><beats>4</beats><beat-type>4</beat-type></time>"
+TREBLE_CLEF = "<clef><sign>G</sign><line>2</line></clef>"
+
+
+def _score_with_clef(clef: str, pitch_tag: str = "pitch", time: str = FOUR_FOUR) -> str:
+    def note(step: str, octave: int) -> str:
+        prefix = "" if pitch_tag == "pitch" else "display-"
+        return (
+            f"<note><{pitch_tag}><{prefix}step>{step}</{prefix}step>"
+            f"<{prefix}octave>{octave}</{prefix}octave></{pitch_tag}>"
+            "<duration>2</duration><type>half</type></note>"
+        )
+
+    return f"""<score-partwise version="4.0">
+    <part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+    <part id="P1"><measure number="1">
+        <attributes>
+            <divisions>1</divisions>
+            <key><fifths>0</fifths></key>
+            {time}
+            {clef}
+        </attributes>
+        {note("G", 4)}{note("C", 4)}
+    </measure></part>
+    </score-partwise>
+    """
+
+
+def _import_score_text(text: str, tmp_path) -> None:
+    path = tmp_path / "score.musicxml"
+    path.write_text(text, encoding="utf-8")
+    with patch_file_dialog(True, [str(path)]), patch_yes_or_no_dialog(True):
+        commands.execute("timelines.import.score")
+
+
+def _note_positions(score_tlui) -> list[tuple[float, int]]:
+    """Each note's top and number of ledger lines."""
+    notes = score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
+    positions = []
+    for note in sorted(notes):
+        ui = score_tlui.get_element(note.id)
+        positions.append((ui.top_y, len(ui.ledger_line.lines) if ui.ledger_line else 0))
+    return positions
+
+
+@pytest.mark.parametrize(
+    "clef, pitch_tag",
+    [("", "pitch"), ("<clef><sign>percussion</sign></clef>", "unpitched")],
+    ids=["no clef", "percussion clef"],
+)
+def test_notes_without_usable_clef_are_placed_as_in_treble_clef(
+    clef, pitch_tag, qtui, score_tlui, beat_tlui, tmp_path
+):
+    # As MuseScore, Verovio and OSMD do. No clef is drawn: the score has none
+    # TiLiA can show.
+    for time in range(5):
+        commands.execute("timeline.beat.add", time=time)
+    _import_score_text(_score_with_clef(TREBLE_CLEF, pitch_tag), tmp_path)
+    positions_in_treble = _note_positions(score_tlui)
+    # G4 has no ledger line, C4 has one.
+    assert [ledger_lines for _, ledger_lines in positions_in_treble] == [0, 1]
+
+    _import_score_text(_score_with_clef(clef, pitch_tag), tmp_path)
+
+    assert _note_positions(score_tlui) == positions_in_treble
+    assert not score_tlui.timeline.get_components_by_attr("KIND", ComponentKind.CLEF)
+
+
+def _drawn(time_signature_ui) -> tuple[str, str]:
+    """A time signature's top and bottom lines, read left to right. A plus
+    between two pairs is in both."""
+    glyphs = sorted(time_signature_ui.body.glyphs, key=lambda glyph: glyph.x())
+    top = "".join(g.character for g in glyphs if g.row != "denominator")
+    bottom = "".join(g.character for g in glyphs if g.row != "numerator")
+    return top, bottom
+
+
+@pytest.mark.parametrize(
+    "time, drawn",
+    [
+        (FOUR_FOUR, ("4", "4")),
+        ("<time><beats>3+2</beats><beat-type>8</beat-type></time>", ("3+2", "8")),
+        (
+            "<time><beats>2</beats><beat-type>4</beat-type>"
+            "<beats>3</beats><beat-type>8</beat-type></time>",
+            ("2+3", "4+8"),
+        ),
+    ],
+    ids=["simple", "composite", "several pairs"],
+)
+def test_time_signature_is_drawn_as_written(
+    time, drawn, qtui, score_tlui, beat_tlui, tmp_path
+):
+    for t in range(5):
+        commands.execute("timeline.beat.add", time=t)
+    _import_score_text(_score_with_clef(TREBLE_CLEF, time=time), tmp_path)
+
+    @reloadable(tmp_path / "file.tla")
+    def check_drawn():
+        score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        (time_signature,) = score.timeline.get_components_by_attr(
+            "KIND", ComponentKind.TIME_SIGNATURE
+        )
+        time_signature_ui = score.get_element(time_signature.id)
+        assert _drawn(time_signature_ui) == drawn
+        y_by_row = {}
+        for glyph in time_signature_ui.body.glyphs:
+            assert not glyph.pixmap().isNull()
+            y_by_row.setdefault(glyph.row, set()).add(glyph.y())
+        # The plus between two pairs is halfway down.
+        assert max(y_by_row["numerator"]) < min(y_by_row["denominator"])
+        for y in y_by_row.get("between", []):
+            assert max(y_by_row["numerator"]) < y < min(y_by_row["denominator"])
+
+
+def _add_score_action(qtui):
+    add_menu = get_submenu(get_main_window_menu(qtui, "Timelines"), "Add")
+    return get_command_action(add_menu, "timelines.add.score")
+
+
+def test_create_score_timeline_from_menu_bar(qtui, tluis):
+    # Create a score timeline from the menu bar (Timelines > Add > Score).
+    action = _add_score_action(qtui)
+    assert action is not None
+
+    with Serve(Get.FROM_USER_STRING, (True, "")):
+        with undoable():
+            action.trigger()
+
+    assert len(tluis) == 1
+    assert len(tluis.get_timeline_uis_by_type(ScoreTimeline)) == 1
+
+
+def test_create_several_score_timelines_from_menu_bar(qtui, tluis):
+    # Create several score timelines from the menu bar.
+    action = _add_score_action(qtui)
+
+    with Serve(Get.FROM_USER_STRING, (True, "")):
+        for _ in range(3):
+            action.trigger()
+
+    score_tluis = tluis.get_timeline_uis_by_type(ScoreTimeline)
+    assert len(score_tluis) == 3
+    assert len({tlui.id for tlui in score_tluis}) == 3
+
+
+def _create_two_notes(score_tl):
+    score_tl.create_component(ComponentKind.STAFF, 0, 5)
+    score_tl.create_component(ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE)
+    note1 = score_tl.create_component(ComponentKind.NOTE, 0, 1, 0, 0, 3, 0)[0]
+    note2 = score_tl.create_component(ComponentKind.NOTE, 1, 2, 2, 0, 3, 0)[0]
+    return note1, note2
+
+
+def test_set_color_of_several_notes(score_tlui, score_tl):
+    # Set the color of several notes at once (context menu / set_color command).
+    note1, note2 = _create_two_notes(score_tl)
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+
+    note1_ui = score_tlui.get_component_ui(note1)
+    note2_ui = score_tlui.get_component_ui(note2)
+    score_tlui.select_element(note1_ui)
+    score_tlui.select_element(note2_ui)
+
+    commands.execute("timeline.component.set_color", color=QColor("#123456"))
+
+    assert note1_ui.get_data("color") == "#123456"
+    assert note2_ui.get_data("color") == "#123456"
+
+
+def test_reset_color_of_several_notes(score_tlui, score_tl):
+    # Reset the color of several notes at once (context menu / reset_color command).
+    note1, note2 = _create_two_notes(score_tl)
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+
+    note1_ui = score_tlui.get_component_ui(note1)
+    note2_ui = score_tlui.get_component_ui(note2)
+    score_tlui.select_element(note1_ui)
+    score_tlui.select_element(note2_ui)
+
+    commands.execute("timeline.component.set_color", color=QColor("#123456"))
+
+    commands.execute("timeline.component.reset_color")
+
+    assert note1_ui.get_data("color") is None
+    assert note2_ui.get_data("color") is None
+
+
+def test_delete_note_keyboard_shortcut_does_nothing(score_tlui, score_tl, note_ui):
+    # Deleting a note with the keyboard shortcut does nothing -- notes
+    # can't be deleted (score components carry TimelineFlag.COMPONENTS_NOT_DELETABLE).
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+    score_tlui.select_element(note_ui)
+    component_count_before = len(score_tl)
+
+    press_key("Delete")
+
+    assert len(score_tl) == component_count_before
+    assert note_ui.tl_component in score_tl
+
+
+def test_open_inspector_for_note_with_keyboard_shortcut(qtui, score_tlui, note_ui):
+    # Open the inspector for a note with the keyboard shortcut (Enter/Return).
+    post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tlui.id)
+    score_tlui.select_element(note_ui)
+    press_key("Return")
+
+    assert qtui.is_window_open(WindowKind.INSPECT)
+    post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+
+def test_reload_file_places_notes_in_same_position(qtui, score_tl, beat_tl, tmp_path):
+    # Load an annotation (.tla) file -- notes are placed in about the
+    # same place as before saving. Reading: "annotation file" = the app's own
+    # .tla project file (TiLiA = "TimeLine Annotator"); "same place" = same
+    # vertical (pitch/staff-derived) position for every note, mirroring how
+    # test_attribute_positions above checks CLEF/KEY_SIGNATURE/TIME_SIGNATURE
+    # by Y position only -- time-axis (X) placement is not asserted there
+    # either, since it is derived from time_x_converter's view-width-dependent
+    # scale rather than from saved data.
+    beat_tl.beat_pattern = [1]
+    for i in range(0, 3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.recalculate_measures()
+
+    notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+
+    def _note_y_positions():
+        score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        notes = sorted(
+            score.timeline.get_components_by_attr("KIND", ComponentKind.NOTE)
+        )
+        assert notes  # sanity: the fixture score has notes to compare
+        return [score.get_element(n.id).top_y for n in notes]
+
+    positions_before = _note_y_positions()
+
+    @reloadable(tmp_path / "file.tla")
+    def check_positions():
+        assert _note_y_positions() == positions_before
+
+
+def test_import_score_with_no_beat_timeline_shows_error(score_tlui, tilia_errors):
+    # Importing a score with no beat timeline in the file shows an error.
+    commands.execute("timelines.import.score")
+    tilia_errors.assert_in_error_title("Import failed")
+
+
+def test_import_score_then_delete_all_beats_does_not_crash(
+    qtui, score_tl, beat_tl, beat_tlui, tmp_path
+):
+    # Import a score, then delete all beats: no crash. This covers the
+    # data-layer half of the behavior -- clicking a note in the rendered
+    # score viewer afterwards needs rendering (see below) and isn't covered
+    # here.
+    beat_tl.beat_pattern = [1]
+    for i in range(0, 3):
+        beat_tl.create_beat(i)
+    beat_tl.measure_numbers = [0, 1, 2]
+    beat_tl.recalculate_measures()
+
+    notes_from_musicXML(score_tl, beat_tl, EXAMPLE_MULTISTAFF_MUSICXML_PATH)
+    note = score_tl.get_component_by_attr("KIND", ComponentKind.NOTE)
+    assert note is not None
+
+    with patch_yes_or_no_dialog(True):
+        commands.execute("timeline.clear", beat_tlui)
+
+    assert len(beat_tl) == 0
+
+    score = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+    note_ui = score.get_element(note.id)
+    # Metric position depends on the beat timeline; with no beats left this
+    # should degrade to None rather than raise.
+    assert note_ui.get_data("start_metric_position") is None
