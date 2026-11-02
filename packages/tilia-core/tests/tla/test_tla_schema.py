@@ -248,7 +248,7 @@ def named_nothing(content):
             ):
                 following = measure.get("next")
                 for item in following if isinstance(following, list) else ():
-                    refs.append((item, beats_of(timeline), "next"))
+                    refs.append((item, downbeats_of(timeline), "next"))
         found += [
             f"{name} in {key}"
             for ref, targets, name in refs
@@ -263,6 +263,16 @@ def beats_of(timeline):
         key: component
         for key, component in entries(timeline.get("components"))
         if isinstance(component, dict) and component.get("kind") == "BEAT"
+    }
+
+
+def downbeats_of(timeline):
+    """A beat timeline's downbeats, by id: its beats with a measure mark, but
+    a closing tap, which starts no measure."""
+    return {
+        key: beat
+        for key, beat in beats_of(timeline).items()
+        if isinstance(beat.get("measure"), dict) and beat.get("closing") is not True
     }
 
 
@@ -484,6 +494,14 @@ def with_a_next_naming_a_marker(content):
     first_component(timeline_of(content, "Beat"))["measure"]["next"] = [marker]
 
 
+def with_a_next_naming_no_downbeat(content):
+    # A beat of the timeline, but not one that starts a measure.
+    beats = timeline_of(content, "Beat")["components"]
+    third = list(beats)[2]
+    assert "measure" not in beats[third]
+    first_component(timeline_of(content, "Beat"))["measure"]["next"] = [third]
+
+
 def with_a_beat_without_a_time(content):
     beats = timeline_of(content, "Beat")["components"]
     del beats[list(beats)[1]]["time"]
@@ -589,6 +607,12 @@ AGREEMENT = [
     ),
     pytest.param(
         changed(with_a_next_naming_a_marker), True, False, id="next naming no beat"
+    ),
+    pytest.param(
+        changed(with_a_next_naming_no_downbeat),
+        True,
+        False,
+        id="next naming a beat starting no measure",
     ),
     # ...and both accept these.
     pytest.param(EVERY_KIND.read_bytes(), False, False, id="golden"),

@@ -324,6 +324,14 @@ FILES: dict[str, Callable[[], bytes]] = {
     ),
     # A beat timeline's first beat starts its first measure.
     "first-beat-without-mark.tla": _changed(_first_beat_without_mark),
+    # A next names a downbeat: beat_2 starts no measure.
+    "next-names-no-downbeat.tla": _changed(
+        _set(
+            lambda c: component(c, "beat_1", of="beats")["measure"],
+            "next",
+            [IDS["beat_2"]],
+        )
+    ),
 }
 
 

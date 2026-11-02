@@ -166,6 +166,12 @@ EXPECTED = {
         BEAT_1 + "/measure/next/0",
         25,
     ),
+    "next-names-no-downbeat.tla": (
+        'a measure is followed by "{beat_2}", a beat of its timeline that starts'
+        " no measure",
+        BEAT_1 + "/measure/next/0",
+        25,
+    ),
     "first-beat-without-mark.tla": (
         'the first beat of the timeline "Beats" has no measure mark',
         BEAT_1,
@@ -1109,6 +1115,7 @@ def test_while_a_beat_has_no_time_its_first_isnt_known_and_the_file_reads():
 )
 def test_a_next_that_names_no_beat_of_its_timeline_is_refused(names):
     def change(content):
+        _beat_2(content)["measure"] = {}
         _beat_1(content)["measure"]["next"] = [IDS["beat_2"], IDS[names]]
 
     error = refusal(edited(change))
@@ -1128,11 +1135,57 @@ def test_a_next_that_names_a_component_of_another_kind_in_its_timeline_is_refuse
     assert error.place == place(BEAT_1 + "/measure/next/0")
 
 
-def test_a_next_that_names_a_beat_of_its_timeline_is_read():
-    data = edited(lambda c: _beat_1(c)["measure"].update(next=[IDS["beat_2"]]))
+def test_a_next_that_names_a_downbeat_of_its_timeline_is_read():
+    def change(content):
+        _beat_1(content)["measure"]["next"] = [IDS["beat_2"]]
+        _beat_2(content)["measure"] = {}
+
+    data = edited(change)
     doc = tla.loads(data)
     assert named(doc, "Beats").measures.rows[0].next == [IDS["beat_2"]]
     assert tla.canonical_bytes(doc) == data
+
+
+def test_a_next_may_name_a_downbeat_without_a_time():
+    # A beat without a time is kept, with a warning, and its mark too: the
+    # beat can be given a time (TimeLineAnnotator/project-management#285).
+    def change(content):
+        _beat_1(content)["measure"]["next"] = [IDS["beat_2"]]
+        _beat_2(content)["measure"] = {}
+        del _beat_2(content)["time"]
+
+    doc = tla.loads(edited(change))
+    assert [w.place for w in doc.warnings] == [
+        place("/timelines/{beats}/components/{beat_2}")
+    ]
+
+
+@pytest.mark.parametrize(
+    "beat_2",
+    [
+        {"kind": "BEAT", "time": 1.0},  # without a mark
+        {"kind": "BEAT", "time": 1.0, "closing": True},  # a closing tap
+        # A closing tap with a mark: the mark starts no measure.
+        {"kind": "BEAT", "time": 1.0, "measure": {}, "closing": True},
+    ],
+    ids=["no mark", "closing tap", "closing tap with a mark"],
+)
+def test_a_next_that_names_a_beat_starting_no_measure_is_refused(beat_2):
+    # A next names the downbeat of the measure played next
+    # (TimeLineAnnotator/project-management#370).
+    def change(content):
+        timeline(content, "beats")["components"][IDS["beat_2"]] = beat_2
+        _beat_1(content)["measure"]["next"] = [IDS["beat_2"]]
+
+    data = edited(change)
+    error = refusal(data)
+    assert error.message == (
+        f'a measure is followed by "{IDS["beat_2"]}", a beat of its timeline that'
+        " starts no measure"
+    )
+    assert error.place == place(BEAT_1 + "/measure/next/0")
+    lines = data.decode().split("\n")
+    assert error.line == lines.index(f'              "{IDS["beat_2"]}"') + 1
 
 
 @pytest.mark.parametrize(
@@ -1141,6 +1194,10 @@ def test_a_next_that_names_a_beat_of_its_timeline_is_read():
         (lambda attrs: attrs.pop("measure"), BEAT_1),
         (
             lambda attrs: attrs["measure"].update(next=[IDS["nothing"]]),
+            BEAT_1 + "/measure/next/0",
+        ),
+        (
+            lambda attrs: attrs["measure"].update(next=[IDS["beat_2"]]),
             BEAT_1 + "/measure/next/0",
         ),
     ],

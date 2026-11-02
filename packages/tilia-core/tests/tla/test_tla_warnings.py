@@ -462,6 +462,39 @@ def test_a_beat_without_a_time_is_kept_with_a_warning():
     ]
 
 
+def test_a_closing_tap_with_a_measure_mark_is_kept_with_a_warning():
+    # The mark stays in the file, and starts no measure
+    # (TimeLineAnnotator/project-management#375).
+    def change(content):
+        beat(content, "beat_2").update(measure={"number": 7}, closing=True)
+
+    data = file_with(change)
+    doc = read_back_unchanged(data)
+    assert doc.warnings == [
+        tla.ReadWarning(
+            place=BEAT_2,
+            line=line_of(data, f'"{IDS["beat_2"]}": {{'),
+            message='a closing tap in the timeline "Beats" has a measure mark,'
+            " which starts no measure",
+        )
+    ]
+    (row,) = doc.timelines[BEATS].measures.rows
+    assert row.beats == [IDS["beat_1"]]
+
+
+@pytest.mark.parametrize(
+    "closing, measure", [(True, None), (False, {}), (None, {})], ids=str
+)
+def test_a_closing_tap_without_a_mark_or_a_downbeat_has_no_warning(closing, measure):
+    def change(content):
+        if closing is not None:
+            beat(content, "beat_2")["closing"] = closing
+        if measure is not None:
+            beat(content, "beat_2")["measure"] = measure
+
+    assert tla.loads(file_with(change)).warnings == []
+
+
 def with_role(content, name, role):
     """The timeline's role, in its place: before its components."""
     timeline = content["timelines"][IDS[name]]
