@@ -18,6 +18,8 @@ on:
       - 'paper/**'
       - '**.md'
 
+  workflow_dispatch:
+
 jobs:
   check:
     name: check packages (${{ matrix.python-version }}, ${{ matrix.os }})
@@ -26,7 +28,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        # Pull requests test the oldest and newest supported Python; pushes
+        # and manual runs test every supported version.
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12", "3.14"]' || '["3.12", "3.13", "3.14"]') }}
     timeout-minutes: 15
 
     steps:
