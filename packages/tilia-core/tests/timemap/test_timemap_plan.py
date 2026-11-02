@@ -373,6 +373,42 @@ class TestWhereItGoes:
             c.component_id for c in p.changes if c.key == "beat_unit"
         }
 
+    @pytest.mark.parametrize("after", ["carry", "restore"])
+    @pytest.mark.parametrize("b", [0, 2], ids=["on its downbeat", "on a later beat"])
+    def test_a_unit_the_bar_would_carry_anyway_is_removed(self, b, after):
+        # 3/4 set on bar 1, and restated by a person on bar 3, which a source
+        # gives 3/4: bar 3 carries it from bar 2 once its own unit is gone
+        # (TimeLineAnnotator/project-management#361).
+        doc, tl = piece([3, 3, 3], units={(0, 0): unit(4, "1"), (2, b): unit(4, "1")})
+
+        p = plan(doc, tl, bars(3, text="3/4"), after=after)
+        apply_plan(doc, p)
+
+        assert unit_writes(p) == {beat(tl, 2, b): None}
+        assert read(doc, tl)[2] == ("3/4", False, "score")
+        assert plan(doc, tl, bars(3, text="3/4"), after=after).changes == []
+
+    def test_a_unit_another_would_replace_is_edited_not_removed(self):
+        # Bar 3 holds two units: without the first, the second would govern.
+        units = {(0, 0): unit(4, "1"), (2, 0): unit(4, "2"), (2, 1): unit(8, "3")}
+        doc, tl = piece([3, 3, 3], units=units)
+
+        p = plan(doc, tl, bars(3, text="3/4"))
+
+        assert unit_writes(p) == {downbeat(tl, 2): unit(4, "1")}
+
+    def test_a_movement_s_first_unit_is_edited_not_removed(self):
+        # Song 2's bar 1 would take the unit before it as assumed, not carry it.
+        units = {(0, 0): unit(4, "1"), (3, 0): unit(8, "3")}
+        doc, tl = piece([2] * 5, marks=SONGS, units=units)
+
+        p = plan(doc, tl, [(BarRef(1, movement=2), ts("2/4"))])
+
+        assert unit_writes(p) == {
+            downbeat(tl, 3): unit(4, "1"),
+            downbeat(tl, 4): unit(8, "3"),  # song 2's bar 2 keeps its 6/8
+        }
+
 
 class TestSources:
     def test_every_set_measure_records_the_source_whether_or_not_its_unit_is_written(
@@ -452,19 +488,27 @@ class TestSources:
             {}
         ] * 3
 
-    def test_a_table_set_in_several_plans_is_written_as_one_set_in_one(self):
-        # With "carry": with "restore", bar 3 keeps the unit plan (1, 2) wrote
-        # back on it, which TimeLineAnnotator/project-management#361 (split
-        # plans and the same file) is to settle.
+    @pytest.mark.parametrize("after", ["carry", "restore"])
+    @pytest.mark.parametrize(
+        "plans",
+        [[(1, 2), (3,), (1, 2, 3)], [(3,), (1, 2), (1, 2, 3)]],
+        ids=["bars 1-2, then 3", "bar 3, then 1-2"],
+    )
+    def test_a_table_set_in_several_plans_is_written_as_one_set_in_one(
+        self, plans, after
+    ):
+        # The rows of TimeLineAnnotator/project-management#361's table (split
+        # plans and the same file): a unit a later plan's bar would carry
+        # anyway is removed, so no plan leaves one behind.
         doc, tl = piece([3, 3, 3])
         once = copy.deepcopy(doc)
-        carry = {"source": "import", "after": "carry"}
+        given = {"source": "import", "after": after}
 
-        for numbers in [(1, 2), (3,), (1, 2, 3)]:
-            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), **carry))
+        for numbers in plans:
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), **given))
         apply_plan(
             once,
-            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), **carry),
+            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), **given),
         )
 
         assert tla.canonical_bytes(doc) == tla.canonical_bytes(once)

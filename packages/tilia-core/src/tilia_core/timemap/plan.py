@@ -177,7 +177,11 @@ def plan_time_signatures(
     Each measure's own taps share its time signature: its unit is the
     numerator divided by the taps, exactly, or the parts of a grouping with a
     part per tap. It goes on the beat of the unit that starts in the measure,
-    which is edited, else on the downbeat, and is not assumed. Every measure
+    which is edited, else on the downbeat, and is not assumed. Where the
+    measure would carry that very unit from the measure before once the plan
+    is applied, the unit that starts in it is removed instead, so that a
+    table set in several plans gives the file one plan gives
+    (TimeLineAnnotator/project-management#361). Every measure
     set records `source` ("score", "import", or "edit": "edited", unless the
     measure is tapped); when every measure of the table is set and records
     the same source, the timeline records it instead, changing its
@@ -357,19 +361,29 @@ def _unit_changes(
     measure's meter gives it; elsewhere it is carried on from the measure
     before. With `restore`, a measure not set keeps its reading
     (`_write_backs`), so its meter gives it too.
+
+    A measure set that would carry its unit from the measure before, in the
+    same movement, has the one unit that starts in it removed (a removal is
+    a change whose new value is None), so that plans split in any way give
+    one file (TimeLineAnnotator/project-management#361). Not where a second
+    unit starts in it, which would govern it then.
     """
     changes: dict[str, Change] = {}
     governing: _Unit | None = None
-    for row in rows:
+    for index, row in enumerate(rows):
         time_signature = wanted.get(row.id)
         own = _own(row)
         kept = restore and time_signature is None
+        follows = index > 0 and rows[index - 1].movement == row.movement
+        carried = governing if follows else None
         if own is not None or row.meter.starts_here or kept:
             governing = _reading(row.meter)
         if time_signature is None:
             continue
         unit = (time_signature.denominator, _units(time_signature, row.beats), False)
-        if governing != unit:
+        if own is not None and not row.meter.is_conflicting and carried == unit:
+            changes[row.id] = _removal(timeline, own)
+        elif governing != unit:
             readable = parse_units(format_units(unit[1]))
             if not readable.is_valid:
                 written = format_time_signature(
@@ -471,21 +485,19 @@ def _stretch_end(planned: Sequence[RowIn], index: int) -> int:
 
 def _put(row: RowIn, change: Change) -> RowIn:
     """The row with a unit the plan writes among its units, as `rows_of` will
-    read it: in the place of the one it edits, or first, on the downbeat."""
-    new = change.new
-    unit = tla.BeatUnit(
-        denominator=new["denominator"],
-        units=new["units"],
-        assumed=bool(new.get("assumed", False)),
-    )
+    read it: in the place of the one it edits, or first, on the downbeat; or
+    without the one it removes."""
     beat_id = change.component_id or ""
-    units = list(row.units)
-    for index, (other, _) in enumerate(units):
-        if other == beat_id:
-            units[index] = (beat_id, unit)
-            break
-    else:
-        units.insert(0, (beat_id, unit))
+    ids = [other for other, _ in row.units]
+    units = [entry for entry in row.units if entry[0] != beat_id]
+    new = change.new
+    if new is not None:
+        unit = tla.BeatUnit(
+            denominator=new["denominator"],
+            units=new["units"],
+            assumed=bool(new.get("assumed", False)),
+        )
+        units.insert(ids.index(beat_id) if beat_id in ids else 0, (beat_id, unit))
     return replace(row, units=tuple(units))
 
 
@@ -498,6 +510,12 @@ def _own(row: MeasureRow) -> str | None:
 def _reading(meter: MeasureMeter) -> _Unit:
     """The unit that governs a measure, as it reads it."""
     return meter.denominator, tuple(meter.units), meter.is_assumed
+
+
+def _removal(timeline: tla.Timeline, beat_id: str) -> Change:
+    """The change that removes the unit on the beat."""
+    old = timeline.components[beat_id].attrs.get("beat_unit")
+    return Change(timeline.id, beat_id, "beat_unit", copy.deepcopy(old), None)
 
 
 def _unit_change(timeline: tla.Timeline, beat_id: str, unit: _Unit) -> Change:
