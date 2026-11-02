@@ -111,6 +111,8 @@ def unit_writes(p):
 # bar has a unit, the default, so the second song reads it, assumed.
 SONGS = {3: {"number": 1, "restart": True}}
 
+UNREADABLE = {"denominator": 200, "units": "x"}  # a unit the reader ignores
+
 
 def with_copies():
     """A file written outside TiLiA and the core: three bars of three taps
@@ -846,25 +848,92 @@ class TestRestore:
             downbeat(tl, 1): DEFAULT,
         }
 
-    @pytest.mark.parametrize(
-        "m, settings",
-        [(2, bars(2, text="6/8")), (0, bars(2, text="6/8"))],
-        ids=["after a run", "the opening unit"],
-    )
-    def test_a_write_back_replaces_a_unit_that_cant_be_read(self, m, settings):
-        # Until TimeLineAnnotator/project-management#373 (a write-back over a
-        # unit that can't be read) is answered, the plan replaces it; the
-        # preview shows it as the old value. The bar reads 2/4, assumed, either
-        # way, since the reader ignores such a unit.
-        unreadable = {"denominator": 200, "units": "x"}
-        doc, tl = piece([2, 2, 2], units={(m, 0): unreadable})
-        replaced = Change(tl.id, downbeat(tl, m), "beat_unit", unreadable, DEFAULT)
+    class TestAUnitTheReaderCantRead:
+        # A write-back never replaces a unit stored on its downbeat that the
+        # reader can't read: the run that needs it is left out, and the bar
+        # reported (TimeLineAnnotator/project-management#373, a write-back
+        # over a unit that can't be read).
 
-        p = plan(doc, tl, settings)
-        apply_plan(doc, p)
+        @pytest.mark.parametrize(
+            "taps, marks, m, bar, reported",
+            [
+                ([2, 2, 2], {}, 2, BarRef(2), BarRef(3, "3", 1, 1)),
+                ([2, 2, 2], {}, 0, BarRef(2), BarRef(1, "1", 1, 1)),
+                ([2] * 6, SONGS, 3, BarRef(3, movement=1), BarRef(1, "1", 1, 2)),
+            ],
+            ids=["after a run", "the opening unit", "a movement's first bar"],
+        )
+        def test_the_run_is_left_out_and_the_bar_reported(
+            self, taps, marks, m, bar, reported
+        ):
+            doc, tl = piece(taps, marks=marks, units={(m, 0): UNREADABLE})
 
-        assert replaced in p.changes
-        assert read(doc, tl)[m] == ("2/4", True, "tapped")
+            p = plan(doc, tl, [(bar, ts("6/8"))])
+
+            assert p == Plan(changes=[], unreadable=[reported])
+
+        def test_the_rest_of_the_plan_goes_ahead(self):
+            doc, tl = piece([2] * 6, units={(0, 0): DEFAULT, (2, 0): UNREADABLE})
+
+            p = plan(doc, tl, bars(2, 5, text="6/8"))
+            apply_plan(doc, p)
+
+            assert p.unreadable == [BarRef(3, "3", 1, 1)]
+            assert written(p) == {downbeat(tl, 4), downbeat(tl, 5)}
+            assert read(doc, tl) == [
+                *[("2/4", True, "tapped")] * 4,
+                ("6/8", False, "score"),
+                ("2/4", True, "tapped"),
+            ]
+            assert tl.components[downbeat(tl, 2)].attrs["beat_unit"] == UNREADABLE
+
+        def test_a_bar_named_twice_is_set_where_its_run_can_be(self):
+            # Bars 11, 12, 13, then 12 and 13 again; the first 13 stores the
+            # unit. Bar 12 is set the second time through only.
+            marks = {0: {"number": 11}, 3: {"number": 12}}
+            doc, tl = piece([2] * 5, marks=marks, units={(2, 0): UNREADABLE})
+
+            p = plan(doc, tl, bars(12, text="6/8"))
+
+            assert p.unreadable == [BarRef(13, "13", 1, 1)]
+            assert unit_writes(p) == {
+                downbeat(tl, 3): unit(8, "3"),
+                downbeat(tl, 4): DEFAULT,
+            }
+
+        def test_an_opening_unit_leaves_out_the_run_whose_unit_it_is(self):
+            # Song 2's bar 1 stores the unit. Song 2's bar 3, set, would give
+            # song 2 its first unit; song 1's bar 2 has nothing to do with it.
+            doc, tl = piece([2] * 6, marks=SONGS, units={(3, 0): UNREADABLE})
+            settings = [(BarRef(2, movement=1), ts("6/8"))]
+            settings.append((BarRef(3, movement=2), ts("6/8")))
+
+            p = plan(doc, tl, settings)
+
+            assert p.unreadable == [BarRef(1, "1", 1, 2)]
+            assert unit_writes(p) == {
+                downbeat(tl, 1): unit(8, "3"),
+                downbeat(tl, 2): DEFAULT,
+            }
+
+        def test_a_bar_two_runs_would_write_back_on_is_reported_once(self):
+            # Song 2's bar 1 stores the unit: song 1's bar 3 would change the
+            # unit song 2 carries in, and song 2's bar 3 its first unit.
+            doc, tl = piece([2] * 6, marks=SONGS, units={(3, 0): UNREADABLE})
+            settings = [(BarRef(3, movement=1), ts("6/8"))]
+            settings.append((BarRef(3, movement=2), ts("6/8")))
+
+            p = plan(doc, tl, settings)
+
+            assert p == Plan(changes=[], unreadable=[BarRef(1, "1", 1, 2)])
+
+        def test_carry_writes_nothing_back_so_leaves_nothing_out(self):
+            doc, tl = piece([2, 2, 2], units={(0, 0): DEFAULT, (2, 0): UNREADABLE})
+
+            p = plan(doc, tl, bars(2, text="6/8"), after="carry")
+
+            assert p.unreadable == []
+            assert written(p) == {downbeat(tl, 1)}
 
     class TestOnlyWhereABarWouldReadDifferently:
         # TimeLineAnnotator/project-management#356 (write-backs that change
@@ -1052,9 +1121,6 @@ class TestRestore:
         assert took < 0.5, f"{took:.2f} s"
 
 
-UNREADABLE = {"denominator": 200, "units": "x"}  # a unit the reader ignores
-
-
 class TestRestoreOnAnyTable:
     """Plans for tables made at random: units of every kind on any beat,
     restarts on any bar, the first included, and time signatures on any bars."""
@@ -1104,31 +1170,46 @@ class TestRestoreOnAnyTable:
             stored = copy.deepcopy(tl.components)
             wanted = dict(settings)
             p = plan(doc, tl, settings, source)
-            not_set = {row.id for row in rows if row.id not in wanted}
-            written_back = set(unit_writes(p)) & not_set
+            changed = {c.component_id for c in p.changes}
 
             apply_plan(doc, p)
 
+            # Each bar reported stores, on its downbeat, a unit the reader
+            # can't read.
+            for bar in p.unreadable:
+                (row,) = [
+                    r
+                    for r in rows
+                    if (r.number, r.label, r.pass_, r.movement)
+                    == (bar.number, bar.label, bar.pass_, bar.movement)
+                ]
+                assert stored[row.id].attrs.get("beat_unit") == UNREADABLE, seed
             now_read = self.readings(doc, tl)
             after = zip(rows, before, now_read, build_rows(doc, tl), strict=True)
             for row, old, new, now in after:
                 where = f"seed {seed}, bar {row.label}"
                 time_signature = wanted.get(row.id)
+                if time_signature is not None and (
+                    not now.assumed
+                    and now.ts_numerator == sum(time_signature.parts)
+                    and now.ts_denominator == time_signature.denominator
+                ):
+                    continue  # set
                 if time_signature is not None:
-                    assert not now.assumed, where
-                    assert now.ts_numerator == sum(time_signature.parts), where
-                    assert now.ts_denominator == time_signature.denominator, where
-                    continue
+                    # Left out, since its run's write-back would have
+                    # replaced a unit the reader can't read: it is then a bar
+                    # not set like any other.
+                    assert p.unreadable, where
                 assert new == old, where
                 # Its beats and its mark are as they were, but for a unit
-                # written back on its downbeat where there was none, or one
-                # that can't be read (TimeLineAnnotator/project-management#373,
-                # a write-back over a unit that can't be read).
+                # written back on its downbeat, never over one the reader
+                # can't read (TimeLineAnnotator/project-management#373, a
+                # write-back over a unit that can't be read).
                 for beat_id in row.beat_ids:
                     was = dict(stored[beat_id].attrs)
                     is_now = dict(tl.components[beat_id].attrs)
-                    if beat_id in written_back:
-                        assert was.pop("beat_unit", None) in (None, UNREADABLE), where
+                    if beat_id == row.id and beat_id in changed:
+                        assert was.pop("beat_unit", None) is None, where
                         is_now.pop("beat_unit")
                     assert is_now == was, where
 
