@@ -2,6 +2,7 @@
 writes only old files, and only with `apply` (FR-100–FR-105)."""
 
 import dataclasses
+import gc
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ import stat
 import sys
 import time
 import unicodedata
+import weakref
 from pathlib import Path
 
 import pytest
@@ -654,9 +656,11 @@ def test_an_error_reading_one_file_doesnt_stop_the_others(
     assert result.reason == (
         f"can't read: an error in tilia-core ({named}); please report it"
     )
-    assert result.error is error  # for its traceback
+    # Its traceback, as text, to report the fault with.
+    assert result.traceback.startswith("Traceback (most recent call last):\n")
+    assert result.traceback.endswith(f"{named}\n")
     assert by_path(report)["sub/old.tla"].outcome == "migrated"
-    assert by_path(report)["sub/old.tla"].error is None
+    assert by_path(report)["sub/old.tla"].traceback is None
     assert report.status == 1
     [logged] = [r for r in caplog.records if r.exc_info]
     assert logged.exc_info[1] is error
@@ -684,20 +688,64 @@ def test_an_error_writing_one_file_doesnt_stop_the_others(
         "can't write: an error in tilia-core (TypeError: an unexpected value);"
         " please report it"
     )
-    assert result.error is error
+    assert result.traceback.startswith("Traceback (most recent call last):\n")
+    assert result.traceback.endswith("TypeError: an unexpected value\n")
     assert by_path(report)["sub/old.tla"].outcome == "migrated"
     [logged] = [r for r in caplog.records if r.exc_info]
     assert logged.exc_info[1] is error
 
 
-def test_an_expected_failure_carries_no_error_to_report(clean_corpus, read_only):
+def test_an_expected_failure_carries_no_traceback(clean_corpus, read_only):
     place(clean_corpus / "broken.tla", BROKEN / "cut-short.tla")
 
     report = migrate_folder(clean_corpus, apply=True)
 
     assert by_path(report)["a.tla"].outcome == "write_failed"
     assert by_path(report)["broken.tla"].outcome == "unreadable"
-    assert [f.error for f in report.files] == [None] * len(report.files)
+    assert [f.traceback for f in report.files] == [None] * len(report.files)
+
+
+class Held:
+    """Something a migration step holds while it fails: the file's bytes, its
+    parsed content, a half-built document."""
+
+
+@pytest.mark.parametrize("step", ["read", "write"])
+def test_an_error_in_the_core_holds_nothing_of_the_step_it_stopped(
+    clean_corpus, monkeypatch, step
+):
+    held = []
+    read = folder_module.read_with_migration
+    write = folder_module.write
+
+    def failing(path):
+        if Path(path).name == "a.tla":
+            content = Held()  # a local of the failing step's frame
+            held.append(weakref.ref(content))
+            raise MemoryError()
+        return read(path)
+
+    def failing_write(target, doc, **kwargs):
+        if Path(target).name == "a.tla":
+            content = Held()
+            held.append(weakref.ref(content))
+            raise MemoryError()
+        return write(target, doc, **kwargs)
+
+    if step == "read":
+        monkeypatch.setattr(folder_module, "read_with_migration", failing)
+    else:
+        monkeypatch.setattr(folder_module, "write", failing_write)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+    # A record of the log would keep the error, and its frames, too.
+    monkeypatch.setattr(folder_module.logger, "disabled", True)
+
+    report = migrate_folder(clean_corpus, apply=True)
+    gc.collect()
+
+    assert by_path(report)["a.tla"].traceback.endswith("MemoryError\n")
+    assert held
+    assert [ref() for ref in held] == [None] * len(held)
 
 
 def test_a_document_the_writer_refuses_is_reported_without_its_path(
