@@ -15,10 +15,13 @@ media now (contracts/migration.md, *Media paths*):
    old `file_path`, computed with that path's own conventions, Windows or
    POSIX, which is where TiLiA looks when the file and its media moved
    together; without a `file_path`, from the file's current folder;
-4. already relative (written by hand): kept, with "/" between its parts.
+4. already relative (written by hand): kept as written, a backslash in it
+   too, which is a hand edit or part of a name on macOS and Linux, since
+   TiLiA writes "/" between folders.
 
 Where no relative path exists, on another drive or of the other system's
-form, the path stays absolute. Separators become "/". The document id is
+form, the path stays absolute. The separators of a Windows path become "/";
+a backslash in a POSIX path is part of a name, and stays. The document id is
 derived before this step, so it depends neither on where the file is nor on
 the scheme a link is given.
 """
@@ -32,10 +35,8 @@ from tilia_core.tla.media_files import (
     SYSTEM,
     absolute_form,
     folder_of,
-    is_relative,
     local_file,
     relative_path,
-    relative_with_slashes,
     with_scheme,
     with_slashes,
 )
@@ -76,8 +77,7 @@ def migrated_path(stored: Any, *, file_path: Any, folder: str | None) -> Any:
         return stored
     form = absolute_form(stored)
     if form is None:
-        # Empty, a URL, or relative: kept, a relative path with "/".
-        return relative_with_slashes(stored) if is_relative(stored) else stored
+        return stored  # empty, a URL, or relative: kept as written
     saved = file_path if isinstance(file_path, str) else ""
     saved_form = absolute_form(saved)
     base: str | None

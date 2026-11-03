@@ -232,7 +232,16 @@ def test_an_old_files_fingerprint_takes_the_link_as_stored(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "stored", ["piece.mp3", "audio/piece.mp3", "../audio/piece.mp3"]
+    "stored",
+    [
+        "piece.mp3",
+        "audio/piece.mp3",
+        "../audio/piece.mp3",
+        # TiLiA and the core write "/" between folders, so a backslash is a
+        # hand edit or part of a name on macOS and Linux: kept as written.
+        "audio\\x.wav",
+        "..\\audio\\piece.mp3",
+    ],
 )
 def test_a_relative_path_written_by_hand_is_kept(tmp_path, where, stored):
     media_file(tmp_path / "audio" / "piece.mp3")
@@ -240,21 +249,32 @@ def test_a_relative_path_written_by_hand_is_kept(tmp_path, where, stored):
     assert stored_in(tla.read(piece), where) == stored
 
 
-@pytest.mark.parametrize(
-    "stored, expected",
-    [
-        ("audio\\piece.mp3", "audio/piece.mp3"),
-        ("..\\audio\\piece.mp3", "../audio/piece.mp3"),
-        ("../audio\\piece.mp3", "../audio/piece.mp3"),
-    ],
-)
-def test_a_relative_path_written_by_hand_gets_slashes(
-    tmp_path, where, stored, expected
+def test_a_backslash_in_an_old_relative_path_is_rebased_as_part_of_a_name(
+    tmp_path, where
 ):
-    # Separators become "/" (FR-033): a backslash in a relative path separates
-    # its parts, as on Windows, where a name can't hold one.
-    piece = old_file(tmp_path / "corpus", where, stored, WINDOWS_SAVED)
-    assert stored_in(tla.read(piece), where) == expected
+    # Rebased with POSIX semantics, so that the file's bytes are the same on
+    # every system (FR-023).
+    piece = old_file(tmp_path / "corpus", where, "audio\\x.wav", WINDOWS_SAVED)
+    target = tmp_path / "corpus" / "deeper" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, tla.read(piece))
+    assert stored_in(tla.read(target), where) == "../audio\\x.wav"
+
+
+@posix_only
+def test_a_name_holding_a_backslash_keeps_its_media(tmp_path):
+    # A legal name on macOS and Linux: kept when made relative, found, and
+    # kept through a Save As.
+    media = media_file(tmp_path / "corpus" / "a\\b.wav")
+    piece = old_file(tmp_path / "corpus", "media", str(media), POSIX_SAVED)
+    doc = tla.read(piece)
+    assert doc.media_path == "a\\b.wav"
+    assert os.path.samefile(tla.media(piece, doc).path, media)
+    target = tmp_path / "corpus" / "deeper" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert json.loads(target.read_bytes())["media"]["path"] == "../a\\b.wav"
+    assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
 
 
 @pytest.mark.parametrize("stored", ["C:piece.mp3", "\\audio\\piece.mp3"])
@@ -934,12 +954,13 @@ def test_a_url_or_another_systems_media_is_never_looked_up_here(
     assert (found.kind, found.path, looked_up) == ("local", None, [])
 
 
-def test_a_relative_path_with_backslashes_is_found(tmp_path):
-    # A backslash separates its parts on every system, as the migration and
-    # the writer read it.
-    media = media_file(tmp_path / "audio" / "piece.wav")
+@windows_only
+def test_on_windows_a_backslash_in_a_relative_path_separates_folders(tmp_path):
+    # tla.media joins the path to the file's folder as it is, and lets the
+    # system read it: Windows reads a backslash as a separator.
+    media = media_file(tmp_path / "audio" / "x.wav")
     doc = tla.new_document()
-    doc.media_path = "audio\\piece.wav"
+    doc.media_path = "audio\\x.wav"
     assert os.path.samefile(tla.media(tmp_path / "piece.tla", doc).path, media)
 
 
@@ -1243,14 +1264,15 @@ def test_an_absolute_path_without_a_relative_one_is_written_with_slashes(corpus)
 
 @pytest.mark.parametrize(
     "place, expected",
-    [("corpus", "../"), ("elsewhere/deeper", "../../")],
+    [("corpus", ""), ("elsewhere/deeper", "../../corpus/")],
     ids=["where it was read", "elsewhere"],
 )
-def test_a_relative_path_with_backslashes_is_written_with_slashes(
+def test_a_backslash_in_a_relative_path_is_written_as_part_of_a_name(
     corpus, tmp_path, place, expected
 ):
-    # A backslash in a relative path separates its parts, as on Windows, where
-    # a name can't hold one (FR-033).
+    # Never converted, and rebased with POSIX semantics, so that the same
+    # document gives the same bytes on every system (FR-023). Windows still
+    # reads the backslash as a separator, and finds the media.
     doc = tla.read(corpus)
     doc.media_path = f"..\\audio\\{NAME}.flac"
     set_pdf_path(doc, f"..\\scores\\{NAME}.pdf")
@@ -1258,12 +1280,13 @@ def test_a_relative_path_with_backslashes_is_written_with_slashes(
     target.parent.mkdir(parents=True, exist_ok=True)
     tla.write(target, doc)
     assert written(target) == (
-        f"{expected}audio/{NAME}.flac",
-        f"{expected}scores/{NAME}.pdf",
+        f"{expected}..\\audio\\{NAME}.flac",
+        f"{expected}..\\scores\\{NAME}.pdf",
     )
-    media_found, pdf_found = found(target)
-    assert os.path.samefile(media_found, tmp_path / "audio" / f"{NAME}.flac")
-    assert os.path.samefile(pdf_found, tmp_path / "scores" / f"{NAME}.pdf")
+    if WINDOWS:
+        media_found, pdf_found = found(target)
+        assert os.path.samefile(media_found, tmp_path / "audio" / f"{NAME}.flac")
+        assert os.path.samefile(pdf_found, tmp_path / "scores" / f"{NAME}.pdf")
 
 
 @pytest.mark.parametrize(
