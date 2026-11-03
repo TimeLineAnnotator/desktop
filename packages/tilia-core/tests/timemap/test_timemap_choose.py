@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import logging
 
 import pytest
@@ -483,7 +484,112 @@ def test_a_beat_time_too_large_for_a_float_is_no_time(caplog):
     assert len(caplog.records) == 1
     assert measure_rows(doc, other.id) == []
     assert time_map_for(doc, other.id) is None
-    assert find_time_map(document(other)).reason == "a beat without a time (measure 2)"
+    reason = find_time_map(document(other)).reason
+    assert reason == f"a beat without a time (beat {last})"
+
+
+# A beat without a time, read from a file: WP3's table leaves it out of every
+# row, so the time map finds it among the timeline's beats
+# (TimeLineAnnotator/project-management#377). The reason names it by its id
+# (TimeLineAnnotator/project-management#381).
+
+
+def _read(timeline: tla.Timeline, times: dict[int, object]) -> tla.Document:
+    """`timeline` written to a file, the times of its beats given by index in
+    `times` replaced (`...` removes the key), and read as the core reads a file."""
+    content = json.loads(tla.canonical_bytes(document(timeline)))
+    components = content["timelines"][timeline.id]["components"]
+    for index, time in times.items():
+        beat = components[list(timeline.components)[index]]
+        if time is ...:
+            del beat["time"]
+        else:
+            beat["time"] = time
+    return tla.loads((json.dumps(content, indent=2) + "\n").encode())
+
+
+@pytest.mark.parametrize(
+    "index, time, what",
+    [
+        pytest.param(1, ..., "a beat", id="beat without a time"),
+        pytest.param(1, None, "a beat", id="beat whose time is null"),
+        pytest.param(2, ..., "a downbeat", id="downbeat without a time"),
+        pytest.param(0, ..., "a downbeat", id="first downbeat without a time"),
+        pytest.param(3, 10**400, "a beat", id="time too large for a float"),
+    ],
+)
+def test_a_beat_without_a_time_in_a_file_gives_no_time_map(index, time, what):
+    # 2/4, a beat every second from 0 to 3: downbeats at 0 and 2.
+    timeline = _beats(1)
+    beat_id = list(timeline.components)[index]
+    doc = _read(timeline, {index: time})
+    read = doc.timelines[timeline.id]
+    assert read.measures.rows  # the table isn't empty: some measures are left
+
+    found = find_time_map(doc)
+
+    assert found.timeline_id == timeline.id and found.time_map is None
+    assert found.reason == f"{what} without a time (beat {beat_id})"
+    assert time_map_for(doc, timeline.id) is None
+    assert measure_rows(doc, timeline.id) == []  # FR-010
+
+
+def test_a_table_without_rows_names_the_downbeat_without_a_time():
+    # Its only downbeat has no time, so WP3's table has no rows: the beat
+    # without a time is why, and the reason says so.
+    timeline = beat_timeline([{"time": 0.0, "measure": {}}, {"time": 1.0}])
+    downbeat = next(iter(timeline.components))
+    doc = _read(timeline, {0: ...})
+    assert doc.timelines[timeline.id].measures.rows == []
+
+    found = find_time_map(doc)
+
+    assert found.time_map is None
+    assert found.reason == f"a downbeat without a time (beat {downbeat})"
+
+
+def test_a_timeline_without_a_table_names_its_beat_without_a_time():
+    timeline = _beats(1)
+    timeline.measures = None
+    beat_id = list(timeline.components)[1]
+    del timeline.components[beat_id].attrs["time"]
+
+    reason = find_time_map(document(timeline)).reason
+
+    assert reason == f"a beat without a time (beat {beat_id})"
+
+
+def test_of_several_beats_without_a_time_the_first_by_id_is_named():
+    # By id, as a file lists them: their times aren't known. Not in WP3's
+    # order of the beats, which takes a whole number too large for a float as
+    # a time, nor in a document's order once it changes in memory.
+    timeline = _beats(1, last=5)
+    ids = list(timeline.components)  # in time order, and in id order
+    assert ids == sorted(ids)
+    doc = _read(timeline, {4: ..., 3: 10**400, 1: ...})
+    expected = f"a beat without a time (beat {ids[1]})"
+
+    assert find_time_map(doc).reason == expected
+    read = doc.timelines[timeline.id]
+    read.components = dict(reversed(read.components.items()))
+    assert find_time_map(doc).reason == expected
+
+
+def test_a_closing_tap_without_a_time_gives_no_time_map():
+    # A closing tap is the closing barline, in no row; without a time, where the
+    # last measure ends isn't known.
+    timeline = _beats(1)
+    tap = list(timeline.components)[-1]
+    content = json.loads(tla.canonical_bytes(document(timeline)))
+    beat = content["timelines"][timeline.id]["components"][tap]
+    del beat["time"]
+    beat["closing"] = True
+    doc = tla.loads((json.dumps(content, indent=2) + "\n").encode())
+
+    found = find_time_map(doc)
+
+    assert found.time_map is None
+    assert found.reason == f"a beat without a time (beat {tap})"
 
 
 @pytest.mark.parametrize("make", [_same_time, _out_of_order])
