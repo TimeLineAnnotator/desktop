@@ -632,8 +632,9 @@ class _Checker:
         """A beat timeline's measures, marked on its beats (FR-081). Refused:
         a first beat without a `measure` mark, and a `next` that names
         anything but a downbeat of the timeline, a beat with a mark that isn't
-        a closing tap (TimeLineAnnotator/project-management#370). Kept, with a
-        warning: a beat without a time
+        a closing tap (TimeLineAnnotator/project-management#370); a closing
+        tap's own mark starts no measure, so its `next` isn't checked. Kept,
+        with a warning: a beat without a time
         (TimeLineAnnotator/project-management#285), a beat unit desktop#621
         can't read, a measure with more than one beat unit (point 10 of
         TimeLineAnnotator/project-management#161), and a closing tap with a
@@ -666,7 +667,9 @@ class _Checker:
         }
         for key, beat in beats.items():
             mark = beat.get("measure")
-            following = mark.get("next") if isinstance(mark, dict) else None
+            if beat.get("closing") or not isinstance(mark, dict):
+                continue  # a closing tap's mark has its own warning
+            following = mark.get("next")
             for index, item in enumerate(following or ()):
                 if item in downbeats:
                     continue

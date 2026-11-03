@@ -363,7 +363,9 @@ def measures_of(beats: Mapping[str, Mapping[str, Any]], source: str) -> list[Mea
 
     A row for each measure (`measure_beats`), identified by its downbeat's
     id, numbered and labelled by `measure_numbers`; its source the mark's,
-    else the table's. Its `beat_units` are those set on its beats that
+    else the table's. Its `next` names rows: a downbeat the mark's `next`
+    names that starts no row, one without a time, is left out of it, and
+    kept in the file. Its `beat_units` are those set on its beats that
     desktop#621 can read, and `beat_unit` is the unit in force, as WP9's
     meters take it: the first set in the measure, else the one carried from
     the measures before; a movement whose first measure has none takes,
@@ -377,11 +379,14 @@ def measures_of(beats: Mapping[str, Mapping[str, Any]], source: str) -> list[Mea
     )
     groups = measure_beats(beats)
     marks = [beats[group[0]]["measure"] for group in groups]
+    starts = {group[0] for group in groups}
     rows: list[Measure] = []
     for group, mark, (number, label) in zip(
         groups, marks, measure_numbers(marks), strict=True
     ):
         row = _measure(group[0], mark, number, label, source, default)
+        if row.next is not None:
+            row.next = [downbeat for downbeat in row.next if downbeat in starts]
         row.beats = group
         for beat_id in group:
             unit = readable_beat_unit(beats[beat_id].get("beat_unit"))
