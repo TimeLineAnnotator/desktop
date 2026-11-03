@@ -20,6 +20,7 @@ import hashlib
 import json
 import math
 import os
+import posixpath
 import re
 from collections.abc import Callable, Mapping
 from operator import itemgetter
@@ -56,7 +57,6 @@ from tilia_core.tla.media_files import (
     absolute_form,
     is_relative,
     relative_path,
-    relative_with_slashes,
     with_slashes,
 )
 from tilia_core.tla.model import (
@@ -582,12 +582,14 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     exists, so not on another drive on Windows. When `folder` isn't the one
     `doc` was read from or last written to (its `origin`'s), a relative
     path is resolved against that one and made relative to `folder`, or
-    absolute where no relative path exists. A backslash in a relative path
-    separates its parts, and becomes "/", as do a Windows path's that stays
-    absolute. An empty path, a URL, and a
-    relative path in a document read from nowhere, whose base is unknown,
-    are kept. `doc` isn't changed: when a path changes, a copy is returned,
-    sharing with `doc` what didn't change."""
+    absolute where no relative path exists. A stored relative path is joined
+    with POSIX semantics, "/" between its parts: a backslash in it is part
+    of a name, never converted, so that the same document gives the same
+    bytes on every system (FR-023). A Windows path that stays absolute is
+    written with "/". An empty path, a URL, and a relative path in a
+    document read from nowhere, whose base is unknown, are kept. `doc` isn't
+    changed: when a path changes, a copy is returned, sharing with `doc`
+    what didn't change."""
     folder = os.path.abspath(folder)
     origin = (
         None if doc.origin is None else os.path.dirname(os.path.abspath(doc.origin))
@@ -625,14 +627,37 @@ def _rebased(stored: Any, origin: str | None, folder: str) -> Any:
         # One of the other system's form has no relative path from here.
         relative = relative_path(stored, folder, form) if form == SYSTEM else None
         return with_slashes(stored, form) if relative is None else relative
-    if not is_relative(stored):
-        return stored  # empty, a URL, or relative to a drive or its root
-    stored = relative_with_slashes(stored)
-    if origin is None:
+    if origin is None or not is_relative(stored):
+        # Empty, a URL, relative to a drive or its root, or already relative
+        # to `folder`: kept as written.
         return stored
-    found = os.path.normpath(os.path.join(origin, stored))
-    relative = relative_path(found, folder, SYSTEM)
-    return with_slashes(found, SYSTEM) if relative is None else relative
+    return _moved(stored, origin, folder)
+
+
+def _moved(stored: str, origin: str, folder: str) -> str:
+    """`stored`, a path relative to the folder `origin` with POSIX semantics,
+    as relative to `folder`: as `os.path.relpath` would give it, except that
+    the stored path is split on "/" only, its names compared as they are,
+    so that a backslash in one stays part of it on every system. Absolute,
+    with "/", where no relative path exists (another drive on Windows)."""
+    parts = posixpath.normpath(stored).split("/")
+    up = 0
+    while up < len(parts) and parts[up] == "..":
+        up += 1
+    names = parts[up:]
+    base = Path(origin).parts
+    base = base[: max(1, len(base) - up)]  # never above the root
+    here = Path(folder).parts
+    if os.path.normcase(base[0]) != os.path.normcase(here[0]):
+        root = with_slashes(str(Path(*base)), SYSTEM).rstrip("/")
+        return "/".join([root, *names])
+    target = [*base, *names]
+    same = 0
+    for mine, theirs in zip(here, target, strict=False):  # up to the shorter
+        if os.path.normcase(mine) != os.path.normcase(theirs):
+            break
+        same += 1
+    return "/".join([".."] * (len(here) - same) + target[same:])
 
 
 def write(

@@ -6,9 +6,12 @@ drive on Windows), a URL as it is, or empty (FR-033). The forms of a path
 are told apart here, for the migration, the writer and the lookup alike. An
 absolute path has the form of the system that wrote it, whichever system
 reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
-one. A path of the other system's form is never looked up on this one. In a
-relative path, a backslash separates its parts, as on Windows, where a name
-can't hold one. A path is a URL only when it starts with a scheme, such as
+one. A path of the other system's form is never looked up on this one. A
+backslash in a relative path, or in a POSIX one, is never converted: TiLiA
+and the core write "/" between folders, so it is a hand edit, or part of a
+name on macOS and Linux, and the lookup lets the system read it
+(TimeLineAnnotator/project-management#402). In a Windows path, it separates
+folders. A path is a URL only when it starts with a scheme, such as
 `https://`: one without, even one like a YouTube link, is a file's path
 (FR-033, TimeLineAnnotator/project-management#380), and one that starts
 with `//` is a Windows server path, as TiLiA writes one with "/"
@@ -125,15 +128,11 @@ def _form(path: str) -> str | None:
 
 def is_relative(path: str) -> bool:
     """Whether `path` is relative to the file's folder: not empty, not a URL,
-    and with no drive or root of either system's form."""
+    and with no drive or root of either system's form, which is why a
+    leading backslash counts as a root here."""
     if not path or is_url(path):
         return False
-    return _is_relative(path)
-
-
-def _is_relative(path: str) -> bool:
-    """`is_relative` of a path that isn't empty or a URL."""
-    windows = PureWindowsPath(path)  # "/" and "\\" both separate its parts
+    windows = PureWindowsPath(path)
     return not windows.drive and not windows.root
 
 
@@ -141,12 +140,6 @@ def with_slashes(path: str, form: str) -> str:
     """A path of `form` with "/" between its parts. A backslash in a POSIX
     path is part of a name."""
     return path.replace("\\", "/") if form == WINDOWS else path
-
-
-def relative_with_slashes(path: str) -> str:
-    """A relative path with "/" between its parts, which a backslash also
-    separates."""
-    return path.replace("\\", "/")
 
 
 def folder_of(path: str, form: str) -> str:
@@ -205,15 +198,14 @@ def local_file(stored: str, folder: str | None) -> Path | None:
     The migration asks this whether an old file's media exists, so that it
     and `tla.media` agree. A path of the other system's form is never looked
     up: joined to the folder, a Windows path would name a file below it on
-    macOS and Linux."""
+    macOS and Linux. Any other is joined to the folder as it is, and the
+    system reads it: a backslash separates folders on Windows, and is part
+    of a name on macOS and Linux."""
     form = _form(stored)
     if form is not None and form != SYSTEM:
         return None
-    if form is None:
-        if folder is None:
-            return None
-        if _is_relative(stored):
-            stored = relative_with_slashes(stored)
+    if form is None and folder is None:
+        return None
     head, name = os.path.split(stored)
     spellings = (
         stored,
