@@ -153,6 +153,9 @@ def test_a_crlf_is_one_separator(comments, rest):
         ("note  tag=check  more", "note more"),
         ("  tag=check  text  ", "text  "),
         ("text  |  tag=check", "text"),
+        ("note tag=check  ", "note"),
+        ("note | tag=check | ", "note"),
+        ("  text  tag=check gen=group/A |", "  text"),
     ],
 )
 def test_a_run_of_separators_around_a_mark_is_cut_down_to_one(comments, rest):
