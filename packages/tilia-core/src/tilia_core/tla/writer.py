@@ -651,8 +651,11 @@ def write(
 
     The media's path and PDF timelines' paths are written relative to the
     folder of `path` wherever a relative path exists, recomputed when it
-    isn't the folder `doc` was read from (`rebase_paths`, FR-033); `doc`
-    itself isn't changed. Its other bytes are `canonical_bytes(doc)`'s.
+    isn't the folder `doc` was read from (`rebase_paths`, FR-033). After a
+    successful write, `doc` follows the file: its `origin` is `path`, and
+    its media and PDF paths are the ones written, so that
+    `canonical_bytes(doc)` and `fingerprint_of(doc)` are what is on disk. A
+    write that fails leaves `doc` as it was.
 
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A folder is refused with `IsADirectoryError`, and a
@@ -668,8 +671,8 @@ def write(
     target = os.path.realpath(path)
     # Relative to the folder of `path` as given, links not followed, which is
     # the folder the reader resolves the file's paths against.
-    doc = rebase_paths(doc, os.path.dirname(os.path.abspath(path)))
-    data = checked_bytes(doc, path=path)
+    rebased = rebase_paths(doc, os.path.dirname(os.path.abspath(path)))
+    data = checked_bytes(rebased, path=path)
     if expect is ABSENT:
         if os.path.lexists(target):
             raise FileChanged(path, None, _found(target))
@@ -691,7 +694,24 @@ def write(
         if _held_open(error):
             raise FileInUse(path) from error
         raise
+    _follow(doc, rebased, path)
     return hashlib.sha256(data).hexdigest()
+
+
+def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> None:
+    """Make `doc` follow the file just written at `path` from `rebased`, its
+    copy with the paths as written (FR-033): its origin becomes the file, as
+    the reader sets it, and its media and PDF paths the ones written. The
+    timelines keep their objects; only a rebased PDF timeline's path
+    changes."""
+    doc.origin = Path(os.path.abspath(path))
+    if rebased is doc:
+        return
+    doc.media_path = rebased.media_path
+    for key, timeline in rebased.timelines.items():
+        own = doc.timelines[key]
+        if timeline is not own:  # a PDF timeline whose path was rebased
+            own.attrs["path"] = timeline.attrs["path"]
 
 
 # Windows' errors for a rename refused because another program holds a file

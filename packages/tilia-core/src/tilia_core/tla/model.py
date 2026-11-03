@@ -524,7 +524,7 @@ class Document:
     app_name: str = "TiLiA"
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
     warnings: list[ReadWarning] = field(default_factory=list)
-    origin: Path | None = None  # where it was read from
+    origin: Path | None = None  # where it was read from, or last written to
 
 
 @dataclass(frozen=True)
