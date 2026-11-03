@@ -131,9 +131,10 @@ def table_problem(timeline: tla.Timeline) -> str | None:
 
     A beat without a usable time (`missing_time`), a row whose beats don't
     start at its downbeat or aren't the timeline's (`broken_row`), or two
-    beats at the same time or out of time order (`disorder`). None doesn't
-    promise rows: a timeline without a table, or with an empty one, has none,
-    and no problem either.
+    beats at the same time or out of time order (`disorder`). A beat without
+    a usable time is found among the timeline's beats, so a timeline without
+    a table, or with an empty one, can have that problem too; it has no other.
+    None doesn't promise rows: such a timeline has none, with no problem.
     """
     return _checked(timeline)[0]
 
@@ -202,7 +203,8 @@ def missing_time(timeline: tla.Timeline) -> str | None:
     every row, since its measure is found by its time. So the reason names
     no measure (TimeLineAnnotator/project-management#381), and of several
     such beats, the first by id, as a file lists them. A beat with a
-    `measure` mark is a downbeat.
+    `measure` mark is a downbeat, but for a closing tap, whose mark starts no
+    measure (TimeLineAnnotator/project-management#375).
     """
     timeless = [
         beat_id
@@ -212,8 +214,9 @@ def missing_time(timeline: tla.Timeline) -> str | None:
     if not timeless:
         return None
     first = min(timeless)
-    mark = timeline.components[first].attrs.get("measure")
-    what = "a downbeat" if isinstance(mark, dict) else "a beat"
+    attrs = timeline.components[first].attrs
+    downbeat = isinstance(attrs.get("measure"), dict) and not attrs.get("closing")
+    what = "a downbeat" if downbeat else "a beat"
     return f"{what} without a time (beat {first})"
 
 
