@@ -15,6 +15,7 @@ SCORE = """<?xml version="1.0" encoding="UTF-8"?>
     <measure number="1">
       <attributes>
         <divisions>1</divisions>
+        <key><fifths>0</fifths></key>
         <time><beats>1</beats><beat-type>4</beat-type></time>
         <clef><sign>G</sign><line>2</line></clef>
       </attributes>
@@ -30,9 +31,14 @@ SCORE = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def _import_score(beat_tlui, tmp_path):
-    beat_tlui.timeline.beat_pattern = [1]
+    beat_tl = beat_tlui.timeline
+    beat_tl.beat_pattern = [1]
     for time in range(3):
         commands.execute("timeline.beat.add", time=time)
+    # This base doesn't number the measures of added beats, and the import
+    # needs them.
+    beat_tl.measure_numbers = [1, 2, 3]
+    beat_tl.recalculate_measures()
     path = tmp_path / "score.musicxml"
     path.write_text(SCORE, encoding="utf-8")
     with patch_file_dialog(True, [str(path)]):
