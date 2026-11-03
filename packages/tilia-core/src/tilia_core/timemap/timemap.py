@@ -361,8 +361,11 @@ def build_time_map(
     """The beat timeline's time map, or None with the reason it has none."""
     table = timeline.measures
     if table is None or (not table.rows and timeline.components):
-        # WP3's table leaves a beat without a time out of every row, so such
-        # a beat, a downbeat say, may be why there are none: named first.
+        # A beat without a time is named first. WP3's table leaves it out of
+        # every row, so a downbeat without one may be why there are none. No
+        # table at all happens only in memory, since the reader gives every
+        # beat timeline one: with a table rebuilt there, that beat would still
+        # give no time map, so it is the one thing to fix either way.
         return None, missing_time(timeline) or "no measure table"
     reason = table_problem(timeline)
     if reason is not None:
