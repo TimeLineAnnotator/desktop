@@ -32,6 +32,7 @@ from tilia_core.timemap.table import (
     build_rows_from,
     find_rows,
     is_folded,
+    missing_time,
     table_problem,
 )
 
@@ -360,7 +361,9 @@ def build_time_map(
     """The beat timeline's time map, or None with the reason it has none."""
     table = timeline.measures
     if table is None or (not table.rows and timeline.components):
-        return None, "no measure table"
+        # WP3's table leaves a beat without a time out of every row, so such
+        # a beat, a downbeat say, may be why there are none: named first.
+        return None, missing_time(timeline) or "no measure table"
     reason = table_problem(timeline)
     if reason is not None:
         return None, reason

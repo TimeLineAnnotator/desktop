@@ -130,9 +130,10 @@ def table_problem(timeline: tla.Timeline) -> str | None:
     """Why the timeline's table can't give rows, as a reason; else None.
 
     A beat without a usable time (`missing_time`), a row whose beats don't
-    start at its downbeat (`broken_row`), or two beats at the same time or out
-    of time order (`disorder`). None doesn't promise rows: a timeline without
-    a table, or with an empty one, has none, and no problem either.
+    start at its downbeat or aren't the timeline's (`broken_row`), or two
+    beats at the same time or out of time order (`disorder`). None doesn't
+    promise rows: a timeline without a table, or with an empty one, has none,
+    and no problem either.
     """
     return _checked(timeline)[0]
 
@@ -149,8 +150,9 @@ def _checked(timeline: tla.Timeline) -> tuple[str | None, list[float]]:
 
 
 def _times(timeline: tla.Timeline) -> list[float]:
-    # The times of the table's beats, in its order, once missing_time has
-    # found each of them usable.
+    # The times of the table's beats, in its order, once broken_row has found
+    # each of them a beat of the timeline, and missing_time each beat's time
+    # usable.
     rows = timeline.measures.rows if timeline.measures is not None else []
     return [timeline.components[b].attrs["time"] for row in rows for b in row.beats]
 
@@ -191,38 +193,54 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
 
 
 def missing_time(timeline: tla.Timeline) -> str | None:
-    """The first beat without a usable time, as a reason naming its measure; else None.
+    """The first of the timeline's beats without a usable time, as a reason
+    naming it by its id; else None.
 
     A time is usable when it is a finite number: a missing, NaN or text time
-    isn't, nor a whole number too large for a float.
+    isn't, nor a whole number too large for a float. The timeline's beats are
+    looked at, not its rows: WP3's table leaves a beat without a time out of
+    every row, since its measure is found by its time. So the reason names
+    no measure (TimeLineAnnotator/project-management#381), and of several
+    such beats, the first by id, as a file lists them. A beat with a
+    `measure` mark is a downbeat.
     """
-    if timeline.measures is None:
+    timeless = [
+        beat_id
+        for beat_id, component in timeline.components.items()
+        if component.kind == "beat" and not _is_number(component.attrs.get("time"))
+    ]
+    if not timeless:
         return None
-    for measure in timeline.measures.rows:
-        for beat_id in (measure.id, *measure.beats):
-            if not _has_time(timeline.components.get(beat_id)):
-                what = "a downbeat" if beat_id == measure.id else "a beat"
-                return f"{what} without a time (measure {measure.label})"
-    return None
+    first = min(timeless)
+    mark = timeline.components[first].attrs.get("measure")
+    what = "a downbeat" if isinstance(mark, dict) else "a beat"
+    return f"{what} without a time (beat {first})"
 
 
 def broken_row(timeline: tla.Timeline) -> str | None:
-    """The first row whose beats don't start at its downbeat, as a reason; else None.
+    """The first row whose beats don't start at its downbeat, or that names a
+    beat the timeline doesn't have, as a reason; else None.
 
-    Only a broken table has one: WP3 builds each row from its downbeat on.
+    Only a broken table has one: WP3 builds each row from the timeline's
+    beats, from its downbeat on.
     """
     if timeline.measures is None:
         return None
     for measure in timeline.measures.rows:
-        if not measure.beats or measure.beats[0] != measure.id:
+        if (
+            not measure.beats
+            or measure.beats[0] != measure.id
+            or not all(_is_beat(timeline, beat_id) for beat_id in measure.beats)
+        ):
             return (
                 f"the measure table doesn't match its beats (measure {measure.label})"
             )
     return None
 
 
-def _has_time(component: tla.Component | None) -> bool:
-    return component is not None and _is_number(component.attrs.get("time"))
+def _is_beat(timeline: tla.Timeline, component_id: str) -> bool:
+    component = timeline.components.get(component_id)
+    return component is not None and component.kind == "beat"
 
 
 def _is_number(value: object) -> TypeGuard[int | float]:
