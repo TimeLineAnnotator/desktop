@@ -715,3 +715,91 @@ def test_each_error_in_the_core_has_its_traceback(clean, monkeypatch, capsys):
     assert err.startswith("a.tla:\n")
     assert first.endswith("MemoryError\nsub/b.tla:\n")
     assert second.endswith("KeyError: 'ordinal'\n")
+
+
+# Characters that would change the report are printed escaped
+
+
+def with_version(source, version):
+    content = json.loads(source.read_text(encoding="utf-8"))
+    content["version"] = version
+    return json.dumps(content).encode()
+
+
+def test_a_version_cant_add_lines_to_the_report_or_erase_any(
+    tmp_path, monkeypatch, capsys
+):
+    place(tmp_path / "old.tla", with_version(OLD / "0.7.0.tla", "0.7.0\x1b[2J"))
+    place(
+        tmp_path / "newer.tla", with_version(BROKEN / "newer-format.tla", "2.0\nWrote")
+    )
+
+    migrate_command.main([str(tmp_path)])
+
+    out = capsys.readouterr().out
+    assert "  from 0.7.0\\x1b[2J: 1 file\n" in out
+    assert (
+        "  newer.tla               written by a newer TiLiA (format 2.0\\nWrote)\n"
+    ) in out
+    assert "\x1b" not in out
+    assert "\nWrote" not in out
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses such names")
+def test_a_file_name_cant_add_lines_to_the_report(tmp_path, capsys):
+    place(tmp_path / "evil\nWrote 9 files.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "erase\x1b[1A.tla", BROKEN / "newer-format.tla")
+
+    migrate_command.main([str(tmp_path)])
+
+    out = capsys.readouterr().out
+    assert "  evil\\nWrote 9 files.tla  " in out
+    assert "  erase\\x1b[1A.tla  " in out
+    assert "\x1b" not in out
+    assert "\nWrote 9" not in out
+
+
+def test_every_control_character_is_escaped_where_the_report_shows_text():
+    from tilia_core.tla.model import (
+        FileResult,
+        FolderNotListed,
+        MigrationReport,
+        Outcome,
+        ReadWarning,
+    )
+
+    controls = "".join(map(chr, [*range(0x20), 0x7F, *range(0x80, 0xA0)]))
+    report = MigrationReport(
+        files=[
+            FileResult(
+                path=f"a{controls}.tla",
+                outcome=Outcome.WOULD_MIGRATE,
+                from_version=f"0.7{controls}",
+                warnings=[ReadWarning(place="/x", line=None, message=f"w{controls}")],
+            ),
+            FileResult(
+                path=f"b{controls}.tla",
+                outcome=Outcome.UNREADABLE,
+                reason=f"r{controls}",
+            ),
+            FileResult(path=f"c{controls}.tla", outcome=Outcome.IN_USE),
+        ],
+        shared_ids=[[f"a{controls}.tla", f"b{controls}.tla"]],
+        folders_not_listed=[
+            FolderNotListed(path=f"d{controls}/", reason=f"f{controls}")
+        ],
+    )
+
+    lines = migrate_command.report_lines(report, "corpus", apply=False)
+
+    text = "\n".join(lines)
+    assert not set(controls) & set(text.replace("\n", ""))
+    for line in lines:
+        assert "\n" not in line
+    # Each name, version, reason and warning: the paths of a, b, c and d, a
+    # and b again in the copies' line, a's version and warning, b's and d's
+    # reasons.
+    assert text.count("\\x00\\x01\\x02") == 10
+    assert text.count("\\x07\\x08\\t\\n\\x0b\\x0c\\r\\x0e") == 10
+    assert text.count("\\x1f\\x7f\\x80") == 10
+    assert text.count("\\x9f") == 10

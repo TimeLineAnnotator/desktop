@@ -155,7 +155,8 @@ _SECTIONS: dict[Outcome, str] = {
 
 
 def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[str]:
-    """The report, as contracts/command.md shows it; `folder` as given."""
+    """The report, as contracts/command.md shows it, one line each; `folder`
+    as given."""
     files = report.files
     sections: dict[str, list[FileResult]] = {name: [] for name in _SECTIONS.values()}
     for f in files:
@@ -163,13 +164,19 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     migrated, current = sections["migrated"], sections["current"]
     in_use = sections["in use"]
     # A folder that couldn't be listed is left alone too, among the files.
-    left = sorted(
-        [(f.path, f.reason or "") for f in sections["left alone"]]
-        + [(unlisted.path, unlisted.reason) for unlisted in report.folders_not_listed],
-        key=lambda row: _path_order(row[0]),
-    )
-    changed = [f for f in migrated if f.changes or f.warnings]
-    paths = [path for path, _ in left] + [f.path for f in changed]
+    left = [
+        (_shown(path), _shown(reason))
+        for path, reason in sorted(
+            [(f.path, f.reason or "") for f in sections["left alone"]]
+            + [
+                (unlisted.path, unlisted.reason)
+                for unlisted in report.folders_not_listed
+            ],
+            key=lambda row: _path_order(row[0]),
+        )
+    ]
+    changed = [(_shown(f.path), f) for f in migrated if f.changes or f.warnings]
+    paths = [path for path, _ in left] + [path for path, _ in changed]
     width = max([_PATH_WIDTH, *(len(path) + 2 for path in paths)])
 
     def row(path: str, text: str) -> str:
@@ -180,30 +187,31 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     lines = [head + (":" if migrated else ".")]
     versions = Counter(f.from_version or "" for f in migrated)
     for version in sorted(versions, key=_version_order):
-        lines.append(f"  from {version}: {_files(versions[version])}")
+        lines.append(f"  from {_shown(version)}: {_files(versions[version])}")
     lines.append(f"Already in the new format: {_files(len(current))}")
     lines.append(f"Left alone: {_files(len(left))}")
     lines += [row(path, reason) for path, reason in left]
     if in_use:
         lines.append(f"In use by another program: {_files(len(in_use))}")
-        lines += [f"  {f.path}" for f in in_use]
-    for paths in report.shared_ids:
-        lines.append(f"Share a document id (copies): {', '.join(paths)}")
+        lines += [f"  {_shown(f.path)}" for f in in_use]
+    for group in report.shared_ids:
+        copies = ", ".join(_shown(path) for path in group)
+        lines.append(f"Share a document id (copies): {copies}")
     if changed:
         lines.append("Changes the migration makes:")
-        for f in changed:
-            texts = [str(warning) for warning in f.warnings]
+        for path, f in changed:
+            texts = [_shown(str(warning)) for warning in f.warnings]
             if f.changes:
                 texts.insert(0, "; ".join(_changes(f.changes)))
-            lines.append(row(f.path, texts[0]))
+            lines.append(row(path, texts[0]))
             lines += [row("", text) for text in texts[1:]]
     lines.append("")
     written = sum(Outcome(f.outcome) is Outcome.MIGRATED for f in files)
     if apply and written:
         lines.append(f"Wrote {_files(written)}.")
     elif not apply and migrated:
-        lines.append(_ADVICE)
-        lines.append(f"Then run: tilia migrate {_quoted(folder)} --apply")
+        lines += _ADVICE.split("\n")
+        lines.append(f"Then run: tilia migrate {_shown(_quoted(folder))} --apply")
     else:
         lines.append("Nothing was written.")
     return lines
@@ -215,7 +223,7 @@ def _print_errors(report: MigrationReport) -> None:
     with the report of the fault."""
     for f in report.files:
         if f.error is not None:
-            print(f"{f.path}:", file=sys.stderr)
+            print(f"{_shown(f.path)}:", file=sys.stderr)
             trace = "".join(traceback.format_exception(f.error))
             print(trace, end="", file=sys.stderr)
 
@@ -276,3 +284,18 @@ def _quoted(argument: str, *, windows: bool = os.name == "nt") -> str:
         )
         return f"'{doubled}'"
     return subprocess.list2cmdline([argument])
+
+
+# Control characters (C0, DEL and C1), which could add lines to the report or
+# erase some, each as Python escapes it.
+_ESCAPES = {
+    code: {"\t": "\\t", "\n": "\\n", "\r": "\\r"}.get(chr(code), f"\\x{code:02x}")
+    for code in (*range(0x20), 0x7F, *range(0x80, 0xA0))
+}
+
+
+def _shown(text: str) -> str:
+    """`text` from a file or the system, a name, a reason or a version, with
+    each control character escaped (`\\n`, `\\x1b`), so that it prints on one
+    line and changes nothing else on the terminal."""
+    return text.translate(_ESCAPES)
