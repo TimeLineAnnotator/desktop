@@ -73,12 +73,6 @@ Examples:
         "e.g. 6/8(3 3). A number alone is that many taps of an assumed "
         "quarter note.",
     )
-    parser.add_argument(
-        "--yes",
-        "-y",
-        action="store_true",
-        help="Overwrite measures set by hand without asking.",
-    )
     parser.set_defaults(func=set_pattern)
 
 
@@ -229,16 +223,6 @@ def set_pattern(timeline: BeatTimeline, namespace: argparse.Namespace) -> None:
     if not result.is_complete:
         io.error(f"Invalid beat pattern '{pattern}': {result.error}")
         return
-
-    overwritten = timeline.get_bars_overwritten_by(result.bars)
-    if overwritten and not namespace.yes:
-        measures = ", ".join(str(i + 1) for i in overwritten)
-        if not io.ask_yes_or_no(
-            f"This pattern will overwrite measures set by hand (measures "
-            f"{measures}). Continue?",
-            default=False,
-        ):
-            return
 
     timeline.set_beat_pattern(pattern)
 
