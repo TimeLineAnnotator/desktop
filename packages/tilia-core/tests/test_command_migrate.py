@@ -653,7 +653,71 @@ def test_then_run_quotes_a_folder_the_shell_would_misread(
     assert out.endswith(f"Then run: tilia migrate '{name}' --apply\n")
 
 
+def test_then_run_escapes_a_control_character_in_the_folder():
+    from tilia_core.tla.model import FileResult, MigrationReport, Outcome
+
+    old = FileResult(path="a.tla", outcome=Outcome.WOULD_MIGRATE, from_version="0.7")
+    report = MigrationReport(files=[old])
+
+    lines = migrate_command.report_lines(report, "corp" + chr(0x1B) + "us", apply=False)
+
+    assert lines[-1].startswith("Then run: tilia migrate ")
+    assert "corp\\x1bus" in lines[-1]
+    assert chr(0x1B) not in lines[-1]
+
+
+def test_a_folder_that_doesnt_exist_is_named_escaped(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+
+    assert migrate_command.main(["no" + chr(0x1B) + "where"]) == 2
+
+    err = capsys.readouterr().err
+    assert err.splitlines()[-1] == "tilia migrate: error: no such folder: no\\x1bwhere"
+    assert chr(0x1B) not in err
+
+
+def test_a_folder_that_cant_be_listed_is_named_escaped(monkeypatch, capsys):
+    folder = "corp" + chr(0x1B) + "us"
+
+    def refused(path, *, apply=False):
+        raise PermissionError(13, "Permission denied", path)
+
+    monkeypatch.setattr(os.path, "isdir", lambda path: path == folder)
+    monkeypatch.setattr(migrate_command, "migrate_folder", refused)
+
+    assert migrate_command.main([folder]) == 1
+
+    err = capsys.readouterr().err
+    assert err == "tilia migrate: can't read corp\\x1bus: Permission denied\n"
+
+
 # An error in the core: named, and its traceback after the report
+
+
+def test_a_traceback_is_printed_with_its_control_characters_escaped(capsys):
+    from tilia_core.tla.model import FileResult, MigrationReport, Outcome
+
+    esc = chr(0x1B)
+    failed = FileResult(
+        path=f"a{esc}.tla",
+        outcome=Outcome.UNREADABLE,
+        reason="can't read: an error in tilia-core (ValueError); please report it",
+        # Its last line can carry text from the file.
+        traceback=(
+            "Traceback (most recent call last):\n"
+            '  File "step.py", line 1, in step\n'
+            f"ValueError: a label {esc}[2J\r\n"
+        ),
+    )
+
+    migrate_command._print_errors(MigrationReport(files=[failed]))
+
+    assert capsys.readouterr().err == (
+        "a\\x1b.tla:\n"
+        "Traceback (most recent call last):\n"
+        '  File "step.py", line 1, in step\n'
+        "ValueError: a label \\x1b[2J\\r\n"
+    )
 
 
 FAILING_READ = """\
