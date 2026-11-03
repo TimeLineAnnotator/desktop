@@ -580,10 +580,11 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
 
     An absolute path becomes relative to `folder` wherever a relative path
     exists, so not on another drive on Windows. When `folder` isn't the one
-    `doc` was read from, a relative path is resolved against that one and
-    made relative to `folder`, or absolute where no relative path exists. A
-    backslash in a relative path separates its parts, and becomes "/", as
-    do a Windows path's that stays absolute. An empty path, a URL, and a
+    `doc` was read from or last written to (its `origin`'s), a relative
+    path is resolved against that one and made relative to `folder`, or
+    absolute where no relative path exists. A backslash in a relative path
+    separates its parts, and becomes "/", as do a Windows path's that stays
+    absolute. An empty path, a URL, and a
     relative path in a document read from nowhere, whose base is unknown,
     are kept. `doc` isn't changed: when a path changes, a copy is returned,
     sharing with `doc` what didn't change."""
@@ -651,11 +652,13 @@ def write(
 
     The media's path and PDF timelines' paths are written relative to the
     folder of `path` wherever a relative path exists, recomputed when it
-    isn't the folder `doc` was read from (`rebase_paths`, FR-033). After a
-    successful write, `doc` follows the file: its `origin` is `path`, and
-    its media and PDF paths are the ones written, so that
+    isn't the folder `doc` was read from or last written to (`rebase_paths`,
+    FR-033). After a successful write, `doc` follows the file: its `origin`
+    is `path`, and its media and PDF paths are the ones written, so that
     `canonical_bytes(doc)` and `fingerprint_of(doc)` are what is on disk. A
-    write that fails leaves `doc` as it was.
+    write that fails leaves `doc` as it was. The write changes `doc`'s own
+    timelines: a document the caller wants to keep as it was must be copied
+    with `copy.deepcopy` first, since a shallow copy shares its timelines.
 
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A folder is refused with `IsADirectoryError`, and a
