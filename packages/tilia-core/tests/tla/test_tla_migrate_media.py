@@ -13,6 +13,7 @@ folder. Paths of the other system's form (Windows paths read on macOS or
 Linux, and the reverse) are never looked up on this computer, so those
 cases run on every system."""
 
+import errno
 import hashlib
 import importlib
 import inspect
@@ -897,8 +898,10 @@ def test_after_each_write_the_document_is_what_is_on_disk(corpus, tmp_path):
     assert corpus.read_bytes() == EVERY_KIND.read_bytes()
 
 
-@pytest.mark.parametrize("failure", ["changed", "read-only"])
-def test_a_write_that_fails_leaves_the_document_as_it_was(corpus, tmp_path, failure):
+@pytest.mark.parametrize("failure", ["changed", "read-only", "rename"])
+def test_a_write_that_fails_leaves_the_document_as_it_was(
+    corpus, tmp_path, monkeypatch, failure
+):
     if failure == "read-only" and hasattr(os, "geteuid") and os.geteuid() == 0:
         pytest.skip("root may write any file")
     doc = tla.read(corpus)
@@ -911,10 +914,21 @@ def test_a_write_that_fails_leaves_the_document_as_it_was(corpus, tmp_path, fail
         if failure == "changed":
             with pytest.raises(tla.FileChanged):
                 tla.write(target, doc, expect="0" * 64)
-        else:
+        elif failure == "read-only":
             os.chmod(target, stat.S_IREAD)
             with pytest.raises(PermissionError):
                 tla.write(target, doc)
+        else:
+            # The last step: the temporary file can't replace the file.
+            error = OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))
+
+            def replace(src, dst):
+                raise error
+
+            monkeypatch.setattr(os, "replace", replace)
+            with pytest.raises(OSError):
+                tla.write(target, doc)
+            monkeypatch.undo()
     finally:
         os.chmod(target, stat.S_IREAD | stat.S_IWRITE)
     after = (doc.origin, doc.media_path, pdf_path(doc), tla.canonical_bytes(doc))
