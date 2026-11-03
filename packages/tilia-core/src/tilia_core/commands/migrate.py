@@ -243,8 +243,23 @@ def _version_order(version: str) -> tuple[tuple[tuple[int, str], ...], str]:
     return tuple(numbers), version
 
 
-def _quoted(argument: str) -> str:
-    """`argument` as the system's shell takes it back."""
-    if os.name == "nt":
-        return subprocess.list2cmdline([argument])
-    return shlex.quote(argument)
+# What PowerShell or cmd.exe read specially in an argument. PowerShell takes
+# the typographic quotes for quotes too.
+_SINGLE_QUOTES = "'‘’‚‛"
+_SPECIAL_ON_WINDOWS = frozenset('&|<>^%!;,=$`"(){}[]@#' + _SINGLE_QUOTES + "“”„")
+
+
+def _quoted(argument: str, *, windows: bool = os.name == "nt") -> str:
+    """`argument` as the system's shell takes it back. On macOS and Linux, as
+    a POSIX shell does. On Windows, as typed, or in double quotes when it
+    holds a space; but in single quotes, for PowerShell, the shell Windows
+    opens by default, when it holds a character PowerShell or cmd.exe read
+    specially, each single quote doubled inside them."""
+    if not windows:
+        return shlex.quote(argument)
+    if any(char in _SPECIAL_ON_WINDOWS for char in argument):
+        doubled = "".join(
+            char * 2 if char in _SINGLE_QUOTES else char for char in argument
+        )
+        return f"'{doubled}'"
+    return subprocess.list2cmdline([argument])
