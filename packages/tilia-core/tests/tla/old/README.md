@@ -1,6 +1,6 @@
 # Files from older TiLiA versions
 
-One file per TiLiA version whose files have a shape of their own, saved by that version where it still runs. The tests read each one through the migration.
+One file per TiLiA version whose files have a shape of their own, saved by that version where it still runs, and one with a score that TiLiA's viewer drew. The tests read each one through the migration.
 
 `file_path`, `media_path` and PDF paths are rewritten to a neutral user's folder, `C:/Users/user/Documents/TiLiA`. Each file is listed here with the TiLiA version that saved it, where it came from, and its license when it isn't this repository's.
 
@@ -13,6 +13,7 @@ One file per TiLiA version whose files have a shape of their own, saved by that 
 | `0.5.15.0-many-beats.tla` | TiLiA 0.5.15 | TiLiA's own test file `tests/resources/tla/many_beats.tla`: one beat timeline of 1000 beats, with its version written `0.5.15.0`. |
 | `0.6.0-s4-10.tla` | TiLiA 0.6.0 | `tilia/10.tla` of the S4 Dataset v0.1.0 (<https://github.com/FelipeDefensor/s4-dataset>), by Felipe Martins, licensed under CC BY 4.0 (<https://creativecommons.org/licenses/by/4.0/>), unchanged. |
 | `0.7.0.tla` | TiLiA 0.7.0 | Made with `save_with_tilia.py new`: every timeline kind of that version, the range timeline among them. |
+| `0.7.0-osmd.tla` | TiLiA 0.7.0 | Made with `save_with_tilia.py score`: a beat timeline of three bars of 3/4, and `../scores/serenade.musicxml` imported into a score timeline with TiLiA's own import command, so that its viewer drew the score with OSMD 1.8.9 and stored the drawing (`svg_data`, which is `../scores/serenade-osmd.svg`) and its beat positions (`viewer_beat_x`). No media: the file's media length is set to 4.5 seconds. |
 
 The files made here were saved on Windows, so their lines end in CRLF, as TiLiA wrote them there; those of the S4 file and of the many beats end in LF.
 
@@ -34,9 +35,12 @@ python-0.7.0 save_with_tilia.py resave out/0.0.96.tla out/0.0.96-saved-by-0.7.0.
 python-0.5.15 save_with_tilia.py new out/0.5.15.tla
 python-0.7.0 save_with_tilia.py resave out/0.5.15.tla out/0.5.15-saved-by-0.7.0.tla
 python-0.7.0 save_with_tilia.py new out/0.7.0.tla
+python-0.7.0 save_with_tilia.py score ../scores/serenade.musicxml out/0.7.0-osmd.tla
 python save_with_tilia.py neutral out .
 ```
 
 where `python-X` is the interpreter of version X's environment. The media and the PDF exist while the files are saved, so that TiLiA 0.7.0 keeps their paths when it opens a file; `neutral` then rewrites the paths of `out` and copies the files here.
 
-A new run gives the same content, not always the same bytes: TiLiA 0.0.96 writes components in an order that changes from run to run, TiLiA 0.7.0 gives range rows random ids, and the hashes TiLiA stores cover the paths before they are rewritten.
+`score` needs Qt's web view and the internet: TiLiA 0.7.0's viewer loads OSMD from a CDN (jsDelivr). It runs on Qt's offscreen platform, like the other commands, so no window opens, and it stops with an error rather than show TiLiA's message boxes. The score timeline's `svg_data` is then copied, unchanged, to `../scores/serenade-osmd.svg`.
+
+A new run gives the same content, not always the same bytes: TiLiA 0.0.96 writes components in an order that changes from run to run, TiLiA 0.7.0 gives range rows random ids, and the hashes TiLiA stores cover the paths before they are rewritten. OSMD's drawing may also differ with the fonts of the system it runs on.

@@ -5,6 +5,7 @@ installed (see README.md); `neutral` runs with any Python:
 
     python save_with_tilia.py new OUT.tla        # every timeline kind
     python save_with_tilia.py resave IN.tla OUT.tla   # open, save again unedited
+    python save_with_tilia.py score IN.musicxml OUT.tla   # a score drawn by OSMD
     python save_with_tilia.py neutral FOLDER TARGET   # neutral paths, into TARGET
 
 `new` takes the media and the PDF from the environment variables GEN_MEDIA
@@ -17,6 +18,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 NEUTRAL_FOLDER = "C:/Users/user/Documents/TiLiA"
@@ -65,11 +67,17 @@ def _boot():
 
     import tilia.settings
     from tilia.boot import setup_logic
-    from tilia.requests import Get, serve
 
     if not isinstance(tilia.settings.settings._settings, TemporarySettings):
         raise RuntimeError("TiLiA's settings aren't the temporary ones")
     app = setup_logic(autosaver=False)
+    _reply()
+    return app
+
+
+def _reply(*more: tuple[str, object]):
+    """Answer the questions TiLiA asks the user, and return who answers."""
+    from tilia.requests import Get, serve
 
     class Replier:
         pass
@@ -80,10 +88,11 @@ def _boot():
         ("FROM_USER_YES_OR_NO", True),
         ("FROM_USER_SHOULD_SAVE_CHANGES", (True, False)),
         ("FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION", (True, False)),
+        *more,
     ]:
         if hasattr(Get, name):
             serve(replier, getattr(Get, name), lambda *_, reply=reply: reply)
-    return app
+    return replier
 
 
 def _kind(name: str):
@@ -211,12 +220,67 @@ def resave(source: Path, out: Path) -> None:
     app.file_manager.save(app.get_app_state(), out)
 
 
+def score(musicxml: Path, out: Path) -> None:
+    """Import `musicxml` into a score timeline with TiLiA's own command, as its
+    Import menu does, so that its viewer draws the score with OSMD and takes
+    the beat positions out of the drawing; then save. For TiLiA 0.7, with its
+    web view and the internet: OSMD comes from a CDN. The main window is
+    never shown, and TiLiA's message boxes are turned into a failure."""
+    import PySide6.QtWebEngineWidgets  # noqa: F401  before the QApplication
+
+    app = _boot()
+    from PySide6.QtCore import QTimer
+
+    from tilia.boot import setup_ui
+    from tilia.requests import Post, listen, stop_listening
+    from tilia.timelines.component_kinds import ComponentKind as CK
+    from tilia.ui import commands
+
+    q_application = _KEPT[0]
+    ui = setup_ui(q_application, "qt")
+    _KEPT.append(ui)
+    # The UI's dialogs replaced the answers: answer again, with the score.
+    replier = _reply(("FROM_USER_FILE_PATH", (True, str(musicxml))))
+    errors = []
+    stop_listening(ui, Post.DISPLAY_ERROR)
+    listen(replier, Post.DISPLAY_ERROR, lambda *message: errors.append(message))
+
+    app.setup_file()
+    app.set_file_media_duration(4.5)
+    beats = app.timelines.create_timeline(
+        _kind("BEAT"), beat_pattern=[3], name="Measures"
+    )
+    for index in range(9):  # three bars of 3/4, a beat every half second
+        beats.create_component(CK.BEAT, time=index * 0.5)
+    timeline = app.timelines.create_timeline(_kind("SCORE"), name="Score")
+    commands.execute("timelines.import.score")
+
+    # The viewer sets the beat positions once OSMD has drawn the score.
+    deadline = time.monotonic() + 120
+    timer = QTimer()
+    timer.timeout.connect(
+        lambda: (errors or timeline.viewer_beat_x or time.monotonic() > deadline)
+        and q_application.quit()
+    )
+    timer.start(100)
+    q_application.exec()
+    timer.stop()
+    if errors:
+        sys.exit(f"TiLiA reported {errors}")
+    # The viewer takes out the marks it reads the beat positions from.
+    if not timeline.viewer_beat_x or "\u241f" in timeline.svg_data:
+        sys.exit("TiLiA's viewer didn't draw the score in time")
+    app.file_manager.save(app.get_app_state(), out)
+
+
 if __name__ == "__main__":
     command, *arguments = sys.argv[1:]
     if command == "new":
         new(Path(arguments[0]).resolve())
     elif command == "resave":
         resave(Path(arguments[0]).resolve(), Path(arguments[1]).resolve())
+    elif command == "score":
+        score(Path(arguments[0]).resolve(), Path(arguments[1]).resolve())
     elif command == "neutral":
         neutral(*arguments)
     else:
