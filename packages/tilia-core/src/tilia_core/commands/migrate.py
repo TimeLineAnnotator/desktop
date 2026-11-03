@@ -65,12 +65,12 @@ def main(argv: list[str] | None = None) -> int:
     folder: str = arguments.folder
     if not os.path.isdir(folder):
         what = "not a folder" if os.path.exists(folder) else "no such folder"
-        return _wrong_use(parser, f"{what}: {folder}")
+        return _wrong_use(parser, f"{what}: {_shown(folder)}")
     try:
         report = migrate_folder(folder, apply=arguments.apply)
     except OSError as error:
         why = error.strerror or str(error)
-        print(f"{PROG}: can't read {folder}: {why}", file=sys.stderr)
+        print(f"{PROG}: can't read {_shown(folder)}: {why}", file=sys.stderr)
         return 1
     _print("\n".join(report_lines(report, folder, apply=arguments.apply)))
     _print_errors(report)
@@ -219,11 +219,12 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
 def _print_errors(report: MigrationReport) -> None:
     """After the report, on stderr, the traceback of each error in the core
     that left a file alone, after the file's path, so that it can be sent
-    with the report of the fault."""
+    with the report of the fault. Its control characters are escaped, but
+    for its line breaks: its last line can hold text from the file."""
     for f in report.files:
         if f.traceback is not None:
             print(f"{_shown(f.path)}:", file=sys.stderr)
-            print(f.traceback, end="", file=sys.stderr)
+            print(f.traceback.translate(_ESCAPES_BUT_LINES), end="", file=sys.stderr)
 
 
 def _path_order(path: str) -> tuple[str, str]:
@@ -290,6 +291,9 @@ _ESCAPES = {
     code: {"\t": "\\t", "\n": "\\n", "\r": "\\r"}.get(chr(code), f"\\x{code:02x}")
     for code in (*range(0x20), 0x7F, *range(0x80, 0xA0))
 }
+
+
+_ESCAPES_BUT_LINES = {code: escape for code, escape in _ESCAPES.items() if code != 0x0A}
 
 
 def _shown(text: str) -> str:
