@@ -32,6 +32,7 @@ from tilia_core.tla.media_files import (
     local_file,
     relative_path,
     relative_with_slashes,
+    with_scheme,
     with_slashes,
 )
 from tilia_core.tla.model import timeline_kind_from_current_file
@@ -44,12 +45,17 @@ def make_relative(
     path: str | os.PathLike[str] | None,
 ) -> None:
     """Make the media's path and each PDF timeline's path in `content`, an old
-    file's content once migrated, relative, in place. `file_path` is the old
-    file's, and `path` where the file is now; None for bytes read without
-    their place, which then have no current folder."""
+    file's content once migrated, relative, in place, and give the media's
+    path `https://` when it is a YouTube link TiLiA stored without a scheme
+    (#380). `file_path` is the old file's, and `path` where the file is now;
+    None for bytes read without their place, which then have no current
+    folder."""
     folder = None if path is None else os.path.dirname(os.path.abspath(path))
     media = content["media"]
-    media["path"] = migrated_path(media["path"], file_path=file_path, folder=folder)
+    stored = media["path"]
+    if isinstance(stored, str):  # anything else is left for the check to refuse
+        stored = with_scheme(stored)
+    media["path"] = migrated_path(stored, file_path=file_path, folder=folder)
     for timeline in content["timelines"].values():
         kind = timeline_kind_from_current_file(timeline["kind"])
         if kind == "pdf" and "path" in timeline:

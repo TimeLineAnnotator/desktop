@@ -8,7 +8,9 @@ absolute path has the form of the system that wrote it, whichever system
 reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
 one. A path of the other system's form is never looked up on this one. In a
 relative path, a backslash separates its parts, as on Windows, where a name
-can't hold one.
+can't hold one. A path is a URL only when it starts with a scheme, such as
+`https://`: one without, even one like a YouTube link, is a file's path
+(FR-033, TimeLineAnnotator/project-management#380).
 
 The lookup is `tla.media`; this module has a name of its own, so that the
 function doesn't hide it.
@@ -31,12 +33,14 @@ logger = logging.getLogger(__name__)
 # TiLiA's own pattern for a YouTube link, copied from
 # tilia.constants.YOUTUBE_URL_REGEX, with the dot in "youtu.be" escaped,
 # which TiLiA's leaves to match any character: group 6 is the video's id.
+# It is the core's one copy. It matches a link without its scheme too, which
+# TiLiA takes for a link and the core doesn't (#380).
 YOUTUBE_URL = re.compile(
     r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu\.be))"
     r"(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
 )
-# Any other URL: a scheme of two characters or more, so that a Windows
-# drive isn't one, then "://".
+# A URL's scheme: two characters or more, so that a Windows drive isn't one,
+# then "://".
 _URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]+://")
 
 WINDOWS = "windows"
@@ -47,8 +51,41 @@ _MODULES = {WINDOWS: ntpath, POSIX: posixpath}
 
 
 def is_url(path: str) -> bool:
-    """Whether `path` is a URL: a YouTube link, as TiLiA reads one, or another."""
-    return YOUTUBE_URL.match(path) is not None or _URL.match(path) is not None
+    """Whether `path` is a URL: it starts with a scheme, such as `https://`
+    (FR-033, #380), or it is a YouTube link that starts with `//`, without
+    its `https:`. Any other path that starts with `//` is a Windows server
+    path written with "/", as TiLiA writes one: whether every `//…` is a URL
+    is open (TimeLineAnnotator/project-management#397)."""
+    if _URL.match(path):
+        return True
+    return path.startswith("//") and YOUTUBE_URL.match(path) is not None
+
+
+def _is_link_without_scheme(path: str) -> bool:
+    """Whether `path` matches TiLiA's YouTube pattern without being a URL: a
+    link as TiLiA stored it when typed, or a file's path that looks like one."""
+    return not is_url(path) and YOUTUBE_URL.match(path) is not None
+
+
+def with_scheme(path: str) -> str:
+    """An old file's media path, with `https://` before a YouTube link that
+    has no scheme, which TiLiA stored as it was typed (#380). TiLiA stored
+    local media as absolute paths, which never match its pattern."""
+    return f"https://{path}" if _is_link_without_scheme(path) else path
+
+
+def as_media_path(given: str | os.PathLike[str]) -> str:
+    """The media path to store for one a person or a script gives, as TiLiA's
+    `load-media` and a script's `load-media` are given one (FR-033, #380).
+
+    A path without a scheme that matches TiLiA's YouTube pattern, such as
+    `youtu.be/…` or `youtube.com/clip.mp4`, is a local file when one is
+    there, from the working folder, and otherwise a YouTube link, returned
+    with `https://`. Anything else is returned as it is."""
+    text = os.fspath(given)
+    if _is_link_without_scheme(text) and local_file(text, os.getcwd()) is None:
+        return f"https://{text}"
+    return text
 
 
 def absolute_form(path: str) -> str | None:
@@ -116,7 +153,8 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
 
     A relative path is resolved against the file's folder, an absolute one is
     taken as it is, and a URL is a YouTube link when it matches TiLiA's
-    pattern; another URL is never looked up. A local file is found as
+    pattern; another URL is never looked up. A path without a scheme is a
+    file's, even one like a link (#380). A local file is found as
     `local_file` finds it; when none is found, `path` is None. TiLiA's
     further fallbacks are its own."""
     stored = doc.media_path
@@ -124,12 +162,13 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
     youtube_id: str | None = None
     if not stored:
         kind = "none"
+    elif not is_url(stored):
+        kind = "local"
+        found = local_file(stored, os.path.dirname(os.path.abspath(path)))
     elif youtube := YOUTUBE_URL.match(stored):
         kind, youtube_id = "youtube", youtube[6]
     else:
-        kind = "local"
-        if not _URL.match(stored):
-            found = local_file(stored, os.path.dirname(os.path.abspath(path)))
+        kind = "local"  # another URL, as TiLiA takes it: a file it can't find
     return Media(
         kind=kind,
         stored=stored,
