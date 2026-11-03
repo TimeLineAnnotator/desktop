@@ -16,8 +16,6 @@ from tilia.ui.coords import time_x_converter
 from tilia.ui.format import format_numerator
 from tilia.ui.menus import BeatMenu
 from tilia.ui.strings import (
-    BEAT_PATTERN_OVERWRITE_PROMPT,
-    BEAT_PATTERN_OVERWRITE_TITLE,
     BEAT_TIMELINE_DELETE_EXISTING_BEATS_PROMPT,
     BEAT_TIMELINE_FILL_TITLE,
     BEAT_UNIT_AMBIGUOUS_TOOLTIP,
@@ -463,8 +461,8 @@ class BeatTimelineUI(TimelineUI):
         """
         Remeasures the beats from a pattern of time signatures and numbers
         the measures. Without a pattern, asks for both in a dialog that shows
-        the bars as they are and what changes; with one, asks before
-        overwriting bars set by hand.
+        the bars as they are and what changes; with one, applies it, as
+        editing the dialog's line does.
         """
         timeline = timeline_ui.timeline
         if pattern is None:
@@ -473,16 +471,6 @@ class BeatTimelineUI(TimelineUI):
         result = parse(pattern)
         if not result.is_complete:
             tilia.errors.display(tilia.errors.INVALID_BEAT_PATTERN, result.error)
-            return False
-
-        overwritten = timeline.get_bars_overwritten_by(result.bars)
-        if overwritten and not get(
-            Get.FROM_USER_YES_OR_NO,
-            BEAT_PATTERN_OVERWRITE_TITLE,
-            BEAT_PATTERN_OVERWRITE_PROMPT.format(
-                ", ".join(str(i + 1) for i in overwritten)
-            ),
-        ):
             return False
 
         if not timeline.set_beat_pattern(pattern):

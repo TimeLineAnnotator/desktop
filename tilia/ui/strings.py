@@ -23,11 +23,6 @@ Highlighted bars change when you press OK. Grey bars aren't tapped yet."""
 BEAT_PATTERN_ASSUMED_TIME_SIGNATURE = "{} (assumed)"
 BEAT_PATTERN_SUMMARY = "{} bar{}, then the list starts again from bar 1."
 BEAT_PATTERN_TAPPED = "{} beat{} tapped, in {} bar{}."
-BEAT_PATTERN_OVERWRITE_TITLE = "Overwrite bars set by hand"
-BEAT_PATTERN_OVERWRITE_PROMPT = (
-    "This pattern will overwrite bars set by hand (bars {})."
-    "\nDo you want to continue?"
-)
 TIME_SIGNATURE_SCOPE_TITLE = "Time signature"
 TIME_SIGNATURE_TAPS_ERROR = (
     "This measure has {} taps. To change them, use Edit bars and time signatures."
