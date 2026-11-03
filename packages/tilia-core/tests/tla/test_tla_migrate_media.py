@@ -117,8 +117,8 @@ def where(request):
     [
         "",
         "https://www.youtube.com/watch?v=_ORrftU6sGA",
-        "youtu.be/_ORrftU6sGA",
-        # Without its scheme, as TiLiA's pattern takes it; not a server's share.
+        "http://youtu.be/_ORrftU6sGA",
+        # Without its "https:", as TiLiA's pattern takes it; not a server's share.
         "//www.youtube.com/watch?v=_ORrftU6sGA",
         "https://example.com/audio/piece.mp3",
     ],
@@ -126,6 +126,31 @@ def where(request):
 def test_an_empty_path_or_a_url_is_kept(tmp_path, where, stored):
     piece = old_file(tmp_path / "corpus", where, stored, WINDOWS_SAVED)
     assert stored_in(tla.read(piece), where) == stored
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "youtu.be/_ORrftU6sGA",
+        "www.youtube.com/watch?v=_ORrftU6sGA",
+        "youtube.com/embed/_ORrftU6sGA",
+    ],
+)
+def test_an_old_youtube_link_without_a_scheme_gets_https(tmp_path, stored):
+    # TiLiA stored a link as it was typed; a media path is a URL only with a
+    # scheme (FR-033, #380). TiLiA stored local media as absolute paths,
+    # which never match its pattern.
+    piece = old_file(tmp_path / "corpus", "media", stored, WINDOWS_SAVED)
+    doc = tla.read(piece)
+    assert doc.media_path == f"https://{stored}"
+    found = tla.media(piece, doc)
+    assert (found.kind, found.youtube_id) == ("youtube", "_ORrftU6sGA")
+
+
+def test_a_pdf_path_like_a_youtube_link_gets_no_scheme(tmp_path):
+    # Only the media's path can be a link.
+    piece = old_file(tmp_path / "corpus", "pdf", "youtu.be/score.pdf", WINDOWS_SAVED)
+    assert stored_in(tla.read(piece), "pdf") == "youtu.be/score.pdf"
 
 
 @pytest.mark.parametrize(
@@ -571,8 +596,9 @@ def test_no_media(tmp_path):
     [
         "https://www.youtube.com/watch?v=_ORrftU6sGA",
         "https://youtu.be/_ORrftU6sGA",
-        "youtube.com/embed/_ORrftU6sGA",
+        "http://youtube.com/embed/_ORrftU6sGA",
         "https://m.youtube.com/watch?v=_ORrftU6sGA&t=10s",
+        "//www.youtube.com/watch?v=_ORrftU6sGA",
     ],
 )
 def test_a_youtube_link(tmp_path, url):
@@ -584,15 +610,75 @@ def test_a_youtube_link(tmp_path, url):
     )
 
 
-@pytest.mark.parametrize("stored", ["youtu_be/clip.mp4", "youtuxbe/clip.mp4"])
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "youtu_be/clip.mp4",
+        "youtuxbe/clip.mp4",
+        # Without a scheme, a path like a link is a file's (FR-033, #380).
+        "youtube.com/clip.mp4",
+        "youtu.be/clip.mp4",
+        "www.youtube.com/embed/clip",
+    ],
+)
 def test_a_relative_path_isnt_taken_for_a_youtube_link(tmp_path, stored):
-    # The dot in "youtu.be" is a dot, not any character, as in TiLiA's pattern.
+    # Nor is one that differs from the pattern by the dot in "youtu.be",
+    # which TiLiA's own pattern leaves to match any character.
     media = media_file(tmp_path / stored)
     doc = tla.new_document()
     doc.media_path = stored
     found = tla.media(tmp_path / "piece.tla", doc)
     assert (found.kind, found.youtube_id) == ("local", None)
     assert os.path.samefile(found.path, media)
+
+
+@pytest.mark.parametrize("given", ["youtube.com/clip.mp4", "youtu.be/_ORrftU6sGA"])
+def test_a_given_path_like_a_youtube_link_is_a_file_when_there_is_one(
+    tmp_path, monkeypatch, given
+):
+    # As TiLiA's load-media and build.load_media are given it (#380).
+    monkeypatch.chdir(tmp_path)
+    media_file(tmp_path / given)
+    assert tla.as_media_path(given) == given
+
+
+@pytest.mark.parametrize(
+    "given",
+    [
+        "youtube.com/clip.mp4",
+        "youtu.be/_ORrftU6sGA",
+        "www.youtube.com/watch?v=_ORrftU6sGA",
+        "m.youtube.com/watch?v=_ORrftU6sGA&t=10s",
+    ],
+)
+def test_a_given_path_like_a_youtube_link_is_a_link_otherwise(
+    tmp_path, monkeypatch, given
+):
+    monkeypatch.chdir(tmp_path)
+    assert tla.as_media_path(given) == f"https://{given}"
+
+
+@pytest.mark.parametrize(
+    "given",
+    [
+        "https://www.youtube.com/watch?v=_ORrftU6sGA",
+        "http://youtu.be/_ORrftU6sGA",
+        "//www.youtube.com/watch?v=_ORrftU6sGA",
+        "https://example.com/audio/piece.mp3",
+        "audio/piece.wav",
+        "youtu_be/clip.mp4",
+        "",
+    ],
+)
+def test_any_other_given_path_is_kept(tmp_path, monkeypatch, given):
+    monkeypatch.chdir(tmp_path)
+    assert tla.as_media_path(given) == given
+
+
+def test_a_given_absolute_path_is_kept(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    given = str(tmp_path / "audio" / "piece.wav")
+    assert tla.as_media_path(given) == given
 
 
 def test_the_lookup_doesnt_hide_its_module():
@@ -969,13 +1055,19 @@ def test_a_relative_path_with_backslashes_is_written_with_slashes(
     assert os.path.samefile(pdf_found, tmp_path / "scores" / f"{NAME}.pdf")
 
 
-def test_written_elsewhere_a_path_like_a_short_youtube_link_is_rebased(
-    corpus, tmp_path
+@pytest.mark.parametrize(
+    "stored", ["youtu_be/clip.mp4", "youtube.com/clip.mp4", "youtu.be/clip.mp4"]
+)
+def test_written_elsewhere_a_path_like_a_youtube_link_is_rebased(
+    corpus, tmp_path, stored
 ):
+    # Without a scheme, it is a file's path (FR-033, #380).
+    media = media_file(corpus.parent / stored)
     doc = tla.read(corpus)
-    doc.media_path = "youtu_be/clip.mp4"
+    doc.media_path = stored
     tla.write(tmp_path / "copy.tla", doc)
-    assert written(tmp_path / "copy.tla")[0] == "corpus/youtu_be/clip.mp4"
+    assert written(tmp_path / "copy.tla")[0] == f"corpus/{stored}"
+    assert os.path.samefile(tla.media(tmp_path / "copy.tla", doc).path, media)
 
 
 @windows_only

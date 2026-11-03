@@ -29,7 +29,7 @@ from tilia_core.tla.model import (
     measure_table,
 )
 from tilia_core.tla.layout import FORMAT_VERSION, schema
-from tilia_core.tla.media_files import media
+from tilia_core.tla.media_files import as_media_path, media
 from tilia_core.tla.reader import loads, read
 from tilia_core.tla.writer import (
     ABSENT,
@@ -64,6 +64,7 @@ __all__ = [
     "Timeline",
     "UnknownKind",
     "UnreadableFile",
+    "as_media_path",
     "canonical_bytes",
     "fingerprint",
     "fingerprint_of",
