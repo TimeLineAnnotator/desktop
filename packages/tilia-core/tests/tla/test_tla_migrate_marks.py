@@ -91,14 +91,17 @@ def test_a_tag_and_a_generator_move_into_metadata():
             "Cadence à  la Haydn\t(see m. 12) tag=check gen=group/A",
             "Cadence à  la Haydn\t(see m. 12)",
         ),
-        # Before it, and around it: each mark goes with one separator.
-        ("tag=check gen=group/A  two  spaces ", " two  spaces "),
-        ("first  tag=check  second gen=group/A\nthird", "first   second\nthird"),
-        ("  tag=check gen=group/A", " "),
+        # Before it, and between: the separators around the marks go, down
+        # to the one right after the last of them (#362, cases 1 and 7).
+        ("tag=check gen=group/A  two  spaces ", "two  spaces "),
+        ("first  tag=check  second gen=group/A\nthird", "first second\nthird"),
+        ("first tag=check gen=group/A\tsecond", "first\tsecond"),
+        ("  tag=check gen=group/A", ""),
         ("tag=check\t\tgen=group/A", ""),
-        ("tag=check\t\t\tgen=group/A", "\t"),
+        ("tag=check\t\t\tgen=group/A", ""),
         # Text over several lines.
         ("Line one.\nLine two.\ntag=check\ngen=group/A", "Line one.\nLine two."),
+        ("Line one.\ntag=check gen=group/A\nLine two.", "Line one.\nLine two."),
     ],
 )
 def test_the_rest_of_the_comment_stays_character_for_character(comments, rest):
@@ -110,13 +113,67 @@ def test_the_rest_of_the_comment_stays_character_for_character(comments, rest):
 @pytest.mark.parametrize(
     "comments, rest",
     [
+        # Case 1: the separator before a mark goes with it.
+        ("a tag=check|b", "a|b"),
+        ("a|tag=check b", "a b"),
+        ("blank|tag=check", "blank"),
+        ("tag=check text", "text"),
+        ("x tag=check gen=group/A y", "x y"),
+    ],
+)
+def test_the_separator_before_a_mark_goes_with_it(comments, rest):
+    assert migrated(comments).attrs["comments"] == rest
+
+
+@pytest.mark.parametrize(
+    "comments, rest",
+    [
+        # Case 6: a CRLF is one separator, and goes or stays whole.
+        ("Line one.\r\ntag=check", "Line one."),
+        ("tag=check\r\nLine two.", "Line two."),
+        ("Line one.\r\ntag=check\r\nLine two.", "Line one.\r\nLine two."),
+        ("Line one. tag=check\r\nLine two.", "Line one.\r\nLine two."),
+        ("Line one.\r\n\r\ntag=check\r\n\r\nLine two.", "Line one.\r\nLine two."),
+        # A lone CR is a separator of its own.
+        ("Line one.\rtag=check\rLine two.", "Line one.\rLine two."),
+    ],
+)
+def test_a_crlf_is_one_separator(comments, rest):
+    assert migrated(comments).attrs["comments"] == rest
+
+
+@pytest.mark.parametrize(
+    "comments, rest",
+    [
+        # Case 7: a run of whitespace and "|" around a mark is cut down to
+        # one separator, or to none at the comment's start or end.
+        ("note | tag=check | gen=group/A", "note"),
+        ("tag=check | gen=group/A | note", "note"),
+        ("note | tag=check | more", "note more"),
+        ("note  tag=check  more", "note more"),
+        ("  tag=check  text  ", "text  "),
+        ("text  |  tag=check", "text"),
+    ],
+)
+def test_a_run_of_separators_around_a_mark_is_cut_down_to_one(comments, rest):
+    assert migrated(comments).attrs["comments"] == rest
+
+
+def test_separators_away_from_the_marks_stay():
+    comments = "a  |  b\t\tc tag=check d | e"
+    assert migrated(comments).attrs["comments"] == "a  |  b\t\tc d | e"
+
+
+@pytest.mark.parametrize(
+    "comments, rest",
+    [
         ("blank|tag=check|gen=group/A", "blank"),
         ("tag=check|gen=group/A|blank", "blank"),
         ("blank|tag=check gen=group/A", "blank"),
         ("tag=check|gen=group/A", ""),
         ("a|tag=check|b gen=group/A", "a|b"),
-        ("a||tag=check|gen=group/A", "a|"),
-        ("|tag=check|gen=group/A|", "|"),
+        ("a||tag=check|gen=group/A", "a"),
+        ("|tag=check|gen=group/A|", ""),
     ],
 )
 def test_marks_separated_by_a_bar_move(comments, rest):
@@ -176,14 +233,38 @@ def test_tags_come_before_the_generator_whatever_the_comments_order():
     "token, value",
     [
         ("tag=a=b", "a=b"),
+        ("tag==", "="),
         ("tag=Hauptsatz/Überleitung", "Hauptsatz/Überleitung"),
-        ("tag=", ""),  # a mark, as the prototype splits it, with an empty value
     ],
 )
 def test_a_marks_value_is_everything_after_its_key(token, value):
     component = migrated(f"x {token}")
     assert component.metadata == {"tags": [value]}
     assert component.attrs["comments"] == "x"
+
+
+@pytest.mark.parametrize("comments", ["x tag=", "x gen=", "tag=", "gen= x", "a|tag=|b"])
+def test_a_key_with_nothing_after_it_isnt_a_mark(comments):
+    # #362, case 4: it stays in the comment, adds nothing, and isn't counted.
+    content = old_file(comments)
+    assert "marks_moved" not in to_1.migrate(copy.deepcopy(content)).changes
+    component = the_component(loads(content))
+    assert component.attrs["comments"] == comments
+    assert component.metadata == {}
+
+
+def test_a_key_with_nothing_after_it_stays_beside_marks():
+    content = old_file("tag= gen=group/A x tag=check gen=")
+    assert to_1.migrate(copy.deepcopy(content)).changes == {"marks_moved": 2}
+    component = the_component(loads(content))
+    assert component.attrs["comments"] == "tag= x gen="
+    assert component.metadata == {"tags": ["check"], "generated_by": "group/A"}
+
+
+def test_a_repeated_generator_is_kept_each_time():
+    # #362, case 3: no repeats in tags only.
+    component = migrated("gen=group/A gen=group/A")
+    assert component.metadata == {"generated_by": ["group/A", "group/A"]}
 
 
 # What stays in the comment
@@ -394,9 +475,9 @@ def the_note(doc):
 
 
 def test_marks_move_in_a_legacy_scores_note():
-    note = the_note(loads(with_note_comment("x  tag=check gen=group/A")))
+    note = the_note(loads(with_note_comment("x  tag=check gen=group/A  y")))
     assert note.metadata == {"tags": ["check"], "generated_by": "group/A"}
-    assert note.attrs["comments"] == "x "
+    assert note.attrs["comments"] == "x y"
 
 
 def test_a_notes_comment_left_empty_is_written_empty():
@@ -516,6 +597,51 @@ def test_marks_are_added_after_the_fields_a_component_already_has():
 
 
 @pytest.mark.parametrize(
+    "metadata, comments",
+    [
+        # #362, case 8: a value the marks add nothing to stays exactly as it was.
+        ({"tags": "check"}, "tag=check"),
+        ({"tags": ["check", "check"]}, "tag=check"),
+        ({"tags": ["a", "check"]}, "tag=check tag=a"),
+        ({"tags": "Übergang"}, f"tag={unicodedata.normalize('NFD', 'Übergang')}"),
+        ({"generated_by": "group/A", "tags": ["check"]}, "tag=check"),
+    ],
+)
+def test_a_value_the_marks_add_nothing_to_stays_as_it_was(metadata, comments):
+    content = old_file(f"note {comments}")
+    content["timelines"]["1"]["components"]["2"]["metadata"] = metadata
+    migrated = to_1.migrate(copy.deepcopy(content))
+    assert migrated.changes == {"marks_moved": len(comments.split())}
+    component = the_component(loads(content))
+    assert component.metadata == metadata
+    assert component.attrs["comments"] == "note"
+
+
+@pytest.mark.parametrize(
+    "metadata, comments, expected",
+    [
+        # An empty text or list counts as no value.
+        ({"generated_by": ""}, "gen=b", {"generated_by": "b"}),
+        ({"generated_by": []}, "gen=b", {"generated_by": "b"}),
+        ({"generated_by": []}, "gen=b gen=c", {"generated_by": ["b", "c"]}),
+        ({"tags": ""}, "tag=x", {"tags": ["x"]}),
+        ({"tags": []}, "tag=x", {"tags": ["x"]}),
+        # A text the marks add to becomes a list, its value first.
+        ({"tags": "check"}, "tag=new", {"tags": ["check", "new"]}),
+        (
+            {"generated_by": "group/A"},
+            "gen=group/A",
+            {"generated_by": ["group/A", "group/A"]},
+        ),
+    ],
+)
+def test_an_empty_value_counts_as_none(metadata, comments, expected):
+    content = old_file(comments)
+    content["timelines"]["1"]["components"]["2"]["metadata"] = metadata
+    assert the_component(loads(content)).metadata == expected
+
+
+@pytest.mark.parametrize(
     "metadata, place",
     [
         (["x"], "/metadata"),
@@ -621,8 +747,11 @@ def test_the_document_id_is_that_of_the_marks_as_fields(comments):
         ("tag=a tag=a", "", ["a"], [], 2),
         ("gen=x gen=x", "", [], ["x", "x"], 2),
         ("a tag=b c", "a c", ["b"], [], 1),
-        ("a tag=b", "a", ["b"], [], 1),  # a no-break space separates too
-        ("a　tag=b c", "a c", ["b"], [], 1),
+        ("a\u00a0tag=b", "a", ["b"], [], 1),  # a no-break space separates too
+        ("a\u3000tag=b\u2003c", "a\u2003c", ["b"], [], 1),
+        ("a\r\ntag=b\r\nc", "a\r\nc", ["b"], [], 1),
+        ("x tag=", "x tag=", [], [], 0),
+        ("x gen= tag=y", "x gen=", ["y"], [], 1),
     ],
 )
 def test_split(comment, rest, tags, generated_by, count):
