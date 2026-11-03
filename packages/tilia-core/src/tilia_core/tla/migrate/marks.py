@@ -137,9 +137,11 @@ def move(component: dict[str, Any]) -> int:
     edited by hand can have, keeps them first: new tags that aren't among
     them follow, and the generators make a list with its own. A value the
     marks add nothing to is left exactly as it was, and an empty text or list
-    counts as no value. Where the metadata isn't an object, or a `tags` or
-    `generated_by` in it isn't a text or a list of texts, which the reader
-    then refuses, nothing moves.
+    counts as no value. A field with a value keeps its place; the fields the
+    marks add come after the others, `tags` before `generated_by`, and so
+    does one that replaces an empty field. Where the metadata isn't an
+    object, or a `tags` or `generated_by` in it isn't a text or a list of
+    texts, which the reader then refuses, nothing moves.
     """
     comments = component.get("comments")
     if not isinstance(comments, str):
@@ -156,14 +158,21 @@ def move(component: dict[str, Any]) -> int:
     generated_by = _texts(metadata, "generated_by")
     if tags is None or generated_by is None:
         return 0
-    metadata = dict(metadata)
+    added: dict[str, str | list[str]] = {}  # in the order they are added
     had = {nfc_text(tag) for tag in tags}
     new_tags = [tag for tag in marks.tags if tag not in had]
     if new_tags:
-        metadata["tags"] = tags + new_tags
+        added["tags"] = tags + new_tags
     if marks.generated_by:
         generators = generated_by + marks.generated_by
-        metadata["generated_by"] = generators[0] if len(generators) == 1 else generators
+        added["generated_by"] = generators[0] if len(generators) == 1 else generators
+    existing = {"tags": tags, "generated_by": generated_by}
+    metadata = dict(metadata)
+    for name, value in added.items():
+        if not existing[name]:
+            # Missing or empty: placed as a new field, after the others.
+            metadata.pop(name, None)
+        metadata[name] = value
     component["metadata"] = metadata
     component["comments"] = marks.comment
     return marks.count
