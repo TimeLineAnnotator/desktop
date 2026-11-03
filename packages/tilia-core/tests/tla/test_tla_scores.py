@@ -248,16 +248,26 @@ def test_three_scores_in_one_file_each_come_back_with_all_they_hold(tmp_path, sv
     assert [list(score) for score in written] == [keys[s["id"]] for s in written]
 
 
-@SVGS
-def test_one_changed_line_of_a_score_changes_one_line_of_the_file(tmp_path, svg):
-    doc = with_scores(
-        mei_score(text_of(MEI)),
-        mei_score(text_of(MEI)),
-        legacy_score(text_of(svg)),
-    )
+@pytest.mark.parametrize(
+    "svg, edited, text",
+    [
+        # The second MEI, beside the placeholder SVG.
+        (SVG, "mei", "a tempo\t\\ dolce"),
+        # The SVG OSMD drew: its one line, which holds the <words> twice.
+        (OSMD_SVG, "svg", "a tempo\t dolce"),
+    ],
+    ids=["MEI", "OSMD"],
+)
+def test_one_changed_line_of_a_score_changes_one_line_of_the_file(
+    tmp_path, svg, edited, text
+):
+    second = mei_score(text_of(MEI))
+    legacy = legacy_score(text_of(svg))
+    doc = with_scores(mei_score(text_of(MEI)), second, legacy)
     before, doc = written_and_read(doc, tmp_path)
-    score = doc.scores[sorted(doc.scores)[1]]
-    score.text = score.text.replace("a tempo\t\\ dolce", "a tempo\t\\ dolcissimo")
+    score = doc.scores[{"mei": second, "svg": legacy}[edited].id]
+    assert text in score.text
+    score.text = score.text.replace(text, text.replace("dolce", "dolcissimo"))
     after, _ = written_and_read(doc, tmp_path)
     old, new = before.split(b"\n"), after.split(b"\n")
     assert len(old) == len(new)
@@ -265,6 +275,9 @@ def test_one_changed_line_of_a_score_changes_one_line_of_the_file(tmp_path, svg)
     assert len(changed) == 1
     (index,) = changed
     assert b"dolcissimo" in new[index] and b"dolcissimo" not in old[index]
+    # The line that changed is one of the edited score's lines.
+    (written,) = (s for s in json.loads(after)["scores"] if s["id"] == score.id)
+    assert json.loads(new[index].strip().rstrip(b",")) in written["content"]
 
 
 # An MEI score built through the API
