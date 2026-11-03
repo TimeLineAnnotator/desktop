@@ -162,6 +162,21 @@ def test_a_run_of_separators_around_a_mark_is_cut_down_to_one(comments, rest):
     assert migrated(comments).attrs["comments"] == rest
 
 
+@pytest.mark.parametrize(
+    "comments, rest",
+    [
+        ("x tag=a \tb", "x b"),
+        ("x tag=a |b", "x b"),
+        ("x\ttag=a gen=b|\n y", "x|y"),
+        ("x tag=a\r\n |y", "x\r\ny"),
+    ],
+)
+def test_the_separator_kept_is_the_one_right_after_the_last_mark(comments, rest):
+    # As case 1 keeps the separator after a mark, the one before going with
+    # it, carried over to a run of separators.
+    assert migrated(comments).attrs["comments"] == rest
+
+
 def test_separators_away_from_the_marks_stay():
     comments = "a  |  b\t\tc tag=check d | e"
     assert migrated(comments).attrs["comments"] == "a  |  b\t\tc d | e"
