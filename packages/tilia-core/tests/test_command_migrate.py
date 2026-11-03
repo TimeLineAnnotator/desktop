@@ -653,6 +653,14 @@ def test_then_run_quotes_a_folder_the_shell_would_misread(
     assert out.endswith(f"Then run: tilia migrate '{name}' --apply\n")
 
 
+@pytest.mark.parametrize("space", [0x3000, 0x00A0, 0x2002, 0x200A])
+def test_on_windows_a_folder_with_any_space_is_quoted(space):
+    # PowerShell splits an argument at these too.
+    folder = "楽譜" + chr(space) + "コーパス"
+
+    assert migrate_command._quoted(folder, windows=True) == f'"{folder}"'
+
+
 @pytest.mark.parametrize(
     "folder, shown",
     [

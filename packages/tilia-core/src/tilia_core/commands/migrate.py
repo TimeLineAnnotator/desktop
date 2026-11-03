@@ -18,7 +18,6 @@ import os
 import posixpath
 import re
 import shlex
-import subprocess
 import sys
 import unicodedata
 from collections import Counter
@@ -275,9 +274,10 @@ _SPECIAL_ON_WINDOWS = frozenset('&|<>^%!;,=$`"(){}[]@#' + _SINGLE_QUOTES + "â€œâ
 def _quoted(argument: str, *, windows: bool = os.name == "nt") -> str:
     """`argument` as the system's shell takes it back. On macOS and Linux, as
     a POSIX shell does. On Windows, as typed, or in double quotes when it
-    holds a space; but in single quotes, for PowerShell, the shell Windows
-    opens by default, when it holds a character PowerShell or cmd.exe read
-    specially, each single quote doubled inside them."""
+    holds a space of any kind, at each of which PowerShell splits; but in
+    single quotes, for PowerShell, the shell Windows opens by default, when
+    it holds a character PowerShell or cmd.exe read specially, each single
+    quote doubled inside them."""
     if not windows:
         return shlex.quote(argument)
     if any(char in _SPECIAL_ON_WINDOWS for char in argument):
@@ -285,7 +285,9 @@ def _quoted(argument: str, *, windows: bool = os.name == "nt") -> str:
             char * 2 if char in _SINGLE_QUOTES else char for char in argument
         )
         return f"'{doubled}'"
-    return subprocess.list2cmdline([argument])
+    if any(char.isspace() for char in argument):
+        return f'"{argument}"'
+    return argument
 
 
 def _folder_to_run(folder: str, *, windows: bool = os.name == "nt") -> str:
