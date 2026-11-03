@@ -475,6 +475,12 @@ def test_timemap_no_time_map():
         lambda t: beat(t, 1, 0).attrs.update(time=float("nan"))
     )
     missing_downbeat = four_four_with(lambda t: t.components.pop(t.measures.rows[1].id))
+    missing_beat = four_four_with(lambda t: t.components.pop(beat(t, 0, 2).id))
+    other_kind = four_four_with(
+        lambda t: t.components.update(
+            {beat(t, 0, 2).id: tla.Component(id=beat(t, 0, 2).id, kind="marker")}
+        )
+    )
     downbeat_not_first = four_four_with(lambda t: t.measures.rows[1].beats.reverse())
     row_without_beats = four_four_with(lambda t: t.measures.rows[1].beats.clear())
     folded = _timeline({0: {"number": 1}, 2: {}}, last=3)
@@ -496,6 +502,8 @@ def test_timemap_no_time_map():
         ("text time", text_time),
         ("NaN downbeat", nan_downbeat),
         ("missing downbeat", missing_downbeat),
+        ("missing beat", missing_beat),
+        ("row names another kind", other_kind),
         ("downbeat not first", downbeat_not_first),
         ("row without beats", row_without_beats),
         ("folded", folded),
@@ -505,6 +513,10 @@ def test_timemap_no_time_map():
         time_map, reasons[name] = build_time_map(doc, timeline)
         assert time_map is None
 
+    # A beat without a time is named by its id: it is in no measure
+    # (TimeLineAnnotator/project-management#381). Of two, the first by id.
+    # A row that names a beat the timeline doesn't have is a broken table.
+    first_timeless = min(row.id for row in timeless_labelled.measures.rows[1:3])
     assert reasons == {
         "one beat": "fewer than two beats",
         "no beats": "fewer than two beats",
@@ -513,13 +525,21 @@ def test_timemap_no_time_map():
         "out of order": "beats out of time order (at 2.0)",
         "no table": "no measure table",
         "empty table": "no measure table",
-        "timeless downbeat": "a downbeat without a time (measure 2)",
-        "timeless labelled downbeat": "a downbeat without a time (measure 2b)",
-        "timeless beat": "a beat without a time (measure 1)",
-        "NaN beat": "a beat without a time (measure 1)",
-        "text time": "a beat without a time (measure 1)",
-        "NaN downbeat": "a downbeat without a time (measure 2)",
-        "missing downbeat": "a downbeat without a time (measure 2)",
+        "timeless downbeat": f"a downbeat without a time (beat {second_downbeat})",
+        "timeless labelled downbeat": (
+            f"a downbeat without a time (beat {first_timeless})"
+        ),
+        "timeless beat": f"a beat without a time (beat {beat(timeless_beat, 0, 2).id})",
+        "NaN beat": f"a beat without a time (beat {beat(nan_beat, 0, 2).id})",
+        "text time": f"a beat without a time (beat {beat(text_time, 0, 1).id})",
+        "NaN downbeat": (
+            f"a downbeat without a time (beat {nan_downbeat.measures.rows[1].id})"
+        ),
+        "missing downbeat": "the measure table doesn't match its beats (measure 2)",
+        "missing beat": "the measure table doesn't match its beats (measure 1)",
+        "row names another kind": (
+            "the measure table doesn't match its beats (measure 1)"
+        ),
         "downbeat not first": "the measure table doesn't match its beats (measure 2)",
         "row without beats": "the measure table doesn't match its beats (measure 2)",
         "folded": "the table lists the measures played next (`next`), "
