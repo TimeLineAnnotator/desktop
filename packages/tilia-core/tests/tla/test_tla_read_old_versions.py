@@ -73,6 +73,7 @@ EXPECTED = {
             "range",
         ],
     ),
+    "0.7.0-osmd.tla": ("0.7.0", ["slider", "beat", "score"]),
 }
 # Files saved by one version, and the same files opened and saved again
 # without an edit by TiLiA 0.7.0.
