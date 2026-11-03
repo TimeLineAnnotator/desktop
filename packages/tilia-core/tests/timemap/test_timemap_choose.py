@@ -575,21 +575,41 @@ def test_of_several_beats_without_a_time_the_first_by_id_is_named():
     assert find_time_map(doc).reason == expected
 
 
-def test_a_closing_tap_without_a_time_gives_no_time_map():
+@pytest.mark.parametrize("mark", [None, {}], ids=["without a mark", "with a mark"])
+def test_a_closing_tap_without_a_time_gives_no_time_map(mark):
     # A closing tap is the closing barline, in no row; without a time, where the
-    # last measure ends isn't known.
+    # last measure ends isn't known. It is no downbeat, even with a measure
+    # mark, which starts no measure on a closing tap
+    # (TimeLineAnnotator/project-management#375).
     timeline = _beats(1)
     tap = list(timeline.components)[-1]
     content = json.loads(tla.canonical_bytes(document(timeline)))
     beat = content["timelines"][timeline.id]["components"][tap]
     del beat["time"]
     beat["closing"] = True
+    if mark is not None:
+        beat["measure"] = mark
     doc = tla.loads((json.dumps(content, indent=2) + "\n").encode())
+    assert ("measure" in doc.timelines[timeline.id].components[tap].attrs) is (
+        mark is not None
+    )
 
     found = find_time_map(doc)
 
     assert found.time_map is None
     assert found.reason == f"a beat without a time (beat {tap})"
+
+
+def test_a_beat_whose_mark_is_null_is_no_downbeat():
+    # The reader leaves out a null mark, so only a document built or changed
+    # in memory has one: a beat without a mark all the same.
+    timeline = _beats(1)
+    beat_id = list(timeline.components)[1]
+    timeline.components[beat_id].attrs.update(time=None, measure=None)
+
+    reason = find_time_map(document(timeline)).reason
+
+    assert reason == f"a beat without a time (beat {beat_id})"
 
 
 @pytest.mark.parametrize("make", [_same_time, _out_of_order])

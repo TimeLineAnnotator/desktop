@@ -454,11 +454,6 @@ def test_timemap_no_time_map():
     timeless_downbeat = _timeline({0: {"number": 1}, 2: {}, 4: {}}, last=5)
     second_downbeat = timeless_downbeat.measures.rows[1].id
     del timeless_downbeat.components[second_downbeat].attrs["time"]
-    timeless_labelled = _timeline(
-        {0: {"number": 1}, 2: {"label": "2b"}, 4: {}, 6: {}}, last=7
-    )
-    for row in timeless_labelled.measures.rows[1:3]:
-        del timeless_labelled.components[row.id].attrs["time"]
 
     def four_four_with(change):
         timeline = _timeline({0: {"number": 1}, 4: {}, 8: {}}, last=11)
@@ -496,7 +491,6 @@ def test_timemap_no_time_map():
         ("no table", no_table),
         ("empty table", empty_table),
         ("timeless downbeat", timeless_downbeat),
-        ("timeless labelled downbeat", timeless_labelled),
         ("timeless beat", timeless_beat),
         ("NaN beat", nan_beat),
         ("text time", text_time),
@@ -514,9 +508,8 @@ def test_timemap_no_time_map():
         assert time_map is None
 
     # A beat without a time is named by its id: it is in no measure
-    # (TimeLineAnnotator/project-management#381). Of two, the first by id.
-    # A row that names a beat the timeline doesn't have is a broken table.
-    first_timeless = min(row.id for row in timeless_labelled.measures.rows[1:3])
+    # (TimeLineAnnotator/project-management#381). A row that names a beat the
+    # timeline doesn't have is a broken table.
     assert reasons == {
         "one beat": "fewer than two beats",
         "no beats": "fewer than two beats",
@@ -526,9 +519,6 @@ def test_timemap_no_time_map():
         "no table": "no measure table",
         "empty table": "no measure table",
         "timeless downbeat": f"a downbeat without a time (beat {second_downbeat})",
-        "timeless labelled downbeat": (
-            f"a downbeat without a time (beat {first_timeless})"
-        ),
         "timeless beat": f"a beat without a time (beat {beat(timeless_beat, 0, 2).id})",
         "NaN beat": f"a beat without a time (beat {beat(nan_beat, 0, 2).id})",
         "text time": f"a beat without a time (beat {beat(text_time, 0, 1).id})",
