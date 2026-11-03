@@ -300,6 +300,27 @@ def test_help_lists_apply_and_nothing_else(tmp_path):
     assert options(result.stdout) == {"--apply", "--help"}
 
 
+def test_help_reads_as_contracts_command_md_shows_it(monkeypatch, capsys):
+    monkeypatch.setenv("COLUMNS", "80")  # argparse wraps to the terminal
+
+    assert migrate_command.main(["--help"]) == 0
+
+    assert capsys.readouterr().out == (
+        "usage: tilia migrate [--apply] [--help] FOLDER\n"
+        "\n"
+        f"List what migrating the .tla files below FOLDER to format {FORMAT} would\n"
+        "change, and write nothing. With --apply, write them.\n"
+        "\n"
+        "positional arguments:\n"
+        "  FOLDER   every .tla file below it is taken, hidden files and folders left\n"
+        "           out\n"
+        "\n"
+        "options:\n"
+        "  --apply  write the migrated files\n"
+        "  --help   show this help and exit\n"
+    )
+
+
 def test_tilia_lists_migrate_among_its_commands(tmp_path):
     result = tilia("--help", cwd=tmp_path)
 
