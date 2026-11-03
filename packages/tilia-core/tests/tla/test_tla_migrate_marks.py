@@ -660,6 +660,73 @@ def test_an_empty_value_counts_as_none(metadata, comments, expected):
 
 
 @pytest.mark.parametrize(
+    "metadata, comments, expected",
+    [
+        # A field with a value keeps its place; the fields the marks add come
+        # after the others, tags before generated_by; an empty field counts
+        # as absent, so it is placed as a new one.
+        ({"generated_by": ""}, "tag=x gen=b", [("tags", ["x"]), ("generated_by", "b")]),
+        ({"generated_by": []}, "tag=x gen=b", [("tags", ["x"]), ("generated_by", "b")]),
+        (
+            {"generated_by": "group/A"},
+            "tag=new gen=group/B",
+            [("generated_by", ["group/A", "group/B"]), ("tags", ["new"])],
+        ),
+        (
+            {"note": "n"},
+            "tag=x gen=b",
+            [("note", "n"), ("tags", ["x"]), ("generated_by", "b")],
+        ),
+        (
+            {"tags": ["a"], "note": "n"},
+            "gen=b tag=x",
+            [("tags", ["a", "x"]), ("note", "n"), ("generated_by", "b")],
+        ),
+        ({"tags": "", "note": "n"}, "tag=x", [("note", "n"), ("tags", ["x"])]),
+        (
+            {"generated_by": "", "note": "n"},
+            "gen=b",
+            [("note", "n"), ("generated_by", "b")],
+        ),
+        (
+            {"generated_by": [], "tags": "", "note": "n"},
+            "gen=b tag=x",
+            [("note", "n"), ("tags", ["x"]), ("generated_by", "b")],
+        ),
+        # A field the marks add nothing to stays as it was, where it was.
+        (
+            {"tags": "check", "note": "n"},
+            "tag=check gen=b",
+            [("tags", "check"), ("note", "n"), ("generated_by", "b")],
+        ),
+        (
+            {"tags": "", "note": "n"},
+            "gen=b",
+            [("tags", ""), ("note", "n"), ("generated_by", "b")],
+        ),
+    ],
+)
+def test_fields_keep_their_place_and_the_marks_fields_come_after(
+    metadata, comments, expected
+):
+    content = old_file(comments)
+    content["timelines"]["1"]["components"]["2"]["metadata"] = metadata
+    assert list(the_component(loads(content)).metadata.items()) == expected
+
+
+def test_the_marks_fields_are_written_in_that_order():
+    content = old_file("tag=x gen=b")
+    content["timelines"]["1"]["components"]["2"]["metadata"] = {"generated_by": ""}
+    stored = json.loads(tla.canonical_bytes(loads(content)))
+    (timeline,) = stored["timelines"].values()
+    (component,) = timeline["components"].values()
+    assert list(component["metadata"].items()) == [
+        ("tags", ["x"]),
+        ("generated_by", "b"),
+    ]
+
+
+@pytest.mark.parametrize(
     "metadata, place",
     [
         (["x"], "/metadata"),
