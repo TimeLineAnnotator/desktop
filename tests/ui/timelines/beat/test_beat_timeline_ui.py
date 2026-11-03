@@ -438,35 +438,19 @@ class TestBeatPattern:
             commands.execute("timeline.beat.set_amount_in_measure")
         timeline_ui.deselect_all_elements()
 
-    def test_overwriting_hand_set_bars_asks_first(self, tluis):
+    def test_a_pattern_lays_every_bar_out_again(self, tluis):
         add_beat_timeline_with_pattern("4")
         add_beats(range(12))
         timeline_ui = tluis[0]
         self._set_second_bar_to_three_beats(timeline_ui)
         assert timeline_ui.timeline.beats_in_measure == [4, 3, 4, 1]
-        assert timeline_ui.timeline.get_hand_set_bars() == [1]
 
-        with patch_yes_or_no_dialog(False):
-            commands.execute("timeline.beat.set_pattern", timeline_ui, pattern="4")
-        assert timeline_ui.timeline.beats_in_measure == [4, 3, 4, 1]
-
-        with patch_yes_or_no_dialog(True):
+        with Serve(Get.FROM_USER_YES_OR_NO, False) as question:
             with undoable():
                 commands.execute("timeline.beat.set_pattern", timeline_ui, pattern="4")
+
+        assert not question.called
         assert timeline_ui.timeline.beats_in_measure == [4, 4, 4]
-
-    def test_hand_set_bar_matching_new_pattern_is_not_asked_about(self, tluis):
-        add_beat_timeline_with_pattern("4")
-        add_beats(range(12))
-        timeline_ui = tluis[0]
-        self._set_second_bar_to_three_beats(timeline_ui)
-
-        # Declining would leave the pattern unchanged, so this shows no prompt.
-        with patch_yes_or_no_dialog(False):
-            commands.execute("timeline.beat.set_pattern", timeline_ui, pattern="4 3")
-
-        assert timeline_ui.timeline.beat_pattern == "4 3"
-        assert timeline_ui.timeline.beats_in_measure == [4, 3, 4, 1]
 
     def test_dialog_highlights_bars_that_change(self, tluis):
         add_beat_timeline_with_pattern("4")
@@ -1347,7 +1331,6 @@ class TestSetBeatAmountInMeasure:
         assert beat_tlui.timeline.beats_in_measure == [3, 4, 3]
         add_beats(range(10, 13))
         assert beat_tlui.timeline.beats_in_measure == [3, 4, 4, 2]
-        assert beat_tlui.timeline.get_hand_set_bars() == [0]
 
     def test_measures_made_from_the_pattern_get_its_time_signatures(self, tluis):
         add_beat_timeline_with_pattern("2/4 6/8(3 3)")

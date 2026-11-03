@@ -1521,27 +1521,6 @@ class BeatTimeline(Timeline):
     def recalculate_measures(self) -> None:
         self.refresh_measures()
 
-    def get_hand_set_bars(self) -> list[int]:
-        """
-        Indices of bars whose length differs from the pattern, i.e. bars set
-        with "Set amount in measure". The last bar is left out: it may simply
-        not have all its beats yet.
-        """
-        bars = self.beat_pattern_bars
-        return [
-            i
-            for i, beats in enumerate(self.beats_in_measure[:-1])
-            if beats != bars[i % len(bars)]
-        ]
-
-    def get_bars_overwritten_by(self, pattern_bars: list[int]) -> list[int]:
-        """Indices of hand-set bars that applying `pattern_bars` would change."""
-        return [
-            i
-            for i in self.get_hand_set_bars()
-            if self.beats_in_measure[i] != pattern_bars[i % len(pattern_bars)]
-        ]
-
     def set_bars(
         self,
         pattern: str,
@@ -1569,8 +1548,9 @@ class BeatTimeline(Timeline):
 
     def set_beat_pattern(self, pattern: str) -> bool:
         """
-        Sets the pattern and remeasures every beat from it, discarding bars
-        set by hand. Each measure keeps its number and display by position.
+        Sets the pattern and remeasures every beat from it, as editing the
+        bars dialog's line does. Each measure keeps its number and display by
+        position.
         A pattern with time signatures gives every measure its beat unit; one
         with only numbers of beats leaves each measure the beat unit it had.
         """
