@@ -576,3 +576,57 @@ def test_a_reader_that_stops_reading_doesnt_end_in_a_traceback(sqx):
 
     assert err == ""
     assert process.returncode == 1  # the report's status: a file can't be read
+
+
+# Then run: the folder, quoted for the shell
+
+
+@pytest.mark.parametrize(
+    "folder, quoted",
+    [
+        ("sqx", "sqx"),
+        (r"C:\corpora\sqx", r"C:\corpora\sqx"),
+        ("my corpus", '"my corpus"'),
+        ("Bach&Handel", "'Bach&Handel'"),
+        ("a $b", "'a $b'"),
+        ("it's", "'it''s'"),
+        ("it\u2019s", "'it\u2019\u2019s'"),  # PowerShell takes ’ for a quote
+        ("50%", "'50%'"),
+        ("a;b", "'a;b'"),
+        ("a`b", "'a`b'"),
+        ('a"b', "'a\"b'"),
+        ("a|b", "'a|b'"),
+        ("(draft)", "'(draft)'"),
+        ("a^b", "'a^b'"),
+        ("@corpus", "'@corpus'"),
+        ("a,b", "'a,b'"),
+    ],
+)
+def test_on_windows_a_folder_is_quoted_for_powershell(folder, quoted):
+    assert migrate_command._quoted(folder, windows=True) == quoted
+
+
+@pytest.mark.parametrize(
+    "folder, quoted",
+    [
+        ("sqx", "sqx"),
+        ("my corpus", "'my corpus'"),
+        ("Bach&Handel", "'Bach&Handel'"),
+        ("it's", "'it'\"'\"'s'"),
+    ],
+)
+def test_on_macos_and_linux_a_folder_is_quoted_for_the_shell(folder, quoted):
+    assert migrate_command._quoted(folder, windows=False) == quoted
+
+
+@pytest.mark.parametrize("name", ["Bach&Handel", "a $b"])
+def test_then_run_quotes_a_folder_the_shell_would_misread(
+    tmp_path, monkeypatch, capsys, name
+):
+    place(tmp_path / name / "a.tla", OLD / "0.7.0.tla")
+    monkeypatch.chdir(tmp_path)
+
+    migrate_command.main([name])
+
+    out = capsys.readouterr().out
+    assert out.endswith(f"Then run: tilia migrate '{name}' --apply\n")
