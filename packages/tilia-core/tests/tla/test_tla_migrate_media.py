@@ -24,6 +24,7 @@ import stat
 import sys
 import unicodedata
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -113,14 +114,37 @@ def where(request):
 # The migration: what is kept as it is
 
 
+@pytest.fixture
+def servers(monkeypatch):
+    """Lookups of a Windows server path (`//server/share/…`), which Windows
+    would make on the network: each is recorded, with "/", and finds a file
+    only where `there`, a set of such paths, says. Other paths are looked up
+    as they are."""
+    looked_up = []
+    there = set()
+    real = {"isfile": os.path.isfile, "exists": os.path.exists}
+
+    def stub(name):
+        def lookup(path):
+            text = os.fspath(path).replace("\\", "/")
+            if not text.startswith("//"):
+                return real[name](path)
+            looked_up.append(text)
+            return text in there
+
+        return lookup
+
+    for name in real:
+        monkeypatch.setattr(os.path, name, stub(name))
+    return SimpleNamespace(looked_up=looked_up, there=there)
+
+
 @pytest.mark.parametrize(
     "stored",
     [
         "",
         "https://www.youtube.com/watch?v=_ORrftU6sGA",
         "http://youtu.be/_ORrftU6sGA",
-        # Without its "https:", as TiLiA's pattern takes it; not a server's share.
-        "//www.youtube.com/watch?v=_ORrftU6sGA",
         "https://example.com/audio/piece.mp3",
     ],
 )
@@ -139,7 +163,7 @@ def test_an_empty_path_or_a_url_is_kept(tmp_path, where, stored):
 )
 def test_an_old_youtube_link_without_a_scheme_gets_https(tmp_path, stored):
     # TiLiA stored a link as it was typed; a media path is a URL only with a
-    # scheme (FR-033, #380). TiLiA stored local media as absolute paths,
+    # scheme (FR-033). TiLiA stored local media as absolute paths,
     # which never match its pattern.
     piece = old_file(tmp_path / "corpus", "media", stored, WINDOWS_SAVED)
     doc = tla.read(piece)
@@ -152,6 +176,28 @@ def test_a_pdf_path_like_a_youtube_link_gets_no_scheme(tmp_path):
     # Only the media's path can be a link.
     piece = old_file(tmp_path / "corpus", "pdf", "youtu.be/score.pdf", WINDOWS_SAVED)
     assert stored_in(tla.read(piece), "pdf") == "youtu.be/score.pdf"
+
+
+def test_an_old_youtube_link_starting_with_two_slashes_gets_https(tmp_path, servers):
+    # Only a scheme makes a URL, and a path that starts with "//" is a server
+    # path; TiLiA stored this link as it was typed, without its "https:"
+    # (FR-033). It is given one before any lookup, so it is never looked for on
+    # a server.
+    stored = "//www.youtube.com/watch?v=_ORrftU6sGA"
+    piece = old_file(tmp_path / "corpus", "media", stored, WINDOWS_SAVED)
+    doc = tla.read(piece)
+    assert doc.media_path == f"https:{stored}"
+    assert servers.looked_up == []
+    found = tla.media(piece, doc)
+    assert (found.kind, found.youtube_id) == ("youtube", "_ORrftU6sGA")
+
+
+def test_an_old_pdf_path_starting_with_two_slashes_is_a_server_path(tmp_path, servers):
+    # Even one that looks like a link: only the media's path can be one.
+    saved = "//www.youtube.com/share/corpus/piece.tla"
+    stored = "//www.youtube.com/share/scores/piece.pdf"
+    piece = old_file(tmp_path / "corpus", "pdf", stored, saved)
+    assert stored_in(tla.read(piece), "pdf") == "../scores/piece.pdf"
 
 
 @pytest.mark.parametrize(
@@ -283,7 +329,6 @@ def test_an_absolute_path_that_doesnt_exist_is_made_relative_from_the_old_file_p
     assert stored_in(tla.read(piece), where) == expected
 
 
-@pytest.mark.skipif(WINDOWS, reason="Windows would look the server up on the network")
 @pytest.mark.parametrize(
     "file_path, stored",
     [
@@ -294,9 +339,12 @@ def test_an_absolute_path_that_doesnt_exist_is_made_relative_from_the_old_file_p
         ),
     ],
 )
-def test_a_path_on_a_windows_server(tmp_path, where, file_path, stored):
+def test_a_path_on_a_windows_server(tmp_path, servers, where, file_path, stored):
+    # As TiLiA saves one, with "/": a path, not a URL (FR-033).
     piece = old_file(tmp_path / "corpus", where, stored, file_path)
     assert stored_in(tla.read(piece), where) == "../audio/piece.mp3"
+    if WINDOWS:  # looked for, as any absolute path of this system is
+        assert servers.looked_up == ["//server-176/share/audio/piece.mp3"]
 
 
 @pytest.mark.parametrize(
@@ -334,10 +382,8 @@ def test_a_file_cloned_with_its_media_folder_finds_its_media(
     ],
 )
 def test_without_a_relative_path_the_path_stays_absolute_with_slashes(
-    tmp_path, where, file_path, stored, expected
+    tmp_path, servers, where, file_path, stored, expected
 ):
-    if WINDOWS and stored.startswith("\\\\"):
-        pytest.skip("Windows would look the server up on the network")
     piece = old_file(tmp_path / "corpus", where, stored, file_path)
     assert stored_in(tla.read(piece), where) == expected
 
@@ -372,22 +418,14 @@ def test_a_windows_path_isnt_looked_up_on_posix_when_migrated(
 
 @pytest.mark.parametrize(
     "stored, file_path, expected",
-    [
-        (OTHER_SYSTEM_MEDIA, OTHER_SYSTEM_SAVED, "../audio/piece.mp3"),
-        (
-            "//www.youtube.com/watch?v=_ORrftU6sGA",
-            WINDOWS_SAVED,
-            "//www.youtube.com/watch?v=_ORrftU6sGA",
-        ),
-    ],
-    ids=["another system's path", "a link without its scheme"],
+    [(OTHER_SYSTEM_MEDIA, OTHER_SYSTEM_SAVED, "../audio/piece.mp3")],
+    ids=["another system's path"],
 )
-def test_a_url_or_another_systems_path_is_never_looked_up_here(
+def test_another_systems_path_is_never_looked_up_here(
     tmp_path, monkeypatch, where, stored, file_path, expected
 ):
-    # Looked up, the first would name another file: below the working folder
-    # on macOS and Linux, or on the current drive on Windows; the second, a
-    # server's share, which Windows would look for on the network.
+    # Looked up, it would name another file: below the working folder on
+    # macOS and Linux, or on the current drive on Windows.
     piece = old_file(tmp_path / "corpus", where, stored, file_path)
     looked_up = []
 
@@ -431,7 +469,7 @@ def test_bytes_without_a_place_or_a_file_path_keep_the_path(where):
     assert stored_in(tla.loads(data), where) == WINDOWS_MEDIA
 
 
-# An old file's fingerprint: from its paths as stored (FR-043, #368)
+# An old file's fingerprint: from its paths as stored (FR-043)
 
 
 @pytest.fixture
@@ -599,7 +637,6 @@ def test_no_media(tmp_path):
         "https://youtu.be/_ORrftU6sGA",
         "http://youtube.com/embed/_ORrftU6sGA",
         "https://m.youtube.com/watch?v=_ORrftU6sGA&t=10s",
-        "//www.youtube.com/watch?v=_ORrftU6sGA",
     ],
 )
 def test_a_youtube_link(tmp_path, url):
@@ -616,7 +653,7 @@ def test_a_youtube_link(tmp_path, url):
     [
         "youtu_be/clip.mp4",
         "youtuxbe/clip.mp4",
-        # Without a scheme, a path like a link is a file's (FR-033, #380).
+        # Without a scheme, a path like a link is a file's (FR-033).
         "youtube.com/clip.mp4",
         "youtu.be/clip.mp4",
         "www.youtube.com/embed/clip",
@@ -633,11 +670,30 @@ def test_a_relative_path_isnt_taken_for_a_youtube_link(tmp_path, stored):
     assert os.path.samefile(found.path, media)
 
 
+@pytest.mark.parametrize(
+    "stored",
+    ["//server-176/share/audio/piece.wav", "//www.youtube.com/watch?v=_ORrftU6sGA"],
+    ids=["a server's", "like a link"],
+)
+def test_a_path_starting_with_two_slashes_is_a_server_path(tmp_path, servers, stored):
+    # In a file of the current format, even one like a link, which only a
+    # hand could have stored (FR-033).
+    servers.there.add(stored)
+    doc = tla.new_document()
+    doc.media_path = stored
+    found = tla.media(tmp_path / "piece.tla", doc)
+    assert (found.kind, found.youtube_id) == ("local", None)
+    if WINDOWS:
+        assert found.path == Path(stored)
+    else:  # another system's path, never looked up here
+        assert (found.path, servers.looked_up) == (None, [])
+
+
 @pytest.mark.parametrize("given", ["youtube.com/clip.mp4", "youtu.be/_ORrftU6sGA"])
 def test_a_given_path_like_a_youtube_link_is_a_file_when_there_is_one(
     tmp_path, monkeypatch, given
 ):
-    # As TiLiA's load-media and build.load_media are given it (#380).
+    # As TiLiA's load-media and build.load_media are given it (FR-033).
     monkeypatch.chdir(tmp_path)
     media_file(tmp_path / given)
     assert tla.as_media_path(given) == given
@@ -664,16 +720,27 @@ def test_a_given_path_like_a_youtube_link_is_a_link_otherwise(
     [
         "https://www.youtube.com/watch?v=_ORrftU6sGA",
         "http://youtu.be/_ORrftU6sGA",
-        "//www.youtube.com/watch?v=_ORrftU6sGA",
         "https://example.com/audio/piece.mp3",
         "audio/piece.wav",
         "youtu_be/clip.mp4",
+        "//server-176/share/audio/piece.wav",
         "",
     ],
 )
-def test_any_other_given_path_is_kept(tmp_path, monkeypatch, given):
+def test_any_other_given_path_is_kept(tmp_path, monkeypatch, servers, given):
     monkeypatch.chdir(tmp_path)
     assert tla.as_media_path(given) == given
+
+
+def test_a_given_link_starting_with_two_slashes(tmp_path, monkeypatch, servers):
+    # A link without its "https:" (FR-033): a server path when one is there,
+    # which only Windows looks for, and otherwise the link with "https:".
+    monkeypatch.chdir(tmp_path)
+    given = "//www.youtube.com/watch?v=_ORrftU6sGA"
+    assert tla.as_media_path(given) == f"https:{given}"
+    if WINDOWS:
+        servers.there.add(given)
+        assert tla.as_media_path(given) == given
 
 
 def test_a_given_absolute_path_is_kept(tmp_path, monkeypatch):
@@ -864,7 +931,7 @@ def test_written_into_another_folder_the_media_is_still_found(
 
 def test_after_a_save_as_the_document_finds_its_media(corpus, tmp_path):
     # The document follows the file written: its origin, and its paths as
-    # written (FR-033, #369).
+    # written (FR-033).
     doc = tla.read(corpus)
     target = tmp_path / "elsewhere" / "deeper" / "piece.tla"
     target.parent.mkdir(parents=True)
@@ -994,7 +1061,7 @@ def test_an_absolute_path_is_written_relative_from_a_new_document(tmp_path):
     assert json.loads(target.read_bytes())["media"]["path"] == "../audio/piece.wav"
     assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
     # The document follows the file, so its fingerprint is the file's, and a
-    # second write that states it isn't refused (#369).
+    # second write that states it isn't refused (FR-033).
     assert doc.media_path == "../audio/piece.wav"
     expected = tla.fingerprint_of(doc)
     doc.metadata["note"] = "edited"
@@ -1016,7 +1083,6 @@ def test_a_relative_path_of_a_document_read_from_nowhere_is_kept(tmp_path):
     [
         "",
         "https://www.youtube.com/watch?v=_ORrftU6sGA",
-        "//www.youtube.com/watch?v=_ORrftU6sGA",
         "https://example.com/audio/piece.mp3",
         OTHER_SYSTEM_MEDIA,
         "C:piece.wav",
@@ -1031,6 +1097,21 @@ def test_written_elsewhere_an_empty_path_a_url_or_another_systems_path_is_kept(
     set_pdf_path(doc, stored)
     tla.write(tmp_path / "copy.tla", doc)
     assert written(tmp_path / "copy.tla") == (stored, stored)
+
+
+@pytest.mark.parametrize(
+    "stored",
+    ["//server-176/share/audio/piece.wav", "//server-176/share/audio/watch?v=x"],
+    ids=["a server's", "like a link"],
+)
+def test_a_path_starting_with_two_slashes_is_rebased_as_a_path(stored):
+    # A server path, not a URL (FR-033): relative to a folder on its share on
+    # Windows; another system's path, kept as it is, on macOS and Linux.
+    doc = tla.new_document()
+    doc.media_path = stored
+    rebased = writer.rebase_paths(doc, "//server-176/share/corpus")
+    name = stored.rsplit("/", 1)[1]
+    assert rebased.media_path == (f"../audio/{name}" if WINDOWS else stored)
 
 
 def test_an_absolute_path_without_a_relative_one_is_written_with_slashes(corpus):
@@ -1075,7 +1156,7 @@ def test_a_relative_path_with_backslashes_is_written_with_slashes(
 def test_written_elsewhere_a_path_like_a_youtube_link_is_rebased(
     corpus, tmp_path, stored
 ):
-    # Without a scheme, it is a file's path (FR-033, #380).
+    # Without a scheme, it is a file's path (FR-033).
     media = media_file(corpus.parent / stored)
     doc = tla.read(corpus)
     doc.media_path = stored
