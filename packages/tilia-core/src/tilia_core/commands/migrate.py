@@ -13,7 +13,9 @@ from __future__ import annotations
 import argparse
 import errno
 import io
+import ntpath
 import os
+import posixpath
 import re
 import shlex
 import subprocess
@@ -210,7 +212,8 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
         lines.append(f"Wrote {_files(written)}.")
     elif not apply and migrated:
         lines += _ADVICE.split("\n")
-        lines.append(f"Then run: tilia migrate {_shown(_quoted(folder))} --apply")
+        again = _shown(_folder_to_run(folder))
+        lines.append(f"Then run: tilia migrate {again} --apply")
     else:
         lines.append("Nothing was written.")
     return lines
@@ -283,6 +286,24 @@ def _quoted(argument: str, *, windows: bool = os.name == "nt") -> str:
         )
         return f"'{doubled}'"
     return subprocess.list2cmdline([argument])
+
+
+def _folder_to_run(folder: str, *, windows: bool = os.name == "nt") -> str:
+    """FOLDER as `Then run:` gives it back, for the system's shell (`_quoted`):
+    without a trailing separator, which Windows PowerShell 5.1 passes on
+    before a closing quote as a quote of the folder's name, but a root, such
+    as "/" or "C:\\", as it is; and a folder whose name starts with "-", which
+    would be taken for an option, after "./" (".\\" on Windows)."""
+    paths = ntpath if windows else posixpath
+    separators = "\\/" if windows else "/"
+    drive, rest = paths.splitdrive(folder)
+    if rest.rstrip(separators):
+        folder = drive + rest.rstrip(separators)
+    elif drive[:1] in separators and drive:  # a share's root, \\server\share\
+        folder = drive
+    if folder.startswith("-"):
+        folder = (".\\" if windows else "./") + folder
+    return _quoted(folder, windows=windows)
 
 
 # Control characters (C0, DEL and C1), which could add lines to the report or

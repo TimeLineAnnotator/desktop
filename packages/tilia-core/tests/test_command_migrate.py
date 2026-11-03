@@ -653,6 +653,71 @@ def test_then_run_quotes_a_folder_the_shell_would_misread(
     assert out.endswith(f"Then run: tilia migrate '{name}' --apply\n")
 
 
+@pytest.mark.parametrize(
+    "folder, shown",
+    [
+        ("corpora", "corpora"),
+        ("corpora\\", "corpora"),
+        ("corpora/", "corpora"),
+        ("corpora\\\\", "corpora"),
+        ("C:\\my corpus\\", '"C:\\my corpus"'),
+        # PowerShell 5.1 would pass 'C:\my $corpus\' as C:\my $corpus" --apply.
+        ("C:\\my $corpus\\", "'C:\\my $corpus'"),
+        ("C:\\", "C:\\"),
+        ("C:/", "C:/"),
+        ("\\\\server\\share\\", "\\\\server\\share"),
+        ("-draft", ".\\-draft"),
+        ("-my draft", '".\\-my draft"'),
+        ("-a&b", "'.\\-a&b'"),
+        ("-draft\\", ".\\-draft"),
+    ],
+)
+def test_on_windows_the_folder_to_run_again(folder, shown):
+    assert migrate_command._folder_to_run(folder, windows=True) == shown
+
+
+@pytest.mark.parametrize(
+    "folder, shown",
+    [
+        ("corpora", "corpora"),
+        ("corpora/", "corpora"),
+        ("corpora//", "corpora"),
+        ("/home/anne/corpora/", "/home/anne/corpora"),
+        ("/", "/"),
+        ("//", "//"),
+        ("my corpus/", "'my corpus'"),
+        ("-draft", "./-draft"),
+        ("-my draft", "'./-my draft'"),
+    ],
+)
+def test_on_macos_and_linux_the_folder_to_run_again(folder, shown):
+    assert migrate_command._folder_to_run(folder, windows=False) == shown
+
+
+def test_then_run_gives_the_folder_without_a_trailing_separator(
+    tmp_path, monkeypatch, capsys
+):
+    place(tmp_path / "corpora" / "a.tla", OLD / "0.7.0.tla")
+    monkeypatch.chdir(tmp_path)
+
+    migrate_command.main(["corpora" + os.sep])
+
+    out = capsys.readouterr().out
+    assert out.endswith("Then run: tilia migrate corpora --apply\n")
+
+
+def test_then_run_gives_a_folder_named_like_an_option_as_a_path(
+    tmp_path, monkeypatch, capsys
+):
+    place(tmp_path / "-draft" / "a.tla", OLD / "0.7.0.tla")
+    monkeypatch.chdir(tmp_path)
+
+    migrate_command.main(["--", "-draft"])
+
+    out = capsys.readouterr().out
+    assert out.endswith(f"Then run: tilia migrate .{os.sep}-draft --apply\n")
+
+
 def test_then_run_escapes_a_control_character_in_the_folder():
     from tilia_core.tla.model import FileResult, MigrationReport, Outcome
 
