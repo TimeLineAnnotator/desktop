@@ -22,6 +22,7 @@ import time
 import unicodedata
 from collections.abc import Callable
 from pathlib import Path
+from traceback import format_exception
 
 from tilia_core.tla.errors import FileChanged, FileInUse, NewerFormat, UnreadableFile
 from tilia_core.tla.layout import FORMAT_VERSION
@@ -211,7 +212,7 @@ def _migrate_file(
             path=relative,
             outcome=Outcome.UNREADABLE,
             reason=reason,
-            error=None if expected else error,
+            traceback=None if expected else _traceback(error),
         )
         return result, None
     return _result(relative, path, document, migrated, apply), document
@@ -237,16 +238,14 @@ def _result(
         warnings=[warning for warning in document.warnings if warning not in own],
     )
     if apply:
-        result.outcome, result.reason, result.error = _write(path, document)
+        result.outcome, result.reason, result.traceback = _write(path, document)
     return result
 
 
-def _write(
-    path: Path, document: Document
-) -> tuple[Outcome, str | None, Exception | None]:
+def _write(path: Path, document: Document) -> tuple[Outcome, str | None, str | None]:
     """Write a migrated document over the file it was read from, stating the
-    fingerprint it had then: the outcome; why, when it wasn't written; and an
-    error in the core that stopped it."""
+    fingerprint it had then: the outcome; why, when it wasn't written; and the
+    traceback of an error in the core that stopped it."""
     try:
         write(path, document, expect=fingerprint_of(document))
     except FileChanged:
@@ -258,8 +257,16 @@ def _write(
         return Outcome.WRITE_FAILED, _cant("write", error, expected=True), None
     except Exception as error:  # an error in the core (FR-052)
         logger.error("can't write %s", path, exc_info=error)
-        return Outcome.WRITE_FAILED, _cant("write", error, expected=False), error
+        reason = _cant("write", error, expected=False)
+        return Outcome.WRITE_FAILED, reason, _traceback(error)
     return Outcome.MIGRATED, None, None
+
+
+def _traceback(error: Exception) -> str:
+    """The error's traceback, as Python prints it. Kept as text, it holds
+    none of the frames the error went through, nor what they held: after a
+    MemoryError, that is the memory that ran out."""
+    return "".join(format_exception(error))
 
 
 def _cant(verb: str, error: Exception, *, expected: bool) -> str:

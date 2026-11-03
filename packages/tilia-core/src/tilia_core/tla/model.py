@@ -341,8 +341,10 @@ class FileResult:
     `changes` counts what the migration dropped or changed, and `warnings`
     are the rules the migrated file breaks, which don't stop it being
     migrated; the migration's own warnings are what `changes` counts.
-    `error` is an error in the core that left the file alone, one that
-    reading or writing doesn't otherwise raise, kept for its traceback.
+    `traceback` is the traceback of an error in the core that left the file
+    alone, one that reading or writing doesn't otherwise raise, as Python
+    prints it: text, which holds none of the frames the error went through,
+    nor what they held.
     """
 
     path: str
@@ -351,7 +353,7 @@ class FileResult:
     reason: str | None = None
     changes: dict[str, int] = field(default_factory=dict)
     warnings: list[ReadWarning] = field(default_factory=list)
-    error: Exception | None = field(default=None, repr=False, compare=False)
+    traceback: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)

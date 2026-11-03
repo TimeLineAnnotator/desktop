@@ -18,7 +18,6 @@ import re
 import shlex
 import subprocess
 import sys
-import traceback
 import unicodedata
 from collections import Counter
 from collections.abc import Iterator
@@ -222,10 +221,9 @@ def _print_errors(report: MigrationReport) -> None:
     that left a file alone, after the file's path, so that it can be sent
     with the report of the fault."""
     for f in report.files:
-        if f.error is not None:
+        if f.traceback is not None:
             print(f"{_shown(f.path)}:", file=sys.stderr)
-            trace = "".join(traceback.format_exception(f.error))
-            print(trace, end="", file=sys.stderr)
+            print(f.traceback, end="", file=sys.stderr)
 
 
 def _path_order(path: str) -> tuple[str, str]:
