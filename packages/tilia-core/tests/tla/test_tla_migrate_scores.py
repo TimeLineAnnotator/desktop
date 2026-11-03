@@ -22,11 +22,30 @@ from tilia_core.tla.migrate import to_1
 
 HERE = Path(__file__).parent
 OLD = HERE / "old"
+# The placeholder of the files `old/save_with_tilia.py new` makes, and
+# `serenade.musicxml` drawn by OSMD in TiLiA 0.7.0's viewer.
 SVG = (HERE / "scores" / "osmd-legacy.svg").read_bytes().decode("utf-8")
-# The old files with a score timeline: each holds SVG, as its svg_data.
-WITH_A_SCORE = ["0.5.15.tla", "0.5.15-saved-by-0.7.0.tla", "0.7.0.tla"]
+OSMD_SVG = (HERE / "scores" / "serenade-osmd.svg").read_bytes().decode("utf-8")
+SVGS = pytest.mark.parametrize("svg", [SVG, OSMD_SVG], ids=["placeholder", "OSMD"])
 OLD_BEAT_X = {"0.0": 12.5, "0.5": 48.0}
 BEAT_X = [[0.0, 12.5], [0.5, 48.0]]
+# The old files with a score timeline: the SVG each holds as its svg_data,
+# and the beat positions the migration makes of its viewer_beat_x.
+WITH_A_SCORE = {
+    "0.5.15.tla": (SVG, BEAT_X),
+    "0.5.15-saved-by-0.7.0.tla": (SVG, BEAT_X),
+    "0.7.0.tla": (SVG, BEAT_X),
+    "0.7.0-osmd.tla": (
+        OSMD_SVG,
+        [
+            [1.0, 199.598],
+            [1.3333333333333333, 248.196],
+            [1.6666666666666665, 295.755],
+            [2.0, 358.314],
+            [3.0, 394.855],
+        ],
+    ),
+}
 SCORE_TIMELINE = ("timelines", "7")
 
 
@@ -58,28 +77,30 @@ def new_ids(doc, old_id, position):
 # The old files with a score timeline
 
 
-@pytest.fixture(params=WITH_A_SCORE)
+@pytest.fixture(params=list(WITH_A_SCORE))
 def old_file(request):
     return OLD / request.param
 
 
 def test_an_old_score_timelines_svg_becomes_a_legacy_score(old_file):
+    svg, beat_x = WITH_A_SCORE[old_file.name]
     doc = tla.read(old_file)
     old_id, position, old = old_score_timeline(content_of(old_file))
-    assert old["svg_data"] == SVG
+    assert old["svg_data"] == svg
     _, score_id = new_ids(doc, old_id, position)
     (score,) = doc.scores.values()
     assert score.id == score_id
     assert score.format == "svg-osmd-legacy"
-    assert score.text == SVG
+    assert score.text == svg
     assert (score.source, score.license) == (None, None)
-    assert score.extra == {"beat_x": BEAT_X}
+    assert score.extra == {"beat_x": beat_x}
     (written,) = json.loads(tla.canonical_bytes(doc))["scores"]
+    # One line: TiLiA stores the SVG without line breaks.
     assert written == {
         "id": score_id,
         "format": "svg-osmd-legacy",
-        "content": [SVG],
-        "beat_x": BEAT_X,
+        "content": [svg],
+        "beat_x": beat_x,
     }
 
 
@@ -299,10 +320,11 @@ def test_a_score_timeline_without_svg_gets_no_score_and_no_score_key(svg):
     assert not {"score", "svg_data", "viewer_beat_x"} & set(written_timeline)
 
 
-def test_each_score_timeline_names_its_own_score():
-    content = old_file_content()
+@SVGS
+def test_each_score_timeline_names_its_own_score(svg):
+    content = old_file_content(svg_data=svg)
     second = copy.deepcopy(content["timelines"]["7"])
-    second.update(name="Second", ordinal=3, svg_data=SVG.replace("svg>", "svg> "))
+    second.update(name="Second", ordinal=3, svg_data=svg.replace("svg>", "svg> "))
     content["timelines"]["12"] = second
     doc = loads(content)
     first_id, first_score = new_ids(doc, "7", 1)
@@ -310,7 +332,8 @@ def test_each_score_timeline_names_its_own_score():
     assert list(doc.scores) == sorted([first_score, second_score])
     assert doc.timelines[first_id].attrs["score"] == first_score
     assert doc.timelines[second_id].attrs["score"] == second_score
-    assert doc.scores[second_score].text == SVG.replace("svg>", "svg> ")
+    assert doc.scores[first_score].text == svg
+    assert doc.scores[second_score].text == svg.replace("svg>", "svg> ")
 
 
 def test_a_score_whose_timelines_old_id_isnt_an_integer_takes_its_position():
@@ -325,8 +348,9 @@ def test_a_score_whose_timelines_old_id_isnt_an_integer_takes_its_position():
     assert score_timeline_of(doc).attrs["score"] == score_id
 
 
-def test_the_migration_warns_about_nothing_in_a_score_timeline():
-    assert loads(old_file_content()).warnings == []
+@SVGS
+def test_the_migration_warns_about_nothing_in_a_score_timeline(svg):
+    assert loads(old_file_content(svg_data=svg)).warnings == []
 
 
 def test_a_note_in_a_marker_timeline_stays_as_it_is():
@@ -367,7 +391,8 @@ def test_a_note_in_a_marker_timeline_stays_as_it_is():
 # The document id
 
 
-def test_the_document_id_is_derived_with_the_score_under_its_timelines_old_id():
+@SVGS
+def test_the_document_id_is_derived_with_the_score_under_its_timelines_old_id(svg):
     # Before the new ids replace the old ones: the score's is its timeline's.
     expected = derived_document_id(
         {
@@ -410,28 +435,29 @@ def test_the_document_id_is_derived_with_the_score_under_its_timelines_old_id():
                 {
                     "id": "7",
                     "format": "svg-osmd-legacy",
-                    "content": [SVG],
+                    "content": [svg],
                     "beat_x": BEAT_X,
                 }
             ],
         }
     )
-    assert loads(old_file_content()).document_id == expected
+    assert loads(old_file_content(svg_data=svg)).document_id == expected
 
 
 @pytest.mark.parametrize(
     "change",
     [
-        {"svg_data": SVG.replace("svg>", "svg> ")},
-        {"viewer_beat_x": {"0.0": 12.5, "0.5": 48.5}},
-        {"svg_data": ""},
+        lambda svg: {"svg_data": svg.replace("svg>", "svg> ")},
+        lambda svg: {"svg_data": svg, "viewer_beat_x": {"0.0": 12.5, "0.5": 48.5}},
+        lambda svg: {"svg_data": ""},
     ],
     ids=["svg", "a beat position", "no svg"],
 )
-def test_the_document_id_changes_with_the_svg_and_its_beat_positions(change):
+@SVGS
+def test_the_document_id_changes_with_the_svg_and_its_beat_positions(change, svg):
     assert (
-        loads(old_file_content(**change)).document_id
-        != loads(old_file_content()).document_id
+        loads(old_file_content(**change(svg))).document_id
+        != loads(old_file_content(svg_data=svg)).document_id
     )
 
 
@@ -448,24 +474,34 @@ def test_the_document_id_ignores_the_order_of_the_scores_timelines():
 NFD_E = unicodedata.normalize("NFD", "é")
 
 
-def with_score_timelines(*old_ids):
+def with_score_timelines(*old_ids, svg=SVG):
     """The old file with one score timeline under each of these old ids, each
-    with an SVG of its own, in this order."""
+    with an SVG of its own made from `svg`, in this order."""
     content = old_file_content()
     template = content["timelines"].pop("7")
     for ordinal, old_id in enumerate(old_ids, start=2):
         timeline = copy.deepcopy(template)
-        svg = SVG.replace("</svg>", f"<text>{old_id}</text></svg>")
-        timeline.update(name=f"Score {old_id}", ordinal=ordinal, svg_data=svg)
+        own = svg.replace("</svg>", f"<text>{old_id}</text></svg>")
+        timeline.update(name=f"Score {old_id}", ordinal=ordinal, svg_data=own)
         content["timelines"][old_id] = timeline
     return content
 
 
-def test_the_document_id_of_a_file_with_several_legacy_scores_never_changes():
+@pytest.mark.parametrize(
+    "svg, document_id",
+    [
+        (SVG, "1d90dec8-e38b-8f0c-ac87-b7a7122b48c7"),
+        (OSMD_SVG, "6ba7832d-9757-865f-8f2b-9a6ffed92b8d"),
+    ],
+    ids=["placeholder", "OSMD"],
+)
+def test_the_document_id_of_a_file_with_several_legacy_scores_never_changes(
+    svg, document_id
+):
     # Old ids of two lengths, and two that aren't integers, one decomposed,
     # which sorts before "f" as it is and after it in NFC.
-    doc = loads(with_score_timelines("7", "12", "f", NFD_E))
-    assert doc.document_id == "1d90dec8-e38b-8f0c-ac87-b7a7122b48c7"
+    doc = loads(with_score_timelines("7", "12", "f", NFD_E, svg=svg))
+    assert doc.document_id == document_id
     assert len(doc.scores) == 4
 
 
@@ -567,7 +603,9 @@ def test_beat_positions_without_svg_stay_on_the_timeline():
 
 
 @pytest.mark.parametrize("key", ["score", "measure_table"])
-@pytest.mark.parametrize("svg", [SVG, ""], ids=["with svg", "without"])
+@pytest.mark.parametrize(
+    "svg", [SVG, OSMD_SVG, ""], ids=["placeholder", "OSMD", "without svg"]
+)
 def test_a_key_of_the_current_format_in_an_old_score_timeline_is_refused(svg, key):
     with pytest.raises(tla.UnreadableFile) as error:
         loads(old_file_content(svg_data=svg, **{key: "1"}))

@@ -5,7 +5,9 @@ text never in NFC; and score timelines naming their score and their measure
 table by id.
 
 The scores are real files, in `scores/`: an MEI written by Verovio from a
-short MusicXML of our own, and the SVG of an old file's score timeline."""
+short MusicXML of our own, and the SVGs of two old files' score timelines:
+that MusicXML drawn by OSMD in TiLiA 0.7.0's viewer, and the placeholder of
+the files `old/save_with_tilia.py new` makes."""
 
 import json
 import unicodedata
@@ -18,9 +20,14 @@ from tilia_core import tla
 HERE = Path(__file__).parent
 MEI = HERE / "scores" / "serenade.mei"
 SVG = HERE / "scores" / "osmd-legacy.svg"
+OSMD_SVG = HERE / "scores" / "serenade-osmd.svg"
 EVERY_KIND = HERE / "golden" / "every-kind.tla"
-# The old file whose score timeline's SVG is `SVG`.
-OLD_WITH_SVG = HERE / "old" / "0.7.0.tla"
+# Each SVG, and the old file whose score timeline holds it.
+OLD_WITH_SVG = {
+    SVG: HERE / "old" / "0.7.0.tla",
+    OSMD_SVG: HERE / "old" / "0.7.0-osmd.tla",
+}
+SVGS = pytest.mark.parametrize("svg", [SVG, OSMD_SVG], ids=["placeholder", "OSMD"])
 
 SOURCE = {
     "file": "serenade.musicxml",
@@ -75,12 +82,29 @@ def test_the_mei_holds_what_a_scores_content_must_keep():
     assert text.endswith("</mei>\n")
 
 
-def test_the_svg_is_an_old_files_svg_data():
-    old = json.loads(OLD_WITH_SVG.read_bytes())
+@SVGS
+def test_the_svg_is_an_old_files_svg_data(svg):
+    old = json.loads(OLD_WITH_SVG[svg].read_bytes())
     (score_timeline,) = (
         tl for tl in old["timelines"].values() if tl["kind"] == "Score"
     )
-    assert text_of(SVG) == score_timeline["svg_data"]
+    assert text_of(svg) == score_timeline["svg_data"]
+
+
+def test_the_osmd_svg_is_a_drawing_as_tilia_stores_it():
+    text = text_of(OSMD_SVG)
+    assert text.startswith('<svg id="osmdSvgPage1" ')
+    assert text.endswith("</svg>")
+    # One line of ASCII, other characters as references, as lxml writes it.
+    assert "\n" not in text and "\r" not in text
+    assert text.isascii()
+    assert ">&#934;&#969;&#957;&#942;</text>" in text  # the part's name
+    assert ">&#931;&#949;</text>" in text  # a syllable
+    # Quotes, which JSON escapes, and the tab of the score's <words>.
+    assert 'font-family="Times New Roman"' in text
+    assert ">a tempo\t dolce</text>" in text
+    # The viewer took out the marks it read the beat positions from.
+    assert "\u241f" not in text and "&#9247;" not in text
 
 
 def forms(text):
@@ -103,7 +127,9 @@ FORMS = list(forms(""))
 
 @pytest.mark.parametrize("form", FORMS)
 @pytest.mark.parametrize(
-    "path, make", [(MEI, mei_score), (SVG, legacy_score)], ids=["MEI", "SVG"]
+    "path, make",
+    [(MEI, mei_score), (SVG, legacy_score), (OSMD_SVG, legacy_score)],
+    ids=["MEI", "placeholder SVG", "OSMD SVG"],
 )
 def test_a_scores_lines_join_to_give_the_score_back_with_lf(tmp_path, path, make, form):
     text = forms(text_of(path))[form]
@@ -182,11 +208,12 @@ def test_a_file_without_a_score_has_an_empty_scores_list(tmp_path):
     assert doc.scores == {}
 
 
-def test_three_scores_in_one_file_each_come_back_with_all_they_hold(tmp_path):
+@SVGS
+def test_three_scores_in_one_file_each_come_back_with_all_they_hold(tmp_path, svg):
     mei = text_of(MEI)
     stated = mei_score(mei, license="CC0-1.0")
     undetermined = mei_score(mei.replace("dolce", "dolcissimo"))
-    legacy = legacy_score(text_of(SVG))
+    legacy = legacy_score(text_of(svg))
     doc = with_scores(legacy, undetermined, stated)
     data, again = written_and_read(doc, tmp_path)
     expected = {
@@ -198,7 +225,7 @@ def test_three_scores_in_one_file_each_come_back_with_all_they_hold(tmp_path):
             mei.replace("dolce", "dolcissimo"),
             {},
         ),
-        legacy.id: ("svg-osmd-legacy", None, None, text_of(SVG), {"beat_x": BEAT_X}),
+        legacy.id: ("svg-osmd-legacy", None, None, text_of(svg), {"beat_x": BEAT_X}),
     }
     assert list(again.scores) == sorted(expected)
     for score_id, score in again.scores.items():
@@ -221,11 +248,12 @@ def test_three_scores_in_one_file_each_come_back_with_all_they_hold(tmp_path):
     assert [list(score) for score in written] == [keys[s["id"]] for s in written]
 
 
-def test_one_changed_line_of_a_score_changes_one_line_of_the_file(tmp_path):
+@SVGS
+def test_one_changed_line_of_a_score_changes_one_line_of_the_file(tmp_path, svg):
     doc = with_scores(
         mei_score(text_of(MEI)),
         mei_score(text_of(MEI)),
-        legacy_score(text_of(SVG)),
+        legacy_score(text_of(svg)),
     )
     before, doc = written_and_read(doc, tmp_path)
     score = doc.scores[sorted(doc.scores)[1]]
