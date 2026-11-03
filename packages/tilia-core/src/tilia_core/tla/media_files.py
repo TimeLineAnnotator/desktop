@@ -87,16 +87,20 @@ def as_media_path(given: str | os.PathLike[str]) -> str:
     (`os.path.abspath`): the writer stores it relative to the file it
     writes, which a path relative to the working folder isn't. A text
     without a scheme that matches TiLiA's YouTube pattern, such as
-    `youtu.be/…`, `youtube.com/clip.mp4` or `//www.youtube.com/…`, is such a
-    path when a file is there, or on a server for one that starts with `//`,
-    and otherwise a YouTube link, returned with `https://`, or `https:`
-    before `//`. A path object is a path, never a link: its text differs by
-    system."""
+    `youtu.be/…` or `youtube.com/clip.mp4`, is such a path when a file is
+    there, and otherwise a YouTube link, returned with `https://`. One that
+    starts with `//`, such as `//www.youtube.com/…`, is a link, returned with
+    `https:`, and never looked for on a server, which on Windows could block
+    for seconds and reach the host the link names: as the migration takes an
+    old one. Any other path that starts with `//` is a server path. A path
+    object is a path, never a link: its text differs by system."""
     if not isinstance(given, str):
         return os.path.abspath(os.fspath(given))
     if not given or is_url(given):
         return given
-    if _is_link_without_scheme(given) and local_file(given, os.getcwd()) is None:
+    if _is_link_without_scheme(given) and (
+        given.startswith("//") or local_file(given, os.getcwd()) is None
+    ):
         return _as_link(given)
     return os.path.abspath(given)
 

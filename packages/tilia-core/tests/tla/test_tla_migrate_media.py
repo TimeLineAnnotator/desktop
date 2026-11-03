@@ -813,15 +813,19 @@ def test_a_given_path_object_is_never_a_link(tmp_path, monkeypatch, make, given)
     assert Path(found) == tmp_path / given
 
 
-def test_a_given_link_starting_with_two_slashes(tmp_path, monkeypatch, servers):
-    # A link without its "https:" (FR-033): a server path when one is there,
-    # which only Windows looks for, and otherwise the link with "https:".
+@pytest.mark.parametrize("there", [False, True], ids=["nothing there", "a file there"])
+def test_a_given_link_starting_with_two_slashes_is_a_link(
+    tmp_path, monkeypatch, servers, there
+):
+    # A link without its "https:", as the migration takes an old one: never
+    # looked for on a server, which on Windows could block for seconds and
+    # reach the host the link names (FR-033).
     monkeypatch.chdir(tmp_path)
     given = "//www.youtube.com/watch?v=_ORrftU6sGA"
-    assert tla.as_media_path(given) == f"https:{given}"
-    if WINDOWS:
+    if there:
         servers.there.add(given)
-        assert Path(tla.as_media_path(given)) == Path(given)
+    assert tla.as_media_path(given) == f"https:{given}"
+    assert servers.looked_up == []
 
 
 @pytest.mark.parametrize("given", ["youtube.com/clip.mp4", "audio/x.wav"])
