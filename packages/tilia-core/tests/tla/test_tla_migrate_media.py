@@ -693,10 +693,13 @@ def test_a_path_starting_with_two_slashes_is_a_server_path(tmp_path, servers, st
 def test_a_given_path_like_a_youtube_link_is_a_file_when_there_is_one(
     tmp_path, monkeypatch, given
 ):
-    # As TiLiA's load-media and build.load_media are given it (FR-033).
+    # As TiLiA's load-media and build.load_media are given it (FR-033):
+    # returned absolute, from the working folder, so that the writer can
+    # store it relative to the file.
     monkeypatch.chdir(tmp_path)
     media_file(tmp_path / given)
-    assert tla.as_media_path(given) == given
+    assert Path(tla.as_media_path(given)) == tmp_path / given
+    assert os.path.isabs(tla.as_media_path(given))
 
 
 @pytest.mark.parametrize(
@@ -721,15 +724,51 @@ def test_a_given_path_like_a_youtube_link_is_a_link_otherwise(
         "https://www.youtube.com/watch?v=_ORrftU6sGA",
         "http://youtu.be/_ORrftU6sGA",
         "https://example.com/audio/piece.mp3",
-        "audio/piece.wav",
-        "youtu_be/clip.mp4",
-        "//server-176/share/audio/piece.wav",
         "",
     ],
 )
-def test_any_other_given_path_is_kept(tmp_path, monkeypatch, servers, given):
+def test_a_given_url_or_no_path_is_kept(tmp_path, monkeypatch, given):
     monkeypatch.chdir(tmp_path)
     assert tla.as_media_path(given) == given
+
+
+@pytest.mark.parametrize(
+    "given",
+    [
+        "audio/piece.wav",
+        "youtu_be/clip.mp4",
+        "../piece.wav",
+        "//server-176/share/audio/piece.wav",
+    ],
+)
+def test_a_given_path_is_made_absolute_from_the_working_folder(
+    tmp_path, monkeypatch, servers, given
+):
+    # As the reader resolves a relative path against the file's folder, a
+    # relative one given would otherwise be lost when written (FR-033).
+    work = tmp_path / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    found = tla.as_media_path(given)
+    assert os.path.isabs(found)
+    assert Path(found) == Path(os.path.normpath(os.path.join(work, given)))
+
+
+def test_a_given_absolute_path_is_kept(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    given = str(tmp_path / "audio" / "piece.wav")
+    assert tla.as_media_path(given) == given
+
+
+@pytest.mark.parametrize(
+    "given", ["youtu.be/_ORrftU6sGA", "www.youtube.com/watch?v=_ORrftU6sGA"]
+)
+def test_a_given_path_object_is_never_a_link(tmp_path, monkeypatch, given):
+    # A PathLike is a path: its text differs by system ("\\" on Windows), so
+    # it is never matched against the pattern.
+    monkeypatch.chdir(tmp_path)
+    found = tla.as_media_path(Path(given))
+    assert Path(found) == tmp_path / given
 
 
 def test_a_given_link_starting_with_two_slashes(tmp_path, monkeypatch, servers):
@@ -740,13 +779,30 @@ def test_a_given_link_starting_with_two_slashes(tmp_path, monkeypatch, servers):
     assert tla.as_media_path(given) == f"https:{given}"
     if WINDOWS:
         servers.there.add(given)
-        assert tla.as_media_path(given) == given
+        assert Path(tla.as_media_path(given)) == Path(given)
 
 
-def test_a_given_absolute_path_is_kept(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    given = str(tmp_path / "audio" / "piece.wav")
-    assert tla.as_media_path(given) == given
+@pytest.mark.parametrize("given", ["youtube.com/clip.mp4", "audio/x.wav"])
+@pytest.mark.parametrize("read", [False, True], ids=["new", "read elsewhere"])
+def test_a_given_path_is_stored_so_that_its_media_is_found(
+    tmp_path, monkeypatch, given, read
+):
+    # A script in work/ records media beside it, then saves into out/.
+    media = media_file(tmp_path / "work" / given)
+    if read:
+        source = tmp_path / "corpus" / "piece.tla"
+        source.parent.mkdir()
+        tla.write(source, tla.new_document())
+        doc = tla.read(source)
+    else:
+        doc = tla.new_document()
+    monkeypatch.chdir(tmp_path / "work")
+    doc.media_path, doc.media_length = tla.as_media_path(given), 10.0
+    target = tmp_path / "out" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert json.loads(target.read_bytes())["media"]["path"] == f"../work/{given}"
+    assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
 
 
 def test_the_lookup_doesnt_hide_its_module():
