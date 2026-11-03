@@ -650,13 +650,13 @@ def test_an_error_reading_one_file_doesnt_stop_the_others(
 
     result = by_path(report)["a.tla"]
     assert result.outcome == "unreadable"
-    text = str(error)
+    named = f"{type(error).__name__}: {error}" if str(error) else type(error).__name__
     assert result.reason == (
-        f"can't read: {type(error).__name__}: {text}"
-        if text
-        else f"can't read: {type(error).__name__}"
+        f"can't read: an error in tilia-core ({named}); please report it"
     )
+    assert result.error is error  # for its traceback
     assert by_path(report)["sub/old.tla"].outcome == "migrated"
+    assert by_path(report)["sub/old.tla"].error is None
     assert report.status == 1
     [logged] = [r for r in caplog.records if r.exc_info]
     assert logged.exc_info[1] is error
@@ -680,10 +680,24 @@ def test_an_error_writing_one_file_doesnt_stop_the_others(
 
     result = by_path(report)["a.tla"]
     assert result.outcome == "write_failed"
-    assert result.reason == "can't write: TypeError: an unexpected value"
+    assert result.reason == (
+        "can't write: an error in tilia-core (TypeError: an unexpected value);"
+        " please report it"
+    )
+    assert result.error is error
     assert by_path(report)["sub/old.tla"].outcome == "migrated"
     [logged] = [r for r in caplog.records if r.exc_info]
     assert logged.exc_info[1] is error
+
+
+def test_an_expected_failure_carries_no_error_to_report(clean_corpus, read_only):
+    place(clean_corpus / "broken.tla", BROKEN / "cut-short.tla")
+
+    report = migrate_folder(clean_corpus, apply=True)
+
+    assert by_path(report)["a.tla"].outcome == "write_failed"
+    assert by_path(report)["broken.tla"].outcome == "unreadable"
+    assert [f.error for f in report.files] == [None] * len(report.files)
 
 
 def test_a_document_the_writer_refuses_is_reported_without_its_path(

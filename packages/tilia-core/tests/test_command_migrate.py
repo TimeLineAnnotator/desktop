@@ -630,3 +630,88 @@ def test_then_run_quotes_a_folder_the_shell_would_misread(
 
     out = capsys.readouterr().out
     assert out.endswith(f"Then run: tilia migrate '{name}' --apply\n")
+
+
+# An error in the core: named, and its traceback after the report
+
+
+FAILING_READ = """\
+import sys
+from pathlib import Path
+
+from tilia_core.tla import folder
+
+read = folder.read_with_migration
+
+
+def failing(path):
+    if Path(path).name == "a.tla":
+        raise TypeError("unsupported operand type(s) for +: 'int' and 'str'")
+    return read(path)
+
+
+folder.read_with_migration = failing
+from tilia_core.commands import main
+
+sys.exit(main())
+"""
+
+
+def test_an_error_in_the_core_is_reported_and_its_traceback_follows(clean):
+    result = subprocess.run(
+        [sys.executable, "-c", FAILING_READ, "migrate", "clean"],
+        cwd=clean.parent,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,  # in the order printed
+        encoding="utf-8",
+        timeout=120,
+    )
+
+    assert result.returncode == 1
+    out = result.stdout
+    assert (
+        "  a.tla                   can't read: an error in tilia-core (TypeError:"
+        " unsupported operand type(s) for +: 'int' and 'str'); please report it\n"
+    ) in out
+    report, _, after = out.partition("Then run: tilia migrate clean --apply\n")
+    assert "Traceback" not in report
+    assert after.startswith("a.tla:\nTraceback (most recent call last):\n")
+    assert after.endswith(
+        "TypeError: unsupported operand type(s) for +: 'int' and 'str'\n"
+    )
+
+
+def test_each_error_in_the_core_has_its_traceback(clean, monkeypatch, capsys):
+    read = folder_module.read_with_migration
+    write = folder_module.write
+
+    def failing_read(path):
+        if Path(path).name == "a.tla":
+            raise MemoryError()
+        return read(path)
+
+    def failing_write(target, doc, **kwargs):
+        if Path(target).name == "b.tla":
+            raise KeyError("ordinal")
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "read_with_migration", failing_read)
+    monkeypatch.setattr(folder_module, "write", failing_write)
+    monkeypatch.setattr(folder_module.time, "sleep", lambda seconds: None)
+
+    assert migrate_command.main([str(clean), "--apply"]) == 1
+
+    out, err = capsys.readouterr()
+    assert (
+        "  a.tla                   can't read: an error in tilia-core (MemoryError);"
+        " please report it\n"
+    ) in out
+    assert (
+        "  sub/b.tla               can't write: an error in tilia-core"
+        " (KeyError: 'ordinal'); please report it\n"
+    ) in out
+    first, second = err.split("Traceback (most recent call last):\n")[1:]
+    assert err.startswith("a.tla:\n")
+    assert first.endswith("MemoryError\nsub/b.tla:\n")
+    assert second.endswith("KeyError: 'ordinal'\n")
