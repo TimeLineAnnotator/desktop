@@ -47,7 +47,7 @@ def make_relative(
     """Make the media's path and each PDF timeline's path in `content`, an old
     file's content once migrated, relative, in place, and give the media's
     path `https://` when it is a YouTube link TiLiA stored without a scheme
-    (#380). `file_path` is the old file's, and `path` where the file is now;
+    (FR-033). `file_path` is the old file's, and `path` where the file is now;
     None for bytes read without their place, which then have no current
     folder."""
     folder = None if path is None else os.path.dirname(os.path.abspath(path))

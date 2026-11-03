@@ -68,7 +68,7 @@ def loads_for_fingerprint(
     except that an old file's media path and PDF timelines' paths are as the
     file stores them, not made relative from where it is read (FR-021), so
     that its fingerprint changes only when the file does: not when its media
-    comes or goes, nor with the folder it is read through (#368)."""
+    comes or goes, nor with the folder it is read through (FR-043)."""
     return _loads(data, path, paths_as_stored=True)[0]
 
 
