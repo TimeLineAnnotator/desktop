@@ -5,7 +5,10 @@ and in `file_path` where it was last saved. The migration makes each path
 relative to the file's folder, starting from where TiLiA would find the
 media now (contracts/migration.md, *Media paths*):
 
-1. empty, or a URL: kept as it is;
+1. empty, or a URL (with a scheme): kept as it is. The media's path, when
+   it is a YouTube link TiLiA stored without a scheme, as it was typed,
+   gets `https://`, or `https:` before `//`; any other path that starts with
+   `//` is a Windows server path, absolute;
 2. absolute, and it exists on this computer, as `tla.media` would find it:
    made relative from the file's current folder;
 3. absolute, and it doesn't exist here: made relative from the folder of the
@@ -16,7 +19,8 @@ media now (contracts/migration.md, *Media paths*):
 
 Where no relative path exists, on another drive or of the other system's
 form, the path stays absolute. Separators become "/". The document id is
-derived before this step, so it doesn't depend on where the file is.
+derived before this step, so it depends neither on where the file is nor on
+the scheme a link is given.
 """
 
 from __future__ import annotations
