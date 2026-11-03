@@ -46,6 +46,8 @@ POSIX_MEDIA = "/home/someone-176/audio/piece.mp3"
 SAVED_HERE = WINDOWS_SAVED if WINDOWS else POSIX_SAVED
 # A media path of the other system's form: no relative path to it exists here.
 OTHER_SYSTEM_MEDIA = POSIX_MEDIA if WINDOWS else WINDOWS_MEDIA
+# What an old link without its scheme becomes.
+YOUTUBE_LINK = "https://youtu.be/_ORrftU6sGA"
 OTHER_SYSTEM_SAVED = POSIX_SAVED if WINDOWS else WINDOWS_SAVED
 
 MISSING = object()
@@ -198,6 +200,35 @@ def test_an_old_pdf_path_starting_with_two_slashes_is_a_server_path(tmp_path, se
     stored = "//www.youtube.com/share/scores/piece.pdf"
     piece = old_file(tmp_path / "corpus", "pdf", stored, saved)
     assert stored_in(tla.read(piece), "pdf") == "../scores/piece.pdf"
+
+
+@pytest.mark.parametrize(
+    "stored, linked",
+    [
+        ("youtu.be/_ORrftU6sGA", YOUTUBE_LINK),
+        (
+            "//www.youtube.com/watch?v=_ORrftU6sGA",
+            "https://www.youtube.com/watch?v=_ORrftU6sGA",
+        ),
+    ],
+)
+def test_the_document_id_is_derived_from_the_link_as_stored(tmp_path, stored, linked):
+    # Before the migration gives it its scheme (contracts/migration.md, *Ids*):
+    # a file that stored the link with "https://" is another file.
+    without = old_file(tmp_path / "without", "media", stored, WINDOWS_SAVED)
+    with_scheme = old_file(tmp_path / "with", "media", linked, WINDOWS_SAVED)
+    docs = tla.read(without), tla.read(with_scheme)
+    assert [doc.media_path for doc in docs] == [linked, linked]
+    assert docs[0].document_id != docs[1].document_id
+
+
+def test_an_old_files_fingerprint_takes_the_link_as_stored(tmp_path):
+    # As its other paths, not with the scheme the migration gives it (FR-043).
+    piece = old_file(tmp_path / "corpus", "media", "youtu.be/_ORrftU6sGA", "")
+    as_stored = tla.read(piece)
+    assert as_stored.media_path == YOUTUBE_LINK
+    as_stored.media_path = "youtu.be/_ORrftU6sGA"
+    assert tla.fingerprint(piece) == tla.fingerprint_of(as_stored)
 
 
 @pytest.mark.parametrize(
@@ -1002,6 +1033,20 @@ def test_after_a_save_as_the_document_finds_its_media(corpus, tmp_path):
     # So writing it back where it was read from changes nothing.
     tla.write(corpus, doc)
     assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+
+
+def test_after_a_write_the_document_keeps_its_timelines(corpus, tmp_path):
+    # Only a rebased PDF timeline's path changes: code that holds a timeline,
+    # or its attributes, still holds the document's.
+    doc = tla.read(corpus)
+    timelines = dict(doc.timelines)
+    attrs = {key: timeline.attrs for key, timeline in timelines.items()}
+    target = tmp_path / "elsewhere" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert pdf_path(doc) == f"../scores/{NAME}.pdf"
+    assert all(doc.timelines[key] is timeline for key, timeline in timelines.items())
+    assert all(doc.timelines[key].attrs is attrs[key] for key in timelines)
 
 
 def test_after_each_write_the_document_is_what_is_on_disk(corpus, tmp_path):
