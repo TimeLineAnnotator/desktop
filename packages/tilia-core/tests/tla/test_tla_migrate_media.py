@@ -19,6 +19,7 @@ import inspect
 import json
 import os
 import shutil
+import stat
 import sys
 import unicodedata
 from pathlib import Path
@@ -774,19 +775,64 @@ def test_written_into_another_folder_the_media_is_still_found(
     assert fingerprint == tla.fingerprint(target)
 
 
-def test_writing_elsewhere_leaves_the_document_as_it_was(corpus, tmp_path):
+def test_after_a_save_as_the_document_finds_its_media(corpus, tmp_path):
+    # The document follows the file written: its origin, and its paths as
+    # written (FR-033, #369).
     doc = tla.read(corpus)
-    before = tla.canonical_bytes(doc)
-    tla.write(tmp_path / "copy.tla", doc)
-    assert (doc.media_path, pdf_path(doc)) == (
-        f"../audio/{NAME}.flac",
-        f"../scores/{NAME}.pdf",
+    target = tmp_path / "elsewhere" / "deeper" / "piece.tla"
+    target.parent.mkdir(parents=True)
+    tla.write(target, doc)
+    assert doc.origin == target
+    assert (doc.media_path, pdf_path(doc)) == written(target)
+    assert os.path.samefile(
+        tla.media(target, doc).path, tmp_path / "audio" / f"{NAME}.flac"
     )
-    assert doc.origin == corpus
-    assert tla.canonical_bytes(doc) == before
+    pdf = os.path.normpath(os.path.join(target.parent, pdf_path(doc)))
+    assert os.path.samefile(pdf, tmp_path / "scores" / f"{NAME}.pdf")
     # So writing it back where it was read from changes nothing.
     tla.write(corpus, doc)
     assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+
+
+def test_after_each_write_the_document_is_what_is_on_disk(corpus, tmp_path):
+    doc = tla.read(corpus)
+    doc.media_path = (tmp_path / "audio" / f"{NAME}.flac").as_posix()  # absolute
+    targets = [
+        tmp_path / "one" / "piece.tla",
+        tmp_path / "two" / "three" / "piece.tla",
+        tmp_path / "two" / "three" / "piece.tla",
+        corpus,
+    ]
+    for target in targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fingerprint = tla.write(target, doc)
+        assert tla.canonical_bytes(doc) == target.read_bytes()
+        assert tla.fingerprint_of(doc) == fingerprint == tla.fingerprint(target)
+    assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+
+
+@pytest.mark.parametrize("failure", ["changed", "read-only"])
+def test_a_write_that_fails_leaves_the_document_as_it_was(corpus, tmp_path, failure):
+    if failure == "read-only" and hasattr(os, "geteuid") and os.geteuid() == 0:
+        pytest.skip("root may write any file")
+    doc = tla.read(corpus)
+    doc.media_path = (tmp_path / "audio" / f"{NAME}.flac").as_posix()  # absolute
+    before = (doc.origin, doc.media_path, pdf_path(doc), tla.canonical_bytes(doc))
+    target = tmp_path / "elsewhere" / "piece.tla"
+    target.parent.mkdir()
+    shutil.copyfile(EVERY_KIND, target)
+    try:
+        if failure == "changed":
+            with pytest.raises(tla.FileChanged):
+                tla.write(target, doc, expect="0" * 64)
+        else:
+            os.chmod(target, stat.S_IREAD)
+            with pytest.raises(PermissionError):
+                tla.write(target, doc)
+    finally:
+        os.chmod(target, stat.S_IREAD | stat.S_IWRITE)
+    after = (doc.origin, doc.media_path, pdf_path(doc), tla.canonical_bytes(doc))
+    assert after == before
 
 
 def test_a_copy_of_a_copy_still_finds_its_media(corpus, tmp_path):
@@ -847,7 +893,12 @@ def test_an_absolute_path_is_written_relative_from_a_new_document(tmp_path):
     tla.write(target, doc)
     assert json.loads(target.read_bytes())["media"]["path"] == "../audio/piece.wav"
     assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
-    assert doc.media_path == media.resolve().as_posix()
+    # The document follows the file, so its fingerprint is the file's, and a
+    # second write that states it isn't refused (#369).
+    assert doc.media_path == "../audio/piece.wav"
+    expected = tla.fingerprint_of(doc)
+    doc.metadata["note"] = "edited"
+    tla.write(target, doc, expect=expected)
 
 
 def test_a_relative_path_of_a_document_read_from_nowhere_is_kept(tmp_path):
