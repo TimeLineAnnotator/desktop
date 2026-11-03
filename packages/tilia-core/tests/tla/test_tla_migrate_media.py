@@ -791,14 +791,25 @@ def test_a_given_absolute_path_is_kept(tmp_path, monkeypatch):
     assert tla.as_media_path(given) == given
 
 
+class GivenPath:
+    """A path object whose text is the same on every system."""
+
+    def __init__(self, text):
+        self.text = text
+
+    def __fspath__(self):
+        return self.text
+
+
+@pytest.mark.parametrize("make", [Path, GivenPath], ids=["Path", "with slashes"])
 @pytest.mark.parametrize(
     "given", ["youtu.be/_ORrftU6sGA", "www.youtube.com/watch?v=_ORrftU6sGA"]
 )
-def test_a_given_path_object_is_never_a_link(tmp_path, monkeypatch, given):
-    # A PathLike is a path: its text differs by system ("\\" on Windows), so
-    # it is never matched against the pattern.
+def test_a_given_path_object_is_never_a_link(tmp_path, monkeypatch, make, given):
+    # A PathLike is a path: its text differs by system ("\\" in a Path on
+    # Windows), so it is never matched against the pattern.
     monkeypatch.chdir(tmp_path)
-    found = tla.as_media_path(Path(given))
+    found = tla.as_media_path(make(given))
     assert Path(found) == tmp_path / given
 
 
@@ -1041,10 +1052,10 @@ def test_after_a_write_the_document_keeps_its_timelines(corpus, tmp_path):
     doc = tla.read(corpus)
     timelines = dict(doc.timelines)
     attrs = {key: timeline.attrs for key, timeline in timelines.items()}
-    target = tmp_path / "elsewhere" / "piece.tla"
-    target.parent.mkdir()
+    target = tmp_path / "elsewhere" / "deeper" / "piece.tla"
+    target.parent.mkdir(parents=True)
     tla.write(target, doc)
-    assert pdf_path(doc) == f"../scores/{NAME}.pdf"
+    assert pdf_path(doc) == f"../../scores/{NAME}.pdf"  # rebased
     assert all(doc.timelines[key] is timeline for key, timeline in timelines.items())
     assert all(doc.timelines[key].attrs is attrs[key] for key in timelines)
 
