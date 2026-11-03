@@ -18,6 +18,7 @@ import re
 import shlex
 import subprocess
 import sys
+import traceback
 import unicodedata
 from collections import Counter
 from collections.abc import Iterator
@@ -73,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{PROG}: can't read {folder}: {why}", file=sys.stderr)
         return 1
     _print("\n".join(report_lines(report, folder, apply=arguments.apply)))
+    _print_errors(report)
     return report.status
 
 
@@ -205,6 +207,17 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     else:
         lines.append("Nothing was written.")
     return lines
+
+
+def _print_errors(report: MigrationReport) -> None:
+    """After the report, on stderr, the traceback of each error in the core
+    that left a file alone, after the file's path, so that it can be sent
+    with the report of the fault."""
+    for f in report.files:
+        if f.error is not None:
+            print(f"{f.path}:", file=sys.stderr)
+            trace = "".join(traceback.format_exception(f.error))
+            print(trace, end="", file=sys.stderr)
 
 
 def _path_order(path: str) -> tuple[str, str]:

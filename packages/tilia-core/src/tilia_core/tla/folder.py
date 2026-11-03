@@ -207,10 +207,13 @@ def _migrate_file(
         if not expected:
             logger.error("can't read %s", path, exc_info=error)
         reason = _cant("read", error, expected=expected)
-        return (
-            FileResult(path=relative, outcome=Outcome.UNREADABLE, reason=reason),
-            None,
+        result = FileResult(
+            path=relative,
+            outcome=Outcome.UNREADABLE,
+            reason=reason,
+            error=None if expected else error,
         )
+        return result, None
     return _result(relative, path, document, migrated, apply), document
 
 
@@ -234,40 +237,43 @@ def _result(
         warnings=[warning for warning in document.warnings if warning not in own],
     )
     if apply:
-        result.outcome, result.reason = _write(path, document)
+        result.outcome, result.reason, result.error = _write(path, document)
     return result
 
 
-def _write(path: Path, document: Document) -> tuple[Outcome, str | None]:
+def _write(
+    path: Path, document: Document
+) -> tuple[Outcome, str | None, Exception | None]:
     """Write a migrated document over the file it was read from, stating the
-    fingerprint it had then; the outcome, and why when it wasn't written."""
+    fingerprint it had then: the outcome; why, when it wasn't written; and an
+    error in the core that stopped it."""
     try:
         write(path, document, expect=fingerprint_of(document))
     except FileChanged:
-        return Outcome.CHANGED_SINCE_READ, "changed since it was read"
+        return Outcome.CHANGED_SINCE_READ, "changed since it was read", None
     except FileInUse:
-        return Outcome.IN_USE, "in use by another program"
+        return Outcome.IN_USE, "in use by another program", None
     except (OSError, ValueError) as error:  # UnreadableFile is a ValueError
         logger.warning("can't write %s: %s", path, error)
-        return Outcome.WRITE_FAILED, _cant("write", error, expected=True)
+        return Outcome.WRITE_FAILED, _cant("write", error, expected=True), None
     except Exception as error:  # an error in the core (FR-052)
         logger.error("can't write %s", path, exc_info=error)
-        return Outcome.WRITE_FAILED, _cant("write", error, expected=False)
-    return Outcome.MIGRATED, None
+        return Outcome.WRITE_FAILED, _cant("write", error, expected=False), error
+    return Outcome.MIGRATED, None, None
 
 
 def _cant(verb: str, error: Exception, *, expected: bool) -> str:
     """Why a file couldn't be read or written, without its path, which the
-    report gives anyway. An error that isn't one of those reading or writing
-    raises, an error in the core, is named by its type: its traceback is in
-    the log."""
+    report gives anyway. An error that reading or writing doesn't otherwise
+    raise is an error in the core, to report: it is named by its type, and
+    its traceback is logged and kept in the file's result."""
     if isinstance(error, UnreadableFile):
         where = "" if error.line is None else f" (line {error.line})"
         return f"can't {verb}{where}: {error.message}"
     if isinstance(error, OSError) and error.strerror:
         return f"can't {verb}: {error.strerror}"
+    if expected:
+        return f"can't {verb}: {error}"
     text = str(error)
-    if not expected:
-        name = type(error).__name__
-        text = f"{name}: {text}" if text else name
-    return f"can't {verb}: {text}"
+    named = f"{type(error).__name__}: {text}" if text else type(error).__name__
+    return f"can't {verb}: an error in tilia-core ({named}); please report it"
