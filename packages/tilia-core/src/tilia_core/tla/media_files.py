@@ -82,16 +82,23 @@ def as_media_path(given: str | os.PathLike[str]) -> str:
     """The media path to store for one a person or a script gives, as TiLiA's
     `load-media` and a script's `load-media` are given one (FR-033).
 
-    A path without a scheme that matches TiLiA's YouTube pattern, such as
-    `youtu.be/…`, `youtube.com/clip.mp4` or `//www.youtube.com/…`, is a
-    local file when one is there, from the working folder, or on a server
-    for one that starts with `//` (FR-033). Otherwise it is a YouTube link,
-    returned with `https://`, or `https:` before `//`. Anything else is
-    returned as it is."""
-    text = os.fspath(given)
-    if _is_link_without_scheme(text) and local_file(text, os.getcwd()) is None:
-        return _as_link(text)
-    return text
+    A URL, with a scheme, is returned as it is, and so is an empty text. A
+    path is returned absolute, from the working folder, links not followed
+    (`os.path.abspath`): the writer stores it relative to the file it
+    writes, which a path relative to the working folder isn't. A text
+    without a scheme that matches TiLiA's YouTube pattern, such as
+    `youtu.be/…`, `youtube.com/clip.mp4` or `//www.youtube.com/…`, is such a
+    path when a file is there, or on a server for one that starts with `//`,
+    and otherwise a YouTube link, returned with `https://`, or `https:`
+    before `//`. A path object is a path, never a link: its text differs by
+    system."""
+    if not isinstance(given, str):
+        return os.path.abspath(os.fspath(given))
+    if not given or is_url(given):
+        return given
+    if _is_link_without_scheme(given) and local_file(given, os.getcwd()) is None:
+        return _as_link(given)
+    return os.path.abspath(given)
 
 
 def absolute_form(path: str) -> str | None:
