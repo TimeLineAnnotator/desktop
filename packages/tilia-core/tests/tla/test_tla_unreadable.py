@@ -1125,6 +1125,26 @@ def test_a_next_that_names_no_beat_of_its_timeline_is_refused(names):
     assert error.place == place(BEAT_1 + "/measure/next/1")
 
 
+def test_a_next_that_names_a_downbeat_of_another_beat_timeline_is_refused():
+    other = make_broken.make_id(101)
+
+    def change(content):
+        content["timelines"][IDS["nothing"]] = {
+            "kind": "Beat",
+            "name": "Bars",
+            "ordinal": 6,
+            "height": 35,
+            "components": {other: {"kind": "BEAT", "time": 0.0, "measure": {}}},
+        }
+        _beat_1(content)["measure"]["next"] = [other]
+
+    error = refusal(edited(change))
+    assert error.message == (
+        f'a measure is followed by "{other}", which isn\'t a beat of its timeline'
+    )
+    assert error.place == place(BEAT_1 + "/measure/next/0")
+
+
 def test_a_next_that_names_a_component_of_another_kind_in_its_timeline_is_refused():
     def change(content):
         components = timeline(content, "beats")["components"]
@@ -1154,10 +1174,17 @@ def test_a_next_may_name_a_downbeat_without_a_time():
         _beat_2(content)["measure"] = {}
         del _beat_2(content)["time"]
 
-    doc = tla.loads(edited(change))
+    data = edited(change)
+    doc = tla.loads(data)
     assert [w.place for w in doc.warnings] == [
         place("/timelines/{beats}/components/{beat_2}")
     ]
+    # The table names rows: the downbeat without a time starts none, so it
+    # is left out of the row's next, and kept in the file.
+    (row,) = named(doc, "Beats").measures.rows
+    assert row.id == IDS["beat_1"]
+    assert row.next == []
+    assert tla.canonical_bytes(doc) == data
 
 
 @pytest.mark.parametrize(

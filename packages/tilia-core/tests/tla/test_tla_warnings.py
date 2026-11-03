@@ -483,6 +483,37 @@ def test_a_closing_tap_with_a_measure_mark_is_kept_with_a_warning():
 
 
 @pytest.mark.parametrize(
+    "following",
+    [
+        [make_broken.make_id(102)],  # names nothing
+        [make_broken.make_id(101)],  # a beat without a mark
+        [IDS["beat_1"]],  # a downbeat
+    ],
+    ids=["nothing", "a beat without a mark", "a downbeat"],
+)
+def test_a_closing_taps_next_is_kept_with_its_marks_warning(following):
+    # The mark starts no measure, so its next isn't checked as a measure's:
+    # it is kept, written back unchanged
+    # (TimeLineAnnotator/project-management#375).
+    def change(content):
+        components = content["timelines"][BEATS]["components"]
+        components[make_broken.make_id(101)] = {"kind": "BEAT", "time": 0.5}
+        beat(content, "beat_2").update(measure={"next": following}, closing=True)
+
+    data = file_with(change)
+    doc = read_back_unchanged(data)
+    assert [(w.place, w.message) for w in doc.warnings] == [
+        (
+            BEAT_2,
+            'a closing tap in the timeline "Beats" has a measure mark, which'
+            " starts no measure",
+        )
+    ]
+    (row,) = doc.timelines[BEATS].measures.rows
+    assert row.beats == [IDS["beat_1"], make_broken.make_id(101)]
+
+
+@pytest.mark.parametrize(
     "closing, measure", [(True, None), (False, {}), (None, {})], ids=str
 )
 def test_a_closing_tap_without_a_mark_or_a_downbeat_has_no_warning(closing, measure):
