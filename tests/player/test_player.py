@@ -1,4 +1,5 @@
 import os
+import time
 
 import pytest
 
@@ -42,3 +43,14 @@ class TestPlayer:
         self._load_example()
         commands.execute("media.toggle_play", False)
         post(Post.APP_CLEAR)
+
+
+class TestClearWithoutMedia:
+    def test_does_not_wait_for_the_engine_to_stop(self, tilia):
+        # With nothing loaded the engine is already stopped, so it never
+        # reports stopping. Clearing used to wait the whole 200ms timeout for
+        # that report, which every test's teardown paid.
+        start = time.monotonic()
+        post(Post.APP_CLEAR)
+
+        assert time.monotonic() - start < 0.1
