@@ -229,13 +229,14 @@ def _result(
         return FileResult(
             path=relative, outcome=Outcome.CURRENT, from_version=FORMAT_VERSION
         )
-    own = set(migrated.warnings)  # what `changes` counts
     result = FileResult(
         path=relative,
         outcome=Outcome.WOULD_MIGRATE,
         from_version=document.format_version,
         changes=dict(migrated.changes),
-        warnings=[warning for warning in document.warnings if warning not in own],
+        # A document's warnings are the migration's, which `changes` counts,
+        # then the check's. By their order: the reader adds each one's line.
+        warnings=document.warnings[len(migrated.warnings) :],
     )
     if apply:
         result.outcome, result.reason, result.traceback = _write(path, document)
