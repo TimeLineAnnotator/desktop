@@ -126,7 +126,7 @@ class TestColumnsAndCells:
             "label,time\nfirst",
             'time,label\n"   ",first',
             'time,label\n"\t",first',
-            'time,label\n" ",first',
+            'time,label\n"\u00a0",first',
         ],
         ids=["empty", "too short", "only spaces", "a tab", "a no-break space"],
     )
@@ -139,7 +139,7 @@ class TestColumnsAndCells:
         assert target.components == {}
 
     @pytest.mark.parametrize(
-        "cell", ["  ", "\t", " "], ids=["spaces", "a tab", "a no-break space"]
+        "cell", ["  ", "\t", "\u00a0"], ids=["spaces", "a tab", "a no-break space"]
     )
     def test_a_label_or_a_comment_of_only_whitespace_is_empty(self, imported, cell):
         result, target, _ = imported(f"time,label,comments\n1,{cell},{cell}\n")
