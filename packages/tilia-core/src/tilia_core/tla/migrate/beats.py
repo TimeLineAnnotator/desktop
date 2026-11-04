@@ -36,6 +36,7 @@ from typing import Any
 from tilia_core.labels import nfc
 from tilia_core.tla.errors import printable
 from tilia_core.tla.layout import TIMELINE_SHAPES, pointer_to
+from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import (
     ReadWarning,
     measures_of,
@@ -284,13 +285,14 @@ def convert(
     content: dict[str, Any],
     warnings: list[ReadWarning],
     changes: dict[str, int],
+    places: OldPlaces,
 ) -> None:
     """Turn the beat timelines of an old file's content, in the current
     format but with the old ids, into marks on their downbeats, in place.
     `old` is the old file's content, with its timelines under the same ids.
     What is dropped is added to `warnings`, with its place in the old file,
-    and the measures with more than one beat unit are counted in
-    `changes`."""
+    and the measures with more than one beat unit are counted in `changes`.
+    `places` learns where each beat unit moved onto a beat was."""
     length = content["media"]["length"]
     for key, timeline in content["timelines"].items():
         if timeline_kind_from_file(timeline["kind"]) != "beat":
@@ -301,7 +303,7 @@ def convert(
             # Files from before time signatures: written, since the default
             # is true (desktop#621's rule).
             timeline["show_time_signatures"] = False
-        _Converted(timeline, place, length, warnings, changes).convert()
+        _Converted(timeline, place, length, warnings, changes, places).convert()
 
 
 class _Converted:
@@ -314,12 +316,14 @@ class _Converted:
         length: int | float | None,
         warnings: list[ReadWarning],
         changes: dict[str, int],
+        places: OldPlaces,
     ) -> None:
         self.timeline = timeline
         self.place = place
         self.length = length  # the media's, in seconds, when the file says
         self.warnings = warnings
         self.changes = changes
+        self.places = places
 
     def _count(self, change: str) -> None:
         self.changes[change] = self.changes.get(change, 0) + 1
@@ -463,6 +467,11 @@ class _Converted:
                 if component.get("assumed"):
                     unit["assumed"] = True
                 beat["beat_unit"] = unit
+                # A key of its beat now, which the old file doesn't have: what
+                # the check says about it is named at the unit's own place.
+                self.places.moved(
+                    pointer_to(self._at(named), "beat_unit"), self._at(component_id)
+                )
                 continue
             self._warn(
                 self._at(component_id),

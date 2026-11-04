@@ -131,7 +131,7 @@ def migrate(
     migration.check(old)
     old = old_migrations.migrate(old)
     content = migration.to_current(old)
-    beats.convert(old, content, migration.warnings, migration.changes)
+    beats.convert(old, content, migration.warnings, migration.changes, migration.places)
     # `to_current` has made the legacy scores
     # (TimeLineAnnotator/project-management#182) and moved the comments' marks
     # into fields (TimeLineAnnotator/project-management#180), and `beats` the

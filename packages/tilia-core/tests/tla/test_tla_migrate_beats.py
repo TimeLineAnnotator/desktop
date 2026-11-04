@@ -895,6 +895,53 @@ def test_a_list_the_old_file_doesnt_have_is_named_at_its_timelines_line():
     assert warning.line == line_of(data, b'"9": {')
 
 
+def test_a_measures_second_beat_unit_is_named_at_its_old_place_and_line():
+    data = indented(
+        with_beat_units(
+            [float(t) for t in range(8)],
+            beat_unit(10, 4, "1"),
+            beat_unit(12, 8, "3"),
+        )
+    )
+    (warning,) = tla.loads(data).warnings
+    assert warning.place == "/timelines/9/components/101"
+    assert warning.line == line_of(data, b'"101": {')
+
+
+def migrated_beat(content, attribute):
+    """What the migration gives for the old file `content`, and where the
+    beat that has `attribute` is in it."""
+    migrated = to_1.migrate(json.loads(json.dumps(content)))
+    timeline_id, timeline = next(
+        (key, timeline)
+        for key, timeline in migrated.content["timelines"].items()
+        if timeline["kind"] == "Beat"
+    )
+    beat_id = next(
+        key for key, beat in timeline["components"].items() if attribute in beat
+    )
+    return migrated, f"/timelines/{timeline_id}/components/{beat_id}"
+
+
+def test_a_moved_beat_unit_and_what_it_holds_were_at_its_own_place():
+    content = with_beat_units([0.0, 1.0, 2.0], beat_unit(11, 8, "3"))
+    migrated, beat = migrated_beat(content, "beat_unit")
+    old = "/timelines/9/components/100"
+    assert migrated.places.old(f"{beat}/beat_unit") == old
+    assert migrated.places.old(f"{beat}/beat_unit/units") == f"{old}/units"
+    # The beat it moved onto keeps its own place.
+    assert migrated.places.old(beat) == "/timelines/9/components/11"
+    assert migrated.places.old(f"{beat}/time") == "/timelines/9/components/11/time"
+
+
+def test_a_default_unit_was_nowhere_in_the_old_file():
+    migrated, beat = migrated_beat(old_file(beat_timeline([0.0, 1.0])), "beat_unit")
+    assert (
+        migrated.places.old(f"{beat}/beat_unit")
+        == "/timelines/9/components/10/beat_unit"
+    )
+
+
 UNKNOWN_ID = "01900000-0000-7000-8000-000000000000"
 
 
