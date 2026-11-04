@@ -43,10 +43,16 @@ from tilia_core.tla.model import (
     timeline_kind_from_file,
 )
 
-# The report's counts: measures with more than one beat unit, and
-# desktop#621's beat units that TiLiA drops when it opens the file.
+# The report's counts: measures with more than one beat unit, and each of the
+# migration's warnings about a beat timeline, since the report sums those up
+# by their counts rather than list them (contracts/command.md): desktop#621's
+# beat units that TiLiA drops when it opens the file, the beats it drops, those
+# it moves onto the end of the media, and the timelines it can't open.
 TWO_BEAT_UNITS = "measures_with_two_beat_units"
 UNITS_DROPPED = "beat_units_dropped"
+BEATS_DROPPED = "beats_dropped"
+BEATS_MOVED = "beats_moved"
+CANT_OPEN = "beat_timelines_tilia_cant_open"
 # How far past the end of the media TiLiA moves a time onto it when it opens
 # a file (its DURATION_JITTER_TOLERANCE), rather than dropping its component.
 _JITTER = 2.0
@@ -290,9 +296,9 @@ def convert(
     """Turn the beat timelines of an old file's content, in the current
     format but with the old ids, into marks on their downbeats, in place.
     `old` is the old file's content, with its timelines under the same ids.
-    What is dropped is added to `warnings`, with its place in the old file,
-    and the measures with more than one beat unit are counted in `changes`.
-    `places` learns where each beat unit moved onto a beat was."""
+    What is dropped or moved is added to `warnings`, with its place in the old
+    file, and counted in `changes`, as are the measures with more than one beat
+    unit. `places` learns where each beat unit moved onto a beat was."""
     length = content["media"]["length"]
     for key, timeline in content["timelines"].items():
         if timeline_kind_from_file(timeline["kind"]) != "beat":
@@ -325,11 +331,9 @@ class _Converted:
         self.changes = changes
         self.places = places
 
-    def _count(self, change: str) -> None:
-        self.changes[change] = self.changes.get(change, 0) + 1
-
-    def _warn(self, place: str, message: str) -> None:
+    def _warn(self, place: str, message: str, change: str) -> None:
         self.warnings.append(ReadWarning(place=place, line=None, message=message))
+        self.changes[change] = self.changes.get(change, 0) + 1
 
     def _at(self, component_id: str) -> str:
         return pointer_to(pointer_to(self.place, "components"), component_id)
@@ -355,6 +359,7 @@ class _Converted:
                 pointer_to(self.place, name),
                 f"TiLiA can't open {self.which()}: {reason}; its beats are kept,"
                 " with marks on the measures TiLiA would show before that",
+                CANT_OPEN,
             )
         found = marks(fitted, lists["measures_to_force_display"], len(beats))
         for index, mark in found.items():
@@ -415,6 +420,7 @@ class _Converted:
                         f"a beat at {_json(given)}, past the end of the media"
                         f" ({_json(length)}), moved onto it, as TiLiA moves it"
                         " when it opens the file",
+                        BEATS_MOVED,
                     )
                 kept.append((component_id, component))
                 continue
@@ -422,6 +428,7 @@ class _Converted:
             self._warn(
                 self._at(component_id),
                 f"{message} dropped, as TiLiA drops it when it opens the file",
+                BEATS_DROPPED,
             )
         return kept
 
@@ -477,5 +484,5 @@ class _Converted:
                 self._at(component_id),
                 f"a beat unit that {reason} dropped, as TiLiA drops it when it"
                 " opens the file",
+                UNITS_DROPPED,
             )
-            self._count(UNITS_DROPPED)
