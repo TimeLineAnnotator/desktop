@@ -329,6 +329,41 @@ def test_the_migration_warns_about_nothing_in_a_score_timeline():
     assert loads(old_file_content()).warnings == []
 
 
+def test_a_note_in_a_marker_timeline_stays_as_it_is():
+    # A legacy score's conversion is to a score timeline's own components. Of
+    # one note in both, only the score's has its comment's mark moved: in a
+    # timeline that doesn't hold notes it keeps every key but its stored hash,
+    # as the check keeps it.
+    content = old_file_content()
+    note = content["timelines"]["7"]["components"]["8"]
+    note["comments"] = "tag=check"
+    content["timelines"]["3"] = {
+        "kind": "Marker",
+        "height": 30,
+        "is_visible": True,
+        "name": "",
+        "ordinal": 3,
+        "components": {"4": copy.deepcopy(note)},
+    }
+    assert to_1.migrate(copy.deepcopy(content)).changes == {"marks_moved": 1}
+    doc = loads(content)
+    (warning,) = doc.warnings
+    assert warning.place == "/timelines/3/components/4"
+    assert warning.message.endswith("doesn't have: it is kept as it is")
+
+    written = json.loads(tla.canonical_bytes(doc))
+    by_kind = {tl["kind"]: tl for tl in written["timelines"].values()}
+    (kept,) = by_kind["Marker"]["components"].values()
+    assert kept == {key: value for key, value in note.items() if key != "hash"}
+    (own,) = (
+        component
+        for component in by_kind["Score"]["components"].values()
+        if component["kind"] == "NOTE"
+    )
+    assert own["comments"] == ""
+    assert own["metadata"] == {"tags": ["check"]}
+
+
 # The document id
 
 
