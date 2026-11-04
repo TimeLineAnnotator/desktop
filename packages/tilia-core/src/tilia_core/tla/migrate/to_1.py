@@ -391,7 +391,7 @@ class _Migration:
             # Text, as the current format writes it (contracts/migration.md,
             # *Beat timelines*, step 6); "4", the default, is then left out.
             converted["beat_pattern"] = _pattern(converted["beat_pattern"])
-        if isinstance(converted.get("rows"), list):
+        if kind == "range" and isinstance(converted.get("rows"), list):
             converted["rows"] = [
                 _without_defaults(row, RANGE_ROW_SHAPE)
                 if isinstance(row, dict)
