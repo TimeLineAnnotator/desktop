@@ -462,6 +462,45 @@ def test_one_mark_moved_is_worded_in_the_singular(tmp_path, capsys):
     ) in capsys.readouterr().out
 
 
+def test_a_file_with_a_score_is_migrated_with_it(tmp_path, capsys):
+    path = tmp_path / "piece.tla"
+    place(path, OLD / "0.7.0.tla")
+    before = tla.read(path)
+
+    assert migrate_command.main([str(tmp_path), "--apply"]) == 0
+
+    assert capsys.readouterr().out.endswith("\nWrote 1 file.\n")
+    written = json.loads(path.read_bytes())
+    (score,) = written["scores"]
+    assert score["format"] == "svg-osmd-legacy"
+    (timeline,) = (tl for tl in written["timelines"].values() if tl["kind"] == "Score")
+    assert timeline["score"] == score["id"]
+    assert tla.canonical_bytes(tla.read(path)) == tla.canonical_bytes(before)
+
+    assert migrate_command.main([str(tmp_path), "--apply"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Already in the new format: 1 file\n" in out
+    assert out.endswith("\nNothing was written.\n")
+
+
+def test_a_score_it_cant_migrate_leaves_its_file_alone_naming_the_line(
+    tmp_path, capsys
+):
+    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old["timelines"]["34"]["svg_data"] = 7
+    data = json.dumps(old, indent=2).encode()
+    place(tmp_path / "piece.tla", data)
+    line = data[: data.index(b'"svg_data": 7')].count(b"\n") + 1
+
+    assert migrate_command.main([str(tmp_path)]) == 1
+
+    assert (
+        f"  piece.tla               can't read (line {line}):"
+        " expected text at /timelines/34/svg_data\n"
+    ) in capsys.readouterr().out
+
+
 def test_a_change_the_command_has_no_words_for_is_printed_as_counted(
     clean, monkeypatch, capsys
 ):

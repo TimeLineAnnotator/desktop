@@ -1642,12 +1642,14 @@ CURRENT_TIMELINE_KEYS = [(kind, "measure_table") for kind in TIMELINE_KINDS] + [
 def test_a_timeline_key_of_the_current_format_is_refused_at_its_old_place(kind, key):
     content = edited(with_timeline_of_kind(kind, 30))
     content["timelines"]["9"][key] = "3"
+    data = indented(content)
     with pytest.raises(tla.UnreadableFile) as error:
-        loads(content)
+        tla.loads(data)
     assert (error.value.place, error.value.message) == (
         f"/timelines/9/{key}",
         f'a file from TiLiA 0.6.0 can\'t hold "{key}", a key of the current format',
     )
+    assert error.value.line == line_of(data, f'"{key}": "3"'.encode())
 
 
 def test_a_timeline_key_of_the_current_format_is_refused_in_any_old_spelling():
