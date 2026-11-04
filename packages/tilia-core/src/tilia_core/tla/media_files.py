@@ -91,18 +91,21 @@ def as_media_path(given: str | os.PathLike[str]) -> str:
     A URL, with a scheme, is returned as it is, and so is an empty text. A
     path is returned absolute, from the working folder, links not followed
     (`os.path.abspath`): the writer stores it relative to the file it
-    writes, which a path relative to the working folder isn't. A text
-    without a scheme that matches TiLiA's YouTube pattern, such as
-    `youtu.be/…` or `youtube.com/clip.mp4`, is such a path when a file is
-    there, and otherwise a YouTube link, returned with `https://`. One that
-    starts with `//`, such as `//www.youtube.com/…`, is a link, returned with
-    `https:`, and never looked for on a server, which on Windows could block
-    for seconds and reach the host the link names: as the migration takes an
-    old one. Any other path that starts with `//` is a server path. A path
-    object is a path, never a link: its text differs by system. A path of the
-    other system's form (`C:\\…` or `\\\\server\\share\\…` on macOS and Linux,
-    `/…` on Windows) is already absolute in its own form, and is returned as
-    it is: the working folder says nothing about it."""
+    writes, which a path relative to the working folder isn't. Only where
+    that wouldn't name what the system reads, on macOS and Linux, are links
+    followed (`_absolute`). A text without a scheme that matches TiLiA's
+    YouTube pattern, such as `youtu.be/…` or `youtube.com/clip.mp4`, is such
+    a path when a file is there, and otherwise a YouTube link, returned with
+    `https://`. One that starts with `//`, such as `//www.youtube.com/…`, is a
+    link, returned with `https:`, and never looked for on a server, which on
+    Windows could block for seconds and reach the host the link names: as the
+    migration takes an old one. Any other path that starts with `//` is a
+    server path, unless it names a file on macOS or Linux, which read `//` as
+    the root: then it is that file's path, with one slash. A path object is a
+    path, never a link: its text differs by system. A path of the other
+    system's form (`C:\\…` or `\\\\server\\share\\…` on macOS and Linux, `/…`
+    on Windows) is already absolute in its own form, and is returned as it
+    is: the working folder says nothing about it."""
     if not isinstance(given, str):
         return _absolute(os.fspath(given))
     if not given or is_url(given):
@@ -115,9 +118,34 @@ def as_media_path(given: str | os.PathLike[str]) -> str:
 
 
 def _absolute(path: str) -> str:
-    """`path`, not a link, absolute from the working folder; as it is when
-    this system mustn't read it (`_not_for_this_system`)."""
-    return path if _not_for_this_system(path) else os.path.abspath(path)
+    """`path`, not a link, absolute from the working folder, links not
+    followed; as it is when this system mustn't read it
+    (`_not_for_this_system`).
+
+    macOS and Linux read two paths otherwise than `os.path.abspath` does
+    (FR-033). `//home/me/rec.wav` names a file there, and would keep its two
+    slashes, which the core reads as a Windows server path: they become the
+    one root. And `link/../rec.wav` goes up from the link's target, where
+    `os.path.abspath` goes up from the link, by name, to no file or another
+    one: when it gives another than `path` names, links are followed. Windows
+    reads `link/..` by name too, so nothing is looked up there, where a
+    `//server/share` path would go to the network."""
+    if SYSTEM == POSIX and path.startswith("//") and os.path.isfile(path):
+        path = "/" + path.lstrip("/")
+    if _not_for_this_system(path):
+        return path
+    absolute = os.path.abspath(path)
+    if SYSTEM == POSIX and not _same_file(absolute, path):
+        return str(Path(path).resolve())
+    return absolute
+
+
+def _same_file(path: str, other: str) -> bool:
+    """Whether `path` and `other` name one file, or neither names any."""
+    found = os.path.isfile(path)
+    if found != os.path.isfile(other):
+        return False
+    return not found or os.path.samefile(path, other)
 
 
 def absolute_form(path: str) -> str | None:

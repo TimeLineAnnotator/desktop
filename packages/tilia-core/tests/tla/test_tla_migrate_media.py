@@ -528,24 +528,33 @@ def test_bytes_without_a_place_or_a_file_path_keep_the_path(where):
 # An old file's fingerprint: from its paths as stored (FR-043)
 
 
-@pytest.fixture
-def linked_folder(tmp_path):
-    """A folder, and a link to it: a junction on Windows, which needs no
-    privilege, a symbolic link elsewhere."""
-    real = tmp_path / "real"
-    real.mkdir()
-    link = tmp_path / "link"
+def link_folder(link, target):
+    """A link to a folder: a junction on Windows, which needs no privilege, a
+    symbolic link elsewhere."""
     if WINDOWS:
         import _winapi
 
-        _winapi.CreateJunction(str(real), str(link))
+        _winapi.CreateJunction(str(target), str(link))
     else:
-        link.symlink_to(real, target_is_directory=True)
-    yield real, link
+        link.symlink_to(target, target_is_directory=True)
+
+
+def remove_link_to_folder(link):
     if WINDOWS:
         os.rmdir(link)  # the junction, not what it names
     else:
         link.unlink()
+
+
+@pytest.fixture
+def linked_folder(tmp_path):
+    """A folder, and a link to it."""
+    real = tmp_path / "real"
+    real.mkdir()
+    link = tmp_path / "link"
+    link_folder(link, real)
+    yield real, link
+    remove_link_to_folder(link)
 
 
 def test_an_old_file_read_through_a_link_is_written_as_expected(linked_folder, where):
@@ -949,6 +958,91 @@ def test_a_given_path_is_stored_so_that_its_media_is_found(
     tla.write(target, doc)
     assert json.loads(target.read_bytes())["media"]["path"] == f"../work/{given}"
     assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
+
+
+@pytest.fixture
+def linked_audio(tmp_path):
+    """A corpus whose `audio` folder is a link to another disk's, which holds
+    `rec.wav`."""
+    (tmp_path / "corpus").mkdir()
+    media_file(tmp_path / "ext" / "audio" / "rec.wav")
+    link = tmp_path / "corpus" / "audio"
+    link_folder(link, tmp_path / "ext" / "audio")
+    yield link
+    remove_link_to_folder(link)
+
+
+def test_a_given_path_through_a_link_stays_through_it(linked_audio):
+    # The writer takes the folder it writes into without following links.
+    # Through the link's target, the path it stores would go out of the corpus
+    # and back in (FR-033).
+    given = str(linked_audio / "rec.wav")
+    assert tla.as_media_path(given) == given
+
+
+def test_a_given_relative_path_stays_through_a_link(linked_audio, monkeypatch):
+    # The link comes after the "..", so the two ways of reading it agree.
+    scripts = linked_audio.parent / "scripts"
+    scripts.mkdir()
+    monkeypatch.chdir(scripts)
+    assert tla.as_media_path("../audio/rec.wav") == str(linked_audio / "rec.wav")
+
+
+@posix_only
+@pytest.mark.parametrize(
+    "in_the_target, beside_the_link",
+    [(True, False), (True, True), (False, True)],
+    ids=["no file by name", "another file by name", "only another file by name"],
+)
+def test_a_given_parent_after_a_link_is_the_one_the_system_reads(
+    tmp_path, linked_audio, in_the_target, beside_the_link
+):
+    # The system goes up from the link's target, and `os.path.abspath`, by
+    # name, from the link: to no file, or to another one. Windows reads the
+    # name as `os.path.abspath` does.
+    expected = tmp_path / "ext" / "rec.wav"
+    if in_the_target:
+        media_file(expected)
+    if beside_the_link:
+        media_file(tmp_path / "corpus" / "rec.wav")
+    assert tla.as_media_path(f"{linked_audio}/../rec.wav") == str(expected)
+
+
+@posix_only
+def test_a_given_relative_parent_after_a_link_is_the_one_the_system_reads(
+    tmp_path, linked_audio, monkeypatch
+):
+    media_file(tmp_path / "ext" / "rec.wav")
+    monkeypatch.chdir(linked_audio.parent)
+    assert tla.as_media_path("audio/../rec.wav") == str(tmp_path / "ext" / "rec.wav")
+
+
+@posix_only
+@pytest.mark.parametrize("make", [str, Path, GivenPath], ids=["text", "Path", "object"])
+def test_two_slashes_before_a_given_file_are_the_one_root(tmp_path, make):
+    # `os.path.abspath` keeps them, as POSIX lets it; the core reads a path that
+    # starts with them as a server's, of Windows form, which isn't looked for
+    # here and which the writer doesn't make relative.
+    media = media_file(tmp_path / "rec.wav")
+    assert tla.as_media_path(make(f"/{media}")) == str(media)
+
+
+@posix_only
+def test_a_given_file_with_two_slashes_is_written_relative(tmp_path):
+    media = media_file(tmp_path / "rec.wav")
+    doc = tla.new_document()
+    doc.media_path, doc.media_length = tla.as_media_path(f"/{media}"), 10.0
+    target = tmp_path / "piece.tla"
+    tla.write(target, doc)
+    assert json.loads(target.read_bytes())["media"]["path"] == "rec.wav"
+
+
+@windows_only
+def test_a_given_server_path_isnt_looked_up_on_windows(servers):
+    # It would go to the network, and nothing here needs what it would find.
+    given = "//server-176/share/rec.wav"
+    assert Path(tla.as_media_path(given)) == Path(given)
+    assert servers.looked_up == []
 
 
 def test_the_lookup_doesnt_hide_its_module():
