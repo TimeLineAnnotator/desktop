@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
+from tilia_core.timemap import time_map_for
 from tilia_core.tla.migrate import beats, to_1
 
 OLD = Path(__file__).parent / "old"
@@ -395,8 +396,9 @@ def test_a_beat_at_the_time_of_an_earlier_one_is_dropped_with_a_warning():
     timeline = beat_timeline_of(doc)
     assert len(timeline.components) == 8
     assert table(doc) == [(1, "1", 4), (2, "2", 4)]
+    # The file `read` makes is on one line.
     assert [(w.place, w.line) for w in doc.warnings] == [
-        ("/timelines/9/components/21", None)
+        ("/timelines/9/components/21", 1)
     ]
     assert "same time" in doc.warnings[0].message
 
@@ -783,7 +785,7 @@ def test_a_timeline_tilia_cant_open_keeps_its_beats_with_a_warning():
     assert table(doc) == [(1, "1", 4), (2, "2", 8)]
     (warning,) = doc.warnings
     assert warning.place == "/timelines/9/measure_numbers"
-    assert warning.line is None
+    assert warning.line == 1  # the file `read` makes is on one line
     assert "can't open" in warning.message
 
 
@@ -837,3 +839,143 @@ def test_a_migrated_file_reads_back_to_the_same_bytes():
     again = tla.loads(data)
     assert tla.canonical_bytes(again) == data
     assert table(again) == table(doc) == [(0, "0", 1), (1, "1", 4), (2, "2", 4)]
+
+
+# What the migration and the check say about a beat timeline, in the old
+# file's terms: its old places, and the lines of its bytes
+# (TimeLineAnnotator/project-management#347).
+
+
+def line_of(data, *texts):
+    """The line of the last of `texts` in `data`, each found after the one
+    before it."""
+    position = 0
+    for text in texts:
+        position = data.index(text, position)
+    return data.count(b"\n", 0, position) + 1
+
+
+def indented(content):
+    """An old file's bytes with a key or an item on each line, as TiLiA
+    writes them."""
+    return json.dumps(content, indent=2).encode()
+
+
+def test_the_migrations_warnings_name_their_lines_in_the_old_file():
+    _, timeline = beat_timeline([0.0, 1.0, 2.0])
+    timeline["components"].update(
+        {
+            "20": {"kind": "BEAT", "time": 1.0},
+            "21": {"kind": "BEAT", "time": 500.0},
+            "22": {"kind": "BEAT"},
+            "23": {"kind": "BEAT", "time": 101.0},
+            "100": beat_unit(99),
+        }
+    )
+    timeline["beats_in_measure"] = [2, 2]
+    timeline["measure_numbers"] = [1]
+    data = indented(old_file((BEAT_TIMELINE, timeline)))
+    lines = {w.place: w.line for w in tla.loads(data).warnings}
+    assert lines == {
+        "/timelines/9/components/20": line_of(data, b'"20": {'),
+        "/timelines/9/components/21": line_of(data, b'"21": {'),
+        "/timelines/9/components/22": line_of(data, b'"22": {'),
+        "/timelines/9/components/23/time": line_of(data, b'"23": {', b'"time"'),
+        "/timelines/9/components/100": line_of(data, b'"100": {'),
+        "/timelines/9/measure_numbers": line_of(data, b'"measure_numbers"'),
+    }
+
+
+def test_a_list_the_old_file_doesnt_have_is_named_at_its_timelines_line():
+    _, timeline = beat_timeline([0.0, 1.0], beats_in_measure=[1, 1])
+    del timeline["measure_numbers"]
+    data = indented(old_file((BEAT_TIMELINE, timeline)))
+    (warning,) = tla.loads(data).warnings
+    assert warning.place == "/timelines/9/measure_numbers"
+    assert warning.line == line_of(data, b'"9": {')
+
+
+UNKNOWN_ID = "01900000-0000-7000-8000-000000000000"
+
+
+@pytest.mark.parametrize(
+    "keys, place, message, text",
+    [
+        (
+            {"time": "soon"},
+            "/time",
+            '"time" should be a number or null, not text',
+            b'"time": "soon"',
+        ),
+        (
+            {"measure": 3},
+            "/measure",
+            '"measure" should be an object or null, not a number',
+            b'"measure": 3',
+        ),
+        (
+            {"measure": {"number": "x"}},
+            "/measure/number",
+            '"number" should be an integer or null, not text',
+            b'"number": "x"',
+        ),
+        (
+            {"measure": {"next": [UNKNOWN_ID]}},
+            "/measure/next/0",
+            f'a measure is followed by "{UNKNOWN_ID}", which isn\'t a beat of its'
+            " timeline",
+            f'"{UNKNOWN_ID}"'.encode(),
+        ),
+        (
+            {"beat_unit": 3},
+            "/beat_unit",
+            '"beat_unit" should be an object or null, not a number',
+            b'"beat_unit": 3',
+        ),
+    ],
+)
+def test_what_a_beat_or_a_mark_breaks_is_refused_at_its_old_place_and_line(
+    keys, place, message, text
+):
+    _, timeline = beat_timeline([0.0, 1.0, 2.0, 3.0, 4.0])
+    timeline["components"]["11"].update(keys)
+    data = indented(old_file((BEAT_TIMELINE, timeline)))
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == message
+    assert error.value.place == f"/timelines/9/components/11{place}"
+    assert error.value.line == line_of(data, b'"11": {', text)
+
+
+def test_a_first_beat_without_a_mark_is_refused_at_its_old_place_and_line():
+    # Only a hand edit gives an old file a closing tap: the mark the migration
+    # puts on its first beat starts no measure.
+    _, timeline = beat_timeline([0.0, 1.0, 2.0])
+    timeline["components"]["10"]["closing"] = True
+    data = indented(old_file((BEAT_TIMELINE, timeline)))
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == (
+        'the first beat of the timeline "Beats" has no measure mark'
+    )
+    assert error.value.place == "/timelines/9/components/11"
+    assert error.value.line == line_of(data, b'"11": {')
+
+
+def test_the_time_map_reads_a_migrated_timeline():
+    doc = read(
+        old_file(
+            beat_timeline(
+                [float(t) for t in range(1, 15)],
+                beats_in_measure=[4, 4, 3, 3],
+                measure_numbers=[1, 2, 1, 2],
+            )
+        )
+    )
+    time_map = time_map_for(doc, beat_timeline_of(doc).id)
+    # One time per pass through a bar, the fraction counted in its own beats.
+    assert time_map.times_of(2) == [5.0, 12.0]
+    assert time_map.times_of(1, 0.5) == [3.0, 10.5]
+    # A time within the tolerance of a downbeat is on it.
+    assert time_map.positions(5.01, 5.01).downbeat is True
+    assert time_map.positions(5.01, 5.01).bar_count == 2
