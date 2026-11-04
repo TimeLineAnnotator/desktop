@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import bisect
 import os
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -180,7 +180,8 @@ def _kept(
         found = checked[one.component.id]
         if not found.outcome:
             reason = found.outcome.reason
-            problems.append(_problem(path, one.line, _column_of(reason), reason))
+            column = _column_of(reason, one.component.attrs)
+            problems.append(_problem(path, one.line, column, reason))
             continue
         if not found.color:
             one.component.attrs["color"] = _DEFAULTS["color"]
@@ -198,11 +199,11 @@ def _kept(
     return kept
 
 
-def _column_of(reason: str) -> str | None:
-    """The column a rule's reason is about, when it is about one: the others are
-    about a start and an end together."""
+def _column_of(reason: str, attrs: Mapping[str, Any]) -> str | None:
+    """The column a rule's reason about `attrs` is about, when it is about one: the
+    others are about a start and an end together."""
     for column in _TIMES:
-        if reason.endswith(rules.not_valid(column, "")):
+        if reason == rules.not_valid(column, attrs[column]):
             return column
     return None
 
