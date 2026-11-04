@@ -658,3 +658,32 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(0, 0.5) == []
         assert beat_tl.get_time_by_measure(0, 1) == []
         assert beat_tl.get_time_by_measure(0, 1, True) == []
+
+
+class TestAddMeasureZero:
+    def test_timeline_with_no_measure_2(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2], [1, 3, 4])
+
+        assert beat_tl.add_measure_zero(0.25) == (True, "")
+
+        # A quarter of the first measure, which lasts 2 s, before its 1 s.
+        assert beat_tl[0].time == 0.5
+        assert beat_tl.measure_numbers[0] == 0
+        assert beat_tl.beats_in_measure[0] == 1
+
+    def test_first_measure_is_not_measure_1(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2], [5, 1, 2])
+
+        assert beat_tl.add_measure_zero(0.25) == (True, "")
+
+        assert beat_tl[0].time == 0.5
+        assert beat_tl.measure_numbers[0] == 0
+        assert beat_tl.beats_in_measure[0] == 1
+
+    def test_not_enough_space_before_the_first_measure(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2], [1, 3, 4])
+
+        success, _ = beat_tl.add_measure_zero(1)
+
+        assert not success
+        assert len(beat_tl) == 6

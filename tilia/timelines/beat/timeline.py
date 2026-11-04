@@ -757,13 +757,14 @@ class BeatTimeline(Timeline):
                 "Timeline has less than two measures. Cannot estimate measure zero duration.",
             )
 
-        measure_one_start = self.get_time_by_measure(1)[0]
-        measure_two_start = self.get_time_by_measure(2)[0]
+        # The first two measures, whatever their numbers: the new measure goes
+        # before the first, and is estimated from how long the first lasts.
+        first_start, second_start = (
+            self[i].time for i in self.beats_that_start_measures[:2]
+        )
 
-        measure_zero_duration = (
-            measure_two_start - measure_one_start
-        ) * fraction_of_measure_one
-        measure_zero_start = measure_one_start - measure_zero_duration
+        measure_zero_duration = (second_start - first_start) * fraction_of_measure_one
+        measure_zero_start = first_start - measure_zero_duration
         if measure_zero_start < 0:
             return (
                 False,

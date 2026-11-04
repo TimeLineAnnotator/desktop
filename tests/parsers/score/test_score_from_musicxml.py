@@ -384,6 +384,26 @@ class TestMeasureZeroNotInTimeline:
         assert len(clefs) == 1
         assert clefs[0].measure == 0
 
+    def test_user_accepts_measure_zero_import_with_no_measure_2(
+        self, qtui, beat_tl, score_tl, tmp_path
+    ):
+        beat_tl.set_data("beat_pattern", [1])
+        beat_tl.create_beat(1)
+        beat_tl.create_beat(2)
+        beat_tl.create_beat(3)
+        beat_tl.measure_numbers = [1, 3, 4]
+        beat_tl.recalculate_measures()
+
+        with patch_yes_or_no_dialog(True):
+            success, errors = _import_with_patch(score_tl, beat_tl, self.xml, tmp_path)
+
+        assert success
+        assert errors == []
+        # A quarter of the first measure, which lasts 1 s, before its 1 s.
+        assert beat_tl[0].time == 0.75
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        assert [note.start_measure for note in notes] == [0, 1]
+
     def test_user_refuses_measure_zero_import(self, qtui, beat_tl, score_tl, tmp_path):
         beat_tl.set_data("beat_pattern", [1])
         beat_tl.create_beat(1)
