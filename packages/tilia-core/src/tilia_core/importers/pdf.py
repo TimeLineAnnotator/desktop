@@ -1,7 +1,8 @@
 """PDF page markers from a CSV, as TiLiA's PDF importer reads them.
 
 Page numbers are checked against the PDF's page count, read with pypdf. A PDF
-that can't be found or read counts 0 pages, as in TiLiA, so every row is refused.
+that can't be found or read counts 0 pages, as in TiLiA, and so does a timeline
+with no PDF, so every row is refused.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ _NO_MEDIA_LENGTH = (
     " set a duration with 'metadata set-media-length'."
 )
 _CANT_BE_READ = "The PDF '{}' can't be read: every page number is refused"
+_NO_PDF = "This timeline has no PDF."
 
 _REQUIRED = ("page_number", "time")  # in the order TiLiA looks for them
 _NUMBERS: tuple[tuple[str, Callable[[str], float]], ...] = (
@@ -64,7 +66,9 @@ def import_by_time(
     stored = document.timelines[target].attrs.get("path", "")
     pdf = _pdf_file(stored, document.origin)
     page_count = None if pdf is None else _page_count(pdf)
-    notes = [] if page_count is not None else [_CANT_BE_READ.format(pdf or stored)]
+    notes = []
+    if page_count is None:
+        notes.append(_CANT_BE_READ.format(pdf or stored) if stored else _NO_PDF)
 
     problems: list[RowProblem] = []
     built: list[tuple[CsvRow, tla.Component]] = []
