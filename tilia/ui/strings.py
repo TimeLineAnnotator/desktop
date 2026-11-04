@@ -21,6 +21,9 @@ BEAT_PATTERN_TABLE_TOOLTIP = """Double-click a cell to change it:
   - Taps: what each tap is worth, in units of the denominator, e.g. '3/2 3/2 1'.
 Highlighted bars change when you press OK. Grey bars aren't tapped yet."""
 BEAT_PATTERN_ASSUMED_TIME_SIGNATURE = "{} (assumed)"
+BEAT_PATTERN_UNTAPPED_NUMBERS_ERROR = (
+    "These bars aren't tapped yet, so their numbers have to count on from {}."
+)
 BEAT_PATTERN_ROW_REFILLED = (
     "The beats after '{}' make more bars like these, so the row doesn't change."
 )

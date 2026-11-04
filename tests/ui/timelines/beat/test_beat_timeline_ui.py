@@ -666,6 +666,23 @@ class TestEditBarsDialog:
         assert timeline.measure_numbers == [1, 2, 10, 11, 12, 13]
         assert timeline.measures_to_force_display == [2]
 
+    def test_numbering_bars_not_tapped_yet_changes_the_pattern(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-2"),
+            )
+
+        timeline = tluis[0].timeline
+        assert timeline.beat_pattern == "4/4 3/4 3[2/4]"
+
+        add_beats(range(13))
+
+        assert timeline.beats_in_measure == [4, 3, 2, 2, 2]
+        assert timeline.measure_numbers == [1, 2, 3, 4, 5]
+
     def test_rows_reflect_the_numbers(self, tluis):
         add_beat_timeline_with_pattern("4/4")
         add_beats(range(16))
