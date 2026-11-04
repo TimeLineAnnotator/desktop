@@ -415,6 +415,13 @@ class _Migration:
             # Kept as it is, as the check keeps a component of a kind its
             # timeline doesn't hold: nothing but its stored hash goes.
             return converted
+        if kind == "beat" and timeline_kind == "beat":
+            # Only a hand edit gives an old beat one: the marks come from the
+            # lists by measure, so its value would be lost, or start a measure
+            # TiLiA doesn't show. A null is a missing key.
+            if converted.get("measure") is not None:
+                raise self._current_key("measure", pointer_to(place, "measure"))
+            converted.pop("measure", None)
         if kind == "hierarchy":
             for name in ("formal_type", "formal_function"):
                 dropped = converted.pop(name, None)

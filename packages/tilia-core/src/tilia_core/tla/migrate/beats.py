@@ -46,16 +46,16 @@ from tilia_core.tla.model import (
 # The report's counts: measures with more than one beat unit, and each of the
 # migration's warnings about a beat timeline, since the report sums those up
 # by their counts rather than list them (contracts/command.md): desktop#621's
-# beat units that TiLiA drops when it opens the file, the beats it drops, those
-# it moves onto the end of the media, and the timelines it can't open.
+# beat units that TiLiA drops when it opens the file, the beats it drops, and
+# the timelines it can't open.
 TWO_BEAT_UNITS = "measures_with_two_beat_units"
 UNITS_DROPPED = "beat_units_dropped"
 BEATS_DROPPED = "beats_dropped"
-BEATS_MOVED = "beats_moved"
 CANT_OPEN = "beat_timelines_tilia_cant_open"
-# How far past the end of the media TiLiA moves a time onto it when it opens
-# a file (its DURATION_JITTER_TOLERANCE), rather than dropping its component.
-_JITTER = 2.0
+# How far past the end of the media TiLiA keeps a time when it opens a file
+# (its DURATION_JITTER_TOLERANCE), rather than dropping its component. A whole
+# number, so that a length too large for a float can be added to.
+_TOLERANCE = 2
 # The lists by measure, which marks on the beats replace.
 _LISTS = ("beats_in_measure", "measure_numbers", "measures_to_force_display")
 _UNIT = "BEAT_UNIT"  # desktop#621's beat units, in the files it writes
@@ -296,9 +296,9 @@ def convert(
     """Turn the beat timelines of an old file's content, in the current
     format but with the old ids, into marks on their downbeats, in place.
     `old` is the old file's content, with its timelines under the same ids.
-    What is dropped or moved is added to `warnings`, with its place in the old
-    file, and counted in `changes`, as are the measures with more than one beat
-    unit. `places` learns where each beat unit moved onto a beat was."""
+    What is dropped is added to `warnings`, with its place in the old file, and
+    counted in `changes`, as are the measures with more than one beat unit.
+    `places` learns where each beat unit moved onto a beat was."""
     length = content["media"]["length"]
     for key, timeline in content["timelines"].items():
         if timeline_kind_from_file(timeline["kind"]) != "beat":
@@ -382,26 +382,25 @@ class _Converted:
 
     def beats(self, components: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
         """The beats TiLiA keeps when it opens the file, in the file's order,
-        as TiLiA 0.7.0 and 0.7.1 make them. A time less than 2 s past the end
-        of the media is moved onto it (`_clamp_jitter_overflow`), with a
-        warning. Then a beat without a time, outside the media
-        (`validate_time_is_inbounds`), or at the time of a beat before it, is
-        dropped from `components`, with a warning. The media's length is the
-        file's: without one, TiLiA takes the media's own, which the core
-        doesn't open, and only a time before 0 is outside."""
+        as `dev` makes them since desktop#613. A beat without a time, outside
+        the media (`validate_time_is_inbounds`), or at the time of a beat
+        before it, is dropped from `components`, with a warning. A time up to
+        2 s past the end of the media isn't outside it (`is_past_media_end`):
+        it stays as the file has it, as the core keeps any kind's
+        (TimeLineAnnotator/project-management#432), and breaks a rule that the
+        reader warns about (TimeLineAnnotator/project-management#297). The
+        media's length is the file's: without one, TiLiA takes the media's
+        own, which the core doesn't open, and only a time before 0 is
+        outside."""
         kept: list[tuple[str, dict[str, Any]]] = []
         times: set[int | float] = set()
         length = self.length
         for component_id, component in list(components.items()):
             if component.get("kind") != "BEAT":
                 continue
-            time = given = component.get("time")
-            moved = _is_number(time) and length is not None
-            moved = moved and length < time < length + _JITTER
-            if moved:
-                time = length
+            time = component.get("time")
             outside = _is_number(time) and (
-                time < 0 or (length is not None and time > length)
+                time < 0 or (length is not None and time > length + _TOLERANCE)
             )
             if time is None:
                 message = "a beat without a time"
@@ -413,15 +412,6 @@ class _Converted:
             else:
                 if _is_number(time):
                     times.add(time)
-                if moved:
-                    component["time"] = time
-                    self._warn(
-                        pointer_to(self._at(component_id), "time"),
-                        f"a beat at {_json(given)}, past the end of the media"
-                        f" ({_json(length)}), moved onto it, as TiLiA moves it"
-                        " when it opens the file",
-                        BEATS_MOVED,
-                    )
                 kept.append((component_id, component))
                 continue
             del components[component_id]

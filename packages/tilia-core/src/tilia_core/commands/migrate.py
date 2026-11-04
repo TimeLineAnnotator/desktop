@@ -36,7 +36,7 @@ _PATH_WIDTH = 24
 
 # How the report words what the migration counted, once and more than
 # once, in the order it lists them. A count without words here is printed
-# as its key and its number.
+# as its key and its number, unless it is one the report leaves out.
 _CHANGES: dict[str, tuple[str, str]] = {
     "formal_values_dropped": (
         "dropped 1 formal_type or formal_function value",
@@ -50,7 +50,21 @@ _CHANGES: dict[str, tuple[str, str]] = {
         "moved 1 mark to metadata",
         "moved {} marks to metadata",
     ),
+    "beats_dropped": (
+        "dropped 1 beat",
+        "dropped {} beats",
+    ),
+    "beat_units_dropped": (
+        "dropped 1 beat unit",
+        "dropped {} beat units",
+    ),
+    "beat_timelines_tilia_cant_open": (
+        "1 beat timeline TiLiA can't open",
+        "{} beat timelines TiLiA can't open",
+    ),
 }
+# Counts the report leaves out: a warning of the check's says each, with its line.
+_SAID_BY_THEIR_WARNINGS = frozenset({"measures_with_two_beat_units"})
 
 _ADVICE = (
     "Nothing was written. The migration rewrites every file it lists. Keep the\n"
@@ -179,7 +193,7 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
             key=lambda row: _path_order(row[0]),
         )
     ]
-    changed = [(_shown(f.path), f) for f in migrated if f.changes or f.warnings]
+    changed = [(_shown(f.path), texts) for f in migrated if (texts := _change_texts(f))]
     paths = [path for path, _ in left] + [path for path, _ in changed]
     width = max([_PATH_WIDTH, *(len(path) + 2 for path in paths)])
 
@@ -203,10 +217,7 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
         lines.append(f"Share a document id (copies): {copies}")
     if changed:
         lines.append("Changes the migration makes:")
-        for path, f in changed:
-            texts = [_shown(str(warning)) for warning in f.warnings]
-            if f.changes:
-                texts.insert(0, "; ".join(_changes(f.changes)))
+        for path, texts in changed:
             lines.append(row(path, texts[0]))
             lines += [row("", text) for text in texts[1:]]
     lines.append("")
@@ -242,13 +253,21 @@ def _files(count: int) -> str:
     return "1 file" if count == 1 else f"{count} files"
 
 
+def _change_texts(file: FileResult) -> list[str]:
+    """What the report says a file's migration changes, line by line: its
+    counts, then its warnings."""
+    texts = [_shown(str(warning)) for warning in file.warnings]
+    counts = "; ".join(_changes(file.changes))
+    return [counts, *texts] if counts else texts
+
+
 def _changes(changes: dict[str, int]) -> Iterator[str]:
     """What the migration counted, in words where the report has them."""
     for key, (once, more) in _CHANGES.items():
         if key in changes:
             count = changes[key]
             yield once if count == 1 else more.format(count)
-    for key in sorted(changes.keys() - _CHANGES.keys()):
+    for key in sorted(changes.keys() - _CHANGES.keys() - _SAID_BY_THEIR_WARNINGS):
         yield f"{key}: {changes[key]}"
 
 
