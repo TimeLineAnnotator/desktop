@@ -18,18 +18,19 @@ UTF8_DECODE_FAILED = "'{}' is not a valid UTF-8 encoded {} file."
 @dataclass(frozen=True)
 class CsvRow:
     line: int  # the row's first line in the file, 1-based, the header being line 1
-    # By column name, in NFC; a cell of only spaces is empty, and a column the
-    # row is too short for is missing.
+    # By column name, in NFC; a cell of only whitespace is empty, and a column
+    # the row is too short for is missing.
     values: dict[str, str]
 
 
 def read_csv(path: str | os.PathLike[str]) -> tuple[list[str], list[CsvRow]]:
     """The header and the rows of a CSV in UTF-8, with or without a byte-order mark.
 
-    A row with no cells is left out. A cell of only spaces counts as empty, for
-    every importer and every column. Where a column name is repeated, the first
-    column with it is read, as TiLiA's importers find columns. The whole file is
-    read before anything is returned, so a file that fails changes nothing.
+    A row with no cells is left out. A cell of only whitespace (spaces, tabs, a
+    no-break space) counts as empty, for every importer and every column. Where
+    a column name is repeated, the first column with it is read, as TiLiA's
+    importers find columns. The whole file is read before anything is returned,
+    so a file that fails changes nothing.
 
     Raises `ImportFailed` for an empty file, a file that isn't UTF-8, or a row
     the `csv` module can't read; `OSError` for a file that can't be opened.
@@ -63,7 +64,7 @@ def read_csv(path: str | os.PathLike[str]) -> tuple[list[str], list[CsvRow]]:
 
 
 def _cell(text: str) -> str:
-    return _nfc(text) if text.strip(" ") else ""
+    return _nfc(text) if text.strip() else ""
 
 
 def _nfc(text: str) -> str:

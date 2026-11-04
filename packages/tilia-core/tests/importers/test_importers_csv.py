@@ -117,33 +117,52 @@ def test_a_row_of_empty_cells_is_kept(tmp_path):
     assert read_csv(path)[1] == [CsvRow(line=2, values={"time": "", "label": ""})]
 
 
-@pytest.mark.parametrize("cell", [" ", "    ", '" "', '"    "'])
-def test_a_cell_of_only_spaces_is_empty(tmp_path, cell):
+@pytest.mark.parametrize("quote", ["", '"'], ids=["unquoted", "quoted"])
+@pytest.mark.parametrize(
+    "whitespace",
+    [" ", "    ", "\t", "\u00a0", "\u3000", " \t\u00a0 "],
+    ids=[
+        "a space",
+        "spaces",
+        "a tab",
+        "a no-break space",
+        "an ideographic space",
+        "a mix",
+    ],
+)
+def test_a_cell_of_only_whitespace_is_empty(tmp_path, whitespace, quote):
+    cell = f"{quote}{whitespace}{quote}"
     path = write(tmp_path, f"time,label\n{cell},{cell}\n".encode())
 
     assert read_csv(path)[1] == [CsvRow(line=2, values={"time": "", "label": ""})]
 
 
-def test_a_line_of_only_spaces_is_a_row_with_an_empty_cell(tmp_path):
+def test_a_cell_of_only_a_quoted_line_break_is_empty(tmp_path):
+    path = write(tmp_path, b'time,label\n1,"\n"\n2,a\n')
+
+    assert read_csv(path)[1] == [
+        CsvRow(line=2, values={"time": "1", "label": ""}),
+        CsvRow(line=4, values={"time": "2", "label": "a"}),
+    ]
+
+
+@pytest.mark.parametrize(
+    "line", ["   ", "\t", "\u00a0"], ids=["spaces", "a tab", "a no-break space"]
+)
+def test_a_line_of_only_whitespace_is_a_row_with_an_empty_cell(tmp_path, line):
     # As a row of empty cells is kept: only a row with no cells is left out.
-    path = write(tmp_path, b"time\n   \n")
+    path = write(tmp_path, f"time\n{line}\n".encode())
 
     assert read_csv(path)[1] == [CsvRow(line=2, values={"time": ""})]
 
 
-def test_spaces_around_a_value_stay(tmp_path):
-    path = write(tmp_path, b'time,label\n 1 ," a b "\n')
+def test_whitespace_around_a_value_stays(tmp_path):
+    path = write(tmp_path, 'time,label\n 1 ," a b "\n\t2\u00a0,\u00a0c\t\n'.encode())
 
-    assert read_csv(path)[1][0].values == {"time": " 1 ", "label": " a b "}
-
-
-@pytest.mark.parametrize(
-    "cell", ["\t", "\u00a0", " \t "], ids=["a tab", "a no-break space", "a mix"]
-)
-def test_only_spaces_count_as_nothing(tmp_path, cell):
-    path = write(tmp_path, f'time,label\n1,"{cell}"\n'.encode())
-
-    assert read_csv(path)[1][0].values["label"] == cell
+    assert [row.values for row in read_csv(path)[1]] == [
+        {"time": " 1 ", "label": " a b "},
+        {"time": "\t2\u00a0", "label": "\u00a0c\t"},
+    ]
 
 
 def test_a_column_name_of_only_spaces_stays(tmp_path):

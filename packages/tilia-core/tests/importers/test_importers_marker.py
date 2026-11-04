@@ -121,8 +121,14 @@ class TestColumnsAndCells:
 
     @pytest.mark.parametrize(
         "data",
-        ["time,label\n,first", "label,time\nfirst", 'time,label\n"   ",first'],
-        ids=["empty", "too short", "only spaces"],
+        [
+            "time,label\n,first",
+            "label,time\nfirst",
+            'time,label\n"   ",first',
+            'time,label\n"\t",first',
+            'time,label\n" ",first',
+        ],
+        ids=["empty", "too short", "only spaces", "a tab", "a no-break space"],
     )
     def test_a_row_without_a_time_is_skipped(self, imported, data):
         result, target, _ = imported(data)
@@ -132,8 +138,11 @@ class TestColumnsAndCells:
         assert problem.message == "an empty value is not a valid time."
         assert target.components == {}
 
-    def test_a_label_or_a_comment_of_only_spaces_is_empty(self, imported):
-        result, target, _ = imported("time,label,comments\n1,  ,   \n")
+    @pytest.mark.parametrize(
+        "cell", ["  ", "\t", " "], ids=["spaces", "a tab", "a no-break space"]
+    )
+    def test_a_label_or_a_comment_of_only_whitespace_is_empty(self, imported, cell):
+        result, target, _ = imported(f"time,label,comments\n1,{cell},{cell}\n")
 
         assert attrs(target) == [
             {"time": 1, "label": "", "comments": "", "color": None}
