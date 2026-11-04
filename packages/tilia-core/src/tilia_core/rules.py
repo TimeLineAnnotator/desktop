@@ -532,7 +532,7 @@ def not_valid(attribute: str, value: Any) -> str:
     The rules give it for a value they refuse as not being one, such as a time of
     nan, and the importers for a value they can't read, so the two read alike. An
     empty string is named, so that the text doesn't start with a space. A string
-    of spaces still gives one: only the CSV reader makes such a cell empty.
+    of only whitespace isn't: only the CSV reader makes such a cell empty.
     """
     shown = "an empty value" if isinstance(value, str) and not value else _shown(value)
     return f"{shown} is not a valid {attribute.replace('_', ' ')}."
