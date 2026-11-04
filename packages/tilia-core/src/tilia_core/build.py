@@ -123,12 +123,12 @@ def load_media(
     """Record the media, a local file or a YouTube link, and set its length
     (FR-052, FR-056). Returns the length set.
 
-    A local path must be a file, and is stored absolute: the writer stores it
-    relative to the saved file. The length is a WAV's, read from its header;
-    else `duration_if_error`; else, while no media is attached, the known
-    length. Without one, or for a change `set_media_length` refuses, raises
-    ValueError, and the document is left as it was. Where `set_media_length`
-    keeps the known length, so does this.
+    A local path must be a file, and is stored absolute, links not followed:
+    the writer stores it relative to the saved file. The length is a WAV's,
+    read from its header; else `duration_if_error`; else, while no media is
+    attached, the known length. Without one, or for a change `set_media_length`
+    refuses, raises ValueError, and the document is left as it was. Where
+    `set_media_length` keeps the known length, so does this.
     """
     text = os.fspath(path)
     length: float | None = None
@@ -140,7 +140,7 @@ def load_media(
         # rather than raising, for a path the system can't look at.
         if not os.path.isfile(local):
             raise ValueError(_MEDIA_NOT_FOUND.format(local))
-        stored = str(local.resolve()).replace("\\", "/")
+        stored = _absolute_media_path(local)
         name = local.name
         if local.suffix.lower() == ".wav":
             length = wav_length(local)
@@ -155,6 +155,23 @@ def load_media(
     document.media_path = stored
     document.media_length = length
     return length
+
+
+def _absolute_media_path(local: Path) -> str:
+    """The file `local` absolute from the working folder, with "/". Links aren't
+    followed, as the writer doesn't follow them in the folder it writes into,
+    so that a file beside the saved one is stored by its name however the
+    folder is reached."""
+    absolute = os.path.abspath(local)
+    # `os.path.abspath` takes `link/..` away by name, where macOS and Linux go
+    # up from the link's target: the file `local` names is the one to store.
+    if not (os.path.isfile(absolute) and os.path.samefile(absolute, local)):
+        absolute = str(local.resolve())
+    # It also keeps the two slashes of `//home/me`, which macOS and Linux read
+    # as one, and the core as the start of a Windows server path.
+    if os.name != "nt" and absolute.startswith("//"):
+        absolute = absolute[1:]
+    return absolute.replace("\\", "/")
 
 
 def wav_length(path: str | os.PathLike[str]) -> float | None:

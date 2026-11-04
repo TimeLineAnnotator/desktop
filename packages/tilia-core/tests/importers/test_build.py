@@ -4,7 +4,9 @@ timelines (spec FR-050–FR-052, FR-054–FR-056, FR-060; User Story 6)."""
 import copy
 import json
 import math
+import os
 import struct
+import sys
 import wave
 from pathlib import Path
 
@@ -40,6 +42,9 @@ NO_LENGTH = (
 
 YOUTUBE = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
+posix_only = pytest.mark.skipif(sys.platform == "win32", reason="not on Windows")
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="Windows only")
+
 
 def refused(call, *args, **kwargs) -> str:
     with pytest.raises(ValueError) as error:
@@ -49,7 +54,7 @@ def refused(call, *args, **kwargs) -> str:
 
 def stored(path: Path) -> str:
     """A local media path as `load_media` stores it: absolute, with "/"."""
-    return str(path.resolve()).replace("\\", "/")
+    return os.path.abspath(path).replace("\\", "/")
 
 
 # WAVs, written in the test
@@ -505,7 +510,7 @@ def test_load_media_records_a_wav_and_its_length(tmp_path):
     assert doc.media_length == 1.5
 
 
-def test_load_media_resolves_a_relative_path(tmp_path, monkeypatch):
+def test_load_media_makes_a_relative_path_absolute(tmp_path, monkeypatch):
     pcm16_wav(tmp_path / "recording.wav", rate=8000, channels=1, frames=8000)
     monkeypatch.chdir(tmp_path)
     doc = build.new_script_document()
@@ -514,6 +519,104 @@ def test_load_media_resolves_a_relative_path(tmp_path, monkeypatch):
 
     assert doc.media_path == stored(tmp_path / "recording.wav")
     assert Path(doc.media_path).is_absolute()
+
+
+def link_folder(link: Path, target: Path) -> None:
+    """A link to a folder: a symbolic link where the system lets us make one,
+    else, on Windows, a junction."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError:
+        if sys.platform != "win32":
+            raise
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+
+
+@pytest.fixture
+def linked_audio(tmp_path) -> Path:
+    """A corpus whose `audio` folder is a link to another disk's, with a
+    one-second `rec.wav`."""
+    (tmp_path / "corpus").mkdir()
+    (tmp_path / "ext" / "audio").mkdir(parents=True)
+    pcm16_wav(
+        tmp_path / "ext" / "audio" / "rec.wav", rate=8000, channels=1, frames=8000
+    )
+    link_folder(tmp_path / "corpus" / "audio", tmp_path / "ext" / "audio")
+    return tmp_path / "corpus" / "audio"
+
+
+def test_media_in_a_linked_folder_is_stored_through_the_link(linked_audio):
+    # The writer takes the folder it writes into with `os.path.abspath`, links
+    # not followed. Through the link's target, the path it stores would go out
+    # of the corpus and back in.
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, linked_audio / "rec.wav") == 1.0
+
+    assert doc.media_path == stored(linked_audio / "rec.wav")
+    assert os.path.relpath(doc.media_path, linked_audio) == "rec.wav"
+
+
+def test_a_relative_path_is_stored_through_the_link(linked_audio, monkeypatch):
+    scripts = linked_audio.parent / "scripts"
+    scripts.mkdir()
+    monkeypatch.chdir(scripts)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "../audio/rec.wav")
+
+    assert doc.media_path == stored(linked_audio / "rec.wav")
+
+
+@posix_only
+@pytest.mark.parametrize("beside_the_link", [False, True])
+def test_a_parent_after_a_link_is_the_one_the_system_reads(
+    tmp_path, linked_audio, beside_the_link
+):
+    # The system goes up from the link's target, and `os.path.abspath`, by
+    # name, from the link: to no file, or to another one. Windows reads the
+    # name as `os.path.abspath` does.
+    pcm16_wav(tmp_path / "ext" / "rec.wav", rate=8000, channels=1, frames=8000)
+    if beside_the_link:
+        pcm16_wav(tmp_path / "corpus" / "rec.wav", rate=8000, channels=1, frames=16000)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, f"{linked_audio}/../rec.wav") == 1.0
+
+    assert doc.media_path == stored(tmp_path / "ext" / "rec.wav")
+
+
+@posix_only
+def test_two_slashes_at_the_start_are_the_one_root(tmp_path):
+    # `os.path.abspath` keeps them, as POSIX lets it; the core reads a path that
+    # starts with them as a server's, of Windows form, which isn't looked for
+    # here and which the writer doesn't make relative.
+    path = pcm16_wav(tmp_path / "rec.wav", rate=8000, channels=1, frames=8000)
+    doc = build.new_script_document()
+
+    build.load_media(doc, f"/{path}")
+
+    assert doc.media_path == stored(path)
+
+
+@windows_only
+def test_a_folder_given_by_its_short_name_stays_so(tmp_path):
+    import ctypes
+
+    folder = tmp_path / "a folder with a long name"
+    folder.mkdir()
+    pcm16_wav(folder / "rec.wav", rate=8000, channels=1, frames=8000)
+    buffer = ctypes.create_unicode_buffer(1024)
+    ctypes.windll.kernel32.GetShortPathNameW(str(folder), buffer, len(buffer))
+    if not buffer.value or buffer.value == str(folder):
+        pytest.skip("this volume has no short names")
+    doc = build.new_script_document()
+
+    build.load_media(doc, Path(buffer.value) / "rec.wav")
+
+    assert doc.media_path == f"{buffer.value}/rec.wav".replace("\\", "/")
 
 
 def test_a_wav_is_known_by_its_extension_in_any_case(tmp_path):
