@@ -715,11 +715,13 @@ class _Checker:
         for group, (_, label) in zip(groups, measure_numbers(marks), strict=True):
             units = [key for key in group if key in readable]
             if len(units) > 1:
+                # As `tilia migrate` lists it (contracts/command.md).
+                count = "two" if len(units) == 2 else str(len(units))
                 self.warnings.append(
                     (
                         ((at, units[1]), "beat_unit"),
-                        f"measure {_quoted(label)} of {_which(timeline)} has"
-                        " more than one beat unit",
+                        f"measure {printable(label)} has {count} beat units"
+                        " (TiLiA shows it red)",
                     )
                 )
 

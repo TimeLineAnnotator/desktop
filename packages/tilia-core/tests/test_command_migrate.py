@@ -571,6 +571,48 @@ def test_what_the_migration_does_to_a_beat_timeline_is_in_the_report(tmp_path, c
     ) in capsys.readouterr().out
 
 
+def test_a_measure_with_two_beat_units_is_listed_with_its_line(tmp_path, capsys):
+    # As contracts/command.md shows it; the count is printed as its key and
+    # number while the report has no words for it.
+    data = json.dumps(
+        old_beats(
+            ("20", {"kind": "BEAT_UNIT", "beat_id": 10, "units": "1"}),
+            ("21", {"kind": "BEAT_UNIT", "beat_id": 12, "units": "3"}),
+            measure_numbers=[14],
+        ),
+        indent=2,
+    ).encode()
+    place(tmp_path / "piece.tla", data)
+
+    assert migrate_command.main([str(tmp_path)]) == 0
+
+    line = data[: data.index(b'"21": {')].count(b"\n") + 1
+    assert (
+        "Changes the migration makes:\n"
+        "  piece.tla               measures_with_two_beat_units: 1\n"
+        f"                          line {line}: measure 14 has two beat units"
+        " (TiLiA shows it red)\n"
+    ) in capsys.readouterr().out
+
+
+def test_a_measure_with_two_beat_units_can_be_migrated_and_read_again(tmp_path, capsys):
+    data = json.dumps(
+        old_beats(
+            ("20", {"kind": "BEAT_UNIT", "beat_id": 10, "units": "1"}),
+            ("21", {"kind": "BEAT_UNIT", "beat_id": 12, "units": "3"}),
+        )
+    ).encode()
+    place(tmp_path / "piece.tla", data)
+
+    assert migrate_command.main([str(tmp_path), "--apply"]) == 0
+    assert "Wrote 1 file.\n" in capsys.readouterr().out
+
+    (warning,) = tla.read(tmp_path / "piece.tla").warnings
+    assert warning.message == "measure 1 has two beat units (TiLiA shows it red)"
+    assert migrate_command.main([str(tmp_path), "--apply"]) == 0
+    assert capsys.readouterr().out.endswith("Nothing was written.\n")
+
+
 def test_a_beat_timeline_with_nothing_to_report_isnt_listed(tmp_path, capsys):
     place(tmp_path / "piece.tla", json.dumps(old_beats()).encode())
 

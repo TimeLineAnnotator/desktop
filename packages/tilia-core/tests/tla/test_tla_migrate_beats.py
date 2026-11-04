@@ -667,7 +667,7 @@ def test_two_beat_units_in_one_measure_are_kept_with_a_warning_and_counted():
         {"denominator": 8, "units": "3"},
     ]
     (warning,) = doc.warnings
-    assert "more than one beat unit" in warning.message
+    assert warning.message == "measure 1 has two beat units (TiLiA shows it red)"
     assert len(beat_timeline_of(doc).measures.rows[0].beat_units) == 2
     changes = to_1.migrate(json.loads(json.dumps(content))).changes
     assert changes["measures_with_two_beat_units"] == 1
