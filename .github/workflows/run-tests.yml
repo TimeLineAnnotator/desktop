@@ -68,6 +68,7 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip wheel
+        pip install -e packages/tilia-core
         pip install -e . --group ci-tests
 
     - name: List installed packages
@@ -106,7 +107,6 @@ jobs:
     - name: Check the tilia command
       shell: bash
       run: |
-        pip install -e packages/tilia-core
         tilia --help
         tilia --help | grep -x "  ui"
         tilia ui --help

@@ -14,6 +14,7 @@ A virtual environment exists at `.venv`. Activate it before running any Python c
 
 ```bash
 # Install (editable) with dev extras and pre-commit hooks
+pip install -e packages/tilia-core  # first: PyPI's release lags behind the app
 pip install -e .
 pip install --group dev       # includes pytest-xdist, for pytest -n auto
 pip install --group ci-tests  # CI tooling: pytest-timeout, coverage, ruff
@@ -36,6 +37,7 @@ ruff check
 black .
 
 # Build a standalone executable with Nuitka
+pip install -e packages/tilia-core
 pip install -e . --group build
 python scripts/deploy.py <ref_name> <os_type>  # output in build/<os_type>/exe
 ```
@@ -80,9 +82,9 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 
 ## Packages
 
-`packages/` holds `tilia-core` (`tilia_core`) and `tilia-library` (`tilia_library`) in a uv workspace with the app at the root. Neither package may import the app (`tilia`) or PySide6; each package's isolation test enforces that. Dependencies go one way: library → core, and later the app → core (the app doesn't depend on either package yet).
+`packages/` holds `tilia-core` (`tilia_core`) and `tilia-library` (`tilia_library`) in a uv workspace with the app at the root. Neither package may import the app (`tilia`) or PySide6; each package's isolation test enforces that. Dependencies go one way: library → core, and app → core, with its `harmony` extra, so that harmonies and modes are always checked. The app doesn't depend on the library. pip reads the core from PyPI unless it is already installed, and PyPI's release lags behind the app, so install `packages/tilia-core` first; uv takes it from the workspace.
 
-The `tilia` command is installed by tilia-core (`tilia_core/commands/__init__.py`), a dispatcher whose subcommands are entry points in the group `tilia.commands`, registered by whichever packages are installed. The app registers `ui`, so `tilia ui [arguments]` starts TiLiA, with its graphical or its text interface; the app's own script, which works without tilia-core, is `tilia-ui`.
+The `tilia` command is installed by tilia-core (`tilia_core/commands/__init__.py`), a dispatcher whose subcommands are entry points in the group `tilia.commands`, registered by whichever packages are installed. The app registers `ui`, so `tilia ui [arguments]` starts TiLiA, with its graphical or its text interface; the app's own script is `tilia-ui`.
 
 ```bash
 uv sync --all-packages                         # the app and both packages, editable

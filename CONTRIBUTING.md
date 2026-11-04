@@ -37,6 +37,13 @@ You may use AI tools to contribute to TiLiA, on two conditions:
 - **No purely autonomous agents.** Every pull request needs a person behind it, who asked for the change, checks it and answers for it in review. We don't accept pull requests from agents that choose issues and open pull requests on their own, and we close them without review.
 
 # Developing for TiLiA
+TiLiA depends on `tilia-core`, which is in this repository, in `packages/tilia-core`, with its `harmony` extra. The release on PyPI lags behind the app, so install the one in this repository first:
+```
+pip install -e packages/tilia-core
+pip install -e .
+```
+With [uv](https://docs.astral.sh/uv/), `uv sync --all-packages` does this, and installs `tilia-library` too.
+
 For a better development experience, we recommend the installation of a few more packages:
 ```
 pip install --group dev

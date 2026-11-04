@@ -29,6 +29,7 @@ dependencies = [
     "sentry-sdk>=2.21.0",
     "soundfile~=0.13.1",
     "TiLiA",
+    "tilia-core[harmony]",
 ]
 
 authors = [
@@ -138,6 +139,9 @@ tilia = [
     "ui/icons/*/actions/256/*",
     "ui/icons/*/apps/256/*",
 ]
+
+[tool.uv.sources]
+tilia-core = { workspace = true }
 
 [tool.uv.workspace]
 members = ["packages/*"]
