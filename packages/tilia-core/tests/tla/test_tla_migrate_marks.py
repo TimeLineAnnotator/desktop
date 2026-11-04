@@ -536,6 +536,7 @@ OLD_FILES_MARKS = {
     "0.5.15.0-many-beats.tla": ([], 0),
     "0.6.0-s4-10.tla": ([], 0),
     "0.7.0.tla": ([EXPOSITION, ("range", "", {"tags": ["bass"]}, "")], 3),
+    "0.7.0-osmd.tla": ([], 0),
 }
 
 
