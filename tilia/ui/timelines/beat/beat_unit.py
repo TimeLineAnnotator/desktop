@@ -237,7 +237,9 @@ class BeatUnitUI(TimelineUIElement):
         beat_count = timeline.get_beat_count_to_set(value, measure_index)
         bar, error = parse_time_signature_over_taps(value, beat_count)
         if bar is not None and bar.beat_count != beat_count:
-            error = tilia.ui.strings.TIME_SIGNATURE_TAPS_ERROR.format(beat_count)
+            error = tilia.ui.strings.TIME_SIGNATURE_TAPS_ERROR.format(
+                beat_count, "" if beat_count == 1 else "s"
+            )
         if bar is None or error:
             tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
             self._refresh_inspector()

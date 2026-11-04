@@ -25,7 +25,7 @@ BEAT_PATTERN_SUMMARY = "{} bar{}, then the list starts again from bar 1."
 BEAT_PATTERN_TAPPED = "{} beat{} tapped, in {} bar{}."
 TIME_SIGNATURE_SCOPE_TITLE = "Time signature"
 TIME_SIGNATURE_TAPS_ERROR = (
-    "This measure has {} taps. To change them, use Edit bars and time signatures."
+    "This measure has {} tap{}. To change them, use Edit bars and time signatures."
 )
 BEAT_UNIT_SCOPE_ONWARD = "From this measure until the next change"
 BEAT_UNIT_SCOPE_MEASURE = "This measure only"
