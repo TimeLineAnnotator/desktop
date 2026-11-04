@@ -1959,7 +1959,7 @@ class TestCheckTimeline:
         # The kinds' functions and check_timeline find a kind's rules in one
         # place, so a kind can't get rules of its own in one of them.
         def refused(*args):
-            return rules.Outcome(False, "refused")
+            return (lambda: rules.Outcome(False, "refused"),)
 
         kinds = [
             "marker",
@@ -2197,3 +2197,287 @@ class TestCheckTimelineSpeed:
         others = [c.outcome.others for c in checked.values()]
         assert others[1:] == [(hierarchies[0].id,)] * 2999
         assert seconds < WELL_UNDER_A_SECOND
+
+
+def every_rule(components, rows=ROWS, media_length=MEDIA):
+    return rules.check_timeline(
+        media_length, components, rows=rows, page_count=PAGES, every_rule=True
+    )
+
+
+def reasons(checked):
+    """Each rule broken but the color, in the order the rules list them."""
+    return [checked.outcome.reason, *(also.reason for also in checked.also)]
+
+
+class TestEveryRule:
+    # What reading and writing a file report: every rule a component breaks,
+    # not only the first (FR-053).
+
+    @pytest.mark.parametrize("kind", TIMELINE_KINDS)
+    def test_what_it_finds_first_is_what_it_finds_without_it(self, kind):
+        if kind == "harmony":
+            pytest.importorskip("music21", reason="needs the harmony extra")
+        for seed in range(SEEDS):
+            components = random_timeline(kind, seed)
+
+            found = every_rule(components)
+
+            once = rules.check_timeline(MEDIA, components, rows=ROWS, page_count=PAGES)
+            assert list(found) == list(once)
+            for id_, checked in found.items():
+                assert checked.outcome == once[id_].outcome, seed
+                assert checked.outcome.others == once[id_].outcome.others, seed
+                assert checked.color == once[id_].color, seed
+                assert (checked.cant_check is None) == (once[id_].cant_check is None)
+
+    @pytest.mark.parametrize("kind", TIMELINE_KINDS)
+    def test_each_one_it_finds_is_broken_and_found_once(self, kind):
+        if kind == "harmony":
+            pytest.importorskip("music21", reason="needs the harmony extra")
+        for seed in range(SEEDS):
+            for checked in every_rule(random_timeline(kind, seed)).values():
+                if checked.outcome:
+                    assert checked.also == (), seed
+                assert not any(also.ok for also in checked.also), seed
+                assert len(set(reasons(checked))) == 1 + len(checked.also), seed
+
+    def test_the_random_timelines_break_more_than_one_rule_of_a_component(self):
+        # So that the tests above have something to compare.
+        for kind in ("marker", "hierarchy", "range", "pdf"):
+            assert any(
+                checked.also
+                for seed in range(SEEDS)
+                for checked in every_rule(random_timeline(kind, seed)).values()
+            ), kind
+
+    def test_by_default_only_the_first_is_found(self):
+        first = hierarchy(2.0, 1.0, 0)
+        assert rules.check_timeline(MEDIA, [first])[first.id].also == ()
+
+    def test_a_point(self):
+        first = component("marker", time=MEDIA + 1)
+        second = component("marker", time=MEDIA + 1)
+        checked = every_rule([first, second])[first.id]
+        assert reasons(checked) == [
+            "Time '01:01.0' is bigger than media time '01:00.0'",
+            "There is already a marker component at the selected position.",
+        ]
+        assert checked.also[0].others == (second.id,)
+
+    def test_a_point_before_0_and_at_the_time_of_another(self):
+        first = component("beat", time=-1.0)
+        second = component("beat", time=-1.0)
+        assert reasons(every_rule([first, second])[first.id]) == [
+            "Time can't be negative. Got '-00:01.0'",
+            "There is already a beat component at the selected position.",
+        ]
+
+    def test_a_pdf_marker(self):
+        first = component("pdf_marker", time=-1.0, page_number=0)
+        assert reasons(every_rule([first])[first.id]) == [
+            "Time can't be negative. Got '-00:01.0'",
+            "The PDF has no page with that number.",
+        ]
+
+    def test_a_hierarchy(self):
+        first = hierarchy(70.0, 65.0, 0, pre_start=71.0, post_end=64.0)
+        assert reasons(every_rule([first])[first.id]) == [
+            "Start time '70.0' is bigger than media time '60.0'",
+            "End time '65.0' should be bigger than start time '70.0'",
+            "Level can't be below 1. Got '0'",
+            "pre_start can't be after start time.",
+            "post_end is outside media bounds.",
+        ]
+
+    def test_a_hierarchy_beyond_the_media_on_both_sides_is_one_rule(self):
+        first = hierarchy(70.0, 75.0, 1)
+        assert reasons(every_rule([first])[first.id]) == [
+            "Start time '70.0' is bigger than media time '60.0'",
+        ]
+
+    def test_hierarchies_at_one_place_and_crossing(self):
+        first = hierarchy(1.0, 3.0, 0)
+        same = hierarchy(1.0, 3.0, 0)
+        crossing = hierarchy(2.0, 4.0, 0)
+        checked = every_rule([first, same, crossing])[first.id]
+        assert reasons(checked) == [
+            "Level can't be below 1. Got '0'",
+            "There is already a hierarchy component at the selected position.",
+            "Component would overlap with existing component.",
+        ]
+        assert checked.also[0].others == (same.id,)
+        assert crossing.id in checked.also[1].others
+
+    def test_a_level_that_cant_be_compared_is_not_compared(self):
+        first = hierarchy(1.0, 3.0, "two")
+        crossing = hierarchy(2.0, 4.0, 1)
+        assert reasons(every_rule([first, crossing])[first.id]) == [
+            "two is not a valid level."
+        ]
+
+    def test_a_range(self):
+        first = range_in("nope", 70.0, 65.0, pre_start=-1.0, post_end=64.0)
+        assert reasons(every_rule([first])[first.id]) == [
+            "Invalid row ID.",
+            "Start time must be before end time.",
+            "Range is outside media bounds.",
+            "pre_start is outside media bounds.",
+            "post_end is outside media bounds.",
+        ]
+
+    def test_a_range_with_a_broken_join(self):
+        first = range_in(ROW, -1.0, 1.0, joined_right="next")
+        following = range_in(ROW, 2.0, 3.0)
+        checked = every_rule([first, following])[first.id]
+        row = next(row["name"] for row in ROWS if row["id"] == ROW)
+        assert reasons(checked) == [
+            "Range is outside media bounds.",
+            f"joined_with_next=true but next range on row {row!r} starts at 2.0"
+            " (must equal 1.0 for ranges to join)",
+        ]
+        assert checked.also[-1].others == (following.id,)
+
+    def test_a_join_without_a_row(self):
+        first = component("range", start=1.0, end=2.0, joined_right="next")
+        assert reasons(every_rule([first])[first.id])[0] == "Invalid row ID."
+
+    def test_a_harmony(self, music21):
+        first = component("harmony", time=-1.0, step=9, quality="made-up", level=3)
+        assert reasons(every_rule([first])[first.id]) == [
+            "Time can't be negative. Got '-00:01.0'",
+            "9 is not a valid step.",
+            "made-up is not a valid quality.",
+            "3 is not a valid level.",
+        ]
+
+    def test_a_mode(self, music21):
+        first = component("mode", time=-1.0, step=9, type="made-up", level=3)
+        assert reasons(every_rule([first])[first.id]) == [
+            "Time can't be negative. Got '-00:01.0'",
+            "9 is not a valid step.",
+            "made-up is not a valid type.",
+            "3 is not a valid level.",
+        ]
+
+    def test_a_time_that_isnt_a_number_ends_the_checks(self):
+        # The others compare it.
+        first = component("hierarchy", start="one", end=2.0, level=0)
+        assert reasons(every_rule([first])[first.id]) == ["one is not a valid start."]
+
+    def test_the_color_stays_on_its_own(self):
+        first = hierarchy(1.0, 2.0, 0, color="notacolor")
+        checked = every_rule([first])[first.id]
+        assert reasons(checked) == ["Level can't be below 1. Got '0'"]
+        assert checked.color.reason == "notacolor is not a valid color."
+
+    def test_without_music21_the_other_rules_are_found(self, without_music21):
+        first = component("harmony", time=-1.0, step=9)
+        checked = every_rule([first])[first.id]
+        assert reasons(checked) == [
+            "Time can't be negative. Got '-00:01.0'",
+            "9 is not a valid step.",
+        ]
+
+    def test_an_import_doesnt_ask_for_it(self):
+        with pytest.raises(ValueError, match="every_rule"):
+            rules.check_timeline(MEDIA, [], skip_broken=True, every_rule=True)
+
+
+class TestMediaLength:
+    @pytest.mark.parametrize("length", [None, 1, 0.5, 60.0, 10**300])
+    def test_one_that_is_one(self, length):
+        assert rules.media_length(length) == OK
+
+    @pytest.mark.parametrize(
+        "length, shown",
+        [
+            (0, "0"),
+            (0.0, "0.0"),
+            (-1, "-1"),
+            (-0.5, "-0.5"),
+            (float("nan"), "nan"),
+            (float("inf"), "inf"),
+            (float("-inf"), "-inf"),
+            (10**400, str(10**400)),
+            (-(10**400), str(-(10**400))),
+            (True, "True"),
+            ("60", "60"),
+        ],
+    )
+    def test_one_that_isnt_one(self, length, shown):
+        assert rules.media_length(length) == (
+            False,
+            f"{shown} is not a valid media length.",
+        )
+
+    def test_an_integer_too_long_to_show(self):
+        assert rules.media_length(10**5000) == (
+            False,
+            "an integer too long to show is not a valid media length.",
+        )
+
+    @pytest.mark.parametrize("kind", ["marker", "pdf_marker", "beat"])
+    def test_a_point_after_a_length_too_large_for_a_float(self, kind):
+        assert check(kind, media_length=-(10**400)) == (
+            False,
+            f"Time '00:01.0' is bigger than media time '{-(10**400)}'",
+        )
+
+    def test_a_hierarchy_after_a_length_too_large_for_a_float(self):
+        assert check("hierarchy", media_length=-(10**400)) == (
+            False,
+            f"Start time '1.0' is bigger than media time '{-(10**400)}'",
+        )
+
+    def test_a_length_too_long_to_show_is_named(self):
+        assert check("marker", media_length=-(10**5000)) == (
+            False,
+            "Time '00:01.0' is bigger than media time 'an integer too long to show'",
+        )
+
+    def test_a_range_after_a_length_too_large_for_a_float(self):
+        assert check("range", media_length=-(10**400)) == (
+            False,
+            "Range is outside media bounds.",
+        )
+
+    @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range"])
+    def test_an_infinite_length_is_longer_than_any_time(self, kind):
+        assert check(kind, media_length=math.inf) == OK
+
+
+class TestCantCheck:
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_without_music21(self, kind, without_music21):
+        cant_check = rules.cant_check(kind)
+
+        assert isinstance(cant_check, rules.CantCheck)
+        assert str(cant_check) == f"checking a {kind} needs: {INSTALL}"
+
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_with_music21(self, kind, music21):
+        assert rules.cant_check(kind) is None
+
+    @pytest.mark.parametrize("kind", ["harmony", "mode"])
+    def test_a_music21_that_wont_import(self, kind, broken_music21):
+        cant_check = rules.cant_check(kind)
+
+        assert isinstance(cant_check.error, ImportError)
+        assert cant_check.__cause__ is cant_check.error
+
+    @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range", "beat"])
+    def test_other_kinds_dont_need_it(self, kind, without_music21):
+        assert rules.cant_check(kind) is None
+
+
+def test_a_pdf_of_any_length_is_given_as_an_infinite_page_count():
+    # What reading and writing a file give: they don't open the PDF.
+    any_page = component("pdf_marker", time=1.0, page_number=10**400)
+    no_page = component("pdf_marker", time=2.0, page_number=0)
+    found = rules.check_timeline(MEDIA, [any_page, no_page], page_count=math.inf)
+    assert found[any_page.id].outcome == OK
+    assert found[no_page.id].outcome == (
+        False,
+        "The PDF has no page with that number.",
+    )
