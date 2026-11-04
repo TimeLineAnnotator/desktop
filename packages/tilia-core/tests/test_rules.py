@@ -55,6 +55,23 @@ def check(kind, others=(), media_length=MEDIA, **attrs):
     return getattr(rules, kind)(media_length, others, attrs)
 
 
+class NoTruthValue:
+    def __bool__(self):
+        raise ValueError("The truth value of an array is ambiguous.")
+
+
+class LikeAnArray:
+    """As an array is: what its == gives raises when asked for its truth value."""
+
+    __hash__ = None
+
+    def __eq__(self, other):
+        return NoTruthValue()
+
+    def __str__(self):
+        return "[1. 2.]"
+
+
 def component(kind, **attrs):
     return tla.Component(id=tla.new_id(), kind=kind, attrs=attrs)
 
@@ -462,6 +479,16 @@ class TestColor:
     )
     def test_a_color_that_isnt_one(self, value):
         assert rules.color(value) == (False, f"{value} is not a valid color.")
+
+    def test_a_value_that_cant_be_compared_with_text_isnt_one(self):
+        assert rules.color(LikeAnArray()) == (
+            False,
+            "[1. 2.] is not a valid color.",
+        )
+        assert rules.marker(60.0, [], {"time": 1.0, "color": LikeAnArray()}) == (
+            False,
+            "[1. 2.] is not a valid color.",
+        )
 
     def test_a_lone_surrogate_ends_a_name_as_another_character_beyond_latin_1(self):
         # A file can hold one, written as \ud83d. Qt reads a name up to it.
@@ -1416,20 +1443,6 @@ class TestNotValid:
         assert outcome.reason == "an empty value is not a valid row id."
 
     def test_a_value_that_cant_be_compared_with_text_is_shown(self):
-        # As an array is: what its == gives raises when asked for its truth value.
-        class NoTruthValue:
-            def __bool__(self):
-                raise ValueError("The truth value of an array is ambiguous.")
-
-        class LikeAnArray:
-            __hash__ = None
-
-            def __eq__(self, other):
-                return NoTruthValue()
-
-            def __str__(self):
-                return "[1. 2.]"
-
         outcome = rules.marker(60.0, [], {"time": LikeAnArray()})
 
         assert outcome.reason == "[1. 2.] is not a valid time."
