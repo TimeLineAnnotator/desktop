@@ -143,7 +143,8 @@ def load_media(
             raise ValueError(_MEDIA_NOT_FOUND.format(local))
         stored = _absolute_media_path(local)
         name = local.name
-        if local.suffix.lower() == ".wav":
+        # The name stored: Windows reads `REC.WAV.` and `REC.WAV ` as `REC.WAV`.
+        if Path(stored).suffix.lower() == ".wav":
             length = wav_length(local)
     if length is None:
         if duration_if_error is not None:

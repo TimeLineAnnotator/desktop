@@ -651,6 +651,36 @@ def test_on_windows_a_path_gets_the_letter_case_on_disk(tmp_path, monkeypatch, g
 
 
 @windows_only
+@pytest.mark.parametrize(
+    "given", ["AUDIO/REC.WAV.", "AUDIO/REC.WAV ", "AUDIO/REC.WAV. .", "audio/rec.wav.."]
+)
+def test_on_windows_a_name_ending_in_a_dot_or_a_space_is_read_as_a_wav(
+    tmp_path, monkeypatch, given
+):
+    # Windows reads the name without them, so the file is the WAV that is stored.
+    (tmp_path / "Audio").mkdir()
+    pcm16_wav(tmp_path / "Audio" / "Rec.wav", rate=8000, channels=1, frames=24000)
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, given, duration_if_error=9) == 3.0
+
+    assert doc.media_path == stored(tmp_path / "Audio" / "Rec.wav")
+
+
+@posix_only
+@pytest.mark.parametrize("name", ["rec.wav.", "rec.wav "])
+def test_elsewhere_a_name_ending_in_a_dot_or_a_space_isnt_a_wavs(tmp_path, name):
+    # There the dot or the space is part of the name.
+    path = pcm16_wav(tmp_path / name, rate=8000, channels=1, frames=24000)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, path, duration_if_error=9) == 9.0
+
+    assert doc.media_path == str(path)
+
+
+@windows_only
 def test_on_windows_all_of_the_path_gets_it_but_the_drive(tmp_path):
     path = pcm16_wav(tmp_path / "Rec.wav", rate=8000, channels=1, frames=8000)
     given = str(path).swapcase()
