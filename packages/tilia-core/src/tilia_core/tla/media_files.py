@@ -160,9 +160,14 @@ def absolute_form(path: str) -> str | None:
 def _form(path: str) -> str | None:
     """`absolute_form` of a path that isn't a URL. Only two slashes of one
     kind, `//` or `\\\\`, start a share, whatever `PureWindowsPath` reads: `/\\a`
-    is a POSIX path, and `\\/a` is relative to a root, as `\\a` is."""
+    is a POSIX path, and `\\/a` is relative to a root, as `\\a` is. They are
+    tested here because `PureWindowsPath` calls a share with one name, such as
+    `//x.wav`, absolute only from Python 3.13, and a file's bytes mustn't differ
+    by version."""
+    if path[:2] in ("//", "\\\\"):
+        return WINDOWS
     if not path.startswith(_SLASH_AND_BACKSLASH) and (
-        PureWindowsPath(path).is_absolute()  # a drive and its root, or a share
+        PureWindowsPath(path).is_absolute()  # a drive and its root
     ):
         return WINDOWS
     if path.startswith("/"):
