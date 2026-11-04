@@ -942,6 +942,36 @@ def test_a_default_unit_was_nowhere_in_the_old_file():
     )
 
 
+def test_each_of_the_migrations_warnings_about_beats_is_counted():
+    # The report sums up the migration's own warnings by their counts, and
+    # doesn't list them.
+    _, timeline = beat_timeline([0.0, 1.0, 2.0])
+    timeline["components"].update(
+        {
+            "20": {"kind": "BEAT", "time": 1.0},
+            "21": {"kind": "BEAT", "time": 500.0},
+            "22": {"kind": "BEAT"},
+            "23": {"kind": "BEAT", "time": 101.0},
+            "100": beat_unit(99),
+        }
+    )
+    timeline["beats_in_measure"] = [2, 2]
+    timeline["measure_numbers"] = [1]
+    content = old_file((BEAT_TIMELINE, timeline))
+    migrated = to_1.migrate(json.loads(json.dumps(content)))
+    assert migrated.changes == {
+        "beats_dropped": 3,
+        "beats_moved": 1,
+        "beat_units_dropped": 1,
+        "beat_timelines_tilia_cant_open": 1,
+    }
+    assert len(migrated.warnings) == sum(migrated.changes.values())
+
+
+def test_a_timeline_with_nothing_to_warn_about_counts_nothing():
+    assert changes_of(old_file(beat_timeline([0.0, 1.0, 2.0]))) == {}
+
+
 UNKNOWN_ID = "01900000-0000-7000-8000-000000000000"
 
 

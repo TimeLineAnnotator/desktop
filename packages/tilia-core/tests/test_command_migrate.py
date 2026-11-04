@@ -525,6 +525,60 @@ def test_a_change_the_command_has_no_words_for_is_printed_as_counted(
     ) in capsys.readouterr().out
 
 
+def old_beats(*components, **keys):
+    """An old file with a beat at each of four seconds, and these components
+    in its beat timeline."""
+    beats = {str(10 + t): {"kind": "BEAT", "time": float(t)} for t in range(4)}
+    return {
+        "file_path": "",
+        "media_path": "",
+        "media_metadata": {"media length": 100},
+        "timelines": {
+            "9": {
+                "kind": "Beat",
+                "ordinal": 1,
+                "height": 35,
+                "name": "Beats",
+                "beat_pattern": [4],
+                "beats_in_measure": [4],
+                "measure_numbers": [1],
+                "components": {**beats, **dict(components)},
+                **keys,
+            }
+        },
+        "version": "0.7.0",
+    }
+
+
+def test_what_the_migration_does_to_a_beat_timeline_is_in_the_report(tmp_path, capsys):
+    # The migration's warnings aren't listed: the counts sum them up, printed
+    # as their keys and numbers while the report has no words for them.
+    content = old_beats(
+        ("20", {"kind": "BEAT", "time": 1.0}),
+        ("21", {"kind": "BEAT", "time": 500.0}),
+        ("22", {"kind": "BEAT"}),
+        ("23", {"kind": "BEAT", "time": 101.0}),
+        ("24", {"kind": "BEAT_UNIT", "beat_id": 99}),
+        beats_in_measure=[2, 2, 2],
+    )
+    place(tmp_path / "piece.tla", json.dumps(content, indent=2).encode())
+
+    assert migrate_command.main([str(tmp_path)]) == 0
+
+    assert (
+        "  piece.tla               beat_timelines_tilia_cant_open: 1;"
+        " beat_units_dropped: 1; beats_dropped: 3; beats_moved: 1\n"
+    ) in capsys.readouterr().out
+
+
+def test_a_beat_timeline_with_nothing_to_report_isnt_listed(tmp_path, capsys):
+    place(tmp_path / "piece.tla", json.dumps(old_beats()).encode())
+
+    assert migrate_command.main([str(tmp_path)]) == 0
+
+    assert "Changes the migration makes" not in capsys.readouterr().out
+
+
 def test_a_subfolder_that_cant_be_listed_is_listed_as_left_alone(
     clean, monkeypatch, capsys
 ):
