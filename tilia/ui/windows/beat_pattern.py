@@ -550,6 +550,12 @@ class BeatPatternDialog(QDialog):
         _, tapped = self._lay_out()
         self._overrides = get_overrides(all_numbers[:tapped])
         self._update_table()
+        if shift < 0 and self._is_inside_a_row(row.start + len(numbers)):
+            self._show_error(tilia.ui.strings.BEAT_PATTERN_ROW_REFILLED.format(text))
+
+    def _is_inside_a_row(self, bar_index: int) -> bool:
+        """Whether a bar shares a row with the bar before it."""
+        return any(row.start < bar_index < row.start + row.count for row in self._rows)
 
     @classmethod
     def ask(
