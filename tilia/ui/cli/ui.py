@@ -25,18 +25,20 @@ from tilia.ui.cli import (
     script,
     timelines,
 )
-from tilia.ui.cli.io import ask_yes_or_no, error, tabulate
+from tilia.ui.cli.io import ask, ask_yes_or_no, error, tabulate
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
 
 
 class CLI:
-    def __init__(self):
+    def __init__(self, interactive: bool = True):
         self.parser = argparse.ArgumentParser(
             exit_on_error=False, prog=tilia.constants.APP_NAME
         )
         self.subparsers = self.parser.add_subparsers(dest="command")
         self.setup_parsers()
         self.exception = None
+        self.has_displayed_error = False
+        io.set_interactive(interactive)
         self._save_verbosity()
         self._is_running = False
         listen(
@@ -133,6 +135,21 @@ class CLI:
             return True
         return self.run(args)
 
+    def run_non_interactive(self, text: str) -> int:
+        """
+        Runs commands separated by newlines or by ";", stopping at the first
+        one that fails. Returns an exit code: 0 if no error was displayed
+        (including before this was called, e.g. when opening a file given on
+        the command line), 1 otherwise.
+        """
+        for cmd in script.split_commands(text):
+            if self.has_displayed_error:
+                break
+            if self.parse_and_run(cmd):
+                break
+
+        return 1 if self.has_displayed_error else 0
+
     def run(self, cmd: str) -> bool:
         """
         Parses the commands entered by the user.
@@ -156,9 +173,9 @@ class CLI:
             post(Post.DISPLAY_ERROR, "CLI error", traceback.format_exc())
             return True
 
-    @staticmethod
-    def on_request_to_display_error(_, message: str) -> None:
+    def on_request_to_display_error(self, _: str, message: str) -> None:
         """Ignores title and prints error message to output"""
+        self.has_displayed_error = True
         io.output(message, color=Fore.RED)
 
     @staticmethod
@@ -230,14 +247,14 @@ def on_ask_unknown_timeline_kind_action(kinds: list[str]) -> tuple[bool, bool]:
         f"Delete, ignore (keep in file, unopened), or cancel opening? "
         f"[delete/ignore/cancel]: "
     )
-    while (ans := input(prompt).lower()) not in valid_answers:
+    while (ans := ask(prompt).lower()) not in valid_answers:
         pass
     return next(v for opt, v in outcomes.items() if ans in (opt, opt[0]))
 
 
 def on_ask_media_path() -> tuple[bool, str]:
     while True:
-        ans = input("Media file path [leave empty to cancel]: ").strip()
+        ans = ask("Media file path [leave empty to cancel]: ").strip()
         if not ans:
             return False, ""
         if os.path.exists(ans):

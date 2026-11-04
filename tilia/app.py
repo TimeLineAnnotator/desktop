@@ -154,7 +154,7 @@ class App:
     def is_file_modified(self) -> bool:
         return self.file_manager.is_file_modified(self.get_app_state())
 
-    def on_open(self, path: Path | str | None = None) -> bool:
+    def on_open(self, path: Path | str | None = None, load_media: bool = True) -> bool:
         if isinstance(path, str):
             path = Path(path)
 
@@ -172,10 +172,10 @@ class App:
                 return False
         prev_state = self.get_app_state()
         self.on_clear()
-        self._do_open(path, prev_state)
+        self._do_open(path, prev_state, load_media)
 
     @long_operation("Loading file...")
-    def _do_open(self, path: Path, prev_state: dict) -> None:
+    def _do_open(self, path: Path, prev_state: dict, load_media: bool = True) -> None:
         success, file, old_path = open_tla(path)
         if not success:
             self.on_restore_state(prev_state)
@@ -186,7 +186,7 @@ class App:
         if file.unknown_timelines or file.deleted_timelines:
             self._reserve_ids({**file.unknown_timelines, **file.deleted_timelines})
 
-        success = self.on_file_load(file)
+        success = self.on_file_load(file, load_media)
         if not success:
             self.on_restore_state(prev_state)
             return False
@@ -489,12 +489,14 @@ class App:
         # the stored value, which would silently delete end components (#453).
         self.load_media(new_path, initial_duration=duration, scale_timelines="keep")
 
-    def on_file_load(self, file: TiliaFile) -> bool:
-        media_path = file.media_path
+    def on_file_load(self, file: TiliaFile, load_media: bool = True) -> bool:
+        # Without loading media, the duration is still taken from the file,
+        # and the JSON export still reports the file's media_path.
+        media_path = file.media_path if load_media else ""
         media_duration = file.media_metadata.get("media length", None)
 
         try:
-            if file.media_path or media_duration:
+            if media_path or media_duration:
                 self._setup_file_media(media_path, media_duration)
 
             self.timelines.deserialize_timelines(file.timelines)
@@ -605,7 +607,9 @@ class App:
         return {
             "timelines": self.timelines.get_export_data(),
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "media_path": get(Get.MEDIA_PATH),
+            # Falls back to the file when no media is loaded (e.g. the media
+            # could not be found), so the path the file records survives.
+            "media_path": get(Get.MEDIA_PATH) or self.file_manager.file.media_path,
         }
 
     def _ensure_slider_timeline(self) -> None:

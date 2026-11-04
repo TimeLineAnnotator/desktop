@@ -5,6 +5,31 @@ import os
 import prettytable
 from colorama import Fore
 
+_is_interactive = True
+
+
+class NonInteractiveError(Exception):
+    """Raised when input is asked for while the CLI is not interactive."""
+
+
+def set_interactive(value: bool) -> None:
+    """
+    When not interactive, asking the user for input raises NonInteractiveError
+    instead of waiting for an answer.
+    """
+    global _is_interactive
+    _is_interactive = value
+
+
+def ask(prompt: str) -> str:
+    """
+    Reads a line of input from the user.
+    All input should go through here so non-interactive runs never block.
+    """
+    if not _is_interactive:
+        raise NonInteractiveError(f"Input required: {prompt.strip()}")
+    return input(prompt)
+
 
 def output(message: str, color: Fore = None) -> None:
     """
@@ -41,7 +66,7 @@ def ask_for_string(prompt: str) -> str:
     """
     Prompts the user for a string
     """
-    return input(prompt)
+    return ask(prompt)
 
 
 def ask_yes_or_no(prompt: str, default: bool = True) -> bool:
@@ -54,7 +79,7 @@ def ask_yes_or_no(prompt: str, default: bool = True) -> bool:
     option = "/".join(
         [v.capitalize() if k == default else v for k, v in yes_no.items()]
     )
-    while (ans := input(f"{prompt} [{option}]: ").lower()) not in valid_answers:
+    while (ans := ask(f"{prompt} [{option}]: ").lower()) not in valid_answers:
         pass
     if ans == "":
         return default

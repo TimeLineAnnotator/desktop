@@ -231,3 +231,37 @@ class TestSettingsWindow:
     def test_shows_an_empty_list(self, value):
         widget = get_widget_for_value(None, value)
         assert get_value_for_widget(widget) == []
+
+
+@pytest.fixture
+def ini_store(tmp_path):
+    # Not the native store: it is shared by every xdist worker.
+    return Store("ini", tmp_path)
+
+
+class TestDetach:
+    def test_keeps_values(self, ini_store):
+        store = ini_store
+        manager = SettingsManager(store.qsettings())
+        for (group, name), value in EDITED_VALUES.items():
+            manager.set(group, name, value)
+
+        manager.detach()
+
+        for (group, name), value in EDITED_VALUES.items():
+            assert manager.get(group, name) == value, f"{group}.{name}"
+
+    def test_changes_are_not_persisted(self, ini_store):
+        store = ini_store
+        qsettings = store.qsettings()
+        manager = SettingsManager(qsettings)
+        manager.set("general", "window_width", 1200)
+
+        manager.detach()
+        manager.set("general", "window_width", 1000)
+        manager.update_recent_files("/some/file.tla", None, None)
+
+        assert manager.get("general", "window_width") == 1000
+        restarted = SettingsManager(store.restart(qsettings))
+        assert restarted.get("general", "window_width") == 1200
+        assert "/some/file.tla" not in restarted.get_recent_files()
