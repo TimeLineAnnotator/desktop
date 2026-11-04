@@ -1541,3 +1541,68 @@ def test_on_paths_with_slashes_only_moved_is_posixpaths_relpath(stored):
         expected = posixpath.relpath(resolved, posixpath.join("/", folder))
         moved = writer._moved(stored, str(ROOT / origin), str(ROOT / folder))
         assert moved == expected, (origin, folder)
+
+
+# Paths given or stored in the other system's form, and what starts a share
+
+OTHER_SYSTEMS_FORMS = (
+    ["/m-176/x.wav"]
+    if WINDOWS
+    else [
+        "C:\\m-176\\x.wav",
+        "C:/m-176/x.wav",
+        "\\\\server-176\\share\\x.wav",
+        "//server-176/share/x.wav",
+    ]
+)
+# A slash and a backslash: Windows would read them as a share's two slashes.
+SLASH_AND_BACKSLASH = ["/\\a-176\\b.wav", "\\/a-176/b.wav"]
+
+
+@pytest.mark.parametrize("given", OTHER_SYSTEMS_FORMS)
+def test_a_given_path_of_the_other_systems_form_is_kept(tmp_path, monkeypatch, given):
+    # It is absolute already, in its own form: not below the working folder,
+    # and not on this drive.
+    monkeypatch.chdir(tmp_path)
+    assert tla.as_media_path(given) == given
+    assert tla.as_media_path(GivenPath(given)) == given
+
+
+@pytest.mark.parametrize("stored", SLASH_AND_BACKSLASH)
+def test_the_migration_doesnt_read_a_share_in_a_slash_and_a_backslash(
+    tmp_path, where, servers, stored
+):
+    # Only two slashes of one kind start a share. `/\…` is a POSIX path, and
+    # `\/…` relative to a root, as `\…` is.
+    piece = old_file(tmp_path, where, stored, file_path=WINDOWS_SAVED)
+    assert stored_in(tla.read(piece), where) == stored
+    if WINDOWS:
+        assert servers.looked_up == []
+
+
+@pytest.mark.parametrize(
+    "stored, on_posix",
+    [("/\\a-176\\b.wav", "../\\a-176\\b.wav"), ("\\/a-176/b.wav", "\\/a-176/b.wav")],
+)
+def test_the_writer_doesnt_read_a_share_in_a_slash_and_a_backslash(stored, on_posix):
+    assert rebased_from(ROOT / "corpus", stored, ROOT / "out") == (
+        stored if WINDOWS else on_posix
+    )
+
+
+@pytest.mark.parametrize("given", SLASH_AND_BACKSLASH)
+def test_a_given_slash_and_backslash_doesnt_start_a_share(tmp_path, monkeypatch, given):
+    monkeypatch.chdir(tmp_path)
+    expected = given if WINDOWS or given[0] == "/" else os.path.join(os.getcwd(), given)
+    assert tla.as_media_path(given) == expected
+
+
+@pytest.mark.parametrize("stored", SLASH_AND_BACKSLASH)
+def test_tla_media_doesnt_read_a_share_in_a_slash_and_a_backslash(
+    tmp_path, servers, stored
+):
+    doc = tla.new_document()
+    doc.media_path = stored
+    assert tla.media(tmp_path / "piece.tla", doc).path is None
+    if WINDOWS:
+        assert servers.looked_up == []
