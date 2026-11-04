@@ -233,18 +233,19 @@ class CantCheck(Exception):
         return type(self), (self.kind,), {"args": self.args, "error": None}
 
 
-# Each kind's rules but the color are one private function, which gives the first
-# rule broken, or None. `_RULES` names it for its kind, and the kind's public
-# function and `check_timeline` both find it there, so that there is one set of
-# rules. `_kept` then raises `CantCheck` when the rules that need music21
-# couldn't be checked, and only then checks the color: an importer keeps a row
-# whose color isn't one, with the default color, so a bad color mustn't hide
-# another broken rule, nor that a rule couldn't be checked.
+# Each kind's rules but the color are one private function, which gives a check
+# for each rule, in the order the rules list them. `_RULES` names it for its kind,
+# and the kind's public function and `check_timeline` both find it there, so that
+# there is one set of rules. `_first` gives the first rule broken, or None. `_kept`
+# then raises `CantCheck` when the rules that need music21 couldn't be checked, and
+# only then checks the color: an importer keeps a row whose color isn't one, with
+# the default color, so a bad color mustn't hide another broken rule, nor that a
+# rule couldn't be checked.
 
 Check = Callable[[], "Outcome | None"]
 
 
-def _first(*checks: Check) -> Outcome | None:
+def _first(checks: Iterable[Check]) -> Outcome | None:
     """The first rule `checks` find broken, each checked only once the ones
     before it are kept; or None."""
     for check in checks:
@@ -252,6 +253,20 @@ def _first(*checks: Check) -> Outcome | None:
         if broken is not None and not broken:
             return broken
     return None
+
+
+def _every(checks: Sequence[Check]) -> list[Outcome]:
+    """Every rule `checks` find broken. The first check is that the times are
+    numbers and the texts text: when it finds one that isn't, the others, which
+    compare them, aren't made."""
+    found = []
+    for check in checks:
+        broken = check()
+        if broken is not None and not broken:
+            found.append(broken)
+            if check is checks[0]:
+                break
+    return found
 
 
 def _kept(
@@ -351,7 +366,8 @@ def _checked(
         if music21 is None:
             cant_check = CantCheck(kind, error)
     context = _Context(page_count=page_count, rows=rows, music21=music21)
-    return _kept(attrs, _RULES[kind](media_length, others, attrs, context), cant_check)
+    checks = _RULES[kind](media_length, others, attrs, context)
+    return _kept(attrs, _first(checks), cant_check)
 
 
 class _Context:
@@ -362,7 +378,7 @@ class _Context:
     def __init__(
         self,
         *,
-        page_count: int = 0,
+        page_count: float = 0,
         rows: Sequence[Mapping[str, Any]] = (),
         music21: ModuleType | None = None,
     ) -> None:
@@ -377,7 +393,7 @@ def _marker(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
+) -> Sequence[Check]:
     return _point("marker", media_length, others, attrs)
 
 
@@ -386,11 +402,11 @@ def _beat(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
-    broken = _point("beat", media_length, others, attrs)
-    if broken is not None:
-        return broken
-    return _measure_number(attrs.get("measure"))
+) -> Sequence[Check]:
+    return (
+        *_point("beat", media_length, others, attrs),
+        lambda: _measure_number(attrs.get("measure")),
+    )
 
 
 def _measure_number(measure: Any) -> Outcome | None:
@@ -407,10 +423,10 @@ def _pdf_marker(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
+) -> Sequence[Check]:
     """A PDF marker's rules, in a PDF of `context.page_count` pages."""
-    return _first(
-        lambda: _point("pdf_marker", media_length, others, attrs),
+    return (
+        *_point("pdf_marker", media_length, others, attrs),
         lambda: _page(attrs.get("page_number"), context.page_count),
     )
 
@@ -420,11 +436,11 @@ def _harmony(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
+) -> Sequence[Check]:
     """A harmony's rules; without music21, those that don't need it."""
     music21 = context.music21
-    return _first(
-        lambda: _point("harmony", media_length, others, attrs),
+    return (
+        *_point("harmony", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
         lambda: _one_of(attrs, "applied_to", _STEPS),
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
@@ -440,11 +456,11 @@ def _mode(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
+) -> Sequence[Check]:
     """A key's rules; without music21, those that don't need it."""
     music21 = context.music21
-    return _first(
-        lambda: _point("mode", media_length, others, attrs),
+    return (
+        *_point("mode", media_length, others, attrs),
         lambda: _one_of(attrs, "step", _STEPS),
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
         lambda: _mode_type(music21, attrs) if music21 else None,
@@ -457,7 +473,7 @@ def _hierarchy(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
+) -> Sequence[Check]:
     start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
     found: list[list[tla.Component]] = []
 
@@ -467,9 +483,11 @@ def _hierarchy(
             found.append([other for other in others if other.kind == "hierarchy"])
         return found[0]
 
-    return _first(
+    return (
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
-        lambda: _hierarchy_times(start, end, media_length),
+        lambda: _hierarchy_in_media(start, end, media_length),
+        lambda: _hierarchy_start(start),
+        lambda: _hierarchy_end(start, end),
         lambda: _hierarchy_level(level),
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
@@ -483,14 +501,14 @@ def _range(
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
     context: _Context,
-) -> Outcome | None:
+) -> Sequence[Check]:
     """A range's rules, in a timeline whose rows are `context.rows`."""
     start, end = attrs.get("start"), attrs.get("end")
-    return _first(
+    return (
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
-        lambda: _range_place(
-            attrs.get("row_id"), context.row_ids, start, end, media_length
-        ),
+        lambda: _range_row(attrs.get("row_id"), context.row_ids),
+        lambda: _range_times(start, end),
+        lambda: _range_in_media(start, end, media_length),
         lambda: _pre_start(attrs.get("pre_start"), start),
         lambda: _post_end(attrs.get("post_end"), end, media_length),
         lambda: _joined(attrs, others, context.rows),
@@ -498,7 +516,7 @@ def _range(
 
 
 Rules = Callable[
-    [float, Iterable["tla.Component"], Mapping[str, Any], _Context], "Outcome | None"
+    [float, Iterable["tla.Component"], Mapping[str, Any], _Context], Sequence[Check]
 ]
 # Each kind's rules: the one place a kind finds them.
 _RULES: dict[str, Rules] = {
@@ -548,6 +566,26 @@ def color(value: Any) -> Outcome:
     return _broken(not_valid("color", value))
 
 
+def media_length(value: Any) -> Outcome:
+    """A media length: a positive, finite number, or None when it is unknown."""
+    if value is None or (_is_number(value) and value > 0):
+        return OK
+    return _broken(not_valid("media_length", value))
+
+
+def cant_check(kind: str) -> CantCheck | None:
+    """What a component of `kind` can't be checked for, when its rules need music21
+    and music21 is missing or won't import; or None."""
+    if kind not in _NEED_MUSIC21:
+        return None
+    music21, error = _music21()
+    if music21 is not None:
+        return None
+    unable = CantCheck(kind, error)
+    unable.__cause__ = error
+    return unable
+
+
 def split_added_tone(quality: str) -> tuple[str, str]:
     """A quality's base quality and added tone, or the quality and ""."""
     return ADDED_TONE_QUALITIES.get(quality, (quality, ""))
@@ -592,12 +630,14 @@ class Checked:
     color, and a reader can warn about both. `cant_check`, for a harmony or a key
     that breaks no rule but its color, is the `CantCheck` its kind's function
     raises when music21 is missing or won't import: the rules that need it
-    couldn't be checked.
+    couldn't be checked. `also` is, with `check_timeline`'s `every_rule`, the
+    other rules it breaks but the color, after the one in `outcome`.
     """
 
     outcome: Outcome
     color: Outcome = OK
     cant_check: CantCheck | None = None
+    also: tuple[Outcome, ...] = ()
 
 
 def check_timeline(
@@ -605,8 +645,9 @@ def check_timeline(
     components: Iterable[tla.Component],
     *,
     rows: Sequence[Mapping[str, Any]] | None = None,
-    page_count: int | None = None,
+    page_count: float | None = None,
     skip_broken: bool = False,
+    every_rule: bool = False,
 ) -> dict[str, Checked]:
     """A timeline's components, each checked with the others, in one pass.
 
@@ -620,8 +661,13 @@ def check_timeline(
     kept, as an importer keeps it with the default color, and so is one whose
     rules couldn't be checked without music21.
 
-    Ranges need the timeline's `rows`, and PDF markers the PDF's `page_count`.
-    music21 is looked up once, for the first harmony or key.
+    With `every_rule`, which reading and writing a file ask for, a component that
+    breaks a rule is checked by all its rules, and those after the first are in
+    `also`. An import stops at the first, so it can't ask for this.
+
+    Ranges need the timeline's `rows`, and PDF markers the PDF's `page_count`,
+    which `math.inf` leaves unchecked but for its lower bound, for a caller that
+    doesn't read the PDF. music21 is looked up once, for the first harmony or key.
 
     Gives what is found for each component, by its id, in the order given. A
     component of a kind these rules don't cover isn't in it, and isn't compared
@@ -634,6 +680,8 @@ def check_timeline(
     found: those the outcomes name, and for a hierarchy, those it lies inside
     or around.
     """
+    if skip_broken and every_rule:
+        raise ValueError("every_rule is for a timeline checked with every component")
     components = list(components)
     _needed(components, rows, page_count)
     kinds = _Kinds(media_length, rows or (), page_count or 0)
@@ -647,23 +695,30 @@ def check_timeline(
     found: dict[str, Checked] = {}
     for place in covered:
         component = components[place]
-        broken, cant_check = kinds.broken(
-            component.kind, component.attrs, others.of(place)
-        )
-        found[component.id] = _found(component.attrs, broken, cant_check)
+        kind, attrs = component.kind, component.attrs
+        with_others = others.of(place)
+        broken, unable = kinds.broken(kind, attrs, with_others)
+        also: tuple[Outcome, ...] = ()
+        if every_rule and broken is not None:
+            also = tuple(kinds.every(kind, attrs, with_others)[1:])
+        found[component.id] = _found(attrs, broken, unable, also)
         if skip_broken and broken is None:
             others.add(place)
     return found
 
 
 def _found(
-    attrs: Mapping[str, Any], broken: Outcome | None, cant_check: CantCheck | None
+    attrs: Mapping[str, Any],
+    broken: Outcome | None,
+    unable: CantCheck | None,
+    also: tuple[Outcome, ...] = (),
 ) -> Checked:
     color_outcome = _color_of(attrs)
     return Checked(
         OK if broken is None else broken,
         OK if color_outcome is None else color_outcome,
-        cant_check,
+        unable,
+        also,
     )
 
 
@@ -672,19 +727,35 @@ def _point(
     media_length: float,
     others: Iterable[tla.Component],
     attrs: Mapping[str, Any],
-) -> Outcome | None:
+) -> Sequence[Check]:
     """The rules for every kind, the time's bounds, and no other at the same time."""
-    broken = _every_kind(attrs, ("time",))
-    if broken is not None:
-        return broken
-    time = attrs["time"]
+    time = attrs.get("time")
+    return (
+        lambda: _every_kind(attrs, ("time",)),
+        lambda: _time_not_negative(time),
+        lambda: _time_in_media(time, media_length),
+        lambda: _same_time(kind, time, others),
+    )
+
+
+def _time_not_negative(time: float) -> Outcome | None:
     if time < 0:
         return _broken(f"Time can't be negative. Got '{_media_time(time)}'")
+    return None
+
+
+def _time_in_media(time: float, media_length: float) -> Outcome | None:
     if time > media_length:
         return _broken(
             f"Time '{_media_time(time)}' is bigger than media time"
             f" '{_media_time(media_length)}'"
         )
+    return None
+
+
+def _same_time(
+    kind: str, time: float, others: Iterable[tla.Component]
+) -> Outcome | None:
     same = [
         other.id
         for other in others
@@ -721,7 +792,7 @@ def _color_of(attrs: Mapping[str, Any]) -> Outcome | None:
     return None
 
 
-def _page(page_number: Any, page_count: int) -> Outcome | None:
+def _page(page_number: Any, page_count: float) -> Outcome | None:
     if not _is_integer(page_number):
         return _broken(not_valid("page_number", page_number))
     if not 1 <= page_number <= page_count:
@@ -794,22 +865,30 @@ def _mode_type(music21: ModuleType, attrs: Mapping[str, Any]) -> Outcome | None:
     return _one_of(attrs, "type", types)
 
 
-def _hierarchy_times(start: float, end: float, media_length: float) -> Outcome | None:
-    # The values are compared as they are given, as `_point` compares them, so a
-    # media length too large for a float is longer than any time. TiLiA shows them
-    # as floats, and so do the reasons.
+def _hierarchy_in_media(
+    start: float, end: float, media_length: float
+) -> Outcome | None:
+    # The values are compared as they are given, as `_time_in_media` compares them,
+    # so a media length too large for a float is longer than any time. TiLiA shows
+    # them as floats, and so do the reasons, but for such a length, which is shown
+    # as it is.
+    if start <= media_length and end <= media_length:
+        return None
+    length = float(media_length) if _is_number(media_length) else _shown(media_length)
     if start > media_length:
         return _broken(
-            f"Start time '{float(start)}' is bigger than media time"
-            f" '{float(media_length)}'"
+            f"Start time '{float(start)}' is bigger than media time '{length}'"
         )
-    if end > media_length:
-        return _broken(
-            f"End time '{float(end)}' is bigger than media time"
-            f" '{float(media_length)}'"
-        )
+    return _broken(f"End time '{float(end)}' is bigger than media time '{length}'")
+
+
+def _hierarchy_start(start: float) -> Outcome | None:
     if start < 0:
         return _broken(f"Start time can't be negative. Got '{float(start)}'")
+    return None
+
+
+def _hierarchy_end(start: float, end: float) -> Outcome | None:
     if end <= start:
         return _broken(
             f"End time '{float(end)}' should be bigger than start time"
@@ -871,6 +950,8 @@ def _same_place(
 def _crossed(
     start: float, end: float, level: int, hierarchies: Iterable[tla.Component]
 ) -> Outcome | None:
+    if not _is_comparable(level):
+        return None
     crossed = [
         other.id for other in hierarchies if _cross(start, end, level, other.attrs)
     ]
@@ -920,13 +1001,19 @@ def _lt(a: float, b: float) -> bool:
     return a < b and not _times_close(a, b)
 
 
-def _range_place(
-    row_id: Any, row_ids: Sequence[Any], start: float, end: float, media_length: float
-) -> Outcome | None:
+def _range_row(row_id: Any, row_ids: Sequence[Any]) -> Outcome | None:
     if not row_id or row_id not in row_ids:
         return _broken("Invalid row ID.")
+    return None
+
+
+def _range_times(start: float, end: float) -> Outcome | None:
     if start >= end:
         return _broken("Start time must be before end time.")
+    return None
+
+
+def _range_in_media(start: float, end: float, media_length: float) -> Outcome | None:
     if start < 0 or end > media_length:
         return _broken("Range is outside media bounds.")
     return None
@@ -945,7 +1032,7 @@ def _joined(
     joined = attrs.get("joined_right")
     if joined is None:
         return None
-    row_id, start, end = attrs["row_id"], attrs["start"], attrs["end"]
+    row_id, start, end = attrs.get("row_id"), attrs["start"], attrs["end"]
     row = next((row.get("name") for row in rows if row.get("id") == row_id), row_id)
     later = [
         other
@@ -1005,7 +1092,7 @@ class _Kinds:
         self,
         media_length: float,
         rows: Sequence[Mapping[str, Any]],
-        page_count: int,
+        page_count: float,
     ) -> None:
         self._media_length = media_length
         self._context = _Context(page_count=page_count, rows=rows)
@@ -1026,13 +1113,20 @@ class _Kinds:
                 self._context.music21 = self._music21[0]
             error = self._music21[1]
         rules = _RULES[kind]
-        broken = rules(self._media_length, others, attrs, self._context)
+        broken = _first(rules(self._media_length, others, attrs, self._context))
         if broken is None and kind in _NEED_MUSIC21 and self._context.music21 is None:
             # The cause the kind's function raises it from.
-            cant_check = CantCheck(kind, error)
-            cant_check.__cause__ = error
-            return None, cant_check
+            unable = CantCheck(kind, error)
+            unable.__cause__ = error
+            return None, unable
         return broken, None
+
+    def every(
+        self, kind: str, attrs: Mapping[str, Any], others: Iterable[tla.Component]
+    ) -> list[Outcome]:
+        """Every rule but the color that a component of `kind` with `attrs` breaks,
+        the first being what `broken` gives."""
+        return _every(_RULES[kind](self._media_length, others, attrs, self._context))
 
 
 class _Others:
@@ -1248,7 +1342,10 @@ def _qt_reads(text: str) -> bool:
 def _media_time(seconds: float) -> str:
     """A time as TiLiA's `format_media_time` shows it ("01:05.0", "1:02:05.0"),
     with a minus sign before a negative one ("-00:01.0"). It is rounded to tenths
-    before its minutes are counted, so 59.96 is "01:00.0", not "00:60.0"."""
+    before its minutes are counted, so 59.96 is "01:00.0", not "00:60.0". A value
+    too large for a float, which only a media length can be, is shown as it is."""
+    if not _is_number(seconds):
+        return _shown(seconds)
     if seconds < 0:
         return "-" + _media_time(-seconds)
     seconds = float(f"{seconds:.1f}")
