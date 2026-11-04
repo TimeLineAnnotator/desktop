@@ -32,6 +32,8 @@ from types import SimpleNamespace
 import pytest
 
 from tilia_core import tla
+from tilia_core.commands import migrate as migrate_command
+from tilia_core.tla import folder as folder_module
 from tilia_core.tla import writer
 from tilia_core.tla.migrate import media as migrate_media
 
@@ -630,6 +632,81 @@ def test_a_current_files_fingerprint_is_that_of_its_bytes_through_a_link(
     doc = tla.read(link / "piece.tla")
     doc.metadata["note"] = "edited"
     tla.write(link / "piece.tla", doc, expect=expected)
+
+
+# `tilia migrate --apply` states an old file's fingerprint (FR-043, FR-104)
+
+
+@pytest.mark.parametrize(
+    "present, reached, relative",
+    [
+        (True, "directly", "../audio/piece.wav"),
+        (False, "directly", "../audio/piece.mp3"),
+        # From the folder it is reached through, which the media is outside.
+        (True, "through a linked folder", "../../real/audio/piece.wav"),
+        (False, "through a linked folder", "../audio/piece.mp3"),
+        (True, "through a link to the file", "../audio/piece.wav"),
+        (False, "through a link to the file", "../audio/piece.mp3"),
+    ],
+)
+def test_tilia_migrate_writes_an_old_file_whose_path_it_makes_relative(
+    linked_folder, capsys, where, present, reached, relative
+):
+    # The fingerprint it states is the old file's, with the path as stored,
+    # which isn't the migrated document's: without it, every such file would
+    # read as changed since it was read.
+    real, link = linked_folder
+    if present:
+        stored = str(media_file(real / "audio" / "piece.wav"))
+    else:  # where it was saved, on another computer of this system's kind
+        stored = WINDOWS_MEDIA if WINDOWS else POSIX_MEDIA
+    piece = old_file(real / "corpus", where, stored, SAVED_HERE)
+    folder = real / "corpus"
+    if reached == "through a linked folder":
+        folder = link / "corpus"
+    elif reached == "through a link to the file":
+        folder = real / "links"
+        folder.mkdir()
+        try:
+            os.symlink(piece, folder / "piece.tla")
+        except OSError:
+            pytest.skip("this system doesn't let the tests make symbolic links")
+
+    status = migrate_command.main([str(folder), "--apply"])
+
+    out = capsys.readouterr().out
+    assert status == 0, out
+    assert "changed since" not in out
+    assert "Wrote 1 file." in out
+    written = tla.read(piece)
+    assert (written.format_version, stored_in(written, where)) == (
+        tla.FORMAT_VERSION,
+        relative,
+    )
+
+
+def test_tilia_migrate_leaves_alone_a_file_changed_after_it_read_it(
+    tmp_path, monkeypatch, where
+):
+    # The fingerprint it states is of the bytes it read and migrated, not of
+    # the file as it is by the time it writes.
+    media = media_file(tmp_path / "audio" / "piece.wav")
+    piece = old_file(tmp_path / "corpus", where, str(media), SAVED_HERE)
+    read = folder_module.read_with_migration
+    other = str(media.with_name("other.wav"))
+    edited = json.dumps(old_content(where, other, SAVED_HERE)).encode()
+
+    def then_edited(path):
+        read_result = read(path)
+        Path(path).write_bytes(edited)
+        return read_result
+
+    monkeypatch.setattr(folder_module, "read_with_migration", then_edited)
+
+    report = tla.migrate_folder(tmp_path / "corpus", apply=True)
+
+    assert [f.outcome for f in report.files] == [tla.Outcome.CHANGED_SINCE_READ]
+    assert piece.read_bytes() == edited
 
 
 # The rest of the file

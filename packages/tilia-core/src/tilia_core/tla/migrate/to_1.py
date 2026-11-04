@@ -110,13 +110,15 @@ class Migrated:
     """An old file's content in the current format, as the reader reads it,
     with `version` the old file's version; what the migration dropped or
     changed, as warnings, at their places in the old file, without a line;
-    the counts for a migration report; and where each place of the content
-    was in the old file."""
+    the counts for a migration report; where each place of the content was
+    in the old file; and the old file's bytes, which the reader gives, for
+    the fingerprint a write states (FR-043)."""
 
     content: dict[str, Any]
     warnings: list[ReadWarning] = field(default_factory=list)
     changes: dict[str, int] = field(default_factory=dict)
     places: OldPlaces = field(default_factory=OldPlaces, compare=False)
+    data: bytes = field(default=b"", compare=False, repr=False)
 
 
 def migrate(
