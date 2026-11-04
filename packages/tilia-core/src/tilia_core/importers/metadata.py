@@ -12,6 +12,7 @@ from typing import Any
 from tilia_core import build, tla
 from tilia_core.importers._csv import UTF8_DECODE_FAILED
 from tilia_core.importers._results import ImportFailed, ImportResult
+from tilia_core.tla.errors import printable
 from tilia_core.tla.parse import MAX_DEPTH
 
 # TiLiA's texts (tilia/errors.py), word for word.
@@ -149,7 +150,8 @@ def _set_media_length(document: tla.Document, path: Path, values: list[Any]) -> 
             build.set_media_length(document, _length(value))
     except ValueError as error:
         document.media_length = before
-        raise ImportFailed(path, str(error)) from None
+        # A refusal quotes the value, which JSON lets hold a lone surrogate.
+        raise ImportFailed(path, printable(str(error))) from None
 
 
 def _length(value: Any) -> Any:
