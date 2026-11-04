@@ -1,19 +1,68 @@
+import json
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
 
-from tests.utils import save_and_reopen, undoable
-from tilia.requests import Post, post
+from tests.utils import (
+    get_blank_file_data,
+    save_and_reopen,
+    save_tilia_to_tmp_path,
+    undoable,
+)
+from tilia.parsers.csv.hierarchy import import_by_measure, import_by_time
+from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.hierarchy import HierarchyTimelineUI, HierarchyUI
 from tilia.ui.timelines.hierarchy.drag import DRAG_PROXIMITY_LIMIT
 from tilia.ui.windows import WindowKind
 
+FORMAL_ATTRS = ("formal_type", "formal_function")
+OLD_CSV = "start,end,level,label,formal_type,formal_function\n1,2,1,kept,sonata,opening"
+
 
 @pytest.fixture
 def tlui(hierarchy_tlui):
     return hierarchy_tlui
+
+
+def assert_has_no_formal_attrs(hierarchy) -> None:
+    for attr in FORMAL_ATTRS:
+        assert not hasattr(hierarchy, attr)
+
+
+def write_old_file(tmp_path: Path) -> Path:
+    """A file as TiLiA 0.7 saved it, with a formal type and a formal function."""
+    file_data = get_blank_file_data()
+    file_data["version"] = "0.7.0"
+    file_data["media_metadata"]["media length"] = 100.0
+    file_data["timelines"]["1"] = {
+        "name": "old",
+        "kind": "HIERARCHY_TIMELINE",
+        "height": 120,
+        "is_visible": True,
+        "ordinal": 2,
+        "components": {
+            "2": {
+                "start": 0.0,
+                "pre_start": 0.0,
+                "end": 100.0,
+                "post_end": 100.0,
+                "level": 1,
+                "label": "kept",
+                "color": "",
+                "formal_type": "sonata",
+                "formal_function": "opening",
+                "comments": "",
+                "kind": "HIERARCHY",
+                "hash": "irrelevant",
+            }
+        },
+    }
+    path = tmp_path / "old.tla"
+    path.write_text(json.dumps(file_data), encoding="utf-8")
+    return path
 
 
 class TestHierarchyUI:
@@ -546,50 +595,49 @@ class TestFieldInspectorEdit:
         commands.execute("timeline.element.inspect")
         return qtui._windows[WindowKind.INSPECT]
 
-    @pytest.mark.parametrize(
-        "field_name, attr, new_value",
-        [
-            pytest.param("Label", "label", "new label", id="hierarchy-label"),
-            pytest.param(
-                "Formal type",
-                "formal_type",
-                "phrase",
-                id="hierarchy-formal-type",
-            ),
-            pytest.param(
-                "Formal function",
-                "formal_function",
-                "antecedent",
-                id="hierarchy-formal-function",
-            ),
-        ],
-    )
-    def test_single_line_field_edit_changes_component_and_ui(
-        self, qtui, tlui, tluis, tmp_path, field_name, attr, new_value
-    ):
-        # formal_type/formal_function have no on-canvas glyph (grep of
-        # tilia/ finds them only in components.py, csv parser and
-        # get_inspector_dict — see tilia/ui/timelines/hierarchy/element.py),
-        # so "what its UI shows" is checked via get_inspector_dict(), the
-        # element's own UI-facing readback of the field. Label does have a
-        # canvas glyph, checked separately below.
+    def test_label_edit_changes_component_and_ui(self, qtui, tlui, tluis, tmp_path):
         commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
         hui = tlui[0]
         inspector = self.open_inspector_for(tlui, hui, qtui)
-        line_edit = inspector.field_name_to_widgets[field_name][1]
+        line_edit = inspector.field_name_to_widgets["Label"][1]
 
         with undoable():
-            line_edit.setText(new_value)
+            line_edit.setText("new label")
 
-        assert hui.get_data(attr) == new_value
-        assert hui.get_inspector_dict()[field_name] == new_value
-        if field_name == "Label":
-            assert hui.label.toPlainText() == new_value
-            assert hui.full_name.endswith(new_value)
+        assert hui.get_data("label") == "new label"
+        assert hui.get_inspector_dict()["Label"] == "new label"
+        assert hui.label.toPlainText() == "new label"
+        assert hui.full_name.endswith("new label")
 
         save_and_reopen(tmp_path)
         reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
-        assert reloaded_tlui[0].get_data(attr) == new_value
+        assert reloaded_tlui[0].get_data("label") == "new label"
+
+    @staticmethod
+    def assert_inspector_shows_no_formal_field(inspector, hui) -> None:
+        assert "Label" in inspector.field_name_to_widgets
+        for field_name in ("Formal type", "Formal function"):
+            assert field_name not in inspector.field_name_to_widgets
+            assert field_name not in hui.get_inspector_dict()
+
+    def test_inspector_shows_no_formal_field(self, qtui, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+        hui = tlui[0]
+
+        inspector = self.open_inspector_for(tlui, hui, qtui)
+
+        self.assert_inspector_shows_no_formal_field(inspector, hui)
+
+    def test_inspector_shows_no_formal_field_for_an_old_file(
+        self, qtui, tluis, tmp_path
+    ):
+        commands.execute("file.open", path=write_old_file(tmp_path))
+        reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
+        hui = reloaded_tlui[0]
+
+        inspector = self.open_inspector_for(reloaded_tlui, hui, qtui)
+
+        self.assert_inspector_shows_no_formal_field(inspector, hui)
 
     def test_comments_edit_changes_component_and_ui(self, qtui, tlui, tluis, tmp_path):
         commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
@@ -609,3 +657,82 @@ class TestFieldInspectorEdit:
         reloaded_hui = reloaded_tlui[0]
         assert reloaded_hui.get_data("comments") == "some comments"
         assert reloaded_hui.comments_icon.isVisible()
+
+
+class TestFormalAttrsAreGone:
+    """Hierarchies have no formal type or formal function. A file or a CSV from
+    before may still hold them: that isn't an error, and their values are left out.
+    """
+
+    @pytest.mark.parametrize(
+        "given",
+        [
+            pytest.param({"formal_type": "sonata"}, id="formal-type"),
+            pytest.param({"formal_function": "opening"}, id="formal-function"),
+            pytest.param(
+                {"formal_type": "sonata", "formal_function": "opening"}, id="both"
+            ),
+        ],
+    )
+    def test_hierarchy_given_them_is_created_without_them(self, tlui, given):
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="kept", **given
+        )
+
+        assert tlui[0].get_data("label") == "kept"
+        assert_has_no_formal_attrs(tlui.timeline[0])
+
+    def test_csv_by_time_with_their_columns_is_imported_without_them(
+        self, tlui, tmp_path
+    ):
+        path = tmp_path / "old.csv"
+        path.write_text(OLD_CSV, encoding="utf-8")
+
+        assert import_by_time(tlui.timeline, path) == (True, [])
+
+        assert tlui[0].get_data("label") == "kept"
+        assert_has_no_formal_attrs(tlui.timeline[0])
+
+    def test_csv_by_measure_with_their_columns_is_imported_without_them(
+        self, beat_tlui, tlui, tmp_path
+    ):
+        beat_tlui.timeline.beat_pattern = [1]
+        beat_tlui.create_beat(time=1)
+        beat_tlui.create_beat(time=2)
+        beat_tlui.timeline.recalculate_measures()
+        path = tmp_path / "old.csv"
+        path.write_text(OLD_CSV, encoding="utf-8")
+
+        assert import_by_measure(tlui.timeline, beat_tlui.timeline, path) == (True, [])
+
+        assert tlui[0].get_data("label") == "kept"
+        assert_has_no_formal_attrs(tlui.timeline[0])
+
+    def test_old_file_holding_them_opens_and_saves_without_them(
+        self, tilia, qtui, tluis, tmp_path
+    ):
+        commands.execute("file.open", path=write_old_file(tmp_path))
+
+        reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
+        assert reloaded_tlui[0].get_data("label") == "kept"
+        assert_has_no_formal_attrs(reloaded_tlui.timeline[0])
+        assert not tilia.is_file_modified()
+
+        saved = json.loads(
+            Path(save_tilia_to_tmp_path(tmp_path, "saved")).read_text(encoding="utf-8")
+        )
+        component = saved["timelines"]["1"]["components"]["2"]
+        assert component["label"] == "kept"
+        assert not set(FORMAL_ATTRS) & set(component)
+
+    def test_copy_holds_neither(self, tlui):
+        commands.execute(
+            "timeline.hierarchy.add", start=0, end=1, level=1, label="copied"
+        )
+        tlui.select_element(tlui[0])
+
+        commands.execute("timeline.component.copy")
+
+        values = get(Get.CLIPBOARD_CONTENTS)["components"][0]["values"]
+        assert values["label"] == "copied"
+        assert not set(FORMAL_ATTRS) & set(values)
