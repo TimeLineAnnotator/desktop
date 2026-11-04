@@ -1,13 +1,19 @@
-"""The package's public surface: the names its contract gives, and their docstrings."""
+"""The package's public surface: the names its contract gives, their
+docstrings, and the example in the package's README."""
 
+import doctest
 import inspect
+import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
 import tilia_core.timemap as timemap
-from docs import beat_timeline
+from docs import beat_timeline, document
 from tilia_core.timemap import units
+
+README = Path(__file__).parents[2] / "README.md"
 
 # Every name of TimeLineAnnotator/project-management's
 # specs/wp09-measure-table/contracts/python-api.md.
@@ -121,3 +127,44 @@ def test_timemap_the_docstring_test_sees_a_dataclass_without_one():
         value: int
 
     assert _written_docstring(Bare) is None
+
+
+def _bars_and_beats_example() -> str:
+    """The README section's code, as the doctest parser needs it: a closing
+    fence right after an expected result would be read as part of that result."""
+    text = README.read_text(encoding="utf-8")
+    _, found, rest = text.partition("## Bars and beats\n")
+    assert found, "the README has no section 'Bars and beats'"
+    section = rest.partition("\n## ")[0]
+    (example,) = re.findall(r"```pycon\n(.*?)```", section, re.DOTALL)
+    return example
+
+
+def _repeat_piece():
+    """The document the example measures: a beat every second from 0, three to
+    a bar, with bars 1 and 2 played twice."""
+    marks = {0: {"number": 1}, 3: {"number": 2}, 6: {"number": 1}, 9: {"number": 2}}
+    timeline = beat_timeline(
+        [{"time": float(t), "measure": marks.get(t)} for t in range(12)],
+        role="time_map",
+    )
+    return document(timeline, media_length=15.0)
+
+
+def test_timemap_the_readme_example_runs():
+    example = doctest.DocTestParser().get_doctest(
+        _bars_and_beats_example(),
+        {"document": _repeat_piece()},
+        "Bars and beats",
+        str(README),
+        0,
+    )
+    assert any("time_map_of" in e.source for e in example.examples)
+    assert any(".positions(" in e.source for e in example.examples)
+
+    report = []
+    runner = doctest.DocTestRunner(verbose=False)
+    results = runner.run(example, out=report.append)
+
+    assert results.failed == 0, "".join(report)
+    assert results.attempted == len(example.examples) > 0
