@@ -659,6 +659,33 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(0, 1) == []
         assert beat_tl.get_time_by_measure(0, 1, True) == []
 
+    def test_measure_number_past_the_last_measure(self, tls):
+        # Only a hand-edited or buggy file has more numbers than measures.
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2, 3, 4])
+
+        assert beat_tl.get_time_by_measure(2, 0.5) == [4]
+        assert beat_tl.get_time_by_measure(3) == []
+        assert beat_tl.get_time_by_measure(3, 0.5) == []
+        assert beat_tl.get_time_by_measure(3, 1, True) == []
+
+    @pytest.mark.parametrize(
+        "beats_in_measure, measure_numbers, expected",
+        [
+            pytest.param(
+                [2, 2, 2], [1, 3, 1, 2], [3, 7], id="not the number just below"
+            ),
+            pytest.param(
+                [2, 2], [1, 3, 1, 4], [3], id="not a pass of the number below"
+            ),
+        ],
+    )
+    def test_segment_end_with_measure_number_past_the_last_measure(
+        self, tls, beats_in_measure, measure_numbers, expected
+    ):
+        beat_tl = load_beat_timeline(tls, beats_in_measure, measure_numbers)
+
+        assert beat_tl.get_time_by_measure(3, 0, True) == expected
+
 
 class TestAddMeasureZero:
     def test_timeline_with_no_measure_2(self, tls):
