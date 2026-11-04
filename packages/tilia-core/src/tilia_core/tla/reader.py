@@ -138,6 +138,7 @@ def _old(
         ReadWarning(place=place, line=lines[place], message=message)
         for place, message in named
     ]
+    migrated.data = data
     return document, migrated
 
 

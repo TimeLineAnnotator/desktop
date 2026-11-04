@@ -34,7 +34,7 @@ from tilia_core.tla.model import (
     MigrationReport,
     Outcome,
 )
-from tilia_core.tla.reader import read_with_migration
+from tilia_core.tla.reader import loads_for_fingerprint, read_with_migration
 from tilia_core.tla.writer import fingerprint_of, write
 
 logger = logging.getLogger(__name__)
@@ -239,16 +239,24 @@ def _result(
         warnings=document.warnings[len(migrated.warnings) :],
     )
     if apply:
-        result.outcome, result.reason, result.traceback = _write(path, document)
+        result.outcome, result.reason, result.traceback = _write(
+            path, document, migrated.data
+        )
     return result
 
 
-def _write(path: Path, document: Document) -> tuple[Outcome, str | None, str | None]:
+def _write(
+    path: Path, document: Document, data: bytes
+) -> tuple[Outcome, str | None, str | None]:
     """Write a migrated document over the file it was read from, stating the
-    fingerprint it had then: the outcome; why, when it wasn't written; and the
-    traceback of an error in the core that stopped it."""
+    fingerprint it had then, from `data`, the bytes it was read and migrated
+    from: `fingerprint_of(document)` isn't an old file's fingerprint, which
+    takes the media and PDF paths as the file stores them (FR-043). The
+    outcome; why, when it wasn't written; and the traceback of an error in the
+    core that stopped it."""
     try:
-        write(path, document, expect=fingerprint_of(document))
+        expect = fingerprint_of(loads_for_fingerprint(data, path=path))
+        write(path, document, expect=expect)
     except FileChanged:
         return Outcome.CHANGED_SINCE_READ, "changed since it was read", None
     except FileInUse:

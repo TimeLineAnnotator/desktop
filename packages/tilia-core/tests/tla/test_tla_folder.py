@@ -933,6 +933,12 @@ def test_a_file_that_cant_be_written_is_reported(clean_corpus, read_only):
 
 
 def test_the_writes_state_the_fingerprint_read(clean_corpus, monkeypatch):
+    # The old file's, read before it is written: that of the file it becomes
+    # differs where the migration makes its media path relative (FR-043).
+    read = {
+        "a.tla": tla.fingerprint(clean_corpus / "a.tla"),
+        "old.tla": tla.fingerprint(clean_corpus / "sub" / "old.tla"),
+    }
     stated = []
     write = folder_module.write
 
@@ -944,10 +950,7 @@ def test_the_writes_state_the_fingerprint_read(clean_corpus, monkeypatch):
 
     migrate_folder(clean_corpus, apply=True)
 
-    assert dict(stated) == {
-        "a.tla": tla.fingerprint(clean_corpus / "a.tla"),
-        "old.tla": tla.fingerprint(clean_corpus / "sub" / "old.tla"),
-    }
+    assert dict(stated) == read
 
 
 # The exit status
