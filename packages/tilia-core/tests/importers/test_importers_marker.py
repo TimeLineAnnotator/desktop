@@ -4,6 +4,7 @@ whole message. A time that isn't one reads as the rules read it, not as TiLiA's
 importer does (TimeLineAnnotator/project-management#298)."""
 
 import copy
+import json
 
 import pytest
 from import_docs import component, document, timeline
@@ -119,15 +120,25 @@ class TestColumnsAndCells:
         ]
 
     @pytest.mark.parametrize(
-        "data", ["time,label\n,first", "label,time\nfirst"], ids=["empty", "too short"]
+        "data",
+        ["time,label\n,first", "label,time\nfirst", 'time,label\n"   ",first'],
+        ids=["empty", "too short", "only spaces"],
     )
     def test_a_row_without_a_time_is_skipped(self, imported, data):
         result, target, _ = imported(data)
 
         (problem,) = result.problems
         assert (problem.line, problem.column, problem.skipped) == (2, "time", True)
-        assert problem.message == rules.not_valid("time", "")
+        assert problem.message == "an empty value is not a valid time."
         assert target.components == {}
+
+    def test_a_label_or_a_comment_of_only_spaces_is_empty(self, imported):
+        result, target, _ = imported("time,label,comments\n1,  ,   \n")
+
+        assert attrs(target) == [
+            {"time": 1, "label": "", "comments": "", "color": None}
+        ]
+        assert result.problems == []
 
     def test_columns_it_doesnt_know_are_ignored(self, imported):
         # A marker's color too: TiLiA's importer doesn't read one.
@@ -261,6 +272,32 @@ class TestWhatItChanges:
         assert [a["time"] for a in attrs(target)] == [5.0]
         assert old.id not in target.components
 
+    def test_a_component_of_a_kind_the_core_doesnt_know_stays(self, tmp_path):
+        # FR-032, and WP3's FR-015.
+        path = tmp_path / "markers.csv"
+        path.write_text("time,label\n5,new\n", encoding="utf-8")
+        old = component("marker", time=1.0, label="", comments="", color=None)
+        unknown = tla.Component(
+            id=tla.new_id(),
+            kind=tla.UnknownKind("LYRIC"),
+            extra={"time": 1.0, "text": "la"},
+        )
+        target = timeline("marker", attrs={"height": 30}, components=[old, unknown])
+        written = tla.canonical_bytes(document(timelines=[target]))
+        read = tla.loads(written)
+
+        result = marker.import_by_time(read, target.id, path)
+
+        components = read.timelines[target.id].components
+        assert result.problems == []
+        assert set(components) == {unknown.id, *result.created}
+        assert components[unknown.id] == unknown
+        again = json.loads(tla.canonical_bytes(read))["timelines"][target.id]
+        assert (
+            again["components"][unknown.id]
+            == json.loads(written)["timelines"][target.id]["components"][unknown.id]
+        )
+
     def test_importing_twice_gives_the_same_components_with_new_ids(self, tmp_path):
         # FR-032; the second time, the first's components don't count as others.
         path = tmp_path / "markers.csv"
@@ -332,8 +369,8 @@ class TestTimeUnits:
 
 class TestAnUnknownMediaLength:
     def test_it_fails_and_changes_nothing(self, tmp_path):
-        # Until TimeLineAnnotator/project-management#418 is answered: a file can
-        # hold a timeline and no length, which only a new timeline refuses.
+        # TimeLineAnnotator/project-management#418: a file can hold a timeline and
+        # no length, which only a new timeline refuses.
         path = tmp_path / "markers.csv"
         path.write_text("time\n1\n", encoding="utf-8")
         old = component("marker", time=1.0, label="", comments="", color=None)
