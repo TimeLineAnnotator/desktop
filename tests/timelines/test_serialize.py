@@ -1,3 +1,4 @@
+import difflib
 import json
 from pathlib import Path
 
@@ -114,6 +115,54 @@ class TestRoundTripDesktopFileDesktop:
         components = contents["timelines"][str(marker_tlui.id)]["components"]
         keys_as_ints = [int(k) for k in components.keys()]
         assert keys_as_ints == sorted(keys_as_ints)
+
+    def test_saved_timelines_dict_is_sorted_by_integer_id_not_ordinal(
+        self, marker_tlui, beat_tlui, tmp_path
+    ):
+        # Reordering timelines must only change their "ordinal" values. If it
+        # also moved whole timeline blocks around the file, version control
+        # would show every line of the moved timeline as changed.
+        commands.execute("timelines.permute_ordinal", marker_tlui, beat_tlui)
+
+        save_path = save_tilia_to_tmp_path(tmp_path, "sorted_timelines")
+
+        timelines = _read_tla(save_path)["timelines"]
+        ordinals = {int(k): tl["ordinal"] for k, tl in timelines.items()}
+        assert sorted(ordinals, key=ordinals.get) != sorted(ordinals), "bad setup"
+        keys_as_ints = [int(k) for k in timelines.keys()]
+        assert keys_as_ints == sorted(keys_as_ints)
+
+    def test_reordering_timelines_changes_only_ordinal_lines_in_saved_file(
+        self, marker_tlui, beat_tlui, tmp_path
+    ):
+        commands.execute("timeline.marker.add", time=0)
+        commands.execute("timeline.beat.add", time=5)
+        before = save_tilia_to_tmp_path(tmp_path, "before")
+
+        commands.execute("timelines.permute_ordinal", marker_tlui, beat_tlui)
+        after = save_tilia_to_tmp_path(tmp_path, "after")
+
+        volatile = (
+            '"file_path"',
+            '"ordinal"',
+            '"hash"',
+            '"components_hash"',
+            '"timelines_hash"',
+        )
+        diff = difflib.unified_diff(
+            Path(before).read_text("utf-8").splitlines(),
+            Path(after).read_text("utf-8").splitlines(),
+            lineterm="",
+            n=0,
+        )
+        changed = [
+            line
+            for line in diff
+            if line[:1] in "+-"
+            and not line.startswith(("+++", "---"))
+            and not line[1:].strip().startswith(volatile)
+        ]
+        assert changed == []
 
     def test_save_open_save_preserves_components_per_timeline(
         self, slider_tlui, marker_tlui, beat_tlui, tmp_path
