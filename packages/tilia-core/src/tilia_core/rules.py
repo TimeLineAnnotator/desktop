@@ -63,8 +63,9 @@ _LEVELS = (1, 2)
 _NOT_MODE_TYPES = ("ionian", "aeolian")
 # Qualities music21 has no chord type for, each a chord type it has plus one added
 # tone, spelled as in a chord symbol, from the root: TiLiA's, as `dev` has them
-# since 43a61224 and 28539120. TiLiA takes them from here once it checks with
-# the rules.
+# since 43a61224, 28539120 and 6989db60. TiLiA takes them from here once it checks
+# with the rules. The cadential six-four's sixth and fourth aren't added tones, but
+# it is written and typed as if they were, on the major triad.
 ADDED_TONE_QUALITIES: dict[str, tuple[str, str]] = {
     "dominant-seventh-flat-ninth": ("dominant-seventh", "b9"),
     "dominant-seventh-sharp-ninth": ("dominant-seventh", "#9"),
@@ -77,12 +78,21 @@ ADDED_TONE_QUALITIES: dict[str, tuple[str, str]] = {
     "major-sixth-added-ninth": ("major-sixth", "9"),
     "minor-sixth-added-ninth": ("minor-sixth", "9"),
     "major-added-ninth": ("major", "9"),
+    "cadential-six-four": ("major", "64"),
     "minor-added-ninth": ("minor", "9"),
     "minor-seventh-added-eleventh": ("minor-seventh", "11"),
 }
 # Qualities TiLiA keeps in root position, whatever their intervals.
 _NO_INVERSION_QUALITIES = frozenset(
-    {"Italian", "French", "German", "Neapolitan", "Tristan", "power"}
+    {
+        "Italian",
+        "French",
+        "German",
+        "Neapolitan",
+        "Tristan",
+        "power",
+        "cadential-six-four",
+    }
 )
 
 # Two hierarchy boundaries count as the same when they are within 1e-9 s of each
@@ -715,9 +725,9 @@ def _quality_and_inversion(
 def _inversions(music21: ModuleType, quality: str) -> int:
     """A quality's inversions, as TiLiA's `get_inversion_amount` counts them: an
     added tone isn't one the chord can be inverted to."""
-    quality, _ = split_added_tone(quality)
     if quality in _NO_INVERSION_QUALITIES:
         return 0
+    quality, _ = split_added_tone(quality)
     intervals = str(music21.harmony.CHORD_TYPES[quality][0])
     return len(intervals.split(",")) - 1
 

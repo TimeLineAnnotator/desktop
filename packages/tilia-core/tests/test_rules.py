@@ -676,6 +676,24 @@ class TestPdfMarker:
         )
 
 
+# The added-tone qualities whose inversions are their base quality's.
+COUNTED_FROM_THEIR_BASE = [
+    ("dominant-seventh-flat-ninth", "dominant-seventh", "b9", 3),
+    ("dominant-seventh-sharp-ninth", "dominant-seventh", "#9", 3),
+    ("dominant-seventh-sharp-eleventh", "dominant-seventh", "#11", 3),
+    ("dominant-seventh-flat-thirteenth", "dominant-seventh", "b13", 3),
+    ("dominant-seventh-added-thirteenth", "dominant-seventh", "13", 3),
+    ("dominant-ninth-sharp-eleventh", "dominant-ninth", "#11", 4),
+    ("major-seventh-sharp-eleventh", "major-seventh", "#11", 3),
+    ("major-seventh-added-sixth", "major-seventh", "6", 3),
+    ("major-sixth-added-ninth", "major-sixth", "9", 3),
+    ("minor-sixth-added-ninth", "minor-sixth", "9", 3),
+    ("major-added-ninth", "major", "9", 2),
+    ("minor-added-ninth", "minor", "9", 2),
+    ("minor-seventh-added-eleventh", "minor-seventh", "11", 3),
+]
+
+
 class TestHarmony:
     @pytest.mark.parametrize(
         "attribute, values",
@@ -742,24 +760,7 @@ class TestHarmony:
             f"{inversions + 1} is not a valid inversion.",
         )
 
-    @pytest.mark.parametrize(
-        "quality, base, tone, inversions",
-        [
-            ("dominant-seventh-flat-ninth", "dominant-seventh", "b9", 3),
-            ("dominant-seventh-sharp-ninth", "dominant-seventh", "#9", 3),
-            ("dominant-seventh-sharp-eleventh", "dominant-seventh", "#11", 3),
-            ("dominant-seventh-flat-thirteenth", "dominant-seventh", "b13", 3),
-            ("dominant-seventh-added-thirteenth", "dominant-seventh", "13", 3),
-            ("dominant-ninth-sharp-eleventh", "dominant-ninth", "#11", 4),
-            ("major-seventh-sharp-eleventh", "major-seventh", "#11", 3),
-            ("major-seventh-added-sixth", "major-seventh", "6", 3),
-            ("major-sixth-added-ninth", "major-sixth", "9", 3),
-            ("minor-sixth-added-ninth", "minor-sixth", "9", 3),
-            ("major-added-ninth", "major", "9", 2),
-            ("minor-added-ninth", "minor", "9", 2),
-            ("minor-seventh-added-eleventh", "minor-seventh", "11", 3),
-        ],
-    )
+    @pytest.mark.parametrize("quality, base, tone, inversions", COUNTED_FROM_THEIR_BASE)
     def test_the_added_tone_qualities_tilia_has(self, quality, base, tone, inversions):
         # An added tone isn't one the chord can be inverted to: the base quality's
         # inversions count.
@@ -769,6 +770,28 @@ class TestHarmony:
             False,
             f"{inversions + 1} is not a valid inversion.",
         )
+
+    def test_the_cadential_six_four_is_written_on_the_major_triad(self):
+        assert rules.split_added_tone("cadential-six-four") == ("major", "64")
+
+    def test_the_cadential_six_four_in_root_position(self):
+        assert check("harmony", quality="cadential-six-four", inversion=0) == OK
+
+    @pytest.mark.parametrize("inversion", [1, 2])
+    def test_the_cadential_six_four_has_no_inversions(self, inversion):
+        # Its root is in the bass by definition, so the major triad's inversions
+        # don't count, as TiLiA doesn't count them.
+        assert check("harmony", quality="cadential-six-four", inversion=inversion) == (
+            False,
+            f"{inversion} is not a valid inversion.",
+        )
+
+    def test_the_added_tone_qualities_are_all_here_in_tilias_order(self):
+        # TiLiA lists its qualities in this order, once it takes them from here.
+        names = [quality for quality, *_ in COUNTED_FROM_THEIR_BASE]
+        names.insert(names.index("minor-added-ninth"), "cadential-six-four")
+
+        assert list(rules.ADDED_TONE_QUALITIES) == names
 
     def test_a_quality_without_an_added_tone_is_its_own_base(self):
         assert rules.split_added_tone("major") == ("major", "")
