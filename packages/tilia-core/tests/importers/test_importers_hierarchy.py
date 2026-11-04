@@ -148,15 +148,26 @@ class TestColumnsAndCells:
             ("start,end,level\n1,,1", "end"),
             ("start,end,level\n1,2,", "level"),
             ("start,end,level\n1", "end"),
+            ('start,end,level\n"  ",1,1', "start"),
+            ('start,end,level\n1,"  ",1', "end"),
+            ('start,end,level\n1,2,"  "', "level"),
         ],
-        ids=["empty start", "empty end", "empty level", "too short"],
+        ids=[
+            "empty start",
+            "empty end",
+            "empty level",
+            "too short",
+            "start of only spaces",
+            "end of only spaces",
+            "level of only spaces",
+        ],
     )
     def test_a_row_without_a_required_value_is_skipped(self, imported, data, column):
         result, target, _ = imported(data)
 
         (problem,) = result.problems
         assert (problem.line, problem.column, problem.skipped) == (2, column, True)
-        assert problem.message == rules.not_valid(column, "")
+        assert problem.message == f"an empty value is not a valid {column}."
         assert target.components == {}
 
     def test_a_row_too_short_for_an_optional_column_has_its_default(self, imported):
@@ -190,6 +201,19 @@ class TestColumnsAndCells:
         assert result.created == list(target.components)
 
 
+class TestCellsOfOnlySpaces:
+    def test_the_optional_ones_are_as_if_empty(self, imported):
+        result, target, _ = imported(
+            "start,end,level,pre_start,post_end,label,color,comments\n"
+            '1,2,1," "," "," "," "," "\n'
+        )
+
+        assert attrs(target) == [
+            {"start": 1, "end": 2, "level": 1, "label": "", "color": "", "comments": ""}
+        ]
+        assert result.problems == []
+
+
 class TestPreStartAndPostEnd:
     # FR-031: unset follows the start or the end when it moves, where a number
     # stays fixed.
@@ -200,8 +224,9 @@ class TestPreStartAndPostEnd:
             "1,2,1,1,2",
             "1,2,1,1.0,2.00",
             "1,2,1,,",
+            '1,2,1," ","   "',
         ],
-        ids=["equal", "equal as numbers", "empty"],
+        ids=["equal", "equal as numbers", "empty", "only spaces"],
     )
     def test_equal_or_empty_is_stored_unset(self, imported, row):
         result, target, _ = imported(f"start,end,level,pre_start,post_end\n{row}\n")
@@ -524,6 +549,17 @@ class TestWhatItChanges:
 
         assert doc == before
 
+    def test_the_path_can_be_text(self, tmp_path):
+        path = tmp_path / "phrases.csv"
+        path.write_text("start,end,level\nabc,2,1\n", encoding="utf-8")
+        target = timeline("hierarchy")
+
+        result = hierarchy.import_by_time(
+            document(timelines=[target]), target.id, str(path)
+        )
+
+        assert result.problems[0].path == path
+
 
 class TestTimeUnits:
     def test_a_quarters_document_reads_times_as_they_are(self, imported):
@@ -540,7 +576,7 @@ class TestTimeUnits:
 
 class TestAnUnknownMediaLength:
     def test_it_fails_and_changes_nothing(self, tmp_path):
-        # Until TimeLineAnnotator/project-management#418 is answered: as for markers.
+        # TimeLineAnnotator/project-management#418: as for markers.
         path = tmp_path / "phrases.csv"
         path.write_text("start,end,level\n1,2,1\n", encoding="utf-8")
         old = component("hierarchy", start=0.0, end=10.0, level=1)
