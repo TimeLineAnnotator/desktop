@@ -2230,7 +2230,6 @@ class TestEditBarsCommand:
         tluis[0].select_element(tluis[0][2])
 
         def edit(dialog):
-            edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1, 2, 3")
             edit_bars_dialog_cell(dialog, 1, TIME_SIGNATURE_COLUMN, "6/8")
 
         with undoable():
