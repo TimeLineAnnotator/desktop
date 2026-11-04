@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 import tilia.ui.strings
 from tilia.requests import Get, get
 from tilia.timelines.beat.pattern import (
+    MAX_DIGITS,
     PlannedBar,
     format_planned_bars,
     parse,
@@ -181,6 +182,8 @@ def parse_bar_numbers(
             bound.isascii() and bound.isdigit() for bound in bounds
         ):
             return None, f"'{item}' is not a bar number or a range such as 1-4."
+        if any(len(bound.lstrip("0")) > MAX_DIGITS for bound in bounds):
+            return None, f"Numbers can have at most {MAX_DIGITS} digits."
         first, last = int(bounds[0]), int(bounds[-1])
         if last < first:
             return None, f"'{item}' counts down."
