@@ -681,6 +681,27 @@ def test_elsewhere_a_name_ending_in_a_dot_or_a_space_isnt_a_wavs(tmp_path, name)
 
 
 @windows_only
+def test_on_windows_a_parent_after_a_junction_is_taken_away_by_name(tmp_path):
+    # Windows reads `link/..` as `os.path.abspath` does, by name: what is stored
+    # is the file it reads, not the one beside the junction's target, which is
+    # the one macOS and Linux would read.
+    import _winapi
+
+    (tmp_path / "Corpus").mkdir()
+    (tmp_path / "ext" / "sounds").mkdir(parents=True)
+    pcm16_wav(tmp_path / "Corpus" / "Rec.wav", rate=8000, channels=1, frames=16000)
+    pcm16_wav(tmp_path / "ext" / "Rec.wav", rate=8000, channels=1, frames=40000)
+    _winapi.CreateJunction(
+        str(tmp_path / "ext" / "sounds"), str(tmp_path / "Corpus" / "Sounds")
+    )
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, f"{tmp_path}/CORPUS/SOUNDS/../REC.WAV") == 2.0
+
+    assert doc.media_path == stored(tmp_path / "Corpus" / "Rec.wav")
+
+
+@windows_only
 def test_on_windows_all_of_the_path_gets_it_but_the_drive(tmp_path):
     path = pcm16_wav(tmp_path / "Rec.wav", rate=8000, channels=1, frames=8000)
     given = str(path).swapcase()
