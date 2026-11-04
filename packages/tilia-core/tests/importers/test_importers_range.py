@@ -1,3 +1,4 @@
+import json
 import re
 
 import pytest
@@ -285,6 +286,29 @@ class TestJoinedWithNextByTime:
         assert first.attrs["joined_right"] is None
         assert second.attrs["joined_right"] is None
 
+    def test_a_row_the_rules_refuse_gets_no_note_about_its_join(
+        self, do_import, target
+    ):
+        # It wasn't imported, so nothing was read as false.
+        result = do_import("start,end,row,joined_with_next\n2,1,A,maybe\n")
+
+        assert messages(result) == ["Start time must be before end time."]
+        assert result.problems[0].column is None
+        assert result.problems[0].skipped
+        assert ranges_of(target) == []
+
+    def test_a_kept_row_gets_both_its_notes(self, do_import, target):
+        result = do_import(
+            "start,end,row,joined_with_next,color\n0,1,A,maybe,notacolor\n"
+        )
+
+        assert messages(result) == [
+            "maybe is not a valid joined with next.",
+            "notacolor is not a valid color: the default color is used.",
+        ]
+        assert not any(problem.skipped for problem in result.problems)
+        assert len(ranges_of(target)) == 1
+
     @pytest.mark.parametrize("cell", ["true", "TRUE", "True", " true "])
     def test_true_in_any_case(self, do_import, target, cell):
         result = do_import(f"start,end,row,joined_with_next\n0,1,A,{cell}\n1,2,A,")
@@ -566,14 +590,11 @@ class TestColor:
 class TestShortRows:
     # A column the row is too short for reads as an empty cell. TiLiA's range
     # importer raises IndexError there; a row is reported, never raised (FR-022).
-    # TimeLineAnnotator/project-management#418 asks what a required cell with
-    # nothing in it should read; these compare with rules.not_valid, which would
-    # say it.
 
     @pytest.mark.parametrize(
         "row, column, message",
         [
-            ("0", "end", rules.not_valid("end", "")),
+            ("0", "end", "an empty value is not a valid end."),
             ("0,1", "row", "row name is empty; skipping."),
         ],
         ids=["end", "row"],
@@ -593,13 +614,48 @@ class TestShortRows:
     def test_an_empty_required_cell_reads_the_same(self, do_import):
         result = do_import("start,end,row\n0,,A\n")
 
-        assert messages(result) == [rules.not_valid("end", "")]
+        assert messages(result) == ["an empty value is not a valid end."]
 
     @pytest.mark.parametrize(
         "column", ["label", "color", "comments", "joined_with_next"]
     )
     def test_an_optional_cell_missing_is_its_default(self, do_import, target, column):
         result = do_import(f"start,end,row,{column}\n0,1,A\n")
+
+        assert result.problems == []
+        attrs = ranges_of(target)[0].attrs
+        assert attrs["label"] == ""
+        assert attrs["color"] is None
+        assert attrs["comments"] == ""
+        assert attrs["joined_right"] is None
+
+
+class TestCellsOfOnlySpaces:
+    @pytest.mark.parametrize(
+        "row, column, message",
+        [
+            ('"  ",1,A', "start", "an empty value is not a valid start."),
+            ('0,"  ",A', "end", "an empty value is not a valid end."),
+            ('0,1,"  "', "row", "row name is empty; skipping."),
+        ],
+        ids=["start", "end", "row"],
+    )
+    def test_a_required_one_reads_as_an_empty_one(
+        self, do_import, target, row, column, message
+    ):
+        result = do_import(f"start,end,row\n{row}\n")
+
+        assert messages(result) == [message]
+        assert result.problems[0].column == column
+        assert result.problems[0].skipped
+        assert ranges_of(target) == []
+        assert row_names(target) == ["Row 0"]
+
+    def test_the_optional_ones_are_as_if_empty(self, do_import, target):
+        result = do_import(
+            "start,end,row,label,color,comments,joined_with_next\n"
+            '0,1,A," "," "," "," "\n'
+        )
 
         assert result.problems == []
         attrs = ranges_of(target)[0].attrs
@@ -736,8 +792,8 @@ class TestTheDocument:
         assert row_names(target) == ["Old"]
 
     def test_a_document_with_no_media_length_changes_nothing(self, csv_file):
-        # TimeLineAnnotator/project-management#418, until it is answered: a file
-        # can bring a timeline and no media length.
+        # TimeLineAnnotator/project-management#418: a file can bring a timeline and
+        # no media length.
         old = component("range", start=0.0, end=1.0, row_id="Old123")
         target = timeline("range", attrs={"rows": [old_row()]}, components=[old])
         doc = document(timelines=[target], media_length=None)
@@ -748,6 +804,41 @@ class TestTheDocument:
         assert failed.value.message.startswith("No media loaded and no duration set.")
         assert list(target.components) == [old.id]
         assert row_names(target) == ["Old"]
+
+    def test_a_component_of_a_kind_the_core_doesnt_know_stays(self, csv_file):
+        # FR-032, and WP3's FR-015.
+        old = component("range", start=0.0, end=1.0, row_id="Old123")
+        unknown = tla.Component(
+            id=tla.new_id(), kind=tla.UnknownKind("LYRIC"), extra={"start": 0.0}
+        )
+        target = timeline(
+            "range",
+            attrs={"rows": [old_row()], "height": 80},
+            components=[old, unknown],
+        )
+        written = tla.canonical_bytes(document(timelines=[target]))
+        read = tla.loads(written)
+
+        result = import_by_time(read, target.id, csv_file("start,end,row\n0,1,A"))
+
+        kept = read.timelines[target.id]
+        assert set(kept.components) == {unknown.id, *result.created}
+        assert kept.components[unknown.id] == unknown
+        assert [row["name"] for row in kept.attrs["rows"]] == ["A"]
+        assert (
+            json.loads(tla.canonical_bytes(read))["timelines"][target.id]["components"][
+                unknown.id
+            ]
+            == json.loads(written)["timelines"][target.id]["components"][unknown.id]
+        )
+
+    def test_the_path_can_be_text(self, csv_file, target):
+        path = csv_file("start,end,row\nabc,1,A")
+        doc = document(timelines=[target])
+
+        result = import_by_time(doc, target.id, str(path))
+
+        assert result.problems[0].path == path
 
     def test_the_required_columns_are_named_in_tilias_order(self, do_import):
         with pytest.raises(ImportFailed) as failed:
