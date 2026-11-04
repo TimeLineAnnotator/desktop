@@ -522,9 +522,12 @@ class TimelineComponentManager(Generic[T, TC]):
             self.delete_component(component)
 
     def hash_components(self):
+        # Sorted, as the list can hold the same components in another order after
+        # a restore: those that tie, such as score annotations, are in the order
+        # they were inserted. That isn't a change.
         str_to_hash = ""
-        for component in self._components:
-            str_to_hash += component.hash + "|"
+        for hash in sorted(component.hash for component in self._components):
+            str_to_hash += hash + "|"
 
         return hash_function(str_to_hash)
 

@@ -376,6 +376,20 @@ class TestUndoableWithSeveralComponents:
             range_tlui.timeline.clear()
             _record()
 
+    def test_one_of_several_annotations_with_no_order_of_their_own(self, score_tlui):
+        score_tl = score_tlui.timeline
+        annotations = [
+            score_tl.create_component(
+                ComponentKind.SCORE_ANNOTATION, x=x, viewer_id=0, text="a", font_size=14
+            )[0]
+            for x in range(5)
+        ]
+        _record()
+
+        with undoable():
+            score_tl.delete_components([annotations[0]])
+            _record()
+
 
 @pytest.mark.timeout(120)
 @pytest.mark.parametrize("seed", [0, 1, 2, 3])
