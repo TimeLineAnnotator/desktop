@@ -454,7 +454,7 @@ def test_the_document_id_ignores_the_order_of_score_timelines_with_any_ids(old_i
 
 # Shapes TiLiA never writes, from files edited by hand: refused, naming the
 # place in the old file (TimeLineAnnotator/project-management#359 (old score
-# timelines TiLiA never wrote), pending).
+# timelines TiLiA never wrote)).
 
 
 @pytest.mark.parametrize("svg", [7, ["<svg/>"], {"svg": "<svg/>"}, True])
