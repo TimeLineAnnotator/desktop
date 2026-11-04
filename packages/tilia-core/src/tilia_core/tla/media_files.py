@@ -53,6 +53,9 @@ POSIX = "posix"
 # The form of this system's absolute paths.
 SYSTEM = WINDOWS if os.name == "nt" else POSIX
 _MODULES = {WINDOWS: ntpath, POSIX: posixpath}
+# The starts that `PureWindowsPath`, and Windows, read as a share's two slashes,
+# though they are of two kinds.
+_SLASH_AND_BACKSLASH = ("/\\", "\\/")
 
 
 def is_url(path: str) -> bool:
@@ -96,16 +99,25 @@ def as_media_path(given: str | os.PathLike[str]) -> str:
     `https:`, and never looked for on a server, which on Windows could block
     for seconds and reach the host the link names: as the migration takes an
     old one. Any other path that starts with `//` is a server path. A path
-    object is a path, never a link: its text differs by system."""
+    object is a path, never a link: its text differs by system. A path of the
+    other system's form (`C:\\…` or `\\\\server\\share\\…` on macOS and Linux,
+    `/…` on Windows) is already absolute in its own form, and is returned as
+    it is: the working folder says nothing about it."""
     if not isinstance(given, str):
-        return os.path.abspath(os.fspath(given))
+        return _absolute(os.fspath(given))
     if not given or is_url(given):
         return given
     if _is_link_without_scheme(given) and (
         given.startswith("//") or local_file(given, os.getcwd()) is None
     ):
         return _as_link(given)
-    return os.path.abspath(given)
+    return _absolute(given)
+
+
+def _absolute(path: str) -> str:
+    """`path`, not a link, absolute from the working folder; as it is when
+    this system mustn't read it (`_not_for_this_system`)."""
+    return path if _not_for_this_system(path) else os.path.abspath(path)
 
 
 def absolute_form(path: str) -> str | None:
@@ -118,12 +130,26 @@ def absolute_form(path: str) -> str | None:
 
 
 def _form(path: str) -> str | None:
-    """`absolute_form` of a path that isn't a URL."""
-    if PureWindowsPath(path).is_absolute():  # a drive and its root, or a share
+    """`absolute_form` of a path that isn't a URL. Only two slashes of one
+    kind, `//` or `\\\\`, start a share, whatever `PureWindowsPath` reads: `/\\a`
+    is a POSIX path, and `\\/a` is relative to a root, as `\\a` is."""
+    if not path.startswith(_SLASH_AND_BACKSLASH) and (
+        PureWindowsPath(path).is_absolute()  # a drive and its root, or a share
+    ):
         return WINDOWS
     if path.startswith("/"):
         return POSIX
     return None
+
+
+def _not_for_this_system(path: str) -> bool:
+    """Whether this system mustn't read `path`, which isn't a URL: it is of the
+    other system's form, so it would name something else here, or on Windows
+    it starts with `\\/`, which Windows itself would take for a share."""
+    form = _form(path)
+    if form is not None and form != SYSTEM:
+        return True
+    return SYSTEM == WINDOWS and path.startswith("\\/")
 
 
 def is_relative(path: str) -> bool:
@@ -201,10 +227,9 @@ def local_file(stored: str, folder: str | None) -> Path | None:
     macOS and Linux. Any other is joined to the folder as it is, and the
     system reads it: a backslash separates folders on Windows, and is part
     of a name on macOS and Linux."""
-    form = _form(stored)
-    if form is not None and form != SYSTEM:
+    if _not_for_this_system(stored):
         return None
-    if form is None and folder is None:
+    if _form(stored) is None and folder is None:
         return None
     head, name = os.path.split(stored)
     spellings = (
