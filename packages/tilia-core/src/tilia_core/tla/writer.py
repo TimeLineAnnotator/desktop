@@ -20,7 +20,6 @@ import hashlib
 import json
 import math
 import os
-import posixpath
 import re
 from collections.abc import Callable, Mapping
 from operator import itemgetter
@@ -53,6 +52,7 @@ from tilia_core.tla.layout import (
     pointer_to,
 )
 from tilia_core.tla.media_files import (
+    POSIX,
     SYSTEM,
     absolute_form,
     is_relative,
@@ -585,14 +585,16 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     absolute where no relative path exists. A stored relative path is joined
     with POSIX semantics, "/" between its parts: a backslash in it is part
     of a name, never converted, so that the same document gives the same
-    bytes on every system (FR-023). A Windows path that stays absolute is
-    written with "/". An empty path, a URL, and a relative path in a
-    document read from nowhere, whose base is unknown, are kept. `doc` isn't
-    changed: when a path changes, a copy is returned, sharing with `doc`
-    what didn't change."""
-    folder = os.path.abspath(folder)
+    bytes on every system (FR-023). A Windows path that stays absolute, or
+    becomes so, is written with "/". An empty path, a URL, and a relative
+    path in a document read from nowhere, whose base is unknown, are kept.
+    `doc` isn't changed: when a path changes, a copy is returned, sharing
+    with `doc` what didn't change."""
+    folder = _absolute_folder(folder)
     origin = (
-        None if doc.origin is None else os.path.dirname(os.path.abspath(doc.origin))
+        None
+        if doc.origin is None
+        else _absolute_folder(os.path.dirname(os.path.abspath(doc.origin)))
     )
     if origin is not None and os.path.normcase(origin) == os.path.normcase(folder):
         origin = None  # its relative paths are already relative to `folder`
@@ -617,6 +619,14 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     return dataclasses.replace(doc, media_path=media_path, timelines=timelines)
 
 
+def _absolute_folder(folder: str | os.PathLike[str]) -> str:
+    """`folder` absolute, links not followed. On macOS and Linux, the two
+    slashes `os.path.abspath` keeps at the start of `//home/me`, which `Path`
+    takes for a root of their own, are the one root."""
+    absolute = os.path.abspath(folder)
+    return absolute[1:] if SYSTEM == POSIX and absolute.startswith("//") else absolute
+
+
 def _rebased(stored: Any, origin: str | None, folder: str) -> Any:
     """`stored` as a file in `folder` stores it; `origin` is the folder its
     relative paths are relative to when that isn't `folder`, or None."""
@@ -635,12 +645,15 @@ def _rebased(stored: Any, origin: str | None, folder: str) -> Any:
 
 
 def _moved(stored: str, origin: str, folder: str) -> str:
-    """`stored`, a path relative to the folder `origin` with POSIX semantics,
-    as relative to `folder`: as `os.path.relpath` would give it, except that
-    the stored path is split on "/" only, its names compared as they are,
-    so that a backslash in one stays part of it on every system. Absolute,
-    with "/", where no relative path exists (another drive on Windows)."""
-    parts = posixpath.normpath(stored).split("/")
+    """`stored`, a path relative to the folder `origin`, as relative to
+    `folder`: as `os.path.relpath` would give it, except that the stored path
+    is split on "/" only and its names are compared exactly, on every system,
+    so that a backslash in one stays part of it and a document gives the same
+    bytes everywhere (FR-023). The two folders, which the system gave, are
+    compared as it reads them. Where no relative path exists (another drive
+    on Windows), absolute and normalised, with "/": in a path of Windows form,
+    a backslash separates folders."""
+    parts = _collapsed(stored)
     up = 0
     while up < len(parts) and parts[up] == "..":
         up += 1
@@ -649,15 +662,32 @@ def _moved(stored: str, origin: str, folder: str) -> str:
     base = base[: max(1, len(base) - up)]  # never above the root
     here = Path(folder).parts
     if os.path.normcase(base[0]) != os.path.normcase(here[0]):
-        root = with_slashes(str(Path(*base)), SYSTEM).rstrip("/")
-        return "/".join([root, *names])
+        return with_slashes(os.path.normpath(os.path.join(origin, stored)), SYSTEM)
     target = [*base, *names]
     same = 0
     for mine, theirs in zip(here, target, strict=False):  # up to the shorter
-        if os.path.normcase(mine) != os.path.normcase(theirs):
+        if same < len(base):  # two folders the system gave, not a stored name
+            mine, theirs = os.path.normcase(mine), os.path.normcase(theirs)
+        if mine != theirs:
             break
         same += 1
-    return "/".join([".."] * (len(here) - same) + target[same:])
+    return "/".join([".."] * (len(here) - same) + target[same:]) or "."
+
+
+def _collapsed(stored: str) -> list[str]:
+    """The names of `stored`, split on "/", without "." and without a ".." that
+    can go back over the name before it. A ".." after a name holding a
+    backslash stays: what it goes back over differs by system, a part of that
+    name on Windows and all of it on macOS and Linux."""
+    names: list[str] = []
+    for name in stored.split("/"):
+        if name in ("", "."):
+            continue
+        if name == ".." and names and names[-1] != ".." and "\\" not in names[-1]:
+            names.pop()
+        else:
+            names.append(name)
+    return names
 
 
 def write(

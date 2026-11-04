@@ -13,12 +13,15 @@ folder. Paths of the other system's form (Windows paths read on macOS or
 Linux, and the reverse) are never looked up on this computer, so those
 cases run on every system."""
 
+import dataclasses
 import errno
 import hashlib
 import importlib
 import inspect
+import itertools
 import json
 import os
+import posixpath
 import shutil
 import stat
 import sys
@@ -1311,3 +1314,230 @@ def test_a_relative_path_written_onto_another_drive_becomes_absolute(corpus, tmp
     assert rebased.media_path == (tmp_path / "audio" / f"{NAME}.flac").as_posix()
     assert pdf_path(rebased) == (tmp_path / "scores" / f"{NAME}.pdf").as_posix()
     assert doc.media_path == f"../audio/{NAME}.flac"
+
+
+# Writing: a stored path's names, and what its form makes of a backslash
+
+# The file system's root, where a folder's depth is known. `rebase_paths` only
+# computes with folders: none of these is looked up.
+ROOT = Path(os.path.abspath(os.sep))
+
+
+def rebased_from(origin, stored, folder):
+    """`stored`, in a document read from a file in the folder `origin`, as a
+    file in `folder` stores it."""
+    doc = tla.new_document()
+    doc.media_path = stored
+    doc.origin = Path(origin) / "piece.tla"
+    return writer.rebase_paths(doc, folder).media_path
+
+
+@pytest.mark.parametrize(
+    "stored, on_windows, on_posix",
+    [
+        ("a\\b/../c.wav", "corpus/a/c.wav", "corpus/c.wav"),
+        ("a\\b/../../c.wav", "corpus/c.wav", "c.wav"),
+    ],
+)
+def test_a_save_as_keeps_the_file_a_path_with_a_backslash_names(
+    corpus, tmp_path, stored, on_windows, on_posix
+):
+    # What a ".." after a name holding a backslash goes back over differs by
+    # system, so it isn't collapsed: the same bytes name the same file as
+    # before on each system (FR-023).
+    media = media_file(tmp_path / (on_windows if WINDOWS else on_posix))
+    doc = tla.read(corpus)
+    doc.media_path = stored
+    assert os.path.samefile(tla.media(corpus, doc).path, media)
+    target = tmp_path / "out" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert written(target)[0] == f"../corpus/{stored}"
+    assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
+
+
+@pytest.mark.parametrize(
+    "stored, expected",
+    [
+        ("x/../a\\b/../c.wav", "../corpus/a\\b/../c.wav"),
+        ("a\\b/c/../d.wav", "../corpus/a\\b/d.wav"),
+        ("a\\b/./../c.wav", "../corpus/a\\b/../c.wav"),
+        ("../a\\b/../c.wav", "../a\\b/../c.wav"),
+        ("a\\b/.", "../corpus/a\\b"),
+        ("a\\b/..", "../corpus/a\\b/.."),
+    ],
+)
+def test_only_a_dotdot_after_a_name_with_a_backslash_is_kept(stored, expected):
+    assert rebased_from(ROOT / "corpus", stored, ROOT / "out") == expected
+
+
+@windows_only
+@pytest.mark.parametrize(
+    "stored, place",
+    [
+        ("..\\audio\\x.wav", "audio/x.wav"),
+        ("audio\\x.wav", "corpus/audio/x.wav"),
+        ("../audio\\x.wav", "audio/x.wav"),
+        ("a\\b/../c.wav", "corpus/a/c.wav"),
+    ],
+)
+def test_a_path_written_onto_another_drive_is_stable_from_the_first_write(
+    corpus, tmp_path, stored, place
+):
+    # It is of Windows form now, where a backslash separates folders: written
+    # with "/" and normalised, so that the next write gives the same bytes.
+    expected = (tmp_path / place).as_posix()
+    doc = tla.read(corpus)
+    doc.media_path = stored
+    set_pdf_path(doc, stored)
+    once = writer.rebase_paths(doc, "Z:\\elsewhere-176")
+    assert (once.media_path, pdf_path(once)) == (expected, expected)
+    # Once the document has followed the file onto that drive, as `write` has
+    # it do.
+    followed = dataclasses.replace(once, origin=Path("Z:\\elsewhere-176\\piece.tla"))
+    twice = writer.rebase_paths(followed, "Z:\\elsewhere-176")
+    assert tla.canonical_bytes(twice) == tla.canonical_bytes(once)
+
+
+@posix_only
+@pytest.mark.parametrize(
+    "origin, folder",
+    [
+        ("//home/me/a", "/home/me/b"),
+        ("/home/me/a", "//home/me/b"),
+        ("//home/me/a", "//home/me/b"),
+    ],
+)
+def test_on_posix_two_slashes_in_a_folder_are_still_the_one_root(origin, folder):
+    # On macOS and Linux they name the same folders as one slash does: not a
+    # server of their own, as a stored path that starts with "//" is.
+    assert rebased_from(origin, "x.wav", folder) == "../a/x.wav"
+
+
+@posix_only
+def test_on_posix_two_slashes_in_a_folder_are_still_the_same_folder():
+    stored = "./x.wav"
+    assert rebased_from("//home/me/a", stored, "/home/me/a") == stored
+
+
+@pytest.mark.parametrize(
+    "origin, stored, folder, expected",
+    [
+        ("r", "CORPUS/x.wav", "r/corpus", "../CORPUS/x.wav"),
+        ("r", "corpus/x.wav", "r/corpus", "x.wav"),
+        ("r/a", "../CORPUS/x.wav", "r/corpus/deeper", "../../CORPUS/x.wav"),
+    ],
+)
+def test_a_stored_name_is_compared_exactly_with_the_folders(
+    origin, stored, folder, expected
+):
+    # On every system, so that a document gives the same bytes (FR-023); the
+    # longer path is right on Windows too.
+    assert rebased_from(ROOT / origin, stored, ROOT / folder) == expected
+
+
+@windows_only
+@pytest.mark.parametrize(
+    "origin, folder, expected",
+    [
+        ("c:\\r-176\\corpus", "C:\\r-176\\out", "../corpus/x.wav"),
+        ("C:\\r-176\\Corpus", "c:\\R-176\\CORPUS\\out", "../x.wav"),
+        (
+            "\\\\SERVER-176\\share\\corpus",
+            "\\\\server-176\\SHARE\\out",
+            "../corpus/x.wav",
+        ),
+    ],
+    ids=["a drive", "a folder", "a share"],
+)
+def test_on_windows_the_folders_are_compared_in_any_case(origin, folder, expected):
+    # The system gave them, and reads them so.
+    assert rebased_from(origin, "x.wav", folder) == expected
+
+
+@pytest.mark.parametrize(
+    "origin, stored, folder, expected",
+    [
+        ("a", "..", "", "."),
+        ("a/b", "../..", "", "."),
+        ("a", ".", "out", "../a"),
+        ("a", "a/..", "out", "../a"),
+        ("a", "./", "out", "../a"),
+        ("a", ".", "a/b", ".."),
+    ],
+)
+def test_a_path_that_names_a_folder_stays_a_path(origin, stored, folder, expected):
+    # An empty path would mean no media.
+    assert rebased_from(ROOT / origin, stored, ROOT / folder) == expected
+
+
+def test_a_path_never_goes_above_the_root():
+    assert rebased_from(ROOT / "corpus", "../../../../x.wav", ROOT / "out") == (
+        "../x.wav"
+    )
+
+
+@windows_only
+def test_a_path_written_onto_another_drive_from_a_drives_root():
+    assert rebased_from("D:\\", "x.wav", "Z:\\elsewhere-176") == "D:/x.wav"
+
+
+@pytest.mark.parametrize("stored", ["./x.wav", "a/../x.wav", "a//..//x.wav"])
+def test_a_save_as_writes_a_path_normalised(corpus, tmp_path, stored):
+    media = media_file(corpus.parent / "x.wav")
+    doc = tla.read(corpus)
+    doc.media_path = stored
+    target = tmp_path / "out" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert written(target)[0] == "../corpus/x.wav"
+    assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
+
+
+def test_the_migration_keeps_the_backslash_of_a_posix_path_that_stays_absolute(
+    tmp_path, where
+):
+    # Part of a name, on every system: no relative path exists from a file
+    # saved on Windows.
+    stored = "/home/someone-176/a\\b.wav"
+    piece = old_file(tmp_path, where, stored, file_path=WINDOWS_SAVED)
+    assert stored_in(tla.read(piece), where) == stored
+
+
+def test_the_writer_keeps_the_backslash_of_a_posix_path():
+    # Absolute on Windows, where it is another system's; relative on macOS and
+    # Linux. Part of a name either way.
+    stored = "/home/someone-176/a\\b.wav"
+    assert rebased_from(ROOT / "corpus", stored, "/home/someone-176/out") == (
+        stored if WINDOWS else "../a\\b.wav"
+    )
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "x.wav",
+        "./x.wav",
+        "a/x.wav",
+        "a/b/x.wav",
+        "a//b/./x.wav",
+        "a/../x.wav",
+        "../x.wav",
+        "../a/x.wav",
+        "../../x.wav",
+        "../../../../x.wav",
+        "a/b/../../../x.wav",
+        ".",
+        "..",
+        "a/..",
+        "a/",
+        "../..",
+    ],
+)
+def test_on_paths_with_slashes_only_moved_is_posixpaths_relpath(stored):
+    folders = ["", "a", "a/b", "a/b/c", "x", "x/y", "a/x"]
+    for origin, folder in itertools.product(folders, repeat=2):
+        resolved = posixpath.normpath(posixpath.join("/", origin, stored))
+        expected = posixpath.relpath(resolved, posixpath.join("/", folder))
+        moved = writer._moved(stored, str(ROOT / origin), str(ROOT / folder))
+        assert moved == expected, (origin, folder)
