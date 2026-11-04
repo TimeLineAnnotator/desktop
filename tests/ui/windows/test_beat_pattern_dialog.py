@@ -352,9 +352,10 @@ class TestEditingCells:
 
         edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
 
-        # The 3/4 bar comes after the third 4/4 bar, with the two beats left.
+        # The two beats left are tapped from the pattern's first bar, as that
+        # is what tapping on fills at the fourth bar, not the 3/4 bar.
         result = dialog.get_result()
-        assert [bar.beat_count for bar in result.bars] == [4, 4, 4, 3]
+        assert [bar.beat_count for bar in result.bars] == [4, 4, 4, 4]
         assert result.numbers == [1, 2, 3, 4]
         assert dialog.error.text() == ""
 
