@@ -367,6 +367,30 @@ def test_a_media_length_with_a_control_character_fails_the_import(tmp_path, text
     assert fails(doc, path) == NOT_A_MEDIA_LENGTH.format(text)
 
 
+@pytest.mark.parametrize(
+    "value, shown",
+    [
+        ("\ud800", "\\ud800"),
+        ("5\udfff", "5\\udfff"),
+        ("durée 🎵 \ud83d", "durée 🎵 \\ud83d"),
+        (["\ud800"], '["\\ud800"]'),
+        ({"\ud800": 1}, '{"\\ud800": 1}'),
+    ],
+)
+def test_a_refused_length_with_a_lone_surrogate_can_be_encoded(tmp_path, value, shown):
+    # JSON can hold a lone surrogate, which UTF-8 can't encode: it is written as
+    # its escape, and everything else as it is.
+    doc = build.new_script_document()
+    path = text_file(
+        tmp_path, json.dumps({"composer": "Mozart", "media length": value})
+    )
+
+    message = fails(doc, path)
+
+    assert message == NOT_A_MEDIA_LENGTH.format(shown)
+    message.encode("utf-8")
+
+
 def with_a_marker(media_length):
     marker = timeline("marker", components=[component("marker", time=1.0)])
     return document(media_length=media_length, timelines=[marker])
