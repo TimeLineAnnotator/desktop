@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 
@@ -281,8 +282,11 @@ class TestAPdfThatCantBeRead:
         assert messages(result) == [NO_SUCH_PAGE]
         assert len(result.notes) == 1
 
-    def test_a_timeline_without_a_path(self, csv_file):
-        target = timeline("pdf", attrs={"path": ""})
+    @pytest.mark.parametrize(
+        "attrs", [{"path": ""}, {}], ids=["an empty path", "no path"]
+    )
+    def test_a_timeline_without_a_path_has_no_pdf(self, csv_file, attrs):
+        target = timeline("pdf", attrs=attrs)
         doc = document(timelines=[target])
 
         result = import_by_time(
@@ -290,9 +294,7 @@ class TestAPdfThatCantBeRead:
         )
 
         assert messages(result) == [NO_SUCH_PAGE]
-        assert result.notes == [
-            "The PDF '' can't be read: every page number is refused"
-        ]
+        assert result.notes == ["This timeline has no PDF."]
 
     def test_the_note_comes_once_with_no_rows(self, tmp_path, csv_file):
         target = timeline("pdf", attrs={"path": str(tmp_path / "missing.pdf")})
@@ -453,28 +455,65 @@ class TestTheRules:
         )
 
 
+class TestABadTimeAndABadPage:
+    @pytest.mark.parametrize(
+        "row, message, column",
+        [
+            (["abc", "xyz"], "abc is not a valid time.", "time"),
+            (["abc", 9], "abc is not a valid time.", "time"),
+            ([61, 9], "Time '01:01.0' is bigger than media time '01:00.0'", "time"),
+            ([-1, 9], "Time can't be negative. Got '-00:01.0'", "time"),
+            # A cell that can't be read comes before any rule.
+            ([61, "xyz"], "xyz is not a valid page number.", "page_number"),
+        ],
+        ids=[
+            "neither can be read",
+            "no time, a page it hasn't",
+            "beyond the media, a page it hasn't",
+            "negative, a page it hasn't",
+            "beyond the media, no page",
+        ],
+    )
+    def test_one_problem_for_the_row(
+        self, pdf_timeline, csv_file, row, message, column
+    ):
+        target = pdf_timeline(2)
+        doc = document(timelines=[target])
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], row))
+        )
+
+        assert messages(result) == [message]
+        assert result.problems[0].column == column
+        assert result.problems[0].skipped
+        assert markers_of(target) == []
+
+
 class TestShortRows:
     # A column the row is too short for reads as an empty cell.
-    # TimeLineAnnotator/project-management#418 asks what a required cell with
-    # nothing in it should read; these compare with rules.not_valid, which would
-    # say it.
 
     @pytest.mark.parametrize(
-        "header, row, column",
+        "header, row, column, message",
         [
-            ("time,page_number", "0", "page_number"),
-            ("page_number,time", "1", "time"),
+            (
+                "time,page_number",
+                "0",
+                "page_number",
+                "an empty value is not a valid page number.",
+            ),
+            ("page_number,time", "1", "time", "an empty value is not a valid time."),
         ],
     )
     def test_a_missing_cell_skips_the_row(
-        self, pdf_timeline, csv_file, header, row, column
+        self, pdf_timeline, csv_file, header, row, column, message
     ):
         target = pdf_timeline(2)
         doc = document(timelines=[target])
 
         result = import_by_time(doc, target.id, csv_file(f"{header}\n{row}\n"))
 
-        assert messages(result) == [rules.not_valid(column, "")]
+        assert messages(result) == [message]
         assert result.problems[0].column == column
         assert result.problems[0].skipped
         assert markers_of(target) == []
@@ -485,7 +524,27 @@ class TestShortRows:
 
         result = import_by_time(doc, target.id, csv_file("time,page_number\n0,\n"))
 
-        assert messages(result) == [rules.not_valid("page_number", "")]
+        assert messages(result) == ["an empty value is not a valid page number."]
+
+    @pytest.mark.parametrize(
+        "row, column, message",
+        [
+            ('"  ",1', "time", "an empty value is not a valid time."),
+            ('0,"  "', "page_number", "an empty value is not a valid page number."),
+        ],
+        ids=["time", "page number"],
+    )
+    def test_a_cell_of_only_spaces_reads_the_same(
+        self, pdf_timeline, csv_file, row, column, message
+    ):
+        target = pdf_timeline(2)
+        doc = document(timelines=[target])
+
+        result = import_by_time(doc, target.id, csv_file(f"time,page_number\n{row}\n"))
+
+        assert messages(result) == [message]
+        assert result.problems[0].column == column
+        assert result.problems[0].skipped
 
 
 class TestResult:
@@ -553,6 +612,56 @@ class TestTheDocument:
         assert old.id not in target.components
         assert len(target.components) == 1
 
+    def test_a_component_of_a_kind_the_core_doesnt_know_stays(
+        self, pdf_timeline, csv_file
+    ):
+        # FR-032, and WP3's FR-015.
+        target = pdf_timeline(2)
+        target.attrs["height"] = 30  # a written timeline has one
+        old = component("pdf_marker", time=9.0, page_number=2)
+        unknown = tla.Component(
+            id=tla.new_id(), kind=tla.UnknownKind("LYRIC"), extra={"time": 9.0}
+        )
+        target.components = {old.id: old, unknown.id: unknown}
+        written = tla.canonical_bytes(document(timelines=[target]))
+        read = tla.loads(written)
+
+        result = import_by_time(
+            read, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
+        )
+
+        kept = read.timelines[target.id].components
+        assert set(kept) == {unknown.id, *result.created}
+        assert kept[unknown.id] == unknown
+        assert (
+            json.loads(tla.canonical_bytes(read))["timelines"][target.id]["components"][
+                unknown.id
+            ]
+            == json.loads(written)["timelines"][target.id]["components"][unknown.id]
+        )
+
+    def test_the_path_can_be_text(self, pdf_timeline, csv_file):
+        target = pdf_timeline(2)
+        doc = document(timelines=[target])
+        path = csv_file("time,page_number\nabc,1")
+
+        result = import_by_time(doc, target.id, str(path))
+
+        assert result.problems[0].path == path
+
+    def test_the_required_columns_are_named_in_tilias_order(
+        self, pdf_timeline, csv_file
+    ):
+        target = pdf_timeline(2)
+        doc = document(timelines=[target])
+
+        with pytest.raises(ImportFailed) as failed:
+            import_by_time(doc, target.id, csv_file("label\nx"))
+
+        assert failed.value.message == (
+            "Column 'page_number' not found on first row of .csv file."
+        )
+
     def test_importing_twice_gives_the_same_new_ids_aside(self, pdf_timeline, csv_file):
         target = pdf_timeline(2)
         doc = document(timelines=[target])
@@ -611,8 +720,8 @@ class TestTheDocument:
     def test_a_document_with_no_media_length_changes_nothing(
         self, pdf_timeline, csv_file
     ):
-        # TimeLineAnnotator/project-management#418, until it is answered: a file
-        # can bring a timeline and no media length.
+        # TimeLineAnnotator/project-management#418: a file can bring a timeline and
+        # no media length.
         target = pdf_timeline(2)
         old = component("pdf_marker", time=9.0, page_number=2)
         target.components[old.id] = old
