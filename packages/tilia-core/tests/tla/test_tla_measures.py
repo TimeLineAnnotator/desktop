@@ -728,7 +728,9 @@ def test_a_document_with_a_beat_without_a_time_is_written():
 def test_the_golden_files_read_without_warnings():
     for path in sorted(GOLDEN.glob("*.tla")):
         doc = tla.read(path)
-        assert doc.warnings == [], path.name
+        # Without the `harmony` extra, a note for the document says what wasn't
+        # checked. It has no place.
+        assert [w for w in doc.warnings if w.place] == [], path.name
         for timeline in doc.timelines.values():
             if timeline.kind == "beat":
                 assert copy.deepcopy(timeline.measures) == tla.measure_table(timeline)

@@ -23,6 +23,22 @@ BROKEN = TESTS / "broken"
 GOLDEN = TESTS / "golden"
 FORMAT = tla.FORMAT_VERSION
 
+
+def without_harmonies(name):
+    """The old file `name` without its harmony timeline: migrating one needs the
+    `harmony` extra (FR-054), which what these tests are about doesn't."""
+    old = json.loads((OLD / name).read_text(encoding="utf-8"))
+    old["timelines"] = {
+        key: timeline
+        for key, timeline in old["timelines"].items()
+        if "harmony" not in timeline["kind"].lower()
+    }
+    return json.dumps(old, indent=2).encode()
+
+
+OLD_0_7_0 = without_harmonies("0.7.0.tla")
+OLD_0_5_15 = without_harmonies("0.5.15.tla")
+
 ADVICE = (
     "Nothing was written. The migration rewrites every file it lists. Keep the\n"
     "originals first: commit them if the folder is in git, or copy the folder.\n"
@@ -41,7 +57,7 @@ def with_a_marker_in_a_hierarchy():
     """TiLiA 0.7.0's test file, with a marker among its hierarchies: the
     migrated file breaks a rule, which doesn't stop it being migrated. It is
     written on one line, so that is the line of what the report warns about."""
-    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old = json.loads(OLD_0_7_0)
     old["timelines"]["1"]["components"]["999"] = {
         "kind": "MARKER",
         "time": 1.0,
@@ -62,7 +78,7 @@ def sqx(tmp_path):
     place(root / "current.tla", GOLDEN / "every-kind.tla")
     place(root / "sqx_03.tla", OLD / "0.6.0-s4-10.tla")
     place(root / "sqx_03 copy.tla", OLD / "0.6.0-s4-10.tla")
-    place(root / "sqx_08.tla", OLD / "0.7.0.tla")
+    place(root / "sqx_08.tla", OLD_0_7_0)
     place(root / "sqx_21.tla", with_a_marker_in_a_hierarchy())
     place(root / "sqx_30.tla", OLD / "0.0.96.tla")
     place(root / "sqx_40.tla", BROKEN / "newer-format.tla")
@@ -73,10 +89,10 @@ def sqx(tmp_path):
 def clean(tmp_path):
     """Old files, a current one and one of a newer format."""
     root = tmp_path / "clean"
-    place(root / "a.tla", OLD / "0.7.0.tla")
+    place(root / "a.tla", OLD_0_7_0)
     place(root / "current.tla", GOLDEN / "every-kind.tla")
     place(root / "newer.tla", BROKEN / "newer-format.tla")
-    place(root / "sub" / "b.tla", OLD / "0.5.15.tla")
+    place(root / "sub" / "b.tla", OLD_0_5_15)
     return root
 
 
@@ -123,8 +139,12 @@ Changes the migration makes:
   sqx_03 copy.tla         dropped 5 formal_type and formal_function values
   sqx_03.tla              dropped 5 formal_type and formal_function values
   sqx_08.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars; moved 3 marks to metadata
+                          line 39: Component would overlap with existing component. (other components: line 53, /timelines/1/components/3; line 67, /timelines/1/components/4; line 81, /timelines/1/components/5)
+                          line 53: Component would overlap with existing component. (other component: line 81, /timelines/1/components/5)
   sqx_21.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars; moved 3 marks to metadata
                           line 1: the timeline "Formal analysis" holds a component of kind "MARKER", which a timeline of kind "Hierarchy" doesn't have: it is kept as it is
+                          line 1: Component would overlap with existing component. (other components: line 1, /timelines/1/components/3; line 1, /timelines/1/components/4; line 1, /timelines/1/components/5)
+                          line 1: Component would overlap with existing component. (other component: line 1, /timelines/1/components/5)
   sqx_30.tla              dropped 2 formal_type and formal_function values; moved 2 marks to metadata
 """
 SQX_VERSIONS = """\
@@ -229,7 +249,7 @@ def test_a_long_path_widens_the_column(tmp_path):
 
 
 def test_the_folder_to_run_again_is_quoted_for_the_shell(tmp_path):
-    place(tmp_path / "my corpus" / "a.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "my corpus" / "a.tla", OLD_0_7_0)
 
     result = tilia("migrate", "my corpus", cwd=tmp_path)
 
@@ -238,7 +258,7 @@ def test_the_folder_to_run_again_is_quoted_for_the_shell(tmp_path):
 
 
 def test_a_name_the_terminal_cant_encode_is_still_printed(tmp_path):
-    place(tmp_path / "corpus" / "交响曲.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "corpus" / "交响曲.tla", OLD_0_7_0)
 
     result = tilia("migrate", "corpus", cwd=tmp_path, utf8=False)
 
@@ -399,7 +419,7 @@ def test_apply_lists_files_changed_since_read_and_files_in_use(
     def then_changed(path):
         read_result = read(path)
         if Path(path).name == "c.tla":
-            shutil.copyfile(OLD / "0.5.15.tla", path)
+            place(path, OLD_0_5_15)
         return read_result
 
     def held_open(target, doc, **kwargs):
@@ -425,6 +445,11 @@ def test_apply_lists_files_changed_since_read_and_files_in_use(
         "  sub/b.tla               dropped 2 formal_type and formal_function values;"
         " dropped 3 amplitude bars; moved 2 marks to metadata;"
         " changed 2 display modes from chord to letter\n"
+        "                          line 53: Component would overlap with existing"
+        " component. (other components: line 39, /timelines/1/components/3;"
+        " line 67, /timelines/1/components/4; line 81, /timelines/1/components/5)\n"
+        "                          line 39: Component would overlap with existing"
+        " component. (other component: line 81, /timelines/1/components/5)\n"
         "\n"
         "Wrote 1 file.\n"
     )
@@ -465,7 +490,7 @@ def test_one_mark_moved_is_worded_in_the_singular(tmp_path, capsys):
 
 def test_a_file_with_a_score_is_migrated_with_it(tmp_path, capsys):
     path = tmp_path / "piece.tla"
-    place(path, OLD / "0.7.0.tla")
+    place(path, OLD_0_7_0)
     before = tla.read(path)
 
     assert migrate_command.main([str(tmp_path), "--apply"]) == 0
@@ -488,7 +513,7 @@ def test_a_file_with_a_score_is_migrated_with_it(tmp_path, capsys):
 def test_a_score_it_cant_migrate_leaves_its_file_alone_naming_the_line(
     tmp_path, capsys
 ):
-    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old = json.loads(OLD_0_7_0)
     old["timelines"]["34"]["svg_data"] = 7
     data = json.dumps(old, indent=2).encode()
     place(tmp_path / "piece.tla", data)
@@ -729,7 +754,7 @@ def test_a_beat_timeline_with_nothing_to_report_isnt_listed(tmp_path, capsys):
 def test_a_subfolder_that_cant_be_listed_is_listed_as_left_alone(
     clean, monkeypatch, capsys
 ):
-    place(clean / "locked" / "piece.tla", OLD / "0.7.0.tla")
+    place(clean / "locked" / "piece.tla", OLD_0_7_0)
     scandir = os.scandir
 
     def refusing(path):
@@ -776,10 +801,10 @@ def test_every_outcome_has_its_place_in_the_report():
 
 def test_a_tilde_is_part_of_the_folder_name(tmp_path, monkeypatch, capsys):
     home = tmp_path / "home"
-    place(home / "elsewhere.tla", OLD / "0.5.15.tla")
+    place(home / "elsewhere.tla", OLD_0_5_15)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
-    place(tmp_path / "work" / "~" / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "work" / "~" / "piece.tla", OLD_0_7_0)
     monkeypatch.chdir(tmp_path / "work")
 
     assert migrate_command.main(["~"]) == 0
@@ -814,7 +839,7 @@ sys.exit(main())
 
 
 def test_the_command_prints_its_report_and_nothing_else(clean):
-    place(clean / "locked" / "piece.tla", OLD / "0.7.0.tla")
+    place(clean / "locked" / "piece.tla", OLD_0_7_0)
     read_only = clean / "a.tla"
     os.chmod(read_only, stat.S_IREAD)
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
@@ -898,7 +923,7 @@ def test_on_macos_and_linux_a_folder_is_quoted_for_the_shell(folder, quoted):
 def test_then_run_quotes_a_folder_the_shell_would_misread(
     tmp_path, monkeypatch, capsys, name
 ):
-    place(tmp_path / name / "a.tla", OLD / "0.7.0.tla")
+    place(tmp_path / name / "a.tla", OLD_0_7_0)
     monkeypatch.chdir(tmp_path)
 
     migrate_command.main([name])
@@ -972,7 +997,7 @@ def test_on_macos_and_linux_the_folder_to_run_again(folder, shown):
 def test_then_run_gives_the_folder_without_a_trailing_separator(
     tmp_path, monkeypatch, capsys
 ):
-    place(tmp_path / "corpora" / "a.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "corpora" / "a.tla", OLD_0_7_0)
     monkeypatch.chdir(tmp_path)
 
     migrate_command.main(["corpora" + os.sep])
@@ -984,7 +1009,7 @@ def test_then_run_gives_the_folder_without_a_trailing_separator(
 def test_then_run_gives_a_folder_named_like_an_option_as_a_path(
     tmp_path, monkeypatch, capsys
 ):
-    place(tmp_path / "-draft" / "a.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "-draft" / "a.tla", OLD_0_7_0)
     monkeypatch.chdir(tmp_path)
 
     migrate_command.main(["--", "-draft"])
@@ -1146,7 +1171,7 @@ def test_each_error_in_the_core_has_its_traceback(clean, monkeypatch, capsys):
 
 
 def with_version(source, version):
-    content = json.loads(source.read_text(encoding="utf-8"))
+    content = json.loads(source if isinstance(source, bytes) else source.read_bytes())
     content["version"] = version
     return json.dumps(content).encode()
 
@@ -1154,7 +1179,7 @@ def with_version(source, version):
 def test_a_version_cant_add_lines_to_the_report_or_erase_any(
     tmp_path, monkeypatch, capsys
 ):
-    place(tmp_path / "old.tla", with_version(OLD / "0.7.0.tla", "0.7.0\x1b[2J"))
+    place(tmp_path / "old.tla", with_version(OLD_0_7_0, "0.7.0\x1b[2J"))
     place(
         tmp_path / "newer.tla", with_version(BROKEN / "newer-format.tla", "2.0\nWrote")
     )
@@ -1172,7 +1197,7 @@ def test_a_version_cant_add_lines_to_the_report_or_erase_any(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses such names")
 def test_a_file_name_cant_add_lines_to_the_report(tmp_path, capsys):
-    place(tmp_path / "evil\nWrote 9 files.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "evil\nWrote 9 files.tla", OLD_0_7_0)
     place(tmp_path / "erase\x1b[1A.tla", BROKEN / "newer-format.tla")
 
     migrate_command.main([str(tmp_path)])

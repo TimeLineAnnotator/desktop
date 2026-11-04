@@ -28,7 +28,13 @@ from typing import Any
 
 from tilia_core.state import atomic_write
 from tilia_core.tla.check import check
-from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
+from tilia_core.tla.errors import (
+    BrokenRules,
+    FileChanged,
+    FileInUse,
+    UnreadableFile,
+    printable,
+)
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
@@ -64,6 +70,8 @@ from tilia_core.tla.model import (
     Component,
     Document,
     Kind,
+    ReadProblem,
+    ReadWarning,
     Score,
     Timeline,
     UnknownKind,
@@ -72,7 +80,13 @@ from tilia_core.tla.model import (
     timeline_kind_to_file,
 )
 from tilia_core.tla.parse import MAX_DEPTH
-from tilia_core.tla.reader import loads, loads_for_fingerprint
+from tilia_core.tla.problems import (
+    cant_check,
+    find_problems,
+    new_problems,
+    warnings_of,
+)
+from tilia_core.tla.reader import loads, loads_for_fingerprint, written_document
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -723,14 +737,20 @@ def write(
     then refused with `FileInUse`. A document the reader would refuse raises
     `UnreadableFile`, with its place and line, and one `canonical_bytes`
     refuses raises its `ValueError`, both before anything is read or written
-    (FR-034). Any other failure raises the system's `OSError`. Whenever a
-    write fails, the file is as it was.
+    (FR-034). A document that breaks a rule for a valid component raises
+    `BrokenRules`, before anything is read or written, unless the problem is
+    one it was read with, on what hasn't changed since; so does one with
+    harmonies or modes without the `harmony` extra, which can't be checked
+    (FR-054). Any other failure raises the system's `OSError`. Whenever a
+    write fails, the file is as it was. Once it has written, the problems
+    `doc` was read with are those of what was written.
     """
     target = os.path.realpath(path)
     # Relative to the folder of `path` as given, links not followed, which is
     # the folder the reader resolves the file's paths against.
     rebased = rebase_paths(doc, os.path.dirname(os.path.abspath(path)))
     data = checked_bytes(rebased, path=path)
+    problems = _checked_with_the_rules(doc, data, path)
     if expect is ABSENT:
         if os.path.lexists(target):
             raise FileChanged(path, None, _found(target))
@@ -753,6 +773,7 @@ def write(
             raise FileInUse(path) from error
         raise
     _follow(doc, rebased, path)
+    doc.read_problems = problems
     return hashlib.sha256(data).hexdigest()
 
 
@@ -770,6 +791,24 @@ def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> N
         own = doc.timelines[key]
         if timeline is not own:  # a PDF timeline whose path was rebased
             own.attrs["path"] = timeline.attrs["path"]
+
+
+def _checked_with_the_rules(
+    doc: Document, data: bytes, path: str | os.PathLike[str]
+) -> list[ReadProblem]:
+    """The problems of the document `data` holds, as the reader finds them, so
+    that a float given for an integer is checked as it is written (FR-051a).
+    Raises `BrokenRules` for any that isn't among those `doc` was read with, and
+    when harmonies or modes can't be checked."""
+    written = written_document(data, path=path)
+    problems = find_problems(written)
+    refused = warnings_of(new_problems(problems, doc.read_problems), data)
+    unable = cant_check(written)
+    if unable is not None:
+        refused.append(ReadWarning(place="", line=None, message=printable(str(unable))))
+    if refused:
+        raise BrokenRules(path, refused)
+    return problems
 
 
 # Windows' errors for a rename refused because another program holds a file

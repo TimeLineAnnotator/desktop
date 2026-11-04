@@ -344,6 +344,12 @@ def test_a_score_timeline_names_its_score_and_its_measure_table():
 
 def test_score_timelines_can_share_a_measure_table(tmp_path):
     doc = tla.read(EVERY_KIND)
+    # Writing harmonies needs the `harmony` extra, which this test doesn't.
+    doc.timelines = {
+        key: timeline
+        for key, timeline in doc.timelines.items()
+        if timeline.kind != "harmony"
+    }
     (first,) = (tl for tl in doc.timelines.values() if tl.kind == "score")
     other = mei_score(text_of(MEI))
     doc.scores[other.id] = other

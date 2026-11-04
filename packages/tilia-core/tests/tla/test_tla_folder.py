@@ -27,6 +27,22 @@ OLD = HERE / "old"
 BROKEN = HERE / "broken"
 GOLDEN = HERE / "golden"
 
+
+def without_harmonies(name):
+    """The old file `name` without its harmony timeline: migrating one needs the
+    `harmony` extra (FR-054), which what these tests are about doesn't."""
+    old = json.loads((OLD / name).read_text(encoding="utf-8"))
+    old["timelines"] = {
+        key: timeline
+        for key, timeline in old["timelines"].items()
+        if "harmony" not in timeline["kind"].lower()
+    }
+    return json.dumps(old, indent=2).encode()
+
+
+OLD_0_7_0 = without_harmonies("0.7.0.tla")
+OLD_0_5_15 = without_harmonies("0.5.15.tla")
+
 windows_only = pytest.mark.skipif(
     sys.platform != "win32", reason="junctions are Windows' links to folders"
 )
@@ -82,19 +98,19 @@ def link_folder(link, target):
 @pytest.fixture
 def corpus(tmp_path):
     root = tmp_path / "corpus"
-    place(root / "a.tla", OLD / "0.7.0.tla")
-    place(root / "a copy.tla", OLD / "0.7.0.tla")
+    place(root / "a.tla", OLD_0_7_0)
+    place(root / "a copy.tla", OLD_0_7_0)
     place(root / "current.tla", GOLDEN / "every-kind.tla")
     place(root / "newer.tla", BROKEN / "newer-format.tla")
     place(root / "sub" / "broken.tla", BROKEN / "not-json.tla")
     place(root / "sub" / "old-0.6.tla", OLD / "0.6.0-s4-10.tla")
     place(root / "sub" / "deeper" / "OLD.TLA", OLD / "0.0.96.tla")
     place(root / "sub" / "notes.txt", b"not a TiLiA file\n")
-    place(root / "sub" / "a.tla.bak", OLD / "0.5.15.tla")
-    place(root / "sub" / ".a.tla.1a2b3c4d.tmp", OLD / "0.5.15.tla")
-    place(root / ".hidden.tla", OLD / "0.5.15.tla")
-    place(root / ".git" / "old.tla", OLD / "0.5.15.tla")
-    place(tmp_path / "outside" / "linked.tla", OLD / "0.5.15.tla")
+    place(root / "sub" / "a.tla.bak", OLD_0_5_15)
+    place(root / "sub" / ".a.tla.1a2b3c4d.tmp", OLD_0_5_15)
+    place(root / ".hidden.tla", OLD_0_5_15)
+    place(root / ".git" / "old.tla", OLD_0_5_15)
+    place(tmp_path / "outside" / "linked.tla", OLD_0_5_15)
     link_folder(root / "linked", tmp_path / "outside")
     return root
 
@@ -104,10 +120,10 @@ def clean_corpus(tmp_path):
     """Old files, a current one and one of a newer format: nothing that
     can't be read."""
     root = tmp_path / "clean"
-    place(root / "a.tla", OLD / "0.7.0.tla")
+    place(root / "a.tla", OLD_0_7_0)
     place(root / "current.tla", GOLDEN / "every-kind.tla")
     place(root / "newer.tla", BROKEN / "newer-format.tla")
-    place(root / "sub" / "old.tla", OLD / "0.5.15.tla")
+    place(root / "sub" / "old.tla", OLD_0_5_15)
     return root
 
 
@@ -150,17 +166,17 @@ def test_the_walk_takes_every_tla_below_the_folder_in_path_order(corpus):
 
 
 def test_the_walk_leaves_out_hidden_files_and_folders(tmp_path):
-    place(tmp_path / "piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / ".piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / ".hidden" / "piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / "sub" / ".hidden" / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "piece.tla", OLD_0_7_0)
+    place(tmp_path / ".piece.tla", OLD_0_7_0)
+    place(tmp_path / ".hidden" / "piece.tla", OLD_0_7_0)
+    place(tmp_path / "sub" / ".hidden" / "piece.tla", OLD_0_7_0)
 
     assert [relative for relative, _ in corpus_files(tmp_path)] == ["piece.tla"]
 
 
 def test_the_walk_takes_any_letter_case_of_the_extension(tmp_path):
     for name in ("a.tla", "b.TLA", "c.Tla", "d.tla.txt", "e.tl", "tla"):
-        place(tmp_path / name, OLD / "0.7.0.tla")
+        place(tmp_path / name, OLD_0_7_0)
 
     found = [relative for relative, _ in corpus_files(tmp_path)]
 
@@ -170,8 +186,8 @@ def test_the_walk_takes_any_letter_case_of_the_extension(tmp_path):
 def test_the_walk_does_not_follow_a_symbolic_link_to_a_folder(tmp_path):
     if not can_symlink_folders(tmp_path):
         pytest.skip("this system doesn't let the tests make symbolic links")
-    place(tmp_path / "outside" / "piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / "corpus" / "own.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "outside" / "piece.tla", OLD_0_7_0)
+    place(tmp_path / "corpus" / "own.tla", OLD_0_7_0)
     os.symlink(
         tmp_path / "outside", tmp_path / "corpus" / "linked", target_is_directory=True
     )
@@ -185,8 +201,8 @@ def test_the_walk_does_not_follow_a_symbolic_link_to_a_folder(tmp_path):
 def test_the_walk_does_not_follow_a_junction(tmp_path):
     import _winapi
 
-    place(tmp_path / "outside" / "piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / "corpus" / "own.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "outside" / "piece.tla", OLD_0_7_0)
+    place(tmp_path / "corpus" / "own.tla", OLD_0_7_0)
     _winapi.CreateJunction(
         str(tmp_path / "outside"), str(tmp_path / "corpus" / "linked")
     )
@@ -197,7 +213,7 @@ def test_the_walk_does_not_follow_a_junction(tmp_path):
 
 
 def test_the_walk_takes_a_link_to_a_file(tmp_path):
-    place(tmp_path / "outside" / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "outside" / "piece.tla", OLD_0_7_0)
     (tmp_path / "corpus").mkdir()
     try:
         os.symlink(tmp_path / "outside" / "piece.tla", tmp_path / "corpus" / "link.tla")
@@ -211,7 +227,7 @@ def test_the_walk_takes_a_link_to_a_file(tmp_path):
 
 def test_the_walk_gives_paths_as_found_with_slashes(tmp_path):
     decomposed = unicodedata.normalize("NFD", "Bartók")
-    place(tmp_path / decomposed / f"{decomposed}.tla", OLD / "0.7.0.tla")
+    place(tmp_path / decomposed / f"{decomposed}.tla", OLD_0_7_0)
     # As the system names them: on a file system that normalises names,
     # in its form.
     [folder] = os.listdir(tmp_path)
@@ -226,8 +242,8 @@ def test_the_walk_gives_paths_as_found_with_slashes(tmp_path):
 
 def test_the_walk_sorts_paths_by_their_nfc_form(tmp_path):
     # "e" and a combining accent sorts before "f"; "é" composed after it.
-    place(tmp_path / "f.tla", OLD / "0.7.0.tla")
-    place(tmp_path / unicodedata.normalize("NFD", "éz.tla"), OLD / "0.7.0.tla")
+    place(tmp_path / "f.tla", OLD_0_7_0)
+    place(tmp_path / unicodedata.normalize("NFD", "éz.tla"), OLD_0_7_0)
     [accented] = [name for name in os.listdir(tmp_path) if name != "f.tla"]
 
     found = [relative for relative, _ in corpus_files(tmp_path)]
@@ -237,8 +253,8 @@ def test_the_walk_sorts_paths_by_their_nfc_form(tmp_path):
 
 def test_the_report_gives_each_path_as_found(tmp_path):
     decomposed = unicodedata.normalize("NFD", "Bartók.tla")
-    place(tmp_path / decomposed, OLD / "0.7.0.tla")
-    place(tmp_path / "copy.tla", OLD / "0.7.0.tla")
+    place(tmp_path / decomposed, OLD_0_7_0)
+    place(tmp_path / "copy.tla", OLD_0_7_0)
     [name] = [name for name in os.listdir(tmp_path) if name != "copy.tla"]
 
     report = migrate_folder(tmp_path)
@@ -250,8 +266,8 @@ def test_the_report_gives_each_path_as_found(tmp_path):
 
 
 def test_the_walk_reports_a_subfolder_it_cant_list_and_goes_on(tmp_path, monkeypatch):
-    place(tmp_path / "locked" / "piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / "open" / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "locked" / "piece.tla", OLD_0_7_0)
+    place(tmp_path / "open" / "piece.tla", OLD_0_7_0)
     scandir = os.scandir
 
     def refusing(path):
@@ -319,12 +335,16 @@ def test_the_report_counts_what_the_migration_dropped(corpus):
     }
     assert files["sub/old-0.6.tla"].changes == {"formal_values_dropped": 5}
     assert files["current.tla"].changes == {}
-    # The migration's own warnings are what the counts sum up.
-    assert files["a.tla"].warnings == []
+    # The migration's own warnings are what the counts sum up. Those left are
+    # the rules its hierarchies break.
+    assert [w.place for w in files["a.tla"].warnings] == [
+        "/timelines/1/components/2",
+        "/timelines/1/components/3",
+    ]
 
 
 def test_the_report_lists_the_rules_a_migrated_file_breaks(tmp_path):
-    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old = json.loads(OLD_0_7_0)
     old["timelines"]["1"]["components"]["999"] = {
         "kind": "MARKER",
         "time": 1.0,
@@ -342,12 +362,16 @@ def test_the_report_lists_the_rules_a_migrated_file_breaks(tmp_path):
         "amplitude_bars_dropped": 3,
         "marks_moved": 3,
     }
-    [warning] = result.warnings
-    assert 'holds a component of kind "MARKER"' in warning.message
+    # What the check warns about, then the rules its hierarchies break.
+    marker, *broken = result.warnings
+    assert 'holds a component of kind "MARKER"' in marker.message
+    assert [w.message.partition(" (")[0] for w in broken] == [
+        "Component would overlap with existing component."
+    ] * 2
 
 
 def test_a_migrated_file_lists_only_the_rules_it_breaks_with_their_lines(tmp_path):
-    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old = json.loads(OLD_0_7_0)
     old["timelines"]["1"]["components"]["999"] = {
         "kind": "MARKER",
         "time": 1.0,
@@ -364,10 +388,17 @@ def test_a_migrated_file_lists_only_the_rules_it_breaks_with_their_lines(tmp_pat
     # says, and is left to `changes`.
     dropped = tla.read(tmp_path / "piece.tla").warnings[0]
     assert str(dropped) == 'line 61: formal_type "sonata form" dropped'
-    [warning] = result.warnings
-    assert warning.place == "/timelines/1/components/999"
-    assert warning.line == text.splitlines().index('        "999": {') + 1
-    assert 'holds a component of kind "MARKER"' in warning.message
+    marker, *broken = result.warnings
+    assert marker.place == "/timelines/1/components/999"
+    assert marker.line == text.splitlines().index('        "999": {') + 1
+    assert 'holds a component of kind "MARKER"' in marker.message
+    assert [str(w) for w in broken] == [
+        "line 39: Component would overlap with existing component. (other components:"
+        " line 53, /timelines/1/components/3; line 67, /timelines/1/components/4;"
+        " line 81, /timelines/1/components/5)",
+        "line 53: Component would overlap with existing component. (other component:"
+        " line 81, /timelines/1/components/5)",
+    ]
 
 
 def test_copies_are_listed_as_sharing_a_document_id(corpus):
@@ -384,15 +415,15 @@ def test_a_folder_that_doesnt_exist_is_refused(tmp_path):
 
 
 def test_a_file_is_refused_as_a_folder(tmp_path):
-    place(tmp_path / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "piece.tla", OLD_0_7_0)
 
     with pytest.raises(NotADirectoryError):
         migrate_folder(tmp_path / "piece.tla")
 
 
 def test_a_subfolder_that_cant_be_listed_is_reported(tmp_path, monkeypatch):
-    place(tmp_path / "locked" / "piece.tla", OLD / "0.7.0.tla")
-    place(tmp_path / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "locked" / "piece.tla", OLD_0_7_0)
+    place(tmp_path / "piece.tla", OLD_0_7_0)
     scandir = os.scandir
 
     def refusing(path):
@@ -579,10 +610,10 @@ def test_a_folder_whose_files_all_read_has_no_pause(clean_corpus, monkeypatch):
 
 def test_a_file_that_reads_the_second_time_is_migrated(tmp_path, monkeypatch):
     # Another program was still writing it the first time.
-    place(tmp_path / "piece.tla", (OLD / "0.7.0.tla").read_bytes()[:500])
+    place(tmp_path / "piece.tla", OLD_0_7_0[:500])
 
     def finished(path, error):
-        shutil.copyfile(OLD / "0.7.0.tla", path)
+        place(path, OLD_0_7_0)
 
     events = record(monkeypatch, then=finished)
 
@@ -594,7 +625,7 @@ def test_a_file_that_reads_the_second_time_is_migrated(tmp_path, monkeypatch):
 
 
 def test_a_file_that_cant_be_opened_is_read_again_then_reported(tmp_path, monkeypatch):
-    place(tmp_path / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "piece.tla", OLD_0_7_0)
 
     def refusing(path):
         raise PermissionError(13, "Permission denied", str(path))
@@ -856,10 +887,10 @@ def test_a_folder_named_with_a_tilde_is_the_folder_of_that_name(
     tmp_path, monkeypatch, name
 ):
     home = tmp_path / "home"
-    place(home / "elsewhere.tla", OLD / "0.5.15.tla")
+    place(home / "elsewhere.tla", OLD_0_5_15)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
-    place(tmp_path / "work" / name / "piece.tla", OLD / "0.7.0.tla")
+    place(tmp_path / "work" / name / "piece.tla", OLD_0_7_0)
     monkeypatch.chdir(tmp_path / "work")
 
     report = migrate_folder(name)
@@ -887,11 +918,13 @@ def test_the_reader_gives_the_migration_with_an_old_files_document():
     }
     # The same warnings, which only the document's give the lines of, in the
     # old file: formal_type, formal_function and the amplitude bars' components.
+    # What the check and the core's rules warn about comes after them.
+    own = document.warnings[: len(migrated.warnings)]
     assert [(w.place, w.message) for w in migrated.warnings] == [
-        (w.place, w.message) for w in document.warnings
+        (w.place, w.message) for w in own
     ]
     assert [w.line for w in migrated.warnings] == [None, None, None]
-    assert [w.line for w in document.warnings] == [61, 62, 294]
+    assert [w.line for w in own] == [61, 62, 294]
     assert reader.read_with_migration(GOLDEN / "every-kind.tla")[1] is None
 
 
@@ -915,9 +948,7 @@ def change_after_reading(monkeypatch, name, change):
 @pytest.mark.parametrize(
     "change",
     [
-        pytest.param(
-            lambda path: shutil.copyfile(OLD / "0.5.15.tla", path), id="edited"
-        ),
+        pytest.param(lambda path: place(path, OLD_0_5_15), id="edited"),
         pytest.param(lambda path: path.unlink(), id="removed"),
     ],
 )
@@ -933,7 +964,7 @@ def test_a_file_changed_between_reading_and_writing_is_left_alone(
     assert result.outcome == "changed_since_read"
     assert result.reason == "changed since it was read"
     if path.exists():
-        assert path.read_bytes() == (OLD / "0.5.15.tla").read_bytes()
+        assert path.read_bytes() == OLD_0_5_15
     assert by_path(report)["sub/old.tla"].outcome == "migrated"
     assert report.status == 1
 
