@@ -596,6 +596,25 @@ class TestEditBarsDialog:
         assert timeline.measure_numbers == [1, 2, 3, 4]
         assert time_signatures(timeline)[:3] == [("4", 4)] * 3
 
+    def test_a_number_that_moves_stops_being_always_shown_where_it_was(self, tluis):
+        add_beat_timeline_with_pattern("2/4")
+        add_beats(range(12))
+        timeline = tluis[0].timeline
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3, 10-12"),
+        )
+        assert timeline.measures_to_force_display == [3]
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-2"),
+            )
+
+        assert timeline.measure_numbers == [1, 2, 10, 11, 12, 13]
+        assert timeline.measures_to_force_display == [2]
+
     def test_rows_reflect_the_numbers(self, tluis):
         add_beat_timeline_with_pattern("4/4")
         add_beats(range(16))
