@@ -1727,7 +1727,7 @@ OTHER_SYSTEMS_FORMS = (
     ]
 )
 # A slash and a backslash: Windows would read them as a share's two slashes.
-SLASH_AND_BACKSLASH = ["/\\a-176\\b.wav", "\\/a-176/b.wav"]
+SLASH_AND_BACKSLASH = ["/\\a-176\\b.wav", "\\/a-176/b.wav", "/\\a", "\\/a"]
 
 
 @pytest.mark.parametrize("given", OTHER_SYSTEMS_FORMS)
@@ -1753,7 +1753,12 @@ def test_the_migration_doesnt_read_a_share_in_a_slash_and_a_backslash(
 
 @pytest.mark.parametrize(
     "stored, on_posix",
-    [("/\\a-176\\b.wav", "../\\a-176\\b.wav"), ("\\/a-176/b.wav", "\\/a-176/b.wav")],
+    [
+        ("/\\a-176\\b.wav", "../\\a-176\\b.wav"),
+        ("\\/a-176/b.wav", "\\/a-176/b.wav"),
+        ("/\\a", "../\\a"),
+        ("\\/a", "\\/a"),
+    ],
 )
 def test_the_writer_doesnt_read_a_share_in_a_slash_and_a_backslash(stored, on_posix):
     assert rebased_from(ROOT / "corpus", stored, ROOT / "out") == (
@@ -1777,3 +1782,64 @@ def test_tla_media_doesnt_read_a_share_in_a_slash_and_a_backslash(
     assert tla.media(tmp_path / "piece.tla", doc).path is None
     if WINDOWS:
         assert servers.looked_up == []
+
+
+# A share with one name: two slashes of one kind, with one name after them or
+# none. `PureWindowsPath` calls it relative on Python 3.12 and absolute from
+# 3.13, so these tests run on both, and expect the same of each (FR-023).
+SHARES_WITH_ONE_NAME = [
+    "//x.wav",
+    "//x/",
+    "//x",
+    "\\\\x.wav",
+    "\\\\x\\",
+    "\\\\/a",
+    "//\\a",
+    "///a",
+    "\\\\\\a",
+    "//",
+    "\\\\",
+]
+
+
+@pytest.mark.parametrize("saved", [POSIX_SAVED, WINDOWS_SAVED])
+@pytest.mark.parametrize("stored", SHARES_WITH_ONE_NAME)
+def test_the_migration_reads_a_share_with_one_name_as_a_share(
+    tmp_path, where, servers, stored, saved
+):
+    # No relative path leads to a share from a POSIX folder or from a drive.
+    piece = old_file(tmp_path, where, stored, file_path=saved)
+    assert stored_in(tla.read(piece), where) == stored.replace("\\", "/")
+
+
+def test_an_old_file_saved_on_a_share_with_one_name_is_of_windows_form(
+    tmp_path, where, servers
+):
+    # So no relative path leads from where it was saved to a POSIX path.
+    piece = old_file(tmp_path, where, POSIX_MEDIA, file_path="//piece.tla")
+    assert stored_in(tla.read(piece), where) == POSIX_MEDIA
+
+
+@pytest.mark.parametrize("stored", SHARES_WITH_ONE_NAME)
+def test_the_writer_reads_a_share_with_one_name_as_a_share(tmp_path, servers, stored):
+    doc = tla.new_document()
+    doc.media_path, doc.media_length = stored, 10.0
+    target = tmp_path / "piece.tla"
+    tla.write(target, doc)
+    assert json.loads(target.read_bytes())["media"]["path"] == stored.replace("\\", "/")
+
+
+@pytest.mark.parametrize("given", SHARES_WITH_ONE_NAME)
+def test_a_given_share_with_one_name_is_a_share(servers, given):
+    # Absolute already: on Windows in its own separators, and elsewhere of the
+    # other system's form, so kept as it is.
+    expected = given.replace("/", "\\") if WINDOWS else given
+    assert tla.as_media_path(given) == expected
+
+
+@pytest.mark.parametrize("stored", SHARES_WITH_ONE_NAME)
+def test_tla_media_reads_a_share_with_one_name_as_a_share(tmp_path, servers, stored):
+    doc = tla.new_document()
+    doc.media_path = stored
+    assert tla.media(tmp_path / "piece.tla", doc).path is None
+    assert bool(servers.looked_up) == WINDOWS  # elsewhere, the other system's form
