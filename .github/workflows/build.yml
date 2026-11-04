@@ -53,6 +53,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -e packages/tilia-core
           pip install -e . --group build
 
       - name: Set up .NET 10 (macOS)
