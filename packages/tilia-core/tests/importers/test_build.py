@@ -53,8 +53,9 @@ def refused(call, *args, **kwargs) -> str:
 
 
 def stored(path: Path) -> str:
-    """A local media path as `load_media` stores it: absolute, with "/"."""
-    return os.path.abspath(path).replace("\\", "/")
+    """A local media path as `load_media` stores it: absolute, with "/" on
+    Windows."""
+    return Path(os.path.abspath(path)).as_posix()
 
 
 # WAVs, written in the test
@@ -599,6 +600,39 @@ def test_two_slashes_at_the_start_are_the_one_root(tmp_path):
     build.load_media(doc, f"/{path}")
 
     assert doc.media_path == stored(path)
+
+
+@posix_only
+def test_a_backslash_in_the_working_folder_stays_part_of_its_name(
+    tmp_path, monkeypatch
+):
+    # macOS and Linux allow one in a name, so the path must name this folder,
+    # not `a/b`.
+    folder = tmp_path / "a\\b"
+    folder.mkdir()
+    pcm16_wav(folder / "rec.wav", rate=8000, channels=1, frames=8000)
+    monkeypatch.chdir(folder)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "rec.wav")
+
+    assert doc.media_path == f"{tmp_path}/a\\b/rec.wav"
+
+
+@windows_only
+@pytest.mark.parametrize(
+    "given", ["//server/share/rec.mp3", "\\\\server\\share\\rec.mp3"]
+)
+def test_a_server_path_keeps_its_two_slashes(monkeypatch, given):
+    # There is no server in the tests, so what the system would answer about
+    # the file is given. `os.path.abspath` is the real one: it reads no disk.
+    doc = build.new_script_document()
+    with monkeypatch.context() as system:
+        system.setattr(os.path, "isfile", lambda path: True)
+        system.setattr(os.path, "samefile", lambda one, other: True)
+        build.load_media(doc, given, duration_if_error=5.0)
+
+    assert doc.media_path == "//server/share/rec.mp3"
 
 
 @windows_only
