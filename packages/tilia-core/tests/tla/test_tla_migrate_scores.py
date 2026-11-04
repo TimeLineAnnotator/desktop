@@ -548,3 +548,80 @@ def test_a_null_key_of_the_current_format_in_a_score_timeline_is_a_missing_one(k
     assert score_timeline_of(doc).attrs["score"] == score_of(doc).id
     assert score_timeline_of(doc).attrs["measure_table"] is None
     assert doc.document_id == loads(old_file_content()).document_id
+
+
+# In the old file's terms: its place, with the old ids, and its line in the
+# bytes (TimeLineAnnotator/project-management#347).
+
+
+def line_of(data, text):
+    return data[: data.index(text)].count(b"\n") + 1
+
+
+@pytest.mark.parametrize(
+    "change, place, message, text",
+    [
+        (
+            {"svg_data": 7},
+            "/timelines/7/svg_data",
+            "expected text at /timelines/7/svg_data",
+            b'"svg_data": 7',
+        ),
+        (
+            {"viewer_beat_x": [0.0]},
+            "/timelines/7/viewer_beat_x",
+            "expected an object at /timelines/7/viewer_beat_x",
+            b'"viewer_beat_x": [',
+        ),
+        (
+            {"viewer_beat_x": {"0.0": 12.5, "abc": 48.0}},
+            "/timelines/7/viewer_beat_x/abc",
+            '"abc" in viewer_beat_x isn\'t a number',
+            b'"abc": 48.0',
+        ),
+        (
+            {"viewer_beat_x": {"0.0": 12.5, "1/2": 48.0}},
+            "/timelines/7/viewer_beat_x/1~12",
+            '"1/2" in viewer_beat_x isn\'t a number',
+            b'"1/2": 48.0',
+        ),
+        (
+            {"viewer_beat_x": {"0.0": 12.5, "0.5": "x"}},
+            "/timelines/7/viewer_beat_x/0.5",
+            "expected a number at /timelines/7/viewer_beat_x/0.5",
+            b'"0.5": "x"',
+        ),
+    ],
+)
+def test_what_the_migration_refuses_in_a_score_is_named_at_its_line(
+    change, place, message, text
+):
+    data = json.dumps(old_file_content(**change), indent=2).encode()
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert (error.value.place, error.value.message) == (place, message)
+    assert error.value.line == line_of(data, text)
+
+
+def test_what_the_check_refuses_in_a_score_timeline_is_named_at_its_old_place():
+    data = json.dumps(old_file_content(height="x"), indent=2).encode()
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.place == "/timelines/7/height"
+    assert error.value.message == '"height" should be an integer, not text'
+    assert error.value.line == line_of(data, b'"height": "x"')
+
+
+def test_what_the_check_warns_about_in_a_score_timeline_is_named_at_its_old_place():
+    content = old_file_content()
+    content["timelines"]["7"]["components"]["10"] = {
+        "kind": "MARKER",
+        "time": 1.0,
+        "label": "",
+        "color": "#999999",
+        "comments": "",
+    }
+    data = json.dumps(content, indent=2).encode()
+    (warning,) = tla.loads(data).warnings
+    assert warning.place == "/timelines/7/components/10"
+    assert warning.line == line_of(data, b'"10": {')
