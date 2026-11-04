@@ -151,6 +151,9 @@ class TestColumnsAndCells:
             ('start,end,level\n"  ",1,1', "start"),
             ('start,end,level\n1,"  ",1', "end"),
             ('start,end,level\n1,2,"  "', "level"),
+            ('start,end,level\n"\t",1,1', "start"),
+            ('start,end,level\n1," ",1', "end"),
+            ('start,end,level\n1,2,"\t "', "level"),
         ],
         ids=[
             "empty start",
@@ -160,6 +163,9 @@ class TestColumnsAndCells:
             "start of only spaces",
             "end of only spaces",
             "level of only spaces",
+            "start of a tab",
+            "end of a no-break space",
+            "level of a tab and a no-break space",
         ],
     )
     def test_a_row_without_a_required_value_is_skipped(self, imported, data, column):
@@ -201,11 +207,14 @@ class TestColumnsAndCells:
         assert result.created == list(target.components)
 
 
-class TestCellsOfOnlySpaces:
-    def test_the_optional_ones_are_as_if_empty(self, imported):
+class TestCellsOfOnlyWhitespace:
+    @pytest.mark.parametrize(
+        "cell", [" ", "\t", " "], ids=["a space", "a tab", "a no-break space"]
+    )
+    def test_the_optional_ones_are_as_if_empty(self, imported, cell):
         result, target, _ = imported(
             "start,end,level,pre_start,post_end,label,color,comments\n"
-            '1,2,1," "," "," "," "," "\n'
+            f'1,2,1,"{cell}","{cell}","{cell}","{cell}","{cell}"\n'
         )
 
         assert attrs(target) == [
@@ -225,8 +234,9 @@ class TestPreStartAndPostEnd:
             "1,2,1,1.0,2.00",
             "1,2,1,,",
             '1,2,1," ","   "',
+            '1,2,1,"\t"," "',
         ],
-        ids=["equal", "equal as numbers", "empty", "only spaces"],
+        ids=["equal", "equal as numbers", "empty", "only spaces", "only whitespace"],
     )
     def test_equal_or_empty_is_stored_unset(self, imported, row):
         result, target, _ = imported(f"start,end,level,pre_start,post_end\n{row}\n")
