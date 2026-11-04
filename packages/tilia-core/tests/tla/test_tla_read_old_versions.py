@@ -1203,6 +1203,162 @@ def test_a_component_of_an_unknown_kind_gets_a_new_id_and_stays_as_it_was():
     assert component.extra == {"start": 0, "annotation_data": {"form": "AABA"}}
 
 
+# A component of a kind its timeline doesn't hold, which the check keeps as it
+# is: the migration doesn't convert it by its kind either
+
+
+# The old timeline it is in, and the component.
+MISPLACED = {
+    "a hierarchy with formal values in a marker timeline": (
+        "3",
+        {
+            "start": 0,
+            "pre_start": 0,
+            "end": 1,
+            "post_end": 1,
+            "level": 1,
+            "label": "",
+            "color": "",
+            "comments": "",
+            "formal_type": "sonata",
+            "formal_function": "exposição",
+            "kind": "HIERARCHY",
+            "hash": "ab",
+        },
+    ),
+    "a marker in a hierarchy timeline": (
+        "1",
+        {
+            "time": 1,
+            "comments": "",
+            "label": "",
+            "color": None,
+            "kind": "MARKER",
+            "hash": "cd",
+        },
+    ),
+    "a range in a marker timeline": (
+        "3",
+        {
+            "start": 0,
+            "end": 1,
+            "row_id": "r",
+            "label": "",
+            "color": None,
+            "comments": "",
+            "joined_right": None,
+            "pre_start": 0,
+            "post_end": 1,
+            "kind": "RANGE",
+            "hash": "ef",
+        },
+    ),
+}
+
+
+def with_misplaced(case, **keys):
+    timeline, component = MISPLACED[case]
+    return set_key("timelines", timeline, "components", "9", {**component, **keys})
+
+
+def but_its_hash(case):
+    _, component = MISPLACED[case]
+    return {key: value for key, value in component.items() if key != "hash"}
+
+
+def the_misplaced(case, content):
+    """The case's component in current-format content, by its new id."""
+    timeline, _ = MISPLACED[case]
+    document_id = content["document_id"]
+    new_timeline = migrated_id(document_id, "timeline", timeline)
+    new_component = migrated_id(document_id, "component", timeline, "9")
+    return content["timelines"][new_timeline]["components"][new_component]
+
+
+@pytest.mark.parametrize("case", MISPLACED)
+def test_a_component_its_timeline_doesnt_hold_keeps_every_key_but_its_hash(case):
+    migrated = to_1.migrate(edited(with_misplaced(case)))
+    assert the_misplaced(case, migrated.content) == but_its_hash(case)
+    assert migrated.warnings == []
+    assert migrated.changes == {}
+
+
+@pytest.mark.parametrize("case", MISPLACED)
+def test_a_component_its_timeline_doesnt_hold_has_the_checks_warning_only(case):
+    timeline, component = MISPLACED[case]
+    doc = loads(edited(with_misplaced(case)))
+    new_timeline = migrated_id(doc.document_id, "timeline", timeline)
+    new_component = migrated_id(doc.document_id, "component", timeline, "9")
+    read = doc.timelines[new_timeline].components[new_component]
+    assert read.kind == tla.UnknownKind(component["kind"])
+    kept = but_its_hash(case)
+    del kept["kind"]
+    assert read.extra == kept
+    (warning,) = doc.warnings
+    assert warning.place == f"/timelines/{timeline}/components/9"
+    assert warning.message.endswith("doesn't have: it is kept as it is")
+
+
+@pytest.mark.parametrize("case", MISPLACED)
+def test_a_component_its_timeline_doesnt_hold_is_written_back_as_it_is(case):
+    written = tla.canonical_bytes(loads(edited(with_misplaced(case))))
+    assert the_misplaced(case, json.loads(written)) == but_its_hash(case)
+    assert tla.canonical_bytes(tla.loads(written)) == written
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["formal_type", "formal_function", "pre_start", "post_end", "label", "comments"],
+)
+def test_the_document_id_changes_with_what_such_a_component_keeps(key):
+    # As an unknown kind's does: its formal values, a pre_start equal to its
+    # start and its attributes at their default count, since they all stay.
+    case = "a hierarchy with formal values in a marker timeline"
+    timeline, _ = MISPLACED[case]
+    with_key = edited(with_misplaced(case))
+    without = edited(
+        with_misplaced(case),
+        remove_key("timelines", timeline, "components", "9", key),
+    )
+    assert loads(with_key).document_id != loads(without).document_id
+
+
+@pytest.mark.parametrize("case", MISPLACED)
+def test_the_stored_hash_of_such_a_component_doesnt_change_the_document_id(case):
+    other_hash = edited(with_misplaced(case, hash="ffff"))
+    assert (
+        loads(other_hash).document_id == loads(edited(with_misplaced(case))).document_id
+    )
+
+
+def test_a_hierarchy_in_a_score_timeline_keeps_its_parent_and_children():
+    # TiLiA 0.7's change on opening a file is to a hierarchy's own timeline.
+    hierarchy = {
+        "start": 0,
+        "end": 1,
+        "level": 1,
+        "parent": "5",
+        "children": ["6"],
+        "kind": "HIERARCHY",
+    }
+    doc = loads(edited(with_score(hierarchy)))
+    (kept,) = by_kind(doc, "score").components.values()
+    assert kept.kind == tla.UnknownKind("HIERARCHY")
+    assert kept.extra["parent"] == "5"
+    assert kept.extra["children"] == ["6"]
+
+
+def test_a_clef_in_a_hierarchy_timeline_keeps_its_svg():
+    # TiLiA 0.7's change on opening a file is to a score timeline's clefs.
+    doc = loads(edited(set_key(*HIERARCHY, "components", "9", clef("clef-treble.svg"))))
+    (kept,) = [
+        component
+        for component in by_kind(doc, "hierarchy").components.values()
+        if component.kind == tla.UnknownKind("CLEF")
+    ]
+    assert kept.extra["icon"] == "clef-treble.svg"
+
+
 # The file's fields and the media
 
 
