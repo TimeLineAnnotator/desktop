@@ -12,6 +12,7 @@ from collections.abc import Collection, Iterable
 from typing import Any
 
 from tilia_core import rules, tla
+from tilia_core.tla.model import TIMELINE_COMPONENTS
 
 
 def commit(
@@ -22,14 +23,26 @@ def commit(
     rows: list[dict[str, Any]] | None = None,
     attrs: dict[str, Any] | None = None,
 ) -> None:
-    """Replace the target's components with `components`, in their order.
+    """Replace the target's components of the kinds it holds, which are those
+    an import into it creates, with `components`, in their order.
+
+    Whatever else it holds, such as a component of a kind the core doesn't know,
+    stays as it is, before them.
 
     `rows`, for a range timeline, replace its rows; with none left, it gets one
     blank row, as TiLiA restores it. `attrs` are set on the target, replacing
     the values it had.
     """
     timeline = document.timelines[target_id]
-    timeline.components = {component.id: component for component in components}
+    replaced = TIMELINE_COMPONENTS[timeline.kind]
+    timeline.components = {
+        **{
+            component.id: component
+            for component in timeline.components.values()
+            if component.kind not in replaced
+        },
+        **{component.id: component for component in components},
+    }
     if rows is not None:
         timeline.attrs["rows"] = list(rows) if rows else [blank_row()]
     if attrs:

@@ -18,14 +18,16 @@ UTF8_DECODE_FAILED = "'{}' is not a valid UTF-8 encoded {} file."
 @dataclass(frozen=True)
 class CsvRow:
     line: int  # the row's first line in the file, 1-based, the header being line 1
-    # By column name, in NFC; a column the row is too short for is missing.
+    # By column name, in NFC; a cell of only spaces is empty, and a column the
+    # row is too short for is missing.
     values: dict[str, str]
 
 
 def read_csv(path: str | os.PathLike[str]) -> tuple[list[str], list[CsvRow]]:
     """The header and the rows of a CSV in UTF-8, with or without a byte-order mark.
 
-    A row with no cells is left out. Where a column name is repeated, the first
+    A row with no cells is left out. A cell of only spaces counts as empty, for
+    every importer and every column. Where a column name is repeated, the first
     column with it is read, as TiLiA's importers find columns. The whole file is
     read before anything is returned, so a file that fails changes nothing.
 
@@ -45,7 +47,7 @@ def read_csv(path: str | os.PathLike[str]) -> tuple[list[str], list[CsvRow]]:
                 elif cells:
                     values: dict[str, str] = {}
                     for name, value in zip(header, cells, strict=False):
-                        values.setdefault(name, _nfc(value))
+                        values.setdefault(name, _cell(value))
                     rows.append(CsvRow(line=line, values=values))
                 # A quoted field's line breaks count, so the next row starts here.
                 line = reader.line_num + 1
@@ -58,6 +60,10 @@ def read_csv(path: str | os.PathLike[str]) -> tuple[list[str], list[CsvRow]]:
     if header is None:
         raise ImportFailed(path, EMPTY_FILE)
     return header, rows
+
+
+def _cell(text: str) -> str:
+    return _nfc(text) if text.strip(" ") else ""
 
 
 def _nfc(text: str) -> str:

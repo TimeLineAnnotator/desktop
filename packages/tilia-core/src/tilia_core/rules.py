@@ -501,9 +501,11 @@ def not_valid(attribute: str, value: Any) -> str:
     """The reason for a value of `attribute` that isn't one, for every kind.
 
     The rules give it for a value they refuse as not being one, such as a time of
-    nan, and the importers for a value they can't read, so the two read alike.
+    nan, and the importers for a value they can't read, so the two read alike. A
+    value with nothing in it is named, so the text never starts with a space.
     """
-    return f"{_shown(value)} is not a valid {attribute.replace('_', ' ')}."
+    shown = "an empty value" if value == "" else _shown(value)
+    return f"{shown} is not a valid {attribute.replace('_', ' ')}."
 
 
 @dataclass(frozen=True)
