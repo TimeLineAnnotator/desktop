@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import logging
 from dataclasses import dataclass, field
 from typing import Any
@@ -84,7 +85,7 @@ def _row_in(timeline: tla.Timeline, row: tla.Measure) -> RowIn | None:
         force_display=row.force_display,
         next=None if row.next is None else tuple(row.next),
         source=row.source,
-        metadata=row.metadata,
+        metadata=copy.deepcopy(row.metadata),
     )
 
 

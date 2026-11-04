@@ -218,6 +218,21 @@ def test_another_beat_without_a_time_is_left_out_of_its_measure():
     assert len(row.beat_ids) == 2
 
 
+def test_a_row_s_metadata_is_its_own_copy():
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"metadata": {"tag": "a", "tags": ["b"]}}},
+            {"time": 1.0},
+        ]
+    )
+    (row,) = rows_of(timeline)
+
+    row.metadata["other"] = "c"
+    row.metadata["tags"].append("d")
+
+    assert timeline.measures.rows[0].metadata == {"tag": "a", "tags": ["b"]}
+
+
 def test_the_helper_gives_beats_the_core_s_kind():
     timeline = _tapped_example()
 
