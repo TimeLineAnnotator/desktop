@@ -42,6 +42,7 @@ from tilia_core.tla.model import (
     timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import add_line, lines_of, parse, text_of
+from tilia_core.tla.problems import keep_problems
 
 
 def read(path: str | os.PathLike[str]) -> Document:
@@ -64,7 +65,16 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
+    keep_problems(document, data)
     return document
+
+
+def written_document(
+    data: bytes, *, path: str | os.PathLike[str] | None = None
+) -> Document:
+    """The document the reader makes of `data`, bytes the writer has checked,
+    so that they aren't checked again."""
+    return _Reader(path).document(json.loads(data))
 
 
 def _old(
@@ -73,7 +83,7 @@ def _old(
     """A file from TiLiA 0.x, migrated in memory; its document's
     format_version is the version it was read from. The migrated content is
     checked as a file of the current format is (FR-053), and its warnings
-    come after the migration's.
+    come after the migration's, and the core's rules' after those.
 
     What the migration or the check refuses or warns about is named in the
     old file's terms: its place there, with the old ids, and its line in
@@ -102,6 +112,7 @@ def _old(
         ReadWarning(place=place, line=lines[place], message=message)
         for place, message in named
     ]
+    keep_problems(document, data, where=migrated.places.old)
     return document
 
 

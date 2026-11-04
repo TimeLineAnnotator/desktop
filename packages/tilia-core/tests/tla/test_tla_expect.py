@@ -25,8 +25,18 @@ def listing(folder):
     return sorted(p.name for p in Path(folder).iterdir())
 
 
+def without_harmonies(doc):
+    """`doc` without its harmony timeline: writing one needs the `harmony` extra."""
+    doc.timelines = {
+        key: timeline
+        for key, timeline in doc.timelines.items()
+        if timeline.kind != "harmony"
+    }
+    return doc
+
+
 def edited(note="edited"):
-    doc = tla.read(EVERY_KIND)
+    doc = without_harmonies(tla.read(EVERY_KIND))
     doc.metadata["note"] = note
     return doc
 
@@ -67,6 +77,10 @@ def with_value(where, key, value):
     """every-kind.tla with `key` set to `value` on its first component of the
     kind `where`, or on its first hierarchy timeline."""
     doc = tla.read(EVERY_KIND)
+    if where == "harmony":
+        pytest.importorskip("music21", reason="needs the harmony extra")
+    else:
+        doc = without_harmonies(doc)
     timeline = next(tl for tl in doc.timelines.values() if tl.kind == "hierarchy")
     if where == "timeline":
         setattr(timeline, key, value)
@@ -83,7 +97,7 @@ def with_value(where, key, value):
 
 @pytest.mark.parametrize(
     "where, key, integer",
-    [("hierarchy", "level", 2), ("harmony", "step", 0), ("timeline", "ordinal", 2)],
+    [("hierarchy", "level", 4), ("harmony", "step", 0), ("timeline", "ordinal", 2)],
     ids=["a level", "a step, at its default", "an ordinal"],
 )
 def test_an_integer_given_as_a_float_is_written_and_fingerprinted_as_the_integer(
@@ -198,9 +212,9 @@ def test_a_write_that_expects_the_version_on_disk_writes(piece):
 
 
 def test_a_file_changed_since_it_was_read_is_left_as_it_is(piece):
-    doc = tla.read(piece)
+    doc = without_harmonies(tla.read(piece))
     expected = tla.fingerprint(piece)
-    other = tla.read(piece)
+    other = without_harmonies(tla.read(piece))
     other.metadata["note"] = "someone else's edit"
     tla.write(piece, other)
     before = piece.read_bytes()

@@ -3,7 +3,12 @@
 The names here are provisional until they are documented.
 """
 
-from tilia_core.tla.errors import FileChanged, FileInUse, UnreadableFile
+from tilia_core.tla.errors import (
+    BrokenRules,
+    FileChanged,
+    FileInUse,
+    UnreadableFile,
+)
 from tilia_core.tla.ids import new_id
 from tilia_core.tla.model import (
     BeatUnit,
@@ -37,6 +42,7 @@ __all__ = [
     "FORMAT_VERSION",
     "TEMPORARY_PATTERN",
     "BeatUnit",
+    "BrokenRules",
     "Component",
     "Document",
     "FileChanged",

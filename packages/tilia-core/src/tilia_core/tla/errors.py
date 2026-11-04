@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import errno
 import os
+from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tilia_core.tla.model import ReadWarning
 
 
 def printable(text: str) -> str:
@@ -45,6 +50,31 @@ class UnreadableFile(ValueError):
         if not where:
             return self.message
         return f"{', '.join(where)}: {self.message}"
+
+
+class BrokenRules(ValueError):
+    """A document the writer refuses: it breaks a rule for a valid component,
+    which isn't a problem it was read with on what hasn't changed since, or
+    can't be checked for want of the `harmony` extra (FR-054). Nothing was
+    written.
+
+    `problems` holds each one: its place, its line when known, in what would
+    have been written, and the rule's reason.
+    """
+
+    def __init__(
+        self, path: str | os.PathLike[str], problems: Iterable[ReadWarning]
+    ) -> None:
+        self.path = Path(path)
+        self.problems = list(problems)
+        super().__init__(self.path, self.problems)
+
+    def __str__(self) -> str:
+        problems = "; ".join(str(problem) for problem in self.problems)
+        return (
+            f"{printable(self.path.name)}: nothing was written, it breaks the rules"
+            f" for a valid component: {problems}"
+        )
 
 
 class FileChanged(Exception):

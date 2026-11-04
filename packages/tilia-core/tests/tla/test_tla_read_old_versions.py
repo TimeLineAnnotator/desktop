@@ -1353,7 +1353,9 @@ def test_each_non_empty_formal_value_is_dropped_with_a_warning():
     content["timelines"]["1"]["components"]["3"] = {
         **unit,
         "start": 10.5,
+        "pre_start": 10.5,
         "end": 20,
+        "post_end": 20,
         "formal_type": "",
         "formal_function": "exposição",
     }
@@ -1599,10 +1601,16 @@ def with_range(**first):
             "name": "Rows",
             "ordinal": 3,
             "height": 1,
-            "rows": [{"id": "r", "name": "Row", "color": None, "height": None}],
+            "rows": [{"id": "aZ3k9P", "name": "Row", "color": None, "height": None}],
             "components": {
-                "10": {"kind": "RANGE", "start": 0, "end": 1, "row_id": "r", **first},
-                "11": {"kind": "RANGE", "start": 1, "end": 2, "row_id": "r"},
+                "10": {
+                    "kind": "RANGE",
+                    "start": 0,
+                    "end": 1,
+                    "row_id": "aZ3k9P",
+                    **first,
+                },
+                "11": {"kind": "RANGE", "start": 1, "end": 2, "row_id": "aZ3k9P"},
             },
         }
 
@@ -1749,11 +1757,9 @@ def test_in_a_file_of_the_current_format_the_places_are_its_own():
     data = replaced(current, b'"kind": "MODE"', b'"kind": "MARKER"')
     harmonies = by_kind(doc, "harmony")
     (mode,) = [k for k, c in harmonies.components.items() if c.kind == "mode"]
-    (warning,) = tla.loads(data).warnings
-    assert (warning.place, warning.line) == (
-        f"/timelines/{harmonies.id}/components/{mode}",
-        line_of(data, f'"{mode}": {{'.encode()),
-    )
+    place = f"/timelines/{harmonies.id}/components/{mode}"
+    (warning,) = [w for w in tla.loads(data).warnings if w.place == place]
+    assert warning.line == line_of(data, f'"{mode}": {{'.encode())
 
 
 def test_an_integer_written_with_a_fraction_is_read_as_one():
@@ -1772,6 +1778,8 @@ def test_old_files_have_no_warnings_but_the_migrations(old_file):
     doc = tla.read(old_file)
     content = content_of(old_file)
     for warning in doc.warnings:
+        if not warning.place:  # without the `harmony` extra, the note on the file
+            continue
         timeline = warning.place.split("/")[2]
         assert timeline in content["timelines"]
 
@@ -2059,9 +2067,11 @@ def rows(*rows):
 def test_a_row_at_its_defaults_is_left_out_of_the_document_id():
     # TiLiA 0.7 writes every row's color and height, null when unset.
     written = loads(edited(with_range())).document_id
-    left_out = edited(with_range(), rows({"id": "r", "name": "Row"}))
+    left_out = edited(with_range(), rows({"id": "aZ3k9P", "name": "Row"}))
     assert loads(left_out).document_id == written
-    coloured = edited(with_range(), rows({"id": "r", "name": "Row", "color": "#f00"}))
+    coloured = edited(
+        with_range(), rows({"id": "aZ3k9P", "name": "Row", "color": "#f00"})
+    )
     assert loads(coloured).document_id != written
 
 

@@ -38,8 +38,18 @@ def listing(folder):
     return sorted(p.name for p in Path(folder).iterdir())
 
 
+def without_harmonies(doc):
+    """`doc` without its harmony timeline: writing one needs the `harmony` extra."""
+    doc.timelines = {
+        key: timeline
+        for key, timeline in doc.timelines.items()
+        if timeline.kind != "harmony"
+    }
+    return doc
+
+
 def edited(note="edited"):
-    doc = tla.read(EVERY_KIND)
+    doc = without_harmonies(tla.read(EVERY_KIND))
     doc.metadata["note"] = note
     return doc
 
