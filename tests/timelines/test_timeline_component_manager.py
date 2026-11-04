@@ -200,6 +200,19 @@ class TestRestoreById:
 
         assert id in logger.error.call_args.args[0]
 
+    def test_a_restore_that_raises_leaves_the_manager_as_it_was(self, marker_tl):
+        # The manager would otherwise stop updating other components for good.
+        marker_tl.create_marker(10)
+        state = marker_tl.get_state()["components"]
+        marker_tl.clear()
+        component_manager = marker_tl.component_manager
+
+        with patch.object(marker_tl, "create_component", side_effect=RuntimeError):
+            with pytest.raises(RuntimeError):
+                component_manager.restore_state(state)
+
+        assert component_manager.is_deserializing is False
+
     def test_components_are_created_in_id_order(self, marker_tl):
         for time, id in enumerate(IDS_ACROSS_A_LENGTH):
             marker_tl.create_marker(time, id=id)
@@ -307,6 +320,40 @@ class TestUndoableWithSeveralComponents:
         commands.execute("edit.undo")
 
         assert [c.id for c in score_tl] == order
+
+    @staticmethod
+    def _add_harmonies_then_a_mode(harmony_tl):
+        """Adding the mode changes the `applied_to` of the harmonies after it."""
+        for time in range(0, 40, 10):
+            harmony_tl.create_harmony(time, step=3, applied_to=3)
+        mode, _ = harmony_tl.create_mode(5, step=1)
+        assert harmony_tl[1].get_data("applied_to") == 2
+        _record()
+        return mode
+
+    def test_harmonies_and_a_mode_are_cleared(self, harmony_tlui):
+        harmony_tl = harmony_tlui.timeline
+        self._add_harmonies_then_a_mode(harmony_tl)
+
+        with undoable():
+            harmony_tl.clear()
+            _record()
+
+    def test_mode_is_deleted(self, harmony_tlui):
+        harmony_tl = harmony_tlui.timeline
+        mode = self._add_harmonies_then_a_mode(harmony_tl)
+
+        with undoable():
+            harmony_tl.delete_components([mode])
+            _record()
+
+    def test_mode_is_edited(self, harmony_tlui):
+        harmony_tl = harmony_tlui.timeline
+        mode = self._add_harmonies_then_a_mode(harmony_tl)
+
+        with undoable():
+            harmony_tl.set_component_data(mode.id, "comments", "edited")
+            _record()
 
     def test_hierarchies(self, hierarchy_tlui):
         hierarchy_tl = hierarchy_tlui.timeline
