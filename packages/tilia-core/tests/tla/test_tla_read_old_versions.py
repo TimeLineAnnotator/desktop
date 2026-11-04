@@ -23,6 +23,7 @@ from tilia_core.tla.migrate import places as old_places
 from tilia_core.tla.migrate import to_1
 from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import TIMELINE_KINDS
+from tilia_core.tla.reader import loads_for_fingerprint
 
 OLD = Path(__file__).parent / "old"
 OLD_FILES = sorted(OLD.glob("*.tla"))
@@ -1901,6 +1902,73 @@ def test_the_migrated_content_is_checked(changes, place, message, texts):
     assert error.value.message == message
     assert error.value.place == place
     assert error.value.line == line_of(data, *texts)
+
+
+# A file's fingerprint is taken from its migration too (FR-043), with its paths
+# as stored: it refuses what reading the file refuses, and names it alike.
+
+
+def refusal(read, path):
+    with pytest.raises(tla.UnreadableFile) as error:
+        read(path)
+    refused = error.value
+    return refused.message, refused.place, refused.line, str(refused)
+
+
+@pytest.mark.parametrize(
+    "data, place",
+    [
+        pytest.param(
+            replaced(SEVEN.read_bytes(), b'"row_id": "s9jlhi"', b'"row_id": "s9"'),
+            "/timelines/42/components/45/row_id",
+            id="what the check refuses",
+        ),
+        pytest.param(
+            replaced(SEVEN.read_bytes(), b'"ordinal": 9', b'"ordinal": null'),
+            "/timelines/42/ordinal",
+            id="what the migration refuses",
+        ),
+        pytest.param(
+            indented(edited(with_range(joined_right="99"))),
+            "/timelines/9/components/10/joined_right",
+            id="a reference that names nothing",
+        ),
+        pytest.param(
+            indented(edited(set_key("media_path", 3))),
+            "/media_path",
+            id="a media path that isn't text",
+        ),
+        pytest.param(
+            indented(
+                edited(
+                    set_key(
+                        "timelines",
+                        "5",
+                        {"kind": "Pdf", "ordinal": 9, "path": 3, "components": {}},
+                    )
+                )
+            ),
+            "/timelines/5/path",
+            id="a PDF timeline's path that isn't text",
+        ),
+    ],
+)
+def test_a_fingerprint_refuses_what_reading_refuses_at_its_place_and_line(
+    tmp_path, data, place
+):
+    path = tmp_path / "old.tla"
+    path.write_bytes(data)
+    refused = refusal(tla.read, path)
+    assert refused[1] == place
+    assert refused[2] is not None
+    assert refusal(tla.fingerprint, path) == refused
+
+
+def test_a_fingerprints_document_has_the_warnings_reading_gives():
+    data = replaced(SEVEN.read_bytes(), b'"kind": "MODE"', b'"kind": "MARKER"')
+    warnings = tla.loads(data).warnings
+    assert all(warning.line is not None for warning in warnings)
+    assert loads_for_fingerprint(data).warnings == warnings != []
 
 
 def test_an_old_id_is_named_as_a_json_pointer_names_it():
