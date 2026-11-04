@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 import tilia.ui.strings
 from tilia.requests import Get, get
 from tilia.timelines.beat.pattern import (
+    MAX_BARS,
     MAX_DIGITS,
     PlannedBar,
     format_planned_bars,
@@ -164,14 +165,14 @@ def get_overrides(numbers: list[int]) -> dict[int, int]:
 
 
 def parse_bar_numbers(
-    text: str, count: int, limit: int
+    text: str, count: int, limit: int, limited_by: str = "the beats tapped from here"
 ) -> tuple[list[int] | None, str]:
     """
     Reads the numbers of a row of `count` bars: a first number to count on
     from ("9"), or ranges and numbers separated by commas ("1-8, 1-8"), as
     printed, where a number that doesn't follow the one before is a repeat
     or a jump. Ranges and numbers name as many bars as the row is to have,
-    up to `limit`.
+    up to `limit`, as many as fit `limited_by`.
     """
     items = text.replace("–", "-").split(",")
     numbers: list[int] = []
@@ -198,8 +199,7 @@ def parse_bar_numbers(
     if total > limit:
         bars = "bar fits" if limit == 1 else "bars fit"
         return None, (
-            f"'{text}' numbers {total} bars, but only {limit} {bars} the beats"
-            " tapped from here."
+            f"'{text}' numbers {total} bars, but only {limit} {bars} {limited_by}."
         )
     return numbers, ""
 
@@ -426,11 +426,6 @@ class BeatPatternDialog(QDialog):
             is_changed = self._is_changed(row)
             for column, text in enumerate(format_row(row)):
                 item = QTableWidgetItem(text)
-                flags = item.flags()
-                if column == BARS_COLUMN and not row.is_tapped:
-                    # Only measures with beats keep a number.
-                    flags &= ~Qt.ItemFlag.ItemIsEditable
-                item.setFlags(flags)
                 if not row.is_tapped:
                     item.setForeground(QBrush(UNTAPPED_COLOR))
                 if is_changed:
@@ -474,7 +469,10 @@ class BeatPatternDialog(QDialog):
             return
         row = self._rows[item.row()]
         if item.column() == BARS_COLUMN:
-            self._edit_numbers(row, item.text())
+            if row.is_tapped:
+                self._edit_numbers(row, item.text())
+            else:
+                self._edit_untapped_numbers(row, item.text())
             return
 
         if item.column() == TIME_SIGNATURE_COLUMN and row.is_tapped:
@@ -503,6 +501,9 @@ class BeatPatternDialog(QDialog):
         plan = list(self._plan)
         for index in range(row.start, row.start + row.count):
             plan[index] = bar
+        self._write_plan(plan)
+
+    def _write_plan(self, plan: list[PlannedBar]) -> None:
         self._is_writing_plan = True
         try:
             # Setting the text parses it back into the same bars and redraws
@@ -533,25 +534,57 @@ class BeatPatternDialog(QDialog):
         all_numbers = get_numbers(tapped, self._overrides)
         all_numbers[row.start : end] = numbers
         # The bars after the row count on from it, unless numbered by hand.
-        shift = len(numbers) - row.count
-        numbered = {index + shift for index in self._overrides if index >= end}
+        added = len(numbers) - row.count
+        numbered = {index + added for index in self._overrides if index >= end}
         for index in range(row.start + len(numbers), len(all_numbers)):
             if index not in numbered:
                 all_numbers[index] = all_numbers[index - 1] + 1
-        if shift:
+        if added:
             self._bars = resize_row(
                 bars, self._plan, self._beat_count, row, len(numbers)
             )
-            self._row_breaks = frozenset(
-                index + shift if index >= end else index for index in self._row_breaks
-            )
+            self._move_row_breaks(end, added)
         else:
             self._bars = bars
         _, tapped = self._lay_out()
         self._overrides = get_overrides(all_numbers[:tapped])
         self._update_table()
-        if shift < 0 and self._is_inside_a_row(row.start + len(numbers)):
+        if added < 0 and self._is_inside_a_row(row.start + len(numbers)):
             self._show_error(tilia.ui.strings.BEAT_PATTERN_ROW_REFILLED.format(text))
+
+    def _edit_untapped_numbers(self, row: BarRow, text: str) -> None:
+        """
+        Makes a row of bars not tapped yet as many bars long as its numbers
+        name, by changing the pattern, so the rows after it move. Only
+        measures with beats keep a number, so these have to count on.
+        """
+        limit = MAX_BARS - len(self._plan) + row.count
+        numbers, error = parse_bar_numbers(text, row.count, limit, "the pattern")
+        first = row.numbers[0]
+        if numbers is not None and numbers != list(range(first, first + len(numbers))):
+            numbers = None
+            error = tilia.ui.strings.BEAT_PATTERN_UNTAPPED_NUMBERS_ERROR.format(first)
+        if numbers is None:
+            self._show_error(error)
+            self._update_table()
+            return
+
+        self._show_error("")
+        if len(numbers) == row.count:
+            self._update_table()
+            return
+
+        end = row.start + row.count
+        plan = list(self._plan)
+        plan[row.start : end] = [row.bar] * len(numbers)
+        self._move_row_breaks(end, len(numbers) - row.count)
+        self._write_plan(plan)
+
+    def _move_row_breaks(self, from_bar: int, added: int) -> None:
+        """Keeps the row breaks from `from_bar` on with their bars."""
+        self._row_breaks = frozenset(
+            index + added if index >= from_bar else index for index in self._row_breaks
+        )
 
     def _is_inside_a_row(self, bar_index: int) -> bool:
         """Whether a bar shares a row with the bar before it."""
