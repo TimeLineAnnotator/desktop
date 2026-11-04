@@ -179,13 +179,13 @@ class TestTable:
             "10 beats tapped, in 3 bars."
         )
 
-    def test_untapped_bars_are_grey_and_keep_no_number(self, qtui):
+    def test_untapped_bars_are_grey_and_can_be_edited(self, qtui):
         dialog = BeatPatternDialog("4[4/4] 3/4", beat_count=8)
 
         assert [row.is_tapped for row in dialog.rows] == [True, False, False]
         untapped = dialog.table.item(1, BARS_COLUMN)
         assert untapped.foreground().color() == UNTAPPED_COLOR
-        assert not untapped.flags() & Qt.ItemFlag.ItemIsEditable
+        assert untapped.flags() & Qt.ItemFlag.ItemIsEditable
         assert dialog.table.item(1, TAPS_COLUMN).flags() & Qt.ItemFlag.ItemIsEditable
 
     def test_numbers_split_rows(self, qtui):
@@ -368,6 +368,74 @@ class TestEditingCells:
         result = dialog.get_result()
         assert [bar.beat_count for bar in result.bars] == [4, 3, 4, 4]
         assert result.numbers == [1, 2, 3, 4]
+
+    @pytest.mark.parametrize(
+        "text, pattern, rows",
+        [
+            ("2-2", "4/4 3/4 3[2/4]", ["1", "2", "3–5"]),
+            ("2-4", "4/4 3[3/4] 3[2/4]", ["1", "2–4", "5–7"]),
+            ("2, 3, 4", "4/4 3[3/4] 3[2/4]", ["1", "2–4", "5–7"]),
+        ],
+    )
+    def test_numbers_for_other_untapped_bars_change_the_pattern(
+        self, qtui, text, pattern, rows
+    ):
+        dialog = BeatPatternDialog("4/4 2[3/4] 3[2/4]")
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, text)
+
+        assert dialog.text == pattern
+        assert [row[0] for row in dialog.get_table_rows()] == rows
+        assert dialog.error.text() == ""
+
+    def test_numbers_for_untapped_bars_after_tapped_ones(self, qtui):
+        dialog = BeatPatternDialog("4[4/4] 3/4", beat_count=8)
+        assert [row[0] for row in dialog.get_table_rows()] == ["1–2", "3–4", "5"]
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "3-5")
+
+        assert dialog.text == "5[4/4] 3/4"
+        assert [row[0] for row in dialog.get_table_rows()] == ["1–2", "3–5", "6"]
+        assert dialog.get_result().bars == bars("2[4/4]")
+
+    def test_numbers_for_as_many_untapped_bars_change_nothing(self, qtui):
+        dialog = BeatPatternDialog("4/4 2[3/4] 3[2/4]")
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2, 3")
+
+        assert dialog.text == "4/4 2[3/4] 3[2/4]"
+        assert [row[0] for row in dialog.get_table_rows()] == ["1", "2–3", "4–6"]
+
+    @pytest.mark.parametrize("text", ["9", "5-6", "2, 2", "1-3"])
+    def test_untapped_bars_have_to_count_on(self, qtui, text):
+        dialog = BeatPatternDialog("4/4 2[3/4] 3[2/4]")
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, text)
+
+        assert dialog.error.text() == (
+            "These bars aren't tapped yet, so their numbers have to count on from 2."
+        )
+        assert dialog.text == "4/4 2[3/4] 3[2/4]"
+        assert [row[0] for row in dialog.get_table_rows()] == ["1", "2–3", "4–6"]
+
+    def test_more_untapped_bars_than_a_pattern_can_hold_are_refused(self, qtui):
+        dialog = BeatPatternDialog("4/4 2[3/4]")
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-200000")
+
+        assert dialog.error.text() == (
+            "'2-200000' numbers 199999 bars, but only 99999 bars fit the pattern."
+        )
+        assert dialog.text == "4/4 2[3/4]"
+
+    def test_the_bar_opened_at_keeps_its_row_when_untapped_bars_change(self, qtui):
+        dialog = BeatPatternDialog("2[4/4] 3/4", focus_bar=1)
+        assert [row[0] for row in dialog.get_table_rows()] == ["1", "2", "3"]
+
+        edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-3")
+
+        assert dialog.text == "3[4/4] 3/4"
+        assert [row[0] for row in dialog.get_table_rows()] == ["1", "2–3", "4"]
 
     def test_says_so_when_the_beats_left_fill_the_row_again(self, qtui):
         dialog = BeatPatternDialog("4/4", beat_count=16)
