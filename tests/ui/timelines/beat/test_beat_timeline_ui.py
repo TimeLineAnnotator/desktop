@@ -596,7 +596,7 @@ class TestEditBarsDialog:
         assert timeline.measure_numbers == [1, 2, 3, 4]
         assert time_signatures(timeline)[:3] == [("4", 4)] * 3
 
-    def test_lengthening_a_row_gives_the_last_bar_what_tapping_fills(self, tluis):
+    def test_a_bar_pushed_back_stays_as_it_was_while_it_is_tapped(self, tluis):
         add_beat_timeline_with_pattern("2[4/4] 3/4")
         add_beats(range(14))
         seen = {}
@@ -608,11 +608,117 @@ class TestEditBarsDialog:
         self.edit_bars(tluis[0], edit)
         add_beats(range(14, 16))
 
-        # The pattern's bar at the fourth position is a 4/4.
         timeline = tluis[0].timeline
-        assert seen["rows"][0] == ("1–4", "4/4", "1 1 1 1")
-        assert timeline.beats_in_measure == [4, 4, 4, 4]
-        assert time_signatures(timeline) == [("4", 4)] * 4
+        assert seen["rows"][1] == ("4", "3/4", "1 1 1")
+        assert timeline.beats_in_measure == [4, 4, 4, 3, 1]
+        assert time_signatures(timeline)[:4] == [("4", 4)] * 3 + [("3", 4)]
+
+    def test_lengthening_a_row_moves_the_pattern_with_the_bars(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-4"),
+            )
+        add_beats(range(16, 23))
+
+        # The 2/4 row keeps its three bars, and the pattern restarts after it.
+        assert time_signatures(tluis[0].timeline) == [
+            ("4", 4),
+            ("3", 4),
+            ("3", 4),
+            ("3", 4),
+            ("2", 4),
+            ("2", 4),
+            ("2", 4),
+            ("4", 4),
+        ]
+
+    def test_shortening_a_row_moves_the_pattern_with_the_bars(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+
+        with undoable():
+            self.edit_bars(
+                tluis[0],
+                lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-2"),
+            )
+        add_beats(range(16, 20))
+
+        assert time_signatures(tluis[0].timeline) == [
+            ("4", 4),
+            ("3", 4),
+            ("2", 4),
+            ("2", 4),
+            ("2", 4),
+            ("4", 4),
+            ("3", 4),
+        ]
+
+    def test_later_passes_keep_their_rows_when_a_row_is_shortened(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(32))
+        timeline = tluis[0].timeline
+
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-2"),
+        )
+
+        assert timeline.beats_in_measure == [4, 3, 2, 2, 2, 4, 3, 3, 2, 2, 2, 3]
+
+    def test_the_moved_pattern_survives_save_and_reopen(self, tluis, tmp_path):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-4"),
+        )
+
+        save_and_reopen(tmp_path)
+
+        add_beats(range(16, 23))
+        assert time_signatures(tluis[0].timeline)[-2:] == [("2", 4), ("4", 4)]
+
+    def test_setting_the_pattern_starts_it_again_from_bar_one(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-4"),
+        )
+
+        with undoable():
+            commands.execute(
+                "timeline.beat.set_pattern", tluis[0], pattern="4/4 2[3/4] 3[2/4]"
+            )
+        add_beats(range(16, 20))
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4, 3, 3, 2, 2, 2, 4]
+
+    @pytest.mark.parametrize("emptied_by", ["deleting", "clearing"])
+    def test_the_pattern_starts_again_from_bar_one_once_the_beats_are_gone(
+        self, tluis, emptied_by
+    ):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 1, BARS_COLUMN, "2-4"),
+        )
+
+        if emptied_by == "deleting":
+            tluis[0].select_all_elements()
+            commands.execute("timeline.component.delete")
+        else:
+            with patch_yes_or_no_dialog(True):
+                commands.execute("timeline.clear", tluis[0])
+        add_beats(range(8))
+
+        assert tluis[0].timeline.beats_in_measure == [4, 3, 1]
 
     def test_shortening_a_row_leaves_no_short_bar_behind(self, tluis):
         add_beat_timeline_with_pattern("2[4/4] 3/4")
@@ -625,11 +731,11 @@ class TestEditBarsDialog:
             lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-1"),
         )
 
-        assert timeline.beats_in_measure == [4, 3, 4, 4, 4, 1]
+        assert timeline.beats_in_measure == [4, 3, 4, 4, 3, 2]
 
         add_beats(range(20, 23))
 
-        assert timeline.beats_in_measure == [4, 3, 4, 4, 4, 3, 1]
+        assert timeline.beats_in_measure == [4, 3, 4, 4, 3, 4, 1]
 
     def test_the_bar_being_tapped_stays_open_when_a_row_cant_shorten(self, tluis):
         add_beat_timeline_with_pattern("4/4")

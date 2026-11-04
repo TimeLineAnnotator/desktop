@@ -15,13 +15,14 @@ def ask_for_bars(
     current_bars: list[PlannedBar],
     numbers: list[int],
     focus_bar: int | None = None,
+    pattern_shift: int = 0,
 ) -> tuple[bool, BarsEdit | None]:
     """
     Asks for changes to the bars of a timeline that has beats, showing the
     row of `focus_bar` first.
     """
     return BeatPatternDialog.ask(
-        initial_text, beat_count, current_bars, numbers, focus_bar
+        initial_text, beat_count, current_bars, numbers, focus_bar, pattern_shift
     )
 
 

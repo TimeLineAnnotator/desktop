@@ -79,6 +79,24 @@ class TestLayOut:
     def test_bars_past_the_beats_go(self):
         assert lay_out(bars("4/4 4/4 4/4"), bars("3/4"), 6) == (bars("4/4 4/4"), 2)
 
+    def test_a_shifted_pattern_goes_on_from_the_bars_that_moved(self):
+        assert lay_out(bars("4/4 3/4 3/4"), bars("4/4 3/4 2/4"), 12, 1) == (
+            bars("4/4 3/4 3/4 2/4"),
+            4,
+        )
+
+    def test_the_rest_of_a_shifted_pattern_comes_after_the_beats(self):
+        assert lay_out(bars("4/4 4/4"), bars("4/4 3/4 2/4"), 8, 1) == (
+            bars("4/4 4/4 3/4 2/4"),
+            2,
+        )
+
+    def test_a_shifted_pattern_comes_earlier_when_bars_are_removed(self):
+        assert lay_out(bars("4/4"), bars("4/4 3/4 2/4"), 6, -1) == (
+            bars("4/4 2/4"),
+            2,
+        )
+
     def test_the_pattern_goes_on_from_the_bar_after_the_last(self):
         assert lay_out(bars("5/4"), bars("4/4 3/4"), 12) == (
             bars("5/4 3/4 4/4"),
@@ -352,11 +370,12 @@ class TestEditingCells:
 
         edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
 
-        # The two beats left are tapped from the pattern's first bar, as that
-        # is what tapping on fills at the fourth bar, not the 3/4 bar.
+        # The 3/4 bar comes after the third 4/4 bar, with the two beats left,
+        # and the pattern moves with it.
         result = dialog.get_result()
-        assert [bar.beat_count for bar in result.bars] == [4, 4, 4, 4]
+        assert [bar.beat_count for bar in result.bars] == [4, 4, 4, 3]
         assert result.numbers == [1, 2, 3, 4]
+        assert result.pattern_shift == 1
         assert dialog.error.text() == ""
 
     def test_numbers_for_fewer_bars_shorten_the_row(self, qtui):
@@ -368,6 +387,38 @@ class TestEditingCells:
         result = dialog.get_result()
         assert [bar.beat_count for bar in result.bars] == [4, 3, 4, 4]
         assert result.numbers == [1, 2, 3, 4]
+        assert result.pattern_shift == -1
+
+    def test_editing_the_line_lays_the_pattern_from_its_start(self, qtui):
+        dialog = BeatPatternDialog("2[4/4] 3/4", beat_count=14)
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
+
+        dialog.line_edit.setText("2[4/4] 2/4")
+
+        assert dialog.get_result().pattern_shift == 0
+
+    @pytest.mark.parametrize(
+        "column, text, pattern",
+        [
+            (TIME_SIGNATURE_COLUMN, "5/8", "4/4 2[3/4] 3[5/8]"),
+            (BARS_COLUMN, "5-6", "4/4 2[3/4] 2[2/4]"),
+        ],
+    )
+    def test_untapped_bars_are_found_in_a_shifted_pattern(
+        self, qtui, column, text, pattern
+    ):
+        dialog = BeatPatternDialog(
+            "4/4 2[3/4] 3[2/4]",
+            beat_count=13,
+            current_bars=bars("4/4 3[3/4]"),
+            pattern_shift=1,
+        )
+        assert [row[0] for row in dialog.get_table_rows()] == ["1", "2–4", "5–7"]
+
+        edit_bars_dialog_cell(dialog, 2, column, text)
+
+        assert dialog.text == pattern
+        assert dialog.get_result().pattern_shift == 1
 
     @pytest.mark.parametrize(
         "text, pattern, rows",
@@ -552,6 +603,7 @@ class TestDialog:
 
         assert result.pattern == "4/4"
         assert result.numbers == [0, 1]
+        assert result.pattern_shift == 0
 
 
 class TestCreateTimeline:

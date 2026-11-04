@@ -24,7 +24,7 @@ from tilia.timelines.base.timeline import (
     TimelineComponentManager,
     TimelineFlag,
 )
-from tilia.timelines.base.validators import validate_bool
+from tilia.timelines.base.validators import validate_bool, validate_integer
 from tilia.timelines.beat.components import Beat, BeatUnit
 from tilia.timelines.beat.measures import (
     Measures,
@@ -410,6 +410,7 @@ class BeatTLComponentManager(TimelineComponentManager):
 class BeatTimeline(Timeline):
     SERIALIZABLE = [
         "beat_pattern",
+        "beat_pattern_shift",
         "show_time_signatures",
         "height",
         "is_visible",
@@ -417,6 +418,7 @@ class BeatTimeline(Timeline):
         "ordinal",
     ]
 
+    NOT_EXPORTABLE_ATTRS = ["beat_pattern_shift"]
     COMPONENT_MANAGER_CLASS = BeatTLComponentManager
     FLAGS = [TimelineFlag.COMPONENTS_COPYABLE, TimelineFlag.COMPONENTS_IMPORTABLE]
 
@@ -439,6 +441,7 @@ class BeatTimeline(Timeline):
         measure_numbers: list[int] | None = None,
         measures_to_force_display: list[int] | None = None,
         show_time_signatures: bool = False,
+        beat_pattern_shift: int = 0,
         **kwargs,
     ):
         # Caches keyed by the component manager's version; see _cached.
@@ -452,10 +455,15 @@ class BeatTimeline(Timeline):
 
         self.validators = self.validators | {
             "beat_pattern": validate_beat_pattern,
+            "beat_pattern_shift": validate_integer,
             "show_time_signatures": validate_bool,
         }
 
         self.beat_pattern = beat_pattern or DEFAULT_BEAT_PATTERN
+        # How many bars later the pattern comes than its bars' positions say,
+        # as rows of tapped bars were made longer (or, if negative, shorter)
+        # and the bars after them moved. See get_planned_bar.
+        self.beat_pattern_shift = beat_pattern_shift
         # Files from before measures were marked on their beats keep them in
         # these lists by measure. They are read once, when the file's beats
         # are loaded; see mark_measures_from_legacy_lists.
@@ -508,8 +516,12 @@ class BeatTimeline(Timeline):
         return any(not bar.assumed for bar in self._planned_bars)
 
     def get_planned_bar(self, measure_index: int) -> PlannedBar:
-        """The bar the pattern plans for a measure, repeating from its start."""
-        return self._planned_bars[measure_index % len(self._planned_bars)]
+        """
+        The bar the pattern plans for a measure, repeating from its start and
+        going on from the bars that moved (see `beat_pattern_shift`).
+        """
+        position = measure_index - self.beat_pattern_shift
+        return self._planned_bars[position % len(self._planned_bars)]
 
     def get_measures_as_planned_bars(self) -> list[PlannedBar]:
         """
@@ -1511,7 +1523,10 @@ class BeatTimeline(Timeline):
             new_counts += get_extension_from_beat_pattern(
                 pattern,
                 remaining,
-                start_index=(from_measure + len(new_counts)) % len(pattern),
+                start_index=(
+                    (from_measure + len(new_counts) - self.beat_pattern_shift)
+                    % len(pattern)
+                ),
             )
         new_starts = [first] + [
             first + offset for offset in itertools.accumulate(new_counts[:-1])
@@ -1579,17 +1594,21 @@ class BeatTimeline(Timeline):
         pattern: str,
         bars: list[PlannedBar],
         numbers: list[int] | None = None,
+        pattern_shift: int = 0,
     ) -> bool:
         """
-        Sets the pattern, which measures tapped from now on follow, and lays
-        `bars` over the beats from the first: each bar takes its beats and
-        its time signature. Beats left over make measures from the pattern,
-        going on from the measure after the last bar; bars past the last
-        beat go. Then numbers the measures, if `numbers` are given.
+        Sets the pattern, which measures tapped from now on follow, going on
+        from where `pattern_shift` says it has got to (see
+        `beat_pattern_shift`), and lays `bars` over the beats from the first:
+        each bar takes its beats and its time signature. Beats left over make
+        measures from the pattern, going on from the measure after the last
+        bar; bars past the last beat go. Then numbers the measures, if
+        `numbers` are given.
         """
         _, success = self.set_data("beat_pattern", pattern)
         if not success:
             return False
+        self.set_data("beat_pattern_shift", pattern_shift)
 
         if len(self):
             self._remeasure([bar.beat_count for bar in bars], 0)
@@ -1601,15 +1620,16 @@ class BeatTimeline(Timeline):
 
     def set_beat_pattern(self, pattern: str) -> bool:
         """
-        Sets the pattern and remeasures every beat from it, as editing the
-        bars dialog's line does. Each measure keeps its number and display by
-        position.
+        Sets the pattern and remeasures every beat from it, from its start,
+        as editing the bars dialog's line does. Each measure keeps its number
+        and display by position.
         A pattern with time signatures gives every measure its beat unit; one
         with only numbers of beats leaves each measure the beat unit it had.
         """
         _, success = self.set_data("beat_pattern", pattern)
         if not success:
             return False
+        self.set_data("beat_pattern_shift", 0)
 
         if len(self):
             self._remeasure(
@@ -1651,6 +1671,8 @@ class BeatTimeline(Timeline):
 
         if lengths is not None and len(self):
             self._remeasure(*lengths)
+        if not len(self):
+            self.beat_pattern_shift = 0
         self.refresh_measures()
 
     def _get_lengths_after_deleting(self, beats: list[Beat]) -> tuple[list[int], int]:
@@ -1668,6 +1690,10 @@ class BeatTimeline(Timeline):
             if lost[measure_index] < count
         ]
         return counts, min(lost)
+
+    def clear(self) -> None:
+        super().clear()
+        self.beat_pattern_shift = 0
 
     class FillMethod(Enum):
         BY_AMOUNT = 0

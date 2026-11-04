@@ -375,10 +375,13 @@ class BeatTimelineUI(TimelineUI):
             timeline.get_measures_as_planned_bars(),
             timeline.measure_numbers,
             measure_index,
+            timeline.beat_pattern_shift,
         )
         if not accepted:
             return False
-        return timeline.set_bars(edit.pattern, edit.bars, edit.numbers)
+        return timeline.set_bars(
+            edit.pattern, edit.bars, edit.numbers, edit.pattern_shift
+        )
 
     def on_remove_other_beat_units(self, measure_index: int | None = None) -> bool:
         """

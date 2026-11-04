@@ -189,6 +189,14 @@ class TestExportTimeSignatures:
         with open(tmp_path / "test.json", encoding="utf-8") as f:
             return json.load(f)["timelines"][0]["components"]
 
+    def test_where_the_pattern_has_got_to_is_not_exported(
+        self, tilia, beat_tlui, tmp_path
+    ):
+        commands.execute("file.export.json", path=tmp_path / "test.json")
+
+        with open(tmp_path / "test.json", encoding="utf-8") as f:
+            assert "beat_pattern_shift" not in json.load(f)["timelines"][0]
+
     def test_time_signatures_are_exported(self, tilia, beat_tlui, tmp_path):
         for time in range(4):
             commands.execute("media.seek", time)

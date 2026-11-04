@@ -6,10 +6,11 @@ edited.
 
 The table lists the bars the tapped beats make, as they are, then the bars
 the pattern plans after them. Editing the pattern lays it over every beat
-again. Editing a row of tapped bars changes those bars, and numbering more or
-fewer bars than it has moves the barlines after it; the pattern, which bars
-tapped later follow, stays as it is. Editing a row of bars not tapped yet
-changes the pattern.
+again. Editing a row of tapped bars changes those bars; the pattern, which bars
+tapped later follow, stays as it is. Numbering more or fewer bars than the row
+has moves the barlines after it, and the pattern goes on from the bars that
+moved, so the other rows keep their lengths. Editing a row of bars not tapped
+yet changes the pattern.
 """
 
 from __future__ import annotations
@@ -113,23 +114,26 @@ class PatternLineEdit(QLineEdit):
 @dataclass(frozen=True)
 class BarsEdit:
     """
-    What the dialog was left with: the pattern, and the bars the tapped
-    beats fill, with their numbers.
+    What the dialog was left with: the pattern, the bars the tapped beats
+    fill, with their numbers, and how many bars later the pattern comes than
+    its bars' positions say (see `BeatTimeline.beat_pattern_shift`).
     """
 
     pattern: str
     bars: list[PlannedBar]
     numbers: list[int]
+    pattern_shift: int = 0
 
 
 def lay_out(
-    bars: list[PlannedBar], plan: list[PlannedBar], beat_count: int
+    bars: list[PlannedBar], plan: list[PlannedBar], beat_count: int, shift: int = 0
 ) -> tuple[list[PlannedBar], int]:
     """
     The bars `beat_count` beats make: `bars` in order while there are beats
     for them, then bars of `plan`, going on from the bar after the last and
     starting it again from its first as often as the beats need; then the
-    rest of `plan`. Also returns how many of them the beats reach.
+    rest of `plan`. `plan` comes `shift` bars later than the bars' positions
+    say. Also returns how many of them the beats reach.
     """
     laid: list[PlannedBar] = []
     beats = 0
@@ -139,11 +143,12 @@ def lay_out(
         laid.append(bar)
         beats += bar.beat_count
     while beats < beat_count:
-        bar = plan[len(laid) % len(plan)]
+        bar = plan[(len(laid) - shift) % len(plan)]
         laid.append(bar)
         beats += bar.beat_count
     tapped = len(laid)
-    return laid + plan[tapped:], tapped
+    rest = tapped - shift
+    return laid + plan[rest if rest >= 0 else rest % len(plan) :], tapped
 
 
 def get_numbers(count: int, overrides: dict[int, int]) -> list[int]:
@@ -205,7 +210,7 @@ def parse_bar_numbers(
 
 
 def is_being_filled(
-    bars: list[PlannedBar], plan: list[PlannedBar], beat_count: int
+    bars: list[PlannedBar], plan: list[PlannedBar], beat_count: int, shift: int
 ) -> bool:
     """
     Whether tapping would change the last of `bars`, which `beat_count` beats
@@ -213,7 +218,7 @@ def is_being_filled(
     and takes no more after that.
     """
     tapped = beat_count - sum(bar.beat_count for bar in bars[:-1])
-    planned = plan[(len(bars) - 1) % len(plan)].beat_count
+    planned = plan[(len(bars) - 1 - shift) % len(plan)].beat_count
     return max(tapped, planned) != bars[-1].beat_count
 
 
@@ -223,19 +228,23 @@ def resize_row(
     beat_count: int,
     row: BarRow,
     new_count: int,
+    shift: int,
 ) -> list[PlannedBar]:
     """
-    `bars`, the tapped ones, with `row` made `new_count` bars long. The bars
-    after it keep their taps, except a last one that tapping would change:
-    the pattern lays it out instead, as it does the bars tapped later.
+    `bars`, the tapped ones, with `row` made `new_count` bars long, where the
+    pattern comes `shift` bars later than the bars' positions say. The bars
+    after it keep their taps and the pattern moves with them, except a last
+    one that tapping would change: the pattern lays it out instead, as it
+    does the bars tapped later.
     """
+    new_shift = shift + new_count - row.count
     after = bars[row.start + row.count :]
-    if after and is_being_filled(bars, plan, beat_count):
+    if after and is_being_filled(bars, plan, beat_count, shift):
         after.pop()
     resized = bars[: row.start] + [row.bar] * new_count + after
-    laid, tapped = lay_out(resized, plan, beat_count)
+    laid, tapped = lay_out(resized, plan, beat_count, new_shift)
     if tapped > row.start + new_count and is_being_filled(
-        laid[:tapped], plan, beat_count
+        laid[:tapped], plan, beat_count, new_shift
     ):
         tapped -= 1
     return laid[:tapped]
@@ -257,11 +266,13 @@ class BeatPatternDialog(QDialog):
         current_bars: list[PlannedBar] | None = None,
         numbers: list[int] | None = None,
         focus_bar: int | None = None,
+        pattern_shift: int = 0,
     ) -> None:
         """
         `current_bars` are the bars the timeline has, and `numbers` their
         numbers; rows of bars that would change are highlighted. The table
-        starts scrolled to the row of `focus_bar`.
+        starts scrolled to the row of `focus_bar`. `pattern_shift` is how
+        many bars later the pattern comes than the bars' positions say.
         """
         super().__init__(
             get(Get.MAIN_WINDOW),
@@ -274,6 +285,7 @@ class BeatPatternDialog(QDialog):
         self._plan: list[PlannedBar] = []
         # The tapped bars, where they don't simply follow the pattern.
         self._bars: list[PlannedBar] = []
+        self._shift = 0
         # Set while a row edit rewrites the pattern, which then keeps the
         # tapped bars rather than laying the pattern over them.
         self._is_writing_plan = False
@@ -340,6 +352,7 @@ class BeatPatternDialog(QDialog):
         self._on_text_changed(initial_text)
         if self._current_bars and parse(initial_text).is_complete:
             self._bars = list(self._current_bars)
+            self._shift = pattern_shift
             self._update_table()
         if focus_bar is not None:
             self.focus_bar(focus_bar)
@@ -387,11 +400,16 @@ class BeatPatternDialog(QDialog):
         return self.table.currentRow()
 
     def _lay_out(self) -> tuple[list[PlannedBar], int]:
-        return lay_out(self._bars, self._plan, self._beat_count)
+        return lay_out(self._bars, self._plan, self._beat_count, self._shift)
 
     def get_result(self) -> BarsEdit:
         bars, tapped = self._lay_out()
-        return BarsEdit(self.text, bars[:tapped], get_numbers(tapped, self._overrides))
+        return BarsEdit(
+            self.text,
+            bars[:tapped],
+            get_numbers(tapped, self._overrides),
+            self._shift,
+        )
 
     def _show_error(self, message: str) -> None:
         self.error.setText(message)
@@ -413,6 +431,7 @@ class BeatPatternDialog(QDialog):
         self._plan = result.planned_bars
         if not self._is_writing_plan:
             self._bars = []
+            self._shift = 0
         self._update_table()
 
     def _update_table(self) -> None:
@@ -500,8 +519,12 @@ class BeatPatternDialog(QDialog):
         # Bars not tapped yet are the pattern's, by position.
         plan = list(self._plan)
         for index in range(row.start, row.start + row.count):
-            plan[index] = bar
+            plan[self._get_plan_index(index)] = bar
         self._write_plan(plan)
+
+    def _get_plan_index(self, bar_index: int) -> int:
+        """Where a bar not tapped yet is in the pattern."""
+        return (bar_index - self._shift) % len(self._plan)
 
     def _write_plan(self, plan: list[PlannedBar]) -> None:
         self._is_writing_plan = True
@@ -541,8 +564,9 @@ class BeatPatternDialog(QDialog):
                 all_numbers[index] = all_numbers[index - 1] + 1
         if added:
             self._bars = resize_row(
-                bars, self._plan, self._beat_count, row, len(numbers)
+                bars, self._plan, self._beat_count, row, len(numbers), self._shift
             )
+            self._shift += added
             self._move_row_breaks(end, added)
         else:
             self._bars = bars
@@ -574,10 +598,10 @@ class BeatPatternDialog(QDialog):
             self._update_table()
             return
 
-        end = row.start + row.count
+        start = self._get_plan_index(row.start)
         plan = list(self._plan)
-        plan[row.start : end] = [row.bar] * len(numbers)
-        self._move_row_breaks(end, len(numbers) - row.count)
+        plan[start : start + row.count] = [row.bar] * len(numbers)
+        self._move_row_breaks(row.start + row.count, len(numbers) - row.count)
         self._write_plan(plan)
 
     def _move_row_breaks(self, from_bar: int, added: int) -> None:
@@ -598,8 +622,11 @@ class BeatPatternDialog(QDialog):
         current_bars: list[PlannedBar] | None = None,
         numbers: list[int] | None = None,
         focus_bar: int | None = None,
+        pattern_shift: int = 0,
     ) -> tuple[bool, BarsEdit | None]:
-        dialog = cls(initial_text, beat_count, current_bars, numbers, focus_bar)
+        dialog = cls(
+            initial_text, beat_count, current_bars, numbers, focus_bar, pattern_shift
+        )
         if dialog.exec() == QDialog.DialogCode.Accepted:
             return True, dialog.get_result()
         return False, None
