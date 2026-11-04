@@ -369,6 +369,17 @@ class TestEditingCells:
         assert [bar.beat_count for bar in result.bars] == [4, 3, 4, 4]
         assert result.numbers == [1, 2, 3, 4]
 
+    def test_says_so_when_the_beats_left_fill_the_row_again(self, qtui):
+        dialog = BeatPatternDialog("4/4", beat_count=16)
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-2")
+
+        assert dialog.get_table_rows() == [("1–4", "4/4", "1 1 1 1")]
+        assert dialog.error.text() == (
+            "The beats after '1-2' make more bars like these, so the row doesn't"
+            " change."
+        )
+
     def test_a_row_opened_at_a_bar_takes_its_new_length(self, qtui):
         dialog = BeatPatternDialog("1/4", beat_count=9, focus_bar=0)
         assert [row[0] for row in dialog.get_table_rows()] == ["1", "2–9"]
