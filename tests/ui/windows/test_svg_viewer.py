@@ -1,3 +1,6 @@
+import sys
+from unittest.mock import patch
+
 import pytest
 from lxml import etree
 from PySide6.QtCore import QPoint, QPointF, Qt
@@ -389,6 +392,151 @@ class TestNoteInteraction:
             pos1,
         )
         assert set(svg_viewer.scene.selectedItems()) == {notes[0], notes[1]}
+
+
+SCORE_MEASURE_XS = [*NOTE_SEEK_XS, 300.0, 380.0]
+# Measure 2 at the fraction 0.9996: 3 once rounded, so on a beat timeline that
+# jumps from 2 to 4, a position with no time.
+JUST_BEFORE_MEASURE_3_X = 199.96
+
+
+@pytest.fixture
+def viewer_over_measures(score_tlui, score_tl, beat_tl):
+    """Gives a function that loads the real SvgViewer with a score of measures
+    1 to 5, whose first three measures have a note each, over a beat timeline
+    with the given measure numbers, of one beat each, a beat a second from 1 s.
+    """
+
+    def load(measure_numbers: list[int]) -> SvgViewer:
+        beat_tl.beat_pattern = [1]
+        for i in range(len(measure_numbers)):
+            beat_tl.create_beat(i + 1)
+        beat_tl.measure_numbers = measure_numbers
+        beat_tl.recalculate_measures()
+        score_tl.set_data(
+            "viewer_beat_x",
+            dict(zip([1.0, 2.0, 3.0, 4.0, 5.0], SCORE_MEASURE_XS, strict=True)),
+        )
+        viewer = score_tlui.get_or_create_svg_view()
+        viewer.load_svg_data(_make_score_svg())
+        get(Get.MAIN_WINDOW).show()
+        viewer.show()
+        QApplication.processEvents()
+        return viewer
+
+    return load
+
+
+def _double_click(viewer: SvgViewer, note: SvgStaveNote) -> None:
+    view = viewer.view
+    pos = view.mapFromScene(note.sceneBoundingRect().center())
+    QTest.mouseDClick(view.viewport(), Qt.MouseButton.LeftButton, pos=pos)
+
+
+def _paint_viewport(viewer: SvgViewer, left: float, right: float) -> None:
+    view = viewer.view
+    view.current_viewport_x = {0: left, 1: right}
+    with patch.object(view, "_viewport_updated", return_value=True):
+        view.viewport().repaint()
+
+
+class TestPositionWithNoTime:
+    @pytest.fixture
+    def uncaught(self, monkeypatch):
+        # Qt hands exceptions raised in the view's event handlers to
+        # sys.excepthook, where the app shows its crash dialog and exits. They
+        # never reach pytest, so collect them here.
+        exceptions = []
+        monkeypatch.setattr(sys, "excepthook", lambda *info: exceptions.append(info[1]))
+        return exceptions
+
+    def test_double_click_note_with_a_time_seeks(
+        self, viewer_over_measures, tilia_state
+    ):
+        viewer = viewer_over_measures([1, 2, 4, 5])
+        tilia_state.current_time = 1.5
+
+        _double_click(viewer, _stavenotes(viewer)[1])
+
+        assert tilia_state.current_time == pytest.approx(2)
+
+    @pytest.mark.parametrize(
+        "measure_numbers, note_index",
+        [
+            pytest.param([1, 2, 4, 5], 2, id="measure the timeline skips"),
+            pytest.param([2, 3, 4], 0, id="before the first measure"),
+            pytest.param([1, 2], 2, id="after the last measure"),
+        ],
+    )
+    def test_double_click_note_does_not_seek(
+        self, viewer_over_measures, tilia_state, uncaught, measure_numbers, note_index
+    ):
+        viewer = viewer_over_measures(measure_numbers)
+        tilia_state.current_time = 1.5
+
+        _double_click(viewer, _stavenotes(viewer)[note_index])
+
+        assert tilia_state.current_time == 1.5
+        assert uncaught == []
+
+    def test_double_click_note_just_before_a_jump_does_not_seek(
+        self, viewer_over_measures, tilia_state, uncaught
+    ):
+        viewer = viewer_over_measures([1, 2, 4, 5])
+        tilia_state.current_time = 1.5
+        note = _stavenotes(viewer)[1]
+        note.seek_x = JUST_BEFORE_MEASURE_3_X
+
+        _double_click(viewer, note)
+
+        assert tilia_state.current_time == 1.5
+        assert uncaught == []
+
+    @pytest.mark.parametrize(
+        "left, right",
+        [
+            pytest.param(200.0, 300.0, id="left edge in a skipped measure"),
+            pytest.param(10.0, 200.0, id="right edge in a skipped measure"),
+            pytest.param(JUST_BEFORE_MEASURE_3_X, 300.0, id="left edge before a jump"),
+            pytest.param(10.0, JUST_BEFORE_MEASURE_3_X, id="right edge before a jump"),
+        ],
+    )
+    def test_measure_tracker_stays_where_it_is(
+        self, viewer_over_measures, uncaught, left, right
+    ):
+        viewer = viewer_over_measures([1, 2, 4, 5])
+        _paint_viewport(viewer, 10.0, 100.0)
+        assert viewer.visible_times == [1, 2]
+
+        _paint_viewport(viewer, left, right)
+
+        assert viewer.visible_times == [1, 2]
+        assert uncaught == []
+
+    def test_measure_tracker_starts_at_0_before_the_first_measure(
+        self, viewer_over_measures
+    ):
+        viewer = viewer_over_measures([2, 3, 4])
+
+        _paint_viewport(viewer, 10.0, 100.0)
+
+        assert viewer.visible_times == [0, 1]
+
+    @pytest.mark.parametrize(
+        "right",
+        [
+            pytest.param(200.0, id="after the last measure"),
+            pytest.param(JUST_BEFORE_MEASURE_3_X, id="at the last measure's end"),
+        ],
+    )
+    def test_measure_tracker_ends_at_media_end_after_the_last_measure(
+        self, viewer_over_measures, tilia_state, right
+    ):
+        viewer = viewer_over_measures([1, 2])
+
+        _paint_viewport(viewer, 10.0, right)
+
+        assert viewer.visible_times == [1, tilia_state.duration]
 
 
 class TestZoom:

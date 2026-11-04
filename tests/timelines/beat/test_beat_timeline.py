@@ -659,6 +659,11 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(0, 1) == []
         assert beat_tl.get_time_by_measure(0, 1, True) == []
 
+    def test_fraction_that_rounds_to_1_before_a_jump(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 2, 2, 2], [1, 2, 4, 5])
+
+        assert beat_tl.get_time_by_measure(2.0, 0.9996) == []
+
     def test_measure_number_past_the_last_measure(self, tls):
         # Only a hand-edited or buggy file has more numbers than measures.
         beat_tl = load_beat_timeline(tls, [2, 2], [1, 2, 3, 4])
