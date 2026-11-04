@@ -497,7 +497,7 @@ def color(value: Any) -> Outcome:
     An importer keeps a row whose color isn't one, with the kind's default color
     instead, and a note.
     """
-    if value is None or value == "":
+    if value is None or (isinstance(value, str) and not value):
         return OK
     if isinstance(value, str) and _qt_reads(value):
         return OK
