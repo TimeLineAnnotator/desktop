@@ -1,7 +1,8 @@
 import pytest
 
-from docs import beat_timeline
+from docs import beat_timeline, document
 from tilia_core import tla
+from tilia_core.timemap import measure_rows, meters_of, table_problem
 from tilia_core.timemap._rows import rows_of
 from tilia_core.tla.model import COMPONENT_KINDS
 
@@ -231,6 +232,18 @@ def test_a_row_s_metadata_is_its_own_copy():
     row.metadata["tags"].append("d")
 
     assert timeline.measures.rows[0].metadata == {"tag": "a", "tags": ["b"]}
+
+
+def test_rows_are_read_from_a_table_with_a_problem():
+    timeline = beat_timeline(
+        [{"time": 1.0, "measure": {}}, {"time": 0.5}, {"time": 2.0}]
+    )
+    (row,) = rows_of(timeline)
+
+    assert row.beat_times == (1.0, 0.5, 2.0)
+    assert len(meters_of(rows_of(timeline))) == 1
+    assert table_problem(timeline) == "beats out of time order (at 0.5)"
+    assert measure_rows(document(timeline), timeline.id) == []
 
 
 def test_the_helper_gives_beats_the_core_s_kind():
