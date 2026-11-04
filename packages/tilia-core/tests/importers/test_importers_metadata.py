@@ -300,6 +300,17 @@ def test_the_note_names_the_key_as_the_json_spells_it(tmp_path):
     assert result.notes == ["Media Length ignored: " + MEDIA_LOADED]
 
 
+def test_each_key_for_the_media_length_gets_its_own_note(tmp_path):
+    doc = document(media_length=60.0)
+    doc.media_path = "recording.mp3"
+    path = json_file(tmp_path, {"media length": 1, "Media Length": 2})
+
+    result = importers.import_metadata(doc, path)
+
+    assert result.notes == [LENGTH_IGNORED, "Media Length ignored: " + MEDIA_LOADED]
+    assert doc.media_length == 60.0
+
+
 @pytest.mark.parametrize("value", [300, 0, -1, "abc", None])
 def test_any_media_length_is_ignored_when_media_is_attached(tmp_path, value):
     # Media attached by an opened file counts too (FR-051).
@@ -459,6 +470,16 @@ def test_a_length_refused_after_another_was_set_changes_nothing(tmp_path):
     assert doc.media_length == 60.0
 
 
+def test_every_key_for_the_media_length_is_checked(tmp_path):
+    # The first is refused, though the last, which would stay, is a length.
+    doc = build.new_script_document()
+    build.set_media_length(doc, 60.0)
+    path = json_file(tmp_path, {"media length": -1, "Media Length": 120})
+
+    assert fails(doc, path) == NOT_A_MEDIA_LENGTH.format(-1)
+    assert doc.media_length == 60.0
+
+
 # Files it can't import (FR-053, FR-024)
 
 
@@ -546,6 +567,22 @@ def test_a_file_nested_too_deep(tmp_path, opening, closing, levels):
     path = text_file(tmp_path, nested(opening, closing, levels))
 
     assert fails(doc, path) == JSON_FAILED.format(path, TOO_DEEP)
+
+
+@pytest.mark.parametrize(
+    "fields, last",
+    [
+        ({f"k{n}": [n] for n in range(101)}, ["100"]),
+        ({f"k{n}": {"a": n} for n in range(101)}, '{"a": 100}'),
+    ],
+)
+def test_the_depth_comes_down_as_levels_close(tmp_path, fields, last):
+    # More than 100 brackets in all, and only two levels deep.
+    doc = build.new_script_document()
+
+    importers.import_metadata(doc, json_file(tmp_path, fields))
+
+    assert doc.metadata["k100"] == last
 
 
 @pytest.mark.parametrize(
@@ -669,3 +706,25 @@ def test_a_refused_length_is_given_with_the_files_name(tmp_path):
         importers.import_metadata(doc, path)
 
     assert str(error.value) == "metadata.json: " + NOT_A_MEDIA_LENGTH.format(0)
+
+
+def test_a_refused_length_with_a_path_given_as_text(tmp_path):
+    doc = build.new_script_document()
+    path = json_file(tmp_path, {"media length": 0})
+
+    with pytest.raises(ImportFailed) as error:
+        importers.import_metadata(doc, str(path))
+
+    assert error.value.path == path
+    assert str(error.value) == "metadata.json: " + NOT_A_MEDIA_LENGTH.format(0)
+
+
+# What the import gives back
+
+
+def test_rows_counts_every_key(tmp_path):
+    # The media length's too, though it isn't a field.
+    doc = build.new_script_document()
+    path = json_file(tmp_path, {"composer": "Haydn", "media length": 60, "year": 1795})
+
+    assert importers.import_metadata(doc, path).rows == 3
