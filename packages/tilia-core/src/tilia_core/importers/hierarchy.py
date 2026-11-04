@@ -38,7 +38,7 @@ _NUMBERS: tuple[tuple[str, Callable[[str], float]], ...] = (
 # fixed; so one equal to its start or end is left unset, as an empty cell is.
 _FOLLOWS = {"pre_start": "start", "post_end": "end"}
 # How the rules' reasons start, for each column they can be about. A reason for a
-# value that isn't one ends in `rules.not_valid`'s text for its column instead.
+# value that isn't one is `rules.not_valid`'s text for that column's value instead.
 # Those about the place in the timeline (another at the same place, one it crosses)
 # aren't about one column.
 _REASON_STARTS = (
@@ -92,7 +92,7 @@ def import_by_time(
                 RowProblem(
                     path=path,
                     line=row.line,
-                    column=_column_of(found.outcome.reason),
+                    column=_column_of(found.outcome.reason, component.attrs),
                     message=found.outcome.reason,
                     skipped=True,
                 )
@@ -156,12 +156,12 @@ def _attrs(
     return attrs
 
 
-def _column_of(reason: str) -> str | None:
-    """The column a rule's reason is about, when it is about one."""
+def _column_of(reason: str, attrs: Mapping[str, Any]) -> str | None:
+    """The column a rule's reason about `attrs` is about, when it is about one."""
     for start, column in _REASON_STARTS:
         if reason.startswith(start):
             return column
     for column, _ in _NUMBERS:
-        if reason.endswith(rules.not_valid(column, "")):
+        if reason == rules.not_valid(column, attrs.get(column)):
             return column
     return None
