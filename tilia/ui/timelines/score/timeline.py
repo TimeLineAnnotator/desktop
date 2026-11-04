@@ -63,7 +63,7 @@ class ScoreTimelineUI(TimelineUI):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.UPDATE_TRIGGERS = self.UPDATE_TRIGGERS + ["svg_data"]
+        self.UPDATE_TRIGGERS = self.UPDATE_TRIGGERS + ["svg_data", "viewer_beat_x"]
         listen(
             self,
             Post.SETTINGS_UPDATED,
@@ -500,6 +500,16 @@ class ScoreTimelineUI(TimelineUI):
             self.get_or_create_svg_view()
 
     def update_svg_data(self) -> None:
+        self._reload_svg_view()
+
+    def update_viewer_beat_x(self) -> None:
+        self._reload_svg_view()
+
+    def _reload_svg_view(self) -> None:
+        # `svg_data` and `viewer_beat_x` are restored one attribute at a time,
+        # so the viewer may be reloaded while only half of the pair has been
+        # applied. Reloading on both means whichever arrives second leaves the
+        # viewer consistent.
         if not self.timeline.svg_data:
             # No score left to show. Reached when the timeline is cleared and
             # when undo/redo restores a state where it was.
