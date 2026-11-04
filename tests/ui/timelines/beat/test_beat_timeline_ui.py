@@ -590,11 +590,62 @@ class TestEditBarsDialog:
                 lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3"),
             )
 
-        # A third 4/4 bar, then the 3/4 bar with the two beats left.
+        # A third 4/4 bar, then the two beats left.
         timeline = tluis[0].timeline
         assert timeline.beats_in_measure == [4, 4, 4, 2]
         assert timeline.measure_numbers == [1, 2, 3, 4]
         assert time_signatures(timeline)[:3] == [("4", 4)] * 3
+
+    def test_lengthening_a_row_gives_the_last_bar_what_tapping_fills(self, tluis):
+        add_beat_timeline_with_pattern("2[4/4] 3/4")
+        add_beats(range(14))
+        seen = {}
+
+        def edit(dialog):
+            edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
+            seen["rows"] = dialog.get_table_rows()
+
+        self.edit_bars(tluis[0], edit)
+        add_beats(range(14, 16))
+
+        # The pattern's bar at the fourth position is a 4/4.
+        timeline = tluis[0].timeline
+        assert seen["rows"][0] == ("1–4", "4/4", "1 1 1 1")
+        assert timeline.beats_in_measure == [4, 4, 4, 4]
+        assert time_signatures(timeline) == [("4", 4)] * 4
+
+    def test_shortening_a_row_leaves_no_short_bar_behind(self, tluis):
+        add_beat_timeline_with_pattern("2[4/4] 3/4")
+        add_beats(range(20))
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4, 4, 3, 4, 4, 1]
+
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-1"),
+        )
+
+        assert timeline.beats_in_measure == [4, 3, 4, 4, 4, 1]
+
+        add_beats(range(20, 23))
+
+        assert timeline.beats_in_measure == [4, 3, 4, 4, 4, 3, 1]
+
+    def test_the_bar_being_tapped_stays_open_when_a_row_cant_shorten(self, tluis):
+        add_beat_timeline_with_pattern("4/4")
+        add_beats(range(14))
+        timeline = tluis[0].timeline
+
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-2"),
+        )
+
+        assert timeline.beats_in_measure == [4, 4, 4, 2]
+
+        add_beats(range(14, 16))
+
+        assert timeline.beats_in_measure == [4, 4, 4, 4]
 
     def test_a_number_that_moves_stops_being_always_shown_where_it_was(self, tluis):
         add_beat_timeline_with_pattern("2/4")

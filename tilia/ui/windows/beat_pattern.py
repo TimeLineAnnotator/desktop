@@ -6,9 +6,10 @@ edited.
 
 The table lists the bars the tapped beats make, as they are, then the bars
 the pattern plans after them. Editing the pattern lays it over every beat
-again. Editing a row of tapped bars changes those bars only; the pattern,
-which bars tapped later follow, stays as it is. Editing a row of bars not
-tapped yet changes the pattern.
+again. Editing a row of tapped bars changes those bars, and numbering more or
+fewer bars than it has moves the barlines after it; the pattern, which bars
+tapped later follow, stays as it is. Editing a row of bars not tapped yet
+changes the pattern.
 """
 
 from __future__ import annotations
@@ -201,6 +202,43 @@ def parse_bar_numbers(
             " tapped from here."
         )
     return numbers, ""
+
+
+def is_being_filled(
+    bars: list[PlannedBar], plan: list[PlannedBar], beat_count: int
+) -> bool:
+    """
+    Whether tapping would change the last of `bars`, which `beat_count` beats
+    fill: it goes on until it has the beats the pattern plans at its position,
+    and takes no more after that.
+    """
+    tapped = beat_count - sum(bar.beat_count for bar in bars[:-1])
+    planned = plan[(len(bars) - 1) % len(plan)].beat_count
+    return max(tapped, planned) != bars[-1].beat_count
+
+
+def resize_row(
+    bars: list[PlannedBar],
+    plan: list[PlannedBar],
+    beat_count: int,
+    row: BarRow,
+    new_count: int,
+) -> list[PlannedBar]:
+    """
+    `bars`, the tapped ones, with `row` made `new_count` bars long. The bars
+    after it keep their taps, except a last one that tapping would change:
+    the pattern lays it out instead, as it does the bars tapped later.
+    """
+    after = bars[row.start + row.count :]
+    if after and is_being_filled(bars, plan, beat_count):
+        after.pop()
+    resized = bars[: row.start] + [row.bar] * new_count + after
+    laid, tapped = lay_out(resized, plan, beat_count)
+    if tapped > row.start + new_count and is_being_filled(
+        laid[:tapped], plan, beat_count
+    ):
+        tapped -= 1
+    return laid[:tapped]
 
 
 def parse_taps(text: str, denominator: int) -> tuple[PlannedBar | None, str]:
@@ -476,8 +514,8 @@ class BeatPatternDialog(QDialog):
     def _edit_numbers(self, row: BarRow, text: str) -> None:
         """
         Numbers a row of tapped bars as printed. Numbers for more or fewer
-        bars than the row has make it that many bars long; the bars after it
-        keep their beats, so their barlines move.
+        bars than the row has make it that many bars long, and the barlines
+        after it move (see `resize_row`).
         """
         bars, tapped = self._lay_out()
         bars = bars[:tapped]
@@ -493,7 +531,6 @@ class BeatPatternDialog(QDialog):
         self._show_error("")
         end = row.start + row.count
         all_numbers = get_numbers(tapped, self._overrides)
-        bars[row.start : end] = [row.bar] * len(numbers)
         all_numbers[row.start : end] = numbers
         # The bars after the row count on from it, unless numbered by hand.
         shift = len(numbers) - row.count
@@ -501,7 +538,12 @@ class BeatPatternDialog(QDialog):
         for index in range(row.start + len(numbers), len(all_numbers)):
             if index not in numbered:
                 all_numbers[index] = all_numbers[index - 1] + 1
-        self._bars = bars
+        if shift:
+            self._bars = resize_row(
+                bars, self._plan, self._beat_count, row, len(numbers)
+            )
+        else:
+            self._bars = bars
         _, tapped = self._lay_out()
         self._overrides = get_overrides(all_numbers[:tapped])
         self._update_table()
