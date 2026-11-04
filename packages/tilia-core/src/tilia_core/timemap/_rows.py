@@ -38,6 +38,10 @@ def rows_of(timeline: tla.Timeline) -> list[RowIn]:
     the governing unit is computed from the units set on each row's own beats.
     A beat without a time is logged and left out; a measure whose downbeat has
     none is left out whole, so every row's `id` is its first beat.
+
+    These are the rows `meters_of` takes. They are read as they stand, and
+    `table_problem` isn't applied: for a table it calls broken, such as beats
+    at 1.0, 0.5 and 2.0, this still gives rows where `measure_rows` gives none.
     """
     if timeline.measures is None:
         return []
