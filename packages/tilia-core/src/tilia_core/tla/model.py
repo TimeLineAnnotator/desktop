@@ -177,6 +177,27 @@ class ReadWarning:
         return f"line {self.line}: {self.message}"
 
 
+@dataclass(frozen=True, kw_only=True)
+class ReadProblem:
+    """A broken rule for a valid component, and what it is about as it was
+    found: what the writer compares what it would write with (FR-054).
+
+    `reason` is the rule's. `place` and `state` are the component's or the
+    value's: its place as a JSON Pointer, and everything it holds, as a text.
+    `others` are the other components the rule is about, the same way, and
+    `more` is how many others it is about that aren't among them. `warned` says
+    that the reader has a warning of the check's for it, in the check's words,
+    so that it adds none.
+    """
+
+    reason: str
+    place: str
+    state: str
+    others: tuple[tuple[str, str], ...] = ()
+    more: int = 0
+    warned: bool = False
+
+
 @dataclass(kw_only=True)
 class BeatUnit:
     """A beat unit, as stored on the beat where it starts to apply."""
@@ -525,6 +546,12 @@ class Document:
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
     warnings: list[ReadWarning] = field(default_factory=list)
     origin: Path | None = None  # where it was read from, or last written to
+    # What it broke when it was read, or last written: the writer writes these
+    # back while what they are about hasn't changed (FR-054). A document made
+    # in memory has nothing read to keep.
+    read_problems: list[ReadProblem] = field(
+        default_factory=list, repr=False, compare=False
+    )
 
 
 @dataclass(frozen=True)

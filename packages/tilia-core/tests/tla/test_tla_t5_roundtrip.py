@@ -876,7 +876,8 @@ def test_a_current_file_is_read_as_it_is():
     assert list(doc.timelines) == list(content["timelines"])
     assert [tl.ordinal for tl in doc.timelines.values()] == list(range(1, 11))
     assert doc.origin == EVERY_KIND.absolute()
-    assert doc.warnings == []
+    # Without the `harmony` extra, the note on the file.
+    assert [warning.place for warning in doc.warnings] in ([], [""])
     assert tla.loads(EVERY_KIND.read_bytes()).origin is None
 
 

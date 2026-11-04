@@ -22,7 +22,6 @@ import itertools
 import json
 import os
 import posixpath
-import shutil
 import stat
 import sys
 import unicodedata
@@ -37,7 +36,20 @@ from tilia_core.tla import folder as folder_module
 from tilia_core.tla import writer
 from tilia_core.tla.migrate import media as migrate_media
 
-EVERY_KIND = Path(__file__).parent / "golden" / "every-kind.tla"
+
+def every_kind_without_harmonies():
+    """every-kind.tla's bytes without its harmony timeline: writing one needs the
+    `harmony` extra, which what these tests are about doesn't."""
+    doc = tla.loads((Path(__file__).parent / "golden" / "every-kind.tla").read_bytes())
+    doc.timelines = {
+        key: timeline
+        for key, timeline in doc.timelines.items()
+        if timeline.kind != "harmony"
+    }
+    return tla.canonical_bytes(doc)
+
+
+EVERY_KIND = every_kind_without_harmonies()
 WINDOWS = sys.platform == "win32"
 windows_only = pytest.mark.skipif(not WINDOWS, reason="drives are Windows'")
 posix_only = pytest.mark.skipif(WINDOWS, reason="a POSIX file name")
@@ -633,7 +645,7 @@ def test_a_current_files_fingerprint_is_that_of_its_bytes_through_a_link(
     linked_folder,
 ):
     real, link = linked_folder
-    shutil.copyfile(EVERY_KIND, real / "piece.tla")
+    (real / "piece.tla").write_bytes(EVERY_KIND)
     data = (real / "piece.tla").read_bytes()
     expected = hashlib.sha256(data).hexdigest()
     assert tla.fingerprint(link / "piece.tla") == expected
@@ -1230,7 +1242,7 @@ def corpus(tmp_path):
     media_file(tmp_path / "scores" / f"{NAME}.pdf")
     piece = tmp_path / "corpus" / "piece.tla"
     piece.parent.mkdir()
-    shutil.copyfile(EVERY_KIND, piece)
+    piece.write_bytes(EVERY_KIND)
     return piece
 
 
@@ -1299,7 +1311,7 @@ def test_after_a_save_as_the_document_finds_its_media(corpus, tmp_path):
     assert os.path.samefile(pdf, tmp_path / "scores" / f"{NAME}.pdf")
     # So writing it back where it was read from changes nothing.
     tla.write(corpus, doc)
-    assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+    assert corpus.read_bytes() == EVERY_KIND
 
 
 def test_after_a_write_the_document_keeps_its_timelines(corpus, tmp_path):
@@ -1330,7 +1342,7 @@ def test_after_each_write_the_document_is_what_is_on_disk(corpus, tmp_path):
         fingerprint = tla.write(target, doc)
         assert tla.canonical_bytes(doc) == target.read_bytes()
         assert tla.fingerprint_of(doc) == fingerprint == tla.fingerprint(target)
-    assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+    assert corpus.read_bytes() == EVERY_KIND
 
 
 @pytest.mark.parametrize("failure", ["changed", "read-only", "rename"])
@@ -1344,7 +1356,7 @@ def test_a_write_that_fails_leaves_the_document_as_it_was(
     before = (doc.origin, doc.media_path, pdf_path(doc), tla.canonical_bytes(doc))
     target = tmp_path / "elsewhere" / "piece.tla"
     target.parent.mkdir()
-    shutil.copyfile(EVERY_KIND, target)
+    target.write_bytes(EVERY_KIND)
     try:
         if failure == "changed":
             with pytest.raises(tla.FileChanged):
@@ -1416,7 +1428,7 @@ def test_an_absolute_path_is_written_relative_where_the_document_was_read(
     set_pdf_path(doc, str(tmp_path / "scores" / f"{NAME}.pdf"))
     tla.write(corpus, doc)
     assert written(corpus) == (f"../audio/{NAME}.flac", f"../scores/{NAME}.pdf")
-    assert corpus.read_bytes() == EVERY_KIND.read_bytes()
+    assert corpus.read_bytes() == EVERY_KIND
 
 
 def test_an_absolute_path_is_written_relative_from_a_new_document(tmp_path):

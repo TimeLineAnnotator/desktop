@@ -235,7 +235,8 @@ def _result(
         from_version=document.format_version,
         changes=dict(migrated.changes),
         # A document's warnings are the migration's, which `changes` counts,
-        # then the check's. By their order: the reader adds each one's line.
+        # then the check's and the core's rules'. By their order: the reader adds
+        # each one's line.
         warnings=document.warnings[len(migrated.warnings) :],
     )
     if apply:
