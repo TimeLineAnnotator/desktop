@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from tilia_core import tla
-from tilia_core.timemap import time_map_for
+from tilia_core import rules, tla
+from tilia_core.timemap import find_time_map, time_map_for
 from tilia_core.tla.migrate import beats, to_1
 
 OLD = Path(__file__).parent / "old"
@@ -716,8 +716,9 @@ def test_a_beat_unit_on_a_dropped_beat_goes_with_it():
 
 
 # Beats outside the media: TiLiA refuses them when it opens the file
-# (validate_time_is_inbounds), once a time less than 2 s past the end has been
-# moved onto it (_clamp_jitter_overflow): TiLiA 0.7.0 and 0.7.1 alike.
+# (validate_time_is_inbounds), but for a time up to 2 s past the end, which it
+# keeps as the file has it (is_past_media_end, desktop#613), as the core keeps
+# every kind's (TimeLineAnnotator/project-management#432, point 1).
 
 
 def test_a_beat_outside_the_media_is_dropped_with_a_warning():
@@ -736,24 +737,94 @@ def test_a_beat_outside_the_media_is_dropped_with_a_warning():
     assert table(doc) == [(1, "1", 4)]
 
 
-def test_a_beat_less_than_2_s_past_the_end_is_moved_onto_it_with_a_warning():
-    content = old_file(beat_timeline([0.0, 4.0, 8.0, 11.5]), length=10)
-    doc = read(content)
-    _, components = written(doc)
-    assert [b["time"] for b in components] == [0.0, 4.0, 8.0, 10]
-    (warning,) = doc.warnings
-    assert warning.place == "/timelines/9/components/13/time"
-    assert "moved onto" in warning.message
+def migrated(content):
+    return to_1.migrate(json.loads(json.dumps(content)))
 
 
-def test_two_beats_moved_onto_the_end_are_one():
-    doc = read(old_file(beat_timeline([0.0, 10.5, 11.0]), length=10))
-    _, components = written(doc)
-    assert [b["time"] for b in components] == [0.0, 10]
-    assert [w.place for w in doc.warnings] == [
-        "/timelines/9/components/11/time",
-        "/timelines/9/components/12",
+@pytest.mark.parametrize("length", [10, 10.0])
+def test_a_beat_less_than_2_s_past_the_end_stays_where_it_is(length):
+    content = old_file(beat_timeline([0.0, 4.0, 8.0, 11.5]), length=length)
+    _, components = written(read(content))
+    assert [b["time"] for b in components] == [0.0, 4.0, 8.0, 11.5]
+    assert table(read(content)) == [(1, "1", 4)]
+    # The migration has nothing to say about it: the reader warns about it, as
+    # about any kind's time past the end, once it checks the rules
+    # (TimeLineAnnotator/project-management#297).
+    assert migrated(content).warnings == []
+    assert migrated(content).changes == {}
+
+
+def test_a_beat_kept_past_the_end_breaks_the_rule_the_reader_warns_about():
+    doc = read(old_file(beat_timeline([0.0, 11.5]), length=10))
+    found = rules.check_timeline(
+        doc.media_length, beat_timeline_of(doc).components.values()
+    )
+    assert [check.outcome[1] for check in found.values() if not check.outcome] == [
+        "Time '00:11.5' is bigger than media time '00:10.0'"
     ]
+
+
+@pytest.mark.parametrize("length", [10, 10.0])
+def test_a_beat_exactly_2_s_past_the_end_stays_where_it_is(length):
+    # TiLiA's is_past_media_end (desktop#613): `time > duration + tolerance`, so
+    # exactly the tolerance past the end isn't past it.
+    content = old_file(beat_timeline([0.0, 12.0]), length=length)
+    _, components = written(read(content))
+    assert [b["time"] for b in components] == [0.0, 12.0]
+    assert migrated(content).warnings == []
+    assert migrated(content).changes == {}
+
+
+def test_a_beat_further_than_2_s_past_the_end_is_dropped_and_counted():
+    content = old_file(beat_timeline([0.0, 12.001]), length=10)
+    _, components = written(read(content))
+    assert [b["time"] for b in components] == [0.0]
+    (warning,) = migrated(content).warnings
+    assert warning.place == "/timelines/9/components/11"
+    assert "outside the media" in warning.message
+    assert migrated(content).changes == {"beats_dropped": 1}
+
+
+def test_two_beats_past_the_end_are_two():
+    content = old_file(beat_timeline([0.0, 10.5, 11.0]), length=10)
+    _, components = written(read(content))
+    assert [b["time"] for b in components] == [0.0, 10.5, 11.0]
+    assert migrated(content).changes == {}
+
+
+def test_a_beat_past_the_end_at_the_time_of_an_earlier_one_is_dropped():
+    content = old_file(beat_timeline([0.0, 10.5, 10.5]), length=10)
+    _, components = written(read(content))
+    assert [b["time"] for b in components] == [0.0, 10.5]
+    assert migrated(content).changes == {"beats_dropped": 1}
+
+
+def test_a_length_and_a_time_too_large_for_a_float_can_be_compared():
+    content = old_file(beat_timeline([0.0, 10**400 + 1]), length=10**400)
+    assert migrated(content).changes == {}
+    content = old_file(beat_timeline([0.0, 10**400 + 3]), length=10**400)
+    assert migrated(content).changes == {"beats_dropped": 1}
+
+
+def test_a_beat_kept_past_the_end_reads_back_to_the_same_bytes():
+    doc = read(old_file(beat_timeline([0.0, 4.0, 8.0, 11.5]), length=10))
+    data = tla.canonical_bytes(doc)
+    assert tla.canonical_bytes(tla.loads(data)) == data
+
+
+def test_the_time_map_reads_a_beat_kept_past_the_end():
+    doc = read(old_file(beat_timeline([0.0, 4.0, 8.0, 9.0, 10.5, 11.5]), length=10))
+    found = find_time_map(doc)
+    assert found.reason is None
+    assert found.time_map.times_of(2) == [10.5]
+    assert found.time_map.times_of(2, 0.5) == [11.5]
+    assert found.time_map.positions(11.5, 11.5).bar == 2
+    assert found.time_map.end == 12.5  # one gap after the last beat, past the media
+    (warning,) = found.warnings
+    assert warning.endswith(
+        "the last beat (11.5) is at or after the end of the media (10);"
+        " the last measure ends one gap after it"
+    )
 
 
 @pytest.mark.parametrize("time", [10, 10.0])
@@ -868,7 +939,6 @@ def test_the_migrations_warnings_name_their_lines_in_the_old_file():
             "20": {"kind": "BEAT", "time": 1.0},
             "21": {"kind": "BEAT", "time": 500.0},
             "22": {"kind": "BEAT"},
-            "23": {"kind": "BEAT", "time": 101.0},
             "100": beat_unit(99),
         }
     )
@@ -880,7 +950,6 @@ def test_the_migrations_warnings_name_their_lines_in_the_old_file():
         "/timelines/9/components/20": line_of(data, b'"20": {'),
         "/timelines/9/components/21": line_of(data, b'"21": {'),
         "/timelines/9/components/22": line_of(data, b'"22": {'),
-        "/timelines/9/components/23/time": line_of(data, b'"23": {', b'"time"'),
         "/timelines/9/components/100": line_of(data, b'"100": {'),
         "/timelines/9/measure_numbers": line_of(data, b'"measure_numbers"'),
     }
@@ -951,28 +1020,23 @@ def test_each_of_the_migrations_warnings_about_beats_is_counted():
             "20": {"kind": "BEAT", "time": 1.0},
             "21": {"kind": "BEAT", "time": 500.0},
             "22": {"kind": "BEAT"},
-            "23": {"kind": "BEAT", "time": 101.0},
             "100": beat_unit(99),
         }
     )
     timeline["beats_in_measure"] = [2, 2]
     timeline["measure_numbers"] = [1]
     content = old_file((BEAT_TIMELINE, timeline))
-    migrated = to_1.migrate(json.loads(json.dumps(content)))
-    assert migrated.changes == {
+    migration = migrated(content)
+    assert migration.changes == {
         "beats_dropped": 3,
-        "beats_moved": 1,
         "beat_units_dropped": 1,
         "beat_timelines_tilia_cant_open": 1,
     }
-    assert len(migrated.warnings) == sum(migrated.changes.values())
+    assert len(migration.warnings) == sum(migration.changes.values())
 
 
 def test_a_timeline_with_nothing_to_warn_about_counts_nothing():
     assert changes_of(old_file(beat_timeline([0.0, 1.0, 2.0]))) == {}
-
-
-UNKNOWN_ID = "01900000-0000-7000-8000-000000000000"
 
 
 @pytest.mark.parametrize(
@@ -985,25 +1049,6 @@ UNKNOWN_ID = "01900000-0000-7000-8000-000000000000"
             b'"time": "soon"',
         ),
         (
-            {"measure": 3},
-            "/measure",
-            '"measure" should be an object or null, not a number',
-            b'"measure": 3',
-        ),
-        (
-            {"measure": {"number": "x"}},
-            "/measure/number",
-            '"number" should be an integer or null, not text',
-            b'"number": "x"',
-        ),
-        (
-            {"measure": {"next": [UNKNOWN_ID]}},
-            "/measure/next/0",
-            f'a measure is followed by "{UNKNOWN_ID}", which isn\'t a beat of its'
-            " timeline",
-            f'"{UNKNOWN_ID}"'.encode(),
-        ),
-        (
             {"beat_unit": 3},
             "/beat_unit",
             '"beat_unit" should be an object or null, not a number',
@@ -1011,7 +1056,7 @@ UNKNOWN_ID = "01900000-0000-7000-8000-000000000000"
         ),
     ],
 )
-def test_what_a_beat_or_a_mark_breaks_is_refused_at_its_old_place_and_line(
+def test_what_a_beat_breaks_is_refused_at_its_old_place_and_line(
     keys, place, message, text
 ):
     _, timeline = beat_timeline([0.0, 1.0, 2.0, 3.0, 4.0])
@@ -1037,6 +1082,87 @@ def test_a_first_beat_without_a_mark_is_refused_at_its_old_place_and_line():
     )
     assert error.value.place == "/timelines/9/components/11"
     assert error.value.line == line_of(data, b'"11": {')
+
+
+# A `measure` key on an old beat, which only a hand edit makes: a key of the
+# current format, which the migration couldn't keep without losing its value
+# (contracts/migration.md, *An old file the migration can't read*;
+# TimeLineAnnotator/project-management#432, point 3).
+
+MEASURE_KEY = (
+    'a file from TiLiA 0.7.0 can\'t hold "measure", a key of the current format'
+)
+
+
+def refusal_of(content):
+    data = indented(content)
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    return data, error.value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [3, 0, {"number": 16, "label": "16a"}, {"label": "2b"}, {}, False, "", []],
+)
+@pytest.mark.parametrize("beat", ["10", "11"], ids=["first beat", "another beat"])
+def test_a_measure_key_on_an_old_beat_is_refused_at_its_old_place_and_line(beat, value):
+    _, timeline = beat_timeline([0.0, 1.0, 2.0, 3.0, 4.0])
+    timeline["components"][beat]["measure"] = value
+    data, error = refusal_of(old_file((BEAT_TIMELINE, timeline)))
+    assert error.message == MEASURE_KEY
+    assert error.place == f"/timelines/9/components/{beat}/measure"
+    assert error.line == line_of(data, f'"{beat}": {{'.encode(), b'"measure"')
+
+
+@pytest.mark.parametrize(
+    "times",
+    [
+        [0.0, 500.0],  # further past the end than TiLiA keeps
+        [0.0, 0.0],  # at the time of a beat before it
+        [0.0, None],  # without a time
+    ],
+)
+def test_a_measure_key_is_refused_on_a_beat_the_migration_would_drop(times):
+    _, timeline = beat_timeline(times)
+    timeline["components"]["11"]["measure"] = {"label": "2b"}
+    _, error = refusal_of(old_file((BEAT_TIMELINE, timeline)))
+    assert error.place == "/timelines/9/components/11/measure"
+
+
+def test_a_measure_key_is_refused_in_a_beat_timeline_of_any_old_spelling():
+    _, timeline = beat_timeline([0.0, 1.0], kind="BEAT_TIMELINE")
+    timeline["components"]["10"]["measure"] = {"number": 3}
+    _, error = refusal_of(old_file((BEAT_TIMELINE, timeline), version="0.6.0"))
+    assert error.place == "/timelines/9/components/10/measure"
+
+
+@pytest.mark.parametrize("beat", ["10", "11"], ids=["first beat", "another beat"])
+def test_a_null_measure_key_on_an_old_beat_is_a_missing_one(beat):
+    times = [0.0, 1.0, 2.0, 3.0, 4.0]
+    without = read(old_file(beat_timeline(times)))
+    _, timeline = beat_timeline(times)
+    timeline["components"][beat]["measure"] = None
+    doc = read(old_file((BEAT_TIMELINE, timeline)))
+    assert doc.document_id == without.document_id
+    assert table(doc) == table(without)
+    assert tla.canonical_bytes(doc) == tla.canonical_bytes(without)
+
+
+def test_a_beat_in_another_kind_of_timeline_keeps_its_measure_key():
+    # Kept as it is, as a component of a kind its timeline doesn't hold is.
+    marker_timeline = {
+        "kind": "Marker",
+        "ordinal": 3,
+        "height": 30,
+        "components": {"30": {"kind": "BEAT", "time": 1.0, "measure": {"label": "x"}}},
+    }
+    content = json.loads(tla.canonical_bytes(read(old_file(("7", marker_timeline)))))
+    timeline = next(
+        tl for tl in content["timelines"].values() if tl["kind"] == "Marker"
+    )
+    (beat,) = timeline["components"].values()
+    assert beat["measure"] == {"label": "x"}
 
 
 def test_the_time_map_reads_a_migrated_timeline():

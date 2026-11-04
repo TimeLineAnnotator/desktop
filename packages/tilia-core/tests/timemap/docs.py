@@ -1,4 +1,11 @@
-"""Builds `tla.Document`s for the time map's tests, with the measure table as WP3's reader builds it."""
+"""Builds `tla.Document`s for the time map's tests.
+
+Each measure table is made from the beats in the order given: a beat with a
+mark starts a row, and each beat joins the last row, even one without a time.
+The reader's table (`tla.measures_of`) differs: it sorts the beats by time, and
+leaves out those without one, so these tests can give the time map what no
+file read gives it.
+"""
 
 from __future__ import annotations
 
