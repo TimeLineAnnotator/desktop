@@ -1415,6 +1415,25 @@ class TestNotValid:
 
         assert outcome.reason == "an empty value is not a valid row id."
 
+    def test_a_value_that_cant_be_compared_with_text_is_shown(self):
+        # As an array is: what its == gives raises when asked for its truth value.
+        class NoTruthValue:
+            def __bool__(self):
+                raise ValueError("The truth value of an array is ambiguous.")
+
+        class LikeAnArray:
+            __hash__ = None
+
+            def __eq__(self, other):
+                return NoTruthValue()
+
+            def __str__(self):
+                return "[1. 2.]"
+
+        outcome = rules.marker(60.0, [], {"time": LikeAnArray()})
+
+        assert outcome.reason == "[1. 2.] is not a valid time."
+
 
 # A whole timeline at once: check_timeline gives each component what its kind's
 # function gives, with the others as an import or a reading sees them.

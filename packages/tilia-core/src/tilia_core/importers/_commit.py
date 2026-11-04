@@ -34,7 +34,7 @@ def commit(
     the values it had.
     """
     timeline = document.timelines[target_id]
-    replaced = TIMELINE_COMPONENTS[timeline.kind]
+    replaced = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
     timeline.components = {
         **{
             component.id: component

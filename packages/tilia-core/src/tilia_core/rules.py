@@ -511,10 +511,11 @@ def not_valid(attribute: str, value: Any) -> str:
     """The reason for a value of `attribute` that isn't one, for every kind.
 
     The rules give it for a value they refuse as not being one, such as a time of
-    nan, and the importers for a value they can't read, so the two read alike. A
-    value with nothing in it is named, so the text never starts with a space.
+    nan, and the importers for a value they can't read, so the two read alike. An
+    empty string is named, so that the text doesn't start with a space. A string
+    of spaces still gives one: only the CSV reader makes such a cell empty.
     """
-    shown = "an empty value" if value == "" else _shown(value)
+    shown = "an empty value" if isinstance(value, str) and not value else _shown(value)
     return f"{shown} is not a valid {attribute.replace('_', ' ')}."
 
 
@@ -556,11 +557,12 @@ def check_timeline(
     kept, as an importer keeps it with the default color, and so is one whose
     rules couldn't be checked without music21.
 
-    A join names a range that starts later, so an import checks it last: once
-    every range has been kept or left out by its own rules, each range's join is
-    checked against its row's next ranges among all the ranges kept. A range
-    whose join is broken is reported, and is among the kept when the other joins
-    are checked.
+    A join names a range that starts later, so with `skip_broken` it is checked
+    last: once every range has been kept or left out by its own rules, each
+    range's join is checked against its row's next ranges among all the ranges
+    kept. A range whose join is broken is reported, and is among the kept when the
+    other joins are checked. No import passes a join here: the range importer
+    joins the ranges kept, then checks them by default, with every other one.
 
     Ranges need the timeline's `rows`, and PDF markers the PDF's `page_count`.
     music21 is looked up once, for the first harmony or key.
@@ -587,7 +589,7 @@ def check_timeline(
         for place in covered:
             others.add(place)
     found: dict[str, Checked] = {}
-    joining: list[int] = []  # an import's ranges whose joins are checked last
+    joining: list[int] = []  # with skip_broken, ranges whose joins are checked last
     for place in covered:
         component = components[place]
         kind, attrs = component.kind, component.attrs
