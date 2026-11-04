@@ -1638,10 +1638,24 @@ CURRENT_TIMELINE_KEYS = [(kind, "measure_table") for kind in TIMELINE_KINDS] + [
 ]
 
 
-@pytest.mark.parametrize("kind, key", CURRENT_TIMELINE_KEYS)
-def test_a_timeline_key_of_the_current_format_is_refused_at_its_old_place(kind, key):
+# Only a null is a missing key: a falsy value is still a value to lose.
+FALSY_TIMELINE_KEYS = [
+    (kind, key, value)
+    for kind, key in CURRENT_TIMELINE_KEYS
+    if key in ("score", "measure_table")
+    for value in ("", 0, False)
+]
+
+
+@pytest.mark.parametrize(
+    "kind, key, value",
+    [(kind, key, "3") for kind, key in CURRENT_TIMELINE_KEYS] + FALSY_TIMELINE_KEYS,
+)
+def test_a_timeline_key_of_the_current_format_is_refused_at_its_old_place(
+    kind, key, value
+):
     content = edited(with_timeline_of_kind(kind, 30))
-    content["timelines"]["9"][key] = "3"
+    content["timelines"]["9"][key] = value
     data = indented(content)
     with pytest.raises(tla.UnreadableFile) as error:
         tla.loads(data)
@@ -1649,7 +1663,7 @@ def test_a_timeline_key_of_the_current_format_is_refused_at_its_old_place(kind, 
         f"/timelines/9/{key}",
         f'a file from TiLiA 0.6.0 can\'t hold "{key}", a key of the current format',
     )
-    assert error.value.line == line_of(data, f'"{key}": "3"'.encode())
+    assert error.value.line == line_of(data, f'"{key}": {json.dumps(value)}'.encode())
 
 
 def test_a_timeline_key_of_the_current_format_is_refused_in_any_old_spelling():
