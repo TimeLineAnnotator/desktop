@@ -152,8 +152,8 @@ class TestColumnsAndCells:
             ('start,end,level\n1,"  ",1', "end"),
             ('start,end,level\n1,2,"  "', "level"),
             ('start,end,level\n"\t",1,1', "start"),
-            ('start,end,level\n1," ",1', "end"),
-            ('start,end,level\n1,2,"\t "', "level"),
+            ('start,end,level\n1,"\u00a0",1', "end"),
+            ('start,end,level\n1,2,"\t\u00a0"', "level"),
         ],
         ids=[
             "empty start",
@@ -209,7 +209,7 @@ class TestColumnsAndCells:
 
 class TestCellsOfOnlyWhitespace:
     @pytest.mark.parametrize(
-        "cell", [" ", "\t", " "], ids=["a space", "a tab", "a no-break space"]
+        "cell", [" ", "\t", "\u00a0"], ids=["a space", "a tab", "a no-break space"]
     )
     def test_the_optional_ones_are_as_if_empty(self, imported, cell):
         result, target, _ = imported(
@@ -234,7 +234,7 @@ class TestPreStartAndPostEnd:
             "1,2,1,1.0,2.00",
             "1,2,1,,",
             '1,2,1," ","   "',
-            '1,2,1,"\t"," "',
+            '1,2,1,"\t","\u00a0"',
         ],
         ids=["equal", "equal as numbers", "empty", "only spaces", "only whitespace"],
     )
