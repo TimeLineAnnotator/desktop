@@ -542,6 +542,9 @@ class BeatPatternDialog(QDialog):
             self._bars = resize_row(
                 bars, self._plan, self._beat_count, row, len(numbers)
             )
+            self._row_breaks = frozenset(
+                index + shift if index >= end else index for index in self._row_breaks
+            )
         else:
             self._bars = bars
         _, tapped = self._lay_out()
