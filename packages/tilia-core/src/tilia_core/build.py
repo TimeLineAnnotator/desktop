@@ -158,20 +158,21 @@ def load_media(
 
 
 def _absolute_media_path(local: Path) -> str:
-    """The file `local` absolute from the working folder, with "/". Links aren't
-    followed, as the writer doesn't follow them in the folder it writes into,
-    so that a file beside the saved one is stored by its name however the
-    folder is reached."""
+    """The file `local` absolute from the working folder, with "/" on Windows.
+    Links aren't followed, as the writer doesn't follow them in the folder it
+    writes into, so that a file beside the saved one is stored by its name
+    however the folder is reached."""
     absolute = os.path.abspath(local)
     # `os.path.abspath` takes `link/..` away by name, where macOS and Linux go
     # up from the link's target: the file `local` names is the one to store.
     if not (os.path.isfile(absolute) and os.path.samefile(absolute, local)):
         absolute = str(local.resolve())
-    # It also keeps the two slashes of `//home/me`, which macOS and Linux read
-    # as one, and the core as the start of a Windows server path.
-    if os.name != "nt" and absolute.startswith("//"):
-        absolute = absolute[1:]
-    return absolute.replace("\\", "/")
+    if os.name == "nt":
+        return absolute.replace("\\", "/")
+    # On macOS and Linux a backslash is part of a name, and stays. The two
+    # slashes of `//home/me`, which `os.path.abspath` also keeps, are one there,
+    # and the core would read them as the start of a Windows server path.
+    return absolute[1:] if absolute.startswith("//") else absolute
 
 
 def wav_length(path: str | os.PathLike[str]) -> float | None:
