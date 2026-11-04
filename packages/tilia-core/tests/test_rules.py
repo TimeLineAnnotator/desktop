@@ -1395,6 +1395,26 @@ class TestNotValid:
     def test_one_text_for_a_value_that_isnt_one(self, attribute, value, text):
         assert rules.not_valid(attribute, value) == text
 
+    @pytest.mark.parametrize(
+        "attribute, text",
+        [
+            ("time", "an empty value is not a valid time."),
+            ("post_end", "an empty value is not a valid post end."),
+        ],
+    )
+    def test_an_empty_value_is_named(self, attribute, text):
+        assert rules.not_valid(attribute, "") == text
+
+    def test_the_rules_name_an_empty_value_too(self):
+        outcome = rules.marker(60.0, [], {"time": ""})
+
+        assert outcome.reason == "an empty value is not a valid time."
+
+    def test_a_row_id_with_nothing_in_it_names_an_empty_value(self):
+        outcome = rules.range_rows([{"id": "", "name": "A", "color": None}])
+
+        assert outcome.reason == "an empty value is not a valid row id."
+
 
 # A whole timeline at once: check_timeline gives each component what its kind's
 # function gives, with the others as an import or a reading sees them.
