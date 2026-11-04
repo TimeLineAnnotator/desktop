@@ -19,7 +19,9 @@ yet: it gets no score and no `score` key.
 Shapes TiLiA never writes, which only a file edited by hand holds, are
 refused, naming the place in the old file, as
 TimeLineAnnotator/project-management#359 (old score timelines TiLiA never
-wrote) recommends, pending its decision.
+wrote) decided. The migration refuses them itself: what it gives the check
+here is always in the schema's shape, so `places` has nothing of a legacy
+score to take back to the old file.
 """
 
 from __future__ import annotations
