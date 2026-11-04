@@ -369,6 +369,22 @@ class TestEditingCells:
         assert [bar.beat_count for bar in result.bars] == [4, 3, 4, 4]
         assert result.numbers == [1, 2, 3, 4]
 
+    def test_a_row_opened_at_a_bar_takes_its_new_length(self, qtui):
+        dialog = BeatPatternDialog("1/4", beat_count=9, focus_bar=0)
+        assert [row[0] for row in dialog.get_table_rows()] == ["1", "2–9"]
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-3")
+
+        assert [row[0] for row in dialog.get_table_rows()] == ["1–3", "4–9"]
+
+    def test_the_bar_opened_at_keeps_its_row_when_a_row_before_it_changes(self, qtui):
+        dialog = BeatPatternDialog("1/4", beat_count=9, focus_bar=4)
+        assert [row[0] for row in dialog.get_table_rows()] == ["1–4", "5", "6–9"]
+
+        edit_bars_dialog_cell(dialog, 0, BARS_COLUMN, "1-2")
+
+        assert [row[0] for row in dialog.get_table_rows()] == ["1–2", "3", "4–9"]
+
     def test_more_bars_than_the_beats_fit_are_refused(self, qtui):
         dialog = BeatPatternDialog("4/4", beat_count=8)
 
