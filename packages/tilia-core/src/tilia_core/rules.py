@@ -82,8 +82,10 @@ ADDED_TONE_QUALITIES: dict[str, tuple[str, str]] = {
     "minor-added-ninth": ("minor", "9"),
     "minor-seventh-added-eleventh": ("minor-seventh", "11"),
 }
-# Qualities TiLiA keeps in root position, whatever their intervals.
-_NO_INVERSION_QUALITIES = frozenset(
+# Qualities TiLiA keeps in root position, whatever their intervals:
+# `get_inversion_amount` gives 0 for them. TiLiA takes them from here once it
+# checks with the rules.
+NO_INVERSION_QUALITIES = frozenset(
     {
         "Italian",
         "French",
@@ -507,6 +509,23 @@ def split_added_tone(quality: str) -> tuple[str, str]:
     return ADDED_TONE_QUALITIES.get(quality, (quality, ""))
 
 
+def get_inversion_amount(quality: str) -> int:
+    """A quality's number of inversions, as TiLiA counts them: those of its chord
+    type in the installed music21, but none for `NO_INVERSION_QUALITIES`. An
+    added-tone quality has its base quality's, since an added tone isn't one the
+    chord can be inverted to.
+
+    Raises `ValueError` for a value that isn't a quality, with TiLiA's text, and
+    `CantCheck` when music21 is missing or won't import.
+    """
+    music21, error = _music21()
+    if music21 is None:
+        raise CantCheck("harmony", error) from error
+    if not _is_quality(music21, quality):
+        raise ValueError(f'Invalid harmony quality "{_shown(quality)}"')
+    return _inversions(music21, quality)
+
+
 def not_valid(attribute: str, value: Any) -> str:
     """The reason for a value of `attribute` that isn't one, for every kind.
 
@@ -715,10 +734,7 @@ def _quality_and_inversion(
     """The quality is one of music21's `CHORD_TYPES` or of TiLiA's added-tone
     qualities, and the inversion one it has."""
     quality = attrs.get("quality", "major")
-    if not (
-        isinstance(quality, str)
-        and split_added_tone(quality)[0] in music21.harmony.CHORD_TYPES
-    ):
+    if not _is_quality(music21, quality):
         return _broken(not_valid("quality", quality))
     inversion = attrs.get("inversion", 0)
     if not (_is_integer(inversion) and 0 <= inversion <= _inversions(music21, quality)):
@@ -726,10 +742,17 @@ def _quality_and_inversion(
     return None
 
 
+def _is_quality(music21: ModuleType, quality: Any) -> bool:
+    return (
+        isinstance(quality, str)
+        and split_added_tone(quality)[0] in music21.harmony.CHORD_TYPES
+    )
+
+
 def _inversions(music21: ModuleType, quality: str) -> int:
-    """A quality's inversions, as TiLiA's `get_inversion_amount` counts them: an
-    added tone isn't one the chord can be inverted to."""
-    if quality in _NO_INVERSION_QUALITIES:
+    """`get_inversion_amount` of a quality that is one, with music21 already looked
+    up: `check_timeline` looks it up once, whatever the harmonies."""
+    if quality in NO_INVERSION_QUALITIES:
         return 0
     quality, _ = split_added_tone(quality)
     intervals = str(music21.harmony.CHORD_TYPES[quality][0])

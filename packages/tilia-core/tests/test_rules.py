@@ -803,6 +803,171 @@ class TestHarmony:
         assert check("harmony", step=7, level=3) == (False, "7 is not a valid step.")
 
 
+# What the rules counted for every quality when the count got its public name:
+# music21's chord types and TiLiA's added-tone qualities, by their inversions.
+QUALITIES_BY_INVERSIONS = {
+    0: [
+        "Neapolitan",
+        "Italian",
+        "French",
+        "German",
+        "pedal",
+        "power",
+        "Tristan",
+        "cadential-six-four",
+    ],
+    2: [
+        "major",
+        "minor",
+        "augmented",
+        "diminished",
+        "suspended-second",
+        "suspended-fourth",
+        "major-added-ninth",
+        "minor-added-ninth",
+    ],
+    3: [
+        "dominant-seventh",
+        "major-seventh",
+        "minor-major-seventh",
+        "minor-seventh",
+        "augmented-major-seventh",
+        "augmented-seventh",
+        "half-diminished-seventh",
+        "diminished-seventh",
+        "seventh-flat-five",
+        "major-sixth",
+        "minor-sixth",
+        "suspended-fourth-seventh",
+        "dominant-seventh-flat-ninth",
+        "dominant-seventh-sharp-ninth",
+        "dominant-seventh-sharp-eleventh",
+        "dominant-seventh-flat-thirteenth",
+        "dominant-seventh-added-thirteenth",
+        "major-seventh-sharp-eleventh",
+        "major-seventh-added-sixth",
+        "major-sixth-added-ninth",
+        "minor-sixth-added-ninth",
+        "minor-seventh-added-eleventh",
+    ],
+    4: [
+        "major-ninth",
+        "dominant-ninth",
+        "minor-major-ninth",
+        "minor-ninth",
+        "augmented-major-ninth",
+        "augmented-dominant-ninth",
+        "half-diminished-ninth",
+        "half-diminished-minor-ninth",
+        "diminished-ninth",
+        "diminished-minor-ninth",
+        "dominant-ninth-sharp-eleventh",
+    ],
+    5: [
+        "dominant-11th",
+        "major-11th",
+        "minor-major-11th",
+        "minor-11th",
+        "augmented-major-11th",
+        "augmented-11th",
+        "half-diminished-11th",
+        "diminished-11th",
+    ],
+    6: [
+        "major-13th",
+        "dominant-13th",
+        "minor-major-13th",
+        "minor-13th",
+        "augmented-major-13th",
+        "augmented-dominant-13th",
+        "half-diminished-13th",
+    ],
+}
+INVERSIONS_OF_EVERY_QUALITY = [
+    (quality, inversions)
+    for inversions, qualities in QUALITIES_BY_INVERSIONS.items()
+    for quality in qualities
+]
+
+
+class TestInversionAmount:
+    @pytest.mark.parametrize("quality, inversions", INVERSIONS_OF_EVERY_QUALITY)
+    def test_every_quality(self, music21, quality, inversions):
+        assert rules.get_inversion_amount(quality) == inversions
+
+    def test_the_qualities_above_are_all_there_are(self, music21):
+        assert {quality for quality, _ in INVERSIONS_OF_EVERY_QUALITY} == {
+            *music21.harmony.CHORD_TYPES,
+            *rules.ADDED_TONE_QUALITIES,
+        }
+
+    def test_the_rules_accept_as_many_inversions_and_no_more(self, music21):
+        for quality in [*music21.harmony.CHORD_TYPES, *rules.ADDED_TONE_QUALITIES]:
+            inversions = rules.get_inversion_amount(quality)
+
+            assert check("harmony", quality=quality, inversion=inversions) == OK
+            assert check("harmony", quality=quality, inversion=inversions + 1) == (
+                False,
+                f"{inversions + 1} is not a valid inversion.",
+            )
+
+    def test_the_qualities_without_inversions_are_tilias(self):
+        assert rules.NO_INVERSION_QUALITIES == {
+            "Italian",
+            "French",
+            "German",
+            "Neapolitan",
+            "Tristan",
+            "power",
+            "cadential-six-four",
+        }
+
+    def test_the_cadential_six_four_doesnt_count_as_its_base_quality(self, music21):
+        assert rules.split_added_tone("cadential-six-four")[0] == "major"
+        assert rules.get_inversion_amount("major") == 2
+        assert rules.get_inversion_amount("cadential-six-four") == 0
+
+    def test_the_public_list_is_the_one_the_count_reads(self, music21, monkeypatch):
+        monkeypatch.setattr(rules, "NO_INVERSION_QUALITIES", frozenset())
+
+        assert rules.get_inversion_amount("power") == 1
+
+    def test_the_count_is_read_from_the_installed_music21(self, music21, monkeypatch):
+        monkeypatch.setitem(
+            music21.harmony.CHORD_TYPES, "made-up", ["1,2,3,4", ["made-up"]]
+        )
+
+        assert rules.get_inversion_amount("made-up") == 3
+
+    @pytest.mark.parametrize("value", ["not-a-quality", "", None, 1, ["major"]])
+    def test_what_isnt_a_quality_raises_tilias_error(self, music21, value):
+        with pytest.raises(ValueError) as raised:
+            rules.get_inversion_amount(value)
+
+        assert str(raised.value) == f'Invalid harmony quality "{value}"'
+
+    def test_an_integer_too_long_to_show_is_named(self, music21):
+        with pytest.raises(ValueError) as raised:
+            rules.get_inversion_amount(10**5000)
+
+        assert str(raised.value) == (
+            'Invalid harmony quality "an integer too long to show"'
+        )
+
+    def test_without_music21_it_names_the_install_command(self, without_music21):
+        with pytest.raises(rules.CantCheck) as raised:
+            rules.get_inversion_amount("major")
+
+        assert raised.value.command == INSTALL
+        assert INSTALL in str(raised.value)
+
+    def test_a_music21_that_wont_import(self, broken_music21):
+        with pytest.raises(rules.CantCheck) as raised:
+            rules.get_inversion_amount("major")
+
+        assert isinstance(raised.value.__cause__, ImportError)
+
+
 class TestMode:
     @pytest.mark.parametrize(
         "attribute, values",
