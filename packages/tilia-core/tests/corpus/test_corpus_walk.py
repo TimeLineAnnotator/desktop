@@ -4,6 +4,7 @@
 import hashlib
 import logging
 import os
+import stat
 import sys
 import unicodedata
 from pathlib import Path
@@ -124,6 +125,14 @@ def test_a_directory_junction_is_not_followed(tmp_path):
     _winapi.CreateJunction(str(elsewhere), str(corpus / "junction"))
     assert (corpus / "junction" / "b.tla").exists()  # it is a junction
     assert [f.path for f in scan.walk(corpus, READER, NoSettings())] == ["a.tla"]
+
+
+def test_subfolders_are_walked_where_stat_has_no_junction_tag(tmp_path, monkeypatch):
+    # Linux and macOS have no IO_REPARSE_TAG_MOUNT_POINT; removing it here
+    # lets every system check that the walk does without it.
+    monkeypatch.delattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", raising=False)
+    write(tmp_path, "sub/a.tla")
+    assert [f.path for f in scan.walk(tmp_path, READER, NoSettings())] == ["sub/a.tla"]
 
 
 def test_a_folder_that_cant_be_listed_is_logged_and_skipped(
