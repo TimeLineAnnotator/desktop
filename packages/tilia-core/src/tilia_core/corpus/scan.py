@@ -87,7 +87,8 @@ def _is_junction(entry: os.DirEntry) -> bool:
     ``is_dir(follow_symlinks=False)`` takes for a folder and ``is_junction()``
     (Python 3.12) would tell."""
     tag = getattr(entry.stat(follow_symlinks=False), "st_reparse_tag", 0)
-    return tag == stat.IO_REPARSE_TAG_MOUNT_POINT
+    # The tag and its constants exist on Windows only.
+    return tag != 0 and tag == stat.IO_REPARSE_TAG_MOUNT_POINT
 
 
 def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[Found]:
