@@ -315,6 +315,7 @@ def test_the_report_counts_what_the_migration_dropped(corpus):
     assert files["a.tla"].changes == {
         "formal_values_dropped": 2,
         "amplitude_bars_dropped": 3,
+        "marks_moved": 3,
     }
     assert files["sub/old-0.6.tla"].changes == {"formal_values_dropped": 5}
     assert files["current.tla"].changes == {}
@@ -336,8 +337,36 @@ def test_the_report_lists_the_rules_a_migrated_file_breaks(tmp_path):
     [result] = migrate_folder(tmp_path).files
 
     assert result.outcome == "would_migrate"
-    assert result.changes == {"formal_values_dropped": 2, "amplitude_bars_dropped": 3}
+    assert result.changes == {
+        "formal_values_dropped": 2,
+        "amplitude_bars_dropped": 3,
+        "marks_moved": 3,
+    }
     [warning] = result.warnings
+    assert 'holds a component of kind "MARKER"' in warning.message
+
+
+def test_a_migrated_file_lists_only_the_rules_it_breaks_with_their_lines(tmp_path):
+    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old["timelines"]["1"]["components"]["999"] = {
+        "kind": "MARKER",
+        "time": 1.0,
+        "label": "",
+        "color": "#999999",
+        "comments": "",
+    }
+    text = json.dumps(old, indent=2)
+    place(tmp_path / "piece.tla", text.encode())
+
+    [result] = migrate_folder(tmp_path).files
+
+    # The value the migration dropped warns too, with its line, as the document
+    # says, and is left to `changes`.
+    dropped = tla.read(tmp_path / "piece.tla").warnings[0]
+    assert str(dropped) == 'line 61: formal_type "sonata form" dropped'
+    [warning] = result.warnings
+    assert warning.place == "/timelines/1/components/999"
+    assert warning.line == text.splitlines().index('        "999": {') + 1
     assert 'holds a component of kind "MARKER"' in warning.message
 
 
@@ -422,6 +451,7 @@ def test_apply_reports_each_old_file_as_migrated(corpus):
     assert files["a.tla"].changes == {
         "formal_values_dropped": 2,
         "amplitude_bars_dropped": 3,
+        "marks_moved": 3,
     }
     assert report.shared_ids == [["a copy.tla", "a.tla"]]
 
@@ -802,8 +832,15 @@ def test_the_reader_gives_the_migration_with_an_old_files_document():
     assert migrated.changes == {
         "formal_values_dropped": 2,
         "amplitude_bars_dropped": 3,
+        "marks_moved": 3,
     }
-    assert migrated.warnings == document.warnings
+    # The same warnings, which only the document's give the lines of, in the
+    # old file: formal_type, formal_function and the amplitude bars' components.
+    assert [(w.place, w.message) for w in migrated.warnings] == [
+        (w.place, w.message) for w in document.warnings
+    ]
+    assert [w.line for w in migrated.warnings] == [None, None, None]
+    assert [w.line for w in document.warnings] == [61, 62, 294]
     assert reader.read_with_migration(GOLDEN / "every-kind.tla")[1] is None
 
 

@@ -39,7 +39,8 @@ def place(path, source):
 
 def with_a_marker_in_a_hierarchy():
     """TiLiA 0.7.0's test file, with a marker among its hierarchies: the
-    migrated file breaks a rule, which doesn't stop it being migrated."""
+    migrated file breaks a rule, which doesn't stop it being migrated. It is
+    written on one line, so that is the line of what the report warns about."""
     old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
     old["timelines"]["1"]["components"]["999"] = {
         "kind": "MARKER",
@@ -121,10 +122,10 @@ Share a document id (copies): sqx_03 copy.tla, sqx_03.tla
 Changes the migration makes:
   sqx_03 copy.tla         dropped 5 formal_type and formal_function values
   sqx_03.tla              dropped 5 formal_type and formal_function values
-  sqx_08.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars
-  sqx_21.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars
-                          the timeline "Formal analysis" holds a component of kind "MARKER", which a timeline of kind "Hierarchy" doesn't have: it is kept as it is
-  sqx_30.tla              dropped 2 formal_type and formal_function values
+  sqx_08.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars; moved 3 marks to metadata
+  sqx_21.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars; moved 3 marks to metadata
+                          line 1: the timeline "Formal analysis" holds a component of kind "MARKER", which a timeline of kind "Hierarchy" doesn't have: it is kept as it is
+  sqx_30.tla              dropped 2 formal_type and formal_function values; moved 2 marks to metadata
 """
 SQX_VERSIONS = """\
   from 0.0.96: 1 file
@@ -422,7 +423,7 @@ def test_apply_lists_files_changed_since_read_and_files_in_use(
         "  a.tla\n"
         "Changes the migration makes:\n"
         "  sub/b.tla               dropped 2 formal_type and formal_function values;"
-        " dropped 3 amplitude bars\n"
+        " dropped 3 amplitude bars; moved 2 marks to metadata\n"
         "\n"
         "Wrote 1 file.\n"
     )
@@ -448,6 +449,19 @@ def test_apply_lists_a_file_it_couldnt_write(clean, monkeypatch, capsys):
     assert out.endswith("\nWrote 1 file.\n")
 
 
+def test_one_mark_moved_is_worded_in_the_singular(tmp_path, capsys):
+    old = json.loads((OLD / "0.0.96.tla").read_text(encoding="utf-8"))
+    old["timelines"]["1"]["components"]["4"]["comments"] = "tag=p1 first theme"
+    place(tmp_path / "piece.tla", json.dumps(old).encode())
+
+    migrate_command.main([str(tmp_path)])
+
+    assert (
+        "  piece.tla               dropped 2 formal_type and formal_function values;"
+        " moved 1 mark to metadata\n"
+    ) in capsys.readouterr().out
+
+
 def test_a_change_the_command_has_no_words_for_is_printed_as_counted(
     clean, monkeypatch, capsys
 ):
@@ -468,7 +482,7 @@ def test_a_change_the_command_has_no_words_for_is_printed_as_counted(
 
     assert (
         "  a.tla                   dropped 2 formal_type and formal_function values;"
-        " dropped 3 amplitude bars; marks_counted: 4\n"
+        " dropped 3 amplitude bars; moved 3 marks to metadata; marks_counted: 4\n"
     ) in capsys.readouterr().out
 
 

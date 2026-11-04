@@ -46,6 +46,10 @@ _CHANGES: dict[str, tuple[str, str]] = {
         "dropped 1 amplitude bar",
         "dropped {} amplitude bars",
     ),
+    "marks_moved": (
+        "moved 1 mark to metadata",
+        "moved {} marks to metadata",
+    ),
 }
 
 _ADVICE = (
