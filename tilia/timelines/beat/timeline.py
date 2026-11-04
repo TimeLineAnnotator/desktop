@@ -1409,7 +1409,8 @@ class BeatTimeline(Timeline):
         Numbers the measures from `start_measure` on, one per entry. A measure
         gets a number of its own, always shown unless it is 0, only where
         its number isn't the previous measure's plus one (or 1, for the first
-        measure); elsewhere it counts on from the measure before.
+        measure); elsewhere it counts on from the measure before, and, if it
+        had a number of its own, stops being always shown, as when reset.
         """
         measures = self.measures
         numbers = numbers[: measures.count - start_measure]
@@ -1428,6 +1429,10 @@ class BeatTimeline(Timeline):
                     self.set_component_data(
                         beat.id, "measure_number_override", override
                     )
+                    if override is None and beat.measure_number_always_shown:
+                        self.set_component_data(
+                            beat.id, "measure_number_always_shown", False
+                        )
                 if override not in (None, 0) and not beat.measure_number_always_shown:
                     self.set_component_data(
                         beat.id, "measure_number_always_shown", True
