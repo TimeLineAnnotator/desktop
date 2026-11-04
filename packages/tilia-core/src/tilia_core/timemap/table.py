@@ -41,6 +41,7 @@ class FrozenMetadata(dict[str, "str | tuple[str, ...]"]):
         )
 
     def _read_only(self, *args: object, **kwargs: object) -> NoReturn:
+        """Refused: a measure's metadata is read-only."""
         raise TypeError("a measure's metadata is read-only")
 
     __setitem__ = __delitem__ = __ior__ = _read_only  # type: ignore[assignment]

@@ -30,6 +30,8 @@ _UNIT_CHARACTERS = set("0123456789/")
 
 
 def validate_denominator(value: int) -> bool:
+    """Whether `value` can be a beat unit's denominator: a whole number from 1
+    to MAX_DENOMINATOR."""
     return (
         isinstance(value, int)
         and not isinstance(value, bool)
@@ -39,11 +41,14 @@ def validate_denominator(value: int) -> bool:
 
 @dataclass(frozen=True)
 class UnitsParseResult:
+    """What `parse_units` read: the units, or none and why."""
+
     units: list[Fraction]
     error: str = ""
 
     @property
     def is_valid(self) -> bool:
+        """Whether the text was read: there is no error."""
         return not self.error
 
 
@@ -138,13 +143,16 @@ class MeasureMeter:
 
     @property
     def numerator(self) -> Fraction:
+        """The sum of the beat values."""
         return sum(self.beat_values, Fraction(0))
 
     @property
     def time_signature(self) -> tuple[Fraction, int]:
+        """(numerator, denominator)."""
         return self.numerator, self.denominator
 
     def quarter_length(self, beat_value: Fraction | int) -> Fraction:
+        """How long a beat worth `beat_value` lasts, in quarter notes."""
         # An int divided by the denominator would give a float. Only an int
         # is made a Fraction: Fraction() would also read text and floats.
         if isinstance(beat_value, int):
