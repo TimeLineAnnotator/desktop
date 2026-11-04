@@ -455,6 +455,18 @@ class TestJoinsAmongTheRangesKept:
         first, _, third = ranges_of(target)
         assert first.attrs["joined_right"] == third.id
 
+    def test_two_flagged_at_one_start_join_the_same_next_range(self, do_import, target):
+        # TiLiA's importer takes what follows in its sorted list, so it reports
+        # "must equal" for the first.
+        result = do_import(
+            "start,end,row,joined_with_next\n0,1,A,true\n0,1,A,true\n1,2,A,false"
+        )
+
+        assert result.problems == []
+        first, second, third = ranges_of(target)
+        assert first.attrs["joined_right"] == third.id
+        assert second.attrs["joined_right"] == third.id
+
 
 class TestTheRules:
     # Every range is checked with the core's one set of rules.
