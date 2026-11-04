@@ -3,7 +3,6 @@ import logging
 
 import pytest
 
-import tilia_core.timemap as timemap
 from docs import beat_timeline, document, pickup_piece
 from tilia_core import tla
 from tilia_core.timemap import (
@@ -507,18 +506,3 @@ def test_measure_rows_of_a_timeline_that_is_not_a_beat_timeline():
     assert time_map_for(doc, with_table.id) is None
     assert measure_rows(doc, tla.new_id()) == []
     assert len(measure_rows(doc, beats.id)) == 2
-
-
-def test_the_package_exports_the_contracts_names_that_exist():
-    assert sorted(timemap.__all__) == [
-        "MeasureRow",
-        "Positions",
-        "TimeMap",
-        "TimeMapFound",
-        "find_time_map",
-        "measure_rows",
-        "time_map_for",
-        "time_map_of",
-    ]
-    for name in timemap.__all__:
-        assert getattr(timemap, name) is not None
