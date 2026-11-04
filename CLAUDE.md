@@ -47,10 +47,7 @@ Default pytest timeout is 10s (pytest-timeout). `ffmpeg` must be on PATH for aud
 Prefer `-n auto` — the suite takes several minutes serially and about a minute and a half in parallel. A handful of
 tests (notably in `tests/test_app.py` and the CLI roundtrip tests) fail intermittently under
 `-n auto`, and which ones fail varies between runs; this predates any given change, so confirm a
-failure reproduces serially before investigating it. The same goes for `undoable()` on a timeline
-with several components: `TimelineComponentManager.restore_state` recreates components in
-set-iteration order while `hash_components()` hashes them in list order, so whether the assertion
-passes depends on `PYTHONHASHSEED`.
+failure reproduces serially before investigating it.
 
 ## Architecture
 
