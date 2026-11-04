@@ -123,12 +123,13 @@ def load_media(
     """Record the media, a local file or a YouTube link, and set its length
     (FR-052, FR-056). Returns the length set.
 
-    A local path must be a file, and is stored absolute, links not followed:
-    the writer stores it relative to the saved file. The length is a WAV's,
-    read from its header; else `duration_if_error`; else, while no media is
-    attached, the known length. Without one, or for a change `set_media_length`
-    refuses, raises ValueError, and the document is left as it was. Where
-    `set_media_length` keeps the known length, so does this.
+    A local path must be a file, and is stored absolute, links not followed,
+    and on Windows in the letter case on disk: the writer stores it relative to
+    the saved file. The length is a WAV's, read from its header; else
+    `duration_if_error`; else, while no media is attached, the known length.
+    Without one, or for a change `set_media_length` refuses, raises ValueError,
+    and the document is left as it was. Where `set_media_length` keeps the
+    known length, so does this.
     """
     text = os.fspath(path)
     length: float | None = None
@@ -158,21 +159,44 @@ def load_media(
 
 
 def _absolute_media_path(local: Path) -> str:
-    """The file `local` absolute from the working folder, with "/" on Windows.
-    Links aren't followed, as the writer doesn't follow them in the folder it
-    writes into, so that a file beside the saved one is stored by its name
-    however the folder is reached."""
+    """The file `local` absolute from the working folder. Links aren't followed,
+    as the writer doesn't follow them in the folder it writes into, so that a
+    file beside the saved one is stored by its name however the folder is
+    reached. On Windows it has "/" and the letter case on disk (FR-052)."""
     absolute = os.path.abspath(local)
+    if os.name == "nt":
+        return _with_case_on_disk(absolute).replace("\\", "/")
     # `os.path.abspath` takes `link/..` away by name, where macOS and Linux go
     # up from the link's target: the file `local` names is the one to store.
     if not (os.path.isfile(absolute) and os.path.samefile(absolute, local)):
         absolute = str(local.resolve())
-    if os.name == "nt":
-        return absolute.replace("\\", "/")
-    # On macOS and Linux a backslash is part of a name, and stays. The two
-    # slashes of `//home/me`, which `os.path.abspath` also keeps, are one there,
-    # and the core would read them as the start of a Windows server path.
+    # A backslash is part of a name here, and stays. The two slashes of
+    # `//home/me`, which `os.path.abspath` also keeps, are one here, and the
+    # core would read them as the start of a Windows server path.
     return absolute[1:] if absolute.startswith("//") else absolute
+
+
+def _with_case_on_disk(absolute: str) -> str:
+    """`absolute`, a Windows path, with each name as its folder lists it. This
+    gives the letter case on disk and stays on any link, which `Path.resolve`
+    would follow. The drive or a server's share, which nothing lists, stays as
+    given, and so does a name no listing gives: a short (8.3) name, or one in a
+    folder that can't be listed."""
+    found, *names = Path(absolute).parts
+    for name in names:
+        found = os.path.join(found, _name_on_disk(found, name))
+    return found
+
+
+def _name_on_disk(folder: str, name: str) -> str:
+    try:
+        listed = os.listdir(folder)
+    except OSError:
+        return name
+    if name in listed:
+        return name
+    wanted = os.path.normcase(name)
+    return next((other for other in listed if os.path.normcase(other) == wanted), name)
 
 
 def wav_length(path: str | os.PathLike[str]) -> float | None:

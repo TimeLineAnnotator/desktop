@@ -621,18 +621,119 @@ def test_a_backslash_in_the_working_folder_stays_part_of_its_name(
 
 @windows_only
 @pytest.mark.parametrize(
-    "given", ["//server/share/rec.mp3", "\\\\server\\share\\rec.mp3"]
+    "given", ["//SERVER/Share/AUDIO/REC.MP3", "\\\\SERVER\\Share\\AUDIO\\REC.MP3"]
 )
-def test_a_server_path_keeps_its_two_slashes(monkeypatch, given):
+def test_a_server_path_keeps_its_two_slashes_server_and_share(monkeypatch, given):
     # There is no server in the tests, so what the system would answer about
-    # the file is given. `os.path.abspath` is the real one: it reads no disk.
+    # the file and its folders is given. `os.path.abspath` is the real one: it
+    # reads no disk.
     doc = build.new_script_document()
     with monkeypatch.context() as system:
         system.setattr(os.path, "isfile", lambda path: True)
-        system.setattr(os.path, "samefile", lambda one, other: True)
+        system.setattr(os, "listdir", lambda folder: ["audio", "rec.mp3"])
         build.load_media(doc, given, duration_if_error=5.0)
 
-    assert doc.media_path == "//server/share/rec.mp3"
+    assert doc.media_path == "//SERVER/Share/audio/rec.mp3"
+
+
+@windows_only
+@pytest.mark.parametrize("given", ["AUDIO/REC.WAV", "audio/rec.wav", "Audio/Rec.wav"])
+def test_on_windows_a_path_gets_the_letter_case_on_disk(tmp_path, monkeypatch, given):
+    # FR-052: files are shared with systems where letter case matters.
+    (tmp_path / "Audio").mkdir()
+    pcm16_wav(tmp_path / "Audio" / "Rec.wav", rate=8000, channels=1, frames=8000)
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, given)
+
+    assert doc.media_path == stored(tmp_path / "Audio" / "Rec.wav")
+
+
+@windows_only
+def test_on_windows_all_of_the_path_gets_it_but_the_drive(tmp_path):
+    path = pcm16_wav(tmp_path / "Rec.wav", rate=8000, channels=1, frames=8000)
+    given = str(path).swapcase()
+    doc = build.new_script_document()
+
+    build.load_media(doc, given)
+
+    assert doc.media_path == given[:2] + stored(path)[2:]
+
+
+@windows_only
+def test_a_junction_in_the_path_stays_one_and_gets_its_letter_case(tmp_path):
+    import _winapi
+
+    (tmp_path / "Corpus").mkdir()
+    (tmp_path / "ext" / "audio").mkdir(parents=True)
+    pcm16_wav(
+        tmp_path / "ext" / "audio" / "Rec.wav", rate=8000, channels=1, frames=8000
+    )
+    _winapi.CreateJunction(
+        str(tmp_path / "ext" / "audio"), str(tmp_path / "Corpus" / "Sounds")
+    )
+    doc = build.new_script_document()
+
+    build.load_media(doc, tmp_path / "CORPUS" / "SOUNDS" / "REC.WAV")
+
+    assert doc.media_path == stored(tmp_path / "Corpus" / "Sounds" / "Rec.wav")
+
+
+@windows_only
+def test_a_folder_that_cant_be_listed_leaves_the_names_in_it_as_given(
+    tmp_path, monkeypatch
+):
+    folder = tmp_path / "audio"
+    folder.mkdir()
+    pcm16_wav(folder / "rec.wav", rate=8000, channels=1, frames=8000)
+    listdir = os.listdir
+
+    def listing(path):
+        if os.path.samefile(path, folder):
+            raise PermissionError(path)
+        return listdir(path)
+
+    doc = build.new_script_document()
+    with monkeypatch.context() as system:
+        system.setattr(os, "listdir", listing)
+        build.load_media(doc, tmp_path / "AUDIO" / "REC.WAV")
+
+    assert doc.media_path == stored(folder / "REC.WAV")
+
+
+@windows_only
+def test_a_name_listed_as_given_is_kept_in_a_folder_that_tells_case_apart(
+    tmp_path, monkeypatch
+):
+    # Windows can make a folder do so, and another spelling is another file.
+    path = pcm16_wav(tmp_path / "rec.wav", rate=8000, channels=1, frames=8000)
+    listdir = os.listdir
+
+    def listing(folder):
+        names = listdir(folder)
+        return ["REC.WAV", *names] if os.path.samefile(folder, tmp_path) else names
+
+    doc = build.new_script_document()
+    with monkeypatch.context() as system:
+        system.setattr(os, "listdir", listing)
+        build.load_media(doc, path)
+
+    assert doc.media_path == stored(path)
+
+
+@posix_only
+def test_on_macos_and_linux_the_letter_case_stays_as_given(tmp_path):
+    (tmp_path / "audio").mkdir()
+    pcm16_wav(tmp_path / "audio" / "rec.wav", rate=8000, channels=1, frames=8000)
+    given = tmp_path / "AUDIO" / "REC.WAV"
+    if not given.is_file():
+        pytest.skip("this file system tells letter case apart")
+    doc = build.new_script_document()
+
+    build.load_media(doc, given)
+
+    assert doc.media_path == str(given)
 
 
 @windows_only
@@ -648,7 +749,7 @@ def test_a_folder_given_by_its_short_name_stays_so(tmp_path):
         pytest.skip("this volume has no short names")
     doc = build.new_script_document()
 
-    build.load_media(doc, Path(buffer.value) / "rec.wav")
+    build.load_media(doc, Path(buffer.value) / "REC.WAV")
 
     assert doc.media_path == f"{buffer.value}/rec.wav".replace("\\", "/")
 
