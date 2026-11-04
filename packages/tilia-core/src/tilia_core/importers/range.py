@@ -44,19 +44,23 @@ class _Built:
     component: tla.Component
     line: int
     joined_with_next: bool
+    # The `joined_with_next` cell, when it isn't a boolean and so read as false.
+    not_a_flag: str | None
 
 
 def import_by_time(
     document: tla.Document, target: str, path: str | os.PathLike[str]
 ) -> ImportResult:
-    """Replace the components and the rows of the range timeline `target` with a
-    CSV's, in memory.
+    """Replace the ranges and the rows of the range timeline `target` with a CSV's,
+    in memory.
 
     `start`, `end` and `row` are required; `label`, `color`, `comments` and
     `joined_with_next` are optional. Times are read in the document's time unit. A
-    row that can't be read, or that the rules refuse, is skipped and reported; a
-    color that isn't one is replaced by the default, with a note, and a join that
-    can't be made is dropped, with the range kept and the problem reported.
+    row that can't be read, or that the rules refuse, is skipped and reported, and
+    only that. In a row that is kept, a color that isn't one is replaced by the
+    default, with a note; a `joined_with_next` that isn't a boolean reads as false,
+    with a note; and a join that can't be made is dropped, with the range kept and
+    the problem reported.
 
     Raises `ImportFailed` when the import can't run, and `OSError` for a file that
     can't be opened; both change nothing.
@@ -122,13 +126,6 @@ def _read_row(
 
     flag = values.get(_FLAG, "")
     joined_with_next = _parse_optional_bool(flag)
-    if joined_with_next is None:
-        # Read as false, so the row is imported: a note.
-        problems.append(
-            _problem(
-                path, csv_row.line, _FLAG, rules.not_valid(_FLAG, flag), skipped=False
-            )
-        )
 
     attrs = {
         **_DEFAULTS,
@@ -139,7 +136,12 @@ def _read_row(
     if values.get("color"):
         attrs["color"] = values["color"]
     component = tla.Component(id=tla.new_id(), kind="range", attrs=attrs)
-    return _Built(component, csv_row.line, bool(joined_with_next))
+    return _Built(
+        component,
+        csv_row.line,
+        bool(joined_with_next),
+        flag if joined_with_next is None else None,
+    )
 
 
 def _get_or_create_row(rows: list[dict[str, Any]], name: str) -> str:
@@ -170,8 +172,9 @@ def _kept(
     path: Path,
     problems: list[RowProblem],
 ) -> list[_Built]:
-    """The ranges the rules keep, in the order given. One whose color isn't one is
-    kept with the default color, and a note."""
+    """The ranges the rules keep, in the order given. One whose `joined_with_next`
+    isn't a boolean gets a note, and one whose color isn't one is kept with the
+    default color, and a note; a range they refuse gets neither."""
     checked = rules.check_timeline(
         media_length, [one.component for one in built], rows=rows, skip_broken=True
     )
@@ -183,6 +186,9 @@ def _kept(
             column = _column_of(reason, one.component.attrs)
             problems.append(_problem(path, one.line, column, reason))
             continue
+        if one.not_a_flag is not None:
+            note = rules.not_valid(_FLAG, one.not_a_flag)
+            problems.append(_problem(path, one.line, _FLAG, note, skipped=False))
         if not found.color:
             one.component.attrs["color"] = _DEFAULTS["color"]
             reason = found.color.reason.removesuffix(".")
@@ -245,7 +251,7 @@ def _make_joins(
         )
 
     checked = rules.check_timeline(
-        media_length, [one.component for one in kept], rows=rows, skip_broken=True
+        media_length, [one.component for one in kept], rows=rows
     )
     for one in flagged:
         outcome = checked[one.component.id].outcome
