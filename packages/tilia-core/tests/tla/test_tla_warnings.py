@@ -426,12 +426,35 @@ def test_two_beat_units_in_one_measure_are_kept_with_a_warning():
     doc = read_back_unchanged(data)
     (warning,) = doc.warnings
     assert warning.place == f"{BEAT_2}/beat_unit"
-    assert warning.message == (
-        'measure "1" of the timeline "Beats" has more than one beat unit'
-    )
+    assert warning.message == "measure 1 has two beat units (TiLiA shows it red)"
     (row,) = doc.timelines[BEATS].measures.rows
     assert len(row.beat_units) == 2
     assert row.beat_unit == tla.BeatUnit(denominator=4, units="1")
+
+
+def test_three_beat_units_in_one_measure_are_counted_in_the_warning():
+    def change(content):
+        second = beat(content, "beat_2")
+        second["beat_unit"] = {"denominator": 8, "units": "3"}
+        third = {
+            **second,
+            "time": second["time"] + 0.5,
+            "beat_unit": {"denominator": 8, "units": "2"},
+        }
+        content["timelines"][BEATS]["components"][tla.new_id()] = third
+
+    (warning,) = tla.loads(file_with(change)).warnings
+    assert warning.place == f"{BEAT_2}/beat_unit"
+    assert warning.message == "measure 1 has 3 beat units (TiLiA shows it red)"
+
+
+def test_two_beat_units_in_a_measure_with_a_label_name_it_by_its_label():
+    def change(content):
+        beat(content, "beat_1")["measure"] = {"number": 14, "label": "14a"}
+        beat(content, "beat_2")["beat_unit"] = {"denominator": 8, "units": "3"}
+
+    (warning,) = tla.loads(file_with(change)).warnings
+    assert warning.message == "measure 14a has two beat units (TiLiA shows it red)"
 
 
 def test_two_beat_units_in_two_measures_have_no_warning():
