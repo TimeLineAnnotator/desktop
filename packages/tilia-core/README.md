@@ -14,7 +14,7 @@ The package installs the `tilia` command. Other installed packages add subcomman
 
 `tilia_core.timemap` says where a time lies in bars and beats, from a beat timeline. It computes all of it when it's asked for: nothing is stored, and no file is written.
 
-Say `document` is a `tla.Document` whose beat timeline has a beat every second from 0 s, three to a bar, and bars 1 and 2 are played twice. Then 7.5 s is in bar 1, the second time through, halfway between beats 2 and 3, and a unit from there to 10 s ends in bar 2:
+Say `document` is a `tla.Document` whose beat timeline has a beat every second from 0 s, three to a bar, and bars 1 and 2 are played twice. Then 7.5 s is in bar 1, the second time through, halfway between beats 2 and 3, and a span from there to 10 s ends in bar 2:
 
 ```pycon
 >>> from tilia_core.timemap import time_map_of
