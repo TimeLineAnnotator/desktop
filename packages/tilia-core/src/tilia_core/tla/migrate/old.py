@@ -102,7 +102,8 @@ def _as_tilia_0_7_opens_it(data: dict[str, Any]) -> dict[str, Any]:
     hierarchies' `parent` and `children` dropped, clef icons without `.svg`,
     and a height for a timeline without one, as `Timeline.__init__` gives it
     (`height or self.default_height or 1`). Components that aren't objects
-    are left for the migration to refuse."""
+    are left for the migration to refuse, and one of a kind its timeline
+    doesn't hold is kept as it is."""
     for timeline in data.get("timelines", {}).values():
         kind = timeline_kind_from_file(timeline.get("kind", ""))
         if kind in TILIA_0_7_HEIGHTS and _no_height(timeline.get("height")):
@@ -113,10 +114,10 @@ def _as_tilia_0_7_opens_it(data: dict[str, Any]) -> dict[str, Any]:
         for component in components.values():
             if not isinstance(component, dict):
                 continue
-            if component.get("kind") == "HIERARCHY":
+            if kind == "hierarchy" and component.get("kind") == "HIERARCHY":
                 component.pop("parent", None)
                 component.pop("children", None)
-            elif component.get("kind") == "CLEF":
+            elif kind == "score" and component.get("kind") == "CLEF":
                 icon = component.get("icon")
                 if isinstance(icon, str):
                     component["icon"] = icon.removesuffix(".svg")

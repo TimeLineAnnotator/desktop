@@ -33,7 +33,10 @@ the file's order, as it refuses one in a file of the current format.
 
 Keys and kinds the core doesn't know are kept as they are; a timeline of a
 kind it doesn't know keeps its content, its components' ids included, under
-a new id, without the stored hashes, its own and its components'.
+a new id, without the stored hashes, its own and its components'. A component
+of a kind its timeline doesn't hold is kept as one of a kind the core doesn't
+know, as the check keeps it, without its stored hash: nothing above applies to
+it, and the document id is derived from what it keeps.
 """
 
 from __future__ import annotations
@@ -370,6 +373,13 @@ class _Migration:
         component = self._object(value, place)
         kind = component_kind_from_file(self._text(component, "kind", place))
         converted: dict[str, Any] = _without_hash(component)
+        if (
+            isinstance(kind, UnknownKind)
+            or kind not in TIMELINE_COMPONENTS[timeline_kind]
+        ):
+            # Kept as it is, as the check keeps a component of a kind its
+            # timeline doesn't hold: nothing but its stored hash goes.
+            return converted
         if kind == "hierarchy":
             for name in ("formal_type", "formal_function"):
                 dropped = converted.pop(name, None)
@@ -386,14 +396,10 @@ class _Migration:
                 if derived in converted and base in converted:
                     if _equal_numbers(converted[derived], converted[base]):
                         del converted[derived]
-        if isinstance(kind, UnknownKind):
-            return converted
-        held = kind in TIMELINE_COMPONENTS[timeline_kind]
-        if held and "comments" in COMPONENT_SHAPES[kind].known:
-            # Not in a component of a kind its timeline doesn't hold, which is
-            # kept as it is, as the check keeps it. Before the attributes at
-            # their default go, so that a comment left empty goes with them,
-            # where it has a default: a legacy score's note writes it empty.
+        if "comments" in COMPONENT_SHAPES[kind].known:
+            # Before the attributes at their default go, so that a comment
+            # left empty goes with them, where it has a default: a legacy
+            # score's note writes it empty.
             self._count("marks_moved", marks.move(converted))
         return _without_defaults(converted, COMPONENT_SHAPES[kind])
 
