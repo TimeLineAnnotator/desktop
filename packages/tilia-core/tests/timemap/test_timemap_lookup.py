@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from docs import beat_timeline, document
+from tilia_core import tla
 from tilia_core.timemap import time_map_for
 
 EXAMPLES = json.loads(
@@ -92,6 +93,18 @@ def test_each_case_is_laid_out_as_the_contract_says(case):
 @pytest.mark.parametrize("case", TIMES_OF)
 def test_times_of(case):
     timeline = beat_timeline(case["beats"])
+    time_map = time_map_for(document(timeline), timeline.id)
+    query = case["query"]
+
+    assert time_map.times_of(
+        query["number"], query["fraction"], segment_end=query["segment_end"]
+    ) == pytest.approx(case["expected"])
+
+
+@pytest.mark.parametrize("case", TIMES_OF)
+def test_times_of_on_the_table_the_reader_builds(case):
+    timeline = beat_timeline(case["beats"])
+    timeline.measures = tla.measure_table(timeline)
     time_map = time_map_for(document(timeline), timeline.id)
     query = case["query"]
 
