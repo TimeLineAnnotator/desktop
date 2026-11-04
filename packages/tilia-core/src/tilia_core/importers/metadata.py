@@ -30,8 +30,12 @@ _TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"?|[\[\]{}]')
 
 _MEDIA_LENGTH = "media length"
 # A number written as text, in ASCII, as WP3's migration reads an old file's
-# media length (TimeLineAnnotator/project-management#326).
-_NUMBER = re.compile(r"\s*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\s*")
+# media length (TimeLineAnnotator/project-management#326). Around it, the spaces
+# float() strips: \s also matches U+001C to U+001F, which float() refuses.
+_NUMBER = re.compile(
+    r"[^\S\x1c-\x1f]*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+    r"[^\S\x1c-\x1f]*"
+)
 
 
 def import_metadata(

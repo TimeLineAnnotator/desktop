@@ -254,7 +254,18 @@ def test_media_length_in_any_letter_case_is_the_media_length(tmp_path, key):
     assert list(doc.metadata) == ["title", "notes"]
 
 
-@pytest.mark.parametrize("text", ["312.5", " 312.5 ", "3.125e2", "+312.5"])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "312.5",
+        " 312.5 ",
+        "\t312.5\n",
+        "\x0b\x0c\r312.5",
+        "\x85\xa0312.5\N{EM SPACE}\N{IDEOGRAPHIC SPACE}",
+        "3.125e2",
+        "+312.5",
+    ],
+)
 def test_a_media_length_written_as_text_is_read_as_a_number(tmp_path, text):
     # As WP3's migration reads an old file's media length
     # (TimeLineAnnotator/project-management#326).
@@ -340,6 +351,20 @@ def test_a_media_length_that_isnt_one_fails_the_import(tmp_path, text, shown):
     path = text_file(tmp_path, f'{{"composer": "Mozart", "media length": {text}}}')
 
     assert fails(doc, path) == NOT_A_MEDIA_LENGTH.format(shown)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["\x1c5", "\x1d5", "\x1e5", "\x1f5", "5\x1c", "5\x1f", " \x1c5", "\xa0\x1f5 "],
+)
+def test_a_media_length_with_a_control_character_fails_the_import(tmp_path, text):
+    # re's \s matches U+001C to U+001F, which float() doesn't strip: TiLiA's
+    # refusal, quoted as written, and not Python's error.
+    doc = build.new_script_document()
+    build.set_media_length(doc, 60.0)
+    path = json_file(tmp_path, {"composer": "Mozart", "media length": text})
+
+    assert fails(doc, path) == NOT_A_MEDIA_LENGTH.format(text)
 
 
 def with_a_marker(media_length):
