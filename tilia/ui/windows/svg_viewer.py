@@ -69,7 +69,7 @@ class SvgViewer(ViewDockWidget):
 
     def __setup_score_viewer(self) -> None:
         self.view = SvgGraphicsView(
-            get_times=self._get_time_from_scene_x,
+            get_times=self._get_times_at_viewport_edges,
             update_measure_tracker=self.update_measure_tracker,
             update_scroll_margins=self._update_scroll_margins,
             parent=self,
@@ -445,7 +445,21 @@ class SvgViewer(ViewDockWidget):
             self.save_tla_annotation(item)
         post(Post.APP_STATE_RECORD, "score annotation")
 
-    def _get_time_from_scene_x(self, xs: dict[int, float]) -> dict[int, list[float]]:
+    def _get_times_at_viewport_edges(
+        self, xs: dict[int, float]
+    ) -> dict[int, list[float]]:
+        return self._get_time_from_scene_x(xs, are_viewport_edges=True)
+
+    def _get_time_from_scene_x(
+        self, xs: dict[int, float], are_viewport_edges: bool = False
+    ) -> dict[int, list[float]]:
+        """
+        The times at each scene x: one per pass through its measure, or none.
+
+        A viewport's edge is usually outside the beat timeline's measures, past
+        the first or last note, so with `are_viewport_edges` a position there
+        gets the start or the end of the media instead of no time.
+        """
         output = {}
         beat_pos = {}
         beats = list(self.beat_x_position.keys())
@@ -496,12 +510,13 @@ class SvgViewer(ViewDockWidget):
 
         for key, beat in beat_pos.items():
             t = beat_tl.get_time_by_measure(*beat)
-            if not t:
-                t = (
-                    [0]
-                    if beat[0] < min(beat_tl.measure_numbers)
-                    else [get(Get.MEDIA_DURATION)]
-                )
+            if not t and are_viewport_edges:
+                if beat[0] < min(beat_tl.measure_numbers):
+                    t = [0]
+                # Rounded as get_time_by_measure rounds it: the fraction 1 of
+                # the highest measure is already past it.
+                elif round(sum(beat), 3) >= max(beat_tl.measure_numbers) + 1:
+                    t = [get(Get.MEDIA_DURATION)]
             output[key] = t
 
         return output
@@ -528,8 +543,10 @@ class SvgViewer(ViewDockWidget):
 
     def _get_closest_time(
         self, x: float
-    ) -> tuple[tuple[float, float], None | tuple[float, float]]:
+    ) -> tuple[tuple[float, float], None | tuple[float, float]] | None:
         times = self._get_time_from_scene_x({0: x}).get(0)
+        if not times:
+            return None
         current_time = get(Get.SELECTED_TIME)
         idx = bisect(times, current_time)
         if idx == 0:
@@ -735,6 +752,11 @@ class SvgGraphicsView(QGraphicsView):
                 # We should use another data structure if we care about order.
                 start_ts, end_ts = list(times)
 
+            if not start_ts or not end_ts:
+                # An edge at a position with no time, such as in a measure the
+                # beat timeline skips. The tracker stays where it is.
+                return
+
             current_time = get(Get.SELECTED_TIME)
             start_time = start_ts[
                 s_idx - 1 if (s_idx := bisect(start_ts, current_time)) != 0 else s_idx
@@ -755,7 +777,7 @@ class SvgStaveNote(QGraphicsSvgItem):
         renderer: QSvgRenderer,
         id: str,
         get_time: Callable[
-            [float], tuple[tuple[float, float], None | tuple[float, float]]
+            [float], tuple[tuple[float, float], None | tuple[float, float]] | None
         ],
     ) -> None:
         super().__init__()
@@ -775,11 +797,12 @@ class SvgStaveNote(QGraphicsSvgItem):
             painter.fillRect(self.boundingRect(), Qt.GlobalColor.red)
 
     def mouseDoubleClickEvent(self, event) -> None:
-        t0, t1 = self.get_time(self.seek_x)
-        if not t1 or abs(t0[1]) < abs(t1[1]):
-            commands.execute("media.seek", t0[0])
-        else:
-            commands.execute("media.seek", t1[0])
+        if closest := self.get_time(self.seek_x):
+            t0, t1 = closest
+            if not t1 or abs(t0[1]) < abs(t1[1]):
+                commands.execute("media.seek", t0[0])
+            else:
+                commands.execute("media.seek", t1[0])
         return super().mouseDoubleClickEvent(event)
 
 
