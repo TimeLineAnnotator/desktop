@@ -86,8 +86,12 @@ _OLD_TOP_LEVEL = frozenset(
 _CURRENT_ONLY = ("document_id", "time_unit", "media", "metadata", "scores")
 _STORED_HASHES = ("hash", "components_hash")
 _MEDIA_LENGTH = "media length"
-# A number written as text, in ASCII.
-_NUMBER = re.compile(r"\s*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\s*")
+# A number written as text, in ASCII. Around it, the spaces float() strips: \s
+# also matches U+001C to U+001F, which float() refuses.
+_NUMBER = re.compile(
+    r"[^\S\x1c-\x1f]*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
+    r"[^\S\x1c-\x1f]*"
+)
 
 
 @dataclass

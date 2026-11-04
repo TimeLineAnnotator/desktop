@@ -1369,6 +1369,17 @@ def test_a_clef_in_a_hierarchy_timeline_keeps_its_svg():
         (1000, 1000),
         ("120.5", 120.5),
         (" 7 ", 7.0),
+        ("\t7\n", 7.0),
+        ("\x0b\x0c\r7", 7.0),
+        ("\x85\xa07\N{EM SPACE}\N{IDEOGRAPHIC SPACE}", 7.0),
+        ("\x1c5", None),
+        ("\x1d5", None),
+        ("\x1e5", None),
+        ("\x1f5", None),
+        ("5\x1c", None),
+        ("5\x1f", None),
+        (" \x1c5", None),
+        ("\xa0\x1f5 ", None),
         (0, None),
         (0.0, None),
         ("0", None),
@@ -1388,6 +1399,24 @@ def test_the_media_length(value, expected):
     assert doc.media_length == expected
     assert type(doc.media_length) is type(expected)
     assert "media length" not in doc.metadata
+
+
+def test_a_media_length_with_a_control_character_is_no_length(tmp_path):
+    # re's \s matches U+001C to U+001F, which float() doesn't strip. Only a hand
+    # edit makes such a length: the file reads as the same file without one.
+    length = set_key("media_metadata", "media length", "\x1c5")
+    with_it = tmp_path / "with.tla"
+    with_it.write_bytes(json.dumps(edited(length)).encode())
+    no_length = remove_key("media_metadata", "media length")
+    without = tmp_path / "without.tla"
+    without.write_bytes(json.dumps(edited(no_length)).encode())
+
+    doc = tla.read(with_it)
+
+    assert doc.media_length is None
+    assert "media length" not in doc.metadata
+    assert tla.fingerprint(with_it) == tla.fingerprint_of(doc)
+    assert tla.fingerprint(with_it) == tla.fingerprint(without)
 
 
 def test_no_media_length_is_none():
