@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tilia_core import tla
+from tilia_core import rules, tla
 from tilia_core.tla import writer
 
 BROKEN = Path(__file__).parent / "broken"
@@ -164,6 +164,40 @@ def test_warnings_are_not_written():
 
 def test_a_file_without_problems_has_no_warnings():
     assert tla.loads(file_with(lambda content: None)).warnings == []
+
+
+# A quality TiLiA offers
+
+
+def test_a_v64_in_root_position_reads_with_no_warning():
+    pytest.importorskip("music21", reason="needs the harmony extra")
+    v64 = make_broken.make_id(100)
+
+    def change(content):
+        content["media"]["length"] = 60.0
+        content["timelines"][IDS["nothing"]] = {
+            "kind": "Harmony",
+            "name": "Harmony",
+            "ordinal": 6,
+            "components": {
+                v64: {
+                    "kind": "HARMONY",
+                    "time": 1.0,
+                    "step": 4,
+                    "quality": "cadential-six-four",
+                    "inversion": 0,
+                }
+            },
+        }
+
+    doc = tla.loads(file_with(change))
+
+    assert doc.warnings == []
+    # The reader doesn't call the rules yet. This is the check it is to make.
+    checked = rules.check_timeline(
+        doc.media_length, doc.timelines[IDS["nothing"]].components.values()
+    )
+    assert checked[v64].outcome == rules.OK
 
 
 # A component of a kind its timeline doesn't hold
