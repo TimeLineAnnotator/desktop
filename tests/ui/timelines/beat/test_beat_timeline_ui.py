@@ -2365,6 +2365,20 @@ class TestTimeSignatureInspector:
         tilia_errors.assert_in_error_message("This measure has 2 taps.")
         assert_only_the_default_beat_unit(tluis[0].timeline)
 
+    def test_other_taps_are_refused_on_a_measure_of_one_tap(
+        self, qtui, tluis, tilia_errors
+    ):
+        add_beat_timeline_with_pattern("1")
+        add_beats(range(2))
+        inspector = self.open_inspector_for_label(
+            tluis[0], all_labels(tluis[0])[0], qtui
+        )
+
+        self.type_into(inspector.field_name_to_widgets["Time signature"][1], "2/4(1 1)")
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("This measure has 1 tap.")
+
     def test_edit_this_measure_only(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(8))
