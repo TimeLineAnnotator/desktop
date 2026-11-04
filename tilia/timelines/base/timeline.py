@@ -339,6 +339,10 @@ class TimelineComponentManager(Generic[T, TC]):
 
         self._components: list[TC] = []
         self.id_to_component: dict[int, TC] = {}
+        # True while making components from values that are already final, as when
+        # restoring a state: creating or deleting one must not update the others
+        # then (a mode changes the applied_to of the harmonies after it).
+        self.is_deserializing = False
 
     def __iter__(self):
         return iter(self._components)
@@ -559,19 +563,23 @@ class TimelineComponentManager(Generic[T, TC]):
         ids_to_delete = (current.keys() - prev_state.keys()) | changed
         ids_to_create = (prev_state.keys() - current.keys()) | changed
 
-        self.timeline.delete_components(
-            [current[id] for id in sorted(ids_to_delete, key=id_order)]
-        )
-
-        for id in sorted(ids_to_create, key=id_order):
-            component_data = prev_state[id].copy()
-            kind = ComponentKind[component_data.pop("kind")]
-
-            component, reason = self.timeline.create_component(
-                kind, id=id, **component_data
+        self.is_deserializing = True
+        try:
+            self.timeline.delete_components(
+                [current[id] for id in sorted(ids_to_delete, key=id_order)]
             )
-            if component is None:
-                logger.error(f"Can't restore component {id}: {reason}")
+
+            for id in sorted(ids_to_create, key=id_order):
+                component_data = prev_state[id].copy()
+                kind = ComponentKind[component_data.pop("kind")]
+
+                component, reason = self.timeline.create_component(
+                    kind, id=id, **component_data
+                )
+                if component is None:
+                    logger.error(f"Can't restore component {id}: {reason}")
+        finally:
+            self.is_deserializing = False
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(
