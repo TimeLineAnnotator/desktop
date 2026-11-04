@@ -136,6 +136,13 @@ class TestBarNumbers:
     def test_invalid(self, text, limit, error):
         assert parse_bar_numbers(text, 1, limit) == (None, error)
 
+    @pytest.mark.parametrize("digits", [10, 5000])
+    def test_a_number_with_too_many_digits_is_refused(self, digits):
+        assert parse_bar_numbers("9" * digits, 1, 3) == (
+            None,
+            "Numbers can have at most 9 digits.",
+        )
+
     @pytest.mark.timeout(1)
     def test_a_huge_range_is_counted_not_listed(self):
         assert parse_bar_numbers("1-999999999", 3, 3) == (
