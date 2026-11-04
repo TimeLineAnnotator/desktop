@@ -313,19 +313,26 @@ def _quoted(argument: str, *, windows: bool = os.name == "nt") -> str:
     return argument
 
 
+# A drive by its Windows device path, such as `\\?\C:` or `\\.\C:`, which without
+# the separator after it is the drive and not its root folder. `\\?\UNC\` starts
+# a server's share instead, which is a folder either way.
+_WINDOWS_DEVICE = re.compile(r"[\\/]{2}[?.][\\/](?!UNC[\\/])", re.IGNORECASE)
+
+
 def _folder_to_run(folder: str, *, windows: bool = os.name == "nt") -> str:
     """FOLDER as `Then run:` gives it back, for the system's shell (`_quoted`):
     without a trailing separator, which Windows PowerShell 5.1 passes on
     before a closing quote as a quote of the folder's name, but a root, such
-    as "/" or "C:\\", as it is; and a folder whose name starts with "-", which
-    would be taken for an option, after "./" (".\\" on Windows)."""
+    as "/", "C:\\" or "\\\\?\\C:\\", as it is; and a folder whose name starts
+    with "-", which would be taken for an option, after "./" (".\\" on
+    Windows)."""
     paths = ntpath if windows else posixpath
     separators = "\\/" if windows else "/"
     drive, rest = paths.splitdrive(folder)
     if rest.rstrip(separators):
         folder = drive + rest.rstrip(separators)
-    elif drive[:1] in separators and drive:  # a share's root, \\server\share\
-        folder = drive
+    elif drive[:1] in separators and drive and not _WINDOWS_DEVICE.match(drive):
+        folder = drive  # a share's root, \\server\share\
     if folder.startswith("-"):
         folder = (".\\" if windows else "./") + folder
     return _quoted(folder, windows=windows)
