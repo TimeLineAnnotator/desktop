@@ -97,6 +97,18 @@ def test_a_kind_the_timeline_doesnt_hold_stays():
     assert list(target.components.values()) == [read_as_unknown, in_memory]
 
 
+def test_markers_into_a_timeline_of_a_kind_the_core_doesnt_know_replace_nothing():
+    # It holds no kind the core knows. Refusing such a target isn't commit's.
+    unknown = of_a_kind_the_core_doesnt_know()
+    target = timeline(tla.UnknownKind("LYRICS"), components=[unknown])
+    doc = document(timelines=[target])
+    new = component("marker", time=2.0)
+
+    commit(doc, target.id, [new])
+
+    assert list(target.components.values()) == [unknown, new]
+
+
 def test_every_kind_a_harmony_timeline_holds_is_replaced():
     # A harmony import creates chords and keys.
     unknown = of_a_kind_the_core_doesnt_know()
