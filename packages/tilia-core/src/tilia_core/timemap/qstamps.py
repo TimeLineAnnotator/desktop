@@ -53,17 +53,21 @@ def build_time_stamp_table(
     times: Sequence[float], lengths: Sequence[Fraction]
 ) -> TimeStampTable | None:
     """The table for beats at `times`, `lengths` quarter notes long; None with
-    fewer than two beats."""
+    fewer than two beats. A closing barline among them has the length 0: the
+    pause after it holds no quarter notes, so its stamp is the next beat's."""
     if len(times) < 2:
         return None
-    seconds_per_quarter = [
-        (times[index + 1] - times[index]) / float(lengths[index])
-        for index in range(len(times) - 1)
-    ]
+    seconds_per_quarter: list[float] = []
+    for index in range(len(times) - 1):
+        if lengths[index]:
+            gap = times[index + 1] - times[index]
+            seconds_per_quarter.append(gap / float(lengths[index]))
+        else:  # no quarter notes go by here: only its own stamp is ever read
+            seconds_per_quarter.append(seconds_per_quarter[-1])
     # The last beat has no next beat to measure against, so the tempo of
     # the gap before it carries on past it. Its own length doesn't enter:
     # that gap lasted the previous beat's length, not the last one's.
-    # (beats_between follows this rule too.)
+    # (beats_between follows this rule too.) So does a last closing barline's.
     seconds_per_quarter.append(seconds_per_quarter[-1])
     return TimeStampTable(
         times=tuple(times),

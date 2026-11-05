@@ -1,18 +1,18 @@
 """A beat timeline's measure table: each measure's position, pass, movement,
 start and end, meter and time signature, and its start and length in quarter
-notes."""
+notes. A measure ends at the next downbeat, or at the closing tap that closes
+it, and the last one otherwise at a closing barline worked out from the beats."""
 
 from __future__ import annotations
 
 import itertools
-import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import Any, NoReturn, TypeGuard
+from typing import Any, NoReturn
 
 from tilia_core import tla
-from tilia_core.timemap._rows import RowIn, rows_of
+from tilia_core.timemap._rows import RowIn, _is_number, closing_taps, rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.qstamps import beat_lengths
 from tilia_core.timemap.units import MeasureMeter, format_units
@@ -77,7 +77,7 @@ class MeasureRow:
     restart: bool
     folded: bool  # the table has `next`: `count` and `pass_` aren't playing positions
     start: float  # its downbeat
-    end: float  # the next downbeat, or the closing barline
+    end: float  # the next downbeat, or the closing barline: a closing tap, if `closed`
     beat_ids: tuple[str, ...]
     beats: int  # the beats tapped
     meter: MeasureMeter  # desktop#621's, from the beat units in effect
@@ -94,6 +94,7 @@ class MeasureRow:
     force_display: bool
     next: tuple[str, ...] | None
     metadata: FrozenMetadata
+    closed: bool = False  # a closing tap ends it, the tap in no row's `beat_ids`
 
     def __post_init__(self) -> None:
         meter = self.meter
@@ -141,12 +142,15 @@ def table_problem(timeline: tla.Timeline) -> str | None:
 
 def _checked(timeline: tla.Timeline) -> tuple[str | None, list[float]]:
     # The table's problem, and the times of its beats in its order: none when it
-    # has a problem, so the times given are always usable.
+    # has a problem, so the times given are always usable. A closing tap is in no
+    # row, but two taps at one time are still two beats at the same time.
     reason = missing_time(timeline) or broken_row(timeline)
     if reason is not None:
         return reason, []
     times = _times(timeline)
-    reason = disorder(times)
+    reason = disorder(times) or disorder(
+        sorted([*times, *(tap.time for tap in closing_taps(timeline))])
+    )
     return reason, [] if reason is not None else times
 
 
@@ -175,10 +179,11 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
 
     With more than one beat, the last beat lasts its own length at the tempo
     of the gap before it, and the warning says the last measure ends one gap
-    after it; with one, it ends on the beat.
+    after it; with one, it ends on the beat. A last measure that a closing tap
+    closes ends at the tap, and `closing_warnings` speaks for that.
     """
     reason, times = _checked(timeline)
-    if reason is not None or not times:
+    if reason is not None or not times or _last_row_is_closed(timeline):
         return None
     last, gap = _last_gap(times)
     media_length = _media_length(document)
@@ -191,6 +196,36 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
     if gap > 0:
         warning += "; the last measure ends one gap after it"
     return warning
+
+
+def closing_warnings(document: tla.Document, timeline: tla.Timeline) -> list[str]:
+    """The warnings, with the timeline's id and the beat's, about its closing
+    taps, in time order: one for each read as an ordinary beat, and one for
+    each closing barline past the end of the media, where it is kept (FR-011).
+    None when the table has no rows."""
+    reason, times = _checked(timeline)
+    if reason is not None or not times:
+        return []
+    media_length = _media_length(document)
+    warnings: list[str] = []
+    for tap in closing_taps(timeline):
+        if not tap.barline:
+            warnings.append(
+                f"Timeline {timeline.id}: beat {tap.id} is marked closing, but "
+                "isn't the last tap of the timeline or of a movement; it is read "
+                "as an ordinary beat"
+            )
+        elif media_length is not None and tap.time > media_length:
+            warnings.append(
+                f"Timeline {timeline.id}: the closing tap {tap.id} ({tap.time}) is "
+                f"past the end of the media ({media_length})"
+            )
+    return warnings
+
+
+def _last_row_is_closed(timeline: tla.Timeline) -> bool:
+    last = timeline.measures.rows[-1].id  # _checked has found beats in rows
+    return any(tap.barline and tap.row == last for tap in closing_taps(timeline))
 
 
 def missing_time(timeline: tla.Timeline) -> str | None:
@@ -246,17 +281,6 @@ def _is_beat(timeline: tla.Timeline, component_id: str) -> bool:
     return component is not None and component.kind == "beat"
 
 
-def _is_number(value: object) -> TypeGuard[int | float]:
-    """A finite number, as JSON stores one: not a bool, NaN, an infinity, or a
-    whole number too large for a float, which JSON reads as an int."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return False
-    try:
-        return math.isfinite(value)
-    except OverflowError:
-        return False
-
-
 def build_rows_from(
     document: tla.Document, timeline: tla.Timeline, rows: Sequence[RowIn]
 ) -> list[MeasureRow]:
@@ -270,7 +294,10 @@ def build_rows_from(
         return []
     folded = is_folded(rows)
     meters = meters_of(rows)
-    ends = [row.beat_times[0] for row in rows[1:]]
+    ends = [
+        following.beat_times[0] if row.closing is None else row.closing
+        for row, following in itertools.pairwise(rows)
+    ]
     ends.append(_closing_barline(document, rows, meters))
     passes: dict[int, int] = {}
     movement = 1
@@ -305,6 +332,7 @@ def build_rows_from(
                 force_display=row.force_display,
                 next=row.next,
                 metadata=FrozenMetadata(row.metadata),
+                closed=row.closing is not None,
             )
         )
         qstamp += out[-1].quarters
@@ -337,12 +365,19 @@ def is_folded(rows: Sequence[RowIn]) -> bool:
 def _closing_barline(
     document: tla.Document, rows: Sequence[RowIn], meters: Sequence[MeasureMeter]
 ) -> float:
-    # The last beat lasts its own length at the tempo of the gap before it, or
-    # until the end of the media if that comes sooner: the tempo at which the
-    # time map's quarter notes go on past it (FR-011, FR-051). When the last
-    # two beats are worth the same, that is the gap itself. No beats are added
-    # to the last measure.
+    # A closing tap is the closing barline, wherever the media ends (FR-011).
+    # Else the last beat lasts its own length at the tempo of the gap before
+    # it, or until the end of the media if that comes sooner: the tempo at
+    # which the time map's quarter notes go on past it (FR-011, FR-051). When
+    # the last two beats are worth the same, that is the gap itself. No beats
+    # are added to the last measure.
+    if rows[-1].closing is not None:
+        return rows[-1].closing
     last, gap = _last_gap([t for row in rows[-2:] for t in row.beat_times])
+    if len(rows) > 1 and len(rows[-1].beat_times) == 1 and rows[-2].closing is not None:
+        # A pause isn't a gap, as it holds no quarter notes: the gap before the
+        # last beat is the one its movement's closing tap ended.
+        gap = rows[-2].closing - rows[-2].beat_times[-1]
     lengths = [length for meter in meters[-2:] for length in beat_lengths(meter)]
     if len(lengths) > 1:
         gap *= float(lengths[-1] / lengths[-2])
@@ -363,9 +398,11 @@ def _media_length(document: tla.Document) -> float | None:
     """The media's length, when it caps the closing barline; else None.
 
     It is in seconds, so it doesn't cap a quarters file. The format allows a
-    number above zero, or none; the reader doesn't check, so anything else
-    (text, a bool, NaN, infinity, a whole number too large for a float, zero
-    or less) counts as none.
+    number above zero, or none. Since desktop#744 the reader refuses text and
+    bools, and a file can't hold NaN or infinity, so a file can give only zero
+    or less, or a whole number too large for a float, beside what it allows.
+    Those count as none, and so does anything else a document made in memory
+    holds.
     """
     length: object = document.media_length
     if document.time_unit != "seconds" or not _is_number(length):
