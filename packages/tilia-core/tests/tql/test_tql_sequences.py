@@ -20,14 +20,13 @@ def fits(unode, unit):
     term = unode.term
     if term is None:
         return True
-    hit = any(
+    return any(
         all(
-            lit.kind == "any" or lit.text.lower() == unit.label.lower()
+            (lit.kind == "any" or lit.text.lower() == unit.label.lower()) != lit.negate
             for lit in alt.lits
         )
         for alt in term.alts
     )
-    return not hit if term.negate else hit
 
 
 def seq_of(text):
@@ -96,7 +95,7 @@ class TestQuantifiers:
     def test_case_insensitive_and_not(self):
         items = spans("Verse", "chorus", "bridge")
         assert spans_of("verse", items) == [(0, 1)]
-        assert spans_of("NOT verse+", items) == [(1, 3)]
+        assert spans_of("(NOT verse)+", items) == [(1, 3)]
         assert spans_of("*", items) == [(0, 1), (1, 2), (2, 3)]
 
 
@@ -417,9 +416,7 @@ class TestProject:
             ("Transition", 23.535, 32.322),
         ]
         assert spans_of("FirstGroup THEN Transition", items) == []
-        assert spans_of("FirstGroup THEN Exposition THEN Transition", items) == [
-            (1, 4)
-        ]
+        assert spans_of("FirstGroup THEN Exposition THEN Transition", items) == [(1, 4)]
 
 
 class TestFastPath:

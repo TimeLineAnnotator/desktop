@@ -1,0 +1,253 @@
+import pytest
+
+from docs import beat_timeline, document
+from tilia_core import tla
+from tilia_core.timemap import measure_rows, meters_of, table_problem
+from tilia_core.timemap._rows import rows_of
+from tilia_core.tla.model import COMPONENT_KINDS
+
+
+def _tapped_example() -> tla.Timeline:
+    # The layout's tapped recording: a pickup, bars 1 and 2 with endings and a
+    # repeat, then bar 3 in 6/8 tapped in two.
+    marks = {
+        0: {"number": 0},
+        1: {},
+        4: {"label": "2a"},
+        7: {"number": 1},
+        10: {"label": "2b"},
+        13: {},
+    }
+    beats = [{"time": float(time), "measure": marks.get(time)} for time in range(15)]
+    beats[0]["beat_unit"] = {"denominator": 4, "units": "1"}
+    beats[13]["beat_unit"] = {"denominator": 8, "units": "3"}
+    return beat_timeline(beats)
+
+
+def test_tapped_example_gives_six_rows():
+    rows = rows_of(_tapped_example())
+
+    assert [(r.number, r.label) for r in rows] == [
+        (0, "0"),
+        (1, "1"),
+        (2, "2a"),
+        (1, "1"),
+        (2, "2b"),
+        (3, "3"),
+    ]
+    assert [len(r.beat_ids) for r in rows] == [1, 3, 3, 3, 3, 2]
+    assert [r.beat_times[0] for r in rows] == [0.0, 1.0, 4.0, 7.0, 10.0, 13.0]
+    assert [r.source for r in rows] == ["tapped"] * 6
+
+
+def test_row_ids_are_the_downbeats():
+    timeline = _tapped_example()
+    rows = rows_of(timeline)
+
+    assert [r.id for r in rows] == [r.beat_ids[0] for r in rows]
+    assert rows[0].beat_times == (0.0,)
+
+
+def test_unit_set_on_a_later_beat_is_listed_with_that_beat_id():
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0},
+            {
+                "time": 2.0,
+                "beat_unit": {"denominator": 8, "units": "3", "assumed": True},
+            },
+            {"time": 3.0},
+        ]
+    )
+    (row,) = rows_of(timeline)
+
+    assert row.units == (
+        (row.beat_ids[2], tla.BeatUnit(denominator=8, units="3", assumed=True)),
+    )
+
+
+def test_unit_on_the_downbeat_and_none_elsewhere():
+    timeline = _tapped_example()
+    rows = rows_of(timeline)
+
+    assert [len(r.units) for r in rows] == [1, 0, 0, 0, 0, 1]
+    assert rows[5].units == (
+        (rows[5].beat_ids[0], tla.BeatUnit(denominator=8, units="3")),
+    )
+
+
+def test_cadenza_and_restart_are_read_from_the_mark():
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0, "measure": {"cadenza": True}},
+            {"time": 2.0, "measure": {"restart": True, "number": 1}},
+        ]
+    )
+
+    assert [(r.cadenza, r.restart) for r in rows_of(timeline)] == [
+        (False, False),
+        (True, False),
+        (False, True),
+    ]
+
+
+def test_cadenza_and_restart_fall_back_to_the_downbeat_mark():
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0, "measure": {"cadenza": True}},
+            {"time": 2.0, "measure": {"restart": True}},
+        ]
+    )
+    for row in timeline.measures.rows:
+        row.cadenza = row.restart = False
+
+    assert [(r.cadenza, r.restart) for r in rows_of(timeline)] == [
+        (False, False),
+        (True, False),
+        (False, True),
+    ]
+
+
+def test_other_fields_of_the_mark_are_kept():
+    timeline = beat_timeline(
+        [
+            {
+                "time": 0.0,
+                "measure": {
+                    "number": 1,
+                    "force_display": True,
+                    "source": "edited",
+                    "metadata": {"tag": "a"},
+                },
+            },
+            {"time": 1.0, "measure": {}},
+        ],
+        measure_source="score",
+    )
+    first, second = rows_of(timeline)
+
+    assert first.force_display and first.source == "edited"
+    assert first.metadata == {"tag": "a"}
+    assert not second.force_display and second.source == "score"
+    assert first.next is None
+
+
+def test_a_timeline_without_measures_gives_no_rows():
+    timeline = beat_timeline([{"time": 0.0}, {"time": 1.0}])
+    timeline.measures = None
+
+    assert rows_of(timeline) == []
+
+
+def test_a_beat_unit_that_cannot_be_read_is_ignored(caplog):
+    timeline = beat_timeline(
+        [{"time": 0.0, "measure": {"number": 1}, "beat_unit": {"units": "1"}}]
+    )
+    (row,) = rows_of(timeline)
+
+    assert row.units == ()
+    assert "beat unit" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "beat_unit",
+    [
+        {"denominator": 8, "units": "a"},
+        {"denominator": 8, "units": "0"},
+        {"denominator": 8, "units": "2+"},
+        {"denominator": 8, "units": 3},
+        {"denominator": 0, "units": "1"},
+        {"denominator": 129, "units": "1"},
+        {"denominator": "8", "units": "1"},
+        {"denominator": 8, "units": "1" * 33},
+    ],
+)
+def test_a_beat_unit_desktop_621_refuses_is_left_out(beat_unit, caplog):
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0, "beat_unit": beat_unit},
+        ]
+    )
+    (row,) = rows_of(timeline)
+
+    assert row.units == ()
+    (warning,) = caplog.records
+    assert timeline.id in warning.getMessage()
+    assert row.beat_ids[1] in warning.getMessage()
+
+
+def test_the_warning_shortens_a_long_unit(caplog):
+    unit = {"denominator": 8, "units": "x" * 5000}
+    timeline = beat_timeline([{"time": 0.0, "measure": {}, "beat_unit": unit}])
+    (row,) = rows_of(timeline)
+
+    assert row.units == ()
+    assert len(caplog.records[0].getMessage()) < 300
+
+
+def test_a_measure_whose_downbeat_has_no_time_is_skipped(caplog):
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"number": 1}},
+            {"time": 1.0},
+            {"time": 2.0, "measure": {"number": 2}},
+            {"time": 3.0},
+        ]
+    )
+    downbeat = timeline.measures.rows[1].id
+    del timeline.components[downbeat].attrs["time"]
+
+    rows = rows_of(timeline)
+
+    assert [r.number for r in rows] == [1]
+    assert all(r.id == r.beat_ids[0] for r in rows)
+    assert "downbeat" in caplog.text
+
+
+def test_another_beat_without_a_time_is_left_out_of_its_measure():
+    timeline = beat_timeline(
+        [{"time": 0.0, "measure": {"number": 1}}, {"time": 1.0}, {"time": 2.0}]
+    )
+    del timeline.components[timeline.measures.rows[0].beats[1]].attrs["time"]
+    (row,) = rows_of(timeline)
+
+    assert row.beat_times == (0.0, 2.0)
+    assert len(row.beat_ids) == 2
+
+
+def test_a_row_s_metadata_is_its_own_copy():
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "measure": {"metadata": {"tag": "a", "tags": ["b"]}}},
+            {"time": 1.0},
+        ]
+    )
+    (row,) = rows_of(timeline)
+
+    row.metadata["other"] = "c"
+    row.metadata["tags"].append("d")
+
+    assert timeline.measures.rows[0].metadata == {"tag": "a", "tags": ["b"]}
+
+
+def test_rows_are_read_from_a_table_with_a_problem():
+    timeline = beat_timeline(
+        [{"time": 1.0, "measure": {}}, {"time": 0.5}, {"time": 2.0}]
+    )
+    (row,) = rows_of(timeline)
+
+    assert row.beat_times == (1.0, 0.5, 2.0)
+    assert len(meters_of(rows_of(timeline))) == 1
+    assert table_problem(timeline) == "beats out of time order (at 0.5)"
+    assert measure_rows(document(timeline), timeline.id) == []
+
+
+def test_the_helper_gives_beats_the_core_s_kind():
+    timeline = _tapped_example()
+
+    assert {c.kind for c in timeline.components.values()} == {"beat"}
+    assert all(c.kind in COMPONENT_KINDS for c in timeline.components.values())
