@@ -1,11 +1,20 @@
 name: Draft PDF
 on:
   push:
+    # Branches only. GitHub doesn't apply the paths filter to a tag push, so every
+    # tag (v0.7.1, packages-v0.0.2, ...) started this job, and a tag is checked out
+    # on a detached HEAD, which "Add and commit" can't push from.
+    branches:
+      - '**'
     paths:
       - 'paper/**'
 
 jobs:
   paper:
+    # A force-push is diffed against the branch's previous head, so rebasing a
+    # branch cut from an older dev looks like a change to paper/, and this job
+    # would commit a rebuilt PDF onto an unrelated branch.
+    if: ${{ !github.event.forced }}
     permissions:
       actions: write
       contents: write
