@@ -1169,6 +1169,22 @@ class TestStillANewProblem:
         assert component_place(TEXTURE, SECOND) in problems[0].message
         assert component_place(TEXTURE, THIRD) not in problems[0].message
 
+    def test_an_unchanged_component_goes_past_a_length_it_was_read_within(
+        self, tmp_path
+    ):
+        # Its level is what it was read with. Being past the end isn't.
+        level_0 = hierarchies((FIRST, at_level(0.0, 5.0, 0)))
+        doc = tla.loads(a_file(together(with_media_length(100.0), level_0)))
+        assert len(doc.read_problems) == 1
+        doc.media_length = 3.0
+        problems = refused(doc, tmp_path)
+        assert [(w.place, w.message) for w in problems] == [
+            (
+                component_place(FORM, FIRST),
+                "End time '5.0' is bigger than media time '3.0'",
+            )
+        ]
+
     def test_an_unchanged_component_breaks_a_rule_it_wasnt_read_with(self, tmp_path):
         # Its color is what it was read with. Its join is new, for a range added
         # before the next.
