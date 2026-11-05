@@ -1052,6 +1052,136 @@ class TestLastMeasureEndsAtTheMediaEnd:
         assert _bar_line_times(score_tl) == [1, 2, 3]
 
 
+class TestLastMeasureNeverEndsBeforeItsLastBeat:
+    """With the media's end at or before the last beat, the last measure ends on
+    that beat. A note left with no length is reported, and so is anything past
+    the media, as any component there is."""
+
+    @staticmethod
+    def _create_beats_and_shorten_the_media(
+        beat_tl, tilia_state, times, beat_pattern, duration
+    ) -> None:
+        tilia_state.set_duration(times[-1], scale_timelines="no")
+        _create_beats(beat_tl, times, beat_pattern)
+        # TiLiA keeps the timeline as it is, within DURATION_JITTER_TOLERANCE.
+        tilia_state.set_duration(duration, scale_timelines="keep")
+
+    def test_a_note_on_a_last_beat_at_the_media_end_is_reported(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        self._create_beats_and_shorten_the_media(
+            beat_tl, tilia_state, [0, 1, 2], [1], 2
+        )
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure(""),
+                _measure(""),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == ["End time '2' should be bigger than start time '2'"]
+        assert _note_times(score_tl) == [(0, 1), (1, 2)]
+        assert _bar_line_times(score_tl) == [1, 2, 2]
+
+    def test_only_the_note_on_the_last_beat_is_reported(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        self._create_beats_and_shorten_the_media(
+            beat_tl, tilia_state, [0, 1, 2, 3], [4], 3
+        )
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure_of_quarters("".join(SCORE_ATTRIBUTES.values())),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == ["End time '3' should be bigger than start time '3'"]
+        assert _note_times(score_tl) == [(0, 1), (1, 2), (2, 3)]
+        assert _bar_line_times(score_tl) == [3]
+
+    def test_each_note_past_the_last_beat_is_reported(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        # Two beats tapped in a measure of four: the third and fourth quarters
+        # fall on the last beat and past it.
+        self._create_beats_and_shorten_the_media(
+            beat_tl, tilia_state, [0.0, 1.0], [2], 1.0
+        )
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure_of_quarters("".join(SCORE_ATTRIBUTES.values())),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == ["End time '1.0' should be bigger than start time '1.0'"] * 2
+        assert _note_times(score_tl) == [(0, 0.5), (0.5, 1)]
+
+    def test_a_last_beat_past_the_media_end_reports_what_lies_past_it(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        self._create_beats_and_shorten_the_media(
+            beat_tl, tilia_state, [0, 1, 2], [1], 1.5
+        )
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure(""),
+                _measure(""),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == [
+            "End time '2' is bigger than media time '1.5'",
+            "Time '00:02.0' is bigger than media time '00:01.5'",
+            "Start time '2' is bigger than media time '1.5'",
+            "Time '00:02.0' is bigger than media time '00:01.5'",
+        ]
+        assert _note_times(score_tl) == [(0, 1)]
+        assert _bar_line_times(score_tl) == [1]
+
+    def test_a_note_that_ends_on_the_last_beat_is_kept(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        self._create_beats_and_shorten_the_media(
+            beat_tl, tilia_state, [0, 1, 2, 3], [2], 3
+        )
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure_of_quarters("".join(SCORE_ATTRIBUTES.values()), notes=2),
+                _measure_of_quarters("", notes=1, rests=1),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        assert _note_times(score_tl) == [(0, 1), (1, 2), (2, 3)]
+
+
 @pytest.mark.parametrize(
     "time, written",
     [
