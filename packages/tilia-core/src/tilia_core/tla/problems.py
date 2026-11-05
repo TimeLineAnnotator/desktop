@@ -7,10 +7,24 @@ problem, and writes back those it finds there, on what hasn't changed since
 `tilia_core.timemap.pattern.parse` (FR-084): this module has none of its own.
 
 A problem between two components is found on each, so it is reported once, on
-the first. Beyond that, what counts as one problem is a rule and what it is
-about, as they were read: `ReadProblem`. A component in conflict with several
-others has one of them for each, so that taking one of the others away leaves
-the rest as they were read.
+the first.
+
+What tells an old problem from a new one is what is wrong, not how it reads
+(TimeLineAnnotator/project-management#494): the rule's code, and the id of what
+it is about. A reason quotes values and a position moves with an edit made
+elsewhere, so neither is compared. A problem is old while what it is about hasn't
+changed: its state, everything a component or a row holds, as the writer writes
+it. A problem between components is about the others too, and is new when one of
+them has changed or been added; one taken away takes nothing from the rest. A
+rule between two components reads only those two, so if neither has changed, they
+were at odds when read, and no pair needs keeping.
+
+The rules read a media length, so a new one can change what an unchanged component
+breaks. For one read past the end of the old one, past the end of the new one is
+the same problem. When no length was read, no time was compared with any, so the
+same goes for every component once one is given. Their states are kept for that:
+`unmeasured`. A known length that puts a time past it for the first time is a new
+problem, since what the file came with kept to its length.
 
 A beat without a time has its warning from the check, which names its
 timeline (TimeLineAnnotator/project-management#285), so the rule it breaks adds
@@ -29,13 +43,14 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
 from tilia_core import rules
 from tilia_core.tla.errors import printable
 from tilia_core.tla.layout import pointer_to
 from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
     Component,
     Document,
     ReadProblem,
@@ -45,10 +60,14 @@ from tilia_core.tla.model import (
 )
 from tilia_core.tla.parse import lines_of, text_of
 
-# How many other components a warning names, and is compared on when written.
-# In a file with thousands of components at one time, each is at odds with all
-# the others, which no warning could list.
+# How many other components a warning names. In a file with thousands of
+# components at one time, each is at odds with all the others, which no warning
+# could list. Everything at odds with another is among those named, or has a
+# problem of its own, so this is for reading and takes nothing from what a write
+# compares.
 _NAMED_OTHERS = 10
+# A beat pattern's rule is `tilia_core.timemap.pattern.parse`'s, which has no code.
+_BAD_BEAT_PATTERN = rules.bad_code("beat_pattern")
 # The reason the rules give for a beat without a time.
 _NO_TIME = rules.not_valid("time", None)
 
@@ -63,6 +82,7 @@ def keep_problems(
     for lines. `where` takes a place in the document to the place to name, in
     what it was read from."""
     document.read_problems = find_problems(document)
+    document.read_unmeasured = unmeasured(document)
     not_warned = [p for p in document.read_problems if not p.warned]
     document.warnings.extend(warnings_of(not_warned, source, where))
     unable = cant_check(document)
@@ -85,6 +105,7 @@ def find_problems(document: Document) -> list[ReadProblem]:
     if not media_length:
         found.append(
             ReadProblem(
+                code=media_length.code,
                 reason=media_length.reason,
                 place="/media/length",
                 state=_state(document.media_length),
@@ -103,26 +124,61 @@ def find_problems(document: Document) -> list[ReadProblem]:
     return found
 
 
+def unmeasured(document: Document) -> dict[str, str]:
+    """The state of each component of `document`, by its place, when it has no
+    media length for their times to be compared with; else nothing. A quarters
+    file's aren't compared with one anyway."""
+    if document.media_length is not None or document.time_unit != "seconds":
+        return {}
+    states = {}
+    for timeline_id, timeline in document.timelines.items():
+        held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+        holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+        for component_id, component in timeline.components.items():
+            if component.kind in rules.KINDS:
+                at = pointer_to(held, component_id)
+                states[at] = _component_state(component, at, holds)
+    return states
+
+
 def new_problems(
-    written: list[ReadProblem], read: list[ReadProblem]
+    written: list[ReadProblem],
+    read: list[ReadProblem],
+    read_unmeasured: Mapping[str, str],
 ) -> list[ReadProblem]:
-    """Those of `written` that aren't among `read`, the problems a document
-    was read with: for a component at odds with others, with those others
-    that aren't. A problem about a component changed since has a state that
-    isn't among them, and neither has one about an other component changed
-    since."""
-    others_read: dict[tuple[str, str, str], set[tuple[str, str]]] = {}
+    """Those of `written` that aren't among `read`, the problems a document was
+    read with, whose `read_unmeasured` were its components with no media length.
+
+    One on what has changed since, or for a rule it didn't break, is new. One
+    between components, on what hasn't changed, is new for the others that have
+    changed or been added, and is given with those others alone. Its code and
+    its place decide: what it reads is its reason, and it may read otherwise."""
+    codes: dict[str, set[str]] = {}
+    states: dict[str, str] = {}
     for problem in read:
-        others_read.setdefault(_about(problem), set()).update(problem.others)
+        codes.setdefault(problem.place, set()).add(problem.code)
+        states[problem.place] = problem.state
+        states.update(_between(problem))
     new = []
     for problem in written:
-        known = others_read.get(_about(problem))
-        if known is None:
+        place = problem.place
+        if (
+            problem.code == rules.PAST_MEDIA_END
+            and read_unmeasured.get(place) == problem.state
+        ):
+            continue  # its time wasn't compared with any
+        if problem.code not in codes.get(place, ()) or states[place] != problem.state:
             new.append(problem)
             continue
-        others = tuple(other for other in problem.others if other not in known)
-        if others:
-            new.append(dataclasses.replace(problem, others=others))
+        changed = tuple(
+            other for other in _between(problem) if states.get(other[0]) != other[1]
+        )
+        if changed:
+            # A refusal names those that are new. A join's others are what comes
+            # next in its row, whichever of them it was that changed.
+            if problem.joined is None:
+                problem = dataclasses.replace(problem, others=changed)
+            new.append(problem)
     return new
 
 
@@ -140,12 +196,12 @@ def warnings_of(
     def named(place: str) -> str:
         return place if where is None else where(place)
 
-    places = {problem.place for problem in problems}
+    places = {problem.pointer or problem.place for problem in problems}
     places.update(other for problem in problems for other, _ in problem.others)
     lines = lines_of(text_of(source), [named(place) for place in places])
     warnings = []
     for problem in problems:
-        place = named(problem.place)
+        place = named(problem.pointer or problem.place)
         message = printable(problem.reason)
         if problem.others:
             others = [
@@ -173,8 +229,10 @@ def cant_check(document: Document) -> rules.CantCheck | None:
     return None
 
 
-def _about(problem: ReadProblem) -> tuple[str, str, str]:
-    return problem.reason, problem.place, problem.state
+def _between(problem: ReadProblem) -> tuple[tuple[str, str], ...]:
+    """The other components `problem` is between, each as a place and a state: the
+    range a join joins, whatever comes next in its row, or those it names."""
+    return problem.others if problem.joined is None else (problem.joined,)
 
 
 def _beat_pattern_problems(timeline: Timeline, place: str) -> Iterator[ReadProblem]:
@@ -186,6 +244,7 @@ def _beat_pattern_problems(timeline: Timeline, place: str) -> Iterator[ReadProbl
         name = f"the timeline {json.dumps(timeline.name, ensure_ascii=False)}"
         shown = json.dumps(pattern, ensure_ascii=False)
         yield ReadProblem(
+            code=_BAD_BEAT_PATTERN,
             reason=f"the beat pattern {shown} of {name} isn't a valid pattern",
             place=pointer_to(place, "beat_pattern"),
             state=_state(pattern),
@@ -196,6 +255,7 @@ def _row_problems(timeline: Timeline, place: str) -> Iterator[ReadProblem]:
     rows = timeline.attrs.get("rows")
     if not isinstance(rows, list):
         return
+    held = pointer_to(place, "rows")
     for index, row in enumerate(rows):
         # Two rows with one id are refused as a broken structure.
         for outcome in (
@@ -204,9 +264,11 @@ def _row_problems(timeline: Timeline, place: str) -> Iterator[ReadProblem]:
         ):
             if not outcome:
                 yield ReadProblem(
+                    code=outcome.code,
                     reason=outcome.reason,
-                    place=pointer_to(pointer_to(place, "rows"), index),
-                    state=_state(row),
+                    place=pointer_to(held, row["id"]),
+                    pointer=pointer_to(held, index),
+                    state=_row_state(row, held, index),
                 )
 
 
@@ -222,10 +284,21 @@ def _component_problems(
         every_rule=True,
     )
     held = pointer_to(place, "components")
+    holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+    states: dict[str, str] = {}
+
+    def as_read(component_id: str) -> tuple[str, str]:
+        # Its place and state, each state made once: a group at odds names them
+        # often.
+        at = pointer_to(held, component_id)
+        state = states.get(component_id)
+        if state is None:
+            state = _component_state(components[component_id], at, holds)
+            states[component_id] = state
+        return at, state
+
     named: set[tuple[str, str, str]] = set()  # each rule's pairs named so far
     for component_id, checked in found.items():
-        at = pointer_to(held, component_id)
-        state = _component_state(components[component_id])
         for outcome in (checked.outcome, *checked.also, checked.color):
             if outcome.ok:
                 continue
@@ -239,29 +312,39 @@ def _component_problems(
                 continue  # all of them named this one
             kept = others[:_NAMED_OTHERS]
             named.update((reason, component_id, other) for other in kept)
+            attrs = components[component_id].attrs
+            at, state = as_read(component_id)
             yield ReadProblem(
+                code=outcome.code,
                 reason=reason,
                 place=at,
                 state=state,
-                others=tuple(
-                    (
-                        pointer_to(held, other),
-                        _component_state(components[other]),
-                    )
-                    for other in kept
+                others=tuple(as_read(other) for other in kept),
+                joined=(
+                    as_read(attrs["joined_right"])
+                    if outcome.code == rules.BAD_JOIN
+                    else None
                 ),
                 more=len(others) - len(kept),
                 warned=components[component_id].kind == "beat" and reason == _NO_TIME,
             )
 
 
-def _component_state(component: Component) -> str:
-    """Everything a component has, as a text to compare."""
-    return _state(
-        [str(component.kind), component.attrs, component.metadata, component.extra]
-    )
+def _component_state(component: Component, place: str, holds: frozenset[str]) -> str:
+    """Everything a component has, as the writer writes it, as a text to compare."""
+    # Imported here: the writer reads this module.
+    from tilia_core.tla.writer import component_as_written
+
+    return _state(component_as_written(component, place, holds))
 
 
-def _state(value: Any) -> str:
-    """`value` as it was read, to compare: 1 and 1.0 and True aren't the same."""
-    return json.dumps(value, sort_keys=True, ensure_ascii=False)
+def _row_state(row: Mapping[str, Any], held: str, index: int) -> str:
+    """Everything a row has, as the writer writes it, as a text to compare."""
+    # Imported here: the writer reads this module.
+    from tilia_core.tla.writer import row_as_written
+
+    return _state(row_as_written(row, held, index))
+
+
+# `value` as a text to compare: 1 and 1.0 and True aren't the same.
+_state = json.JSONEncoder(sort_keys=True, ensure_ascii=False).encode

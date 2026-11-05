@@ -84,6 +84,7 @@ from tilia_core.tla.problems import (
     cant_check,
     find_problems,
     new_problems,
+    unmeasured,
     warnings_of,
 )
 from tilia_core.tla.reader import loads, loads_for_fingerprint, written_document
@@ -238,7 +239,7 @@ def _shaped(shape: Shape) -> Writer:
 _beat_unit = _shaped(BEAT_UNIT_SHAPE)
 _media = _shaped(MEDIA_SHAPE)
 _score_source = _shaped(SCORE_SOURCE_SHAPE)
-_range_row = _shaped(RANGE_ROW_SHAPE)
+row_as_written = _shaped(RANGE_ROW_SHAPE)
 # A beat's measure mark is always written, even empty: it is what makes a
 # downbeat. Its number, label and source are written whenever they are set,
 # like any key without a default, whatever the marks before it would give.
@@ -253,7 +254,7 @@ def _rows(value: Any, parent: str, key: str | int) -> Any:
     if not isinstance(value, (list, tuple)):
         return _value(value, parent, key)
     place = pointer_to(parent, key)
-    return [_range_row(row, place, index) for index, row in enumerate(value)]
+    return [row_as_written(row, place, index) for index, row in enumerate(value)]
 
 
 def _lines(value: Any, parent: str, key: str | int) -> Any:
@@ -267,7 +268,7 @@ def _lines(value: Any, parent: str, key: str | int) -> Any:
     ]
 
 
-def _component(
+def component_as_written(
     component: Component, place: str, holds: frozenset[str]
 ) -> dict[str, Any]:
     """A component of a timeline that holds the kinds `holds`."""
@@ -303,7 +304,7 @@ def _components(
 ) -> dict[str, Any]:
     """A timeline's components, in id order."""
     return {
-        key: _component(component, pointer_to(place, key), holds)
+        key: component_as_written(component, pointer_to(place, key), holds)
         for key, component in _entries(components, place)
     }
 
@@ -750,7 +751,7 @@ def write(
     # the folder the reader resolves the file's paths against.
     rebased = rebase_paths(doc, os.path.dirname(os.path.abspath(path)))
     data = checked_bytes(rebased, path=path)
-    problems = _checked_with_the_rules(doc, data, path)
+    problems, unmeasured_states = _checked_with_the_rules(doc, data, path)
     if expect is ABSENT:
         if os.path.lexists(target):
             raise FileChanged(path, None, _found(target))
@@ -774,6 +775,7 @@ def write(
         raise
     _follow(doc, rebased, path)
     doc.read_problems = problems
+    doc.read_unmeasured = unmeasured_states
     return hashlib.sha256(data).hexdigest()
 
 
@@ -795,20 +797,22 @@ def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> N
 
 def _checked_with_the_rules(
     doc: Document, data: bytes, path: str | os.PathLike[str]
-) -> list[ReadProblem]:
+) -> tuple[list[ReadProblem], dict[str, str]]:
     """The problems of the document `data` holds, as the reader finds them, so
-    that a float given for an integer is checked as it is written (FR-051a).
-    Raises `BrokenRules` for any that isn't among those `doc` was read with, and
-    when harmonies or modes can't be checked."""
+    that a float given for an integer is checked as it is written (FR-051a), and
+    its components' states when it has no media length. Raises `BrokenRules` for
+    any that isn't among those `doc` was read with, and when harmonies or modes
+    can't be checked."""
     written = written_document(data, path=path)
     problems = find_problems(written)
-    refused = warnings_of(new_problems(problems, doc.read_problems), data)
+    new = new_problems(problems, doc.read_problems, doc.read_unmeasured)
+    refused = warnings_of(new, data)
     unable = cant_check(written)
     if unable is not None:
         refused.append(ReadWarning(place="", line=None, message=printable(str(unable))))
     if refused:
         raise BrokenRules(path, refused)
-    return problems
+    return problems, unmeasured(written)
 
 
 # Windows' errors for a rename refused because another program holds a file
