@@ -44,7 +44,9 @@ def empty(
     scopes: list[relations.Scope] = []
     out: list[str] = []
     try:
-        for (file_id,) in con.execute("SELECT id FROM files ORDER BY path, id"):
+        for (file_id,) in con.execute(
+            "SELECT id FROM files WHERE state = 'readable' ORDER BY path, id"
+        ):
             check()
             scopes.append(
                 relations.Scope(log, file_id, index.time_map(file_id), {}, check)

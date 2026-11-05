@@ -104,6 +104,10 @@ class SharedReader:
     def time_map(self, file_id):
         return self._maps.get(file_id)
 
+    def reading(self):
+        """A read on the calling thread's own connection."""
+        return fixture_index.reading_of(self.connection(), self.time_map)
+
     @property
     def generation(self):
         return 1
@@ -181,6 +185,10 @@ class HoldingReader:
 
     def connection(self):
         return self._index.connection()
+
+    def reading(self):
+        """A read on the one connection every thread gets."""
+        return fixture_index.reading_of(self.connection(), self.time_map)
 
     def time_map(self, file_id):
         if self.armed.is_set():
