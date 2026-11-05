@@ -4,10 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tilia-core"
-version = "0.0.1"
+version = "0.0.2"
 description = "TiLiA's file format and corpus tools, without a user interface"
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.12"
+dependencies = ["pypdf>=6.0.0", "webcolors>=24.8.0"]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [
@@ -16,19 +17,29 @@ authors = [
     {name = "Anne Foo"}
 ]
 
+[project.optional-dependencies]
+# Checking harmonies and keys, and later importing them, reads music21.
+harmony = ["music21>=9.1"]
+# Gives regular expressions in queries a time limit.
+regex = ["regex>=2024.9.11"]
+
+[project.scripts]
+tilia = "tilia_core.commands:main"
+
+[project.entry-points."tilia.commands"]
+migrate = "tilia_core.commands.migrate:main"
+
 [project.urls]
 Homepage = "https://tilia-app.com"
 Repository = "https://github.com/TimeLineAnnotator/desktop"
 
-[project.optional-dependencies]
-regex = ["regex>=2024.9.11"]
-
 [dependency-groups]
-dev = [
-    "pytest>=8.0.0",
-    "tomli>=2.0; python_version < '3.11'",
-    "regex>=2024.9.11",
-]
+# jsonschema checks files against the format's schema in the tests only: it
+# pulls in a compiled package, which the core itself never imports.
+# regex stays out: scripts/check_packages.py tests the core without it, and
+# again with the core's regex extra.
+dev = ["pytest>=8.0.0", "jsonschema>=4.23"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["tests/timemap", "tests/importers", "tests/commands"]

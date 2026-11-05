@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.10–3.12 (3.13 is flaky due to PySide dependencies).
+TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.12–3.14.
 
 ## Environment
 
@@ -14,16 +14,19 @@ A virtual environment exists at `.venv`. Activate it before running any Python c
 
 ```bash
 # Install (editable) with dev extras and pre-commit hooks
+pip install -e packages/tilia-core  # first: PyPI's release lags behind the app
 pip install -e .
-pip install --group dev
+pip install --group dev       # includes pytest-xdist, for pytest -n auto
+pip install --group ci-tests  # CI tooling: pytest-timeout, coverage, ruff
 pre-commit install
 
 # Run the app
-tilia                       # Qt GUI
-tilia --user-interface cli  # CLI (source-only, not in compiled builds)
+tilia-ui                       # Qt GUI
+tilia-ui --user-interface cli  # CLI (source-only, not in compiled builds)
 
 # Tests (pytest-env auto-sets ENVIRONMENT=test and QT_QPA_PLATFORM=offscreen)
-pytest                                                  # full suite
+pytest                                                  # full suite (several minutes)
+pytest -n auto                                          # full suite in parallel (~1.5 min)
 pytest tests/ui/timelines/marker/test_marker_timeline_ui.py    # one file
 pytest tests/ui/timelines/marker/test_marker_timeline_ui.py::TestCreateDelete::test_create_at_selected_time  # one test
 pytest -k marker                                        # by keyword
@@ -34,11 +37,17 @@ ruff check
 black .
 
 # Build a standalone executable with Nuitka
+pip install -e packages/tilia-core
 pip install -e . --group build
 python scripts/deploy.py <ref_name> <os_type>  # output in build/<os_type>/exe
 ```
 
 Default pytest timeout is 10s (pytest-timeout). `ffmpeg` must be on PATH for audio export/convert features.
+
+Prefer `-n auto` — the suite takes several minutes serially and about a minute and a half in parallel. A handful of
+tests (notably in `tests/test_app.py` and the CLI roundtrip tests) fail intermittently under
+`-n auto`, and which ones fail varies between runs; this predates any given change, so confirm a
+failure reproduces serially before investigating it.
 
 ## Architecture
 
@@ -70,7 +79,9 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 
 ## Packages
 
-`packages/` holds `tilia-core` (`tilia_core`) and `tilia-library` (`tilia_library`) in a uv workspace with the app at the root. Neither package may import the app (`tilia`) or PySide6; each package's isolation test enforces that. Dependencies go one way: library → core, and later the app → core (the app doesn't depend on either package yet).
+`packages/` holds `tilia-core` (`tilia_core`) and `tilia-library` (`tilia_library`) in a uv workspace with the app at the root. Neither package may import the app (`tilia`) or PySide6; each package's isolation test enforces that. Dependencies go one way: library → core, and app → core, with its `harmony` extra, so that harmonies and modes are always checked. The app doesn't depend on the library. pip reads the core from PyPI unless it is already installed, and PyPI's release lags behind the app, so install `packages/tilia-core` first; uv takes it from the workspace.
+
+The `tilia` command is installed by tilia-core (`tilia_core/commands/__init__.py`), a dispatcher whose subcommands are entry points in the group `tilia.commands`, registered by whichever packages are installed. The app registers `ui`, so `tilia ui [arguments]` starts TiLiA, with its graphical or its text interface; the app's own script is `tilia-ui`.
 
 ```bash
 uv sync --all-packages                         # the app and both packages, editable
@@ -79,6 +90,8 @@ python scripts/check_packages.py               # what CI's Packages workflow run
 ```
 
 `pytest` at the root runs only the app's tests. The two packages share one version number and are released together.
+
+Releasing: set the same version in both packages' `pyproject.toml` and in tilia-library's `tilia-core==` requirement, merge, then push a tag `packages-vX.Y.Z` on that commit. `.github/workflows/publish-packages.yml` checks the tag against the versions, builds and tests the packages, uploads them to PyPI through trusted publishing (environment `pypi`), and installs the release from PyPI on three systems. A manual run builds and tests without uploading. PyPI never accepts the same version twice. The app's own releases keep their `vX.Y.Z` tags.
 
 ## Code style
 
@@ -114,7 +127,7 @@ Read `TESTING.md` first. Key points:
 - **Undo/redo: use `undoable()` for all user-initiated state changes.** Wrap the command call in `with undoable():` — this verifies the undo restores state exactly and redo returns to the post-action state. Every command that modifies state should have at least one `undoable()` test.
 - **Drag: test at integration level only.** Use `drag_mouse_in_timeline_view(x, y)` after clicking the drag target. Don't test drag callbacks directly. Cover: normal drag, drag beyond limits (clamped), drag resulting in a state change (e.g. row change for vertical drag).
 - **Keyboard navigation: simulate key presses.** Use `press_key(Qt.Key.Key_Up)` etc., not direct method calls. This exercises the full wiring from keypress event through to the outcome.
-- **Settings: write explicit tests** when behavior depends on a settings value (e.g. height, color, alpha). Change the setting, trigger the relevant action/update, assert the visual property changed. Settings reads and writes are routed to a test QSettings store via the `use_test_settings` fixture (auto-applied through `qtui`), so don't write per-test save/restore fixtures — set the values you depend on explicitly inside each test.
+- **Settings: write explicit tests** when behavior depends on a settings value (e.g. height, color, alpha). Change the setting, trigger the relevant action/update, assert the visual property changed. Settings reads and writes go to a per-process throwaway store (`tests/__init__.py`), and `restore_settings_after_test` undoes every setting a test changes, so don't write per-test save/restore fixtures — set the values you depend on explicitly inside each test.
 - **Interact helpers**: Put per-kind click helpers in `tests/ui/timelines/<kind>/interact.py` (e.g. `click_range_ui(element, button, modifier)`). These should compute coordinates from element data (time → X, row → Y) so test bodies stay readable. Import them at the top of the test file.
 - **File layout for a new timeline kind:**
   - `tests/ui/timelines/<kind>/test_<kind>_timeline_ui.py` — primary test file; no separate element-level file needed unless the element has genuinely complex standalone behavior.
@@ -134,7 +147,7 @@ When a bug is reported in the running app but the test suite is green, agents ca
 
 ## CI
 
-`.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows across Python 3.10–3.13 (excluding Windows+3.13). Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
+`.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows. Pull requests test Python 3.12 and 3.14; pushes to `dev` and `main` and manual runs test 3.12–3.14. Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
 
 ## Release notes
 

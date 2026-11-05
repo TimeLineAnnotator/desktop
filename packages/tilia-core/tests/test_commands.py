@@ -1,0 +1,131 @@
+import shutil
+import subprocess
+import sys
+import sysconfig
+from importlib.metadata import version
+
+import pytest
+
+from tilia_core import commands
+
+
+class FakeEntryPoint:
+    def __init__(self, name, function):
+        self.name = name
+        self.function = function
+
+    def load(self):
+        return self.function
+
+
+def install(monkeypatch, **functions):
+    installed = {name: FakeEntryPoint(name, f) for name, f in functions.items()}
+    monkeypatch.setattr(commands, "_installed_commands", lambda: installed)
+
+
+def test_no_arguments_lists_commands(monkeypatch, capsys):
+    install(monkeypatch, ui=lambda: 0, other=lambda: 0)
+
+    assert commands.main([]) == 0
+
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert lines.index("  other") < lines.index("  ui")
+    assert "To open a file in TiLiA: tilia ui piece.tla" in out
+
+
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_help_flags(monkeypatch, capsys, flag):
+    install(monkeypatch, ui=lambda: 0)
+
+    assert commands.main([flag]) == 0
+    assert "  ui" in capsys.readouterr().out.splitlines()
+
+
+def test_no_commands_installed_says_so(monkeypatch, capsys):
+    install(monkeypatch)
+
+    assert commands.main([]) == 0
+
+    out = capsys.readouterr().out
+    assert "No commands are installed." in out
+    assert "tilia ui" not in out
+
+
+def test_file_name_suggests_ui(monkeypatch, capsys):
+    install(monkeypatch, ui=lambda: 0)
+
+    assert commands.main(["piece.tla"]) == 2
+
+    err = capsys.readouterr().err
+    assert "tilia: 'piece.tla' is not a tilia command." in err
+    assert 'Did you mean "tilia ui piece.tla"?' in err
+
+
+def test_old_cli_flag_suggests_ui(monkeypatch, capsys):
+    install(monkeypatch, ui=lambda: 0)
+
+    assert commands.main(["-i", "cli"]) == 2
+    assert 'Did you mean "tilia ui -i cli"?' in capsys.readouterr().err
+
+
+def test_suggestion_quotes_arguments(monkeypatch, capsys):
+    install(monkeypatch, ui=lambda: 0)
+
+    assert commands.main(["my piece.tla"]) == 2
+    assert "tilia ui 'my piece.tla'" in capsys.readouterr().err
+
+
+def test_unknown_command_without_ui(monkeypatch, capsys):
+    install(monkeypatch)
+
+    assert commands.main(["piece.tla"]) == 2
+
+    err = capsys.readouterr().err
+    assert "tilia ui" not in err
+    assert "tilia --help" in err
+
+
+def test_command_receives_arguments_in_sys_argv(monkeypatch):
+    seen = []
+
+    def ui():
+        seen.append(list(sys.argv))
+        return 7
+
+    install(monkeypatch, ui=ui)
+    monkeypatch.setattr(sys, "argv", ["/path/to/tilia", "ui", "a", "b c"])
+
+    assert commands.main(["ui", "a", "b c"]) == 7
+    assert seen == [["/path/to/tilia", "a", "b c"]]
+
+
+def test_command_returning_none_exits_zero(monkeypatch):
+    install(monkeypatch, ui=lambda: None)
+    monkeypatch.setattr(sys, "argv", ["tilia", "ui"])
+
+    assert commands.main(["ui"]) == 0
+
+
+def test_argv_defaults_to_sys_argv(monkeypatch):
+    install(monkeypatch, ui=lambda: 3)
+    monkeypatch.setattr(sys, "argv", ["tilia", "ui"])
+
+    assert commands.main() == 3
+
+
+def test_version(capsys):
+    assert commands.main(["--version"]) == 0
+    assert capsys.readouterr().out.strip() == f"tilia-core {version('tilia-core')}"
+
+
+def test_installed_script():
+    script = shutil.which("tilia", path=sysconfig.get_path("scripts"))
+    assert script is not None
+
+    result = subprocess.run(
+        [script, "--version"], capture_output=True, text=True, timeout=30
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"tilia-core {version('tilia-core')}"
