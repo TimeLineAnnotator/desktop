@@ -70,7 +70,7 @@ FORBIDDEN_PAGE = (
     "</body>\n</html>\n"
 )
 
-ACCESS_VALUES = ("any", "bearer")
+ACCESS_VALUES = ("any", "bearer", "media")
 METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 
 
@@ -91,7 +91,9 @@ class Route:
     method: str
     pattern: str
     handler: Handler
-    access: str = "any"  # "any": cookie or bearer; "bearer": bearer only
+    # "any": cookie or bearer; "bearer": bearer only; "media": bearer, cookie or
+    # the media key
+    access: str = "any"
 
 
 @dataclass
@@ -105,7 +107,7 @@ class Request:
     params: dict[str, str]
     body: bytes
     server: LibraryServer
-    credential: str  # "cookie" or "bearer"
+    credential: str  # "cookie", "bearer" or "media"
 
     def json(self) -> Any:
         """The body parsed as JSON; answers 400 when it isn't JSON."""
@@ -243,9 +245,9 @@ class Router:
         return route, params, methods
 
     def path_access(self, path: str) -> str:
-        """The access a path needs: the strictest among the routes it matches."""
+        """The access a path needs when no route fits its method: never the media key."""
         accesses = {route.access for route, _, _ in self._candidates(path)}
-        return "bearer" if "bearer" in accesses else "any"
+        return "bearer" if "bearer" in accesses or "media" in accesses else "any"
 
 
 def _serve_file(root: Path, relative: str) -> Response:
@@ -270,9 +272,14 @@ def _serve_file(root: Path, relative: str) -> Response:
     return Response(200, data, content_type)
 
 
-def _redact(text: str, token: str) -> str:
+def _redact(text: str, *hidden: str) -> str:
     text = re.sub(r"token=[^&\s\"]*", "token=…", text)
-    return text.replace(token, "…") if token else text
+    key = security.MEDIA_PARAM
+    text = re.sub(rf"{key}=[^&\s\"]*", f"{key}=…", text)
+    for secret in hidden:
+        if secret:
+            text = text.replace(secret, "…")
+    return text
 
 
 class _HTTPServer(ThreadingHTTPServer):
@@ -314,8 +321,9 @@ class _RequestHandler(BaseHTTPRequestHandler):
     do_HEAD = do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_GET
 
     def log_message(self, format: str, *args: object) -> None:
-        """Send request lines to the debug log, never with the token."""
-        message = _redact(format % args, self.server.library.token)
+        """Send request lines to the debug log, never with a secret."""
+        library = self.server.library
+        message = _redact(format % args, library.token, library.media_key)
         logger.debug("%s - %s", self.address_string(), message)
 
     def send_error(
@@ -428,6 +436,8 @@ class _RequestHandler(BaseHTTPRequestHandler):
             port=library.port,
             token=library.token,
             access=access,
+            media_key=library.media_key,
+            given_media_key=query.get(security.MEDIA_PARAM, [None])[0],
         )
         if verdict.status == 403:
             self._write(self._forbidden(path, verdict.reason))
@@ -484,6 +494,10 @@ class LibraryServer:
     ) -> None:
         self.backend = backend
         self.token: str = token or security.new_token()
+        # Read-only and for the media stream only: what an <audio> element sends
+        # in its address, since it can't send a header. Not derived from the
+        # token, and written nowhere.
+        self.media_key: str = security.new_token()
         self.instance: str = instance or secrets.token_hex(8)
         self.web_root: Path = (
             web_root

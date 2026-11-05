@@ -152,12 +152,9 @@ def _body(expression):
 
 
 def stream_url(page, file_id="f1"):
-    cid = page.evaluate("new URLSearchParams(location.search).get('corpus')")
-    if cid is None:
-        cid = page.evaluate(
-            "fetch('/api/library').then(r => r.json()).then(d => d.last_corpus)"
-        )
-    return f"/api/{cid}/media/{file_id}/stream"
+    return page.evaluate(
+        f"fetch('/api/media/{file_id}').then(r => r.json()).then(d => d.stream)"
+    )
 
 
 def audio_time(page):

@@ -9,6 +9,8 @@ from dataclasses import dataclass
 
 COOKIE_PREFIX = "tilia-library-"
 CUSTOM_HEADER = "X-Tilia-Library"
+# The query parameter that carries the media key: <audio> can't send a header.
+MEDIA_PARAM = "media_key"
 
 
 def new_token() -> str:
@@ -88,6 +90,8 @@ def check_request(
     port: int,
     token: str,
     access: str,
+    media_key: str = "",
+    given_media_key: str | None = None,
 ) -> Verdict:
     """Apply the Host, credential and cross-site rules to one request."""
     if not host_ok(headers, port):
@@ -97,6 +101,8 @@ def check_request(
         credential = "bearer"
     elif access == "any" and token_matches(_cookie_token(headers, port), token):
         credential = "cookie"
+    elif access == "media" and token_matches(given_media_key, media_key):
+        credential = "media"
     else:
         return _refuse(403, "missing or wrong credentials")
 

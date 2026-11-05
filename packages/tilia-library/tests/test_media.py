@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 from pathlib import Path
 
 import pytest
@@ -259,24 +261,28 @@ def test_info_for_each_kind(library):
         "youtube_id": None,
         "length": 3.0,
         "reason": None,
+        "stream": f"/api/{library.cid}/media/local/stream?media_key={library.media_key}",
     }
     assert info("yt") == {
         "kind": "youtube",
         "youtube_id": "dQw4w9WgXcQ",
         "length": None,
         "reason": None,
+        "stream": None,
     }
     assert info("none") == {
         "kind": "none",
         "youtube_id": None,
         "length": None,
         "reason": "the file names none",
+        "stream": None,
     }
     assert info("badyt") == {
         "kind": "none",
         "youtube_id": None,
         "length": None,
         "reason": "the YouTube link isn't valid",
+        "stream": None,
     }
 
 
@@ -310,3 +316,71 @@ def test_a_large_file_is_streamed_not_read_whole(
     r = stream(library, "big", Range=f"bytes={size - 2}-")
     assert r.status == 206
     assert r.body == b"\x01\x02"
+
+
+# The media key: what an <audio> element sends, since it can't send a header.
+def stream_address(server, file="local"):
+    r = get(server, f"/api/{server.cid}/media/{file}")
+    return json.loads(r.body)["stream"]
+
+
+def test_the_stream_address_plays_without_the_header(library):
+    r = send(library, "GET", stream_address(library))
+    assert r.status == 200
+    assert r.body == DATA
+    r = send(library, "GET", stream_address(library), {"Range": "bytes=0-9"})
+    assert r.status == 206
+    assert r.body == DATA[:10]
+    r = send(library, "HEAD", stream_address(library))
+    assert r.status == 200
+    assert r.body == b""
+
+
+def test_the_stream_is_refused_without_the_key(library):
+    path = f"/api/{library.cid}/media/local/stream"
+    assert send(library, "GET", path).status == 403
+    assert send(library, "GET", f"{path}?media_key=nope").status == 403
+    assert send(library, "GET", f"{path}?media_key=").status == 403
+    assert send(library, "GET", f"{path}?media_key={library.token}").status == 403
+    assert send(library, "GET", f"{path}?token={library.token}").status == 403
+    assert send(library, "GET", f"{path}?token={library.media_key}").status == 403
+
+
+def test_the_key_is_not_the_token(library):
+    assert library.media_key
+    assert library.media_key != library.token
+
+
+def test_the_key_is_useless_on_every_other_route(library):
+    key = library.media_key
+    for route in library.router.routes:
+        if route.access == "media":
+            continue
+        path = re.sub(r"\{(\w+)(?::path)?\}", "v", route.pattern)
+        path = path.replace("/api/v/", f"/api/{library.cid}/", 1)
+        headers = {"Content-Type": "application/json"}
+        body = None if route.method == "GET" else b"{}"
+        for given, extra in (
+            (f"{path}?media_key={key}", {}),
+            (path, {"Authorization": f"Bearer {key}"}),
+        ):
+            r = send(library, route.method, given, {**headers, **extra}, body)
+            assert r.status == 403, (route.method, route.pattern)
+
+
+def test_the_key_only_reads(library):
+    # Another method on the stream's path doesn't fall back on the route's access.
+    path = stream_address(library)
+    for method in ("POST", "PUT", "PATCH", "DELETE", "OPTIONS"):
+        r = send(library, method, path, {"Content-Type": "application/json"}, b"{}")
+        assert r.status == 403, method
+
+
+def test_the_key_is_not_logged(library, caplog):
+    address = stream_address(library)
+    with caplog.at_level(logging.DEBUG):
+        assert send(library, "GET", address).status == 200
+    assert caplog.records
+    for record in caplog.records:
+        assert library.media_key not in record.getMessage()
+    assert any("media_key=…" in r.getMessage() for r in caplog.records)

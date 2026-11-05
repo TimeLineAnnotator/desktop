@@ -1,4 +1,3 @@
-import { CORPUS } from './corpus.js';
 import { closest, q } from './lib/dom.js';
 import { errMsg, escapeHtml, mmss, setStatus } from './util.js';
 
@@ -69,9 +68,8 @@ function stop() {
 const span = (name, start, end) =>
   `${name} · ${mmss(start)}${Number.isFinite(end) ? `–${mmss(end)}` : ""}`;
 
-function playLocal(fileId, name, start, end, mine) {
+function playLocal(fileId, src, name, start, end, mine) {
   const el = audio();
-  const src = `/api/${enc(CORPUS)}/media/${enc(fileId)}/stream`;
   if (loadedFile !== fileId || el.getAttribute("src") !== src) {
     el.src = src;
     loadedFile = fileId;
@@ -112,7 +110,7 @@ export async function play(fileId, name, start, end) {
   if (info.kind === "local") {
     clearYoutube();
     say(span(name, start, end));
-    playLocal(fileId, name, start, end, mine);
+    playLocal(fileId, info.stream, name, start, end, mine);
   } else if (info.kind === "youtube" && YOUTUBE_ID.test(String(info.youtube_id))) {
     el.pause();
     stopAt = null;

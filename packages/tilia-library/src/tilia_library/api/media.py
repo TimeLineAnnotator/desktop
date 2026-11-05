@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from urllib.parse import quote
 
+from tilia_library import security
 from tilia_library.corpora import Corpora, CorpusHandles
 from tilia_library.media import CONTENT_TYPES, RangeNotSatisfiable, parse_range
 from tilia_library.server import (
@@ -32,6 +34,11 @@ def register(server: LibraryServer, corpora: Corpora, handles: CorpusHandles) ->
         except KeyError:
             raise ApiError(404, "unknown file") from None
 
+    def stream_address(request: Request) -> str:
+        cid, file = (quote(request.params[k], safe="") for k in ("cid", "file"))
+        key = f"{security.MEDIA_PARAM}={server.media_key}"
+        return f"/api/{cid}/media/{file}/stream?{key}"
+
     def get_media(request: Request) -> Response:
         media = media_of(request)
         kind = media.get("kind") or "none"
@@ -47,6 +54,7 @@ def register(server: LibraryServer, corpora: Corpora, handles: CorpusHandles) ->
                 "youtube_id": youtube_id if kind == "youtube" else None,
                 "length": media.get("length"),
                 "reason": reason,
+                "stream": stream_address(request) if kind == "local" else None,
             }
         )
 
@@ -81,4 +89,4 @@ def register(server: LibraryServer, corpora: Corpora, handles: CorpusHandles) ->
         )
 
     server.router.add("GET", "/api/{cid}/media/{file}", get_media)
-    server.router.add("GET", "/api/{cid}/media/{file}/stream", stream)
+    server.router.add("GET", "/api/{cid}/media/{file}/stream", stream, access="media")
