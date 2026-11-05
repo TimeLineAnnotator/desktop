@@ -12,7 +12,7 @@ import math
 
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, closed_piece, document, two_movements
 from tilia_core import tla
 from tilia_core.timemap import TimeMap, time_map_for
 
@@ -158,3 +158,96 @@ def test_a_unit_other_than_bar_or_beat_gives_nothing(caplog, unit):
 
     assert len(caplog.records) == 3
     assert all(repr(unit) in record.getMessage() for record in caplog.records)
+
+
+# Closing taps (FR-011, Q16): a bar a closing tap closes ends at it, and a pause
+# counts for nothing.
+
+
+def _closed():
+    timeline = closed_piece()
+    return time_map_for(document(timeline), timeline.id)
+
+
+def _movements(closed=False):
+    timeline = two_movements(closed=closed)
+    return time_map_for(document(timeline), timeline.id)
+
+
+def test_a_bar_ends_at_its_closing_tap():
+    tm = _closed()
+
+    assert tm.position(5.5, "bar") == 1.875  # in bar 2, the second of two
+    assert tm.position(5.5, "beat") == 3.75
+    assert tm.position(6.0, "bar") == 2.0
+    assert tm.position(6.0, "beat") == 4.0
+    assert tm.position(6.5, "bar") is None
+    assert tm.length(1.0, 6.0, "bar") == 2.0
+    assert tm.length(1.0, 6.0, "beat") == 4.0
+    assert tm.length(6.0, 6.0, "bar") is None  # a start isn't on the barline
+    assert tm.unit_seconds(5.0, "beat") == 2.0
+    assert tm.unit_seconds(5.0, "bar") == 3.0
+
+
+def test_a_closing_tap_is_the_end_of_its_movements_last_bar():
+    tm = _movements()
+
+    assert tm.position(5.5, "bar") == 2.0
+    assert tm.position(5.5, "beat") == 4.0
+    assert tm.position(5.55, "bar") == 2.0  # snapped onto it
+    assert tm.length(1.0, 5.5, "bar") == 2.0
+    assert tm.length(1.0, 5.5, "beat") == 4.0
+    assert tm.length(3.0, 5.5, "bar") == 1.0
+    assert tm.length(5.5, 9.0, "bar") is None  # a start isn't on the barline
+
+
+def test_a_pause_has_no_position_or_length():
+    tm = _movements()
+
+    for unit in ("bar", "beat"):
+        assert tm.position(6.5, unit) is None
+        assert tm.length(1.0, 6.5, unit) is None
+        assert tm.length(6.5, 9.0, unit) is None
+        assert tm.unit_seconds(6.5, unit) is None
+        assert tm.unit_seconds(5.5, unit) is None  # nothing starts on the barline
+
+
+def test_positions_run_on_across_a_pause():
+    tm = _movements()
+
+    assert tm.position(8.0, "bar") == 2.0
+    assert tm.position(8.0, "beat") == 4.0
+    assert tm.position(9.0, "bar") == 2.5
+    assert tm.position(10.0, "bar") == 3.0
+    assert tm.position(11.0, "beat") == 7.0
+    assert tm.length(1.0, 9.0, "bar") == 2.5
+    assert tm.length(1.0, 9.0, "beat") == 5.0
+    assert tm.length(4.0, 8.0, "beat") == 1.0  # the last beat alone
+    assert tm.length(3.0, 8.0, "bar") == 1.0
+
+
+def test_the_last_beat_before_a_pause_lasts_until_the_tap():
+    tm = _movements()
+
+    assert tm.unit_seconds(4.0, "beat") == 1.5
+    assert tm.unit_seconds(4.0, "bar") == 2.5
+    assert tm.position(4.75, "bar") == 1.75
+    assert tm.position(4.75, "beat") == 3.5
+
+
+def test_a_last_movement_without_a_closing_tap_ends_by_its_own_rule():
+    tm = _movements()
+
+    assert tm.end == 12.0
+    assert tm.position(12.0, "bar") == 4.0
+    assert tm.position(12.0, "beat") == 8.0
+
+
+def test_every_movement_closed():
+    tm = _movements(closed=True)
+
+    assert tm.end == 13.0
+    assert tm.position(13.0, "bar") == 4.0
+    assert tm.position(13.0, "beat") == 8.0
+    assert tm.position(12.0, "beat") == 7.5
+    assert tm.unit_seconds(11.0, "beat") == 2.0

@@ -2,7 +2,7 @@ from fractions import Fraction as F
 
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, closed_piece, document
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.table import build_rows
@@ -395,3 +395,66 @@ class TestRestarts:
         assert [r.movement for r in rows] == [1, 1, 2, 2, 2]
         assert [r.time_signature for r in rows] == ["3/4", "3/4", "3/8", "6/8", "6/8"]
         assert [r.assumed for r in rows] == [False, False, True, False, False]
+
+
+# Closing taps (FR-011; TimeLineAnnotator/project-management#332)
+
+
+def test_a_closing_tap_isnt_counted_among_its_bars_taps():
+    (first, last) = meters_of(rows_of(closed_piece()))
+
+    assert first.time_signature == last.time_signature == (2, 4)
+    assert last.beat_values == (F(1), F(1))
+    assert not last.is_ambiguous
+
+
+def test_a_closing_tap_doesnt_make_a_fit_ambiguous():
+    # Two taps of a pattern of two: a whole pattern, once the tap isn't counted.
+    timeline = closed_piece()
+    downbeat = next(iter(timeline.components))
+    timeline.components[downbeat].attrs["beat_unit"] = unit(4, "1+1")
+    meters = meters_of(rows_of(timeline))
+
+    assert meters[-1].time_signature == (2, 4)
+    assert not meters[-1].is_ambiguous
+
+
+def test_a_unit_on_a_closing_tap_counts_for_nothing():
+    timeline = closed_piece(beat_unit=unit(8, "3"))
+    rows = rows_of(timeline)
+    meters = meters_of(rows)
+
+    assert rows[-1].units == ()
+    assert meters[-1].denominator == 4
+    assert not meters[-1].is_conflicting
+
+
+def test_a_misplaced_closing_tap_is_counted_as_any_beat_is():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True},
+            {"time": 3.0},
+            {"time": 4.0, "measure": {}},
+            {"time": 5.0},
+        ]
+    )
+    meters = meters_of(rows_of(timeline))
+
+    assert [m.time_signature for m in meters] == [(3, 4), (2, 4)]
+
+
+def test_a_unit_on_a_misplaced_closing_tap_counts_as_any_beats_does():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True, "beat_unit": unit(8, "3")},
+            {"time": 3.0},
+            {"time": 4.0, "measure": {}},
+            {"time": 5.0},
+        ]
+    )
+    (first, second) = meters_of(rows_of(timeline))
+
+    assert first.beat_unit_id == list(timeline.components)[1]
+    assert second.denominator == 8

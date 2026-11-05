@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, closed_piece, document, two_movements
 from tilia_core import tla
 from tilia_core.timemap import time_map_for
 
@@ -488,3 +488,135 @@ class TestACadenzaBelongsToTheBarBeforeIt:
         assert songs.times_of(3, segment_end=True) == [5.0, 11.0]
         assert songs.times_of(2, 1.0, segment_end=True) == [5.0, 11.0]
         assert songs.times_of(2, 1.0) == [11.0]
+
+
+def closing(*beats):
+    """A time map from (time, mark) pairs; the mark "closing" for a closing tap."""
+    timeline = beat_timeline(
+        [
+            {"time": t, "closing": True}
+            if mark == "closing"
+            else {"time": t, "measure": mark}
+            for t, mark in beats
+        ]
+    )
+    return time_map_for(document(timeline), timeline.id)
+
+
+NUMBERED_ON = (
+    (1.0, {"number": 1}),
+    (2.0, None),
+    (3.0, {}),
+    (4.0, None),
+    (5.5, "closing"),
+    (8.0, {"number": 3, "restart": True}),
+    (9.0, None),
+)
+
+
+class TestAClosingTap:
+    """A bar a closing tap closes ends at the tap, for its fractions and as a
+    segment's end; TiLiA's projection only for a last bar without one (FR-060,
+    TimeLineAnnotator/project-management#332). TiLiA has no closing tap, so
+    these cases are the core's own, not shared examples."""
+
+    @pytest.fixture
+    def closed(self):
+        timeline = closed_piece()
+        return time_map_for(document(timeline), timeline.id)
+
+    @pytest.fixture
+    def movements(self):
+        timeline = two_movements()
+        return time_map_for(document(timeline), timeline.id)
+
+    def test_its_fractions_go_to_the_tap(self, closed):
+        assert closed.times_of(2, 0.0) == [3.0]
+        assert closed.times_of(2, 0.5) == [4.0]
+        assert closed.times_of(2, 0.75) == [5.0]
+
+    def test_the_fraction_1_is_the_tap(self, closed):
+        assert closed.times_of(2, 1.0) == [6.0]
+        assert closed.times_of(2, 1.0, segment_end=True) == [6.0]
+
+    def test_a_bar_it_doesnt_close_is_as_before(self, closed):
+        assert closed.times_of(1, 0.75) == [2.5]
+        assert closed.times_of(1, 1.0) == [3.0]
+        assert closed.times_of(1, 1.0, segment_end=True) == [3.0]
+
+    def test_a_movements_last_bar_ends_at_its_tap(self, movements):
+        assert movements.times_of(2, 1.0, movement=1, segment_end=True) == [5.5]
+        assert movements.times_of(2, 0.75, movement=1) == [4.75]
+        assert movements.times_of(2, 1.0, movement=1) == [5.5]
+
+    def test_without_a_movement_each_movement_gives_its_own(self, movements):
+        assert movements.times_of(2, 0.75) == [4.75, 11.5]
+        assert movements.times_of(2, 1.0, segment_end=True) == [5.5, 12.0]
+
+    def test_the_fraction_1_isnt_the_next_movements_downbeat(self):
+        # Numbered on through the movements, the next bar is numbered N+1, but
+        # the bar ends at the tap, before the pause.
+        tm = closing(*NUMBERED_ON)
+
+        assert tm.times_of(2, 1.0) == [5.5]
+        assert tm.times_of(2, 1.0, segment_end=True) == [5.5]
+
+    def test_a_segments_end_on_the_next_movements_downbeat_also_gives_the_tap(self):
+        # An end on a downbeat belongs to the bar before, which ends at the tap.
+        tm = closing(*NUMBERED_ON)
+
+        assert tm.times_of(3, segment_end=True) == [5.5, 8.0]
+        assert tm.times_of(3) == [8.0]
+
+    def test_a_cadenza_it_closes_ends_at_it_with_the_bar_before(self):
+        tm = closing(
+            (1.0, {"number": 1}),
+            (2.0, None),
+            (3.0, {"number": 1, "label": "1c", "cadenza": True}),
+            (4.0, None),
+            (6.0, "closing"),
+        )
+
+        assert tm.times_of(1, 1.0, segment_end=True) == [6.0]
+        assert tm.times_of(1, 1.0) == [6.0]
+        assert tm.times_of(label="1c", fraction=0.75) == [5.0]
+
+    def test_one_bar_alone_ends_at_its_tap(self):
+        tm = closing((1.0, {"number": 1}), (2.0, None), (4.0, "closing"))
+
+        assert tm.times_of(1, 0.75) == [3.0]
+        assert tm.times_of(1, 1.0, segment_end=True) == [4.0]
+
+    def test_a_misplaced_tap_is_a_beat_of_its_bar(self):
+        tm = closing(
+            (1.0, {"number": 1}),
+            (2.0, "closing"),
+            (3.0, None),
+            (4.0, {}),
+            (5.0, None),
+        )
+
+        assert tm.times_of(1, 1 / 3) == [2.0]
+        assert tm.times_of(1, 1.0) == [4.0]
+
+    def test_the_projection_only_for_a_last_bar_without_a_tap(self, movements):
+        # The last bar lasts as long as the one before it: two seconds.
+        assert movements.times_of(2, 0.75, movement=2) == [11.5]
+        assert movements.times_of(2, 1.0, movement=2, segment_end=True) == [12.0]
+        assert movements.times_of(2, 1.0, movement=2) == []
+
+    def test_the_projection_doesnt_count_the_pause(self):
+        # Bar 2 of the first movement lasted 2.5 s, up to its tap: the pause
+        # after it is in no bar. So the second movement's only bar lasts as long.
+        tm = closing(
+            (1.0, {"number": 1}),
+            (2.0, None),
+            (3.0, {}),
+            (4.0, None),
+            (5.5, "closing"),
+            (8.0, {"number": 1, "restart": True}),
+            (9.0, None),
+        )
+
+        assert tm.times_of(1, 1.0, movement=2, segment_end=True) == [10.5]
+        assert tm.times_of(1, 0.75, movement=2) == pytest.approx([9.75])
