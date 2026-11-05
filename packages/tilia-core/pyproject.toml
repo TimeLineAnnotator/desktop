@@ -18,7 +18,7 @@ authors = [
 ]
 
 [project.optional-dependencies]
-# Checking harmonies and keys, and later importing them, reads music21.
+# Checking and importing harmonies and keys reads music21.
 harmony = ["music21>=9.1"]
 
 [project.scripts]

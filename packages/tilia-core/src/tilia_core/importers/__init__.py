@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import importlib.util
 import os
 from collections.abc import Callable
 from pathlib import Path
 
-from tilia_core import rules, tla
+from tilia_core import tla
 from tilia_core.importers._results import ImportFailed, ImportResult, RowProblem
+from tilia_core.importers.harmony import HARMONY_NEEDS, harmony_available
+from tilia_core.importers.harmony import import_by_time as harmony_by_time
 from tilia_core.importers.hierarchy import import_by_time as hierarchy_by_time
 from tilia_core.importers.marker import import_by_time as marker_by_time
 from tilia_core.importers.metadata import import_metadata
@@ -36,14 +37,6 @@ _NO_REFERENCE = "Reference beat timeline is required for importing by measure"
 _NOT_IMPORTED_INTO = "{} is not a marker, hierarchy, range, harmony or pdf timeline"
 _NOT_A_BEAT_TIMELINE = "{} is not a beat timeline"
 _NO_TIMELINE = "No timeline found with id={}"
-_HARMONY_NEEDS = f"harmony import needs: {rules.INSTALL_HARMONY}"
-
-
-def _harmony_by_time(
-    document: tla.Document, target: str, path: str | os.PathLike[str]
-) -> ImportResult:
-    raise NotImplementedError("Harmonies can't be imported yet")
-
 
 _BY_TIME: dict[
     Kind, Callable[[tla.Document, str, str | os.PathLike[str]], ImportResult]
@@ -51,7 +44,7 @@ _BY_TIME: dict[
     "marker": marker_by_time,
     "hierarchy": hierarchy_by_time,
     "range": range_by_time,
-    "harmony": _harmony_by_time,
+    "harmony": harmony_by_time,
     "pdf": pdf_by_time,
 }
 
@@ -71,8 +64,8 @@ def import_csv(
     measures from, and is read by measure only.
 
     Raises `ImportFailed` when the import can't run, and `OSError` for a file that
-    can't be opened; both change nothing. By measure, and for a harmony timeline
-    with the `harmony` extra, raises `NotImplementedError` for now.
+    can't be opened; both change nothing. By measure, raises `NotImplementedError`
+    for now.
     """
     path = Path(path)
     timeline = _timeline(document, target, path)
@@ -83,16 +76,10 @@ def import_csv(
     if by == "measure":
         _check_reference(document, reference, path)
     if timeline.kind == "harmony" and not harmony_available():
-        raise ImportFailed(path, _HARMONY_NEEDS)
+        raise ImportFailed(path, HARMONY_NEEDS)
     if by == "measure":
         raise NotImplementedError("Importing by measure isn't possible yet")
     return _BY_TIME[timeline.kind](document, target, path)
-
-
-def harmony_available() -> bool:
-    """Whether music21 can be imported, which the `harmony` extra installs. It is
-    looked for, not imported."""
-    return importlib.util.find_spec("music21") is not None
 
 
 def _check_reference(document: tla.Document, reference: str | None, path: Path) -> None:
