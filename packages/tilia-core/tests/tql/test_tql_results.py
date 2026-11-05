@@ -28,7 +28,7 @@ def test_csv_read_back_is_the_table(tmp_path):
     result.to_csv(path)
     lines = read(path)
     columns = lines[0]
-    assert columns[:3] == ["file", "title", "timeline"]
+    assert columns[:4] == ["file", "path", "title", "timeline"]
     assert len(lines) == len(result.rows) + 1 > 1
     for line, row in zip(lines[1:], result.rows, strict=True):
         for column, field in zip(columns, line, strict=True):
@@ -85,11 +85,13 @@ def test_an_empty_result_writes_the_header(tmp_path):
     empty = run("harmony", 'WHERE file.composer = "Nobody"')
     assert empty.rows == [] and empty.grain == "file"
     empty.to_csv(path)
-    assert read(path) == [["file", "title", "composer"]]
-    empty = run("harmony", 'WHERE tl.kind = nothing')
+    assert read(path) == [["file", "path", "title", "composer"]]
+    empty = run("harmony", "WHERE tl.kind = nothing")
     assert empty.rows == [] and empty.grain == "timeline"
     empty.to_csv(path)
-    assert read(path) == [["file", "title", "timeline", "kind", "role", "author"]]
+    assert read(path) == [
+        ["file", "path", "title", "timeline", "kind", "role", "author"]
+    ]
 
 
 def test_no_bom_no_cr(tmp_path):

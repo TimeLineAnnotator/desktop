@@ -28,9 +28,22 @@ If you find a bug, [check](https://github.com/TimeLineAnnotator/desktop/issues) 
 # Suggesting features or enhancements
 We are very much looking for ideas of new features for TiLiA. If you would like to suggest one, [check](https://github.com/TimeLineAnnotator/desktop/issues) to see if your feature has already been requested. If not, [open a new one](https://github.com/TimeLineAnnotator/desktop/issues/new) detailing your suggestion.
 
-You need Python >=3.10 to build and test TiLiA. You will also need to have ffmpeg installed to use the export and convert audio features.
+You need Python 3.12–3.14 to build and test TiLiA. You will also need to have ffmpeg installed to use the export and convert audio features.
+
+# AI tools and agents
+You may use AI tools to contribute to TiLiA, on two conditions:
+
+- **Disclose it.** If an AI tool wrote any of the code, tests or text of a pull request, say so in its description, and name the tool. The same goes for issues and comments.
+- **No purely autonomous agents.** Every pull request needs a person behind it, who asked for the change, checks it and answers for it in review. We don't accept pull requests from agents that choose issues and open pull requests on their own, and we close them without review.
 
 # Developing for TiLiA
+TiLiA depends on `tilia-core`, which is in this repository, in `packages/tilia-core`, with its `harmony` extra. The release on PyPI lags behind the app, so install the one in this repository first:
+```
+pip install -e packages/tilia-core
+pip install -e .
+```
+With [uv](https://docs.astral.sh/uv/), `uv sync --all-packages` does this, and installs `tilia-library` too.
+
 For a better development experience, we recommend the installation of a few more packages:
 ```
 pip install --group dev

@@ -9,9 +9,8 @@ import fixture_index
 import pytest
 
 from tilia_core import tql
-from tilia_core.tql import TQLError
+from tilia_core.tql import TQLError, sqlfuncs
 from tilia_core.tql import compile as tql_compile
-from tilia_core.tql import sqlfuncs
 from tilia_core.tql.syntax import Lane
 
 FIXTURES = examples.load()["fixtures"]
@@ -153,7 +152,9 @@ class TestLanes:
     def test_unknown_lane_is_refused(self):
         # FR-020: a lane no file has is an error positioned on the name
         index = index_of("pop")
-        with pytest.raises(TQLError, match="no timeline, role or kind called 'nothing'") as e:
+        with pytest.raises(
+            TQLError, match="no timeline, role or kind called 'nothing'"
+        ) as e:
             tql.run(index, "verse IN nothing")
         assert (e.value.pos, e.value.end) == (9, 16)
         with pytest.raises(TQLError, match='no timeline or row called "Nothing"') as e:
@@ -186,8 +187,11 @@ class TestLanes:
             return {
                 "length": 10,
                 "timelines": [
-                    {"name": f"Analysis {n}", "kind": "hierarchy",
-                     "units": [["phrase", 1, 0, 10]]},
+                    {
+                        "name": f"Analysis {n}",
+                        "kind": "hierarchy",
+                        "units": [["phrase", 1, 0, 10]],
+                    },
                     {"name": "Marks", "kind": "marker", "units": [["PAC", 9]]},
                 ],
             }
@@ -326,8 +330,8 @@ class TestLiterals:
         assert "verse 2" not in matched("verse_")
 
     def test_both_needs_two_categories(self):
-        assert matched("verse/chorus") == ["verse/chorus"]
-        assert matched("verse/verse") == []
+        assert matched("verse AND chorus") == ["verse/chorus"]
+        assert matched("verse AND verse") == []
 
     def test_exact_label(self):
         assert matched('"verse"') == ["verse"]
@@ -372,13 +376,33 @@ class TestLiterals:
             "verse/chorus",
         ]
 
-    def test_not_applies_to_the_whole_or(self):
-        got = matched("NOT verse OR chorus")
+    def test_not_in_parentheses_applies_to_the_whole_or(self):
+        got = matched("NOT (verse OR chorus)")
         assert got == ["bridge.modern", "it's", "verse_", "Straße", "", "100%"] + [
             unicodedata.normalize("NFD", "Sätze"),
             "Sätze ",
         ]
         assert "Chorus" not in got and "verse/chorus" not in got
+        assert matched("NOT verse AND NOT chorus") == got
+
+    def test_not_binds_tighter_than_or(self):
+        # tql.md §5: NOT verse OR chorus is "(not a verse) or a chorus"
+        got = matched("NOT verse OR chorus")
+        assert sorted(got) == sorted(set(matched("NOT verse")) | set(matched("chorus")))
+        assert "Chorus" in got and "verse/chorus" in got
+
+    def test_and_binds_tighter_than_or(self):
+        assert matched("verse AND chorus OR bridge") == sorted(
+            set(matched("verse AND chorus")) | set(matched("bridge")),
+            key=matched("*").index,
+        )
+        assert matched("verse AND (chorus OR bridge)") == matched("verse AND chorus")
+
+    def test_a_negated_literal_beside_another(self):
+        assert matched("verse AND NOT chorus") == [
+            x for x in matched("verse") if x not in matched("chorus")
+        ]
+        assert matched("NOT /^v/ AND NOT *") == []
 
     def test_wildcard_matches_an_unlabelled_unit(self):
         got = matched("*")
@@ -501,7 +525,11 @@ class TestRun:
                     "name": "Instr",
                     "kind": "range",
                     "rows": ["solo", "duo"],
-                    "units": [["solo", "a", 0, 4], ["duo", "b", 4, 8], ["solo", "c", 8, 12]],
+                    "units": [
+                        ["solo", "a", 0, 4],
+                        ["duo", "b", 4, 8],
+                        ["solo", "c", 8, 12],
+                    ],
                 }
             ],
         }
@@ -559,6 +587,7 @@ class TestRows:
         row = got.rows[0]
         assert list(row) == [
             "file",
+            "path",
             "title",
             "timeline",
             "lane",
@@ -584,6 +613,7 @@ class TestRows:
             "$2.ids",
         ]
         assert row["file"] == "f1"
+        assert row["path"] == "f1.tla"
         assert row["title"] is None
         assert row["timeline"] == "Form (B)"
         assert row["lane"] == "level 1"
@@ -681,9 +711,7 @@ class TestSql:
         finally:
             con.set_trace_callback(None)
         assert {s.kind for s in specs} >= {"hierarchy", "range"}
-        lookups = [
-            q for q in seen if "FROM hierarchies h" in q or "FROM ranges r" in q
-        ]
+        lookups = [q for q in seen if "FROM hierarchies h" in q or "FROM ranges r" in q]
         assert any("hierarchies" in q for q in lookups)
         assert any("ranges" in q for q in lookups)
         for q in lookups:

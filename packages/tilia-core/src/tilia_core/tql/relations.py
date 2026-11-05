@@ -431,6 +431,17 @@ class Log(Protocol):
         ...
 
 
+PIECE_FIELDS = ("start", "time", "end", "duration")  # read on a unit's piece
+
+
+def _piece_value(name: str, piece: tuple[float, float]) -> float:
+    """``start``, ``time``, ``end`` or ``duration`` of a piece of a unit."""
+    start, end = piece
+    if name in ("start", "time"):
+        return start
+    return end if name == "end" else end - start
+
+
 def _is_position(f: syntax.FieldRef) -> bool:
     return not f.scope and f.name in tql_compile.POSITION_FIELDS
 
@@ -440,21 +451,24 @@ def _known(vals: list[Any]) -> bool:
 
 
 def _bar_alt(alt: syntax.Alt, label: str) -> bool:
-    """Whether the literals of ``alt`` (``a/b/…``, all on one unit) fit a bar
-    whose printed number is ``label``: it has that one category and that label."""
+    """Whether the literals of ``alt`` (``a AND NOT b AND …``, all on one unit)
+    fit a bar whose printed number is ``label``: it has that one category and
+    that label."""
     text = nfc(label).strip()
     words = 0
     for lit in alt.lits:
         if lit.kind == "any":
-            continue
-        if lit.kind == "exact":
+            fits = True
+        elif lit.kind == "exact":
             fits = nfc(lit.text) == text
         elif lit.kind == "regex":
             fits = bool(sqlfuncs.regexp(lit.text, text))
         else:
-            words += 1
-            fits = words == 1 and lit.sub is None and fold(lit.text) == fold(text)
-        if not fits:
+            same = lit.sub is None and fold(lit.text) == fold(text)
+            if not lit.negate:
+                words += 1
+            fits = same and words <= 1
+        if fits == lit.negate:
             return False
     return True
 
@@ -717,7 +731,6 @@ class Scope:
             got = True
             if term is not None:
                 got = any(_bar_alt(alt, comp.label) for alt in term.alts)
-                got = got != term.negate
             got = got and all(self.cond_ok(c, comp) for c in unit.conds)
             self._bar_fit[key] = got
         return got
@@ -725,7 +738,12 @@ class Scope:
     def cond_ok(self, cond: syntax.Cond, comp: Component) -> bool:
         """Whether ``comp`` meets a bracket condition SQL does not test: its
         children, or a relation to a sequence, an order relation, a relation
-        without ``IN``."""
+        without ``IN``, or conditions joined by ``OR`` or in parentheses."""
+        if isinstance(cond, syntax.AnyOf):
+            got = any(
+                all(self.cond_ok(c, comp) for c in clause) for clause in cond.clauses
+            )
+            return got != cond.negate
         if isinstance(cond, syntax.Children):
             if comp.kind != "hierarchy":
                 return cond.negate
@@ -800,6 +818,23 @@ class Scope:
             return [u for slot in subject.slots for u in slot]
         return list(subject.slots[f.index - 1]) if f.index <= len(subject.slots) else []
 
+    def subject_pieces(
+        self, f: syntax.FieldRef, subject: values.Subject
+    ) -> list[tuple[float, float] | None]:
+        """Beside :meth:`subject_units`, the time each of those units fills in
+        the lane, where the subject knows it; None where it does not."""
+        segs = subject.segments
+        n = len(self.subject_units(f, subject))
+        if not segs or len(segs) != len(subject.slots):
+            return [None] * n
+        if f.index is None:
+            got: list[tuple[float, float] | None] = list(segs[0])
+        elif f.index == 0:
+            got = [p for slot in segs for p in slot]
+        else:
+            got = list(segs[f.index - 1]) if f.index <= len(segs) else []
+        return got if len(got) == n else [None] * n
+
     def place(self, f: syntax.FieldRef, subject: values.Subject) -> str:
         """Whose field ``f`` is: ``unit``, ``tl`` or ``file``."""
         if f.scope:
@@ -834,8 +869,12 @@ class Scope:
                     dict.fromkeys(u.timeline_id for u in self.subject_units(f, subject))
                 )
             return [self.facts.timeline(t).get(f.name) for t in ids]
-        for comp in self.subject_units(f, subject):
-            value = self.unit_value(f.name, comp)
+        pieces = self.subject_pieces(f, subject)
+        for comp, piece in zip(self.subject_units(f, subject), pieces, strict=True):
+            if piece is not None and f.name in PIECE_FIELDS:
+                value = _piece_value(f.name, piece)
+            else:
+                value = self.unit_value(f.name, comp)
             if isinstance(value, list):
                 out.extend(value or [""])  # no tags: a unit with none to equal
             else:
@@ -997,21 +1036,36 @@ class Scope:
         reads the first step as a bare comparison does, any unit it took (Q7):
         it holds when one has it, negated when none has."""
         caps: list[str] = []
-        for cond in conds:
-            if isinstance(cond, syntax.Compare):
-                ok = self.compare(cond, subject, caps)
-            else:
-                units = list(subject.slots[0]) if subject.slots else []
-                negate = (
-                    cond.relation.negate
-                    if isinstance(cond, syntax.RelCond)
-                    else cond.negate
-                )
-                hits = [self.cond_ok(cond, u) for u in units]
-                ok = bool(units) and (all(hits) if negate else any(hits))
-            if not ok:
-                return False, ()
+        if not self._where_all(conds, subject, caps):
+            return False, ()
         return True, tuple(caps)
+
+    def _where_all(
+        self, conds: list[syntax.Cond], subject: values.Subject, caps: list[str]
+    ) -> bool:
+        return all(self._where_one(c, subject, caps) for c in conds)
+
+    def _where_one(
+        self, cond: syntax.Cond, subject: values.Subject, caps: list[str]
+    ) -> bool:
+        """One condition of ``WHERE``: the groups of the first clause of an
+        ``OR`` that holds are the ones captured, and ``NOT`` captures none."""
+        if isinstance(cond, syntax.AnyOf):
+            for clause in cond.clauses:
+                got: list[str] = []
+                if self._where_all(clause, subject, got):
+                    if not cond.negate:
+                        caps.extend(got)
+                    return not cond.negate
+            return cond.negate
+        if isinstance(cond, syntax.Compare):
+            return self.compare(cond, subject, caps)
+        units = list(subject.slots[0]) if subject.slots else []
+        negate = (
+            cond.relation.negate if isinstance(cond, syntax.RelCond) else cond.negate
+        )
+        hits = [self.cond_ok(cond, u) for u in units]
+        return bool(units) and (all(hits) if negate else any(hits))
 
     def joiner(
         self, within: syntax.Within | None

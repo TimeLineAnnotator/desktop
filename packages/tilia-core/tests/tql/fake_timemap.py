@@ -17,8 +17,21 @@ class FakeTimeMap:
     in the last beat; off the map, answers are None."""
 
     def __init__(
-        self, start: float, every: float, beats_per_bar: int, numbers: Sequence[int]
+        self,
+        start: float,
+        every: float,
+        beats_per_bar: int,
+        numbers: Sequence[int],
+        cadenzas: Sequence[int] = (),
+        restarts: Sequence[int] = (),
+        time_signature: str | None = None,
     ) -> None:
+        """``cadenzas`` and ``restarts`` are bars by their place in playing
+        order (1 is the first): cadenza bars, and bars that begin a new
+        movement."""
+        self.cadenzas = set(cadenzas)
+        self.restarts = set(restarts)
+        self.time_signature = time_signature or f"{beats_per_bar}/4"
         self.start = float(start)
         self.every = float(every)
         self.beats_per_bar = beats_per_bar
@@ -37,7 +50,15 @@ class FakeTimeMap:
     def from_fixture(cls, tl: dict) -> "FakeTimeMap":
         """From an examples.toml timeline of kind "beats"."""
         numbers = tl.get("numbers") or list(range(1, tl["bars"] + 1))
-        return cls(tl["start"], tl["every"], tl["beats_per_bar"], numbers)
+        return cls(
+            tl["start"],
+            tl["every"],
+            tl["beats_per_bar"],
+            numbers,
+            tl.get("cadenzas", ()),
+            tl.get("restarts", ()),
+            tl.get("time_signature"),
+        )
 
     def beat_times(self) -> list[float]:
         """The time of every beat of every bar; the map's end is none."""
@@ -146,6 +167,18 @@ class FakeTimeMap:
     def bar_count(self, t: float) -> int | None:
         j = self._bar_index(t)
         return None if j is None else j + 1
+
+    def cadenza(self, t: float) -> int | None:
+        count = self.bar_count(t)
+        return None if count is None else int(count in self.cadenzas)
+
+    def movement(self, t: float) -> int | None:
+        count = self.bar_count(t)
+        return None if count is None else self.movement_of(count)
+
+    def movement_of(self, count: int) -> int:
+        """The movement of the bar at ``count`` in playing order."""
+        return 1 + sum(1 for r in self.restarts if r <= count)
 
     def bar_label(self, t: float) -> str | None:
         b = self.bar(t)

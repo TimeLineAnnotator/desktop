@@ -172,9 +172,16 @@ class TestCounts:
 
     def test_fold_subtypes_without_a_grammar_keeps_the_dot(self):
         # with no label grammar "I. Allegro" is no subtype of "i"
-        fixture = {**SUBTYPES, "timelines": [
-            {"name": "Form (A)", "kind": "hierarchy",
-             "units": [["I. Allegro", 1, 0, 20], ["II. Adagio", 1, 20, 40]]}]}
+        fixture = {
+            **SUBTYPES,
+            "timelines": [
+                {
+                    "name": "Form (A)",
+                    "kind": "hierarchy",
+                    "units": [["I. Allegro", 1, 0, 20], ["II. Adagio", 1, 20, 40]],
+                }
+            ],
+        }
         del fixture["grammar"]
         result = tql.run(fixture_index.build_index(fixture), "* IN form")
         table = result.stats("counts", "category", fold_subtypes=True)
@@ -195,9 +202,23 @@ class TestCounts:
 
 
 class TestKeys:
-    def test_file(self):
+    def test_file_groups_by_path(self):
         table = run("pop", "chorus IN form").stats("counts", "file")
-        assert table.rows == [("f1", 5, 1)]
+        assert table.rows == [("f1.tla", 5, 1)]
+
+    def test_parent_groups_by_the_parents_label(self):
+        # verses at 8, 24 and 56 s sit in two A units, one group; the second
+        # form timeline has no level 2, so its verses have no parent (§10)
+        table = run("pop", "verse IN form").stats("counts", "parent")
+        assert table.rows == [("A", 3, 1), (None, 2, 1)]
+
+    def test_parent_of_a_unit_outside_a_hierarchy_is_empty(self):
+        table = run("harmony", "* IN harmony").stats("counts", "parent")
+        assert [r[0] for r in table.rows] == [None]
+
+    def test_parent_is_an_allowed_key(self):
+        with pytest.raises(ValueError, match="parent"):
+            run("pop", "verse IN form").stats("counts", "nonsense")
 
     def test_tl_field(self):
         table = run("pop", "chorus IN form").stats("counts", "tl.author")
@@ -265,7 +286,11 @@ class TestKeys:
 
     def test_position_and_duration_fields(self):
         result = run("pop", "chorus IN form")
-        assert result.stats("counts", "bar").rows == [(11, 2, 1), (19, 1, 1), (27, 2, 1)]
+        assert result.stats("counts", "bar").rows == [
+            (11, 2, 1),
+            (19, 1, 1),
+            (27, 2, 1),
+        ]
         assert result.stats("counts", "duration").rows == [(16.0, 5, 1)]
         assert result.stats("counts", "start").rows == [
             (40.0, 2, 1),
@@ -273,8 +298,6 @@ class TestKeys:
             (104.0, 2, 1),
         ]
         assert result.stats("counts", "tags").rows == [(None, 5, 1)]
-        with pytest.raises(ValueError, match="unknown key 'parent'"):
-            result.stats("counts", "parent")
 
     def test_tags_count_one_row_per_tag(self):
         # as categories do: a unit tagged fast and loud counts under each, and
@@ -472,7 +495,9 @@ class TestTransitions:
     def test_pairs_follow_start_order_not_match_order(self):
         index = index_of("pop")
         units = [
-            Component(f"c{n}", "f1", "t1", "hierarchy", label, 10.0 * n, 10.0 * n + 10, 1)
+            Component(
+                f"c{n}", "f1", "t1", "hierarchy", label, 10.0 * n, 10.0 * n + 10, 1
+            )
             for n, label in enumerate(("a", "b", "c"))
         ]
         matches = [tql.Match([[c]], "level 1") for c in reversed(units)]
