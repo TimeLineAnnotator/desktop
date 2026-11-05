@@ -107,7 +107,7 @@ Note that the binaries will be for the platform you are building on, as `Nuitka`
 Building needs a few things that running from source does not:
 - **Python 3.12 or 3.13.** The pinned Nuitka version cannot compile TiLiA on Python 3.14, so the build script stops early there.
 - **pip 25.1 or newer**, for the `--group` option below (`python -m pip install --upgrade pip`).
-- **A C compiler.** On macOS, install the Xcode command line tools (`xcode-select --install`); on Linux, `gcc`. On Windows, Nuitka uses Visual Studio 2022's compiler if it is installed, and otherwise downloads one ([Zig](https://ziglang.org/)) by itself.
+- **A C compiler.** On macOS, install the Xcode command line tools (`xcode-select --install`); on Linux, `gcc`. On Windows, Nuitka uses Visual Studio's compiler (MSVC) if it finds a version recent enough for your Python, and otherwise downloads one ([Zig](https://ziglang.org/)) by itself, without asking. An older Visual Studio 2022 install can count as not recent enough.
 
 Then:
 - After cloning TiLiA, install TiLiA's run and build dependencies with:
