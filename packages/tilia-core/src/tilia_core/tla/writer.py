@@ -271,7 +271,10 @@ def _lines(value: Any, parent: str, key: str | int) -> Any:
 def component_as_written(
     component: Component, place: str, holds: frozenset[str]
 ) -> dict[str, Any]:
-    """A component of a timeline that holds the kinds `holds`."""
+    """A component of a timeline that holds the kinds `holds`. One of a kind the
+    timeline doesn't hold is written as the reader keeps it, as one of a kind the
+    core doesn't know: in code-point order with every key, from its first write,
+    so that a read and a second write change no byte (FR-054)."""
     if isinstance(component.kind, UnknownKind) and (
         component_kind_from_file(component.kind.spelling) not in holds
     ):
@@ -289,7 +292,7 @@ def component_as_written(
         ("attrs", component.attrs),
         ("extra", component.extra),
     )
-    if not isinstance(component.kind, UnknownKind):
+    if component.kind in holds:
         shape = COMPONENT_SHAPES[component.kind]
     elif component._metadata_in_file:
         shape = UNKNOWN_COMPONENT_WITH_METADATA  # kept as it is, even empty
