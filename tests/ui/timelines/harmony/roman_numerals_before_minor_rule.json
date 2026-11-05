@@ -1,0 +1,122 @@
+{
+  "C major": {
+    "major": ["`bI", "I", "`#I", "`bII", "II", "`#II", "`bIII", "III", "`#III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V", "`bVI", "VI", "`#VI", "`bVII", "VII", "`#VII"],
+    "minor": ["`bi", "i", "`#i", "`bii", "ii", "`#ii", "`biii", "iii", "`#iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v", "`bvi", "vi", "`#vi", "`bvii", "vii", "`#vii"]
+  },
+  "G major": {
+    "major": ["`bIV", "IV", "`#IV", "`bV", "V", "`#V", "`bVI", "VI", "`#VI", "`b`bVII", "`bVII", "VII", "`bI", "I", "`#I", "`bII", "II", "`#II", "`bIII", "III", "`#III"],
+    "minor": ["`biv", "iv", "`#iv", "`bv", "v", "`#v", "`bvi", "vi", "`#vi", "`b`bvii", "`bvii", "vii", "`bi", "i", "`#i", "`bii", "ii", "`#ii", "`biii", "iii", "`#iii"]
+  },
+  "D major": {
+    "major": ["`b`bVII", "`bVII", "VII", "`bI", "I", "`#I", "`bII", "II", "`#II", "`b`bIII", "`bIII", "III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V", "`bVI", "VI", "`#VI"],
+    "minor": ["`b`bvii", "`bvii", "vii", "`bi", "i", "`#i", "`bii", "ii", "`#ii", "`b`biii", "`biii", "iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v", "`bvi", "vi", "`#vi"]
+  },
+  "A major": {
+    "major": ["`b`bIII", "`bIII", "III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V", "`b`bVI", "`bVI", "VI", "`b`bVII", "`bVII", "VII", "`bI", "I", "`#I", "`bII", "II", "`#II"],
+    "minor": ["`b`biii", "`biii", "iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v", "`b`bvi", "`bvi", "vi", "`b`bvii", "`bvii", "vii", "`bi", "i", "`#i", "`bii", "ii", "`#ii"]
+  },
+  "E major": {
+    "major": ["`b`bVI", "`bVI", "VI", "`b`bVII", "`bVII", "VII", "`bI", "I", "`#I", "`b`bII", "`bII", "II", "`b`bIII", "`bIII", "III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V"],
+    "minor": ["`b`bvi", "`bvi", "vi", "`b`bvii", "`bvii", "vii", "`bi", "i", "`#i", "`b`bii", "`bii", "ii", "`b`biii", "`biii", "iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v"]
+  },
+  "B major": {
+    "major": ["`b`bII", "`bII", "II", "`b`bIII", "`bIII", "III", "`bIV", "IV", "`#IV", "`b`bV", "`bV", "V", "`b`bVI", "`bVI", "VI", "`b`bVII", "`bVII", "VII", "`bI", "I", "`#I"],
+    "minor": ["`b`bii", "`bii", "ii", "`b`biii", "`biii", "iii", "`biv", "iv", "`#iv", "`b`bv", "`bv", "v", "`b`bvi", "`bvi", "vi", "`b`bvii", "`bvii", "vii", "`bi", "i", "`#i"]
+  },
+  "F# major": {
+    "major": ["`b`bV", "`bV", "V", "`b`bVI", "`bVI", "VI", "`b`bVII", "`bVII", "VII", "`b`bI", "`bI", "I", "`b`bII", "`bII", "II", "`b`bIII", "`bIII", "III", "`bIV", "IV", "`#IV"],
+    "minor": ["`b`bv", "`bv", "v", "`b`bvi", "`bvi", "vi", "`b`bvii", "`bvii", "vii", "`b`bi", "`bi", "i", "`b`bii", "`bii", "ii", "`b`biii", "`biii", "iii", "`biv", "iv", "`#iv"]
+  },
+  "C# major": {
+    "major": ["`b`bI", "`bI", "I", "`b`bII", "`bII", "II", "`b`bIII", "`bIII", "III", "`b`bIV", "`bIV", "IV", "`b`bV", "`bV", "V", "`b`bVI", "`bVI", "VI", "`b`bVII", "`bVII", "VII"],
+    "minor": ["`b`bi", "`bi", "i", "`b`bii", "`bii", "ii", "`b`biii", "`biii", "iii", "`b`biv", "`biv", "iv", "`b`bv", "`bv", "v", "`b`bvi", "`bvi", "vi", "`b`bvii", "`bvii", "vii"]
+  },
+  "F major": {
+    "major": ["`bV", "V", "`#V", "`bVI", "VI", "`#VI", "`bVII", "VII", "`#VII", "`bI", "I", "`#I", "`bII", "II", "`#II", "`bIII", "III", "`#III", "IV", "`#IV", "`xIV"],
+    "minor": ["`bv", "v", "`#v", "`bvi", "vi", "`#vi", "`bvii", "vii", "`#vii", "`bi", "i", "`#i", "`bii", "ii", "`#ii", "`biii", "iii", "`#iii", "iv", "`#iv", "`xiv"]
+  },
+  "B- major": {
+    "major": ["`bII", "II", "`#II", "`bIII", "III", "`#III", "IV", "`#IV", "`xIV", "`bV", "V", "`#V", "`bVI", "VI", "`#VI", "`bVII", "VII", "`#VII", "I", "`#I", "`xI"],
+    "minor": ["`bii", "ii", "`#ii", "`biii", "iii", "`#iii", "iv", "`#iv", "`xiv", "`bv", "v", "`#v", "`bvi", "vi", "`#vi", "`bvii", "vii", "`#vii", "i", "`#i", "`xi"]
+  },
+  "E- major": {
+    "major": ["`bVI", "VI", "`#VI", "`bVII", "VII", "`#VII", "I", "`#I", "`xI", "`bII", "II", "`#II", "`bIII", "III", "`#III", "IV", "`#IV", "`xIV", "V", "`#V", "`xV"],
+    "minor": ["`bvi", "vi", "`#vi", "`bvii", "vii", "`#vii", "i", "`#i", "`xi", "`bii", "ii", "`#ii", "`biii", "iii", "`#iii", "iv", "`#iv", "`xiv", "v", "`#v", "`xv"]
+  },
+  "A- major": {
+    "major": ["`bIII", "III", "`#III", "IV", "`#IV", "`xIV", "V", "`#V", "`xV", "`bVI", "VI", "`#VI", "`bVII", "VII", "`#VII", "I", "`#I", "`xI", "II", "`#II", "`xII"],
+    "minor": ["`biii", "iii", "`#iii", "iv", "`#iv", "`xiv", "v", "`#v", "`xv", "`bvi", "vi", "`#vi", "`bvii", "vii", "`#vii", "i", "`#i", "`xi", "ii", "`#ii", "`xii"]
+  },
+  "D- major": {
+    "major": ["`bVII", "VII", "`#VII", "I", "`#I", "`xI", "II", "`#II", "`xII", "`bIII", "III", "`#III", "IV", "`#IV", "`xIV", "V", "`#V", "`xV", "VI", "`#VI", "`xVI"],
+    "minor": ["`bvii", "vii", "`#vii", "i", "`#i", "`xi", "ii", "`#ii", "`xii", "`biii", "iii", "`#iii", "iv", "`#iv", "`xiv", "v", "`#v", "`xv", "vi", "`#vi", "`xvi"]
+  },
+  "G- major": {
+    "major": ["IV", "`#IV", "`xIV", "V", "`#V", "`xV", "VI", "`#VI", "`xVI", "`bVII", "VII", "`#VII", "I", "`#I", "`xI", "II", "`#II", "`xII", "III", "`#III", "`xIII"],
+    "minor": ["iv", "`#iv", "`xiv", "v", "`#v", "`xv", "vi", "`#vi", "`xvi", "`bvii", "vii", "`#vii", "i", "`#i", "`xi", "ii", "`#ii", "`xii", "iii", "`#iii", "`xiii"]
+  },
+  "C- major": {
+    "major": ["I", "`#I", "`xI", "II", "`#II", "`xII", "III", "`#III", "`xIII", "IV", "`#IV", "`xIV", "V", "`#V", "`xV", "VI", "`#VI", "`xVI", "VII", "`#VII", "`xVII"],
+    "minor": ["i", "`#i", "`xi", "ii", "`#ii", "`xii", "iii", "`#iii", "`xiii", "iv", "`#iv", "`xiv", "v", "`#v", "`xv", "vi", "`#vi", "`xvi", "vii", "`#vii", "`xvii"]
+  },
+  "A minor": {
+    "major": ["`bIII", "III", "`#III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V", null, null, null, null, null, null, "`bI", "I", "`#I", "`bII", "II", "`#II"],
+    "minor": ["`biii", "iii", "`#iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v", null, null, null, null, null, null, "`bi", "i", "`#i", "`bii", "ii", "`#ii"]
+  },
+  "E minor": {
+    "major": [null, null, null, null, null, null, "`bI", "I", "`#I", "`b`bII", "`bII", "II", "`bIII", "III", "`#III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V"],
+    "minor": [null, null, null, null, null, null, "`bi", "i", "`#i", "`b`bii", "`bii", "ii", "`biii", "iii", "`#iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v"]
+  },
+  "B minor": {
+    "major": ["`b`bII", "`bII", "II", "`bIII", "III", "`#III", "`bIV", "IV", "`#IV", "`b`bV", "`bV", "V", null, null, null, null, null, null, "`bI", "I", "`#I"],
+    "minor": ["`b`bii", "`bii", "ii", "`biii", "iii", "`#iii", "`biv", "iv", "`#iv", "`b`bv", "`bv", "v", null, null, null, null, null, null, "`bi", "i", "`#i"]
+  },
+  "F# minor": {
+    "major": ["`b`bV", "`bV", "V", null, null, null, null, null, null, "`b`bI", "`bI", "I", "`b`bII", "`bII", "II", "`bIII", "III", "`#III", "`bIV", "IV", "`#IV"],
+    "minor": ["`b`bv", "`bv", "v", null, null, null, null, null, null, "`b`bi", "`bi", "i", "`b`bii", "`bii", "ii", "`biii", "iii", "`#iii", "`biv", "iv", "`#iv"]
+  },
+  "C# minor": {
+    "major": ["`b`bI", "`bI", "I", "`b`bII", "`bII", "II", "`bIII", "III", "`#III", "`b`bIV", "`bIV", "IV", "`b`bV", "`bV", "V", null, null, null, null, null, null],
+    "minor": ["`b`bi", "`bi", "i", "`b`bii", "`bii", "ii", "`biii", "iii", "`#iii", "`b`biv", "`biv", "iv", "`b`bv", "`bv", "v", null, null, null, null, null, null]
+  },
+  "G# minor": {
+    "major": ["`b`bIV", "`bIV", "IV", "`b`bV", "`bV", "V", null, null, null, null, null, null, "`b`bI", "`bI", "I", "`b`bII", "`bII", "II", "`bIII", "III", "`#III"],
+    "minor": ["`b`biv", "`biv", "iv", "`b`bv", "`bv", "v", null, null, null, null, null, null, "`b`bi", "`bi", "i", "`b`bii", "`bii", "ii", "`biii", "iii", "`#iii"]
+  },
+  "D# minor": {
+    "major": [null, null, null, "`b`bI", "`bI", "I", "`b`bII", "`bII", "II", "`b`bIII", "`bIII", "III", "`b`bIV", "`bIV", "IV", "`b`bV", "`bV", "V", null, null, null],
+    "minor": [null, null, null, "`b`bi", "`bi", "i", "`b`bii", "`bii", "ii", "`b`biii", "`biii", "iii", "`b`biv", "`biv", "iv", "`b`bv", "`bv", "v", null, null, null]
+  },
+  "A# minor": {
+    "major": ["`b`bIII", "`bIII", "III", "`b`bIV", "`bIV", "IV", "`b`bV", "`bV", "V", null, null, null, null, null, null, "`b`bI", "`bI", "I", "`b`bII", "`bII", "II"],
+    "minor": ["`b`biii", "`biii", "iii", "`b`biv", "`biv", "iv", "`b`bv", "`bv", "v", null, null, null, null, null, null, "`b`bi", "`bi", "i", "`b`bii", "`bii", "ii"]
+  },
+  "D minor": {
+    "major": [null, null, null, "`bI", "I", "`#I", "`bII", "II", "`#II", "`bIII", "III", "`#III", "`bIV", "IV", "`#IV", "`bV", "V", "`#V", null, null, null],
+    "minor": [null, null, null, "`bi", "i", "`#i", "`bii", "ii", "`#ii", "`biii", "iii", "`#iii", "`biv", "iv", "`#iv", "`bv", "v", "`#v", null, null, null]
+  },
+  "G minor": {
+    "major": ["`bIV", "IV", "`#IV", "`bV", "V", "`#V", null, null, null, null, null, null, "`bI", "I", "`#I", "`bII", "II", "`#II", "III", "`#III", "`xIII"],
+    "minor": ["`biv", "iv", "`#iv", "`bv", "v", "`#v", null, null, null, null, null, null, "`bi", "i", "`#i", "`bii", "ii", "`#ii", "iii", "`#iii", "`xiii"]
+  },
+  "C minor": {
+    "major": ["`bI", "I", "`#I", "`bII", "II", "`#II", "III", "`#III", "`xIII", "`bIV", "IV", "`#IV", "`bV", "V", "`#V", null, null, null, null, null, null],
+    "minor": ["`bi", "i", "`#i", "`bii", "ii", "`#ii", "iii", "`#iii", "`xiii", "`biv", "iv", "`#iv", "`bv", "v", "`#v", null, null, null, null, null, null]
+  },
+  "F minor": {
+    "major": ["`bV", "V", "`#V", null, null, null, null, null, null, "`bI", "I", "`#I", "`bII", "II", "`#II", "III", "`#III", "`xIII", "IV", "`#IV", "`xIV"],
+    "minor": ["`bv", "v", "`#v", null, null, null, null, null, null, "`bi", "i", "`#i", "`bii", "ii", "`#ii", "iii", "`#iii", "`xiii", "iv", "`#iv", "`xiv"]
+  },
+  "B- minor": {
+    "major": ["`bII", "II", "`#II", "III", "`#III", "`xIII", "IV", "`#IV", "`xIV", "`bV", "V", "`#V", null, null, null, null, null, null, "I", "`#I", "`xI"],
+    "minor": ["`bii", "ii", "`#ii", "iii", "`#iii", "`xiii", "iv", "`#iv", "`xiv", "`bv", "v", "`#v", null, null, null, null, null, null, "i", "`#i", "`xi"]
+  },
+  "E- minor": {
+    "major": [null, null, null, null, null, null, "I", "`#I", "`xI", "`bII", "II", "`#II", "III", "`#III", "`xIII", "IV", "`#IV", "`xIV", "V", "`#V", "`xV"],
+    "minor": [null, null, null, null, null, null, "i", "`#i", "`xi", "`bii", "ii", "`#ii", "iii", "`#iii", "`xiii", "iv", "`#iv", "`xiv", "v", "`#v", "`xv"]
+  },
+  "A- minor": {
+    "major": ["III", "`#III", "`xIII", "IV", "`#IV", "`xIV", "V", "`#V", "`xV", null, null, null, null, null, null, "I", "`#I", "`xI", "II", "`#II", "`xII"],
+    "minor": ["iii", "`#iii", "`xiii", "iv", "`#iv", "`xiv", "v", "`#v", "`xv", null, null, null, null, null, null, "i", "`#i", "`xi", "ii", "`#ii", "`xii"]
+  }
+}

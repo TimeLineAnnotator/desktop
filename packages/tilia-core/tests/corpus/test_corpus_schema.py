@@ -94,6 +94,8 @@ COLUMNS = {
         ("bar_label", "TEXT"),
         ("bar_beat_count", "INTEGER"),
         ("downbeat", "INTEGER"),
+        ("bar_cadenza", "INTEGER"),
+        ("bar_movement", "INTEGER"),
     ],
     "measures": [
         ("file_id", "INTEGER"),
@@ -104,6 +106,9 @@ COLUMNS = {
         ("end", "REAL"),
         ("beats", "INTEGER"),
         ("pass", "INTEGER"),
+        ("cadenza", "INTEGER"),
+        ("movement", "INTEGER"),
+        ("time_signature", "TEXT"),
     ],
     "fields": [
         ("scope", "TEXT"),
@@ -153,9 +158,9 @@ def test_the_index_keys_are_integer_primary_keys(table):
         con.execute(f"INSERT INTO {table} (id) VALUES ('f1:t1')")
 
 
-def test_the_schema_has_version_1():
+def test_the_schema_has_version_2():
     # the version of the names show SQL makes visible
-    assert make().execute("PRAGMA user_version").fetchone() == (1,)
+    assert make().execute("PRAGMA user_version").fetchone() == (2,)
 
 
 def test_indexes():
