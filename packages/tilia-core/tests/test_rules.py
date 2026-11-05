@@ -711,7 +711,9 @@ class TestMeasureNumber:
             unmarked.id: OK,
         }
 
-    def test_a_number_below_0_on_another_kind_is_nobodys_business(self):
+    def test_only_a_beat_has_its_measure_number_checked(self):
+        # A marker has no measure marks: a `measure` key on one is a key the core
+        # doesn't know, kept as it is, so it can't break this rule.
         assert check("marker", measure={"number": -1}) == OK
 
 
