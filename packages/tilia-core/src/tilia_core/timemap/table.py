@@ -200,8 +200,9 @@ def media_warning(document: tla.Document, timeline: tla.Timeline) -> str | None:
 
 def closing_warnings(document: tla.Document, timeline: tla.Timeline) -> list[str]:
     """The warnings, with the timeline's id and the beat's, about its closing
-    taps, in time order: one for each read as an ordinary beat, and one for
-    each closing barline past the end of the media, where it is kept (FR-011).
+    taps, in time order: one for each read as an ordinary beat, and for each
+    closing barline, one if it is past the end of the media, where it is kept,
+    and one if it has a beat unit, which is kept too and starts nothing (FR-011).
     None when the table has no rows."""
     reason, times = _checked(timeline)
     if reason is not None or not times:
@@ -211,14 +212,20 @@ def closing_warnings(document: tla.Document, timeline: tla.Timeline) -> list[str
     for tap in closing_taps(timeline):
         if not tap.barline:
             warnings.append(
-                f"Timeline {timeline.id}: beat {tap.id} is marked closing, but "
-                "isn't the last tap of the timeline or of a movement; it is read "
-                "as an ordinary beat"
+                f"Timeline {timeline.id}: beat {tap.id} ({tap.time}) is marked "
+                "closing, but isn't the last tap of the timeline or of a movement; "
+                "it is read as an ordinary beat"
             )
-        elif media_length is not None and tap.time > media_length:
+            continue
+        if media_length is not None and tap.time > media_length:
             warnings.append(
                 f"Timeline {timeline.id}: the closing tap {tap.id} ({tap.time}) is "
                 f"past the end of the media ({media_length})"
+            )
+        if timeline.components[tap.id].attrs.get("beat_unit") is not None:
+            warnings.append(
+                f"Timeline {timeline.id}: the closing tap {tap.id} ({tap.time}) has "
+                "a beat unit, which starts nothing"
             )
     return warnings
 

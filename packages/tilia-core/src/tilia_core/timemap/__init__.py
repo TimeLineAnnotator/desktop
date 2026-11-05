@@ -111,7 +111,7 @@ class TimeMapFound:
     guessed: bool  # no timeline had the role time_map: the first beat timeline was taken
     reason: str | None  # why the chosen timeline gives no time map
     # Several claim the role; a last beat past the media; a misplaced closing
-    # tap, or one past the media.
+    # tap, or one past the media or with a beat unit.
     warnings: tuple[str, ...]
 
 
@@ -132,9 +132,9 @@ def find_time_map(
 
     Every beat timeline whose last beat is at or after the end of the media
     gets a warning too, with its id, the time map's or not; so does each of its
-    taps marked closing that is read as an ordinary beat or lies past the
-    media. The warnings are logged here, once for each call, and not when a
-    table is built.
+    taps marked closing that is read as an ordinary beat, lies past the media
+    or has a beat unit. The warnings are logged here, once for each call, and
+    not when a table is built.
     """
     beat_timelines = sorted(
         (t for t in document.timelines.values() if t.kind == "beat"),
