@@ -50,6 +50,10 @@ _CHANGES: dict[str, tuple[str, str]] = {
         "moved 1 mark to metadata",
         "moved {} marks to metadata",
     ),
+    "display_modes_renamed": (
+        "changed 1 display mode from chord to letter",
+        "changed {} display modes from chord to letter",
+    ),
     "beats_dropped": (
         "dropped 1 beat",
         "dropped {} beats",

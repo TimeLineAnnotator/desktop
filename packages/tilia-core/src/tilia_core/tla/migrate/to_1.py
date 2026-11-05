@@ -452,6 +452,10 @@ class _Migration:
                 if derived in converted and base in converted:
                     if _equal_numbers(converted[derived], converted[base]):
                         del converted[derived]
+        if kind == "harmony" and converted.get("display_mode") == "chord":
+            # TiLiA 0.5's name for what `letter` draws: a chord symbol.
+            converted["display_mode"] = "letter"
+            self._count("display_modes_renamed", 1)
         if "comments" in COMPONENT_SHAPES[kind].known:
             # Before the attributes at their default go, so that a comment
             # left empty goes with them, where it has a default: a legacy
