@@ -1,0 +1,7 @@
+# .tla files and the format's schema are written with LF on every system, and
+# their tests compare bytes: git must never convert their line endings.
+*.tla -text
+*.schema.json -text
+# The same for the other test files of .tla content: scores (.mei, .svg) and
+# whatever else the tests compare line by line.
+packages/tilia-core/tests/tla/*/** -text
