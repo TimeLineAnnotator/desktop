@@ -24,6 +24,8 @@ from collections import Counter
 from collections.abc import Iterator
 from typing import TextIO
 
+from tilia_core.commands._report import ESCAPES
+from tilia_core.commands._report import shown as _shown
 from tilia_core.tla.folder import migrate_folder
 from tilia_core.tla.layout import FORMAT_VERSION
 from tilia_core.tla.model import FileResult, MigrationReport, Outcome
@@ -342,19 +344,5 @@ def _folder_to_run(folder: str, *, windows: bool = os.name == "nt") -> str:
     return _quoted(folder, windows=windows)
 
 
-# Control characters (C0, DEL and C1), which could add lines to the report or
-# erase some, each as Python escapes it.
-_ESCAPES = {
-    code: {"\t": "\\t", "\n": "\\n", "\r": "\\r"}.get(chr(code), f"\\x{code:02x}")
-    for code in (*range(0x20), 0x7F, *range(0x80, 0xA0))
-}
-
-
-_ESCAPES_BUT_LINES = {code: escape for code, escape in _ESCAPES.items() if code != 0x0A}
-
-
-def _shown(text: str) -> str:
-    """`text` from a file or the system, a name, a reason or a version, with
-    each control character escaped (`\\n`, `\\x1b`), so that it prints on one
-    line and changes nothing else on the terminal."""
-    return text.translate(_ESCAPES)
+# Control characters, as `_shown` escapes them, but for line breaks.
+_ESCAPES_BUT_LINES = {code: escape for code, escape in ESCAPES.items() if code != 0x0A}
