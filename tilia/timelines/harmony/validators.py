@@ -1,9 +1,8 @@
-from tilia.timelines.harmony.constants import (
+from tilia.timelines.harmony.constants import HARMONY_QUALITIES, MODE_TYPES
+from tilia_core.rules import (
     FONT_TYPES,
     HARMONY_ACCIDENTALS,
     HARMONY_DISPLAY_MODES,
-    HARMONY_QUALITIES,
-    MODE_TYPES,
     get_inversion_amount,
 )
 
