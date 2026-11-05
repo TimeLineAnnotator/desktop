@@ -27,6 +27,8 @@ _NOT_A_MEDIA_LENGTH = (
     "Cannot set media metadata to {}. Media length must be a positive number."
 )
 _MEDIA_LOADED = "Can't change media length when a media file is loaded."
+# The start of a path Windows takes as it is, a name's dot or space included.
+_VERBATIM = "\\\\?\\"
 _MEDIA_NOT_FOUND = "No media available at '{}'. Try using another path."
 _NO_DURATION = (
     "No media loaded and no duration set. Load a media file with 'load-media'"
@@ -141,12 +143,15 @@ def load_media(
         # rather than raising, for a path the system can't look at.
         if not os.path.isfile(local):
             raise ValueError(_MEDIA_NOT_FOUND.format(local))
-        stored = _absolute_media_path(local)
+        verbatim = os.name == "nt" and text.startswith(_VERBATIM)
+        stored = _absolute_media_path(local, verbatim=verbatim)
         name = local.name
         # The file stored: Windows reads `REC.WAV.` and `REC.WAV ` as `REC.WAV`,
-        # where `\\?\` reads such a name as it is, which can be another file. As
-        # a Path, since Windows doesn't take the `//?/` stored for `\\?\`.
-        if Path(stored).suffix.lower() == ".wav":
+        # where `\\?\` reads such a name as it is, so the name is the file's and
+        # keeps its dot or space (FR-052). As a Path, since Windows doesn't take
+        # the `//?/` stored for `\\?\`.
+        extension = Path(stored.rstrip(". ") if verbatim else stored).suffix
+        if extension.lower() == ".wav":
             length = wav_length(Path(stored))
     if length is None:
         if duration_if_error is not None:
@@ -161,14 +166,17 @@ def load_media(
     return length
 
 
-def _absolute_media_path(local: Path) -> str:
+def _absolute_media_path(local: Path, *, verbatim: bool = False) -> str:
     """The file `local` absolute from the working folder. Links aren't followed,
     as the writer doesn't follow them in the folder it writes into, so that a
     file beside the saved one is stored by its name however the folder is
-    reached. On Windows it has "/" and the letter case on disk (FR-052)."""
-    absolute = os.path.abspath(local)
+    reached. On Windows it has "/" and the letter case on disk (FR-052). A
+    `verbatim` path (`\\\\?\\`) is absolute and is not normalised, as Windows
+    doesn't: `os.path.abspath` would take the dot or space off a name's end."""
     if os.name == "nt":
+        absolute = str(local) if verbatim else os.path.abspath(local)
         return _with_case_on_disk(absolute).replace("\\", "/")
+    absolute = os.path.abspath(local)
     # `os.path.abspath` takes `link/..` away by name, where macOS and Linux go
     # up from the link's target: the file `local` names is the one to store.
     if not (os.path.isfile(absolute) and os.path.samefile(absolute, local)):

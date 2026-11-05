@@ -960,6 +960,63 @@ def test_a_given_path_is_stored_so_that_its_media_is_found(
     assert os.path.samefile(tla.media(target, tla.read(target)).path, media)
 
 
+@windows_only
+@pytest.mark.parametrize("name", ["rec.wav.", "rec.wav ", "rec.wav. ."])
+@pytest.mark.parametrize("form", ["\\\\?\\", "//?/"])
+def test_on_windows_a_verbatim_path_keeps_its_name_as_given(tmp_path, name, form):
+    # `\\?\` takes a name as it is: `rec.wav.` is a file of its own.
+    verbatim = "\\\\?\\" + str(tmp_path) + "\\" + name
+    media_file(Path(verbatim))
+    given = verbatim if form == "\\\\?\\" else verbatim.replace("\\", "/")
+
+    assert tla.as_media_path(given) == verbatim
+    assert os.path.isfile(tla.as_media_path(given))
+
+
+@windows_only
+def test_on_windows_a_verbatim_path_isnt_normalised(tmp_path):
+    # Windows doesn't resolve `..` in one either, so it stays as given.
+    given = "\\\\?\\" + str(tmp_path) + "\\a\\..\\rec.wav"
+
+    assert tla.as_media_path(given) == given
+
+
+@windows_only
+def test_on_windows_a_path_without_verbatim_still_loses_the_dot(tmp_path):
+    media_file(tmp_path / "rec.wav")
+
+    assert tla.as_media_path(f"{tmp_path}\\rec.wav.") == str(tmp_path / "rec.wav")
+
+
+@windows_only
+def test_on_windows_a_stored_verbatim_name_is_read_written_and_rebased_as_itself(
+    tmp_path,
+):
+    verbatim = "\\\\?\\" + str(tmp_path) + "\\audio\\rec.wav."
+    media_file(Path(verbatim))
+    doc = tla.new_document()
+    doc.media_path, doc.media_length = (
+        "//?/" + str(tmp_path).replace("\\", "/") + ("/audio/rec.wav."),
+        10.0,
+    )
+    stored = doc.media_path
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+
+    for folder in ("a", "b"):
+        target = tmp_path / folder / "piece.tla"
+        tla.write(target, doc)
+        # Absolute or relative, the name is the file's, dot included.
+        written = json.loads(target.read_bytes())["media"]["path"]
+        assert written.endswith("rec.wav.")
+        read = tla.read(target)
+        found = tla.media(target, read).path
+        assert found is not None and os.path.isfile(found)
+        assert os.fspath(found).endswith("rec.wav.")
+
+    assert stored.endswith("rec.wav.")
+
+
 @pytest.fixture
 def linked_audio(tmp_path):
     """A corpus whose `audio` folder is a link to another disk's, which holds
