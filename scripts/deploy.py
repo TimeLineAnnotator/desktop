@@ -117,10 +117,17 @@ def _host_os_type() -> str:
 
 
 def _normalize_os_type(raw: str) -> str:
+    if raw in OS_TYPES:
+        return raw
+    if raw == "macos":
+        # Not a runner name, so it says nothing about the chip: take this
+        # machine's, if it is a Mac. Elsewhere it stays unknown.
+        host_os = _host_os_type()
+        return host_os if host_os.startswith("macos") else raw
     # In a GitHub Actions runner, the runner image looks like someOS-latest,
     # someOS-22.04, macos-15-intel, etc. We strip "latest" and any version
     # numbers, keeping just someOS. macos-latest is Apple Silicon.
-    if "macos" in raw and "intel" not in raw:
+    if raw.startswith("macos-") and "intel" not in raw:
         return "macos-silicon"
     return "-".join(
         x
