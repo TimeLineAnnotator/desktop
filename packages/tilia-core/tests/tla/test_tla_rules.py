@@ -302,6 +302,14 @@ class TestReading:
             )
         ]
 
+    def test_a_row_with_only_a_bad_color_has_one_warning(self):
+        def change(content):
+            content["timelines"][TEXTURE]["rows"].append(dict(BASS))
+
+        doc = tla.loads(a_file(change))
+        assert [w.message for w in doc.warnings] == ["notacolor is not a valid color."]
+        assert len(doc.read_problems) == 1
+
     def test_a_row_that_breaks_a_rule_is_warned_about_in_its_place(self):
         def change(content):
             content["timelines"][TEXTURE]["rows"].append(
@@ -1277,6 +1285,88 @@ class TestWhatIsComparedIsWhatIsWritten:
         written(doc, tmp_path)
 
 
+class TestAKnownKindInAnotherTimeline:
+    # What the reader makes of it, as FR-054 asks of what is written: kept key
+    # for key, as one of a kind the core doesn't know, to which no rule applies.
+
+    @staticmethod
+    def wrong_kind():
+        doc = tla.loads(a_file())
+        doc.timelines[CADENCES].components[FIRST] = tla.Component(
+            id=FIRST, kind="hierarchy", attrs={"start": 5.0, "end": 1.0, "level": 0}
+        )
+        return doc
+
+    def test_it_is_written_and_reads_back_kept_as_it_is(self, tmp_path):
+        read = tla.read(written(self.wrong_kind(), tmp_path))
+        kept = read.timelines[CADENCES].components[FIRST]
+        assert kept.kind == tla.UnknownKind("HIERARCHY")
+        assert kept.extra == {"start": 5.0, "end": 1.0, "level": 0}
+        assert read.read_problems == []
+        assert [w.place for w in read.warnings] == [component_place(CADENCES, FIRST)]
+        assert "it is kept as it is" in read.warnings[0].message
+
+    def test_it_is_written_back_key_for_key(self, tmp_path):
+        path = written(self.wrong_kind(), tmp_path)
+        content = json.loads(path.read_bytes())
+        assert content["timelines"][CADENCES]["components"][FIRST] == {
+            "kind": "HIERARCHY",
+            "start": 5.0,
+            "end": 1.0,
+            "level": 0,
+        }
+        tla.write(path, tla.read(path))
+        data = path.read_bytes()
+        assert json.loads(data) == content
+        tla.write(path, tla.read(path))
+        assert path.read_bytes() == data
+
+
+class TestAFailedWrite:
+    """What was read stays what was read until the file is written."""
+
+    @staticmethod
+    def fixed():
+        # Its problems are no longer those of what would be written.
+        doc = tla.loads(a_file(LEVEL_0))
+        del doc.timelines[FORM].components[FIRST]
+        return doc
+
+    def test_a_file_that_changed_leaves_the_problems_read(self, tmp_path):
+        doc = self.fixed()
+        kept = list(doc.read_problems)
+        assert kept != []
+        path = tmp_path / "piece.tla"
+        path.write_bytes(a_file())
+        with pytest.raises(tla.FileChanged):
+            tla.write(path, doc, expect="0" * 64)
+        assert doc.read_problems == kept
+
+    def test_a_folder_in_the_way_leaves_the_problems_read(self, tmp_path):
+        doc = self.fixed()
+        kept = list(doc.read_problems)
+        with pytest.raises(IsADirectoryError):
+            tla.write(tmp_path, doc)
+        assert doc.read_problems == kept
+
+    def test_a_failed_write_can_be_set_back_and_written(self, tmp_path):
+        doc = tla.loads(a_file(LEVEL_0))
+        taken = doc.timelines[FORM].components.pop(FIRST)
+        with pytest.raises(IsADirectoryError):
+            tla.write(tmp_path, doc)
+        doc.timelines[FORM].components[FIRST] = taken
+        written(doc, tmp_path)
+
+    def test_with_no_length_it_leaves_the_states_read(self, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 150.0}))))
+        kept = dict(doc.read_unmeasured)
+        assert component_place(CADENCES, FIRST) in kept
+        doc.timelines[CADENCES].components[FIRST].attrs["time"] = 1.5
+        with pytest.raises(IsADirectoryError):
+            tla.write(tmp_path, doc)
+        assert doc.read_unmeasured == kept
+
+
 class TestBrokenRules:
     def refused(self, tmp_path):
         doc = tla.loads(a_file())
@@ -1405,6 +1495,23 @@ class TestWithoutMusic21:
             "Level can't be below 1. Got '0'",
             f"checking a harmony needs: {INSTALL}",
         ]
+
+    def test_writing_it_is_refused_with_a_kind_it_doesnt_know_first(
+        self, without_music21, tmp_path
+    ):
+        # In id order: the first of the timeline can't say for the rest.
+        doc = tla.loads(
+            a_file(
+                harmony_timeline((FIRST, {"kind": "FUTURE"}), (SECOND, harmony(1.0)))
+            )
+        )
+        assert isinstance(
+            doc.timelines[HARMONIES].components[FIRST].kind, tla.UnknownKind
+        )
+        path = tmp_path / "piece.tla"
+        with pytest.raises(tla.BrokenRules, match="checking a harmony needs"):
+            tla.write(path, doc)
+        assert not path.exists()
 
     def test_a_document_without_harmonies_is_written(self, without_music21, tmp_path):
         data = a_file(LEVEL_0)
