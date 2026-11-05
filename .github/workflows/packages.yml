@@ -63,3 +63,47 @@ jobs:
     - name: Run the browser tests
       working-directory: packages/tilia-library
       run: python -m pytest tests/browser
+
+  # The job above has no music21, which is what proves the core works without
+  # the extra, so the core's harmony tests skip there. This one installs the
+  # extra and runs every test of the core.
+  #
+  # Not every system and version: what music21 changes is the same on each, in
+  # pure Python, and the file-system tests run in the job above. Python's oldest
+  # and newest on Linux, plus the newest on Windows, where music21's compiled
+  # dependencies install differently. macOS runners are short, so none here.
+  harmony:
+    name: core with music21 (${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - os: ubuntu-latest
+          python-version: '3.12'
+        - os: ubuntu-latest
+          python-version: '3.14'
+        - os: windows-latest
+          python-version: '3.14'
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install tilia-core with the harmony extra
+      run: |
+        python -m pip install --upgrade "pip>=25.1"
+        python -m pip install "./packages/tilia-core[harmony]" --group packages/tilia-core/pyproject.toml:dev
+
+    # The harmony tests skip when music21 is missing (importorskip), and a
+    # skipped test passes. This fails the job instead.
+    - name: Check that music21 imports
+      run: python -c "import music21; print(music21.__version__)"
+
+    - name: Run the core's tests
+      working-directory: packages/tilia-core
+      run: python -m pytest -p no:cacheprovider -ra
