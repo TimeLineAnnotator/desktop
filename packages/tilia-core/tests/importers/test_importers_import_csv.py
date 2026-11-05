@@ -1,12 +1,12 @@
 """`import_csv`: which importer a target gets, and what fails an import as a whole,
 changing nothing (FR-024). What each importer reads is in its own tests.
 
-The refusals of a target's kind, and an id the document doesn't have, read as
-TimeLineAnnotator/project-management#484 (what such a refusal says) has them for
-now."""
+The refusals' texts are those TimeLineAnnotator/project-management#484 (what such a
+refusal says) answered."""
 
 import copy
 import importlib.util
+import inspect
 import sys
 
 import pypdf
@@ -147,26 +147,32 @@ class TestTargetOfTheWrongKind:
 
         failed = refused(doc, target.id, csv_file(), by="time")
 
-        assert failed.message == f"Timeline 'Other' {NOT_ONE_OF_THEM}"
+        assert failed.message == (
+            f"{kind.capitalize()} timeline 'Other' (ordinal 1) {NOT_ONE_OF_THEM}"
+        )
 
     @pytest.mark.parametrize(
-        "kind",
+        "kind, shown",
         [
-            tla.UnknownKind("Lyrics"),
+            (tla.UnknownKind("Lyrics"), "Lyrics"),
             # Spelled as the API names a kind, or as a file spells one, it still
             # isn't that kind.
-            tla.UnknownKind("marker"),
-            tla.UnknownKind("Marker"),
-            "lyrics",
+            (tla.UnknownKind("marker"), "Marker"),
+            (tla.UnknownKind("Marker"), "Marker"),
+            (tla.UnknownKind("lyrics"), "Lyrics"),
+            (tla.UnknownKind("TimeLine"), "TimeLine"),
+            ("lyrics", "Lyrics"),
         ],
     )
-    def test_a_kind_the_core_doesnt_know(self, csv_file, kind):
+    def test_a_kind_the_core_doesnt_know(self, csv_file, kind, shown):
         target = holding_a_component(kind, name="Other")
         doc = document(timelines=[target])
 
         failed = refused(doc, target.id, csv_file(), by="time")
 
-        assert failed.message == f"Timeline 'Other' {NOT_ONE_OF_THEM}"
+        assert failed.message == (
+            f"{shown} timeline 'Other' (ordinal 1) {NOT_ONE_OF_THEM}"
+        )
 
     def test_a_kind_the_core_doesnt_know_from_a_file_can_still_be_written(
         self, csv_file
@@ -183,13 +189,13 @@ class TestTargetOfTheWrongKind:
 
         assert tla.canonical_bytes(doc) == written
 
-    def test_a_timeline_with_no_name_is_given_by_its_ordinal(self, csv_file):
+    def test_a_timeline_with_no_name_is_given_by_its_kind_and_ordinal(self, csv_file):
         target = timeline("beat", ordinal=3)
         doc = document(timelines=[target])
 
         failed = refused(doc, target.id, csv_file(), by="time")
 
-        assert failed.message == f"Timeline 3 {NOT_ONE_OF_THEM}"
+        assert failed.message == f"Beat timeline (ordinal 3) {NOT_ONE_OF_THEM}"
 
     def test_the_failure_names_the_csv(self, csv_file):
         target = timeline("beat", name="Measures")
@@ -199,14 +205,19 @@ class TestTargetOfTheWrongKind:
         failed = refused(doc, target.id, path, by="time")
 
         assert failed.path == path
-        assert str(failed) == f"data.csv: Timeline 'Measures' {NOT_ONE_OF_THEM}"
+        assert str(failed) == (
+            f"data.csv: Beat timeline 'Measures' (ordinal 1) {NOT_ONE_OF_THEM}"
+        )
 
     def test_an_id_the_document_doesnt_have(self, csv_file):
         doc = document(timelines=[timeline("marker")])
 
-        failed = refused(doc, "no such timeline", csv_file(), by="time")
+        path = csv_file()
+
+        failed = refused(doc, "no such timeline", path, by="time")
 
         assert failed.message == "No timeline found with id=no such timeline"
+        assert failed.path == path
 
 
 class TestBy:
@@ -215,9 +226,12 @@ class TestBy:
         target = holding_a_component("marker")
         doc = document(timelines=[target])
 
-        failed = refused(doc, target.id, csv_file(), by=by)
+        path = csv_file()
+
+        failed = refused(doc, target.id, path, by=by)
 
         assert failed.message == BY
+        assert failed.path == path
 
     def test_it_must_be_given(self, csv_file):
         target = timeline("marker")
@@ -233,9 +247,12 @@ class TestByMeasure:
         target = holding_a_component(kind)
         doc = document(timelines=[target])
 
-        failed = refused(doc, target.id, csv_file(), by="measure")
+        path = csv_file()
+
+        failed = refused(doc, target.id, path, by="measure")
 
         assert failed.message == BY_MEASURE
+        assert failed.path == path
 
     @pytest.mark.parametrize(
         "kind", ["marker", "harmony", "slider", tla.UnknownKind("Beat")]
@@ -244,20 +261,37 @@ class TestByMeasure:
         target = holding_a_component("marker")
         reference = timeline(kind, name="Other", ordinal=2)
         doc = document(timelines=[target, reference])
+        path = csv_file()
+
+        failed = refused(doc, target.id, path, by="measure", reference=reference.id)
+
+        shown = kind.spelling if isinstance(kind, tla.UnknownKind) else kind
+        assert failed.message == (
+            f"{shown.capitalize()} timeline 'Other' (ordinal 2) is not a beat timeline"
+        )
+        assert failed.path == path
+
+    def test_a_reference_with_no_name_is_given_by_its_kind_and_ordinal(self, csv_file):
+        target = holding_a_component("marker")
+        reference = timeline("marker", ordinal=4)
+        doc = document(timelines=[target, reference])
 
         failed = refused(
             doc, target.id, csv_file(), by="measure", reference=reference.id
         )
 
-        assert failed.message == "Timeline 'Other' is not a beat timeline"
+        assert failed.message == "Marker timeline (ordinal 4) is not a beat timeline"
 
     def test_a_reference_the_document_doesnt_have(self, csv_file):
         target = holding_a_component("marker")
         doc = document(timelines=[target])
 
-        failed = refused(doc, target.id, csv_file(), by="measure", reference="none")
+        path = csv_file()
+
+        failed = refused(doc, target.id, path, by="measure", reference="none")
 
         assert failed.message == "No timeline found with id=none"
+        assert failed.path == path
 
     @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range", "pdf"])
     def test_isnt_implemented_yet(self, csv_file, kind):
@@ -378,6 +412,159 @@ class TestTheFileFails:
             importers.import_csv(doc, target.id, tmp_path / "none.csv", by="time")
 
         assert doc == before
+
+
+class TestTheOrderOfTheChecks:
+    """Of several faults, the first in the order target, `by`, reference, extra is
+    reported (TimeLineAnnotator/project-management#484, 4A)."""
+
+    def test_the_target_before_by(self, csv_file):
+        target = timeline("beat", name="Measures")
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="bar")
+
+        assert failed.message.endswith(NOT_ONE_OF_THEM)
+
+    def test_the_target_before_a_missing_reference(self, csv_file):
+        target = timeline("beat", name="Measures")
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="measure")
+
+        assert failed.message.endswith(NOT_ONE_OF_THEM)
+
+    def test_the_target_before_a_wrong_reference(self, csv_file):
+        target = timeline("beat", name="Measures")
+        reference = timeline("marker", name="Sections", ordinal=2)
+        doc = document(timelines=[target, reference])
+
+        failed = refused(
+            doc, target.id, csv_file(), by="measure", reference=reference.id
+        )
+
+        assert failed.message.endswith(NOT_ONE_OF_THEM)
+
+    def test_the_target_before_a_reference_the_document_doesnt_have(self, csv_file):
+        target = timeline("beat", name="Measures")
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="measure", reference="none")
+
+        assert failed.message.endswith(NOT_ONE_OF_THEM)
+
+    def test_a_target_the_document_doesnt_have_before_by(self, csv_file):
+        doc = document(timelines=[timeline("marker")])
+
+        failed = refused(doc, "none", csv_file(), by="bar")
+
+        assert failed.message == "No timeline found with id=none"
+
+    def test_by_before_a_missing_reference(self, csv_file):
+        target = timeline("marker")
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="bar")
+
+        assert failed.message == BY
+
+    def test_by_before_a_wrong_reference(self, csv_file):
+        target = timeline("marker")
+        reference = timeline("marker", ordinal=2)
+        doc = document(timelines=[target, reference])
+
+        failed = refused(doc, target.id, csv_file(), by="bar", reference=reference.id)
+
+        assert failed.message == BY
+
+    def test_by_before_the_extra(self, csv_file, without_the_extra):
+        target = timeline("harmony")
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="bar")
+
+        assert failed.message == BY
+
+    def test_a_missing_reference_before_the_extra(self, csv_file, without_the_extra):
+        target = timeline("harmony")
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="measure")
+
+        assert failed.message == BY_MEASURE
+
+    def test_a_wrong_reference_before_the_extra(self, csv_file, without_the_extra):
+        target = timeline("harmony")
+        reference = timeline("marker", ordinal=2)
+        doc = document(timelines=[target, reference])
+
+        failed = refused(
+            doc, target.id, csv_file(), by="measure", reference=reference.id
+        )
+
+        assert failed.message.endswith("is not a beat timeline")
+
+
+class TestTheCsvIsNamed:
+    def test_a_refusal_with_a_path_given_as_text_names_the_file(self, csv_file):
+        target = timeline("beat", name="Measures")
+        doc = document(timelines=[target])
+        path = csv_file()
+
+        failed = refused(doc, target.id, str(path), by="time")
+
+        assert failed.path == path
+        assert str(failed) == (
+            f"data.csv: Beat timeline 'Measures' (ordinal 1) {NOT_ONE_OF_THEM}"
+        )
+
+    def test_a_refusal_of_by_with_a_path_given_as_text_names_the_file(self, csv_file):
+        target = timeline("marker")
+        doc = document(timelines=[target])
+        path = csv_file()
+
+        failed = refused(doc, target.id, str(path), by="bar")
+
+        assert failed.path == path
+        assert str(failed) == f"data.csv: {BY}"
+
+
+class TestSurface:
+    # Every name of the importers' contract that exists so far:
+    # TimeLineAnnotator/project-management's specs/wp16-importers-command/
+    # contracts/python-api.md and plan.md. `import_beats` and `import_metadata`
+    # join them with their own tasks.
+    CONTRACT = [
+        "ImportFailed",
+        "ImportResult",
+        "RowProblem",
+        "harmony_available",
+        "import_csv",
+    ]
+
+    def test_all_holds_the_names_of_the_contract(self):
+        assert sorted(importers.__all__) == sorted(self.CONTRACT)
+
+    @pytest.mark.parametrize("name", CONTRACT)
+    def test_each_name_can_be_imported_from_the_package(self, name):
+        namespace = {}
+
+        exec(f"from tilia_core.importers import {name}", namespace)
+
+        assert namespace[name] is getattr(importers, name)
+
+    def test_import_csv_takes_by_and_the_reference_as_keywords(self):
+        parameters = inspect.signature(importers.import_csv).parameters
+
+        assert list(parameters) == ["document", "target", "path", "by", "reference"]
+        assert parameters["by"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert parameters["by"].default is inspect.Parameter.empty
+        assert parameters["reference"].kind is inspect.Parameter.KEYWORD_ONLY
+        assert parameters["reference"].default is None
+
+    def test_the_functions_are_documented(self):
+        assert importers.import_csv.__doc__
+        assert importers.harmony_available.__doc__
 
 
 class TestHarmonyAvailable:
