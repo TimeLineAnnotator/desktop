@@ -1,9 +1,13 @@
-"""Per-computer state kept in versioned TOML files in a per-user folder.
+"""Per-computer state, and the atomic write every file the core writes goes through.
 
-Files are read and written with tomlkit, so comments, key order and keys this
-code doesn't know all survive a rewrite: users may edit the files by hand, and
-an older TiLiA must not lose what a newer one wrote. Every file has a top-level
-integer ``version``, and every write is atomic.
+`atomic_write` is the core's one implementation of atomic writes: the `.tla`
+writer uses it, and so do the per-computer state files.
+
+Per-computer state is kept in versioned TOML files in a per-user folder. Files
+are read and written with tomlkit, so comments, key order and keys this code
+doesn't know all survive a rewrite: users may edit the files by hand, and an
+older TiLiA must not lose what a newer one wrote. Every file has a top-level
+integer ``version``, and every write goes through `atomic_write`.
 """
 
 from __future__ import annotations

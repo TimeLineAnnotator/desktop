@@ -2,11 +2,19 @@ import functools
 from unittest.mock import patch
 
 import pytest
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
-from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
-from tests.utils import save_and_reopen, save_tilia_to_tmp_path
+from tests.ui.timelines.interact import (
+    click_timeline_ui,
+    drag_mouse_in_timeline_view,
+    press_key,
+)
+from tests.ui.timelines.marker.interact import click_marker_ui
+from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
 from tilia.file.common import are_tilia_data_equal
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, Post, get, post
@@ -130,6 +138,40 @@ class TestTimelineUICreation:
 
         tls.delete_timeline(tls[0])  # this should be a command
         assert tls.is_empty
+
+    def test_delete_deletes_its_view(self, tls, tluis):
+        commands.execute("timelines.add.marker", name="")
+        timeline_ui = tluis.get_timeline_ui(tls[0].id)
+        view = timeline_ui.view
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.delete", timeline_ui)
+        # The view is only scheduled for deletion; an event loop would delete
+        # it right away, so do that here. Left to the garbage collector, it
+        # was freed with its scene at any later time, which corrupted the heap.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert not shiboken6.isValid(view)
+
+    def test_delete_first_timeline_undo_redo(self, tls, tluis):
+        commands.execute("timelines.add.marker", name="a")
+        commands.execute("timelines.add.marker", name="b")
+
+        with undoable():
+            commands.execute("timeline.delete", tluis[0], confirm=False)
+
+    def test_delete_middle_timeline_undo_redo(self, tls, tluis):
+        for name in ("a", "b", "c", "d"):
+            commands.execute("timelines.add.marker", name=name)
+        b = tls.get_timeline_by_attr("name", "b")
+
+        with undoable():
+            commands.execute(
+                "timeline.delete", tluis.get_timeline_ui(b.id), confirm=False
+            )
+
+        ordinals = [(tl.get_data("name"), tl.get_data("ordinal")) for tl in sorted(tls)]
+        assert ordinals == [("a", 1), ("c", 2), ("d", 3)]
 
     def test_update_select_order(self, tls, tluis):
         tl1 = tls.create_timeline(HierarchyTimeline, name="test1")
@@ -358,6 +400,40 @@ class TestSeek:
             commands.execute(add_request)
         assert tlui[0].get_data("time") == pytest.approx(50)
 
+    def test_split_via_shortcut_while_dragging_slider_splits_at_drag_time(
+        self, hierarchy_tlui, slider_tlui, tilia_state, tluis
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=0, end=100, level=1)
+
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        target_x = time_x_converter.get_x_by_time(30)
+        drag_mouse_in_timeline_view(target_x, y, release=False)
+
+        press_key("s")
+
+        assert len(hierarchy_tlui) == 2
+        ordered = sorted(hierarchy_tlui, key=lambda h: h.get_data("start"))
+        assert ordered[0].get_data("end") == pytest.approx(30)
+        assert ordered[1].get_data("start") == pytest.approx(30)
+
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+        # Splitting posts Post.LOOP_IGNORE_COMPONENT unconditionally (see
+        # HierarchyTimeline.component_manager.split), which adds the
+        # replaced unit's id to TimelineUIs.loop_delete_ignore. That set is
+        # only ever pruned from inside on_hierarchy_merge_split, and only
+        # when a loop is active at split time -- so a split with no loop
+        # active (as here) leaves a stale id in a set that lives on the
+        # module-scoped TimelineUIs instance (tests/conftest.py's `qtui`
+        # fixture) for the rest of this test module. Because per-test
+        # id generators restart from the same values (App.on_clear via the
+        # `tilia_state` fixture), a later test's loop bookkeeping can find
+        # that id already present and misbehave. Clear it explicitly so
+        # this test doesn't leak state into whatever runs after it in the
+        # same module.
+        tluis.loop_delete_ignore.clear()
+
 
 class TestLoop:
     def test_loop_with_none_selected(self, tilia_state):
@@ -489,6 +565,170 @@ class TestLoop:
         assert not tluis.loop_elements
         assert not tilia_state.player.is_looping
 
+    def test_group_keeps_loop(self):
+        # Grouping a looped hierarchy must not affect the loop.
+        # HierarchyTimeline.group (tilia/timelines/hierarchy/timeline.py)
+        # only creates a new, higher-level wrapping component -- it never
+        # deletes/recreates the grouped units, so the looped element (and
+        # therefore the loop) is untouched.
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 20)
+
+        commands.execute("timeline.hierarchy.group")
+        assert get(Get.LOOP_TIME) == (10, 20)
+
+    def test_loading_new_media_cancels_loop(self, tilia_state, tluis, resources):
+        # Loading new media while a loop is active must cancel the loop.
+        post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH, scale_timelines="yes")
+        commands.execute("timeline.hierarchy.add", start=1, end=5, level=1)
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (1, 5)
+
+        post(
+            Post.APP_MEDIA_LOAD,
+            str((resources / "example.wav").resolve()),
+            scale_timelines="yes",
+        )
+
+        assert get(Get.LOOP_TIME) == (0, 0)
+        assert not tluis.loop_elements
+        assert not tilia_state.player.is_looping
+
+    def test_loop_new_hierarchy_after_media_load_cancelled_loop(
+        self, tilia_state, tluis, resources
+    ):
+        # Once a loop has been cancelled by loading new media, selecting a
+        # (new) hierarchy and looping again must loop that hierarchy.
+        post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH, scale_timelines="yes")
+        commands.execute("timeline.hierarchy.add", start=1, end=5, level=1)
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (1, 5)
+
+        post(
+            Post.APP_MEDIA_LOAD,
+            str((resources / "example.wav").resolve()),
+            scale_timelines="yes",
+        )
+
+        commands.execute("timeline.hierarchy.add", start=6, end=8, level=1)
+        self.tlui.deselect_all_elements()
+        self.tlui.select_element(self.tlui[1])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+
+        assert get(Get.LOOP_TIME) == (6, 8)
+
+    def test_loop_redo_of_invalidating_change_cancels(self):
+        # Sibling of test_loop_undo_manager_cancels above -- redoing a
+        # change that invalidates the active loop must
+        # cancel it too, just like undoing one does. Delete the looped
+        # hierarchy, undo the delete (bringing it back), re-loop over it,
+        # then redo the delete so the hierarchy vanishes again.
+        commands.execute("timeline.hierarchy.add", start=10, end=20, level=1)
+        self.tlui.select_all_elements()
+        commands.execute("timeline.component.delete")
+        commands.execute("edit.undo")
+
+        self.tlui.select_all_elements()
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 20)
+
+        commands.execute("edit.redo")
+        assert get(Get.LOOP_TIME) == (0, 0)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "SliderTimelineUI.set_width (tilia/ui/timelines/slider/"
+            "timeline.py:124-127) overrides TimelineUI.set_width without"
+            " repositioning scene.loop_box the way the base implementation"
+            " (tilia/ui/timelines/base/timeline.py:248-252) does, so only the"
+            " slider timeline's loop shading is left behind on zoom."
+        ),
+    )
+    def test_zoom_updates_slider_loop_shading(self, tilia_state, slider_tlui):
+        # Manual QA found that zooming with the mouse wheel (Ctrl+wheel
+        # goes through the same commands.execute("view.zoom.in"/"out") as the
+        # toolbar -- see TimelineUIsView.wheelEvent) while a loop is active
+        # does not move the slider timeline's loop-shading box.
+        # TimelineUI.set_width (ui/timelines/base/timeline.py) repositions
+        # scene.loop_box after a width change, but SliderTimelineUI.set_width
+        # (ui/timelines/slider/timeline.py) overrides set_width without doing
+        # the same, so only the slider timeline's loop shading is left behind
+        # at its pre-zoom position.
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 50)
+
+        commands.execute("view.zoom.in")
+
+        loop_box_rect = slider_tlui.scene.loop_box.rect()
+        assert loop_box_rect.left() == pytest.approx(time_x_converter.get_x_by_time(10))
+        assert loop_box_rect.right() == pytest.approx(
+            time_x_converter.get_x_by_time(50)
+        )
+
+    def test_add_pre_start_while_looped_extends_loop_region(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 50)
+
+        commands.execute("timeline.hierarchy.add_pre_start", length=5)
+
+        assert get(Get.LOOP_TIME) == (5, 50)
+
+    def test_add_post_end_while_looped_extends_loop_region(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute("timeline.hierarchy.add", start=10, end=50, level=1)
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 50)
+
+        commands.execute("timeline.hierarchy.add_post_end", length=20)
+
+        assert get(Get.LOOP_TIME) == (10, 70)
+
+    def test_loop_hierarchy_with_pre_start_includes_it(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, pre_start=5
+        )
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (5, 50)
+
+    def test_loop_hierarchy_with_post_end_includes_it(self, tilia_state):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add", start=10, end=50, level=1, post_end=70
+        )
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (10, 70)
+
+    def test_loop_hierarchy_with_pre_start_and_post_end_includes_both(
+        self, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=10,
+            end=50,
+            level=1,
+            pre_start=5,
+            post_end=70,
+        )
+        self.tlui.select_element(self.tlui[0])
+        post(Post.PLAYER_TOGGLE_LOOP, True)
+        assert get(Get.LOOP_TIME) == (5, 70)
+
 
 class TestClearAllTimelines:
     def test_none(self, tilia, tluis):
@@ -538,6 +778,39 @@ class TestClearAllTimelines:
             commands.execute("timelines.clear_all")
 
         assert all(tl.is_empty for tl in tluis[0])
+
+
+class TestSelectionBoxes:
+    def test_reopening_file_during_press_does_not_crash(
+        self, tluis, marker_tlui, tilia_state, tmp_path
+    ):
+        # Reopening deletes the timeline scenes. The collection used to keep the
+        # selection box, and the next clear_selection_boxes(), here the one on
+        # release, raised "Internal C++ object (SelectionBoxQt) already deleted".
+        tilia_state.duration = 100
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+        assert tluis.selection_boxes
+
+        save_and_reopen(tmp_path)
+
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+    def test_deleting_timeline_during_press_does_not_crash(
+        self, tluis, marker_tlui, tilia_state
+    ):
+        tilia_state.duration = 100
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+        assert tluis.selection_boxes
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.delete", marker_tlui)
+        # The scene is only scheduled for deletion; an event loop would delete
+        # it right away, so do that here.
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
 
 
 class TestZoom:
@@ -608,6 +881,42 @@ class TestZoom:
         post(Post.PLAYER_DURATION_AVAILABLE, duration)
         assert get(Get.CURRENT_ZOOM) == pytest.approx(1.5)
         assert get(Get.PLAYBACK_AREA_WIDTH) == pytest.approx(original_width)
+
+
+class TestZoomWheel:
+    """Zooming in/out with the mouse wheel (Ctrl + wheel over
+    the timeline view), as opposed to the view.zoom.in/out commands tested
+    above, which TestZoom exercises directly."""
+
+    @staticmethod
+    def _send_ctrl_wheel(view, angle_delta_y: int):
+        event = QWheelEvent(
+            QPointF(0, 0),
+            QPointF(0, 0),
+            QPoint(0, 0),
+            QPoint(0, angle_delta_y),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        view.wheelEvent(event)
+
+    def test_ctrl_wheel_up_zooms_in(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 1.0)
+
+        self._send_ctrl_wheel(tluis.view, 120)
+
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0 * ZOOM_MULTIPLIER)
+
+    def test_ctrl_wheel_down_zooms_out(self, tilia_state, tluis):
+        tilia_state.duration = 100
+        commands.execute("view.zoom.set", 1.0)
+
+        self._send_ctrl_wheel(tluis.view, -120)
+
+        assert get(Get.CURRENT_ZOOM) == pytest.approx(1.0 / ZOOM_MULTIPLIER)
 
 
 def test_timeline_command_fails(tilia, qtui, tluis, marker_tlui, tilia_errors):
