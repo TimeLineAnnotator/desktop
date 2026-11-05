@@ -455,6 +455,144 @@ class TestDurationJitter:
         assert len(tls.get_timelines_by_type(HierarchyTimeline)[0]) == 0
 
 
+def hierarchy_bounds(tls):
+    return [
+        (h.get_data("start"), h.get_data("end"))
+        for h in tls.get_timelines_by_type(HierarchyTimeline)[0]
+    ]
+
+
+class TestUndoWithMismatchedMediaDuration:
+    # Media whose real length differs from the file's stored media length by
+    # more than DURATION_JITTER_TOLERANCE -- a recording found next to a moved
+    # .tla, or a different file at the same path -- reports its duration while
+    # the file is still loading, before any timeline exists. Opening used to
+    # keep the stored length in the metadata, so undo restored it through the
+    # scale/crop prompt, rescaling the live components right before the
+    # snapshot replaced them, which scrambled hierarchy boundaries.
+    REPORTED_DURATION = EXAMPLE_MEDIA_DURATION - DURATION_JITTER_TOLERANCE - 1
+
+    @pytest.fixture(autouse=True)
+    def open_with_mismatched_media(self, tilia_state, hierarchy_tlui, tmp_path):
+        tilia_state.media_path = EXAMPLE_MEDIA_PATH
+        tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
+        commands.execute("timeline.hierarchy.add", start=1, end=3, level=1)
+
+        def load_reporting_other_duration(player, _path):
+            # Like QtPlayer._engine_load_media, report the duration mid-load.
+            player.on_media_duration_available(self.REPORTED_DURATION)
+            return True
+
+        with patch.object(
+            QtAudioPlayer,
+            "_engine_load_media",
+            autospec=True,
+            side_effect=load_reporting_other_duration,
+        ):
+            save_and_reopen(tmp_path)
+
+        assert tilia_state.duration == self.REPORTED_DURATION
+
+    def test_opening_stores_loaded_media_length(self, tilia):
+        assert get(Get.MEDIA_METADATA)["media length"] == self.REPORTED_DURATION
+        # Not an edit: the same media is still loaded on the next open.
+        assert not tilia.is_file_modified()
+
+    def test_undo_and_redo_do_not_prompt_to_scale(self):
+        commands.execute("timeline.hierarchy.add", start=4, end=6, level=1)
+
+        with patch_yes_or_no_dialog(True) as scale_prompt:
+            commands.execute("edit.undo")
+            commands.execute("edit.redo")
+
+        assert not scale_prompt.called
+
+    def test_undo_keeps_hierarchy_boundaries(self, tls):
+        commands.execute("timeline.hierarchy.add", start=4, end=6, level=1)
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("edit.undo")
+
+        assert hierarchy_bounds(tls) == [(1, 3)]
+
+    def test_undo_keeps_loaded_media_length(self, tilia_state):
+        commands.execute("timeline.hierarchy.add", start=4, end=6, level=1)
+
+        with patch_yes_or_no_dialog(True):
+            commands.execute("edit.undo")
+
+        assert tilia_state.duration == self.REPORTED_DURATION
+        assert get(Get.MEDIA_METADATA)["media length"] == self.REPORTED_DURATION
+
+
+class TestUndoRestoresDurationWithoutMedia:
+    def test_undo_restores_duration_without_rescaling(
+        self, tilia_state, hierarchy_tlui, tls
+    ):
+        tilia_state.set_duration(100, scale_timelines="no")
+        commands.execute("timeline.hierarchy.add", start=10, end=30, level=1)
+        # Not recorded on its own: the next action's snapshot carries it.
+        tilia_state.set_duration(200, scale_timelines="yes")
+        commands.execute("timeline.hierarchy.add", start=70, end=80, level=1)
+
+        with patch_yes_or_no_dialog(True) as scale_prompt:
+            commands.execute("edit.undo")
+
+        assert not scale_prompt.called
+        assert tilia_state.duration == 100
+        assert hierarchy_bounds(tls) == [(10, 30)]
+
+
+class TestUndoAcrossMediaLoad:
+    SCALE_FACTOR = EXAMPLE_MEDIA_DURATION / 20
+
+    @pytest.fixture(autouse=True)
+    def load_media_over_hierarchy(self, tilia_state, hierarchy_tlui):
+        tilia_state.set_duration(20, scale_timelines="no")
+        commands.execute("timeline.hierarchy.add", start=2, end=6, level=1)
+
+        def load_reporting_duration(player, _path):
+            player.on_media_duration_available(EXAMPLE_MEDIA_DURATION)
+            return True
+
+        with (
+            patch.object(
+                QtAudioPlayer,
+                "_engine_load_media",
+                autospec=True,
+                side_effect=load_reporting_duration,
+            ),
+            Serve(Get.PLAYER_CLASS, QtAudioPlayer),
+        ):
+            post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH, scale_timelines="yes")
+            yield
+
+    def test_undo_restores_timelines_and_duration_without_prompting(
+        self, tilia_state, tls
+    ):
+        with patch_yes_or_no_dialog(True) as scale_prompt:
+            commands.execute("edit.undo")
+
+        assert not scale_prompt.called
+        assert not tilia_state.media_path
+        assert tilia_state.duration == 20
+        assert hierarchy_bounds(tls) == [(2, 6)]
+
+    def test_redo_restores_timelines_and_duration_without_prompting(
+        self, tilia_state, tls
+    ):
+        with patch_yes_or_no_dialog([True, True]) as scale_prompt:
+            commands.execute("edit.undo")
+            commands.execute("edit.redo")
+
+        assert not scale_prompt.called
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+        assert hierarchy_bounds(tls) == [
+            (pytest.approx(2 * self.SCALE_FACTOR), pytest.approx(6 * self.SCALE_FACTOR))
+        ]
+
+
 class TestMediaLoad:
     @staticmethod
     def _load_media(path, scale_timelines: Literal["yes", "no", "prompt"] = "prompt"):

@@ -261,6 +261,16 @@ class TestHierarchyTimelineComponentManager:
         assert hrc3.start == 1.5
         assert hrc3.end == 3
 
+    def test_scale_changes_components_hash(self, hierarchy_tl):
+        # Undo diffs components by hash, so a stale one would keep a scaled
+        # hierarchy from being restored.
+        hierarchy_tl.create_hierarchy(start=1, end=3, level=1)
+        hash_before = hierarchy_tl.component_manager.hash_components()
+
+        hierarchy_tl.component_manager.scale(0.5)
+
+        assert hierarchy_tl.component_manager.hash_components() != hash_before
+
     def test_scale_scales_pre_start_and_post_end(self, hierarchy_tl):
         hrc, _ = hierarchy_tl.create_hierarchy(
             start=2, end=4, level=1, pre_start=1, post_end=6

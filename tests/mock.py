@@ -123,8 +123,8 @@ def patch_yes_or_no_dialog(success: bool | list[bool]):
     else:
         raise ValueError("success must be a bool or a list of bools.")
 
-    with patch.object(YesOrNoMessageBox, "exec", side_effect=success):
-        yield
+    with patch.object(YesOrNoMessageBox, "exec", side_effect=success) as exec_:
+        yield exec_
 
 
 @contextmanager
