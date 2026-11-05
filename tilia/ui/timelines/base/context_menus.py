@@ -81,6 +81,9 @@ class TimelineUIContextMenu(TiliaMenu):
         def on_clear_timeline():
             commands.execute("timeline.clear", self.timeline_ui)
 
+        def on_duplicate_timeline():
+            commands.execute("timeline.duplicate", self.timeline_ui)
+
         self.addSeparator()
 
         delete_timeline = CommandQAction("timeline.delete", self)
@@ -93,6 +96,11 @@ class TimelineUIContextMenu(TiliaMenu):
         clear_timeline.setEnabled(not self.timeline_ui.is_empty)
         clear_timeline.triggered.connect(on_clear_timeline)
         self.addAction(clear_timeline)
+
+        duplicate_timeline = CommandQAction("timeline.duplicate", self)
+        duplicate_timeline.setText("Duplicate")
+        duplicate_timeline.triggered.connect(on_duplicate_timeline)
+        self.addAction(duplicate_timeline)
 
 
 class TimelineUIElementContextMenu(TiliaMenu):

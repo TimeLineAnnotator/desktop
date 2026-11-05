@@ -7,7 +7,15 @@ The test suite is written in pytest. Below are some things to keep in my mind wh
 - The `press_key` and `type_string` functions can be used to simulate keyboard input.
 
 ### Modal dialogs
-Unfortunately, we can't simulate input to modal dialogs, as they block execution. To work around that, we can:
+If a command accepts the value a dialog would ask for, pass it as an argument instead of mocking the dialog:
+
+```python
+commands.execute("timelines.add.marker", name="Cadences")
+```
+
+Only drive the dialog when it is what the test is about (e.g. creating a timeline through the full prompt flow, or cancelling it).
+
+Unfortunately, we can't simulate input to modal dialogs, as they block execution. When a test does need the dialog, we can:
 - Mock methods of the modal dialogs (e.g. `QInputDialog.getInt`). There are utility functions that do that in some cases (e.g. `tests.utils.patch_file_dialog`)
 - If the dialog is called in response to a `Get` request, the `Serve` context manager can be used to mock the return value of the request. E.g.:
 
@@ -57,6 +65,12 @@ Commonly useful helpers:
 - **Menu / command discovery:** `get_command_action(menu, command_name)`, `get_command_from_toolbar(tlui, command_name)`, `get_command_names(menu)`, `get_submenu(menu, name)`, `get_main_window_menu(qtui, name)`, `get_context_menu(tlui, x, y)`, `get_actions_in_menu(menu)`. `get_command_action` walks ribbon-style toolbars where commands are wrapped in `QWidgetAction` containers.
 - **Modal-dialog patches** (in `tests.mock`): `patch_file_dialog`, `patch_ask_for_string_dialog` — context managers that drive modals, as covered in the modal-dialogs section above.
 
+## Don't write `.tla` files by hand
+
+Build the state a test needs through user actions (`commands.execute(...)`, `tilia_state`) and round-trip it with `save_and_reopen(tmp_path)`. Don't assemble file data with `get_blank_file_data()` + `json.dumps` and write it to disk: hand-written files drift from what TiLiA actually saves and can encode states no user can reach. If no user flow can produce a state, question whether it needs a test at all. Some older tests still use the hand-written pattern; don't copy it.
+
+The exception is loading files the current version can't produce, such as old file formats (migration) or timeline kinds it doesn't know.
+
 ## Index timelines and UI elements directly
 
 Index `*_tlui` and timeline collections directly: `range_tlui[0]`, not `list(range_tlui)[0]`. Likewise `len(range_tlui)` over `len(list(range_tlui))`. UI elements are kept sorted by their components' `ORDERING_ATTRS`, so positional indexing is well-defined.
@@ -64,7 +78,7 @@ Index `*_tlui` and timeline collections directly: `range_tlui[0]`, not `list(ran
 Prefer UI-layer access over backend access in tests: `range_tlui[0].get_data("joined_right")` exercises the same path the user does. Drop into the backend (`.timeline`, `.rows`, `.components`) only when the data isn't reachable from the UI side.
 
 ## How to test code that depends on settings?
-The `use_test_settings` fixture (auto-applied via the `qtui` fixture) routes settings reads and writes to a dedicated test QSettings store, so production settings are never touched. Tests that depend on a specific value should set it explicitly with `settings.set("group", "name", value)` and not rely on the default — settings persist across tests within a module, so reading "the current value" before mutating gives you the value the previous test left behind, not the default.
+Every test process, the xdist controller included, keeps its settings in a throwaway directory of its own (see `tests/__init__.py`), so production settings are never touched. The autouse `restore_settings_after_test` fixture undoes every setting a test changes, so no test inherits values from the one before. Tests that depend on a specific value should still set it explicitly with `settings.set("group", "name", value)`, so the test states what it relies on.
 
 ## How to test the right actions are available in the UI?
 The `get_submenu`, `get_action` and `get_qaction` in the `tests.ui.utils` module should help.

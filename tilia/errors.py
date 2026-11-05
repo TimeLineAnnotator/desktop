@@ -79,7 +79,7 @@ FILE_NOT_FOUND = Error(
 )
 LOOP_DISJUNCT = Error("Loop Selection Error", "Selected Hierarchies are disjunct.")
 PLAYER_TOOLBAR_ERROR = Error("Updating Player Toolbar", "{}")
-YOUTUBE_PLAYER_ERROR = Error("Youtube Player Error", "{}")
+YOUTUBE_PLAYER_ERROR = Error("YouTube Player Error", "{}")
 METADATA_FIELD_NOT_FOUND = Error("Metadata field not found", "Field '{}' not found.")
 
 CLI_METADATA_CANT_SET_MEDIA_LENGTH = Error(
@@ -137,6 +137,8 @@ AMBIGUOUS_SHORTCUT = Error(
     "Two or more commands are bound to the same key combination. "
     "Qt could not decide which to fire. Please report this:\n\n{}",
 )
+VELOPACK_UPDATE_FAILED = Error("Update failed", "{}")
+GIT_PULL_FAILED = Error("Pull failed", "{}")
 
 
 def display(error: Error, *args):

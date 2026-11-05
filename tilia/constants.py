@@ -3,12 +3,7 @@ from importlib import metadata
 from pathlib import Path
 
 if (toml := Path(__file__).parent.parent / "pyproject.toml").exists():
-    import sys
-
-    if sys.version_info >= (3, 11):
-        from tomllib import load
-    else:
-        from tomli import load
+    from tomllib import load
 
     with open(toml, "rb") as f:
         setupcfg = load(f).get("project", {})
@@ -40,6 +35,10 @@ VERSION = setupcfg.get("version", "0.0.0")
 
 YEAR = "2022-2026"
 FILE_EXTENSION = "tla"
+# Max difference, in seconds, between the stored media length and the one the
+# player reports that is still treated as the same media (YouTube reports the
+# duration asynchronously and it is often off by a fraction of a second).
+DURATION_JITTER_TOLERANCE = 2.0
 EMAIL_URL = "mailto:" + EMAIL
 
 GITHUB_URL = setupcfg.get("urls", {}).get("Repository", "")

@@ -7,9 +7,6 @@
   <body>
     <div
       id="yt-player-iframe"
-      width="640"
-      height="360"
-      src="https://www.youtube.com/embed?enablejsapi=1"
     ></div>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script type="text/javascript">
@@ -26,6 +23,17 @@
       const tag = document.createElement("script");
       tag.id = "iframe-temp";
       tag.src = "https://www.youtube.com/iframe_api";
+      // Reported as recoverable: reloading the page re-runs this script tag and
+      // re-issues loadVideo, so once the connection is back the refresh really
+      // does recover. This is the one failure a reload reliably repairs.
+      tag.addEventListener("error", function () {
+        const msg = "Could not reach YouTube. Check your internet connection.";
+        const tryNotify = () => {
+          if (backend) backend.on_recoverable_error(msg);
+          else setTimeout(tryNotify, 50);
+        };
+        tryNotify();
+      });
       const firstScriptTag = document.getElementsByTagName("script")[0];
       firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
@@ -50,10 +58,16 @@
       function _loadPlayer() {
         player = new YT.Player("yt-player-iframe", {
           events: {
+            onReady: function () {
+              player.getIframe().allow = "autoplay";
+            },
             onError: onError,
             onPlaybackRateChange: onPlaybackRateChange,
             onStateChange: onPlayerStateChange,
-          }
+          },
+          playerVars: {
+            rel: 0,
+          },
         });
       }
 
@@ -107,7 +121,7 @@
             break;
 
           case 5:
-            backend.on_error(
+            backend.on_recoverable_error(
               "The requested content cannot be played in an HTML5 player or another error related to the HTML5 player has occurred.",
             );
             break;
@@ -126,7 +140,7 @@
             break;
 
           default:
-            backend.on_error("Error code: ${event.data}.");
+            backend.on_error(`Error code: ${event.data}.`);
         }
       }
 
@@ -183,6 +197,10 @@
 
       function setLoop(isLooping) {
         tryPlayerFunctionElseQueue("setLoop", isLooping);
+      }
+
+      function _print(...message) {
+        backend._print(Array.from(message, (m) => JSON.stringify(m)).join(" "));
       }
     </script>
   </body>

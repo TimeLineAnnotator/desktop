@@ -3,6 +3,8 @@ from __future__ import annotations
 import itertools
 import math
 from bisect import bisect
+from collections.abc import Iterator
+from contextlib import contextmanager
 from enum import Enum
 from math import isclose
 from typing import Any, cast
@@ -28,6 +30,25 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.timeline = cast(BeatTimeline, self.timeline)
         self.compute_is_first_in_measure = True
         self.compute_metric_fraction_dict = True
+
+    @contextmanager
+    def suppressing_is_first_in_measure(self) -> Iterator[bool]:
+        """
+        Suppress per-beat measure recomputation for the duration of the block.
+
+        Yields the value the flag had on entry, so a caller can tell whether it
+        owns the recomputation or an outer block will do it once at the end.
+        Restoring that value rather than a literal True is what keeps nested
+        blocks correct; the try/finally keeps a raising body from leaving the
+        flag off for the rest of the timeline's life, which would silently stop
+        every beat created afterwards from getting any measure data.
+        """
+        was_computing = self.compute_is_first_in_measure
+        self.compute_is_first_in_measure = False
+        try:
+            yield was_computing
+        finally:
+            self.compute_is_first_in_measure = was_computing
 
     @property
     def beat_times(self):
@@ -168,6 +189,13 @@ class BeatTLComponentManager(TimelineComponentManager):
         self.compute_is_first_in_measure = True
 
         self.timeline.recalculate_measures()
+        # Files saved by earlier versions can hold duplicate or out-of-range
+        # indices.
+        self.timeline.measures_to_force_display = [
+            i
+            for i in dict.fromkeys(self.timeline.measures_to_force_display)
+            if 0 <= i < self.timeline.measure_count
+        ]
         post(Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def restore_state(self, prev_state: dict):
@@ -417,13 +445,13 @@ class BeatTimeline(Timeline):
                 diff = beats - beats_on_starting_measure
                 extension = [min(diff, amount)]
                 remaining_beats = amount - diff
-            elif beats_on_starting_measure == beats:
+            else:
+                # A measure may hold more beats than the beat pattern
+                # prescribes for it, as "Set amount in measure" sets an
+                # arbitrary amount. There is nothing left to fill in that
+                # case, so the extension starts a new measure.
                 extension = []
                 remaining_beats = amount
-            else:
-                raise ValueError(
-                    "More beats on starting measure than found in the iterator"
-                )
         else:
             extension = []
             remaining_beats = amount
@@ -472,7 +500,7 @@ class BeatTimeline(Timeline):
 
         bp_index = (self.measure_count % len(self.beat_pattern)) - 1
         is_last_measure_complete = (
-            self._beats_in_measure[-1] == self.beat_pattern[bp_index]
+            self._beats_in_measure[-1] >= self.beat_pattern[bp_index]
         )
 
         if is_last_measure_complete:
@@ -508,12 +536,11 @@ class BeatTimeline(Timeline):
         if not extra_measure_count:
             return
         self.measure_numbers = self.measure_numbers[:-extra_measure_count]
-        if self.measures_to_force_display:
-            while (
-                self.measures_to_force_display
-                and self.measures_to_force_display[-1] >= self.measure_count
-            ):
-                self.measures_to_force_display.pop(-1)
+        # measures_to_force_display is not sorted, so every index has to be
+        # checked, not just the ones at the end of the list.
+        self.measures_to_force_display = [
+            i for i in self.measures_to_force_display if i < self.measure_count
+        ]
 
     def update_beats_that_start_measures(self):
         # noinspection PyAttributeOutsideInit
@@ -617,7 +644,8 @@ class BeatTimeline(Timeline):
 
     def force_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()
-        self.measures_to_force_display.append(measure_index)
+        if measure_index not in self.measures_to_force_display:
+            self.measures_to_force_display.append(measure_index)
 
     def unforce_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()
@@ -639,16 +667,24 @@ class BeatTimeline(Timeline):
 
         self.clear_cached_metric_positions()
 
-        self.component_manager.compute_is_first_in_measure = False
-        for component in list(reversed(components)):
-            self.component_manager.delete_component(component)
-        self.component_manager.update_is_first_in_measure = True
+        component_manager = self.component_manager
+        with component_manager.suppressing_is_first_in_measure() as was_computing:
+            for component in list(reversed(components)):
+                component_manager.delete_component(component)
 
-        if not self.is_empty:
-            self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
-            post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
+        if not was_computing:
+            # BeatTLComponentManager.restore_state, reached on every undo and
+            # redo, suppresses recomputation across a whole delete-then-create
+            # pass and recomputes once at the end. Recomputing here would make
+            # every beat it re-creates afterwards sweep the whole timeline.
+            return
 
-            # Higher index is possible.
+        # Unconditional, including when the timeline is now empty: otherwise it
+        # keeps a beats_in_measure / measure_numbers describing beats that no
+        # longer exist, and the UI keeps their labels.
+        self.recalculate_measures()
+        component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
 
     class FillMethod(Enum):
         BY_AMOUNT = 0

@@ -6,12 +6,13 @@ import string
 from typing import Any
 
 import tilia.errors
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Post, post
 from tilia.settings import settings
 from tilia.timelines.base.component.segmentlike import (
     crop_segmentlike,
     scale_segmentlike,
 )
+from tilia.timelines.base.media_bounds import is_past_media_end
 from tilia.timelines.base.timeline import (
     Timeline,
     TimelineComponentManager,
@@ -63,8 +64,7 @@ class RangeTLComponentManager(TimelineComponentManager):
         if start >= end:
             return False, "Start time must be before end time."
 
-        media_duration = get(Get.MEDIA_DURATION)
-        if start < 0 or end > media_duration:
+        if start < 0 or is_past_media_end(end):
             return False, "Range is outside media bounds."
 
         pre_start = kwargs.get("pre_start")
@@ -72,7 +72,7 @@ class RangeTLComponentManager(TimelineComponentManager):
             return False, "pre_start is outside media bounds."
 
         post_end = kwargs.get("post_end")
-        if post_end is not None and post_end > media_duration:
+        if post_end is not None and is_past_media_end(post_end):
             return False, "post_end is outside media bounds."
 
         return True, ""

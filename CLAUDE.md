@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.10–3.12 (3.13 is flaky due to PySide dependencies).
+TiLiA (TimeLine Annotator) is a PySide6 desktop GUI for creating and visualizing timeline-based annotations over audio/video/PDF. Python 3.12–3.14.
 
 ## Environment
 
@@ -15,7 +15,8 @@ A virtual environment exists at `.venv`. Activate it before running any Python c
 ```bash
 # Install (editable) with dev extras and pre-commit hooks
 pip install -e .
-pip install --group dev
+pip install --group dev       # includes pytest-xdist, for pytest -n auto
+pip install --group ci-tests  # CI tooling: pytest-timeout, coverage, ruff
 pre-commit install
 
 # Run the app
@@ -23,7 +24,8 @@ tilia                       # Qt GUI
 tilia --user-interface cli  # CLI (source-only, not in compiled builds)
 
 # Tests (pytest-env auto-sets ENVIRONMENT=test and QT_QPA_PLATFORM=offscreen)
-pytest                                                  # full suite
+pytest                                                  # full suite (several minutes)
+pytest -n auto                                          # full suite in parallel (~1.5 min)
 pytest tests/ui/timelines/marker/test_marker_timeline_ui.py    # one file
 pytest tests/ui/timelines/marker/test_marker_timeline_ui.py::TestCreateDelete::test_create_at_selected_time  # one test
 pytest -k marker                                        # by keyword
@@ -39,6 +41,14 @@ python scripts/deploy.py <ref_name> <os_type>  # output in build/<os_type>/exe
 ```
 
 Default pytest timeout is 10s (pytest-timeout). `ffmpeg` must be on PATH for audio export/convert features.
+
+Prefer `-n auto` — the suite takes several minutes serially and about a minute and a half in parallel. A handful of
+tests (notably in `tests/test_app.py` and the CLI roundtrip tests) fail intermittently under
+`-n auto`, and which ones fail varies between runs; this predates any given change, so confirm a
+failure reproduces serially before investigating it. The same goes for `undoable()` on a timeline
+with several components: `TimelineComponentManager.restore_state` recreates components in
+set-iteration order while `hash_components()` hashes them in list order, so whether the assertion
+passes depends on `PYTHONHASHSEED`.
 
 ## Architecture
 
@@ -74,18 +84,26 @@ Rule of thumb: anything a user could trigger is a command; anything only the cod
 - **Use `ORDERING_ATTRS` / natural `__lt__`** when sorting timeline components. Each `TimelineComponent` subclass declares `ORDERING_ATTRS` (e.g. `Range = ("start", "row_id")`); `sorted(components)` already orders correctly. Adding `key=lambda c: c.start` is at best redundant and at worst hides the secondary tiebreaker.
 - **Don't `raise` for stale-UI references or internal-invariant violations** on paths reachable in production. Use `tilia.log.logger.error(...)` + early return. The default console threshold is `ERROR`; `WARNING` only surfaces under `dev.log_requests=True`, so `error` is the level that actually reaches users.
 
+## Branches and PRs
+
+Open pull requests against **`dev`**, not `main`. `dev` is the integration branch; `main` trails it by a long way.
+
+Rebase onto `dev` before opening a PR. A branch cut from `main`, from a release tag, or from an older `dev` can be a hundred commits behind, and test-helper conventions move quickly — `tlui.create_hierarchy(...)` was replaced by `commands.execute("timeline.hierarchy.add", start=..., end=..., level=...)`, for instance — so tests that pass on the old base may not even run on `dev`.
+
 ## Commit hygiene
 
 Split unrelated changes into their own commits, even if they were touched while building a feature: codebase-wide refactors (`type(Foo)` → `type[Foo]`), deprecation removals, mechanical fixes (block-signal patterns), `Post.*` additions consumed elsewhere, and doc/test-pattern updates that emerged from the work belong on their own commits with explanatory messages. Reviewers want to evaluate each rationale separately.
 
-When you discover a pre-existing bug in code unrelated to the feature you're working on, prompt for opening a separate PR off `main`/`dev` rather than burying the fix in the feature branch.
+When you discover a pre-existing bug in code unrelated to the feature you're working on, prompt for opening a separate PR off `dev` rather than burying the fix in the feature branch.
 
 ## Testing conventions
 
 Read `TESTING.md` first. Key points:
 
 - **Simulate users, don't call internals.** Use `commands.execute(...)` everywhere possible — including test *setup*, not just the action under test. Calling `tlui.create_marker(0)` directly is the old style; `commands.execute("timeline.marker.add")` is preferred even when it's not the thing being tested. Older tests violate this; refactors are welcome.
+- **Don't write `.tla` files by hand.** Build state with commands and round-trip it with `save_and_reopen(tmp_path)`; don't copy the older `get_blank_file_data()` + `json.dumps` pattern. Only files the current version can't produce (old formats, unknown timeline kinds) are an exception.
 - **Fixtures** in `tests/conftest.py` + per-kind `fixtures.py` files (registered via `pytest_plugins` in the root conftest). Common: `tilia_state`, `user_actions`, `marker_tlui`, `beat_tlui`, etc.
+- **Pass values as command arguments instead of mocking the dialog** when the command accepts them: `commands.execute("timelines.add.marker", name="Cadences")`, not `Serve(Get.FROM_USER_STRING, ...)` around it. Drive the dialog only when it is what the test is about.
 - **Modal dialogs block execution** and cannot be driven directly. Two workarounds:
   - Mock the Qt method (e.g. `QInputDialog.getInt`); helpers like `tests.utils.patch_file_dialog` exist.
   - If the dialog is triggered by a `Get.FROM_USER_*` request, use `Serve(Get.FROM_USER_INT, (True, 150))` as a context manager to short-circuit it. Prefer mocking the dialog when feasible (covers more code).
@@ -94,7 +112,7 @@ Read `TESTING.md` first. Key points:
 - **Undo/redo: use `undoable()` for all user-initiated state changes.** Wrap the command call in `with undoable():` — this verifies the undo restores state exactly and redo returns to the post-action state. Every command that modifies state should have at least one `undoable()` test.
 - **Drag: test at integration level only.** Use `drag_mouse_in_timeline_view(x, y)` after clicking the drag target. Don't test drag callbacks directly. Cover: normal drag, drag beyond limits (clamped), drag resulting in a state change (e.g. row change for vertical drag).
 - **Keyboard navigation: simulate key presses.** Use `press_key(Qt.Key.Key_Up)` etc., not direct method calls. This exercises the full wiring from keypress event through to the outcome.
-- **Settings: write explicit tests** when behavior depends on a settings value (e.g. height, color, alpha). Change the setting, trigger the relevant action/update, assert the visual property changed. Settings reads and writes are routed to a test QSettings store via the `use_test_settings` fixture (auto-applied through `qtui`), so don't write per-test save/restore fixtures — set the values you depend on explicitly inside each test.
+- **Settings: write explicit tests** when behavior depends on a settings value (e.g. height, color, alpha). Change the setting, trigger the relevant action/update, assert the visual property changed. Settings reads and writes go to a per-process throwaway store (`tests/__init__.py`), and `restore_settings_after_test` undoes every setting a test changes, so don't write per-test save/restore fixtures — set the values you depend on explicitly inside each test.
 - **Interact helpers**: Put per-kind click helpers in `tests/ui/timelines/<kind>/interact.py` (e.g. `click_range_ui(element, button, modifier)`). These should compute coordinates from element data (time → X, row → Y) so test bodies stay readable. Import them at the top of the test file.
 - **File layout for a new timeline kind:**
   - `tests/ui/timelines/<kind>/test_<kind>_timeline_ui.py` — primary test file; no separate element-level file needed unless the element has genuinely complex standalone behavior.
@@ -114,4 +132,36 @@ When a bug is reported in the running app but the test suite is green, agents ca
 
 ## CI
 
-`.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows across Python 3.10–3.13 (excluding Windows+3.13). Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
+`.github/workflows/run-tests.yml` runs ruff + pytest on Linux/macOS/Windows. Pull requests test Python 3.12 and 3.14; pushes to `dev` and `main` and manual runs test 3.12–3.14. Linting is `continue-on-error: true` — ruff failures won't fail CI, but they should still be fixed. After tests, CI boots the GUI and CLI for 10s each as a smoke check.
+
+## Release notes
+
+**Title and heading**
+
+- The release title is the bare tag: `v0.6.3`.
+- The body opens with an H1 naming the headline changes in sentence case, comma-separated with an Oxford comma: `# Zoom toolbar, fix YouTube load crash, and other patches`. A release that is only fixes is named after them: `# Fix missing pypdf dependency`, `# Score file loading fixes`, `# Bug fixes: player, score timeline, and theme detection`.
+- A prose intro under the H1 is rare and reserved for big shifts that need explaining (v0.6.0: PySide, Nuitka, GitHub releases). It speaks as "we".
+
+**Sections**, in this order, leaving out empty ones (a small patch is often just `## Fixes`):
+
+1. `## Highlights` — new features, plus fixes big enough to headline (v0.6.1 "SVG score viewer is responsive again"). Breaking changes go here too (v0.6.2's `--file` → positional argument); there are no callouts.
+2. `## Fixes`
+3. `## Performance` (only when there is a speed-up worth its own section)
+4. `## Internal`
+5. `## Docs`
+
+No `###` subsections, no `[!NOTE]`/`[!IMPORTANT]` callouts.
+
+**Bullets**
+
+- Highlights: `- **Name** — description.` The name is a short bold noun phrase, optionally prefixed with the area (``**CLI: `move` command**``, `**Score timeline: per-stave key and time signatures**`). After the spaced em dash the description starts lower-case, says what the user can now do in one or two sentences, and ends with a period.
+- Fixes: one plain sentence per user-visible symptom, phrased as the new behaviour: "Deleting a timeline element mid-drag no longer crashes.", "Score timeline: note colour can now be changed." Not the code change. Area prefixes (`CLI:`, `macOS:`, `Score timeline:`) where it helps. Several small crashes can share one bullet ("Several crashes resolved: when ..., when ...").
+- Internal: terse one-liners for contributors, often prefixed (`CI:`, `Test isolation:`).
+- Docs: name the file first (`TESTING.md: ...`, `README points to ...`).
+- Issue and PR references go at the end of the bullet: `(#470)` or `Closes #548.`
+- UI paths are written plainly with an arrow, not bolded: `File → Export`. File names, flags and commands go in backticks.
+- Write from the user's side of the release. Fixes to a feature that hadn't shipped yet (e.g. updater fixes before the updater's first release) are part of that feature, not separate fixes.
+
+**Footer**
+
+`**Full Changelog**: https://github.com/TimeLineAnnotator/desktop/compare/<prev>...<tag>`, and nothing else. A `## What's Changed` PR list is a last resort for when compare links can't show the release.

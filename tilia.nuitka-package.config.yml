@@ -5,7 +5,7 @@
 # yamllint disable rule:comments
 # too many spelling things, spell-checker: disable
 ---
-- module-name: "music21" # mostly regex matching entire refrences to tests and deleting.
+- module-name: "music21"
   anti-bloat:
     - description: "remove tests"
       replacements_plain:
@@ -13,13 +13,11 @@
         "'test',": ""
         "from music21.test.testRunner import mainTest": ""
         "from music21 import test": ""
-    - description: "remove module tests"
-      global_replacements_re:
-        '(?m)class Test([^(]*)\(unittest.TestCase\):[\d\D]*?(?=^if|^# -|^class|^_[A-Z]|\Z)': ""
-        "if __name__ == '__main__':([\\d|\\D]*)": ""
-        "from music21.(.*) import test(.*)": ""
+    - description: "meter/midi/braille import their own test(s) submodule unconditionally at package init - nofollow-import-to excludes test.py/tests.py from compilation (by design, real bloat elsewhere too), so the import line itself has to go, not the exclusion. Checked every music21 __init__.py for this exact pattern (module path ending in bare .test/.tests, not e.g. testFiles/test_base) - these three plus the top-level music21/__init__.py (handled by 'remove tests' above) are the whole list."
       global_replacements_plain:
-        "import unittest": ""
+        "from music21.meter import tests": ""
+        "from music21.midi import tests": ""
+        "from music21.braille import test": ""
 
 - module-name: "executing._pytest_utils"
   anti-bloat:
