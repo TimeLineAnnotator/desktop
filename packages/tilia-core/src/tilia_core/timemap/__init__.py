@@ -39,6 +39,7 @@ from tilia_core.timemap.table import (
     FrozenMetadata,
     MeasureRow,
     build_rows,
+    closing_warnings,
     format_time_signature,
     media_warning,
     table_problem,
@@ -109,7 +110,9 @@ class TimeMapFound:
     timeline_id: str | None  # the chosen beat timeline, even when it gives no time map
     guessed: bool  # no timeline had the role time_map: the first beat timeline was taken
     reason: str | None  # why the chosen timeline gives no time map
-    warnings: tuple[str, ...]  # several claim the role; a last beat past the media
+    # Several claim the role; a last beat past the media; a misplaced closing
+    # tap, or one past the media.
+    warnings: tuple[str, ...]
 
 
 def find_time_map(
@@ -128,8 +131,10 @@ def find_time_map(
     time map, and nothing is wrong with it: no reason, no warning.
 
     Every beat timeline whose last beat is at or after the end of the media
-    gets a warning too, with its id, the time map's or not. The warnings are
-    logged here, once for each call, and not when a table is built.
+    gets a warning too, with its id, the time map's or not; so does each of its
+    taps marked closing that is read as an ordinary beat or lies past the
+    media. The warnings are logged here, once for each call, and not when a
+    table is built.
     """
     beat_timelines = sorted(
         (t for t in document.timelines.values() if t.kind == "beat"),
@@ -148,6 +153,7 @@ def find_time_map(
         warning = media_warning(document, beats)
         if warning is not None:
             warnings.append(warning)
+        warnings.extend(closing_warnings(document, beats))
     for warning in warnings:
         logger.warning("%s.", warning)
     return TimeMapFound(

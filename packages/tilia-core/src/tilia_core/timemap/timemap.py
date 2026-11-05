@@ -2,9 +2,11 @@
 
 The map runs from the first beat to the closing barline, which it excludes.
 Every lookup is a bisection over arrays built once: the beat slots (the beats,
-then the closing barline), each beat's measure, each measure's first beat and
-the downbeats, with the map; each beat's quarter stamp, the first time one is
-asked for.
+then the closing barline, with a closing barline too after each movement a
+closing tap ends), each slot's measure, each measure's first slot and the
+downbeats, with the map; each slot's quarter stamp, the first time one is asked
+for. A time after a movement's closing tap, and before the next movement's first
+downbeat, is in a pause: no measure holds it, and it has no quarter stamp.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import itertools
 import logging
 import math
 from dataclasses import dataclass, field
+from fractions import Fraction
 
 from tilia_core import tla
 from tilia_core.timemap import lookup
@@ -53,7 +56,7 @@ class Positions:
     """Where a unit lies on a time map: its start's measure, and where it ends."""
 
     bar: int
-    end_bar: int | None  # the end point excluded; a point's bar; None past the map
+    end_bar: int | None  # the end point excluded; a point's bar; None off the map
     beat: float  # 1-based and fractional
     pass_: int | None  # None in a cadenza
     bar_count: int
@@ -77,24 +80,36 @@ class TimeMap:
     _rows: tuple[MeasureRow, ...] = field(repr=False)
     _times: tuple[float, ...] = field(repr=False)  # the beats
     # Computed from the rows and the beats, so nothing can make them disagree:
-    # the beat slots (the beats, then the closing barline), each beat's measure,
-    # each measure's first beat, and the downbeats. Each beat's quarter stamp
-    # is computed from them too, when first asked for (`_stamps`).
+    # the beat slots (the beats, then the closing barline, with one after each
+    # measure a closing tap closes), each slot's measure (a closing barline's
+    # is the measure it ends), each measure's first slot, how many beats come
+    # before it, and the downbeats. Each slot's quarter stamp is computed from
+    # them too, when first asked for (`_stamps`).
     _slots: tuple[float, ...] = field(init=False, repr=False)
     _measure_of: tuple[int, ...] = field(init=False, repr=False)
     _first: tuple[int, ...] = field(init=False, repr=False)
+    _beats_before: tuple[int, ...] = field(init=False, repr=False)
     _downbeats: tuple[float, ...] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         rows = self._rows
         if sum(row.beats for row in rows) != len(self._times):
             raise ValueError("the rows' beats and the beat times don't match")
+        slots: list[float] = []
+        measure_of: list[int] = []
+        first: list[int] = []
+        beats = iter(self._times)
+        for j, row in enumerate(rows):
+            first.append(len(slots))
+            slots.extend(itertools.islice(beats, row.beats))
+            if row.closed or j == len(rows) - 1:
+                slots.append(row.end)
+            measure_of.extend(itertools.repeat(j, len(slots) - first[j]))
         computed = {
-            "_slots": (*self._times, rows[-1].end),
-            "_measure_of": tuple(
-                j for j, row in enumerate(rows) for _ in range(row.beats)
-            ),
-            "_first": tuple(
+            "_slots": tuple(slots),
+            "_measure_of": tuple(measure_of),
+            "_first": tuple(first),
+            "_beats_before": tuple(
                 itertools.accumulate((row.beats for row in rows[:-1]), initial=0)
             ),
             "_downbeats": tuple(row.start for row in rows),
@@ -104,7 +119,7 @@ class TimeMap:
 
     @property
     def _stamps(self) -> TimeStampTable | None:
-        """Each beat's quarter stamp, built the first time one is asked for:
+        """Each tap's quarter stamp, built the first time one is asked for:
         the index, which reads every file's positions, never asks, and a long
         piece's exact stamps take a while.
 
@@ -117,10 +132,20 @@ class TimeMap:
             return self.__dict__["_stamp_table"]
         except KeyError:
             pass
-        lengths = [length for row in self._rows for length in beat_lengths(row.meter)]
-        table = build_time_stamp_table(self._times, lengths)
+        lengths: list[Fraction] = []
+        for row in self._rows:
+            lengths += beat_lengths(row.meter)
+            if row.closed:
+                lengths.append(Fraction(0))
+        table = build_time_stamp_table(self._taps, lengths)
         object.__setattr__(self, "_stamp_table", table)
         return table
+
+    @property
+    def _taps(self) -> tuple[float, ...]:
+        """The beats and the closing taps: the slots, but for a closing barline
+        worked out from the beats, which no quarter stamp is measured against."""
+        return self._slots if self._rows[-1].closed else self._slots[:-1]
 
     @property
     def start(self) -> float:
@@ -185,8 +210,8 @@ class TimeMap:
         "beat"), from 0 at the first beat, in the timeline's order.
 
         A bar counts 1 whatever its metre, and inside a bar the fraction counts
-        beats. The closing barline is the end of the last bar. None elsewhere
-        off the map.
+        beats. A closing barline is the end of its movement's last bar, and a
+        pause counts for nothing. None elsewhere off the map, and in a pause.
         """
         if not _is_unit(unit):
             return None
@@ -195,8 +220,8 @@ class TimeMap:
     def length(self, start: float, end: float, unit: str) -> float | None:
         """How long a span lasts in bars or beats (`unit` "bar" or "beat"): the
         distance between its two positions, rounded to a millionth, so that 8
-        bars compares equal to 8. None when either end is off the map; an end
-        on the closing barline is on it, a start isn't."""
+        bars compares equal to 8. None when either end is off the map or in a
+        pause; an end on a closing barline is on it, a start isn't."""
         if not _is_unit(unit):
             return None
         a = self._position(self._snapped(start), unit, closing=False)
@@ -207,7 +232,8 @@ class TimeMap:
 
     def unit_seconds(self, t: float, unit: str) -> float | None:
         """How long the beat or the bar holding `t` lasts (`unit` "beat" or
-        "bar"), in the file's unit despite the name. None off the map."""
+        "bar"), in the file's unit despite the name. None off the map, and in a
+        pause."""
         if not _is_unit(unit):
             return None
         located = self._locate(self._snapped(t))
@@ -225,15 +251,38 @@ class TimeMap:
         # The prototype's measure_pos or beat_pos; with `closing`, its position.
         located = self._locate(snapped)
         if located is None:
-            if closing and snapped is not None and abs(snapped - self.end) <= EPS:
-                return float(len(self._rows) if unit == "bar" else len(self._times))
-            return None
+            return self._barline_position(snapped, unit) if closing else None
         slot, fraction = located
-        if unit == "beat":
-            return slot + fraction
         measure = self._measure_of[slot]
+        if unit == "beat":
+            return self._beats_before[measure] + slot - self._first[measure] + fraction
         beats = self._rows[measure].beats
         return measure + (slot - self._first[measure] + fraction) / beats
+
+    def _barline_position(self, snapped: float | None, unit: str) -> float | None:
+        """The end of the measure a closing barline ends, if `snapped` is on one."""
+        if snapped is None or snapped < self.start or snapped > self.end:
+            return None
+        slot = bisect.bisect_right(self._slots, snapped) - 1
+        if snapped != self._slots[slot] or not self._is_barline(slot):
+            return None
+        measure = self._measure_of[slot]
+        if unit == "bar":
+            return float(measure + 1)
+        return float(self._beats_before[measure] + self._rows[measure].beats)
+
+    def _is_barline(self, slot: int) -> bool:
+        measure = self._measure_of[slot]
+        return slot - self._first[measure] == self._rows[measure].beats
+
+    def _in_pause(self, t: float) -> bool:
+        """Whether `t` is after a closing barline and before the next downbeat."""
+        slot = bisect.bisect_right(self._slots, t) - 1
+        return (
+            0 <= slot < len(self._slots) - 1
+            and t > self._slots[slot]
+            and self._is_barline(slot)
+        )
 
     # Quarter notes: desktop#621's quarter stamps. Unlike positions, they
     # aren't snapped, and they go on beyond the beats.
@@ -241,14 +290,18 @@ class TimeMap:
     def qstamp(self, t: float) -> float | None:
         """`t`'s position in quarter notes, from 0 at the first beat:
         interpolated between beats, and extrapolated beyond them with the tempo
-        of the nearest gap. At a beat, its exact stamp as a float. None for a
-        missing time."""
-        if t is None or not math.isfinite(t):
+        of the nearest gap. At a beat, its exact stamp as a float. A closing tap
+        lasts no quarter note, and the pause after a movement's holds none: the
+        next downbeat has the tap's stamp. None for a missing time, or one in a
+        pause."""
+        if t is None or not math.isfinite(t) or self._in_pause(t):
             return None
         return quarter_stamp_by_time(self._stamps, t)
 
     def time_at_qstamp(self, q: float) -> float | None:
-        """The time at the quarter stamp `q`, read as `qstamp` reads them."""
+        """The time at the quarter stamp `q`, read as `qstamp` reads them. A
+        movement's closing tap and the next movement's first downbeat have the
+        same stamp, which is read as a start: it gives the downbeat."""
         if q is None or not math.isfinite(q):
             return None
         return time_by_quarter_stamp(self._stamps, q)
@@ -266,10 +319,18 @@ class TimeMap:
         """Whether an assumed meter went into `quarters(start, end)`, so that a
         length in quarter notes can say "assumed meter": whether a measure that
         holds a beat whose length it counts is assumed (`beats_between`).
-        False for a missing time."""
+        False for a missing time, or one in a pause, as `quarters` gives None."""
         if any(t is None or not math.isfinite(t) for t in (start, end)):
             return False
-        beats = beats_between(self._times, start, end)
+        if self._in_pause(start) or self._in_pause(end):
+            return False
+        beats = beats_between(self._taps, start, end)
+        if (
+            beats
+            and self._is_barline(beats[0])
+            and min(start, end) == self._slots[beats[0]]
+        ):
+            beats = beats[1:]  # from a closing barline on, its bar gives no quarter
         if not beats:
             return False
         first, last = self._measure_of[beats[0]], self._measure_of[beats[-1]]
@@ -306,7 +367,7 @@ class TimeMap:
         end of a span."""
         return lookup.times_of(
             self._rows,
-            self._times,
+            self._slots,
             self._first,
             number,
             fraction,
@@ -332,19 +393,27 @@ class TimeMap:
         return best
 
     def _locate(self, snapped: float | None) -> tuple[int, float] | None:
-        """(beat slot, fraction through it) of a snapped time; None off the map."""
+        """(beat slot, fraction through it) of a snapped time; None off the map,
+        on a closing barline and in the pause after one."""
         slots = self._slots
         if snapped is None or snapped < slots[0] or snapped >= slots[-1]:
             return None
         i = bisect.bisect_right(slots, snapped) - 1
+        if self._is_barline(i):
+            return None
         return i, (snapped - slots[i]) / (slots[i + 1] - slots[i])
 
     def _end_bar(self, snapped_end: float | None) -> int | None:
         # The end point is excluded: an end on a downbeat belongs to the bar
-        # before, and an end on or before the first downbeat to none.
+        # before, and an end on or before the first downbeat to none. An end on
+        # a closing barline belongs to the bar it ends, and one in the pause
+        # after it to none.
         if snapped_end is None or snapped_end <= self.start or snapped_end > self.end:
             return None
-        return self._rows[bisect.bisect_left(self._downbeats, snapped_end) - 1].number
+        k = bisect.bisect_left(self._downbeats, snapped_end)
+        row = self._rows[k - 1]
+        on_a_downbeat = k < len(self._downbeats) and self._downbeats[k] == snapped_end
+        return row.number if on_a_downbeat or snapped_end <= row.end else None
 
 
 def _is_unit(unit: str) -> bool:

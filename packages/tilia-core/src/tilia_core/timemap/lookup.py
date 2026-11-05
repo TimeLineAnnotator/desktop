@@ -10,8 +10,11 @@ pass's beats at once, with one time for each row the bar names instead
   beats) is that beat, as TiLiA rounds;
 - the fraction 1 is the next downbeat when the next bar is numbered one more,
   and no time otherwise; as a segment's end, it is the row's end;
-- past the last beat, the last row lasts as long as the row before it
-  (TiLiA's projection), not until FR-011's closing barline;
+- past the last beat, a row that a closing tap closes, the last of the piece or
+  of a movement, ends at the tap, for its fractions, the fraction 1 too, and as
+  a segment's end (TimeLineAnnotator/project-management#332). The last row
+  without one lasts as long as the row before it (TiLiA's projection), not until
+  FR-011's closing barline;
 - as a segment's end, the fraction 0 also gives where each time through the
   bar numbered just below ends (#321);
 - a cadenza belongs to the bar before it
@@ -50,10 +53,10 @@ def times_of(
 ) -> list[float]:
     """The times of `fraction` through the rows a bar names, in time order.
 
-    `rows` are a time map's rows in the timeline's order, `times` its beats,
-    and `first[j]` the index in `times` of row j's downbeat. The rows are
-    named as `find_rows` names them. A fraction outside 0 to 1 gives no time,
-    with a warning.
+    `rows` are a time map's rows in the timeline's order, `times` its beat
+    slots, and `first[j]` the index in `times` of row j's downbeat, with row
+    j's beats after it. The rows are named as `find_rows` names them. A
+    fraction outside 0 to 1 gives no time, with a warning.
     """
     if not 0.0 <= fraction <= 1.0:  # NaN too
         logger.warning(
@@ -84,7 +87,7 @@ def _time_in(
     beat = _beat_at(row, fraction)
     if beat == row.beats:  # the fraction 1
         k = _leads_into(rows, j)
-        if segment_end:
+        if segment_end or rows[k - 1].closed:
             return _end(rows, k - 1)
         following = rows[k] if k < len(rows) else None
         if following is not None and following.number == row.number + 1:
@@ -114,15 +117,16 @@ def _beat_at(row: MeasureRow, fraction: float) -> int | None:
 
 
 def _end(rows: Sequence[MeasureRow], j: int) -> float | None:
-    """Where row j ends: the next downbeat, or past the last beat, as long
-    after its downbeat as the row before it lasted. None for a table of one
-    row, which has nothing to measure it by."""
-    if j + 1 < len(rows):
-        return rows[j].end
+    """Where row j ends: the next downbeat or its closing tap, or past the last
+    beat of a last row without one, as long after its downbeat as the row
+    before it lasted. None for a table of one such row, which has nothing to
+    measure it by."""
+    row = rows[j]
+    if j + 1 < len(rows) or row.closed:
+        return row.end
     if j == 0:
         return None
-    row = rows[j]
-    return row.start + (row.start - rows[j - 1].start)
+    return row.start + (rows[j - 1].end - rows[j - 1].start)
 
 
 def _leads_into(rows: Sequence[MeasureRow], j: int) -> int:
