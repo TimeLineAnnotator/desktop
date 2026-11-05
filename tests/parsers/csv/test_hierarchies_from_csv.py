@@ -2,6 +2,8 @@ import os
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.hierarchy import (
     import_by_measure,
@@ -211,3 +213,87 @@ def test_component_creation_fail_reason_gets_into_errors(
         )
 
     assert_in_errors("101", errors)
+
+
+def _four_beats_two_to_a_measure(beat_tlui, tilia_state):
+    tilia_state.set_duration(4, scale_timelines="no")
+    beat_tl = beat_tlui.timeline
+    beat_tl.beat_pattern = [2]
+    for t in (1, 2, 3, 4):
+        beat_tlui.create_beat(time=t)
+    beat_tl.recalculate_measures()
+    return beat_tl
+
+
+@pytest.mark.timeout(10)
+def test_hierarchy_by_measure_with_start_equal_to_end_is_reported(
+    beat_tlui, hierarchy_tlui, tilia_state
+):
+    # A last measure ends on the media's end, so this row starts and ends at 4.
+    beat_tl = _four_beats_two_to_a_measure(beat_tlui, tilia_state)
+    data = "start,end,start_fraction,end_fraction,level\n2,2,0.75,1,1"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = import_by_measure(hierarchy_tlui.timeline, beat_tl, Path())
+
+    assert success
+    assert len(hierarchy_tlui.timeline) == 0
+    assert len(errors) == 1
+    assert "should be bigger than start time" in errors[0]
+
+
+@pytest.mark.timeout(10)
+def test_hierarchy_by_measure_with_start_after_end_is_not_reported(
+    beat_tlui, hierarchy_tlui, tilia_state
+):
+    beat_tl = _four_beats_two_to_a_measure(beat_tlui, tilia_state)
+    data = "start,end,level\n2,1,1"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = import_by_measure(hierarchy_tlui.timeline, beat_tl, Path())
+
+    assert success
+    assert len(hierarchy_tlui.timeline) == 0
+    assert errors == []
+
+
+@pytest.mark.timeout(10)
+def test_hierarchy_by_measure_rows_around_a_start_equal_to_end_are_imported(
+    beat_tlui, hierarchy_tlui, tilia_state
+):
+    beat_tl = _four_beats_two_to_a_measure(beat_tlui, tilia_state)
+    data = "start,end,start_fraction,end_fraction,level\n1,2,0,0,1\n2,2,0.75,1,1\n2,2,0,0.5,2"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = import_by_measure(hierarchy_tlui.timeline, beat_tl, Path())
+
+    assert success
+    assert len(errors) == 1
+    assert sorted((h.start, h.end) for h in hierarchy_tlui.timeline) == [
+        (1, 3),
+        (3, 4),
+    ]
+
+
+@pytest.mark.timeout(10)
+def test_hierarchy_by_measure_repeated_measure_with_several_passes(
+    beat_tlui, hierarchy_tlui, tilia_state
+):
+    tilia_state.set_duration(8, scale_timelines="no")
+    beat_tl = beat_tlui.timeline
+    beat_tl.beat_pattern = [2]
+    for t in range(1, 7):
+        beat_tlui.create_beat(time=t)
+    beat_tl.recalculate_measures()
+    beat_tl.set_data("measure_numbers", [1, 2, 1])
+    data = "start,end,level\n1,2,1"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = import_by_measure(hierarchy_tlui.timeline, beat_tl, Path())
+
+    assert success
+    assert errors == []
+    assert sorted((h.start, h.end) for h in hierarchy_tlui.timeline) == [
+        (1, 3),
+        (5, 7),
+    ]

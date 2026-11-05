@@ -174,3 +174,18 @@ def test_component_creation_fail_reason_gets_into_errors(
     patch_import("time", marker_tl, data)
 
     tilia_errors.assert_in_error_message(format_media_time(101))
+
+
+def test_markers_by_measure_from_csv_at_the_end_of_the_last_measure(
+    beat_tlui, marker_tlui, tilia_state
+):
+    tilia_state.set_duration(4, scale_timelines="no")
+    beat_tl = beat_tlui.timeline
+    beat_tl.beat_pattern = [2]
+    for t in (1, 2, 3, 4):
+        beat_tlui.create_beat(time=t)
+    beat_tl.recalculate_measures()
+
+    patch_import("measure", marker_tlui.timeline, "measure,fraction\n2,0.75\n2,1")
+
+    assert [m.time for m in marker_tlui.timeline] == [4]
