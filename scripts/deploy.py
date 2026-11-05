@@ -434,11 +434,13 @@ def _check_python_version():
     # Nuitka 4.3.1 crashes compiling TiLiA on Python 3.14 with
     # AttributeError: 'ExpressionBuiltinSlice2' object has no attribute
     # 'subnode_lower'. Fail up front instead of minutes into the compile.
+    # This blocks 3.14 outright rather than guessing which Nuitka version
+    # fixes the crash: remove it together with a Nuitka bump that has been
+    # checked to compile TiLiA on 3.14.
     from nuitka.Version import getNuitkaVersion
 
     nuitka_version = getNuitkaVersion()
-    parts = tuple(int(n) for n in re.findall(r"\d+", nuitka_version)[:3])
-    if sys.version_info >= (3, 14) and parts <= (4, 3, 1):
+    if sys.version_info >= (3, 14):
         raise SystemExit(
             f"Nuitka {nuitka_version} can't compile TiLiA on Python "
             f"{platform.python_version()}. Build with Python 3.12 or 3.13."
