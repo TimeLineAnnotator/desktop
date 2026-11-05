@@ -1,6 +1,6 @@
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, document, read_as_a_file
 from tilia_core import tla
 from tilia_core.timemap import measure_rows, meters_of, table_problem
 from tilia_core.timemap._rows import rows_of
@@ -93,7 +93,7 @@ def test_cadenza_and_restart_are_read_from_the_mark():
     ]
 
 
-def test_cadenza_and_restart_fall_back_to_the_downbeat_mark():
+def test_cadenza_and_restart_come_from_the_table_the_reader_builds():
     timeline = beat_timeline(
         [
             {"time": 0.0, "measure": {"number": 1}},
@@ -101,10 +101,9 @@ def test_cadenza_and_restart_fall_back_to_the_downbeat_mark():
             {"time": 2.0, "measure": {"restart": True}},
         ]
     )
-    for row in timeline.measures.rows:
-        row.cadenza = row.restart = False
+    read = read_as_a_file(timeline).timelines[timeline.id]
 
-    assert [(r.cadenza, r.restart) for r in rows_of(timeline)] == [
+    assert [(r.cadenza, r.restart) for r in rows_of(read)] == [
         (False, False),
         (True, False),
         (False, True),

@@ -5,7 +5,7 @@ import pickle
 import pytest
 
 import tilia_core.timemap.timemap as timemap_module
-from docs import beat_timeline, document, pickup_piece
+from docs import beat_timeline, closed_piece, document, pickup_piece, two_movements
 from tilia_core import tla
 from tilia_core.timemap import TimeMap, time_map_for
 from tilia_core.timemap.table import build_rows
@@ -583,7 +583,7 @@ def test_timemap_folded_table_is_refused_before_its_rows_are_built(monkeypatch):
 def test_timemap_derives_its_arrays_from_its_rows_and_beats():
     time_map = _four_four()
 
-    for name in ("_slots", "_measure_of", "_first", "_downbeats"):
+    for name in ("_slots", "_measure_of", "_first", "_beats_before", "_downbeats"):
         # init=False fields: ValueError before Python 3.13, TypeError from it on
         with pytest.raises((ValueError, TypeError)):
             dataclasses.replace(time_map, **{name: ()})
@@ -601,3 +601,135 @@ def test_timemap_end_bar_of_an_end_at_or_before_the_first_downbeat():
     assert time_map._end_bar(0.0) is None
     assert time_map._end_bar(-1.0) is None
     assert time_map._end_bar(4.0) == 1
+
+
+# Closing taps (FR-011, FR-030, FR-032, Q16)
+
+
+def _closed() -> TimeMap:
+    return _map(closed_piece())
+
+
+def _movements() -> TimeMap:
+    return _map(two_movements())
+
+
+def test_a_time_before_a_closing_tap_is_in_the_bar_it_closes():
+    positions = _closed().positions(5.5, 5.5)
+
+    assert positions.bar == 2
+    assert positions.bar_beat_count == 2
+    assert positions.beat == pytest.approx(2.75)
+
+
+def test_the_map_ends_at_the_closing_tap():
+    time_map = _closed()
+
+    assert (time_map.start, time_map.end) == (1.0, 6.0)
+    assert time_map.positions(6.0, 6.0) is None  # the barline is excluded
+    assert time_map.positions(5.95, 5.95) is None  # snapped onto it
+    assert time_map.positions(5.85, 5.85).bar == 2  # beyond the tolerance
+    assert time_map.positions(7.0, 7.0) is None
+
+
+def test_an_end_on_a_closing_tap_is_in_the_bar_before():
+    time_map = _closed()
+
+    assert time_map.positions(1.0, 6.0).end_bar == 2
+    assert time_map.positions(1.0, 5.95).end_bar == 2  # snapped onto it
+    assert time_map.positions(1.0, 6.5).end_bar is None
+
+
+def test_a_time_in_a_pause_has_no_position():
+    time_map = _movements()
+
+    assert time_map.positions(6.5, 6.5) is None
+    assert time_map.positions(5.65, 5.65) is None
+    assert time_map.positions(7.85, 7.85) is None
+
+
+def test_a_closing_tap_before_a_pause_starts_nothing():
+    time_map = _movements()
+
+    assert time_map.positions(5.5, 5.5) is None
+    assert time_map.positions(5.55, 5.55) is None  # snapped onto it
+    assert time_map.positions(5.45, 5.45) is None  # from either side
+    assert time_map.positions(5.35, 5.35).bar == 2  # beyond the tolerance
+
+
+def test_the_next_movements_first_downbeat_is_snapped_to_from_the_pause():
+    positions = _movements().positions(7.95, 7.95)
+
+    assert (positions.bar, positions.bar_count) == (1, 3)
+    assert (positions.movement, positions.pass_) == (2, 1)
+    assert positions.beat == 1.0
+    assert positions.downbeat
+
+
+def test_the_last_beat_of_a_movement_lasts_until_its_closing_tap():
+    positions = _movements().positions(4.75, 4.75)
+
+    assert positions.bar == 2
+    assert positions.movement == 1
+    assert positions.beat == pytest.approx(2.5)
+    assert not positions.downbeat
+
+
+def test_beats_are_counted_in_their_own_bar_after_a_pause():
+    positions = _movements().positions(11.0, 11.0)
+
+    assert (positions.bar, positions.bar_count) == (2, 4)
+    assert positions.beat == 2.0
+
+
+def test_an_end_on_a_movements_closing_tap_is_in_the_bar_before():
+    time_map = _movements()
+
+    assert time_map.positions(1.0, 5.5).end_bar == 2
+    assert time_map.positions(1.0, 5.45).end_bar == 2
+    assert time_map.positions(1.0, 5.55).end_bar == 2
+
+
+def test_an_end_in_a_pause_has_no_end_bar():
+    time_map = _movements()
+    positions = time_map.positions(1.0, 6.5)
+
+    assert positions.bar == 1
+    assert positions.end_bar is None
+    assert time_map.positions(4.0, 5.65).end_bar is None
+    assert time_map.positions(4.0, 7.85).end_bar is None
+
+
+def test_an_end_on_the_next_movements_first_downbeat_is_in_the_bar_before():
+    # FR-030: an end on a downbeat belongs to the bar before.
+    time_map = _movements()
+
+    assert time_map.positions(1.0, 8.0).end_bar == 2
+    assert time_map.positions(1.0, 7.95).end_bar == 2  # snapped onto it
+
+
+def test_an_end_after_a_pause_is_in_the_next_movement():
+    time_map = _movements()
+
+    assert time_map.positions(1.0, 8.5).end_bar == 1
+    assert time_map.positions(1.0, 10.0).end_bar == 1
+    assert time_map.positions(1.0, 10.5).end_bar == 2
+
+
+def test_times_outside_a_pause_keep_their_bar_and_beat():
+    time_map = _movements()
+
+    found = [
+        (t, time_map.positions(t, t).bar_count, time_map.positions(t, t).beat)
+        for t in (1.0, 2.0, 3.0, 4.0, 8.0, 9.0, 10.0, 11.0)
+    ]
+    assert found == [
+        (1.0, 1, 1.0),
+        (2.0, 1, 2.0),
+        (3.0, 2, 1.0),
+        (4.0, 2, 2.0),
+        (8.0, 3, 1.0),
+        (9.0, 3, 2.0),
+        (10.0, 4, 1.0),
+        (11.0, 4, 2.0),
+    ]

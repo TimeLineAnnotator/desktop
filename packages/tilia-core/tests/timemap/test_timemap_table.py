@@ -7,9 +7,16 @@ from fractions import Fraction as F
 
 import pytest
 
-from docs import beat_timeline, document, pickup_piece
+from docs import (
+    beat_timeline,
+    closed_piece,
+    document,
+    pickup_piece,
+    read_as_a_file,
+    two_movements,
+)
 from tilia_core import tla
-from tilia_core.timemap import time_map_for
+from tilia_core.timemap import table_problem, time_map_for
 from tilia_core.timemap._rows import rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.table import build_rows, find_rows, format_time_signature
@@ -582,3 +589,359 @@ def test_a_folded_table_has_its_time_signatures():
 
     assert [r.folded for r in rows] == [True, True]
     assert [r.time_signature for r in rows] == ["6/8", "9/8"]
+
+
+# Closing taps (FR-011, Q16; TimeLineAnnotator/project-management#332)
+
+
+def _ids(timeline: tla.Timeline) -> list[str]:
+    return list(timeline.components)
+
+
+def _built(timeline: tla.Timeline, **kwargs):
+    return build_rows(document(timeline, **kwargs), timeline)
+
+
+def repr_of_time(time: object) -> str:
+    return "too large" if isinstance(time, int) else repr(time)
+
+
+def test_a_closing_tap_ends_the_last_bar():
+    # Without it, FR-011 would end the bar at 5.0.
+    timeline = closed_piece()
+    ids = _ids(timeline)
+    rows = _built(timeline)
+
+    assert [(r.start, r.end) for r in rows] == [(1.0, 3.0), (3.0, 6.0)]
+    assert [r.closed for r in rows] == [False, True]
+    assert rows[1].beat_ids == (ids[2], ids[3])
+    assert rows[1].beats == 2
+
+
+def test_a_closing_tap_has_no_beat_value():
+    rows = _built(closed_piece())
+
+    assert rows[1].meter.beat_values == (F(1), F(1))
+    assert rows[1].time_signature == "2/4"
+    assert rows[1].quarters == 2
+
+
+def test_a_last_bar_without_a_closing_tap_is_not_closed():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0, "closing": False},
+        ]
+    )
+    rows = _built(timeline)
+
+    assert [r.closed for r in rows] == [False, False]
+    assert rows[1].end == 5.0
+    assert rows[1].beats == 2
+
+
+def test_each_movement_ends_at_its_closing_tap():
+    rows = _built(two_movements(closed=True))
+
+    assert [(r.start, r.end) for r in rows] == [
+        (1.0, 3.0),
+        (3.0, 5.5),
+        (8.0, 10.0),
+        (10.0, 13.0),
+    ]
+    assert [r.movement for r in rows] == [1, 1, 2, 2]
+    assert [r.closed for r in rows] == [False, True, False, True]
+    assert [r.beats for r in rows] == [2, 2, 2, 2]
+
+
+def test_quarter_notes_run_on_across_a_pause():
+    rows = _built(two_movements())
+
+    assert [r.qstamp for r in rows] == [0, 2, 4, 6]
+
+
+def test_a_movement_without_a_closing_tap_ends_at_the_next_downbeat():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 8.0, "measure": {"number": 1, "restart": True}},
+            {"time": 9.0},
+            {"time": 11.0, "closing": True},
+        ]
+    )
+    rows = _built(timeline)
+
+    assert [(r.start, r.end, r.closed) for r in rows] == [
+        (1.0, 8.0, False),
+        (8.0, 11.0, True),
+    ]
+
+
+@pytest.mark.parametrize(
+    "mark",
+    [{}, {"number": 9, "label": "x"}, {"restart": True}],
+    ids=["empty", "number and label", "restart"],
+)
+def test_a_closing_tap_with_a_measure_mark_makes_no_row(mark):
+    rows = _built(closed_piece(measure=mark))
+
+    assert [r.number for r in rows] == [1, 2]
+    assert rows[1].end == 6.0
+    assert rows[1].beats == 2
+    assert [r.movement for r in rows] == [1, 1]
+
+
+def test_a_closing_tap_before_a_restart_with_a_measure_mark_makes_no_row():
+    timeline = two_movements()
+    tap = _ids(timeline)[4]
+    timeline.components[tap].attrs["measure"] = {"number": 7}
+    rows = _built(timeline)
+
+    assert [r.number for r in rows] == [1, 2, 1, 2]
+    assert rows[1].end == 5.5
+
+
+def test_a_closing_tap_on_the_second_beat_is_an_ordinary_beat():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0},
+        ]
+    )
+    ids = _ids(timeline)
+    rows = _built(timeline)
+
+    assert [r.closed for r in rows] == [False, False]
+    assert rows[0].beat_ids == (ids[0], ids[1])
+    assert rows[0].beats == 2
+    assert rows[0].meter.beat_values == (F(1), F(1))
+    assert rows[1].end == 5.0  # FR-011's own rule: no closing tap stands
+
+
+def test_a_closing_tap_in_the_middle_of_a_bar_keeps_its_place_among_the_beats():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 3.0},
+            {"time": 2.0, "closing": True},
+        ]
+    )
+    (row,) = _built(timeline)
+
+    ids = _ids(timeline)
+    assert row.beat_ids == (ids[0], ids[2], ids[1])
+    assert row.end == 4.0
+
+
+def test_of_two_closing_taps_at_the_end_only_the_last_closes():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0, "closing": True},
+            {"time": 5.0, "closing": True},
+        ]
+    )
+    ids = _ids(timeline)
+    rows = _built(timeline)
+
+    assert rows[1].beat_ids == (ids[2], ids[3])
+    assert (rows[1].end, rows[1].closed) == (5.0, True)
+
+
+def test_a_closing_tap_before_a_bar_without_a_restart_is_an_ordinary_beat():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 3.0, "closing": True},
+            {"time": 4.0, "measure": {}},
+            {"time": 5.0},
+        ]
+    )
+    rows = _built(timeline)
+
+    assert [r.beats for r in rows] == [3, 2]
+    assert [r.closed for r in rows] == [False, False]
+    assert rows[0].end == 4.0
+
+
+def test_a_misplaced_closing_tap_with_a_mark_starts_no_bar():
+    # The reader's warning says so of any closing tap's mark
+    # (TimeLineAnnotator/project-management#375).
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True, "measure": {"number": 5}},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0},
+        ]
+    )
+    rows = _built(timeline)
+
+    assert [(r.number, r.beats) for r in rows] == [(1, 2), (2, 2)]
+
+
+def test_a_closing_tap_before_the_first_bar_closes_nothing():
+    timeline = beat_timeline(
+        [
+            {"time": 0.5, "closing": True},
+            {"time": 1.0, "measure": {"number": 1, "restart": True}},
+            {"time": 2.0},
+        ]
+    )
+    (row,) = _built(timeline)
+
+    assert (row.beats, row.closed, row.start, row.end) == (2, False, 1.0, 3.0)
+
+
+@pytest.mark.parametrize("time", [4.0, 4.0 + 1e-7, 4.0 - 1e-7])
+def test_a_closing_tap_at_a_beats_time_gives_no_rows(time):
+    # FR-003: two beats at the same time, whichever the file marks closing.
+    timeline = closed_piece(closing=time)
+
+    assert table_problem(timeline).startswith("two beats at the same time")
+    assert _built(timeline) == []
+
+
+def test_two_closing_taps_at_one_time_give_no_rows():
+    timeline = closed_piece(closing=6.0)
+    extra = tla.new_id()
+    timeline.components[extra] = tla.Component(
+        id=extra, kind="beat", attrs={"time": 6.0, "closing": True}
+    )
+
+    assert table_problem(timeline) == "two beats at the same time (6.0)"
+
+
+def test_a_closing_tap_past_the_media_is_kept_and_doesnt_cap():
+    # find_time_map warns about it, once per file; a table built logs nothing.
+    rows = _built(closed_piece(closing=9.0), media_length=7.0)
+
+    assert (rows[-1].end, rows[-1].closed) == (9.0, True)
+
+
+def test_the_media_doesnt_move_a_closing_tap_before_its_end():
+    rows = _built(closed_piece(closing=6.0), media_length=5.5)
+
+    assert rows[-1].end == 6.0
+
+
+def test_a_last_movement_of_one_beat_measures_from_the_gap_before_the_tap():
+    # FR-011 gives the last beat the tempo of the gap before it. Here the pause
+    # is no gap: it holds no quarter notes. The gap is the one the tap closes.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 4.0, "closing": True},
+            {"time": 9.0, "measure": {"number": 1, "restart": True}},
+        ]
+    )
+    rows = _built(timeline)
+
+    assert rows[-1].end == 11.0
+
+
+def test_a_last_movement_of_one_beat_goes_by_the_tempo_of_the_gap_before_the_tap():
+    # The last beat lasts its own length at that tempo: half a quarter note
+    # here, after a beat of one that lasted 2 s.
+    eighth = {"denominator": 8, "units": "1"}
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 4.0, "closing": True},
+            {
+                "time": 9.0,
+                "measure": {"number": 1, "restart": True},
+                "beat_unit": eighth,
+            },
+        ]
+    )
+    rows = _built(timeline)
+
+    assert rows[-1].end == 10.0
+
+
+def test_a_closing_tap_in_a_folded_table_ends_its_bar_too():
+    timeline = closed_piece()
+    timeline.measures.rows[0].next = [timeline.measures.rows[1].id]
+    rows = _built(timeline)
+
+    assert rows[-1].folded
+    assert (rows[-1].end, rows[-1].closed) == (6.0, True)
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        closed_piece,
+        two_movements,
+        lambda: two_movements(closed=True),
+        lambda: beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {
+                    "time": 2.0,
+                    "closing": True,
+                    "beat_unit": {"denominator": 8, "units": "3"},
+                },
+                {"time": 3.0, "measure": {}},
+                {"time": 4.0, "closing": True},
+                {"time": 6.0, "closing": True},
+            ]
+        ),
+    ],
+    ids=["one movement", "two", "two, both closed", "misplaced taps"],
+)
+def test_the_table_the_reader_builds_gives_the_same_rows(make):
+    timeline = make()
+    doc = read_as_a_file(timeline)
+    read = doc.timelines[timeline.id]
+
+    assert time_map_for(doc, timeline.id) is not None
+    assert [
+        (r.id, r.number, r.movement, r.start, r.end, r.beat_ids, r.closed, r.qstamp)
+        for r in build_rows(doc, read)
+    ] == [
+        (r.id, r.number, r.movement, r.start, r.end, r.beat_ids, r.closed, r.qstamp)
+        for r in _built(timeline)
+    ]
+
+
+def test_a_closing_tap_is_placed_by_its_time_not_by_its_place_in_the_file():
+    timeline = closed_piece()
+    tap = _ids(timeline)[-1]
+    timeline.components = {tap: timeline.components[tap]} | {
+        key: value for key, value in timeline.components.items() if key != tap
+    }
+    rows = _built(timeline)
+
+    assert (rows[1].end, rows[1].closed) == (6.0, True)
+
+
+@pytest.mark.parametrize(
+    "time", [None, "text", float("nan"), 10**400], ids=repr_of_time
+)
+def test_a_closing_tap_without_a_usable_time_closes_nothing(time):
+    # It can't be placed, or enter a sum. rows_of reads a table as it stands.
+    rows = rows_of(closed_piece(closing=time))
+
+    assert [row.closing for row in rows] == [None, None]
+    assert [len(row.beat_ids) for row in rows] == [2, 2]
+
+
+def test_a_closing_tap_on_a_table_that_rows_of_reads_as_it_stands():
+    # rows_of doesn't apply table_problem: a timeless downbeat, in a table only
+    # a hand can build, and a closing tap, still give rows and raise nothing.
+    timeline = closed_piece()
+    timeline.components[_ids(timeline)[2]].attrs.pop("time")
+
+    assert [row.number for row in rows_of(timeline)] == [1]

@@ -4,7 +4,14 @@ import logging
 
 import pytest
 
-from docs import beat_timeline, document, pickup_piece
+from docs import (
+    beat_timeline,
+    closed_piece,
+    document,
+    pickup_piece,
+    read_as_a_file,
+    two_movements,
+)
 from tilia_core import tla
 from tilia_core.timemap import (
     TimeMapFound,
@@ -342,9 +349,11 @@ def test_no_media_warning_when_the_media_lasts_past_the_last_beat(
     ],
 )
 def test_a_media_length_the_format_doesnt_allow_is_no_length(media_length, caplog):
-    # The schema allows a number above zero, or null; the reader doesn't check.
-    # No cap on the closing barline, no warning, and nothing raises. 10**400
-    # is a whole number too large for a float.
+    # The schema allows a number above zero, or null. Since desktop#744 the
+    # reader refuses text and bools, and a file can't hold NaN or infinity, so
+    # a file can give only zero or less, or 10**400, a whole number too large
+    # for a float; a document made in memory can hold them all. No cap on the
+    # closing barline, no warning, and nothing raises.
     timeline = pickup_piece()
     doc = document(timeline, media_length=media_length)
 
@@ -414,6 +423,264 @@ def test_a_table_out_of_time_order_gets_no_media_warning(make, caplog):
 
     assert found.time_map is None and found.warnings == ()
     assert not caplog.records
+
+
+# Closing taps: a warning for each that stands where none may, or past the media
+# (FR-011, Q16).
+
+
+def _misplaced_warning(timeline: tla.Timeline, tap: str) -> str:
+    return (
+        f"Timeline {timeline.id}: beat {tap} is marked closing, but isn't the last "
+        "tap of the timeline or of a movement; it is read as an ordinary beat"
+    )
+
+
+def test_a_closing_tap_where_one_may_stand_gets_no_warning(caplog):
+    with caplog.at_level(logging.WARNING):
+        for timeline in (closed_piece(), two_movements(), two_movements(closed=True)):
+            assert find_time_map(document(timeline)).warnings == ()
+
+    assert not caplog.records
+
+
+def test_a_closing_tap_on_the_second_beat_gets_a_warning(caplog):
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0},
+        ]
+    )
+    tap = list(timeline.components)[1]
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(document(timeline))
+
+    assert found.time_map is not None
+    assert found.warnings == (_misplaced_warning(timeline, tap),)
+    assert [r.getMessage() for r in caplog.records] == [f"{found.warnings[0]}."]
+
+
+def test_of_two_closing_taps_at_the_end_the_first_gets_a_warning():
+    timeline = closed_piece()
+    tap = tla.new_id()
+    timeline.components[tap] = tla.Component(
+        id=tap, kind="beat", attrs={"time": 5.0, "closing": True}
+    )
+
+    found = find_time_map(document(timeline))
+
+    assert found.warnings == (_misplaced_warning(timeline, tap),)
+    assert found.time_map.end == 6.0
+
+
+def test_each_misplaced_closing_tap_gets_its_own_warning_in_time_order():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True},
+            {"time": 3.0, "closing": True},
+            {"time": 4.0, "measure": {}},
+            {"time": 5.0, "closing": True},
+            {"time": 6.0},
+        ]
+    )
+    taps = list(timeline.components)
+
+    found = find_time_map(document(timeline))
+
+    assert found.warnings == tuple(
+        _misplaced_warning(timeline, taps[k]) for k in (1, 2, 4)
+    )
+
+
+def test_a_closing_tap_before_a_bar_without_a_restart_gets_a_warning():
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 3.0, "closing": True},
+            {"time": 4.0, "measure": {}},
+            {"time": 5.0},
+        ]
+    )
+    tap = list(timeline.components)[2]
+
+    assert find_time_map(document(timeline)).warnings == (
+        _misplaced_warning(timeline, tap),
+    )
+
+
+def test_a_closing_tap_with_no_bar_to_close_gets_a_warning():
+    timeline = beat_timeline(
+        [
+            {"time": 0.5, "closing": True},
+            {"time": 1.0, "measure": {"number": 1, "restart": True}},
+            {"time": 2.0},
+        ]
+    )
+    tap = list(timeline.components)[0]
+
+    assert find_time_map(document(timeline)).warnings == (
+        _misplaced_warning(timeline, tap),
+    )
+
+
+def test_a_closing_tap_past_the_media_is_kept_with_a_warning(caplog):
+    timeline = closed_piece(closing=8.0)
+    tap = list(timeline.components)[-1]
+
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(document(timeline, media_length=7.0))
+
+    assert found.time_map.end == 8.0
+    assert found.warnings == (
+        f"Timeline {timeline.id}: the closing tap {tap} (8.0) is past the end of "
+        "the media (7.0)",
+    )
+    assert [r.getMessage() for r in caplog.records] == [f"{found.warnings[0]}."]
+
+
+def test_a_closing_tap_on_the_end_of_the_media_gets_no_warning():
+    timeline = closed_piece(closing=7.0)
+
+    assert find_time_map(document(timeline, media_length=7.0)).warnings == ()
+
+
+def test_a_last_beat_past_the_media_before_a_closing_tap_says_only_that():
+    # "The last measure ends one gap after it" would be wrong: it ends at the tap.
+    timeline = closed_piece(closing=8.0)
+    tap = list(timeline.components)[-1]
+
+    found = find_time_map(document(timeline, media_length=3.5))
+
+    assert found.warnings == (
+        f"Timeline {timeline.id}: the closing tap {tap} (8.0) is past the end of "
+        "the media (3.5)",
+    )
+
+
+def test_each_movements_closing_tap_past_the_media_gets_a_warning():
+    timeline = two_movements(closed=True)
+    taps = list(timeline.components)
+
+    found = find_time_map(document(timeline, media_length=5.0))
+
+    assert found.warnings == (
+        f"Timeline {timeline.id}: the closing tap {taps[4]} (5.5) is past the end "
+        "of the media (5.0)",
+        f"Timeline {timeline.id}: the closing tap {taps[9]} (13.0) is past the end "
+        "of the media (5.0)",
+    )
+
+
+def test_a_last_bar_without_a_tap_past_the_media_still_gets_the_media_warning():
+    timeline = two_movements()
+
+    found = find_time_map(document(timeline, media_length=11.0))
+
+    assert found.warnings == (
+        f"Timeline {timeline.id}: the last beat (11.0) is at or after the end of "
+        "the media (11.0); the last measure ends one gap after it",
+    )
+
+
+def test_a_quarters_file_has_no_media_for_a_closing_tap_to_pass():
+    timeline = closed_piece(closing=8.0)
+    doc = document(timeline, media_length=7.0, time_unit="quarters")
+
+    assert find_time_map(doc).warnings == ()
+
+
+def test_a_misplaced_closing_tap_past_the_media_gets_only_the_one_warning():
+    # It is an ordinary beat, so it is no closing tap past the media.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0},
+            {"time": 5.0, "closing": True},
+        ]
+    )
+    taps = list(timeline.components)
+
+    found = find_time_map(document(timeline, media_length=1.5))
+
+    assert found.warnings == (
+        _misplaced_warning(timeline, taps[1]),
+        f"Timeline {timeline.id}: the closing tap {taps[4]} (5.0) is past the end "
+        "of the media (1.5)",
+    )
+
+
+def test_a_table_without_rows_gets_no_closing_tap_warning():
+    # A timeline of one closing tap: nothing is read as a beat or a barline.
+    timeline = beat_timeline([{"time": 1.0, "closing": True}])
+
+    found = find_time_map(document(timeline, media_length=0.5))
+
+    assert found.reason == "no measure table"
+    assert found.warnings == ()
+
+
+def test_one_beat_and_a_closing_tap_give_no_time_map():
+    # FR-003 counts beats, and a closing tap isn't one. Its row still ends at it.
+    timeline = beat_timeline(
+        [{"time": 1.0, "measure": {"number": 1}}, {"time": 3.0, "closing": True}]
+    )
+    doc = document(timeline)
+
+    found = find_time_map(doc)
+
+    assert found.reason == "fewer than two beats"
+    assert found.warnings == ()
+    assert [(r.beats, r.end) for r in measure_rows(doc, timeline.id)] == [(1, 3.0)]
+
+
+def test_a_table_with_a_problem_gets_no_closing_tap_warning():
+    # It has no rows, so nothing is read as a beat or a barline.
+    timeline = closed_piece(closing=4.0)
+
+    found = find_time_map(document(timeline, media_length=1.0))
+
+    assert found.reason == "two beats at the same time (4.0)"
+    assert found.warnings == ()
+
+
+def test_every_beat_timeline_gets_its_closing_tap_warnings():
+    chosen, other = closed_piece(closing=8.0), closed_piece(closing=9.0)
+    other.ordinal = 2
+
+    found = find_time_map(document(chosen, other, media_length=7.0))
+
+    assert [w.partition(":")[0] for w in found.warnings] == [
+        f"Timeline {chosen.id}",
+        f"Timeline {other.id}",
+    ]
+
+
+def test_the_warnings_of_a_file_read_are_the_time_maps_too():
+    # The reader's table leaves out every closing tap, misplaced ones too.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0, "closing": True},
+            {"time": 3.0, "measure": {}},
+            {"time": 4.0},
+            {"time": 6.0, "closing": True},
+        ]
+    )
+    tap = list(timeline.components)[1]
+
+    found = find_time_map(read_as_a_file(timeline, media_length=5.0))
+
+    assert found.warnings[0] == _misplaced_warning(timeline, tap)
+    assert "the closing tap" in found.warnings[1]
+    assert [r.beats for r in found.time_map.measure_rows()] == [2, 2]
+    assert found.time_map.end == 6.0
 
 
 def test_a_folded_table_past_the_media_is_warned_about(caplog):

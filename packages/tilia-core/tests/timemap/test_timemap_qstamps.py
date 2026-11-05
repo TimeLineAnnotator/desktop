@@ -18,7 +18,7 @@ from time import perf_counter
 
 import pytest
 
-from docs import beat_timeline, document
+from docs import beat_timeline, closed_piece, document, two_movements
 from tilia_core import tla
 from tilia_core.timemap import TimeMap, qstamps, time_map_for
 from tilia_core.timemap import timemap as timemap_module
@@ -595,3 +595,196 @@ def test_qstamps_are_computed_for_a_folded_table():
 
     assert time_map_for(doc, timeline.id) is None
     assert [row.qstamp for row in build_rows(doc, timeline)] == [0, 2, 4]
+
+
+# Closing taps (FR-011, Q16): a pause holds no quarter notes.
+
+
+def _movements(closed=False, **kwargs):
+    timeline = two_movements(closed=closed)
+    return time_map_for(document(timeline, **kwargs), timeline.id)
+
+
+def _closed():
+    timeline = closed_piece()
+    return time_map_for(document(timeline), timeline.id)
+
+
+def test_the_last_beat_of_a_movement_lasts_its_length_until_the_tap():
+    tm = _movements()
+
+    assert tm.qstamp(4.0) == 3.0
+    assert tm.qstamp(4.75) == 3.5
+    assert tm.qstamp(5.5) == 4.0
+
+
+def test_the_next_movements_first_downbeat_has_the_closing_barlines_stamp():
+    tm = _movements()
+
+    assert tm.qstamp(8.0) == tm.qstamp(5.5)
+    assert tm.qstamp(9.0) == 5.0
+    assert tm.qstamp(11.0) == 7.0
+
+
+@pytest.mark.parametrize("t", [5.5000001, 6.5, 7.95, 7.9999999])
+def test_a_time_in_a_pause_has_no_quarter_stamp(t):
+    # Quarter stamps aren't snapped, in a pause as elsewhere (FR-051).
+    assert _movements().qstamp(t) is None
+
+
+def test_a_pause_counts_for_nothing_in_a_length_in_quarter_notes():
+    tm = _movements()
+
+    assert tm.quarters(1.0, 9.0) == 5.0
+    assert tm.quarters(4.0, 8.0) == 1.0
+    assert tm.quarters(5.5, 8.0) == 0.0
+    assert tm.quarters(1.0, 6.5) is None
+    assert tm.quarters(6.5, 9.0) is None
+
+
+def test_a_stamp_at_a_closing_barline_is_read_as_a_start():
+    # The stamp is both the barline's and the next movement's first downbeat's.
+    tm = _movements()
+
+    assert tm.time_at_qstamp(4.0) == 8.0
+    assert tm.time_at_qstamp(3.5) == 4.75
+    assert tm.time_at_qstamp(4.5) == 8.5
+    assert tm.time_at_qstamp(3.9999999) == pytest.approx(5.5)
+
+
+@pytest.mark.parametrize("t", [1.0, 2.5, 4.0, 4.75, 8.0, 8.5, 11.0, 11.5])
+def test_times_and_stamps_are_inverses_outside_a_pause(t):
+    tm = _movements()
+
+    assert tm.time_at_qstamp(tm.qstamp(t)) == pytest.approx(t)
+
+
+def test_a_rows_quarter_notes_are_those_of_its_time():
+    tm = _movements(closed=True)
+
+    for row in tm.measure_rows():
+        assert float(row.qstamp) == tm.qstamp(row.start)
+        assert tm.quarters(row.start, row.end) == float(row.quarters)
+
+
+def test_the_closing_tap_at_the_end_of_the_piece_gives_the_last_gap():
+    tm = _closed()
+
+    assert tm.qstamp(5.0) == 3.5
+    assert tm.qstamp(6.0) == 4.0
+    assert tm.time_at_qstamp(4.0) == 6.0
+    assert tm.time_at_qstamp(3.5) == 5.0
+
+
+def test_beyond_a_last_closing_tap_quarter_notes_go_on_with_its_tempo():
+    # No next movement, so no pause: FR-051's extrapolation, at the tempo of
+    # the last gap, which the tap has just measured.
+    tm = _closed()
+
+    assert tm.qstamp(8.0) == 5.0
+    assert tm.time_at_qstamp(5.0) == 8.0
+
+
+def test_before_the_first_beat_a_closed_piece_extrapolates_as_any_other():
+    assert _movements().qstamp(0.0) == -1.0
+
+
+def test_a_last_movement_without_a_closing_tap_goes_by_its_own_gap():
+    tm = _movements()
+
+    assert tm.qstamp(12.0) == 8.0
+    assert tm.time_at_qstamp(8.0) == 12.0
+
+
+def test_a_last_movement_of_one_beat_goes_by_the_gap_before_the_tap():
+    # The pause is no gap. As `measure_rows` ends that bar (FR-011), so the
+    # bar's quarter note lasts as long in time as in its row.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 4.0, "closing": True},
+            {"time": 9.0, "measure": {"number": 1, "restart": True}},
+        ]
+    )
+    tm = time_map_for(document(timeline), timeline.id)
+
+    assert tm.end == 11.0
+    assert tm.qstamp(9.0) == 2.0
+    assert tm.qstamp(11.0) == 3.0
+
+
+def _with_a_unit_set_at(time):
+    timeline = two_movements()
+    for beat in timeline.components.values():
+        if beat.attrs["time"] == time:
+            beat.attrs["beat_unit"] = {"denominator": 4, "units": "1"}
+    return time_map_for(document(timeline), timeline.id)
+
+
+def test_the_stamps_table_holds_the_closing_barlines_with_no_length():
+    tm = _movements(closed=True)
+
+    assert tm._stamps.times == (1.0, 2.0, 3.0, 4.0, 5.5, 8.0, 9.0, 10.0, 11.0, 13.0)
+    assert tm._stamps.stamps == (0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 5.0, 6.0, 7.0, 8.0)
+
+
+@pytest.mark.parametrize(
+    "start, end, assumed",
+    [
+        (1.0, 2.0, True),
+        (4.5, 5.5, True),  # the last beat counts, up to the tap
+        (8.0, 9.0, False),
+        (9.0, 12.0, False),
+        (4.5, 8.5, True),
+        (5.5, 8.5, False),  # from the barline, bar 2 gives no quarter note
+        (5.5, 5.5, False),
+        (6.5, 9.0, False),  # `quarters` has no value for it
+        (1.0, 6.5, False),
+    ],
+)
+def test_an_assumed_meter_counts_only_where_quarter_notes_are(start, end, assumed):
+    assert _with_a_unit_set_at(8.0).assumed_between(start, end) is assumed
+
+
+@pytest.mark.parametrize(
+    "start, end, assumed",
+    [
+        (1.0, 2.0, False),
+        (4.5, 5.5, False),
+        (4.5, 8.0, False),  # a pause counts for nothing, nor does what follows it
+        (5.5, 8.0, False),
+        (4.5, 8.5, True),
+        (8.0, 9.0, True),
+    ],
+)
+def test_an_assumed_meter_after_a_pause(start, end, assumed):
+    assert _with_a_unit_set_at(1.0).assumed_between(start, end) is assumed
+
+
+def test_an_assumed_meter_past_a_last_movement_of_one_beat_is_the_last_gaps():
+    # The gap before the pause: as the tempo that goes on past the last beat.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 4.0, "closing": True},
+            {
+                "time": 9.0,
+                "measure": {"number": 1, "restart": True},
+                "beat_unit": {"denominator": 4, "units": "1"},
+            },
+        ]
+    )
+    tm = time_map_for(document(timeline), timeline.id)
+
+    assert tm.assumed_between(10.0, 10.5)
+    assert tm.assumed_between(9.0, 10.0)
+    assert not tm.assumed_between(4.0, 9.0)
+
+
+def test_an_assumed_meter_past_a_last_closing_tap_is_the_last_gaps():
+    tm = _closed()
+
+    assert tm.assumed_between(5.0, 5.5)
+    assert tm.assumed_between(6.5, 7.0)  # extrapolated with the last gap
