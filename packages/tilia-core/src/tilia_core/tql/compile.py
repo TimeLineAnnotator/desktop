@@ -154,9 +154,7 @@ def resolve_lanes(
             return _role_lanes(con, file_id, timelines, word)
         if word in KIND_WORDS:
             kind = KIND_WORDS[word]
-            return [
-                s for tl in timelines for s in _lanes_of(con, file_id, tl, (kind,))
-            ]
+            return [s for tl in timelines for s in _lanes_of(con, file_id, tl, (kind,))]
 
     pattern = name_pattern(lane)
     out: list[LaneSpec] = []
@@ -291,13 +289,13 @@ def _alt_sql(
     params: list[Any],
     can: tuple[bool, bool] = (True, True),
 ) -> str:
-    """One ``a/b/…`` on the component ``comp``. A chord is read as a chord and a
-    key as a key (:func:`_harmony_sql`); any other component has its label
-    tested (:func:`_label_sql`). ``can`` says which of the two the lanes of the
-    component can hold (:func:`holds`); the other is left out."""
+    """One ``a AND NOT b AND …`` on the component ``comp``. A chord is read as
+    a chord and a key as a key (:func:`_harmony_sql`); any other component has
+    its label tested (:func:`_label_sql`). ``can`` says which of the two the
+    lanes of the component can hold (:func:`holds`); the other is left out."""
     lits = alt.lits
     if len(lits) == 1 and lits[0].kind == "any":
-        return "(1)"
+        return "(0)" if lits[0].negate else "(1)"
     can_harmony, can_label = can
     if not can_harmony:
         return _label_sql(alt, comp, n, params)
@@ -315,15 +313,25 @@ REGEX_COLUMNS = ("roman", "symbol", "custom_text")  # a chord's label, never its
 
 
 def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
-    """The test that ``alt`` fits the chord or key ``comp`` (tql.md §5): a
-    regular expression alone searches a chord's label (its Roman numeral,
-    symbol and custom text; never its key, #104 R3), or a key's name; any
-    other literal is read as a chord or a key
+    """The test that ``alt`` fits the chord or key ``comp`` (tql.md §5): each
+    of its literals, ``NOT`` ones negated, all on the one chord or key."""
+    tests = []
+    for lit in alt.lits:
+        test = _harmony_lit_sql(lit, comp, params)
+        tests.append(f"NOT {test}" if lit.negate else test)
+    return tests[0] if len(tests) == 1 else "(" + " AND ".join(tests) + ")"
+
+
+def _harmony_lit_sql(lit: syntax.Literal, comp: str, params: list[Any]) -> str:
+    """One literal on the chord or key ``comp``: a regular expression searches a
+    chord's label (its Roman numeral, symbol and custom text; never its key,
+    #104 R3), or a key's name; any other literal is read as a chord or a key
     (``V/V`` and ``C/E`` as written, with their slash). A chord literal that is
     no chord, written in quotes, still matches a chord's own custom text."""
-    lits = alt.lits
-    if len(lits) == 1 and lits[0].kind == "regex":
-        pattern = lits[0].text
+    if lit.kind == "any":
+        return "(1)"
+    if lit.kind == "regex":
+        pattern = lit.text
         found = " OR ".join(f"x.{col} REGEXP ?" for col in REGEX_COLUMNS)
         params.extend([pattern] * len(REGEX_COLUMNS))
         chord = f"EXISTS (SELECT 1 FROM chords x WHERE x.component_id = {comp}.id AND ({found}))"
@@ -332,8 +340,8 @@ def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
         return (
             f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
         )
-    exact = len(lits) == 1 and lits[0].kind == "exact"
-    text = nfc(lits[0].text if exact else alt.raw)
+    exact = lit.kind == "exact"
+    text = _harmony_text(lit)
     chord = (
         "EXISTS (SELECT 1 FROM chords x LEFT JOIN keys y ON y.component_id = "
         f"x.key_id WHERE x.component_id = {comp}.id AND tql_chord(?, x.step, "
@@ -355,6 +363,12 @@ def _harmony_sql(alt: syntax.Alt, comp: str, params: list[Any]) -> str:
     return f"(({comp}.kind = 'chord' AND {chord}) OR ({comp}.kind = 'key' AND {key}))"
 
 
+def _harmony_text(lit: syntax.Literal) -> str:
+    """What a literal says as a chord or a key: a quoted one's text, else as
+    written."""
+    return nfc(lit.text if lit.kind == "exact" else lit.raw)
+
+
 def harmony_problems(
     unit: syntax.Unit,
     kinds: tuple[str, ...],
@@ -366,18 +380,19 @@ def harmony_problems(
     warns nothing. A quoted literal that is no chord but is the custom text
     of some chord (``has_custom``) matches that text and warns nothing."""
     out: list[str] = []
-    for alt in unit.term.alts if unit.term is not None else ():
-        lits = alt.lits
-        if len(lits) == 1 and lits[0].kind in ("any", "regex"):
+    lits = [lit for alt in unit.term.alts for lit in alt.lits] if unit.term else []
+    for lit in lits:
+        if lit.kind in ("any", "regex"):
             continue
-        if any(lit.kind == "regex" for lit in lits):
-            out.append("a regular expression in a harmony lane must stand alone")
-            continue
-        exact = len(lits) == 1 and lits[0].kind == "exact"
-        text = nfc(lits[0].text if exact else alt.raw)
+        exact = lit.kind == "exact"
+        text = _harmony_text(lit)
         problems: list[str] = []
         for kind in kinds:
-            spec = sqlfuncs.chord_spec(text) if kind == "chord" else sqlfuncs.key_spec(text)
+            spec = (
+                sqlfuncs.chord_spec(text)
+                if kind == "chord"
+                else sqlfuncs.key_spec(text)
+            )
             if not isinstance(spec, str):
                 break
             if kind == "chord" and exact and has_custom and has_custom(text.strip()):
@@ -391,10 +406,14 @@ def harmony_problems(
 
 
 def _label_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
-    """One ``a/b/…``: every literal on the one component ``comp``. Words need
-    their own category row each; the other literals test the label."""
+    """One ``a AND NOT b AND …``: every literal on the one component ``comp``.
+    Words need their own category row each; a ``NOT`` word needs none to be
+    there; the other literals test the label (an unlabelled unit fits no
+    regular expression, so it fits ``NOT /x/``)."""
     tests: list[str] = []
-    words = [lit for lit in alt.lits if lit.kind == "word"]
+    words = [
+        lit for lit in alt.lits if lit.kind in ("word", "chord") and not lit.negate
+    ]
     aliases = [f"k{comp}{n}_{i}" for i in range(len(words))]
     word_tests: list[str] = []
     for lit, alias in zip(words, aliases, strict=True):
@@ -413,16 +432,26 @@ def _label_sql(alt: syntax.Alt, comp: str, n: int, params: list[Any]) -> str:
             + ")"
         )
     for lit in alt.lits:
+        if lit.kind in ("word", "chord"):
+            if lit.negate:
+                alias = f"k{comp}{n}_n{len(tests)}"
+                test = _category_test(lit, alias, params)
+                tests.append(
+                    f"NOT EXISTS (SELECT 1 FROM categories {alias} WHERE "
+                    f"{alias}.component_id = {comp}.id AND {test})"
+                )
+            continue
         if lit.kind == "exact":
             # both sides in NFC and trimmed of spaces: a label stored in NFD
             # is the same label, and "verse " must find what "verse" finds
-            tests.append(f"COALESCE(trim(tql_nfc({comp}.label)), '') = ?")
+            test = f"COALESCE(trim(tql_nfc({comp}.label)), '') = ?"
             params.append(nfc(lit.text).strip(" "))
         elif lit.kind == "regex":
-            tests.append(f"({comp}.label IS NOT NULL AND {comp}.label REGEXP ?)")
+            test = f"({comp}.label IS NOT NULL AND {comp}.label REGEXP ?)"
             params.append(lit.text)
-        elif lit.kind == "any":
-            tests.append("1")
+        else:
+            test = "1"
+        tests.append(f"NOT ({test})" if lit.negate else test)
     return "(" + " AND ".join(tests) + ")"
 
 
@@ -434,6 +463,8 @@ POSITION_FIELDS = (
     "bar.count",
     "bar.label",
     "bar.beat_count",
+    "bar.cadenza",
+    "bar.movement",
 )
 POSITION_COLUMNS = {
     "bar": "bar",
@@ -442,6 +473,8 @@ POSITION_COLUMNS = {
     "pass": "pass",
     "bar.count": "bar_count",
     "bar.beat_count": "bar_beat_count",
+    "bar.cadenza": "bar_cadenza",
+    "bar.movement": "bar_movement",
 }  # the numeric position fields and the column of ``positions`` each reads
 LENGTH_UNITS = ("bar", "beat")
 ORDER_OPS = {"=": "=", "!=": "<>", "<": "<", ">": ">", "<=": "<=", ">=": ">="}
@@ -540,7 +573,8 @@ def split_conds(
 ) -> tuple[list[syntax.RelCond | syntax.Compare], list[syntax.Cond]]:
     """The bracket conditions of ``unit`` that SQL tests (stored numbers and
     colours, and timing relations to another lane, whose target SQL tests in
-    full) and those Python tests."""
+    full) and those Python tests (conditions joined by ``OR`` or in
+    parentheses among them)."""
     from . import relations  # relations imports this module
 
     in_sql: list[syntax.RelCond | syntax.Compare] = []
@@ -612,8 +646,6 @@ def unit_test(
         if len(alts) > 1:
             # callers AND this with the file and lane tests
             test = f"({test})"
-        if term.negate:
-            test = f"NOT ({test})"
     if not in_sql:
         return test
     parts = [f"({test})"] + [

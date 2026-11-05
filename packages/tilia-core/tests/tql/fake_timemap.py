@@ -28,10 +28,19 @@ class FakeTimeMap:
         every: float,
         beats_per_bar: int,
         numbers: Sequence[int],
+        cadenzas: Sequence[int] = (),
+        restarts: Sequence[int] = (),
+        time_signature: str | None = None,
         *,
         timeline_id: str = "",
         guessed: bool = False,
     ) -> None:
+        """``cadenzas`` and ``restarts`` are bars by their place in playing
+        order (1 is the first): cadenza bars, and bars that begin a new
+        movement."""
+        self.cadenzas = set(cadenzas)
+        self.restarts = set(restarts)
+        self.time_signature = time_signature or f"{beats_per_bar}/4"
         self.timeline_id = timeline_id
         self.guessed = guessed
         self.start = float(start)
@@ -52,7 +61,15 @@ class FakeTimeMap:
     def from_fixture(cls, tl: dict) -> "FakeTimeMap":
         """From an examples.toml timeline of kind "beats"."""
         numbers = tl.get("numbers") or list(range(1, tl["bars"] + 1))
-        return cls(tl["start"], tl["every"], tl["beats_per_bar"], numbers)
+        return cls(
+            tl["start"],
+            tl["every"],
+            tl["beats_per_bar"],
+            numbers,
+            tl.get("cadenzas", ()),
+            tl.get("restarts", ()),
+            tl.get("time_signature"),
+        )
 
     def beat_times(self) -> list[float]:
         """The time of every beat of every bar; the map's end is none."""
@@ -162,6 +179,18 @@ class FakeTimeMap:
         j = self._bar_index(t)
         return None if j is None else j + 1
 
+    def cadenza(self, t: float) -> int | None:
+        count = self.bar_count(t)
+        return None if count is None else int(count in self.cadenzas)
+
+    def movement(self, t: float) -> int | None:
+        count = self.bar_count(t)
+        return None if count is None else self.movement_of(count)
+
+    def movement_of(self, count: int) -> int:
+        """The movement of the bar at ``count`` in playing order."""
+        return 1 + sum(1 for r in self.restarts if r <= count)
+
     def bar_label(self, t: float) -> str | None:
         b = self.bar(t)
         return None if b is None else str(b)
@@ -190,8 +219,10 @@ class FakeTimeMap:
                 beats=self.beats_per_bar,
                 pass_=self.pass_of(start),
                 beat_unit=4,
-                time_signature=f"{self.beats_per_bar}/4",
+                time_signature=self.time_signature,
                 assumed=False,
+                cadenza=count in self.cadenzas,
+                movement=self.movement_of(count),
             )
             for count, (start, end, number, label) in enumerate(self.measures(), 1)
         ]
@@ -211,6 +242,8 @@ class FakeTimeMap:
             bar_label=self.bar_label(start),
             bar_beat_count=self.measure_beats(start),
             downbeat=self.is_downbeat(start),
+            cadenza=bool(self.cadenza(start)),
+            movement=self.movement(start),
         )
 
 

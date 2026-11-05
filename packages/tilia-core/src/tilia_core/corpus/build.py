@@ -383,7 +383,19 @@ def _add_time_map(out: Rows, time_map: TimeMap) -> None:
     start lies on the map (contracts/time-map.md)."""
     for m in time_map.measure_rows():
         out.measures.append(
-            (out.file_id, m.count, m.number, m.label, m.start, m.end, m.beats, m.pass_)
+            (
+                out.file_id,
+                m.count,
+                m.number,
+                m.label,
+                m.start,
+                m.end,
+                m.beats,
+                m.pass_,
+                int(m.cadenza),
+                m.movement,
+                m.time_signature,
+            )
         )
     for comp in out.components:
         key, start, end = comp[0], comp[5], comp[6]
@@ -401,5 +413,7 @@ def _add_time_map(out: Rows, time_map: TimeMap) -> None:
                 p.bar_label,
                 p.bar_beat_count,
                 int(p.downbeat),
+                int(p.cadenza),
+                p.movement,
             )
         )

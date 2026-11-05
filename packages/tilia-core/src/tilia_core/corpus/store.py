@@ -51,11 +51,11 @@ _DELETE = (
 )
 _BY_COMPONENT = ("hierarchies", "ranges", "chords", "keys", "categories", "positions")
 _DELETE_FIELDS = (
-    "DELETE FROM fields WHERE (scope = 'file' AND owner_id = ?1) "
+    "DELETE FROM fields WHERE (scope = 'file' AND owner_id = :file_id) "
     "OR (scope = 'timeline' AND owner_id IN "
-    "(SELECT id FROM timelines WHERE file_id = ?1)) "
+    "(SELECT id FROM timelines WHERE file_id = :file_id)) "
     "OR (scope = 'component' AND owner_id IN "
-    "(SELECT id FROM components WHERE file_id = ?1))"
+    "(SELECT id FROM components WHERE file_id = :file_id))"
 )
 
 
@@ -297,7 +297,7 @@ class Store:
         for file_id in deletes:
             for table in _BY_COMPONENT:
                 con.execute(_DELETE.format(table=table), (file_id,))
-            con.execute(_DELETE_FIELDS, (file_id,))
+            con.execute(_DELETE_FIELDS, {"file_id": file_id})
             con.execute("DELETE FROM measures WHERE file_id = ?", (file_id,))
             con.execute("DELETE FROM components WHERE file_id = ?", (file_id,))
             con.execute("DELETE FROM timelines WHERE file_id = ?", (file_id,))

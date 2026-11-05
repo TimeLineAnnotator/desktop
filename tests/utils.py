@@ -5,13 +5,16 @@ from pprint import pformat
 from typing import Callable
 from unittest.mock import patch
 
+from PySide6.QtCore import QVariantAnimation
 from PySide6.QtGui import QAction
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
 from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu
 from tilia.ui.timelines.base.timeline import TimelineUI
 
@@ -88,6 +91,20 @@ def get_method_patch_target(method: Callable) -> str:
     is defined.
     """
     return method.__module__ + "." + method.__qualname__
+
+
+def wait_for_smooth_movement(*smooth_setters: SmoothSetter, timeout_ms: int = 2000):
+    """Run the event loop until each of `smooth_setters` has finished moving its
+    value. A movement left running would take its next steps whenever a later
+    test runs the event loop, on objects that test has deleted."""
+    waited = 0
+    while any(
+        s.animation.state() is not QVariantAnimation.State.Stopped
+        for s in smooth_setters
+    ):
+        assert waited < timeout_ms, "Smooth movement didn't finish."
+        QTest.qWait(10)
+        waited += 10
 
 
 @contextmanager
