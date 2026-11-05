@@ -284,26 +284,101 @@ class TestTimesOf:
         repeats = time_map(*REPEATS)
 
         assert repeats.times_of(3, 1.0, segment_end=True) == [7.0]
-        # the last bar 1 ends the piece: it lasts as long as the bar 2 before it
+        # the last bar 1 ends the piece, one gap after its last beat
         assert repeats.times_of(1, 1.0, segment_end=True) == [3.0, 9.0, 13.0]
 
-    def test_past_the_last_beat_the_bar_before_gives_the_length(self):
-        # The last bar lasts as long as the bar before it in the timeline,
-        # whatever its number (TiLiA's projection), not FR-011's closing
-        # barline: two beats, in a bar 4 s long.
+    def test_past_the_last_beat_the_last_bar_runs_to_the_closing_barline(self):
+        # FR-011's, where the time map ends: not as long as the bar before it,
+        # here 4 s.
         bars = time_map((1, 4), ({"number": 7}, 2))
 
-        assert bars.times_of(7, 0.75) == [7.5]
-        assert bars.times_of(7, 1.0, segment_end=True) == [9.0]
+        assert bars.times_of(7, 0.75) == [6.5]
+        assert bars.times_of(7, 1.0, segment_end=True) == [7.0] == [bars.end]
         assert bars.times_of(7, 1.0) == []
 
-    def test_one_bar_alone_gives_no_time_past_its_last_beat(self):
-        # Nothing to project from, as in TiLiA
+    def test_one_bar_alone_runs_to_the_closing_barline(self):
         bars = time_map((1, 2))
 
         assert bars.times_of(1, 0.25) == [1.5]
-        assert bars.times_of(1, 0.75) == []
-        assert bars.times_of(1, 1.0, segment_end=True) == []
+        assert bars.times_of(1, 0.75) == [2.5]
+        assert bars.times_of(1, 1.0, segment_end=True) == [3.0] == [bars.end]
+        assert bars.times_of(1, 1.0) == []
+
+    def test_a_last_bar_that_isnt_steady_goes_by_its_last_gap(self):
+        # Half a second, not the 4 s of the bar before it.
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0},
+                {"time": 4.0},
+                {"time": 5.0, "measure": {}},
+                {"time": 5.5},
+            ]
+        )
+        bars = time_map_for(document(timeline), timeline.id)
+
+        assert bars.times_of(2, 0.75) == [5.75]
+        assert bars.times_of(2, 1.0, segment_end=True) == [6.0] == [bars.end]
+
+    def test_a_last_beat_lasts_its_own_length(self):
+        # An eighth after a quarter that took 1 s: FR-011's half a second.
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {
+                    "time": 3.0,
+                    "measure": {},
+                    "beat_unit": {"denominator": 8, "units": "2+1"},
+                },
+                {"time": 4.0},
+            ]
+        )
+        bars = time_map_for(document(timeline), timeline.id)
+
+        assert bars.times_of(2, 0.75) == [4.25]
+        assert bars.times_of(2, 1.0, segment_end=True) == [4.5] == [bars.end]
+
+    @pytest.mark.parametrize(
+        "media_length, end, at_three_quarters",
+        [(6.5, 6.5, 6.25), (30.0, 7.0, 6.5), (5.5, 7.0, 6.5)],
+        ids=["the media ends sooner", "the media ends later", "before the last beat"],
+    )
+    def test_the_end_of_the_media_stops_a_last_bar(
+        self, media_length, end, at_three_quarters
+    ):
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0},
+                {"time": 4.0},
+                {"time": 5.0, "measure": {}},
+                {"time": 6.0},
+            ]
+        )
+        doc = document(timeline, media_length=media_length)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(2, 0.75) == [at_three_quarters]
+        assert bars.times_of(2, 1.0, segment_end=True) == [end] == [bars.end]
+
+    def test_a_segments_end_on_a_downbeat_gives_the_last_bars_own_end(self):
+        # Bar 1's second pass ends the piece, half a second after its last beat.
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0, "measure": {}},
+                {"time": 4.0},
+                {"time": 5.0, "measure": {"number": 1}},
+                {"time": 5.5},
+            ]
+        )
+        bars = time_map_for(document(timeline), timeline.id)
+
+        assert bars.times_of(2, segment_end=True) == [3.0, 6.0]
 
     def test_a_pickup(self):
         bars = time_map((0, 1), (1, 4), (2, 4), (3, 2))
@@ -396,8 +471,8 @@ class TestACadenzaBelongsToTheBarBeforeIt:
         assert back.times_of(2, 1.0) == [5.0]
 
     def test_a_cadenza_that_ends_the_piece_moves_the_end_to_its_own(self):
-        # 1, 2, 3, 1, 2, 2c: the cadenza, the last row, lasts as long as the
-        # row before it (TiLiA's projection): it ends at 11 s + 2 s.
+        # 1, 2, 3, 1, 2, 2c: the cadenza, the last row, ends at the closing
+        # barline, one gap after its last beat: 12 s + 1 s.
         last = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2))
 
         assert last.times_of(3, segment_end=True) == [5.0, 13.0]
@@ -456,8 +531,8 @@ class TestACadenzaBelongsToTheBarBeforeIt:
     def test_as_a_segments_end_the_fraction_1_is_where_the_cadenza_ends(self):
         assert time_map(*CADENZA).times_of(2, 1.0, segment_end=True) == [8.0]
         assert time_map(*CADENZAS).times_of(2, 1.0, segment_end=True) == [9.0]
-        # A cadenza that ends the piece lasts as long as the row before it,
-        # as the last row does (TiLiA's projection): 11 s + 2 s.
+        # A cadenza that ends the piece ends at the closing barline, as the
+        # last row does: 12 s + 1 s.
         last = time_map((1, 2), (2, 2), (3, 2), (1, 2), (2, 2), (C2, 2))
 
         assert last.times_of(2, 1.0, segment_end=True) == [5.0, 13.0]
@@ -516,7 +591,7 @@ NUMBERED_ON = (
 
 class TestAClosingTap:
     """A bar a closing tap closes ends at the tap, for its fractions and as a
-    segment's end; TiLiA's projection only for a last bar without one (FR-060,
+    segment's end; a last bar without one at FR-011's closing barline (FR-060,
     TimeLineAnnotator/project-management#332). TiLiA has no closing tap, so
     these cases are the core's own, not shared examples."""
 
@@ -599,15 +674,13 @@ class TestAClosingTap:
         assert tm.times_of(1, 1 / 3) == [2.0]
         assert tm.times_of(1, 1.0) == [4.0]
 
-    def test_the_projection_only_for_a_last_bar_without_a_tap(self, movements):
-        # The last bar lasts as long as the one before it: two seconds.
+    def test_a_last_bar_without_a_tap_runs_to_the_closing_barline(self, movements):
         assert movements.times_of(2, 0.75, movement=2) == [11.5]
         assert movements.times_of(2, 1.0, movement=2, segment_end=True) == [12.0]
         assert movements.times_of(2, 1.0, movement=2) == []
 
-    def test_the_projection_doesnt_count_the_pause(self):
-        # Bar 2 of the first movement lasted 2.5 s, up to its tap: the pause
-        # after it is in no bar. So the second movement's only bar lasts as long.
+    def test_a_last_movements_bar_goes_by_its_own_gap(self):
+        # Not by the 2.5 s of the bar before the pause.
         tm = closing(
             (1.0, {"number": 1}),
             (2.0, None),
@@ -618,5 +691,5 @@ class TestAClosingTap:
             (9.0, None),
         )
 
-        assert tm.times_of(1, 1.0, movement=2, segment_end=True) == [10.5]
-        assert tm.times_of(1, 0.75, movement=2) == pytest.approx([9.75])
+        assert tm.times_of(1, 1.0, movement=2, segment_end=True) == [10.0]
+        assert tm.times_of(1, 0.75, movement=2) == [9.5]
