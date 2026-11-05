@@ -1,10 +1,8 @@
 import music21.harmony
 import music21.pitch
 
-from tilia.timelines.harmony.constants import (
-    ADDED_TONE_QUALITIES,
-    CADENTIAL_SIX_FOUR_TONE,
-)
+from tilia.timelines.harmony.constants import CADENTIAL_SIX_FOUR_TONE
+from tilia_core.rules import ADDED_TONE_QUALITIES
 
 ACCIDENTAL_TO_INT = {"": 0, "♯": 1, "♭": -1, "𝄪": 2, "𝄫": -2}
 

@@ -13,11 +13,9 @@ from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
 )
 from tilia.timelines.harmony.constants import (
-    HARMONY_DISPLAY_MODES,
     HARMONY_QUALITIES,
     INT_TO_NOTE_NAME,
     NOTE_NAME_TO_INT,
-    get_inversion_amount,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui.timelines.harmony.constants import (
@@ -29,6 +27,7 @@ from tilia.ui.timelines.harmony.elements.harmony_attrs import _INV_TO_STRING
 from tilia.ui.timelines.harmony.utils import (
     INT_TO_APPLIED_TO_SUFFIX,
 )
+from tilia_core.rules import HARMONY_DISPLAY_MODES, get_inversion_amount
 
 
 class SelectHarmonyParams(QDialog):

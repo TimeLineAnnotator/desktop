@@ -10,11 +10,9 @@ from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.constants import (
-    ADDED_TONE_QUALITIES,
     CHORD_COMMON_NAME_TO_TYPE,
     NOTE_NAME_TO_INT,
     ROMAN_TO_INT,
-    get_inversion_amount,
 )
 from tilia.timelines.harmony.validators import (
     validate_accidental,
@@ -27,6 +25,10 @@ from tilia.timelines.harmony.validators import (
     validate_step,
 )
 from tilia.ui.format import format_media_time
+from tilia_core.rules import (
+    ADDED_TONE_QUALITIES,
+    get_inversion_amount,
+)
 
 if TYPE_CHECKING:
     from tilia.timelines.harmony.timeline import HarmonyTimeline

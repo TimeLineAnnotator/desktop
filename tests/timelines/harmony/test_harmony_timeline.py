@@ -3,7 +3,7 @@ import pytest
 from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
-from tilia.timelines.harmony.constants import get_inversion_amount
+from tilia_core.rules import get_inversion_amount
 
 
 class TestGetInversionAmount:

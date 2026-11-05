@@ -21,8 +21,10 @@ def test_validate_color_valid_hex():
     assert validate_color("#f00") is True
 
 
-def test_validate_color_valid_qcolor():
-    assert validate_color(QColor("red")) is True
+def test_validate_color_a_qcolor_is_not_text():
+    # The app stores a color as text (`QColor.name()`), which is what the core reads.
+    assert validate_color(QColor("red").name()) is True
+    assert validate_color(QColor("red")) is False
 
 
 def test_validate_color_invalid_string():

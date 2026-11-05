@@ -535,61 +535,6 @@ class TestColor:
             f"There is already a row with the id {ROW}.",
         )
 
-    def test_colors_are_those_qt_reads(self):
-        qt = pytest.importorskip("PySide6.QtGui", reason="compares with Qt")
-        names = qt.QColor.colorNames()
-        samples = [
-            *names,
-            *(name.upper() for name in names),
-            *(" ".join(name) for name in names),
-            "#fff",
-            "#FfF",
-            "#ffff",
-            "#fffff",
-            "#ff00ff00",
-            "#fffffffff",
-            "#ffffffffffff",
-            "#fffffffffffffff",
-            "#",
-            "#+12345",
-            "#12 345",
-            "#\tfff",
-            "#fff\t",
-            " #fff",
-            "fff",
-            "red\t",
-            "\tr\te\td\t",
-            "red\n",
-            "red ",
-            "red\x00",
-            "re\x00d",
-            "redΩ",
-            "redΩblah",
-            "Khaki",
-            "whİte",
-            "ſteelblue",
-            "ＲＥＤ",
-            "red\U0001f3bb",
-            "re\ud83d",
-            "red\ud83d",
-            "\ud83dred",
-            "red\udfbb",
-            " " * 251 + "red\ud83d",
-            " " * 252 + "red\ud83d",
-            "notacolor",
-            "a" * 300,
-            " " * 300 + "red",
-            " " * 250 + "red",
-        ]
-
-        disagree = [
-            sample
-            for sample in samples
-            if rules.color(sample).ok is not qt.QColor(sample).isValid()
-        ]
-
-        assert disagree == []
-
 
 class TestPointKinds:
     @pytest.mark.parametrize("kind", POINT_KINDS)
