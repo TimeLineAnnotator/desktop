@@ -27,6 +27,7 @@ from tilia.ui.cli import (
 )
 from tilia.ui.cli.io import ask_yes_or_no, error, tabulate
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
+from tilia.ui.timelines.constants import PLAYBACK_AREA_WIDTH
 
 
 class CLI:
@@ -45,6 +46,12 @@ class CLI:
 
         SERVES = {
             (Get.PLAYER_CLASS, self.get_player_class),
+            # AudioWaveTimeline.refresh() caps its amplitude divisions at the
+            # playback area width. Only QtUI serves this, so without it
+            # `timelines add audiowave` dies on NoReplyToRequest. Report the
+            # same default QtUI starts at, so a timeline built here has the
+            # resolution it would have had in the GUI.
+            (Get.PLAYBACK_AREA_WIDTH, lambda: PLAYBACK_AREA_WIDTH),
             (Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no),
             (Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes),
             (Get.FROM_USER_RETRY_MEDIA_PATH, on_ask_retry_media_file),
