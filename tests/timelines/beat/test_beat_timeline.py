@@ -60,7 +60,7 @@ class TestBeatTimeline:
         assert starts == [5, 13, 17]
         assert beat_tlui.timeline.measure_numbers == [1, 2, 3]
 
-    def test_deleting_a_measures_only_beat_removes_the_measure(self, beat_tlui):
+    def test_deleting_a_measures_only_beat_moves_the_later_barlines(self, beat_tlui):
         for time in range(9, 18):
             commands.execute("media.seek", time)
             commands.execute("timeline.beat.add")
@@ -70,8 +70,8 @@ class TestBeatTimeline:
         beat_tlui.select_element(beat_tlui[0])
         commands.execute("timeline.component.delete")
 
-        assert beat_tlui.timeline.beats_in_measure == [4, 4]
-        assert beat_tlui.timeline.measure_numbers == [1, 2]
+        assert beat_tlui.timeline.beats_in_measure == [1, 4, 3]
+        assert beat_tlui.timeline.measure_numbers == [1, 2, 3]
 
     def test_recalculate_measures_added_one_measure(self, beat_tl):
         beat_tl.create_beat(time=1)
@@ -498,7 +498,7 @@ class TestBeatTimeline:
         assert beat_tl.measure_numbers == [1, 10]
         assert beat_tl[2].measure_number_override == 10
 
-    def test_delete_every_beat_of_a_measure_removes_it(self, beat_tl):
+    def test_delete_every_beat_of_a_measure_keeps_the_measures_lengths(self, beat_tl):
         beat_tl.beat_pattern = [2]
         for time in range(7):
             beat_tl.create_beat(time)
@@ -507,7 +507,7 @@ class TestBeatTimeline:
         beat_tl.delete_components([beat_tl[2], beat_tl[3]])
 
         assert beat_tl.beats_in_measure == [2, 2, 1]
-        assert beat_tl.measure_numbers == [1, 10, 11]
+        assert beat_tl.measure_numbers == [1, 2, 10]
 
     @pytest.mark.timeout(5)
     def test_open_file_with_many_beats(self, resources, tilia):
