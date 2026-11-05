@@ -538,6 +538,29 @@ class TestPositionWithNoTime:
 
         assert viewer.visible_times == [1, tilia_state.duration]
 
+    def test_edge_at_a_number_past_the_last_measure_is_after_the_measures(
+        self, viewer_over_measures, beat_tl, tilia_state
+    ):
+        # Only a hand-edited or buggy file has more numbers than measures.
+        viewer = viewer_over_measures([1, 2])
+        beat_tl.measure_numbers = [1, 2, 3, 4]
+        _paint_viewport(viewer, 10.0, 100.0)
+        assert viewer.visible_times == [1, 2]
+
+        _paint_viewport(viewer, 10.0, 200.0)
+
+        assert viewer.visible_times == [1, tilia_state.duration]
+
+    def test_edge_below_the_measures_ignores_a_number_past_the_last_measure(
+        self, viewer_over_measures, beat_tl
+    ):
+        viewer = viewer_over_measures([2, 3])
+        beat_tl.measure_numbers = [2, 3, 1, 4]
+
+        _paint_viewport(viewer, 10.0, 100.0)
+
+        assert viewer.visible_times == [0, 1]
+
 
 class TestZoom:
     @staticmethod

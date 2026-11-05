@@ -285,7 +285,7 @@ class BeatTimeline(Timeline):
         return len(self.beats_in_measure)
 
     @property
-    def _numbers_of_measures(self) -> list[int]:
+    def numbers_of_measures(self) -> list[int]:
         # A hand-edited or buggy file can have more numbers than measures.
         return self.measure_numbers[: self.measure_count]
 
@@ -317,7 +317,7 @@ class BeatTimeline(Timeline):
 
         beats = self.components
         measure_indices = [
-            i for i, n in enumerate(self._numbers_of_measures) if n == number
+            i for i, n in enumerate(self.numbers_of_measures) if n == number
         ]
         times = [
             time
@@ -421,13 +421,13 @@ class BeatTimeline(Timeline):
         self, beats: list[Beat], number: int
     ) -> list[float]:
         """Where each pass of the measure numbered just below `number` ends."""
-        numbers_below = [n for n in self._numbers_of_measures if n < number]
+        numbers_below = [n for n in self.numbers_of_measures if n < number]
         if not numbers_below:
             return []
         number_before = max(numbers_below)
         return [
             end
-            for i, n in enumerate(self._numbers_of_measures)
+            for i, n in enumerate(self.numbers_of_measures)
             if n == number_before
             and (end := self._get_measure_end(beats, i)) is not None
         ]
