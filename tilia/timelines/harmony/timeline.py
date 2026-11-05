@@ -60,6 +60,12 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             )
             harmony.set_data("applied_to", new_applied_to)
 
+    def restore_state(self, prev_state: dict):
+        super().restore_state(prev_state)
+        # Components are restored in id order, so a harmony restored before
+        # the mode it depends on has a label made without it.
+        post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
+
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs
     ) -> tuple[bool, TC | None, str]:
