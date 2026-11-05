@@ -6,7 +6,8 @@ then the closing barline, with a closing barline too after each movement a
 closing tap ends), each slot's measure, each measure's first slot and the
 downbeats, with the map; each slot's quarter stamp, the first time one is asked
 for. A time after a movement's closing tap, and before the next movement's first
-downbeat, is in a pause: no measure holds it, and it has no quarter stamp.
+downbeat, is in a pause: no measure holds it, and it has no quarter stamp, unless
+it snaps onto that tap or that downbeat, as a position does.
 """
 
 from __future__ import annotations
@@ -286,19 +287,37 @@ class TimeMap:
             and self._is_barline(slot)
         )
 
-    # Quarter notes: desktop#621's quarter stamps. Unlike positions, they
-    # aren't snapped, and they go on beyond the beats.
+    def _edges_a_pause(self, slot: int) -> bool:
+        """Whether a slot is a movement's closing barline, or the first downbeat
+        after one. The piece's last barline has no pause after it."""
+        if slot < len(self._slots) - 1 and self._is_barline(slot):
+            return True
+        return slot > 0 and self._is_barline(slot - 1)
+
+    def _stamp_time(self, t: float) -> float | None:
+        """The time at which `t`'s quarter stamp is read: `t` itself, but around a
+        pause, where it snaps as a position does, so that a section has quarter
+        notes wherever it has bars. None for a time truly in the pause."""
+        snapped = self._snapped(t)
+        slot = bisect.bisect_right(self._slots, snapped) - 1
+        if slot >= 0 and snapped == self._slots[slot] and self._edges_a_pause(slot):
+            return snapped
+        return None if self._in_pause(t) else t
+
+    # Quarter notes: desktop#621's quarter stamps. Unlike positions, they aren't
+    # snapped, but around a pause, and they go on beyond the beats.
 
     def qstamp(self, t: float) -> float | None:
         """`t`'s position in quarter notes, from 0 at the first beat:
         interpolated between beats, and extrapolated beyond them with the tempo
         of the nearest gap. At a beat, its exact stamp as a float. A closing tap
         lasts no quarter note, and the pause after a movement's holds none: the
-        next downbeat has the tap's stamp. None for a missing time, or one in a
-        pause."""
-        if t is None or not math.isfinite(t) or self._in_pause(t):
+        next downbeat has the tap's stamp, and a time that snaps onto either has
+        it too. None for a missing time, or one truly in a pause."""
+        if t is None or not math.isfinite(t):
             return None
-        return quarter_stamp_by_time(self._stamps, t)
+        at = self._stamp_time(t)
+        return None if at is None else quarter_stamp_by_time(self._stamps, at)
 
     def time_at_qstamp(self, q: float) -> float | None:
         """The time at the quarter stamp `q`, read as `qstamp` reads them. A
@@ -320,19 +339,26 @@ class TimeMap:
     def assumed_between(self, start: float, end: float) -> bool:
         """Whether an assumed meter went into `quarters(start, end)`, so that a
         length in quarter notes can say "assumed meter": whether a measure that
-        holds a beat whose length it counts is assumed (`beats_between`).
-        False for a missing time, or one in a pause, as `quarters` gives None."""
+        holds a beat whose length it counts is assumed (`beats_between`). Around
+        a pause, a time is read where `qstamp` reads it. False for a missing
+        time, or one truly in a pause, as `quarters` gives None."""
         if any(t is None or not math.isfinite(t) for t in (start, end)):
             return False
-        if self._in_pause(start) or self._in_pause(end):
+        ends = self._stamp_time(start), self._stamp_time(end)
+        if None in ends:
             return False
-        beats = beats_between(self._taps, start, end)
+        low, high = sorted(ends)
+        beats = beats_between(self._taps, low, high)
         if (
             beats
             and self._is_barline(beats[0])
-            and min(start, end) == self._slots[beats[0]]
+            and low == self._slots[beats[0]]
+            and (len(beats) > 1 or high <= self._taps[-1])
         ):
-            beats = beats[1:]  # from a closing barline on, its bar gives no quarter
+            # From a closing barline on, its bar gives no quarter note. But past
+            # a last movement of one beat, quarter notes go by the gap before
+            # the pause, which is that bar's, and no other gap is left.
+            beats = beats[1:]
         if not beats:
             return False
         first, last = self._measure_of[beats[0]], self._measure_of[beats[-1]]
