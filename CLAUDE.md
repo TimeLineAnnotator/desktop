@@ -37,7 +37,7 @@ black .
 
 # Build a standalone executable with Nuitka
 pip install -e . --group build
-python scripts/deploy.py <ref_name> <os_type>  # output in build/<os_type>/exe
+python scripts/deploy.py  # Python 3.12/3.13 only; output in build/<os_type>/exe; installer only if vpk is on PATH
 ```
 
 Default pytest timeout is 10s (pytest-timeout). `ffmpeg` must be on PATH for audio export/convert features.
