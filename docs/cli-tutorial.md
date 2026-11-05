@@ -248,6 +248,40 @@ timelines import hierarchy by-measure --file "C:/data/form_measures.csv" --targe
 
 ```
 
+### Importing harmonies
+
+Harmony timelines can be imported by time or by measure. Each row is either a harmony or a key, as given in the `harmony_or_key` column. Roman numerals are read against the key in effect, so put a key row before the chords that depend on it. A row with an invalid symbol is reported and the other rows are still imported.
+
+The required columns are `harmony_or_key`, `symbol`, and either `time` (by time) or `measure` and `fraction` (by measure). The optional columns are `comments`, `display_mode`, `custom_text` and `custom_text_font_type`.
+
+**harmonies.csv:**
+```csv
+harmony_or_key,time,symbol
+key,0.0,C
+harmony,0.0,I
+harmony,2.0,V7
+harmony,4.0,I
+```
+
+**harmonies_measures.csv:**
+```csv
+harmony_or_key,measure,fraction,symbol
+key,1,0.0,C
+harmony,1,0.0,I
+harmony,2,0.0,V7
+harmony,3,0.0,I
+```
+
+```bash
+timelines add harmony --name "Harmony"
+
+# By time
+timelines import harmony by-time --file "C:/data/harmonies.csv" --target-name "Harmony"
+
+# By measure, using a beat timeline as reference
+timelines import harmony by-measure --file "C:/data/harmonies_measures.csv" --target-name "Harmony" --reference-tl-name "Measures"
+```
+
 ## Working with Existing TiLiA files
 
 You can also open and modify existing TiLiA files.

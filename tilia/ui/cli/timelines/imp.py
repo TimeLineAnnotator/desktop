@@ -1,12 +1,13 @@
 from pathlib import Path
 from typing import Literal, Tuple, cast
 
-from tilia.parsers.csv import beat, hierarchy, marker
+from tilia.parsers.csv import beat, harmony, hierarchy, marker
 from tilia.parsers.csv import range as range_parser
 from tilia.parsers.score import musicxml
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.range.timeline import RangeTimeline
@@ -50,6 +51,7 @@ def setup_import_marker_and_hierarchy_parser(subparser):
     component_info = [
         ("marker", "markers"),
         ("hierarchy", "hierarchies"),
+        ("harmony", "harmonies"),
     ]
     for kind, plural in component_info:
         parser = subparser.add_parser(
@@ -121,7 +123,7 @@ def setup_import_file_and_target_args(subparser):
 def validate_timelines_for_import(
     tl: Timeline,
     ref_tl: Timeline | None,
-    kind_str: Literal["beat", "hierarchy", "marker", "range", "score"],
+    kind_str: Literal["beat", "harmony", "hierarchy", "marker", "range", "score"],
     by: Literal["by-measure", "by-time"] | None,
 ) -> Tuple[bool, str]:
     success = True
@@ -204,6 +206,12 @@ def import_timeline(namespace):
             success, errors = hierarchy.import_by_measure(tl, ref_tl, file)
         else:
             success, errors = hierarchy.import_by_time(tl, file)
+    elif tl_type == "harmony":
+        tl = cast(HarmonyTimeline, tl)
+        if measure_or_time == "by-measure":
+            success, errors = harmony.import_by_measure(tl, ref_tl, file)
+        else:
+            success, errors = harmony.import_by_time(tl, file)
     elif tl_type == "beat":
         tl = cast(BeatTimeline, tl)
         success, errors = beat.beats_from_csv(tl, file)

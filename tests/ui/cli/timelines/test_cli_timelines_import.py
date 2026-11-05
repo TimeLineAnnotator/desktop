@@ -5,6 +5,8 @@ from tests.mock import Serve
 from tilia.requests import Get
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.harmony.components import Harmony
+from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.range.timeline import RangeTimeline
@@ -166,6 +168,92 @@ class TestImportTimeline:
 
         assert len(range_tl.rows) == 1
         assert range_tl.rows[0].name
+
+    def test_harmonies_by_time(self, cli, harmony_tl, tmp_path):
+        data = "harmony_or_key,time,symbol\nharmony,1,C\nharmony,2,Dm"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import harmony by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        harmonies = sorted(harmony_tl)
+        assert [h.get_data("time") for h in harmonies] == [1, 2]
+        assert all(isinstance(h, Harmony) for h in harmonies)
+
+    def test_harmonies_by_measure(self, cli, harmony_tl, beat_tl, tmp_path):
+        beat_tl.beat_pattern = [1]
+        for i in range(1, 6):
+            beat_tl.create_beat(i)
+        beat_tl.recalculate_measures()
+
+        data = "harmony_or_key,measure,fraction,symbol\nharmony,1,0,C\nharmony,3,0,G"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import harmony by-measure --target-ordinal 1 "
+            f"--reference-tl-ordinal 2 --file {str(csv_path.resolve())}"
+        )
+
+        harmonies = sorted(harmony_tl)
+        assert [h.get_data("time") for h in harmonies] == [1, 3]
+
+    def test_harmonies_roman_numeral_read_against_key(self, cli, harmony_tl, tmp_path):
+        data = "harmony_or_key,time,symbol\nkey,0,D\nharmony,1,V"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import harmony by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        modes = harmony_tl.get_components_by_attr("KIND", ComponentKind.MODE)
+        harmonies = harmony_tl.get_components_by_attr("KIND", ComponentKind.HARMONY)
+        assert len(modes) == 1
+        assert len(harmonies) == 1
+        harmony = harmonies[0]
+        assert harmony.get_data("step") == 5  # A, the dominant of D
+        assert harmony.get_data("accidental") == 0
+
+    def test_harmonies_invalid_symbol_reported_and_rest_imported(
+        self, cli, harmony_tl, tmp_path, tilia_errors
+    ):
+        data = "harmony_or_key,time,symbol\nharmony,1,C\nharmony,2,not-a-chord\nharmony,3,G"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import harmony by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("not-a-chord")
+        assert [h.get_data("time") for h in sorted(harmony_tl)] == [1, 3]
+
+    def test_harmonies_into_non_harmony_timeline_refused(
+        self, cli, marker_tl, tmp_path, tilia_errors
+    ):
+        data = "harmony_or_key,time,symbol\nharmony,1,C"
+        csv_path = tmp_csv(tmp_path, data)
+
+        cli.parse_and_run(
+            f"timelines import harmony by-time --target-ordinal 1 "
+            f"--file {str(csv_path.resolve())}"
+        )
+
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("is not a harmony timeline")
+        assert len(marker_tl) == 0
+
+    def test_harmonies_by_measure_without_reference_refused(
+        self, cli, harmony_tl, capsys
+    ):
+        cli.parse_and_run(
+            "timelines import harmony by-measure --target-ordinal 1 --file x.csv"
+        )
+        assert "required" in capsys.readouterr().err
+        assert len(harmony_tl) == 0
 
     def test_score(self, cli, tls, beat_tl, score_tl, tmp_path, tilia_errors):
         beat_tl.beat_pattern = [1]
@@ -460,3 +548,14 @@ class TestValidateTimelinesForImport:
         tl = tls.create_timeline(RangeTimeline)
         success, _ = validate_timelines_for_import(tl, None, "range", "by-time")
         assert success
+
+    def test_harmony_tl_passes_validation(self, tls):
+        tl = tls.create_timeline(HarmonyTimeline)
+        success, _ = validate_timelines_for_import(tl, None, "harmony", "by-time")
+        assert success
+
+    def test_tl_of_wrong_type_when_importing_harmony_tl_raises_error(self, tls):
+        tl = tls.create_timeline(MarkerTimeline)
+        success, message = validate_timelines_for_import(tl, None, "harmony", "by-time")
+        assert not success
+        assert "is not a harmony timeline" in message
