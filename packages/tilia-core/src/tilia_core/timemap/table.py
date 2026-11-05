@@ -384,7 +384,9 @@ def _closing_barline(
     end = last + gap
     media_length = _media_length(document)
     if media_length is None or _ends_by(media_length, last):
-        return end  # past the media, that length alone; find_time_map warns
+        # Past the media, that length alone, since a time map can't put a barline
+        # at or before its last beat; find_time_map warns, and times_of stops there.
+        return end
     return min(end, media_length)
 
 
