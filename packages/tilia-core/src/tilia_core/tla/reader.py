@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from tilia_core.tla.check import check
-from tilia_core.tla.errors import NewerFormat, UnreadableFile, printable
+from tilia_core.tla.errors import DraftFormat, NewerFormat, UnreadableFile, printable
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
     COMPONENT_SHAPES,
@@ -210,11 +210,7 @@ def _check_version(
         and not with_build
         and (theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE))
     ):
-        message = (
-            f"a draft of the format ({printable(version)}):"
-            " convert it again from its sources"
-        )
-        raise UnreadableFile(message, path=path, place="/version")
+        raise DraftFormat(version, path=path)
     raise NewerFormat(version, path=path)
 
 

@@ -4,6 +4,7 @@ The names here are provisional until they are documented.
 """
 
 from tilia_core.tla.errors import (
+    DraftFormat,
     FileChanged,
     FileInUse,
     NewerFormat,
@@ -44,6 +45,7 @@ from tilia_core.tla.writer import (
 
 __all__ = [
     "ABSENT",
+    "DraftFormat",
     "FORMAT_VERSION",
     "TEMPORARY_PATTERN",
     "BeatUnit",

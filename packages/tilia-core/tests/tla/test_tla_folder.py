@@ -634,6 +634,57 @@ def test_a_newer_format_is_refused_as_one():
     assert not isinstance(caught.value, tla.NewerFormat)
 
 
+def test_a_draft_is_refused_as_one_with_its_version():
+    with pytest.raises(tla.DraftFormat) as caught:
+        tla.read(BROKEN / "older-draft.tla")
+    assert caught.value.version == "1.0.0-draft.0"
+    assert caught.value.message == (
+        "a draft of the format (1.0.0-draft.0): convert it again from its sources"
+    )
+    assert caught.value.place == "/version"
+    assert caught.value.line == 3
+    assert caught.value.path == BROKEN / "older-draft.tla"
+    assert not isinstance(caught.value, tla.NewerFormat)
+
+
+def test_a_draft_is_still_an_unreadable_file():
+    with pytest.raises(tla.UnreadableFile):
+        tla.read(BROKEN / "older-draft.tla")
+    assert issubclass(tla.DraftFormat, tla.UnreadableFile)
+
+
+def test_a_draft_error_is_copied_and_pickled_with_its_version():
+    import copy
+    import pickle
+
+    error = tla.DraftFormat("1.0.0-draft.0", path="a.tla", line=3)
+    for other in (
+        copy.copy(error),
+        copy.deepcopy(error),
+        pickle.loads(pickle.dumps(error)),
+    ):
+        assert isinstance(other, tla.DraftFormat)
+        assert other.version == "1.0.0-draft.0"
+        assert str(other) == str(error)
+        assert (other.message, other.place, other.line) == (
+            error.message,
+            error.place,
+            error.line,
+        )
+
+
+def test_a_draft_is_reported_as_unreadable_as_before(tmp_path):
+    place(tmp_path / "piece.tla", BROKEN / "older-draft.tla")
+
+    report = migrate_folder(tmp_path)
+
+    assert outcomes(report) == [("piece.tla", "unreadable")]
+    assert report.files[0].reason == (
+        "can't read (line 3): a draft of the format (1.0.0-draft.0):"
+        " convert it again from its sources"
+    )
+
+
 def test_a_newer_format_is_told_by_its_error_not_by_its_words(tmp_path, monkeypatch):
     place(tmp_path / "piece.tla", BROKEN / "newer-format.tla")
 
