@@ -69,8 +69,10 @@ def loads_for_fingerprint(
     except that an old file's media path and PDF timelines' paths are as the
     file stores them, not made relative from where it is read (FR-021), so
     that its fingerprint changes only when the file does: not when its media
-    comes or goes, nor with the folder it is read through (FR-043)."""
-    return _loads(data, path, paths_as_stored=True)[0]
+    comes or goes, nor with the folder it is read through (FR-043). It isn't
+    checked against the rules, which change nothing in its bytes: it has
+    neither the rules' warnings nor `read_problems`."""
+    return _loads(data, path, for_fingerprint=True)[0]
 
 
 def read_with_migration(
@@ -88,16 +90,17 @@ def _loads(
     data: bytes,
     path: str | os.PathLike[str] | None,
     *,
-    paths_as_stored: bool = False,
+    for_fingerprint: bool = False,
 ) -> tuple[Document, Migrated | None]:
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
-        return _old(content, data, path, paths_as_stored=paths_as_stored)
+        return _old(content, data, path, for_fingerprint=for_fingerprint)
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
-    keep_problems(document, data)
+    if not for_fingerprint:
+        keep_problems(document, data)
     return document, None
 
 
@@ -114,7 +117,7 @@ def _old(
     data: bytes,
     path: str | os.PathLike[str] | None,
     *,
-    paths_as_stored: bool,
+    for_fingerprint: bool,
 ) -> tuple[Document, Migrated]:
     """A file from TiLiA 0.x, migrated in memory; its document's
     format_version is the version it was read from. The migrated content is
@@ -129,7 +132,7 @@ def _old(
     file, with what it says about them.
     """
     try:
-        migrated = migrate(content, path=path, paths_as_stored=paths_as_stored)
+        migrated = migrate(content, path=path, paths_as_stored=for_fingerprint)
         try:
             warnings = check(migrated.content, path=path)
         except UnreadableFile as error:
@@ -148,7 +151,8 @@ def _old(
         ReadWarning(place=place, line=lines[place], message=message)
         for place, message in named
     ]
-    keep_problems(document, data, where=migrated.places.old)
+    if not for_fingerprint:
+        keep_problems(document, data, where=migrated.places.old)
     migrated.data = data
     return document, migrated
 
