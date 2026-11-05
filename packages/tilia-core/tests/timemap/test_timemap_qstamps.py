@@ -626,10 +626,90 @@ def test_the_next_movements_first_downbeat_has_the_closing_barlines_stamp():
     assert tm.qstamp(11.0) == 7.0
 
 
-@pytest.mark.parametrize("t", [5.5000001, 6.5, 7.95, 7.9999999])
-def test_a_time_in_a_pause_has_no_quarter_stamp(t):
-    # Quarter stamps aren't snapped, in a pause as elsewhere (FR-051).
+@pytest.mark.parametrize("t", [5.61, 6.5, 7.89])
+def test_a_time_truly_in_a_pause_has_no_quarter_stamp(t):
     assert _movements().qstamp(t) is None
+
+
+@pytest.mark.parametrize(
+    "t",
+    [5.5 + 1e-9, 5.5000001, 5.55, 5.6, 8.0 - 1e-9, 7.9999999, 7.95, 7.9],
+)
+def test_a_time_in_a_pause_within_the_snapping_distance_takes_the_stamp(t):
+    # As a position snaps there (FR-051).
+    assert _movements().qstamp(t) == 4.0
+
+
+@pytest.mark.parametrize("t", [5.45, 5.4, 8.05, 8.1])
+def test_a_time_just_outside_a_pause_takes_the_stamp_too(t):
+    # A time within the snapping distance, whichever side, snaps as a position.
+    assert _movements().qstamp(t) == 4.0
+
+
+@pytest.mark.parametrize(
+    "t, stamp", [(5.39, 4.0 - 0.11 / 1.5), (8.11, 4.11), (4.05, 3.0 + 0.05 / 1.5)]
+)
+def test_past_the_snapping_distance_a_time_keeps_its_exact_stamp(t, stamp):
+    assert _movements().qstamp(t) == pytest.approx(stamp)
+
+
+def test_a_section_around_a_pause_has_quarter_notes_wherever_it_has_bars():
+    tm = _movements()
+
+    assert tm.quarters(1.0, 5.55) == 4.0
+    assert tm.length(1.0, 5.55, "bar") == 2.0
+    assert tm.quarters(7.95, 10.0) == 2.0
+    assert tm.length(7.95, 10.0, "bar") == 1.0
+    assert tm.quarters(5.55, 7.95) == 0.0
+
+
+def test_a_section_with_an_end_truly_in_a_pause_has_none():
+    assert _movements().quarters(1.0, 6.5) is None
+    assert _movements().quarters(6.5, 10.0) is None
+
+
+@pytest.mark.parametrize("t, stamp", [(1.95, 0.95), (2.05, 1.05), (9.95, 5.95)])
+def test_away_from_a_pause_times_keep_their_exact_stamps(t, stamp):
+    assert _movements().qstamp(t) == pytest.approx(stamp)
+
+
+@pytest.mark.parametrize("t, stamp", [(5.95, 3.975), (6.05, 4.025)])
+def test_around_the_pieces_last_closing_tap_times_keep_their_exact_stamps(t, stamp):
+    # No next movement, so no pause.
+    assert _closed().qstamp(t) == pytest.approx(stamp)
+
+
+@pytest.mark.parametrize("t, stamp", [(4.95, 1.975), (5.05, 2.05)])
+def test_around_a_restart_without_a_closing_tap_times_keep_their_exact_stamps(t, stamp):
+    # The bar before runs on to the downbeat, so no pause.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 3.0},
+            {"time": 5.0, "measure": {"number": 1, "restart": True}},
+            {"time": 6.0},
+        ]
+    )
+    tm = time_map_for(document(timeline), timeline.id)
+
+    assert tm.qstamp(t) == pytest.approx(stamp)
+
+
+def test_a_beat_nearer_than_the_barline_keeps_a_time_exact():
+    # A position would snap onto the beat: nothing takes the barline's stamp.
+    timeline = beat_timeline(
+        [
+            {"time": 1.0, "measure": {"number": 1}},
+            {"time": 2.0},
+            {"time": 2.05, "closing": True},
+            {"time": 8.0, "measure": {"number": 1, "restart": True}},
+            {"time": 9.0},
+        ]
+    )
+    tm = time_map_for(document(timeline), timeline.id)
+
+    assert tm.qstamp(2.01) == pytest.approx(1.2)
+    assert tm.qstamp(2.04) == 2.0
 
 
 def test_a_pause_counts_for_nothing_in_a_length_in_quarter_notes():
@@ -741,6 +821,17 @@ def test_the_stamps_table_holds_the_closing_barlines_with_no_length():
         (5.5, 5.5, False),
         (6.5, 9.0, False),  # `quarters` has no value for it
         (1.0, 6.5, False),
+        # Around a pause, a time snaps as its quarter stamp does.
+        (4.5, 5.55, True),
+        (1.0, 7.95, True),
+        (5.55, 8.5, False),
+        (5.45, 8.5, False),
+        (7.95, 8.5, False),
+        (5.55, 5.55, False),
+        (7.95, 7.95, False),
+        (5.55, 7.95, False),
+        (8.5, 5.55, False),  # the other way round
+        (5.55, 4.5, True),
     ],
 )
 def test_an_assumed_meter_counts_only_where_quarter_notes_are(start, end, assumed):
@@ -756,10 +847,66 @@ def test_an_assumed_meter_counts_only_where_quarter_notes_are(start, end, assume
         (5.5, 8.0, False),
         (4.5, 8.5, True),
         (8.0, 9.0, True),
+        # Around a pause, a time snaps as its quarter stamp does.
+        (4.5, 7.95, False),
+        (5.55, 7.95, False),
+        (7.95, 9.0, True),
+        (5.55, 9.0, True),
     ],
 )
 def test_an_assumed_meter_after_a_pause(start, end, assumed):
     assert _with_a_unit_set_at(1.0).assumed_between(start, end) is assumed
+
+
+def test_an_assumed_meter_counts_for_a_span_either_way_round():
+    # From a closing barline on, its bar gives no quarter note, whichever end
+    # is written first.
+    tm = _with_a_unit_set_at(8.0)
+
+    assert not tm.assumed_between(8.0, 5.5)
+    assert tm.assumed_between(5.5, 4.5)
+
+
+def _one_beat_last_movement(*units_at):
+    beats = [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0, "closing": True},
+        {"time": 5.0, "measure": {"number": 1, "restart": True}},
+    ]
+    for beat in beats:
+        if beat["time"] in units_at:
+            beat["beat_unit"] = {"denominator": 4, "units": "1"}
+    timeline = beat_timeline(beats)
+    return time_map_for(document(timeline), timeline.id)
+
+
+@pytest.mark.parametrize(
+    "start, end",
+    [(3.0, 5.5), (5.5, 3.0), (3.05, 5.5), (5.0, 5.5), (4.95, 5.5)],
+)
+def test_past_a_last_movement_of_one_beat_from_a_closing_tap(start, end):
+    # Its quarter notes go by the gap before the pause, as a tempo past the
+    # last beat does, so that bar's assumed meter went into them.
+    tm = _one_beat_last_movement()
+
+    assert tm.quarters(*sorted((start, end))) == 0.5
+    assert tm.assumed_between(start, end)
+
+
+def test_up_to_a_last_movement_of_one_beat_from_a_closing_tap_nothing_counts():
+    tm = _one_beat_last_movement()
+
+    assert tm.quarters(3.0, 5.0) == 0.0
+    assert not tm.assumed_between(3.0, 5.0)
+    assert tm.quarters(3.0, 5.05) == 0.0
+    assert not tm.assumed_between(3.0, 5.05)
+
+
+def test_past_a_last_movement_of_one_beat_only_the_bar_of_the_gap_counts():
+    # The last beat's own length never enters: its bar's meter changes nothing.
+    assert not _one_beat_last_movement(1.0).assumed_between(3.0, 5.5)
+    assert _one_beat_last_movement(5.0).assumed_between(3.0, 5.5)
 
 
 def test_an_assumed_meter_past_a_last_movement_of_one_beat_is_the_last_gaps():
@@ -781,6 +928,33 @@ def test_an_assumed_meter_past_a_last_movement_of_one_beat_is_the_last_gaps():
     assert tm.assumed_between(10.0, 10.5)
     assert tm.assumed_between(9.0, 10.0)
     assert not tm.assumed_between(4.0, 9.0)
+    assert tm.assumed_between(4.0, 9.5)
+
+
+def test_a_meter_the_flag_leaves_out_changes_no_quarters_around_a_pause():
+    # Wherever assumed_between says no, another meter for the assumed bars
+    # leaves quarters() as it was, and where it has no value, neither has it.
+    def movements(denominator):
+        timeline = two_movements()
+        for beat in timeline.components.values():
+            if beat.attrs["time"] in (1.0, 3.0, 8.0, 10.0):
+                beat.attrs["beat_unit"] = {
+                    "denominator": denominator,
+                    "units": "1",
+                    "assumed": True,
+                }
+        return time_map_for(document(timeline), timeline.id)
+
+    quarter, eighth = movements(4), movements(8)
+    times = [t / 4 for t in range(0, 54)]
+    times += [t + d for t in (5.5, 8.0) for d in (-0.1, -0.05, 1e-9, 0.05, 0.1)]
+
+    for start, end in itertools.product(times, repeat=2):
+        if not quarter.assumed_between(start, end):
+            expected = eighth.quarters(start, end)
+            assert quarter.quarters(start, end) == (
+                None if expected is None else pytest.approx(expected, abs=1e-6)
+            )
 
 
 def test_an_assumed_meter_past_a_last_closing_tap_is_the_last_gaps():
