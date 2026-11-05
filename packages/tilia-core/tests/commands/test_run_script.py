@@ -24,8 +24,10 @@ HARMONY_EXTRA = 'harmony import needs: pip install "tilia-core[harmony]"'
 NOT_A_LENGTH = (
     "Cannot set media metadata to {}. Media length must be a positive number."
 )
+NOT_A_SCALE = '"{}" isn\'t a value of --scale-timelines: use "yes", "no" or "prompt"'
 TARGET = "--target-name Chords"
 BEAT = "timelines import beat"
+EXTRA = '"{}" isn\'t an argument of timelines import beat'
 BY_TIME = "timelines import marker by-time"
 BY_MEASURE = "timelines import marker by-measure"
 KINDS = ("marker", "hierarchy", "range", "harmony", "pdf")
@@ -215,7 +217,8 @@ class TestSplitting:
             ("two  spaces", ["two", "", "spaces"]),
             ('""', [""]),
             ('a "" b', ["a", "", "b"]),
-            ('"', [""]),
+            ('"', None),
+            ('a " b', None),
             ('a"b', ['a"b']),
             ('"a"b', None),
             ("tab\tseparated", ["tab\tseparated"]),
@@ -421,6 +424,8 @@ class TestAccepted:
         "text,field,value",
         [
             ("metadata set title -- -foo", "title", "-foo"),
+            ("metadata set title -- --", "title", "--"),
+            ("metadata set -- -- --", "--", "--"),
             ("metadata set -- -foo --overwrite", "-foo", "--overwrite"),
             ('metadata set title "-foo bar"', "title", "-foo bar"),
             ("metadata set tempo -5", "tempo", "-5"),
@@ -929,12 +934,64 @@ class TestRefusedArguments:
         assert whys(tmp_path, text) == [why]
 
     @pytest.mark.parametrize(
+        "text,wrong",
+        [
+            (
+                "metadata set-media-length --scale-timelines maybe abc",
+                [NOT_A_SCALE.format("maybe"), NOT_A_LENGTH.format("abc")],
+            ),
+            (
+                f"{BY_MEASURE} --file c.csv --target-ordinal x"
+                " --reference-tl-ordinal y",
+                [
+                    "x is not a valid target ordinal.",
+                    "y is not a valid reference tl ordinal.",
+                ],
+            ),
+            (
+                "load-media a.wav --duration-if-error abc --scale-timelines maybe",
+                [NOT_A_LENGTH.format("abc"), NOT_A_SCALE.format("maybe")],
+            ),
+        ],
+    )
+    def test_each_wrong_value_is_reported(self, tmp_path, text, wrong):
+        assert whys(tmp_path, text) == wrong
+
+    @pytest.mark.parametrize(
         "command", ["load-media a.wav", "metadata set-media-length 3"]
     )
     def test_scale_timelines_takes_tilias_values(self, tmp_path, command):
         assert whys(tmp_path, f"{command} --scale-timelines maybe") == [
             '"maybe" isn\'t a value of --scale-timelines: use "yes", "no" or "prompt"'
         ]
+
+
+class TestDashes:
+    @pytest.mark.parametrize("text", ["clear --", "open a.tla --", "save a.tla --"])
+    def test_a_lone_double_dash_ends_the_options_and_is_no_argument(
+        self, tmp_path, text
+    ):
+        assert whys(tmp_path, text) == []
+
+    def test_an_option_after_a_double_dash_is_not_given(self, tmp_path):
+        assert whys(tmp_path, f"{BEAT} {TARGET} -- --file c.csv") == [
+            "the argument --file is required",
+            EXTRA.format("--file"),
+            EXTRA.format("c.csv"),
+        ]
+        assert whys(tmp_path, f"{BEAT} --file c.csv -- --target-name C") == [
+            "the argument --target-name or --target-ordinal is required",
+            EXTRA.format("--target-name"),
+            EXTRA.format("C"),
+        ]
+
+
+class TestScaleTimelinesDefault:
+    @pytest.mark.parametrize(
+        "text", ["load-media a.wav", "metadata set-media-length 3"]
+    )
+    def test_a_line_that_does_not_say_asks(self, tmp_path, text):
+        assert command_of(tmp_path, text).args.scale_timelines == "prompt"
 
 
 class TestHarmonyExtra:
