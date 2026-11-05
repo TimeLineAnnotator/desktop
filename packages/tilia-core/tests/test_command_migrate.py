@@ -1,6 +1,7 @@
 """`tilia migrate`, through the `tilia` command: the report of
 contracts/command.md, `--apply`, `--help`, and the exit statuses."""
 
+import importlib.util
 import json
 import os
 import re
@@ -1253,3 +1254,102 @@ def test_every_control_character_is_escaped_where_the_report_shows_text():
     assert text.count("\\x07\\x08\\t\\n\\x0b\\x0c\\r\\x0e") == 10
     assert text.count("\\x1f\\x7f\\x80") == 10
     assert text.count("\\x9f") == 10
+
+
+# Without the `harmony` extra (FR-054)
+
+NEEDS_THE_EXTRA = (
+    'can\'t write: checking a mode needs: pip install "tilia-core[harmony]"'
+)
+
+
+@pytest.fixture
+def without_music21(monkeypatch):
+    find_spec = importlib.util.find_spec
+
+    def find_spec_without_music21(name, *args, **kwargs):
+        if name.partition(".")[0] == "music21":
+            return None
+        return find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+
+
+@pytest.mark.parametrize(
+    "arguments, verb",
+    [([], "Would migrate"), (["--apply"], "Migrated")],
+    ids=["listing", "apply"],
+)
+def test_without_the_extra_a_file_with_harmonies_is_left_alone_naming_the_command(
+    tmp_path, without_music21, capsys, arguments, verb
+):
+    root = tmp_path / "corpus"
+    place(root / "harmonies.tla", OLD / "0.7.0.tla")
+    before = snapshot(root)
+
+    assert migrate_command.main([str(root), *arguments]) == 1
+
+    assert capsys.readouterr().out == (
+        f"{verb} 0 files to format {FORMAT}.\n"
+        "Already in the new format: 0 files\n"
+        "Left alone: 1 file\n"
+        f"  harmonies.tla           {NEEDS_THE_EXTRA}\n"
+        "\n"
+        "Nothing was written.\n"
+    )
+    assert snapshot(root) == before
+
+
+def test_without_the_extra_the_other_files_are_migrated(
+    tmp_path, without_music21, capsys
+):
+    root = tmp_path / "corpus"
+    place(root / "current.tla", GOLDEN / "every-kind.tla")
+    place(root / "harmonies.tla", OLD / "0.7.0.tla")
+    place(root / "plain.tla", OLD / "0.0.96.tla")
+    current = (root / "current.tla").read_bytes()
+    harmonies = (root / "harmonies.tla").read_bytes()
+
+    assert migrate_command.main([str(root), "--apply"]) == 1
+
+    assert capsys.readouterr().out == (
+        f"Migrated 1 file to format {FORMAT}:\n"
+        "  from 0.0.96: 1 file\n"
+        "Already in the new format: 1 file\n"
+        "Left alone: 1 file\n"
+        f"  harmonies.tla           {NEEDS_THE_EXTRA}\n"
+        "Changes the migration makes:\n"
+        "  plain.tla               dropped 2 formal_type and formal_function values;"
+        " moved 2 marks to metadata\n"
+        "\n"
+        "Wrote 1 file.\n"
+    )
+    assert (root / "current.tla").read_bytes() == current
+    assert (root / "harmonies.tla").read_bytes() == harmonies
+    assert tla.read(root / "plain.tla").format_version == FORMAT
+
+
+def test_without_the_extra_a_harmony_timeline_with_no_harmonies_is_migrated(
+    tmp_path, without_music21, capsys
+):
+    old = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    old["timelines"]["22"]["components"] = {}
+    place(tmp_path / "piece.tla", json.dumps(old, indent=2).encode())
+
+    assert migrate_command.main([str(tmp_path), "--apply"]) == 0
+
+    assert "Wrote 1 file.\n" in capsys.readouterr().out
+    assert tla.read(tmp_path / "piece.tla").format_version == FORMAT
+
+
+def test_with_the_extra_a_file_with_harmonies_is_migrated(tmp_path, capsys):
+    pytest.importorskip("music21", reason="needs the harmony extra")
+    place(tmp_path / "piece.tla", OLD / "0.7.0.tla")
+    before = tla.read(tmp_path / "piece.tla")
+
+    assert migrate_command.main([str(tmp_path), "--apply"]) == 0
+
+    assert "Wrote 1 file.\n" in capsys.readouterr().out
+    after = tla.read(tmp_path / "piece.tla")
+    assert after.format_version == FORMAT
+    assert after.timelines == before.timelines

@@ -24,7 +24,13 @@ from collections.abc import Callable
 from pathlib import Path
 from traceback import format_exception
 
-from tilia_core.tla.errors import FileChanged, FileInUse, NewerFormat, UnreadableFile
+from tilia_core.tla.errors import (
+    BrokenRules,
+    FileChanged,
+    FileInUse,
+    NewerFormat,
+    UnreadableFile,
+)
 from tilia_core.tla.layout import FORMAT_VERSION
 from tilia_core.tla.migrate.to_1 import Migrated
 from tilia_core.tla.model import (
@@ -34,6 +40,7 @@ from tilia_core.tla.model import (
     MigrationReport,
     Outcome,
 )
+from tilia_core.tla.problems import cant_check
 from tilia_core.tla.reader import loads_for_fingerprint, read_with_migration
 from tilia_core.tla.writer import fingerprint_of, write
 
@@ -137,7 +144,9 @@ def migrate_folder(
     can't be read are read once more, after one pause of `RETRY_AFTER`
     seconds for them all, then reported. An error in one file, even one in
     the core, is reported for that file, and the others go on. Running it
-    again writes nothing.
+    again writes nothing. An old file with harmonies or modes can't be written
+    without the `harmony` extra, since they can't be checked (FR-054): with or
+    without `apply`, it is reported as left alone, naming the command.
 
     Raises `FileNotFoundError` for a folder that doesn't exist,
     `NotADirectoryError` for a path that isn't a folder, and the system's
@@ -243,6 +252,11 @@ def _result(
         result.outcome, result.reason, result.traceback = _write(
             path, document, migrated.data
         )
+    elif (unable := cant_check(document)) is not None:
+        # What `apply` would find: the report says what would be
+        # (TimeLineAnnotator/project-management#490).
+        result.outcome = Outcome.WRITE_FAILED
+        result.reason = f"can't write: {unable}"
     return result
 
 
@@ -287,6 +301,8 @@ def _cant(verb: str, error: Exception, *, expected: bool) -> str:
     if isinstance(error, UnreadableFile):
         where = "" if error.line is None else f" (line {error.line})"
         return f"can't {verb}{where}: {error.message}"
+    if isinstance(error, BrokenRules):
+        return f"can't {verb}: {'; '.join(str(p) for p in error.problems)}"
     if isinstance(error, OSError) and error.strerror:
         return f"can't {verb}: {error.strerror}"
     if expected:

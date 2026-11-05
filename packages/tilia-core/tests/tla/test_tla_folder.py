@@ -3,6 +3,7 @@ writes only old files, and only with `apply` (FR-100–FR-105)."""
 
 import dataclasses
 import gc
+import importlib.util
 import json
 import logging
 import os
@@ -1077,3 +1078,29 @@ def test_status_of_a_folder_with_a_file_that_cant_be_read(corpus):
 def test_status_of_a_folder_whose_files_all_migrate(clean_corpus):
     assert migrate_folder(clean_corpus).status == 0
     assert migrate_folder(clean_corpus, apply=True).status == 0
+
+
+@pytest.mark.parametrize("apply", [False, True], ids=["listing", "apply"])
+def test_without_the_harmony_extra_a_file_with_harmonies_cant_be_written(
+    tmp_path, monkeypatch, apply
+):
+    find_spec = importlib.util.find_spec
+
+    def find_spec_without_music21(name, *args, **kwargs):
+        if name.partition(".")[0] == "music21":
+            return None
+        return find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+    place(tmp_path / "piece.tla", OLD / "0.7.0.tla")
+    data = (tmp_path / "piece.tla").read_bytes()
+
+    report = migrate_folder(tmp_path, apply=apply)
+
+    [result] = report.files
+    assert result.outcome == "write_failed"
+    assert result.reason == (
+        'can\'t write: checking a mode needs: pip install "tilia-core[harmony]"'
+    )
+    assert report.status == 1
+    assert (tmp_path / "piece.tla").read_bytes() == data
