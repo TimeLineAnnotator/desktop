@@ -18,8 +18,13 @@ def load_script():
     return module
 
 
-@pytest.mark.parametrize("name", ["tilia-core", "tilia-library"])
-def test_a_package_is_tested_with_its_own_dev_group(name, tmp_path, monkeypatch):
+# tilia-core's dev group also has regex, which its first environment must not have.
+@pytest.mark.parametrize(
+    "name, group_name", [("tilia-core", "tests"), ("tilia-library", "dev")]
+)
+def test_a_package_is_tested_with_its_own_group(
+    name, group_name, tmp_path, monkeypatch
+):
     script = load_script()
     commands = []
     monkeypatch.setattr(script, "run", lambda args, cwd, label: commands.append(args))
@@ -27,8 +32,8 @@ def test_a_package_is_tested_with_its_own_dev_group(name, tmp_path, monkeypatch)
     wheel = tmp_path / "package.whl"
     script.check_package(name, [wheel], tmp_path)
     install = next(args for args in commands if str(wheel) in args)
-    group = f"{ROOT / 'packages' / name / 'pyproject.toml'}:dev"
-    # The wheels, and the dev group as pip reads it: nothing else.
+    group = f"{ROOT / 'packages' / name / 'pyproject.toml'}:{group_name}"
+    # The wheels, and the group as pip reads it: nothing else.
     assert install[1:] == ["-m", "pip", "install", "--group", group, str(wheel)]
     # A fresh environment's pip can predate --group, which pip 25.1 added.
     upgrade = [install[0], "-m", "pip", "install", "--upgrade", "pip>=25.1"]
