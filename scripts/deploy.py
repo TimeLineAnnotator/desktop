@@ -470,30 +470,33 @@ def build():
     env_file = root / ".tilia.env"
     old_env_var = dotenv.dotenv_values(env_file).get("ENVIRONMENT") or ""
     dotenv.set_key(env_file, "ENVIRONMENT", "prod")
-    if buildlib.exists():
-        _print(["Cleaning build folder..."], P.ERROR)
-        shutil.rmtree(buildlib)
-
+    # Everything after the line above sits in the try, and the restore in the
+    # finally: a failed cleanup or a Ctrl+C mid-compile must not leave
+    # ENVIRONMENT=prod behind for the next run from source.
     try:
+        if buildlib.exists():
+            _print(["Cleaning build folder..."], P.ERROR)
+            shutil.rmtree(buildlib)
         _build_exe()
         is_mac = "mac" in build_os
+        app_path = _app_path()
         stable_exe = _stable_exe_name()
         out_binary_name = _patch_macos_plist() if is_mac else stable_exe
         _package(out_binary_name)
         if os.environ.get("GITHUB_OUTPUT"):
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write(f"out-filepath={_app_path().as_posix()}\n")
+                f.write(f"out-filepath={app_path.as_posix()}\n")
                 f.write(f"out-filename={out_filename}\n")
                 f.write(f"out-binary-name={out_binary_name}\n")
                 f.write(f"stable-exe-name={stable_exe}\n")
-        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
-        app = _app_path() if is_mac else _app_path() / out_binary_name
+        app = app_path if is_mac else app_path / out_binary_name
         _print([f"App: {app}"], P.OK)
     except Exception as e:
         _print(["Build failed!", e.__str__()], P.ERROR)
         _print([traceback.format_exc()])
-        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
         raise SystemExit(1) from e
+    finally:
+        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
 
 
 if __name__ == "__main__":
