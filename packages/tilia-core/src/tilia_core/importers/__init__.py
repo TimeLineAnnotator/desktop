@@ -29,8 +29,9 @@ __all__ = [
 _BAD_BY = "'by' must be either 'time' or 'measure'"
 _NO_REFERENCE = "Reference beat timeline is required for importing by measure"
 # TiLiA's form, `{tl} is not a {kind} timeline`, can't be word for word: its kind is
-# the one the command asked for, and its `{tl}` a memory address. These three are
-# provisional until TimeLineAnnotator/project-management#484 (what such a refusal says).
+# the one the command asked for, and its `{tl}` a memory address. So the timeline is
+# named by its kind, name and ordinal, and the kinds a target can be are listed
+# (TimeLineAnnotator/project-management#484, answered).
 _NOT_IMPORTED_INTO = "{} is not a marker, hierarchy, range, harmony or pdf timeline"
 _NOT_A_BEAT_TIMELINE = "{} is not a beat timeline"
 _NO_TIMELINE = "No timeline found with id={}"
@@ -109,7 +110,12 @@ def _timeline(document: tla.Document, timeline_id: str, path: Path) -> tla.Timel
 
 
 def _named(timeline: tla.Timeline) -> str:
-    """How a refusal names a timeline: a name is optional, an ordinal isn't."""
+    """How a refusal names a timeline: `Beat timeline 'Measures' (ordinal 2)`. A name
+    is optional, an ordinal isn't, and a kind the core doesn't know is given as the
+    file spells it, capitalised."""
+    kind = timeline.kind
+    spelling = kind.spelling if isinstance(kind, tla.UnknownKind) else kind
+    text = f"{spelling[:1].upper()}{spelling[1:]} timeline".lstrip()
     if timeline.name:
-        return f"Timeline '{timeline.name}'"
-    return f"Timeline {timeline.ordinal}"
+        text += f" '{timeline.name}'"
+    return f"{text} (ordinal {timeline.ordinal})"
