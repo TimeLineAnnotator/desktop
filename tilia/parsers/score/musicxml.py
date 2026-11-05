@@ -107,7 +107,9 @@ def notes_from_musicXML(
         )
         # start_times and end_times are always sorted. If start_times[n] is greater than end_time[n], all start_times[n+] will also be greater than end_times[n], which would create a segment-like component with start > end. Therefore, pop off head of end_times until a suitable end_time is found.
         while len(start_times) and len(end_times):
-            if (start := start_times[0]) < (end := end_times[0]):
+            # A note left with no length, on a last beat where its measure ends,
+            # is refused here, and so reported.
+            if (start := start_times[0]) <= (end := end_times[0]):
                 _create_component(
                     ComponentKind.NOTE,
                     elem["kwargs"] | {"start": start, "end": end},
@@ -115,9 +117,7 @@ def notes_from_musicXML(
                 start_times.pop(0)
                 end_times.pop(0)
                 continue
-            # An end equal to the start is dropped too: a note can't end
-            # where it starts, and keeping it would loop forever.
-            while len(end_times) and start_times[0] >= end_times[0]:
+            while len(end_times) and start_times[0] > end_times[0]:
                 end_times.pop(0)
 
     def _metric_to_time(
