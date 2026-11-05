@@ -141,6 +141,10 @@ def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
             component.pre_start = pre_start * factor
         if post_end is not None:
             component.post_end = post_end * factor
+        # Setting attributes directly skips set_data's hash update. A stale
+        # hash makes undo's restore_state take the scaled component for the
+        # snapshot's unscaled one and leave it scaled.
+        component.update_hash()
 
 
 def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:
