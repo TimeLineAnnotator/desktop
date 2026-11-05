@@ -184,6 +184,7 @@ POST_END_BEFORE_END = "post_end_before_end"
 UNKNOWN_ROW = "unknown_row"
 BAD_JOIN = "bad_join"
 SAME_ROW_ID = "same_row_id"
+NEGATIVE_MEASURE_NUMBER = "negative_measure_number"
 
 
 class Outcome(tuple[bool, str]):
@@ -445,7 +446,10 @@ def _measure_number(measure: Any) -> Outcome | None:
     TiLiA's "Set measure number" asks for no less."""
     number = measure.get("number") if isinstance(measure, Mapping) else None
     if _is_integer(number) and number < 0:
-        return _broken(f"Measure number can't be below 0. Got '{_shown(number)}'")
+        return _broken(
+            NEGATIVE_MEASURE_NUMBER,
+            f"Measure number can't be below 0. Got '{_shown(number)}'",
+        )
     return None
 
 
