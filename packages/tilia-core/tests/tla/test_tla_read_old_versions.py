@@ -1405,8 +1405,10 @@ def test_a_media_length_with_a_control_character_is_no_length(tmp_path):
 
     assert doc.media_length is None
     assert "media length" not in doc.metadata
-    assert tla.fingerprint(with_it) == tla.fingerprint_of(doc)
+    # An old file's fingerprint has its paths as stored (FR-043), so it isn't
+    # fingerprint_of what was read: each is compared with its own kind.
     assert tla.fingerprint(with_it) == tla.fingerprint(without)
+    assert tla.fingerprint_of(doc) == tla.fingerprint_of(tla.read(without))
 
 
 def test_no_media_length_is_none():
