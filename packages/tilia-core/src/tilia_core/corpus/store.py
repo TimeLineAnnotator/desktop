@@ -13,6 +13,9 @@ contracts/index-reader.md).
 - **Changes** (:meth:`Store.apply`) take the write side: they wait for the
   running reads, apply everything in one transaction and move the generation
   when anything changed. Every read sees one generation from start to end.
+  Each file's rows go in under a savepoint of their own, so a file whose values
+  can't be stored costs only that file. Anything that escapes the transaction
+  rolls it back: an open transaction would lock every read out.
 - **Connections are closed only by** :meth:`Store.close`, under the write side.
   On Python 3.10, closing a connection while another thread runs a statement
   that calls a Python function deadlocks, and the garbage collector closes a
@@ -28,7 +31,7 @@ import sqlite3
 import sys
 import threading
 import time
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
@@ -70,15 +73,23 @@ def _remove_authorizer(con: sqlite3.Connection) -> None:
     con.set_authorizer(None if sys.version_info >= (3, 11) else _allow_all)
 
 
-def _is_lock_error(err: sqlite3.Error) -> bool:
+def _insert(con: sqlite3.Connection, rows: Rows) -> None:
+    for table, found in rows.tables().items():
+        if found:
+            marks = ", ".join("?" for _ in found[0])
+            con.executemany(f"INSERT INTO {table} VALUES ({marks})", found)
+
+
+def _is_lock_error(err: Exception) -> bool:
     text = str(err).lower()
     return isinstance(err, sqlite3.OperationalError) and "locked" in text
 
 
 class Reading:
     """One read: its connection, the generation it sees from start to end,
-    whether the corpus folder can be reached, and the files' time maps of that
-    generation. ``connection`` works only in the thread that opened the read."""
+    whether the corpus folder can be reached, the files' time maps of that
+    generation, and what results of this read warn about (``warnings``).
+    ``connection`` works only in the thread that opened the read."""
 
     def __init__(
         self,
@@ -86,12 +97,14 @@ class Reading:
         generation: int,
         available: bool,
         time_maps: Mapping[int, TimeMap],
+        warnings: tuple[str, ...] = (),
     ) -> None:
         self._connection = connection
         self._thread = threading.get_ident()
         self.generation = generation
         self.available = available
         self._time_maps = time_maps
+        self.warnings = warnings
 
     @property
     def connection(self) -> sqlite3.Connection:
@@ -129,6 +142,7 @@ class Store:
         self._generation = 0
         self._time_maps: dict[int, TimeMap] = {}
         self._closed = False
+        self._failure: str | None = None
         self.available = True
         """False while the corpus folder can't be reached (FR-021); reads that
         start then say so."""
@@ -167,12 +181,32 @@ class Store:
                     if self._closed:
                         raise RuntimeError("the index is closed")
                 con = self._idle.pop() if self._idle else self._open()
-                read = Reading(con, self._generation, self.available, self._time_maps)
+                read = Reading(
+                    con,
+                    self._generation,
+                    self.available,
+                    self._time_maps,
+                    self._warnings(),
+                )
                 self._reads[me] = (read, 1)
         try:
             yield read
         finally:
             self._end_read(me)
+
+    @property
+    def failure(self) -> str | None:
+        """What the last change failed with, None when it was applied. While
+        it is set the index is behind the files, and reads warn."""
+        return self._failure
+
+    def _warnings(self) -> tuple[str, ...]:
+        if self._failure is None:
+            return ()
+        return (
+            f"the index couldn't take the last change ({self._failure}); these "
+            "results come from the files as last indexed",
+        )
 
     def connection(self) -> sqlite3.Connection:
         """The connection of the calling thread's read. Raises
@@ -249,50 +283,76 @@ class Store:
         rows_to_delete: Iterable[int],
         rows_to_insert: Iterable[Rows],
         time_maps: Mapping[int, TimeMap | None] | None = None,
-    ) -> sqlite3.Error | None:
+        *,
+        instead: Callable[[Rows, Exception], Rows] | None = None,
+        partial: bool = False,
+    ) -> Exception | None:
         """Apply one change in one transaction, under the write side: delete
         every row of the files whose keys are in ``rows_to_delete``, then insert
         ``rows_to_insert`` (each a :class:`~tilia_core.corpus.build.Rows`, which
         may hold only a file's row). ``time_maps`` gives the time maps of the
         files it names (None: the file has none).
 
+        Each file's rows go in under a savepoint. When they can't be stored (a
+        value SQLite can't bind: a lone surrogate, an integer too big, a list),
+        those rows are undone and ``instead`` is called with them and the error,
+        inside the transaction. The rows it returns go in in their place, and
+        the file has no time map. It may be called again for the same file if
+        the transaction is retried. Without ``instead`` the whole change fails.
+
         The generation goes up when anything changed. A lock error, such as a
         statement left open after a read, is retried for up to ``PATIENCE``
-        seconds; then the transaction is rolled back, and the error logged and
-        returned: nothing changed, neither the rows nor the generation nor the
-        time maps. Returns None when the change was applied."""
+        seconds. When the change still fails, whatever the error, the
+        transaction is rolled back, and the error logged and returned: nothing
+        changed, neither the rows nor the generation nor the time maps, and
+        reads warn (:attr:`failure`) until a change is applied. A change marked
+        ``partial`` covers only some files, so applying it doesn't clear that
+        warning. ``KeyboardInterrupt`` and ``SystemExit`` roll back too, and go
+        through. Returns None when the change was applied."""
         deletes = list(rows_to_delete)
         inserts = list(rows_to_insert)
         with self._write_side():
             deadline = time.monotonic() + PATIENCE
             while True:
                 try:
-                    changed = self._transaction(deletes, inserts)
+                    changed, refused = self._transaction(deletes, inserts, instead)
                     break
-                except sqlite3.Error as err:
+                except BaseException as err:
                     if self._writer.in_transaction:
                         self._writer.execute("ROLLBACK")
+                    if not isinstance(err, Exception):
+                        raise
                     if _is_lock_error(err) and time.monotonic() < deadline:
                         time.sleep(RETRY_PAUSE)
                         continue
                     LOG.error("the index couldn't be changed: %s", err)
+                    self._failure = f"{type(err).__name__}: {err}"
                     return err
             if changed:
                 self._generation += 1
+            if not partial:
+                self._failure = None
             if time_maps:
                 maps = dict(self._time_maps)  # reads keep the maps they started with
                 for file_id, tmap in time_maps.items():
-                    if tmap is None:
+                    if tmap is None or file_id in refused:
                         maps.pop(file_id, None)
                     else:
                         maps[file_id] = tmap
                 self._time_maps = maps
         return None
 
-    def _transaction(self, deletes: list[int], inserts: list[Rows]) -> bool:
-        """Run the change in one transaction; whether it changed any row."""
+    def _transaction(
+        self,
+        deletes: list[int],
+        inserts: list[Rows],
+        instead: Callable[[Rows, Exception], Rows] | None,
+    ) -> tuple[bool, set[int]]:
+        """Run the change in one transaction; whether it changed any row, and
+        the keys of the files whose rows ``instead`` replaced."""
         con = self._writer
         before = con.total_changes
+        refused: set[int] = set()
         con.execute("BEGIN")
         for file_id in deletes:
             for table in _BY_COMPONENT:
@@ -303,12 +363,27 @@ class Store:
             con.execute("DELETE FROM timelines WHERE file_id = ?", (file_id,))
             con.execute("DELETE FROM files WHERE id = ?", (file_id,))
         for rows in inserts:
-            for table, found in rows.tables().items():
-                if found:
-                    marks = ", ".join("?" for _ in found[0])
-                    con.executemany(f"INSERT INTO {table} VALUES ({marks})", found)
+            con.execute("SAVEPOINT one_file")
+            try:
+                _insert(con, rows)
+            except sqlite3.OperationalError:
+                raise  # a lock or the like: not this file's doing
+            except Exception as err:  # noqa: BLE001 - one file stops nothing
+                if instead is None:
+                    raise
+                con.execute("ROLLBACK TO one_file")
+                LOG.error(
+                    "the rows of file %s can't be stored: %s: %s",
+                    rows.file_id,
+                    type(err).__name__,
+                    err,
+                    exc_info=True,
+                )
+                refused.add(rows.file_id)
+                _insert(con, instead(rows, err))
+            con.execute("RELEASE one_file")
         con.execute("COMMIT")
-        return con.total_changes != before
+        return con.total_changes != before, refused
 
     # -- the end -------------------------------------------------------------- #
     def close(self) -> None:

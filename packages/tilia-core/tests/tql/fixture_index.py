@@ -69,6 +69,7 @@ class FixtureReading:
         self.connection = con
         self.generation = 1
         self.available = True
+        self.warnings = ()
         self.time_map = time_map
 
 
