@@ -354,7 +354,7 @@ def test_the_key_is_not_the_token(library):
 def test_the_key_is_useless_on_every_other_route(library):
     key = library.media_key
     for route in library.router.routes:
-        if route.access == "media":
+        if route.access != "bearer":
             continue
         path = re.sub(r"\{(\w+)(?::path)?\}", "v", route.pattern)
         path = path.replace("/api/v/", f"/api/{library.cid}/", 1)

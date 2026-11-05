@@ -1,3 +1,4 @@
+import { forgetToken, sendToken, showLocked } from './auth.js';
 import { q } from './lib/dom.js';
 import { escapeHtml, errMsg, setStatus } from './util.js';
 
@@ -16,10 +17,11 @@ export function scopeURL(url) {
 const origFetch = window.fetch.bind(window);
 window.fetch = (url, opts = {}) => {
   const method = (opts.method || "GET").toUpperCase();
-  if (method === "GET" || method === "HEAD") return origFetch(scopeURL(url), opts);
   const headers = new Headers(opts.headers);
-  headers.set("X-Tilia-Library", "1");
-  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (typeof url === "string" && url.startsWith("/api/")) sendToken(headers);
+  if (method !== "GET" && method !== "HEAD" && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   return origFetch(scopeURL(url), { ...opts, headers });
 };
 
@@ -32,6 +34,7 @@ function loadPage(corpus) {
 
 export async function bootLibrary() {
   const r = await fetch("/api/library");
+  if (r.status === 403) { forgetToken(); showLocked(); return; }
   const data = await r.json().catch(() => null);
   if (!r.ok) { setStatus(errMsg(r.status, data), "error"); return; }
   LIBRARY = data;

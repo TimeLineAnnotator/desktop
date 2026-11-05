@@ -172,6 +172,7 @@ def test_security_headers_everywhere(server):
         assert r.headers["x-frame-options"] == "DENY"
         assert r.headers["referrer-policy"] == "no-referrer"
         assert r.headers["cache-control"] == "no-store"
+        assert r.headers["cross-origin-resource-policy"] == "same-origin"
         assert "content-length" in r.headers
 
 
@@ -181,7 +182,7 @@ def test_content_security_policy_everywhere(web_srv):
     for path in ("/", "/web/a.js", "/api/ping", "/api/none"):
         r = send(web_srv, "GET", path, auth(web_srv))
         assert r.headers["content-security-policy"] == CONTENT_SECURITY_POLICY
-    r = send(web_srv, "GET", "/", {})
+    r = send(web_srv, "GET", "/nothing", {})
     assert r.status == 403
     assert "content-security-policy" in r.headers
 
@@ -220,7 +221,7 @@ def test_given_token_and_urls():
         assert srv.token == "abc"
         assert srv.instance == "i1"
         assert srv.address == f"http://127.0.0.1:{srv.port}/"
-        assert srv.entry_url == f"http://127.0.0.1:{srv.port}/?token=abc"
+        assert srv.entry_url == f"http://127.0.0.1:{srv.port}/#token=abc"
 
 
 def test_token_not_logged(server, caplog):

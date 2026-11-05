@@ -359,3 +359,31 @@ def test_open_in_tilia_from_the_files_panel(page, opener):
     )
     assert page.inner_text("#status") == "Opening Переход.tla in TiLiA…"
     assert [p.name for p in opener.opened] == ["Переход.tla"]
+
+
+def test_the_audio_asks_with_the_key_alone_and_plays_after_a_reload(cards):
+    page = cards
+    asked = []
+    page.on("request", lambda r: "/stream" in r.url and asked.append(r))
+
+    def play_a_unit():
+        first_card(page).locator(".ql-run").first.locator(".ql-unit").nth(1).dblclick()
+        page.wait_for_selector("#player:not([hidden])")
+        wait_for(page, "document.getElementById('player-audio').currentTime > 1.1")
+
+    play_a_unit()
+    assert asked
+    for request in asked:
+        assert "media_key=" in request.url
+        headers = request.all_headers()
+        assert "authorization" not in headers
+        assert "cookie" not in headers
+    assert page.context.cookies() == []
+
+    asked.clear()
+    page.reload()  # the query panel stays open: it's in the address
+    page.wait_for_selector("#ql-box")
+    page.fill("#ql-box", "a then b")
+    page.wait_for_selector(".ql-card")
+    play_a_unit()
+    assert asked

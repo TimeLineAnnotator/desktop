@@ -1,3 +1,4 @@
+import { hasToken, showLocked } from './auth.js';
 import { CORPUS, bootLibrary } from './corpus.js';
 import { loadCategories } from './categories.js';
 import { loadEditLog } from './edit-log.js';
@@ -22,11 +23,15 @@ for (const tab of qa(document, "#tabs button")) {
   tab.addEventListener("click", () => openPanel(tab.dataset.panel));
 }
 
-bootLibrary().then(() => {
-  if (CORPUS) {
-    openPanel(urlPanel());
-    startPolling();
-  }
-}).catch(e => setStatus(errMsg(0, { error: String(e) }), "error"));
+if (hasToken()) {
+  bootLibrary().then(() => {
+    if (CORPUS) {
+      openPanel(urlPanel());
+      startPolling();
+    }
+  }).catch(e => setStatus(errMsg(0, { error: String(e) }), "error"));
+} else {
+  showLocked();
+}
 
 window.__bootOk = true;

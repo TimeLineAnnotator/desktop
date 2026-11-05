@@ -230,7 +230,6 @@ def post(s, file, cid=None):
     headers = {
         "Authorization": f"Bearer {s.server.token}",
         "Content-Type": "application/json",
-        "X-Tilia-Library": "1",
     }
     r = send(s.server, "POST", path, headers, b"{}")
     return r.status, json.loads(r.body)

@@ -102,7 +102,7 @@ class TestStarting:
         running = launch("--no-browser", str(folder))
         line = running.read_until(RUNNING)
         record = env.record()
-        assert line == f"{RUNNING}{record.address}?token={record.token}"
+        assert line == f"{RUNNING}{record.address}#token={record.token}"
         assert re.fullmatch(r"http://127\.0\.0\.1:\d+/", record.address)
         running.read_until("Press Ctrl+C to stop it.")
         assert not browser_lines(env)
@@ -122,7 +122,7 @@ class TestStarting:
         assert browser_lines(env) == [page.as_uri()]
         assert record.token not in page.as_uri()
         text = page.read_text()
-        assert f"{record.address}?token={record.token}" in text
+        assert f"{record.address}#token={record.token}" in text
         assert "<!doctype html>" in text
         if os.name == "posix":
             assert page.stat().st_mode & 0o777 == 0o600
@@ -295,7 +295,7 @@ class TestHandOver:
         record = env.record()
         code, out, err = command_runner.run(env.state, env.log, str(other))
         assert code == 0, err
-        assert out.startswith(f"{ALREADY}{record.address}?token=")
+        assert out.startswith(f"{ALREADY}{record.address}#token=")
         _, body = api(record, "GET", "/api/library")
         assert [c["path"] for c in body["corpora"]] == [
             str(folder.resolve()),
@@ -313,7 +313,7 @@ class TestHandOver:
         page.write_text("stale, from an earlier run")
         code, out, err = command_runner.run(env.state, env.log, str(folder))
         assert code == 0, err
-        assert f"{record.address}?token={record.token}" in page.read_text()
+        assert f"{record.address}#token={record.token}" in page.read_text()
         assert browser_lines(env) == [page.as_uri()]
 
     def test_reports_the_librarys_refusal(self, env, folder):

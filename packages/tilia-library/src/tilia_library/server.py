@@ -65,12 +65,12 @@ FORBIDDEN_PAGE = (
     "<title>TiLiA Library</title>\n</head>\n<body>\n"
     "<h1>TiLiA Library</h1>\n"
     "<p>This address can't be opened directly. TiLiA Library is opened with "
-    "the command <code>tilia library</code>, which starts it and opens your "
-    "browser at the right address.</p>\n"
+    "the command <code>tilia library</code>, which starts it if it isn't "
+    "running and opens your browser at the right address.</p>\n"
     "</body>\n</html>\n"
 )
 
-ACCESS_VALUES = ("any", "bearer", "media")
+ACCESS_VALUES = ("bearer", "media", "public")
 METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 
 
@@ -91,9 +91,10 @@ class Route:
     method: str
     pattern: str
     handler: Handler
-    # "any": cookie or bearer; "bearer": bearer only; "media": bearer, cookie or
-    # the media key
-    access: str = "any"
+    # "bearer": the header. "media": the header or the media key, for what <audio>
+    # asks for. "public": nothing, for the page's own code, which a browser loads
+    # without headers and which holds no secret and no user data.
+    access: str = "bearer"
 
 
 @dataclass
@@ -107,7 +108,6 @@ class Request:
     params: dict[str, str]
     body: bytes
     server: LibraryServer
-    credential: str  # "cookie", "bearer" or "media"
 
     def json(self) -> Any:
         """The body parsed as JSON; answers 400 when it isn't JSON."""
@@ -207,7 +207,7 @@ class Router:
         self._compiled: list[list[_Segment]] = []
 
     def add(
-        self, method: str, pattern: str, handler: Handler, access: str = "any"
+        self, method: str, pattern: str, handler: Handler, access: str = "bearer"
     ) -> Route:
         """Register a route and return it."""
         if access not in ACCESS_VALUES:
@@ -243,11 +243,6 @@ class Router:
             return None, {}, methods
         route, params, _ = max(fitting, key=lambda c: c[2])
         return route, params, methods
-
-    def path_access(self, path: str) -> str:
-        """The access a path needs when no route fits its method: never the media key."""
-        accesses = {route.access for route, _, _ in self._candidates(path)}
-        return "bearer" if "bearer" in accesses or "media" in accesses else "any"
 
 
 def _serve_file(root: Path, relative: str) -> Response:
@@ -320,6 +315,16 @@ class _RequestHandler(BaseHTTPRequestHandler):
 
     do_HEAD = do_POST = do_PUT = do_PATCH = do_DELETE = do_OPTIONS = do_GET
 
+    def send_header(self, keyword: str, value: str) -> None:
+        """Send a header, unless it sets a cookie: the library sets none.
+
+        A cookie on 127.0.0.1 goes to every local server the user visits.
+        """
+        if keyword.lower() == "set-cookie":
+            logger.error("a response tried to set a cookie; it was not sent")
+            return
+        super().send_header(keyword, value)
+
     def log_message(self, format: str, *args: object) -> None:
         """Send request lines to the debug log, never with a secret."""
         library = self.server.library
@@ -341,6 +346,7 @@ class _RequestHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Cross-Origin-Resource-Policy", "same-origin")
         self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
         if response.content_type:
             self.send_header("Content-Type", response.content_type)
@@ -420,22 +426,13 @@ class _RequestHandler(BaseHTTPRequestHandler):
             return
 
         query = parse_qs(query_text, keep_blank_values=True)
-        if not security.host_ok(self.headers, library.port):
-            self._write(error_response(400, "bad Host header"))
-            return
-
-        if method == "GET" and path == "/" and "token" in query:
-            self._write(library._enter(query["token"][0]))
-            return
-
         route, params, methods = library.router.match(method, path)
-        access = route.access if route else library.router.path_access(path)
         verdict = security.check_request(
             method,
             self.headers,
             port=library.port,
             token=library.token,
-            access=access,
+            access=route.access if route else "bearer",
             media_key=library.media_key,
             given_media_key=query.get(security.MEDIA_PARAM, [None])[0],
         )
@@ -463,7 +460,6 @@ class _RequestHandler(BaseHTTPRequestHandler):
             params=params,
             body=body,
             server=library,
-            credential=verdict.credential or "bearer",
         )
         self._write(self._call(route, request))
 
@@ -516,24 +512,10 @@ class LibraryServer:
         self._httpd.library = self
         self.port: int = self._httpd.server_address[1]
         self.address: str = f"http://127.0.0.1:{self.port}/"
-        self.entry_url: str = f"http://127.0.0.1:{self.port}/?token={self.token}"
-        self.router.add("GET", "/", self._index)
-        self.router.add("GET", "/web/{path:path}", self._static)
+        self.entry_url: str = security.entry_url(self.address, self.token)
+        self.router.add("GET", "/", self._index, access="public")
+        self.router.add("GET", "/web/{path:path}", self._static, access="public")
         self.router.add("GET", "/api/ping", self._ping)
-
-    def _enter(self, given: str) -> Response:
-        """The browser's entry: trade the token in the address for a cookie."""
-        if not security.token_matches(given, self.token):
-            return self._entry_refused()
-        headers = {
-            "Location": "/",
-            "Set-Cookie": security.entry_cookie(self.port, self.token),
-        }
-        return Response(303, b"", None, headers)
-
-    @staticmethod
-    def _entry_refused() -> Response:
-        return Response(403, FORBIDDEN_PAGE.encode("utf-8"), "text/html; charset=utf-8")
 
     def _index(self, request: Request) -> Response:
         return _serve_file(self.web_root, "index.html")

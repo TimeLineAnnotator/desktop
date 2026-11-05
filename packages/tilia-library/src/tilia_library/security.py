@@ -1,4 +1,10 @@
-"""Access checks that make the server usable only by whoever started it."""
+"""Access checks that make the server usable only by whoever started it.
+
+No secret is kept in a cookie: browsers keep cookies per host, not per port, so
+a cookie set on 127.0.0.1 would go to every local server the user visits. The
+token travels as a header, ``Authorization: Bearer <token>``, from programs and
+from the page alike. The page gets it once, in the address's fragment.
+"""
 
 from __future__ import annotations
 
@@ -7,25 +13,22 @@ import hmac
 import secrets
 from dataclasses import dataclass
 
-COOKIE_PREFIX = "tilia-library-"
-CUSTOM_HEADER = "X-Tilia-Library"
 # The query parameter that carries the media key: <audio> can't send a header.
 MEDIA_PARAM = "media_key"
 
 
 def new_token() -> str:
-    """Make a random token for one run of the server."""
+    """Make a random secret for one run of the server."""
     return secrets.token_urlsafe(32)
 
 
-def cookie_name(port: int) -> str:
-    """Name of the cookie that holds the token for the server on this port."""
-    return f"{COOKIE_PREFIX}{port}"
+def entry_url(address: str, token: str) -> str:
+    """The address that hands the page the token.
 
-
-def entry_cookie(port: int, token: str) -> str:
-    """The whole Set-Cookie value for the entry: a session cookie, not for scripts."""
-    return f"{cookie_name(port)}={token}; HttpOnly; SameSite=Lax; Path=/"
+    The token is in the fragment, which a browser never sends to any server, so
+    it can't reach a log or a ``Referer``. The page takes it and cleans the address.
+    """
+    return f"{address}#token={token}"
 
 
 @dataclass(frozen=True)
@@ -34,11 +37,10 @@ class Verdict:
 
     status: int | None
     reason: str
-    credential: str | None = None
 
 
 def _refuse(status: int, reason: str) -> Verdict:
-    return Verdict(status, reason, None)
+    return Verdict(status, reason)
 
 
 def host_ok(headers: email.message.Message, port: int) -> bool:
@@ -50,24 +52,8 @@ def host_ok(headers: email.message.Message, port: int) -> bool:
     return host == f"127.0.0.1:{port}" or host.lower() == f"localhost:{port}"
 
 
-def _cookie_token(headers: email.message.Message, port: int) -> str | None:
-    # Parsed the way browsers send cookies: they share one header across every
-    # local server, so other programs' cookies can hold any characters.
-    wanted = cookie_name(port)
-    for line in headers.get_all("Cookie") or []:
-        for piece in str(line).split(";"):
-            name, sep, value = piece.partition("=")
-            if not sep or name.strip() != wanted:
-                continue
-            value = value.strip()
-            if len(value) >= 2 and value.startswith('"') and value.endswith('"'):
-                value = value[1:-1]
-            return value
-    return None
-
-
 def token_matches(given: str | None, token: str) -> bool:
-    """Compare a given token with the real one in constant time."""
+    """Compare a given secret with the real one in constant time."""
     if given is None:
         return False
     return hmac.compare_digest(given.encode("utf-8"), token.encode("utf-8"))
@@ -93,17 +79,20 @@ def check_request(
     media_key: str = "",
     given_media_key: str | None = None,
 ) -> Verdict:
-    """Apply the Host, credential and cross-site rules to one request."""
+    """Apply the Host, credential and cross-site rules to one request.
+
+    Nothing the browser adds by itself counts as a credential, so another page
+    can't borrow one: no request of its own can carry the token or the media key.
+    """
     if not host_ok(headers, port):
         return _refuse(400, "bad Host header")
 
-    if token_matches(_bearer_token(headers), token):
-        credential = "bearer"
-    elif access == "any" and token_matches(_cookie_token(headers, port), token):
-        credential = "cookie"
-    elif access == "media" and token_matches(given_media_key, media_key):
-        credential = "media"
-    else:
+    if access == "public":
+        return Verdict(None, "ok")
+
+    if not token_matches(_bearer_token(headers), token) and not (
+        access == "media" and token_matches(given_media_key, media_key)
+    ):
         return _refuse(403, "missing or wrong credentials")
 
     if method not in ("GET", "HEAD"):
@@ -116,7 +105,5 @@ def check_request(
             f"http://localhost:{port}",
         ):
             return _refuse(403, "foreign Origin")
-        if credential == "cookie" and headers.get(CUSTOM_HEADER) != "1":
-            return _refuse(403, f"missing {CUSTOM_HEADER} header")
 
-    return Verdict(None, "ok", credential)
+    return Verdict(None, "ok")

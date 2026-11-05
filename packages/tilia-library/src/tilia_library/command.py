@@ -17,6 +17,7 @@ from pathlib import Path
 
 from tilia_core import state
 from tilia_core.library_link import PROTOCOL, LibraryLink, ServerRecord, ping
+from tilia_library import security
 from tilia_library.api import register_all
 from tilia_library.backend import CoreBackend
 from tilia_library.corpora import Corpora
@@ -179,7 +180,7 @@ def _hand_over(
                 f"{typed}: {message or f'status {status}'}"
             )
             return 1
-    entry_url = f"{record.address}?token={record.token}"
+    entry_url = security.entry_url(record.address, record.token)
     if not no_browser:
         page = state.state_dir() / OPEN_NAME
         if record.token not in _read_text(page):

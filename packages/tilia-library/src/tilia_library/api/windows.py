@@ -90,7 +90,7 @@ def register(
         return Response(204)
 
     router = server.router
-    router.add("POST", "/api/windows", post_window, access="bearer")
-    router.add("POST", "/api/windows/{window}/sync", post_sync, access="bearer")
-    router.add("POST", "/api/windows/{window}/saved", post_saved, access="bearer")
-    router.add("DELETE", "/api/windows/{window}", delete_window, access="bearer")
+    router.add("POST", "/api/windows", post_window)
+    router.add("POST", "/api/windows/{window}/sync", post_sync)
+    router.add("POST", "/api/windows/{window}/saved", post_saved)
+    router.add("DELETE", "/api/windows/{window}", delete_window)

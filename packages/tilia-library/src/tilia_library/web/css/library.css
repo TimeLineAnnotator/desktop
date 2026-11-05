@@ -50,7 +50,7 @@ select, input[type=search] { cursor: auto; }
 
 main { flex: 1; overflow: auto; }
 .panel { padding: 8px 12px; }
-#how-to-add { padding: 16px 12px; }
+#how-to-add, #locked { padding: 16px 12px; }
 code { background: #f0f0f0; border: 1px solid var(--border); border-radius: 3px; padding: 0 4px; }
 
 .bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
