@@ -70,6 +70,11 @@ REQUIRED = [
     "a bar that doesn't exist: none",
     "the fraction 1: the downbeat after the bar, not every bar N+1's",
     "the last time through, past the last beat",
+    # TimeLineAnnotator/desktop#774 (one time per pass)
+    "a last bar that isn't steady, past its last beat",
+    "a last bar that isn't steady, as a segment's end",
+    "a last beat at the media's end, past it",
+    "a last beat at the media's end, as a segment's end",
 ]
 
 
@@ -93,7 +98,8 @@ def test_each_case_is_laid_out_as_the_contract_says(case):
 @pytest.mark.parametrize("case", TIMES_OF)
 def test_times_of(case):
     timeline = beat_timeline(case["beats"])
-    time_map = time_map_for(document(timeline), timeline.id)
+    doc = document(timeline, media_length=case.get("media_length"))
+    time_map = time_map_for(doc, timeline.id)
     query = case["query"]
 
     assert time_map.times_of(
@@ -105,7 +111,8 @@ def test_times_of(case):
 def test_times_of_on_the_table_the_reader_builds(case):
     timeline = beat_timeline(case["beats"])
     timeline.measures = tla.measure_table(timeline)
-    time_map = time_map_for(document(timeline), timeline.id)
+    doc = document(timeline, media_length=case.get("media_length"))
+    time_map = time_map_for(doc, timeline.id)
     query = case["query"]
 
     assert time_map.times_of(
@@ -342,8 +349,8 @@ class TestTimesOf:
 
     @pytest.mark.parametrize(
         "media_length, end, at_three_quarters",
-        [(6.5, 6.5, 6.25), (30.0, 7.0, 6.5), (5.5, 7.0, 6.5)],
-        ids=["the media ends sooner", "the media ends later", "before the last beat"],
+        [(6.5, 6.5, 6.25), (30.0, 7.0, 6.5)],
+        ids=["the media ends sooner", "the media ends later"],
     )
     def test_the_end_of_the_media_stops_a_last_bar(
         self, media_length, end, at_three_quarters
@@ -363,6 +370,146 @@ class TestTimesOf:
 
         assert bars.times_of(2, 0.75) == [at_three_quarters]
         assert bars.times_of(2, 1.0, segment_end=True) == [end] == [bars.end]
+
+    @pytest.mark.parametrize(
+        "media_length, end, at_three_quarters",
+        [(3.0, 3.0, 3.0), (2.5, 3.0, 3.0), (12.0, 4.0, 3.25)],
+        ids=["on the last beat", "before the last beat", "long after it"],
+    )
+    def test_a_last_bar_never_ends_before_its_last_beat(
+        self, media_length, end, at_three_quarters
+    ):
+        # max(last beat, min(last beat + its length, media's end)): times never
+        # run backwards (FR-060).
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0},
+            ]
+        )
+        doc = document(timeline, media_length=media_length)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(1, 0.75) == [at_three_quarters]
+        assert bars.times_of(1, 1.0, segment_end=True) == [end]
+        assert bars.times_of(1, 1.0) == []
+
+    @pytest.mark.parametrize("media_length", [3.0, 2.5])
+    def test_only_the_lookup_stops_at_the_last_beat(self, media_length):
+        # A map can't hold a barline at or before its last beat, so the table
+        # and the map keep the length alone, with FR-082's warning.
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0},
+            ]
+        )
+        doc = document(timeline, media_length=media_length)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.end == bars.measure_rows()[-1].end == 4.0
+        assert bars.position(3.5, "bar") == pytest.approx(5 / 6)
+
+    @pytest.mark.parametrize(
+        "media_length, end, at_three_quarters",
+        [(9.0, 4.5, 4.25), (4.25, 4.25, 4.125), (4.0, 4.0, 4.0), (3.5, 4.0, 4.0)],
+        ids=["later", "sooner", "on the last beat", "before the last beat"],
+    )
+    def test_a_last_beat_lasts_its_own_length_up_to_the_media(
+        self, media_length, end, at_three_quarters
+    ):
+        # An eighth after a quarter that took 1 s: half a second (FR-011).
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {
+                    "time": 3.0,
+                    "measure": {},
+                    "beat_unit": {"denominator": 8, "units": "2+1"},
+                },
+                {"time": 4.0},
+            ]
+        )
+        doc = document(timeline, media_length=media_length)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(2, 0.75) == [at_three_quarters]
+        assert bars.times_of(2, 1.0, segment_end=True) == [end]
+
+    def test_a_last_pass_read_as_the_next_numbers_downbeat_ends_on_its_last_beat(self):
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0, "measure": {}},
+                {"time": 4.0},
+                {"time": 5.0, "measure": {"number": 1}},
+                {"time": 6.0},
+            ]
+        )
+        doc = document(timeline, media_length=5.5)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(2, segment_end=True) == [3.0, 6.0]
+
+    def test_a_cadenza_that_ends_the_piece_ends_on_its_last_beat(self):
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0, "measure": {"label": "1c", "cadenza": True}},
+                {"time": 4.0},
+            ]
+        )
+        doc = document(timeline, media_length=4.0)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(1, 1.0, segment_end=True) == [4.0]
+        assert bars.times_of(label="1c", fraction=0.75) == [4.0]
+
+    def test_a_last_movement_of_one_beat_ends_on_it(self):
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 4.0, "closing": True},
+                {"time": 9.0, "measure": {"number": 1, "restart": True}},
+            ]
+        )
+        doc = document(timeline, media_length=8.0)
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(1, 1.0, movement=2, segment_end=True) == [9.0]
+        assert bars.times_of(1, 0.5, movement=2) == [9.0]
+        assert bars.end == 11.0
+
+    def test_a_quarters_file_has_no_media_to_stop_at(self):
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0},
+            ]
+        )
+        doc = document(timeline, media_length=3.0, time_unit="quarters")
+        bars = time_map_for(doc, timeline.id)
+
+        assert bars.times_of(1, 1.0, segment_end=True) == [4.0]
+
+    def test_without_a_media_a_last_bar_lasts_its_length(self):
+        timeline = beat_timeline(
+            [
+                {"time": 1.0, "measure": {"number": 1}},
+                {"time": 2.0},
+                {"time": 3.0},
+            ]
+        )
+        bars = time_map_for(document(timeline), timeline.id)
+
+        assert bars.times_of(1, 1.0, segment_end=True) == [4.0]
 
     def test_a_segments_end_on_a_downbeat_gives_the_last_bars_own_end(self):
         # Bar 1's second pass ends the piece, half a second after its last beat.
@@ -613,6 +760,15 @@ class TestAClosingTap:
     def test_the_fraction_1_is_the_tap(self, closed):
         assert closed.times_of(2, 1.0) == [6.0]
         assert closed.times_of(2, 1.0, segment_end=True) == [6.0]
+
+    def test_the_media_doesnt_move_it(self):
+        # A closing tap is the closing barline, wherever the media ends (FR-011).
+        timeline = closed_piece(closing=8.0)
+        bars = time_map_for(document(timeline, media_length=3.5), timeline.id)
+
+        assert bars.times_of(2, 0.75) == [6.0]
+        assert bars.times_of(2, 1.0) == [8.0]
+        assert bars.times_of(2, 1.0, segment_end=True) == [8.0]
 
     def test_a_bar_it_doesnt_close_is_as_before(self, closed):
         assert closed.times_of(1, 0.75) == [2.5]
