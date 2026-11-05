@@ -32,6 +32,7 @@ from tilia_core.timemap.qstamps import (
 from tilia_core.timemap.table import (
     EPS,
     MeasureRow,
+    _media_length,
     build_rows_from,
     find_rows,
     is_folded,
@@ -79,6 +80,7 @@ class TimeMap:
     guessed: bool  # taken as the first beat timeline, as none had the role time_map
     _rows: tuple[MeasureRow, ...] = field(repr=False)
     _times: tuple[float, ...] = field(repr=False)  # the beats
+    _media_length: float | None = field(repr=False)  # what stops a time past them
     # Computed from the rows and the beats, so nothing can make them disagree:
     # the beat slots (the beats, then the closing barline, with one after each
     # measure a closing tap closes), each slot's measure (a closing barline's
@@ -375,6 +377,7 @@ class TimeMap:
             pass_=pass_,
             movement=movement,
             segment_end=segment_end,
+            media_length=self._media_length,
         )
 
     def _snapped(self, t: float | None) -> float | None:
@@ -451,5 +454,6 @@ def build_time_map(
         guessed=guessed,
         _rows=tuple(rows),
         _times=tuple(times),
+        _media_length=_media_length(document),
     )
     return time_map, None
