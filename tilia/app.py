@@ -5,6 +5,8 @@ import json
 import os
 import re
 import traceback
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -47,6 +49,7 @@ class App:
         self.player = player
         self.duration = 0.0
         self.should_scale_timelines = "prompt"
+        self._is_restoring_state = False
         self.reset_id_generator()
         self._setup_timelines()
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
@@ -145,8 +148,11 @@ class App:
         self.on_media_duration_changed(duration)
 
     def _is_duration_confirmation(self, duration: float) -> bool:
+        # While restoring across a media change, self.duration is still the
+        # replaced media's length, so being close to it confirms nothing.
         return (
-            self.should_scale_timelines == "keep"
+            not self._is_restoring_state
+            and self.should_scale_timelines == "keep"
             and abs(duration - self.duration)
             < tilia.constants.DURATION_JITTER_TOLERANCE
         )
@@ -302,12 +308,24 @@ class App:
         return success
 
     def _restore_app_state(self, state: dict) -> None:
-        with PauseUndoManager():
+        with PauseUndoManager(), self._restoring_state():
             self.restore_player_state(
                 state["media_path"], state["media_metadata"].get("media length", 0)
             )
             self.file_manager.set_media_metadata(state["media_metadata"])
+            if self.player.is_media_loaded:
+                # The loaded media's length, not the snapshot's, is what the
+                # file must save.
+                self.file_manager.set_media_duration(self.duration)
             self.timelines.restore_state(state["timelines"])
+
+    @contextmanager
+    def _restoring_state(self) -> Iterator[None]:
+        self._is_restoring_state = True
+        try:
+            yield
+        finally:
+            self._is_restoring_state = False
 
     def on_restore_state(self, state: dict) -> None:
         backup = self.get_app_state()
@@ -409,12 +427,19 @@ class App:
         # as a genuine media change instead, falling back to "prompt" for
         # this report only -- should_scale_timelines itself is untouched,
         # so a later, smaller jitter report is still handled as "keep".
+        #
+        # While a state is being restored (undo, redo, recovery), the
+        # snapshot's components replace the live ones right after the
+        # duration is restored, so scaling or cropping the live ones is
+        # pointless, and prompting would ask about a change that never
+        # takes effect.
         effective_mode = self.should_scale_timelines
         if effective_mode == "keep" and not self._is_duration_confirmation(duration):
             effective_mode = "prompt"
 
         if (
-            not self.timelines.is_blank
+            not self._is_restoring_state
+            and not self.timelines.is_blank
             and duration != self.duration
             and effective_mode != "keep"
         ):
@@ -563,24 +588,24 @@ class App:
         self.undo_manager.record(self.get_app_state(), "file start")
 
     def restore_player_state(self, media_path: str, duration: float) -> None:
-        if self.player.media_path == media_path:
-            # Media has not changed. The snapshot's timelines replace the
-            # live ones right after this, so the duration must not go
-            # through the scale/crop prompt: rescaling the live components
-            # just before the restore leaves them scrambled. A loaded
-            # player already reports the media's real length, which wins
-            # over the snapshot's stored one -- that can be stale when the
-            # media differs from what the file was saved with. Only a file
-            # without media takes its duration from the snapshot.
-            if duration and not self.player.is_media_loaded:
-                self._set_duration_without_rescaling(duration)
-            return
+        if self.player.media_path != media_path:
+            # "keep": the restored timelines were recorded against this
+            # media, so a length the player reports later (YouTube does so
+            # asynchronously, after the restore) must not prompt to scale
+            # them unless it really differs.
+            self.load_media(
+                media_path,
+                record=False,
+                scale_timelines="keep",
+                initial_duration=duration,
+            )
 
-        self.load_media(media_path, record=False, initial_duration=duration)
-
-    def _set_duration_without_rescaling(self, duration: float) -> None:
-        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
-        self.duration = duration
+        # A loaded player reports the media's real length, which wins over
+        # the snapshot's. Only a file without media (or whose media did not
+        # load) takes its duration from the snapshot -- clearing the app or
+        # unloading media above set it to 0.
+        if duration and duration != self.duration and not self.player.is_media_loaded:
+            self.set_file_media_duration(duration)
 
     def get_timelines_state(self):
         return self.timelines.serialize_timelines()
