@@ -104,17 +104,36 @@ tilia --user-interface cli
 TiLiA uses [Nuitka](https://nuitka.net/) to build binaries.
 Note that the binaries will be for the platform you are building on, as `Nuitka` supports no cross-compilation.
 
+Building needs a few things that running from source does not:
+- **Python 3.12 or 3.13.** The pinned Nuitka version cannot compile TiLiA on Python 3.14, so the build script stops early there.
+- **pip 25.1 or newer**, for the `--group` option below (`python -m pip install --upgrade pip`).
+- **A C compiler.** On macOS, install the Xcode command line tools (`xcode-select --install`); on Linux, `gcc`. On Windows, Nuitka uses Visual Studio 2022's compiler if it is installed, and otherwise downloads one ([Zig](https://ziglang.org/)) by itself.
+
+Then:
 - After cloning TiLiA, install TiLiA's run and build dependencies with:
 ```
 pip install -e . --group build
 ```
 - To build a stand-alone executable, run the script:
 ```
-python scripts/deploy.py [ref_name] [os_type]
+python scripts/deploy.py
 ```
-> Note: `ref_name` and `os_type` are arbitrary strings that do not affect the build outcome.
 
-The executable will be found in the `build/[os_type]/exe` folder in the project directory.
+The app will be found in `build/[os_type]/exe`, where `os_type` is `windows`, `macos-silicon`, `macos-intel` or `ubuntu` (used for every Linux distribution): `tilia.dist/TiLiA.exe` on Windows, `tilia.dist/TiLiA` on Linux and a `.app` bundle on macOS.
+The script prints the path when it finishes.
+
+> Note: `deploy.py` also accepts two optional arguments, `python scripts/deploy.py [ref_name] [os_type]`, which the release workflow uses to name its uploads. They do not change the build, and `os_type` must match the machine you are building on. Run `python scripts/deploy.py --help` for details.
+
+#### Installers
+If Velopack's `vpk` command is on your `PATH`, the script also packs the app into an installer (`Setup.exe` on Windows, `.pkg` on macOS, an AppImage on Linux) in `build/[os_type]/velopack`. Without it, this step is skipped. You only need it if you want an installer.
+To get `vpk`, install the [.NET SDK](https://dotnet.microsoft.com/download) (version 10; recent `vpk` versions refuse .NET 8), then run:
+```
+dotnet tool install -g vpk --prerelease
+```
+
+#### Platform notes
+- **Linux:** if the build or the built app reports missing system libraries, `scripts/linux-setup.sh` installs the ones our CI uses (Debian/Ubuntu, via `sudo apt-get`).
+- **macOS on Intel:** build with Python from [python.org](https://www.python.org/downloads/macos/), not Homebrew's. Homebrew installs into `/usr/local` on Intel Macs, and its OpenSSL there can make Nuitka fail with `problem with dependency scan of '/usr/local/lib/libcrypto.dylib'` ([Nuitka#2853](https://github.com/Nuitka/Nuitka/issues/2853)). Our CI works around this by uninstalling Homebrew's `openssl@3` before building, which you may not want to do on your own machine, since other Homebrew packages depend on it.
 
 ## Planned features
 
