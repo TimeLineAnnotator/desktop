@@ -336,3 +336,45 @@ class TestParserDispatch:
         from tilia.timelines.range.timeline import RangeTimeline
 
         assert get_import_function(RangeTimeline, "measure") is import_by_measure
+
+
+class TestImportByMeasureWithNoLength:
+    @pytest.fixture
+    def four_beats(self, beat_tlui, tilia_state):
+        tilia_state.set_duration(4, scale_timelines="no")
+        beat_tl = beat_tlui.timeline
+        beat_tl.beat_pattern = [2]
+        for t in (1, 2, 3, 4):
+            beat_tlui.create_beat(time=t)
+        beat_tl.recalculate_measures()
+        return beat_tl
+
+    def test_start_equal_to_end_is_reported(self, range_tlui, four_beats):
+        data = "start,end,start_fraction,end_fraction,row\n2,2,0.75,1,A"
+        success, errors = _trigger_import_through_command("measure", data)
+        assert success
+        assert len(range_tlui) == 0
+        assert len(errors) == 1
+        assert errors == ["Start time must be before end time."]
+
+    def test_start_after_end_is_not_reported(self, range_tlui, four_beats):
+        data = "start,end,row\n2,1,A"
+        success, errors = _trigger_import_through_command("measure", data)
+        assert success
+        assert len(range_tlui) == 0
+        assert errors == []
+
+    def test_rows_around_a_start_equal_to_end_are_imported(
+        self, range_tlui, four_beats
+    ):
+        data = (
+            "start,end,start_fraction,end_fraction,row\n"
+            "1,2,0,0,A\n2,2,0.75,1,A\n2,2,0,0.5,B"
+        )
+        success, errors = _trigger_import_through_command("measure", data)
+        assert success
+        assert len(errors) == 1
+        assert sorted((r.get_data("start"), r.get_data("end")) for r in range_tlui) == [
+            (1, 3),
+            (3, 4),
+        ]
