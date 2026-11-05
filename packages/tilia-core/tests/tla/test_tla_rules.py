@@ -1220,6 +1220,63 @@ class TestStillANewProblem:
         ]
 
 
+class TestWhatIsComparedIsWhatIsWritten:
+    """What the writer leaves out of what it writes isn't a change."""
+
+    @pytest.mark.parametrize(
+        "mark",
+        [
+            {"metadata": {}},
+            {"metadata": {}, "force_display": False, "source": None},
+            {"metadata": None},
+            {"force_display": False},
+        ],
+    )
+    @pytest.mark.parametrize(
+        "time", [150.0, 1.0], ids=["past the end", "with another at one time"]
+    )
+    def test_a_measure_mark_with_what_is_left_out(self, mark, time, tmp_path):
+        def change(content):
+            content["media"]["length"] = 100.0
+            content["timelines"][BEATS]["components"][FIRST] = {
+                "kind": "BEAT",
+                "time": time,
+                "measure": mark,
+            }
+
+        doc = tla.loads(a_file(change))
+        assert len(doc.read_problems) == 1
+        again = tla.read(written(doc, tmp_path))
+        assert len(again.read_problems) == 1
+        written(again, tmp_path)
+
+    def test_a_row_with_what_is_left_out(self, tmp_path):
+        rows = [{"id": ROW, "name": "Melody"}, {**BASS, "height": None}]
+        doc = tla.loads(a_file(ranges(rows=rows)))
+        assert len(doc.read_problems) == 1
+        written(doc, tmp_path)
+
+    def test_an_empty_mark_on_the_other_of_two_at_one_time(self, tmp_path):
+        def change(content):
+            components = content["timelines"][BEATS]["components"]
+            components[BEAT_1]["measure"] = {"metadata": {}}
+            components[BEAT_2]["time"] = 0.0
+
+        written(tla.loads(a_file(change)), tmp_path)
+
+    def test_with_no_length_it_is_compared_as_written_too(self, tmp_path):
+        def change(content):
+            content["timelines"][BEATS]["components"][FIRST] = {
+                "kind": "BEAT",
+                "time": 150.0,
+                "measure": {"metadata": {}},
+            }
+
+        doc = tla.loads(a_file(change))
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+
 class TestBrokenRules:
     def refused(self, tmp_path):
         doc = tla.loads(a_file())
