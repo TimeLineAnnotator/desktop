@@ -179,6 +179,22 @@ class Corpus:
         one."""
         return self._store.time_map(file_id)
 
+    # -- changes --------------------------------------------------------------- #
+    def _no_change_inside_a_read(self, what: str) -> None:
+        if self._in_read():
+            raise RuntimeError(
+                f"{what} can't start inside a read on the same thread: it would "
+                "wait for that read forever"
+            )
+
+    def scan(self) -> ScanReport:
+        """Bring the index in line with the folder, and report what changed
+        (data-model.md, "The scan report"); the generation moves only when
+        anything did. Concurrent calls share one scan. Raises
+        ``RuntimeError`` inside a read on the same thread."""
+        self._no_change_inside_a_read("a scan")
+        return self._scanner.scan()
+
     # -- the files and their units ------------------------------------------- #
     def _file_rows(
         self, con: sqlite3.Connection, where: str, args: tuple
