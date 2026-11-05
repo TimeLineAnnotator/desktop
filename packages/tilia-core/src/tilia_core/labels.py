@@ -1,4 +1,5 @@
-"""Unicode rules and the label-grammar protocol shared by TQL's parser and index.
+"""Unicode rules for text in files and labels, and the label-grammar protocol
+shared by TQL's parser and index.
 
 Words in queries and labels in a corpus compare in one folded form, and a
 label grammar says how a corpus's labels split into categories.
@@ -18,7 +19,7 @@ def fold(s: str) -> str:
     """``s`` for comparing words and labels: one normal form and full case
     folding, so ``STRASSE`` finds "Straße" and ``ΚΟΣΜΟΣ`` "κοσμος" —
     Unicode's canonical caseless match, written out as NFC."""
-    return unicodedata.normalize("NFC", unicodedata.normalize("NFD", s).casefold())
+    return nfc(unicodedata.normalize("NFD", s).casefold())
 
 
 class LabelGrammar(Protocol):
