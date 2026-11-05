@@ -459,11 +459,10 @@ class TestUndoWithMismatchedMediaDuration:
     # Media whose real length differs from the file's stored media length by
     # more than DURATION_JITTER_TOLERANCE -- a recording found next to a moved
     # .tla, or a different file at the same path -- reports its duration while
-    # the file is still loading, before any timeline exists. Nothing is scaled
-    # then, and the stored length stays in the metadata. Undo used to restore
-    # that stale length through the scale/crop prompt, rescaling the live
-    # components right before the snapshot replaced them, which scrambled
-    # hierarchy boundaries.
+    # the file is still loading, before any timeline exists. Opening used to
+    # keep the stored length in the metadata, so undo restored it through the
+    # scale/crop prompt, rescaling the live components right before the
+    # snapshot replaced them, which scrambled hierarchy boundaries.
     REPORTED_DURATION = EXAMPLE_MEDIA_DURATION - DURATION_JITTER_TOLERANCE - 1
 
     @pytest.fixture(autouse=True)
@@ -486,6 +485,11 @@ class TestUndoWithMismatchedMediaDuration:
             save_and_reopen(tmp_path)
 
         assert tilia_state.duration == self.REPORTED_DURATION
+
+    def test_opening_stores_loaded_media_length(self, tilia):
+        assert get(Get.MEDIA_METADATA)["media length"] == self.REPORTED_DURATION
+        # Not an edit: the same media is still loaded on the next open.
+        assert not tilia.is_file_modified()
 
     @staticmethod
     def hierarchy_bounds(tls):

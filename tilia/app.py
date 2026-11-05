@@ -191,6 +191,14 @@ class App:
             self.on_restore_state(prev_state)
             return False
 
+        # The player reported the media's real length while it loaded, but
+        # file_manager still held the blank file from on_clear() then, so
+        # that length went into the blank file and not into `file`. Copy it
+        # over, or the stored length (stale if the media differs from what
+        # the file was saved with) would reach the undo snapshots and the
+        # next save.
+        if self.duration or "media length" in file.media_metadata:
+            file.media_metadata["media length"] = self.duration
         file.timelines, file.timelines_hash = self.get_timelines_state()
 
         if file.unknown_timelines or file.deleted_timelines:
