@@ -18,7 +18,7 @@ class TimelineUIElement(ABC):
 
     def __init__(
         self,
-        id: int,
+        id: str,
         timeline_ui,
         scene: QGraphicsScene,
         get_data: Callable[[str], Any],

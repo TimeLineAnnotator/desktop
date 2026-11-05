@@ -61,7 +61,7 @@ class Note(SegmentLikeTimelineComponent):
     def __init__(
         self,
         timeline: ScoreTimeline,
-        id: int,
+        id: str,
         start: float,
         end: float,
         step: int,

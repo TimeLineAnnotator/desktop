@@ -44,7 +44,7 @@ from tilia.ui.windows.view_window import ViewDockWidget
 
 
 class SvgViewer(ViewDockWidget):
-    def __init__(self, name: str, tl_id: int, *args, **kwargs) -> None:
+    def __init__(self, name: str, tl_id: str, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.setObjectName(f"TiLiA Score Viewer {tl_id}")
         self.setAllowedAreas(
@@ -55,7 +55,7 @@ class SvgViewer(ViewDockWidget):
         self.__setup_score_viewer()
         serve(self, Get.SCORE_VIEWER, self.get_viewer)
 
-    def get_viewer(self, tl_id: int):
+    def get_viewer(self, tl_id: str):
         if tl_id == self.timeline_id:
             return self
 

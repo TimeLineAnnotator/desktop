@@ -126,6 +126,6 @@ class ScoreTimeline(Timeline):
             )
         )
 
-    def deserialize_components(self, components: dict[int, dict[str, Any]]):
+    def deserialize_components(self, components: dict[str, dict[str, Any]]):
         super().deserialize_components(components)
         post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.id)

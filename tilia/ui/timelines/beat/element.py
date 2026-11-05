@@ -55,7 +55,7 @@ class BeatUI(TimelineUIElement):
 
     def __init__(
         self,
-        id: int,
+        id: str,
         timeline_ui: BeatTimelineUI,
         scene: QGraphicsScene,
         get_data: Callable[[str], Any],

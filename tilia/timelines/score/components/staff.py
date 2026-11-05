@@ -18,7 +18,7 @@ class Staff(TimelineComponent):
     }
 
     def __init__(
-        self, timeline: ScoreTimeline, id: int, index: int, line_count: int, **_
+        self, timeline: ScoreTimeline, id: str, index: int, line_count: int, **_
     ):
 
         self.index = index

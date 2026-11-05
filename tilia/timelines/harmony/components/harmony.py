@@ -71,7 +71,7 @@ class Harmony(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: HarmonyTimeline,
-        id: int,
+        id: str,
         time: float,
         step: int = 0,
         accidental: int = 0,

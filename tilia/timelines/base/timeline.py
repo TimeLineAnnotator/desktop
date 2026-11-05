@@ -36,13 +36,6 @@ TC = TypeVar("TC", bound="TimelineComponent")
 T = TypeVar("T", bound="Timeline")
 
 
-def id_order(id: str) -> tuple[int, str]:
-    """Sort key that puts ids in the order they were made, both UUIDv7s and
-    numbers as text.
-    """
-    return len(id), id
-
-
 class TimelineFlag(Enum):
     COMPONENTS_COLORED = auto()
     COMPONENTS_IMPORTABLE = auto()
@@ -75,7 +68,7 @@ class Timeline(ABC, Generic[TC]):
         height: int = 0,
         is_visible: bool = True,
         ordinal: int | None = None,
-        id: int | None = None,
+        id: str | None = None,
         **kwargs,  # ignores components_hash
     ):
         self.id = get(Get.ID, id)
@@ -231,7 +224,7 @@ class Timeline(ABC, Generic[TC]):
         else:
             return None, reason
 
-    def get_component(self, id: int) -> TC:
+    def get_component(self, id: str) -> TC:
         return self.component_manager.get_component(id)
 
     def get_component_by_attr(self, attr: str, value: Any) -> TC:
@@ -252,10 +245,10 @@ class Timeline(ABC, Generic[TC]):
     def get_previous_component_by_time(self, time: float) -> TC | None:
         return self.component_manager.get_previous_component_by_time(time)
 
-    def set_component_data(self, id: int, attr: str, value: Any):
+    def set_component_data(self, id: str, attr: str, value: Any):
         return self.component_manager.set_component_data(id, attr, value)
 
-    def get_component_data(self, id: int, attr: str):
+    def get_component_data(self, id: str, attr: str):
         return self.component_manager.get_component_data(id, attr)
 
     def delete_components(self, components: list[TC]) -> None:
@@ -279,8 +272,19 @@ class Timeline(ABC, Generic[TC]):
     def crop(self, length: float) -> None:
         self.component_manager.crop(length)
 
-    def deserialize_components(self, components: dict[int, dict[str]]):
+    def deserialize_components(self, components: dict[str, dict[str]]):
         return self.component_manager.deserialize_components(components)
+
+    @staticmethod
+    def update_component_references(
+        components: dict[str, dict[str, Any]],
+        new_ids: dict[str, str],
+    ) -> None:
+        """
+        Points serialized components that refer to other components by id
+        to the ids those components get in `new_ids`, for a copy of the
+        timeline whose components get fresh ids.
+        """
 
     def _get_base_state(self) -> dict:
         """Returns a dict with serializable timeline attributes, excluding components."""
@@ -338,7 +342,7 @@ class TimelineComponentManager(Generic[T, TC]):
         self.component_kinds = component_kinds
 
         self._components: list[TC] = []
-        self.id_to_component: dict[int, TC] = {}
+        self.id_to_component: dict[str, TC] = {}
         # True while making components from values that are already final, as when
         # restoring a state: creating or deleting one must not update the others
         # then (a mode changes the applied_to of the harmonies after it).
@@ -383,7 +387,7 @@ class TimelineComponentManager(Generic[T, TC]):
 
         return True, component, ""
 
-    def set_component_data(self, id: int, attr: str, value: Any):
+    def set_component_data(self, id: str, attr: str, value: Any):
         value, success = self.get_component(id).set_data(attr, value)
         if success:
             post(
@@ -399,7 +403,7 @@ class TimelineComponentManager(Generic[T, TC]):
             )
         return value, success
 
-    def get_component_data(self, id: int, attr: str):
+    def get_component_data(self, id: str, attr: str):
         return self.get_component(id).get_data(attr)
 
     def get_component_by_attribute(
@@ -423,17 +427,17 @@ class TimelineComponentManager(Generic[T, TC]):
     def get_components(self) -> list[TC]:
         return list(self._components)
 
-    def get_component(self, id: int) -> TC:
+    def get_component(self, id: str) -> TC:
         return self.id_to_component[id]
 
-    def get_next_component(self, id: int) -> TC | None:
+    def get_next_component(self, id: str) -> TC | None:
         component_idx = self._components.index(self.get_component(id))
         if component_idx == len(self._components) - 1:
             return None
         else:
             return self._components[component_idx + 1]
 
-    def get_previous_component(self, id: int) -> TC | None:
+    def get_previous_component(self, id: str) -> TC | None:
         component_idx = self._components.index(self.get_component(id))
         if component_idx == 0:
             return None
@@ -534,9 +538,7 @@ class TimelineComponentManager(Generic[T, TC]):
     def serialize_components(self):
         return serialize.serialize_components(self._components)
 
-    def deserialize_components(
-        self, serialized_components: dict[int | str, dict[str, Any]]
-    ):
+    def deserialize_components(self, serialized_components: dict[str, dict[str, Any]]):
         serialize.deserialize_components(self.timeline, serialized_components)
 
     def matches_state(self, state: dict[str, dict[str, Any]]) -> bool:
@@ -569,10 +571,10 @@ class TimelineComponentManager(Generic[T, TC]):
         self.is_deserializing = True
         try:
             self.timeline.delete_components(
-                [current[id] for id in sorted(ids_to_delete, key=id_order)]
+                [current[id] for id in sorted(ids_to_delete, key=serialize.id_order)]
             )
 
-            for id in sorted(ids_to_create, key=id_order):
+            for id in sorted(ids_to_create, key=serialize.id_order):
                 component_data = prev_state[id].copy()
                 kind = ComponentKind[component_data.pop("kind")]
 
@@ -584,7 +586,7 @@ class TimelineComponentManager(Generic[T, TC]):
         finally:
             self.is_deserializing = False
 
-    def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
+    def post_component_event(self, event: Post, component_id: str, *args, **kwargs):
         post(
             event, type(self.timeline), self.timeline.id, component_id, *args, **kwargs
         )

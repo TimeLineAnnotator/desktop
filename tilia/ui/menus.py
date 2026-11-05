@@ -212,7 +212,7 @@ class ViewMenu(QMenu):
         self.addAction(get_qaction("view.zoom.in"))
         self.addAction(get_qaction("view.zoom.out"))
 
-    def update_items(self, window_id: int, window_state: WindowState, window_title=""):
+    def update_items(self, window_id: str, window_state: WindowState, window_title=""):
         if not self.windows:
             self.addSeparator()
 

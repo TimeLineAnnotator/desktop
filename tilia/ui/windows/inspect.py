@@ -145,7 +145,7 @@ class Inspect(QDockWidget):
         element_class: type[TimelineComponent],
         inspector_fields: RowInfo,
         inspector_values: dict[str, str],
-        element_id: int,
+        element_id: str,
     ):
         self.setUpdatesEnabled(False)
         self.update_rows(element_class, inspector_fields)
@@ -183,7 +183,7 @@ class Inspect(QDockWidget):
         self.inspect_widget.setLayout(self.inspect_layout)
         self.stack_widget.addWidget(self.inspect_widget)
 
-    def on_element_deselected(self, element_id: int):
+    def on_element_deselected(self, element_id: str):
         try:
             element_index = [
                 self.inspected_objects_stack.index(obj)
@@ -218,7 +218,7 @@ class Inspect(QDockWidget):
 
         self.setUpdatesEnabled(True)
 
-    def update_values(self, field_values: dict[str, str], element_id: int):
+    def update_values(self, field_values: dict[str, str], element_id: str):
         self.element_id = element_id
         for field_name, items in field_values.pop("__items_update", {}).items():
             widget = self.field_name_to_widgets[field_name][1]

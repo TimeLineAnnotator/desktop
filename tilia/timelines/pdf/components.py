@@ -30,7 +30,7 @@ class PdfMarker(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: PdfTimeline,
-        id: int,
+        id: str,
         time: float,
         page_number: int,
         **_,

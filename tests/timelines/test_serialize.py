@@ -7,8 +7,12 @@ from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
 from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
-from tilia.timelines.serialize import serialize_components
+from tilia.timelines.serialize import id_order, serialize_components
 from tilia.ui import commands
+
+FIRST_UUID = "019a4f6e-7c10-7000-8000-000000000001"
+SECOND_UUID = "019a4f6e-7c10-7000-8000-000000000002"
+THIRD_UUID = "019a4f6e-7c11-7000-8000-000000000000"
 
 
 def _read_tla(path: Path | str) -> dict:
@@ -16,7 +20,7 @@ def _read_tla(path: Path | str) -> dict:
 
 
 class TestSerializeComponentsSorting:
-    def test_sorts_by_integer_id_not_lexicographic(self, marker_tl):
+    def test_numbers_as_text_sort_as_numbers(self, marker_tl):
         # Force ids that sort differently as strings vs integers.
         marker_tl.create_component(ComponentKind.MARKER, time=0, id=10)
         marker_tl.create_component(ComponentKind.MARKER, time=1, id=2)
@@ -25,6 +29,59 @@ class TestSerializeComponentsSorting:
         result = serialize_components(marker_tl.components)
 
         assert list(result.keys()) == ["2", "10", "11"]
+
+    def test_uuids_sort_as_text(self, marker_tl):
+        # The times put the components in another order.
+        for time, id in enumerate([THIRD_UUID, FIRST_UUID, SECOND_UUID]):
+            marker_tl.create_component(ComponentKind.MARKER, time=time, id=id)
+
+        result = serialize_components(marker_tl.components)
+
+        assert list(result.keys()) == [FIRST_UUID, SECOND_UUID, THIRD_UUID]
+
+    def test_numbers_sort_before_uuids(self, marker_tl):
+        # In text order alone, the UUID would go between the numbers.
+        for time, id in enumerate([FIRST_UUID, "2", "10"]):
+            marker_tl.create_component(ComponentKind.MARKER, time=time, id=id)
+
+        result = serialize_components(marker_tl.components)
+
+        assert list(result.keys()) == ["2", "10", FIRST_UUID]
+
+    def test_new_components_sort_in_the_order_made(self, marker_tl):
+        # Later times first, so that the components' own order is the opposite.
+        made = [
+            marker_tl.create_component(ComponentKind.MARKER, time=time)[0]
+            for time in [30, 20, 10]
+        ]
+
+        result = serialize_components(marker_tl.components)
+
+        assert list(result.keys()) == [m.id for m in made]
+
+    def test_staff_serializes_before_its_notes(self, score_tl):
+        # The staff's index puts it after the note in the components' own order.
+        staff, _ = score_tl.create_component(ComponentKind.STAFF, 5, 5)
+        note, _ = score_tl.create_component(ComponentKind.NOTE, 0, 1, 0, 0, 3, 5)
+
+        result = serialize_components(score_tl.components)
+
+        assert list(result.keys()) == [staff.id, note.id]
+        assert result[staff.id]["kind"] == "STAFF"
+
+    def test_duplicate_keeps_the_order_of_the_original(self, tls, marker_tl):
+        for time, id in enumerate([FIRST_UUID, "10", "2"]):
+            marker_tl.create_component(ComponentKind.MARKER, time=time, id=id)
+        marker_tl.create_component(ComponentKind.MARKER, time=5)
+
+        duplicate = tls.duplicate_timeline(marker_tl, "copy")
+
+        def times_in_id_order(timeline):
+            components = timeline.component_manager.serialize_components()
+            return [data["time"] for data in components.values()]
+
+        assert times_in_id_order(marker_tl) == [2, 1, 0, 5]
+        assert times_in_id_order(duplicate) == [2, 1, 0, 5]
 
     def test_preserves_ids_in_dict(self, marker_tl):
         m1, _ = marker_tl.create_component(ComponentKind.MARKER, time=0)
@@ -62,6 +119,26 @@ class TestSerializeDeserializeRoundTrip:
 
         assert re_serialized == serialized
         assert list(re_serialized.keys()) == list(serialized.keys())
+
+    def test_deserialize_with_uuids_as_ids_preserves_them(
+        self, marker_tl, tilia_errors
+    ):
+        serialized = {
+            id: {
+                "time": time,
+                "comments": "",
+                "label": "",
+                "color": None,
+                "kind": "MARKER",
+                "hash": "irrelevant",
+            }
+            for time, id in enumerate([FIRST_UUID, SECOND_UUID])
+        }
+
+        marker_tl.component_manager.deserialize_components(serialized)
+
+        tilia_errors.assert_no_error()
+        assert {c.id for c in marker_tl.components} == {FIRST_UUID, SECOND_UUID}
 
     def test_deserialize_with_non_sequential_ids_preserves_them(self, marker_tl):
         # Mimic a JSON file with arbitrary string keys.
@@ -104,16 +181,15 @@ class TestRoundTripDesktopFileDesktop:
         reloaded_marker_ids = [m.id for m in reloaded_tl.components]
         assert reloaded_marker_ids == original_marker_ids
 
-    def test_saved_components_dict_is_sorted_by_integer_id(self, marker_tlui, tmp_path):
+    def test_saved_components_dict_is_sorted_by_id(self, marker_tlui, tmp_path):
         for time in [0, 10, 20]:
             commands.execute("timeline.marker.add", time=time)
 
         save_path = save_tilia_to_tmp_path(tmp_path, "sorted")
 
         contents = _read_tla(save_path)
-        components = contents["timelines"][str(marker_tlui.id)]["components"]
-        keys_as_ints = [int(k) for k in components.keys()]
-        assert keys_as_ints == sorted(keys_as_ints)
+        components = contents["timelines"][marker_tlui.id]["components"]
+        assert list(components) == sorted(components, key=id_order)
 
     def test_save_open_save_preserves_components_per_timeline(
         self, slider_tlui, marker_tlui, beat_tlui, tmp_path
@@ -248,7 +324,7 @@ class TestScoreTimelineRoundTrip:
         first, second = _save_open_save(tmp_path)
         assert second["timelines"] == first["timelines"]
 
-    def test_score_components_dict_sorted_by_int_id(
+    def test_score_components_dict_sorted_by_id(
         self, slider_tlui, score_tlui, tmp_path
     ):
         self._populate_two_staff_score(score_tlui.timeline)
@@ -256,9 +332,8 @@ class TestScoreTimelineRoundTrip:
         save_path = save_tilia_to_tmp_path(tmp_path, "score_sorted")
         contents = _read_tla(save_path)
 
-        score_components = contents["timelines"][str(score_tlui.id)]["components"]
-        keys_as_ints = [int(k) for k in score_components.keys()]
-        assert keys_as_ints == sorted(keys_as_ints)
+        score_components = contents["timelines"][score_tlui.id]["components"]
+        assert list(score_components) == sorted(score_components, key=id_order)
 
     def test_score_with_arbitrary_non_sequential_ids_round_trips(
         self, slider_tlui, score_tlui, tilia, tmp_path
@@ -336,8 +411,8 @@ class TestUndoRedoIdTransmission:
         assert marker_tlui.is_empty
 
         commands.execute("edit.undo")
-        assert sorted([m.id for m in marker_tlui], key=int) == sorted(
-            original_ids, key=int
+        assert sorted([m.id for m in marker_tlui], key=id_order) == sorted(
+            original_ids, key=id_order
         )
 
     def test_app_state_round_trip_via_undo_redo(self, marker_tlui):

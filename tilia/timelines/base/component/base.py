@@ -18,7 +18,7 @@ class TimelineComponent:
         "id": validate_read_only,
     }
 
-    def __init__(self, timeline: Timeline, id: int, *args, **kwargs):
+    def __init__(self, timeline: Timeline, id: str, *args, **kwargs):
         self.timeline = timeline
         self.id = id
         self.update_hash()

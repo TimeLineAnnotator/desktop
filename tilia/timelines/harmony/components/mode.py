@@ -38,7 +38,7 @@ class Mode(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: HarmonyTimeline,
-        id: int,
+        id: str,
         time: float = 0,
         step: int = 0,
         accidental: int = 0,

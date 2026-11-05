@@ -238,6 +238,56 @@ class TestRestoreById:
 
         assert deleted.ids == IDS_ACROSS_A_LENGTH
 
+    def test_new_components_are_restored_in_the_order_made(self, marker_tl):
+        # Later times first, so that the components' own order is the opposite.
+        made = [marker_tl.create_marker(time)[0].id for time in [30, 20, 10]]
+        _record()
+        marker_tl.clear()
+        _record()
+
+        with _Listener(Post.TIMELINE_COMPONENT_CREATED, 3) as created:
+            commands.execute("edit.undo")
+
+        assert created.ids == made
+
+    def test_numbers_are_restored_before_new_ids(self, marker_tl):
+        new_id = marker_tl.create_marker(0)[0].id
+        marker_tl.create_marker(1, id="10")
+        marker_tl.create_marker(2, id="9")
+        _record()
+        marker_tl.clear()
+        _record()
+
+        with _Listener(Post.TIMELINE_COMPONENT_CREATED, 3) as created:
+            commands.execute("edit.undo")
+
+        assert created.ids == ["9", "10", new_id]
+
+    def test_new_timelines_are_restored_in_the_order_made(self, tls):
+        made = [tls.create_timeline(MarkerTimeline).id for _ in range(3)]
+        _record()
+        for timeline in list(tls):
+            tls.delete_timeline(timeline)
+        _record()
+
+        with _Listener(Post.TIMELINE_CREATE_DONE, 1) as created:
+            commands.execute("edit.undo")
+
+        assert created.ids == made
+
+    def test_staff_is_restored_before_its_notes(self, score_tl):
+        # The staff's index puts it after the note in the components' own order.
+        staff, _ = score_tl.create_component(ComponentKind.STAFF, 5, 5)
+        note, _ = score_tl.create_component(ComponentKind.NOTE, 0, 1, 0, 0, 3, 5)
+        _record()
+        score_tl.clear()
+        _record()
+
+        with _Listener(Post.TIMELINE_COMPONENT_CREATED, 3) as created:
+            commands.execute("edit.undo")
+
+        assert created.ids == [staff.id, note.id]
+
     def test_timelines_are_created_and_deleted_in_id_order(self, tls):
         for id in IDS_ACROSS_A_LENGTH:
             tls.create_timeline(MarkerTimeline, id=id)

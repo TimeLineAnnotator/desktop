@@ -82,7 +82,7 @@ class TimelineUI(ABC):  # noqa: B024
 
     def __init__(
         self,
-        id: int,
+        id: str,
         collection: TimelineUIs,
         element_manager: ElementManager,
         scene: TimelineScene,
@@ -259,7 +259,7 @@ class TimelineUI(ABC):  # noqa: B024
     def update_ordinal(self):
         self.collection.update_timeline_ui_ordinal()
 
-    def get_element(self, id: int) -> T:
+    def get_element(self, id: str) -> T:
         return self.element_manager.get_element(id)
 
     def get_elements_by_attr(self, attr: str, value: Any) -> list[T]:
@@ -270,7 +270,7 @@ class TimelineUI(ABC):  # noqa: B024
         for elm in elements:
             elm.set_data(attr, value)
 
-    def get_timeline_component(self, id: int):
+    def get_timeline_component(self, id: str):
         return self.timeline.get_component(id)
 
     def get_component_ui(self, component: TimelineComponent):
@@ -280,13 +280,13 @@ class TimelineUI(ABC):  # noqa: B024
         self.request_to_callback = {}
 
     def on_timeline_component_created(
-        self, kind: ComponentKind, id: int, get_data, set_data
+        self, kind: ComponentKind, id: str, get_data, set_data
     ):
         return self.element_manager.create_element(
             kind, id, self, self.scene, get_data, set_data
         )
 
-    def on_timeline_component_deleted(self, id: int):
+    def on_timeline_component_deleted(self, id: str):
         self.delete_element(self.id_to_element[id])
 
     def update_selection_on_right_click(
@@ -518,7 +518,7 @@ class TimelineUI(ABC):  # noqa: B024
 
     @staticmethod
     def on_inspector_field_edited(
-        element: T, field_name: str, value: str, inspected_id: int, inspector_id: int
+        element: T, field_name: str, value: str, inspected_id: str, inspector_id: int
     ) -> None:
         if not inspected_id == element.id:
             return

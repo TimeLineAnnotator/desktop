@@ -16,7 +16,7 @@ class ScoreAnnotation(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: ScoreTimeline,
-        id: int,
+        id: str,
         x: float = 0,
         y: float = 0,
         viewer_id: int = 0,

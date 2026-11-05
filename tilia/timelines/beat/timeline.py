@@ -106,7 +106,7 @@ class BeatTLComponentManager(TimelineComponentManager):
         if self.compute_is_first_in_measure:
             self.update_is_first_in_measure_of_subsequent_beats(component_idx - 1)
 
-    def set_component_data(self, id: int, attr: str, value: Any):
+    def set_component_data(self, id: str, attr: str, value: Any):
         value, success = super().set_component_data(id, attr, value)
         if success and self.compute_metric_fraction_dict:
             self.timeline.update_metric_fraction_dicts()
@@ -170,7 +170,7 @@ class BeatTLComponentManager(TimelineComponentManager):
             self.delete_component(component)
         self.compute_is_first_in_measure = True
 
-    def deserialize_components(self, serialized_components: dict[int, dict[str]]):
+    def deserialize_components(self, serialized_components: dict[str, dict[str]]):
         # Storing these attributes so we can restore them below.
         beats_in_measure = self.timeline.beats_in_measure.copy()
         measure_numbers = self.timeline.measure_numbers.copy()

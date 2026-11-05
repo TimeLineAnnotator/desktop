@@ -22,7 +22,7 @@ class KeySignature(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: ScoreTimeline,
-        id: int,
+        id: str,
         staff_index: int,
         time: float,
         fifths: int,
