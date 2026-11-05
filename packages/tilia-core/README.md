@@ -26,6 +26,16 @@ Say `document` is a `tla.Document` whose beat timeline has a beat every second f
 
 `time_map_of` uses the beat timeline whose role is `time_map`, else the first one, and gives `None` when there is none or it can't give a time map. `find_time_map` says why it can't.
 
+## Regular expressions
+
+Regular expressions in queries run on Python's `re`, which cannot be stopped once it is running: a pattern that backtracks badly holds the whole process, whatever the time limit of the call. Install the extra to give them a time limit:
+
+```
+pip install "tilia-core[regex]"
+```
+
+It adds the third-party [`regex`](https://pypi.org/project/regex/) package, which stops a regular expression when the call's `time_limit` runs out. The bound is approximate, not exact. Without the extra, `time_limit` and `cancel` do not cover regular expressions.
+
 ## License
 
 GNU General Public License, version 3 or later. Source: <https://github.com/TimeLineAnnotator/desktop>

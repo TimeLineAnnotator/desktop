@@ -20,6 +20,8 @@ authors = [
 [project.optional-dependencies]
 # Checking harmonies and keys, and later importing them, reads music21.
 harmony = ["music21>=9.1"]
+# Gives regular expressions in queries a time limit.
+regex = ["regex>=2024.9.11"]
 
 [project.scripts]
 tilia = "tilia_core.commands:main"
@@ -34,7 +36,11 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 [dependency-groups]
 # jsonschema checks files against the format's schema in the tests only: it
 # pulls in a compiled package, which the core itself never imports.
-dev = ["pytest>=8.0.0", "jsonschema>=4.23"]
+tests = ["pytest>=8.0.0", "jsonschema>=4.23"]
+# With regex, development tests the time limit. scripts/check_packages.py
+# installs `tests` instead: it tests the core without regex, and again with
+# the core's regex extra.
+dev = [{include-group = "tests"}, "regex>=2024.9.11"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

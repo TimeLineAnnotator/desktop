@@ -2,9 +2,14 @@
 
 Builds the wheels of tilia-core and tilia-library, installs each into a fresh
 virtual environment (the library with the core wheel from this checkout), with
-its ``dev`` dependency group, checks that neither PySide6 nor the TiLiA app
+the dependency group its tests need, checks that neither PySide6 nor the TiLiA app
 (``tilia``) is importable there, and runs the package's tests with that
 environment's interpreter.
+
+tilia-core is tested twice: in the environment above, where its optional
+``regex`` package is checked to be absent too, and in a second fresh
+environment that installs the core wheel with its ``[regex]`` extra, where
+``regex`` is checked to be present and in use.
 
 Run it with any Python from 3.12 on: ``python scripts/check_packages.py``.
 Exits with 0 if every step passed and 1 at the first failure.
@@ -24,12 +29,22 @@ FORBIDDEN = ("PySide6", "shiboken6", "tilia")
 # pip reads a pyproject.toml's dependency groups from 25.1 on. A fresh
 # environment's own pip can be older: Python 3.10 brings 23.0.1.
 PIP_WITH_GROUPS = "pip>=25.1"
+# What a package's tests need besides the package, read from its pyproject.toml
+# so that there is no copy to drift. tilia-core's dev group also has regex, which
+# the first environment must not have.
+TEST_GROUPS = {"tilia-core": "tests", "tilia-library": "dev"}
 
 FIND_SPEC = (
     "import importlib.util, sys\n"
     "found = [n for n in sys.argv[1:] if importlib.util.find_spec(n) is not None]\n"
     "print(' '.join(found))\n"
     "sys.exit(1 if found else 0)\n"
+)
+
+REGEX_IN_USE = (
+    "import regex\n"
+    "from tilia_core.tql import regexes\n"
+    "assert regexes.HAS_TIMEOUT is True, 'tilia_core does not use regex'\n"
 )
 
 
@@ -66,7 +81,11 @@ def pip_python(tmp: Path) -> str:
     return env_python(env)
 
 
-def check_package(name: str, wheels: list[Path], tmp: Path) -> None:
+def check_package(
+    name: str, wheels: list[Path], tmp: Path, *, optional: tuple[str, ...] = ()
+) -> None:
+    """Install ``wheels`` into a fresh environment and run the tests of ``name``
+    there; ``optional`` names packages that must not be importable there."""
     env = tmp / f"env-{name}"
     venv.create(env, with_pip=True)
     python = env_python(env)
@@ -75,9 +94,7 @@ def check_package(name: str, wheels: list[Path], tmp: Path) -> None:
         tmp,
         f"{name}: a pip that reads dependency groups",
     )
-    # What the package's tests need besides the package: its dev group, which
-    # pip reads from its pyproject.toml, so that there is no copy to drift.
-    group = f"{PACKAGES / name / 'pyproject.toml'}:dev"
+    group = f"{PACKAGES / name / 'pyproject.toml'}:{TEST_GROUPS[name]}"
     run(
         [python, "-m", "pip", "install", "--group", group, *map(str, wheels)],
         tmp,
@@ -90,10 +107,49 @@ def check_package(name: str, wheels: list[Path], tmp: Path) -> None:
         probe_cwd,
         f"{name}: PySide6 and the app are absent",
     )
+    if optional:
+        run(
+            [python, "-c", FIND_SPEC, *optional],
+            probe_cwd,
+            f"{name}: {', '.join(optional)} is absent",
+        )
     run(
         [python, "-m", "pytest", "-p", "no:cacheprovider"],
         PACKAGES / name,
         f"{name}: tests pass",
+    )
+
+
+def check_core_with_regex(core: Path, tmp: Path) -> None:
+    """Install the core wheel with its ``[regex]`` extra into a fresh
+    environment and run the core's tests there, where the ``regex`` package
+    gives regular expressions a time limit."""
+    env = tmp / "env-tilia-core-regex"
+    venv.create(env, with_pip=True)
+    python = env_python(env)
+    run(
+        [python, "-m", "pip", "install", "--upgrade", PIP_WITH_GROUPS],
+        tmp,
+        "tilia-core with the regex extra: a pip that reads dependency groups",
+    )
+    group = f"{PACKAGES / 'tilia-core' / 'pyproject.toml'}:{TEST_GROUPS['tilia-core']}"
+    run(
+        # one argument, for Windows: the extra's brackets are no shell syntax
+        [python, "-m", "pip", "install", "--group", group, f"{core}[regex]"],
+        tmp,
+        "tilia-core with the regex extra: install into a fresh environment",
+    )
+    probe_cwd = tmp / "probe-tilia-core-regex"
+    probe_cwd.mkdir()
+    run(
+        [python, "-c", REGEX_IN_USE],
+        probe_cwd,
+        "tilia-core with the regex extra: regex is installed and in use",
+    )
+    run(
+        [python, "-m", "pytest", "-p", "no:cacheprovider"],
+        PACKAGES / "tilia-core",
+        "tilia-core with the regex extra: tests pass",
     )
 
 
@@ -119,7 +175,8 @@ def main() -> int:
             )
             core = next(wheel_dir.glob("tilia_core-*.whl"))
             library = next(wheel_dir.glob("tilia_library-*.whl"))
-            check_package("tilia-core", [core], tmp)
+            check_package("tilia-core", [core], tmp, optional=("regex",))
+            check_core_with_regex(core, tmp)
             check_package("tilia-library", [core, library], tmp)
         except StepFailed as error:
             print(error)
