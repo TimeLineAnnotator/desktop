@@ -819,6 +819,54 @@
       ],
       "query": {"number": 1, "fraction": 0.75, "segment_end": false},
       "expected": [2.5, 8.5, 12.5]
+    },
+    {
+      "name": "a last bar that isn't steady, past its last beat",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 5.5}
+      ],
+      "query": {"number": 2, "fraction": 0.75, "segment_end": false},
+      "expected": [5.75]
+    },
+    {
+      "name": "a last bar that isn't steady, as a segment's end",
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0},
+        {"time": 4.0},
+        {"time": 5.0, "measure": {}},
+        {"time": 5.5}
+      ],
+      "query": {"number": 2, "fraction": 1.0, "segment_end": true},
+      "expected": [6.0]
+    },
+    {
+      "name": "a last beat at the media's end, past it",
+      "media_length": 3.0,
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0}
+      ],
+      "query": {"number": 1, "fraction": 0.75, "segment_end": false},
+      "expected": [3.0]
+    },
+    {
+      "name": "a last beat at the media's end, as a segment's end",
+      "media_length": 3.0,
+      "beats": [
+        {"time": 1.0, "measure": {"number": 1}},
+        {"time": 2.0},
+        {"time": 3.0}
+      ],
+      "query": {"number": 1, "fraction": 1.0, "segment_end": true},
+      "expected": [3.0]
     }
   ]
 }
