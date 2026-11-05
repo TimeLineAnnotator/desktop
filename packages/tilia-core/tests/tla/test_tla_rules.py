@@ -1163,9 +1163,30 @@ class TestStillANewProblem:
             )
         )
         doc.timelines[TEXTURE].components[THIRD].attrs["label"] = "A"
-        assert [w.place for w in refused(doc, tmp_path)] == [
-            component_place(TEXTURE, FIRST)
-        ]
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == [component_place(TEXTURE, FIRST)]
+        # As the rule names them: what comes next in its row.
+        assert component_place(TEXTURE, SECOND) in problems[0].message
+        assert component_place(TEXTURE, THIRD) not in problems[0].message
+
+    def test_an_unchanged_component_breaks_a_rule_it_wasnt_read_with(self, tmp_path):
+        # Its color is what it was read with. Its join is new, for a range added
+        # before the next.
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=THIRD, color="notacolor")),
+                    (THIRD, a_range(1.0, 2.0)),
+                )
+            )
+        )
+        assert len(doc.read_problems) == 1
+        doc.timelines[TEXTURE].components[SECOND] = tla.Component(
+            id=SECOND, kind="range", attrs={**a_range(0.5, 0.7), "row_id": ROW}
+        )
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == [component_place(TEXTURE, FIRST)]
+        assert problems[0].message.startswith("joined_with_next=true")
 
     def test_a_range_added_before_the_next_breaks_a_join_read_whole(self, tmp_path):
         doc = tla.loads(a_file())
@@ -1226,6 +1247,42 @@ class TestStillANewProblem:
         assert [w.place for w in refused(doc, tmp_path)] == [
             f"/timelines/{TEXTURE}/rows/0"
         ]
+
+
+class TestWithNoLengthRead:
+    """Every component's state is kept for a length given later, but only then."""
+
+    def test_each_component_the_rules_cover_is_kept(self):
+        def change(content):
+            content["timelines"][CADENCES]["components"][FIRST] = {"kind": "FUTURE"}
+
+        kept = tla.loads(a_file(change)).read_unmeasured
+        assert component_place(CADENCES, CADENCE) in kept
+        assert component_place(BEATS, BEAT_1) in kept
+        assert component_place(CADENCES, FIRST) not in kept
+
+    def test_none_is_kept_with_a_length(self):
+        assert tla.loads(a_file(with_media_length(100.0))).read_unmeasured == {}
+
+    def test_none_is_kept_in_quarters(self):
+        def change(content):
+            content["time_unit"] = "quarters"
+
+        assert tla.loads(a_file(change)).read_unmeasured == {}
+
+    def test_none_is_kept_once_it_is_written_with_a_length(self, tmp_path):
+        doc = tla.loads(a_file())
+        assert doc.read_unmeasured != {}
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+        assert doc.read_unmeasured == {}
+
+    def test_what_is_kept_follows_the_file_while_it_has_no_length(self, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 1.5}))))
+        doc.timelines[CADENCES].components[FIRST].attrs["time"] = 150.0
+        written(doc, tmp_path)
+        doc.media_length = 100.0
+        written(doc, tmp_path)
 
 
 class TestWhatIsComparedIsWhatIsWritten:
