@@ -1160,6 +1160,36 @@ class TestLastMeasureNeverEndsBeforeItsLastBeat:
         assert _note_times(score_tl) == [(0, 1)]
         assert _bar_line_times(score_tl) == [1]
 
+    def test_an_end_before_the_start_is_passed_over_for_the_next_end(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        # Fraction 0, as a segment's end, also gives where each pass of the
+        # measure below ends: 1 and 2 here. The note starts at 2, so the end at 1
+        # isn't its own, and only the end at 2 is reported.
+        tilia_state.set_duration(10, scale_timelines="no")
+        beat_tl.set_data("beat_pattern", [1])
+        for time in range(4):
+            beat_tl.create_beat(time)
+        beat_tl.measure_numbers = [1, 1, 2, 3]
+        beat_tl.recalculate_measures()
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure("").replace(
+                    "<duration>16</duration>", "<duration>0</duration>"
+                ),
+                _measure(""),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == ["End time '2' should be bigger than start time '2'"]
+        assert _note_times(score_tl) == [(0, 1), (1, 2), (3, 4)]
+
     def test_a_note_that_ends_on_the_last_beat_is_kept(
         self, score_tl, beat_tl, tilia_state, tmp_path
     ):
