@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from html import escape, unescape
 from pathlib import Path
 from re import sub
@@ -18,6 +19,8 @@ from tilia.requests import (
     Get,
     get,
 )
+
+SVG_MAKER_PATH = Path(__file__).parent / "svg_maker.html"
 
 
 class SvgWebEngineTracker(QObject):
@@ -39,13 +42,12 @@ class SvgWebEngineTracker(QObject):
 class musicxml_to_svg(QWebEngineView):
     def __init__(self, timeline_id):
         self.timeline_id = timeline_id
+        # The timeline itself, as a file opened meanwhile can have another
+        # timeline with this id.
+        self.timeline = get(Get.TIMELINE_COLLECTION).get_timeline(timeline_id)
         self.is_engine_loaded = False
         super().__init__()
-        self.load(
-            QUrl.fromLocalFile(
-                (Path(__file__).parent / "svg_maker.html").resolve().__str__()
-            )
-        )
+        self.load(QUrl.fromLocalFile(str(SVG_MAKER_PATH.resolve())))
         self.settings().setAttribute(
             QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True
         )
@@ -60,19 +62,31 @@ class musicxml_to_svg(QWebEngineView):
         self.channel.registerObject("backend", self.shared_object)
         self.page().setWebChannel(self.channel)
 
-    def engine_loaded(self) -> None:
+    def engine_loaded(self, ok: bool) -> None:
+        if not ok:
+            self.display_error("Score drawing engine couldn't be loaded.")
+            return
         self.is_engine_loaded = True
 
     def preprocess_svg(self, svg: str) -> None:
-        svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
-        get(Get.TIMELINE_COLLECTION).set_timeline_data(
-            self.timeline_id, "svg_data", svg
-        )
-        self.deleteLater()
+        try:
+            timelines = get(Get.TIMELINE_COLLECTION)
+            if timelines.get_timeline(self.timeline_id) is not self.timeline:
+                # Deleted while OSMD was drawing, as by File > New or opening
+                # another file.
+                return
+            svg = sub("\\&\\w+\\;", lambda x: escape(unescape(x.group(0))), svg)
+            timelines.set_timeline_data(self.timeline_id, "svg_data", svg)
+        finally:
+            self.deleteLater()
 
     def to_svg(self, data: str) -> None:
-        def convert():
-            self.page().runJavaScript(f"loadSVG(`{data}`)")
+        def convert(ok: bool = True):
+            if not ok:
+                return
+            # As a JSON string, so that nothing in the score ends the string
+            # or runs as code.
+            self.page().runJavaScript(f"loadSVG({json.dumps(data)})")
 
         if self.is_engine_loaded:
             convert()
@@ -81,3 +95,4 @@ class musicxml_to_svg(QWebEngineView):
 
     def display_error(self, message: str) -> None:
         tilia.errors.display(tilia.errors.SCORE_SVG_CREATE_ERROR, message)
+        self.deleteLater()

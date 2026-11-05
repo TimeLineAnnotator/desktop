@@ -12,7 +12,7 @@ class ScoreAnnotationUI(TimelineUIElement):
 
     @property
     def svg_view(self) -> SvgViewer:
-        return self.timeline_ui.svg_view
+        return self.timeline_ui.get_or_create_svg_view()
 
     def update_x(self):
         self.svg_view.update_annotation(self.id)
@@ -30,7 +30,9 @@ class ScoreAnnotationUI(TimelineUIElement):
         self.svg_view.update_annotation(self.id)
 
     def delete(self):
-        self.svg_view.remove_annotation(self.id)
+        # Don't create a viewer just to remove the annotation from it.
+        if (viewer := self.timeline_ui.svg_view) is not None:
+            viewer.remove_annotation(self.id)
         return super().delete()
 
     def child_items(self):

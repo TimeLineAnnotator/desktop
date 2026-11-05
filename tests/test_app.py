@@ -12,6 +12,7 @@ from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import (
     PatchPost,
     Serve,
+    patch_ask_for_string_dialog,
     patch_file_dialog,
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
@@ -22,6 +23,7 @@ from tests.utils import (
     load_youtube_media,
     save_and_reopen,
     save_tilia_to_tmp_path,
+    undoable,
 )
 from tilia.file.migration import find_unknown_timeline_kinds
 from tilia.media.player import QtAudioPlayer
@@ -140,6 +142,38 @@ class TestSaveFileOnClose:
             commands.execute("tilia.close")
 
         exit_mock.assert_not_called()
+        save_mock.assert_not_called()
+
+    def test_close_prompts_to_save_after_loading_media(self, tilia, qtui, tmp_path):
+        # Establish a clean "saved" baseline via a real save, so the prompt
+        # checked for below can only be caused by the media load that
+        # follows, not by state left over from earlier tests in this module
+        # (tilia/qtui are module-scoped).
+        save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+
+        load_local_media(EXAMPLE_MEDIA_PATH)
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save,
+            PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
+        ):
+            commands.execute("tilia.close")
+
+        assert should_save.called
+        exit_mock.assert_called()
+
+    def test_file_modified_and_user_chooses_not_to_save_changes(self):
+        with (
+            Serve(Get.APP_STATE, self._get_modified_file_state()),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save,
+            patch("tilia.file.file_manager.FileManager.save") as save_mock,
+            PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
+        ):
+            commands.execute("tilia.close")
+
+        assert should_save.called
+        exit_mock.assert_called()
         save_mock.assert_not_called()
 
 
@@ -409,6 +443,72 @@ class TestMediaLoad:
             marker_tl[0].get_data("time") == 50 * EXAMPLE_MEDIA_DURATION / prev_duration
         )
 
+    def test_undo_after_loading_from_file_menu_does_not_error(
+        self, qtui, tilia_state, tilia_errors
+    ):
+        # Unlike the tests above, load through the actual media.load.local
+        # command (as triggered from the File menu), not by posting
+        # APP_MEDIA_LOAD directly -- this test is specifically about that path.
+        load_local_media(EXAMPLE_MEDIA_PATH)
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+
+        commands.execute("edit.undo")
+
+        tilia_errors.assert_no_error()
+        assert not tilia_state.media_path
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "Player.load_media (tilia/media/player/base.py:98-99) calls"
+            " self.stop() whenever is_playing is True before attempting the new"
+            " load, so a load that ultimately fails still stops playback of the"
+            " media that remains current."
+        ),
+    )
+    def test_load_invalid_media_with_media_playing_keeps_it_playing(
+        self, tilia_state, tilia_errors, tmp_path
+    ):
+        # Manual QA found that loading invalid media while other media
+        # is loaded leaves the previous media's path/duration in place (that
+        # part is covered by test_load_invalid_extension_with_media_loaded
+        # above) but "playing does not work" afterwards. Player.load_media
+        # (tilia/media/player/base.py) calls self.stop() whenever
+        # self.is_playing is True *before* attempting the new load -- so a
+        # load that ultimately fails still kills playback of the media that
+        # is (still) current.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+        tilia_state.player.is_playing = True
+
+        nonexisting_media = tmp_path / "nothere.mp3"
+        self._load_media(str(nonexisting_media))
+
+        tilia_errors.assert_error()
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.player.is_playing
+
+    def test_cancel_local_file_dialog_changes_nothing(self, tilia_state, qtui):
+        # Loading media, then cancelling the "Load Media File" file
+        # dialog, must leave the already-loaded media untouched.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+
+        with patch_file_dialog(False, [""]):
+            commands.execute("media.load.local")
+
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+
+    def test_cancel_youtube_url_dialog_changes_nothing(self, tilia_state, qtui):
+        # Loading media, then cancelling the "Load from Youtube" URL
+        # prompt, must leave the already-loaded media untouched.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+
+        with patch_ask_for_string_dialog(False, ""):
+            commands.execute("media.load.youtube")
+
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+
 
 class TestScaleCropTimeline:
     @pytest.mark.parametrize(
@@ -489,6 +589,39 @@ class TestScaleCropTimeline:
         expected_right = time_x_converter.get_x_by_time(50) - HierarchyUI.X_OFFSET
         assert body_right == pytest.approx(expected_right)
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "scale_timeline_components (tilia/timelines/collection/"
+            "collection.py:323-325) posts no done-signal after rescaling,"
+            " unlike crop_timeline_components (same file, :327-330) which"
+            " posts Post.TIMELINES_CROP_DONE -- so update_time_on_elements()"
+            " never redraws components at their new, rescaled positions."
+        ),
+    )
+    def test_scale_triggers_element_redraw(self, hierarchy_tlui, tilia_state):
+        # Manual QA found that after loading a shorter media and
+        # choosing to scale (not crop), component drawings are not updated
+        # -- "at first it looks like nothing happened". crop_timeline_components
+        # (tilia/timelines/collection/collection.py) posts
+        # Post.TIMELINES_CROP_DONE, which drives update_timeline_times() ->
+        # element_manager.update_time_on_elements() to redraw elements at
+        # their new positions. scale_timeline_components in the same file has
+        # no equivalent post, so that redraw never runs even though the
+        # backend data is rescaled correctly.
+        tilia_state.set_duration(100)
+        commands.execute("timeline.hierarchy.add", start=0, end=50, level=1)
+
+        with patch.object(
+            hierarchy_tlui.element_manager,
+            "update_time_on_elements",
+            wraps=hierarchy_tlui.element_manager.update_time_on_elements,
+        ) as spy:
+            tilia_state.set_duration(50, scale_timelines="yes")
+
+        assert hierarchy_tlui[0].get_data("end") == pytest.approx(25)
+        spy.assert_called()
+
 
 def save_and_reopen_file_without_slider_timeline(tilia_state, tmp_path) -> None:
     commands.execute("file.new")
@@ -511,7 +644,10 @@ class TestFileSetup:
 
 def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
     tilia_errors.assert_error()
-    assert settings.get_recent_files()[0] != opened_file_path
+    # get_recent_files returns posix strings, so the path has to be converted
+    # before comparing; `!= opened_file_path` compared a str to a Path and was
+    # therefore always true.
+    assert Path(opened_file_path).as_posix() not in settings.get_recent_files()
     assert tilia.file_manager.file == prev_file
 
 
@@ -634,7 +770,7 @@ class TestOpen:
             commands.execute("file.open", tmp_file)
 
         tilia_errors.assert_no_error()
-        assert settings.get_recent_files()[0] != tmp_file
+        assert tmp_file.as_posix() not in settings.get_recent_files()
         assert tilia.file_manager.file == prev_file
 
     def test_open_newer_file_with_unknown_timeline_kind_user_deletes(
@@ -878,6 +1014,37 @@ class TestOpen:
         commands.execute("file.save")
         tilia_errors.assert_no_error()
 
+    def test_undo_after_open_keeps_metadata(self, qtui, tilia, tilia_state, tmp_path):
+        tilia_state.duration = 100
+        commands.execute("timelines.add.marker", name="test")
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Saved title")
+        save_and_reopen(tmp_path)
+
+        with undoable():
+            commands.execute("timeline.marker.add")
+
+        assert tilia.file_manager.file.media_metadata["title"] == "Saved title"
+
+    def test_opens_file_from_recent_files_menu_after_saving(
+        self, tilia, qtui, tmp_path
+    ):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Recent File Test")
+        path = save_tilia_to_tmp_path(tmp_path, "recent_file_test")
+
+        # Clear state so the recent-files entry is what brings the title back.
+        commands.execute("file.new")
+        assert get(Get.MEDIA_TITLE) != "Recent File Test"
+
+        file_menu = tests.utils.get_main_window_menu(qtui, "File")
+        recent_files_menu = tests.utils.get_submenu(file_menu, "Open Recent file")
+        action = recent_files_menu.actions()[0]
+        assert action.text() == Path(path).as_posix()
+
+        action.trigger()
+
+        assert get(Get.MEDIA_TITLE) == "Recent File Test"
+        assert Path(get(Get.FILE_PATH)) == Path(path)
+
 
 class TestUndoRedo:
     def test_undo_fails(self, tilia, qtui, tluis, tilia_errors):
@@ -956,6 +1123,99 @@ class TestFileNew:
         # it checks if app._windows[kind] is None.
         # Those should be equivalent, if everything is working as it should
         assert not any(qtui.is_window_open(k) for k in WindowKind)
+
+    def test_new_prompts_to_save_after_loading_media(self, tilia, qtui, tmp_path):
+        # Establish a clean "saved" baseline via a real save, so the prompt
+        # checked for below can only be caused by the media load that
+        # follows, not by state left over from earlier tests in this module
+        # (tilia/qtui are module-scoped).
+        save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+
+        load_local_media(EXAMPLE_MEDIA_PATH)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as should_save:
+            commands.execute("file.new")
+
+        assert should_save.called
+        assert get(Get.MEDIA_DURATION) == 0
+        assert not tilia.player.media_path
+
+    # Choosing not to save is already covered above by
+    # test_new_prompts_to_save_after_loading_media: that test loads
+    # media to dirty the file, answers FROM_USER_SHOULD_SAVE_CHANGES with
+    # (True, False) ("don't save"), and asserts the new file is created.
+
+    @pytest.mark.parametrize("cancel_mechanism", ["cancel_button", "close_dialog"])
+    def test_new_file_prompt_is_cancelled(
+        self, tilia, qtui, tmp_path, cancel_mechanism
+    ):
+        # Clicking Cancel and closing the dialog both resolve
+        # to the Yes/No/Cancel message box's escape button in Qt, i.e. the
+        # same (False, ...) FROM_USER_SHOULD_SAVE_CHANGES answer, so they
+        # exercise the same code path.
+        save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+
+        load_local_media(EXAMPLE_MEDIA_PATH)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)) as should_save:
+            commands.execute("file.new")
+
+        assert should_save.called
+        # New file was not created; media from before the cancelled prompt
+        # is still loaded.
+        assert tilia.player.media_path == EXAMPLE_MEDIA_PATH
+
+    @pytest.mark.parametrize(
+        "save_path_answer,expect_new_file",
+        [
+            pytest.param(True, True, id="choose_to_save"),
+            pytest.param(False, False, id="save_then_cancel_save_dialog"),
+        ],
+    )
+    def test_new_file_prompt_choose_to_save(
+        self, tilia, qtui, tmp_path, save_path_answer, expect_new_file
+    ):
+        # Reset to a brand new, never-saved file (no file_path yet), so that
+        # choosing "save" below must go through the save-as path dialog
+        # instead of silently re-saving to an already-known path.
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            commands.execute("file.new")
+        assert not get(Get.IS_FILE_MODIFIED)
+        assert not get(Get.FILE_PATH)
+
+        load_local_media(EXAMPLE_MEDIA_PATH)
+
+        save_as_path = tmp_path / "test_new_file_prompt_choose_to_save.tla"
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)),
+            Serve(
+                Get.FROM_USER_SAVE_PATH_TILIA,
+                (save_path_answer, save_as_path if save_path_answer else ""),
+            ),
+        ):
+            commands.execute("file.new")
+
+        if expect_new_file:
+            assert get(Get.MEDIA_DURATION) == 0
+            assert not tilia.player.media_path
+        else:
+            # Cancelling the save-as dialog must not create a new file.
+            assert tilia.player.media_path == EXAMPLE_MEDIA_PATH
+
+    def test_new_file_no_prompt_when_current_file_already_saved(
+        self, tilia, qtui, tmp_path
+    ):
+        path = save_tilia_to_tmp_path(tmp_path)
+        assert not get(Get.IS_FILE_MODIFIED)
+        assert Path(get(Get.FILE_PATH)) == Path(path)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (False, True)) as should_save:
+            commands.execute("file.new")
+
+        assert not should_save.called
+        assert get(Get.FILE_PATH) == ""
 
 
 class TestRelativePaths:

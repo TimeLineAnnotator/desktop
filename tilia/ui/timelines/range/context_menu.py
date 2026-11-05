@@ -191,6 +191,7 @@ class RangeContextMenu(TimelineUIElementContextMenu):
         items += [
             (MenuItemKind.SEPARATOR, None),
             (MenuItemKind.COMMAND, "timeline.component.copy"),
+            (MenuItemKind.COMMAND, "timeline.component.cut"),
             (MenuItemKind.COMMAND, "timeline.component.paste"),
             (MenuItemKind.SEPARATOR, None),
             (MenuItemKind.COMMAND, "timeline.component.delete"),
