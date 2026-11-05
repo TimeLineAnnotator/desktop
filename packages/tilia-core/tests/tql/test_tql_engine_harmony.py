@@ -232,12 +232,19 @@ class TestWarnings:
     def test_a_good_query_does_not_warn(self):
         assert run(HARMONY, "V7 IN harmony").warnings == []
 
-    def test_a_regular_expression_beside_another_literal_warns(self):
-        message = "a regular expression in a harmony lane must stand alone"
-        for text in ("V7//x/ IN harmony", "/x//y IN harmony", "/x//y IN keys"):
+    def test_a_regular_expression_beside_another_literal_is_an_and(self):
+        # until 0.2 V7//x/ put both on one chord; AND does now, without a warning
+        for text in (
+            "V7 AND /x/ IN harmony",
+            "/x/ AND /y/ IN harmony",
+            "/x/ AND /y/ IN keys",
+        ):
             got = run(HARMONY, text)
             assert got.matches == [], text
-            assert got.warnings == [message], text
+            # a regular expression that matches nothing says so (R4), no more
+            assert all("occurs nowhere" in w for w in got.warnings), text
+        both = run(HARMONY, "V7 AND /V/ IN harmony").matches
+        assert both and both == run(HARMONY, "V7 IN harmony").matches[: len(both)]
 
     def test_warnings_do_not_carry_over_between_runs(self):
         index = fixture_index.build_index(HARMONY)
@@ -245,7 +252,10 @@ class TestWarnings:
         assert tql.run(index, "V7 IN harmony").warnings == []
 
     def test_a_label_over_other_lanes_does_not_warn(self):
-        assert run(FIXTURES["sonata"], "Xyz IN form").warnings == []
+        # only that it occurs nowhere (R4): no lane searched holds chords
+        assert run(FIXTURES["sonata"], "Xyz IN form").warnings == [
+            "Xyz occurs nowhere in the lanes searched (IN form)"
+        ]
 
     def test_a_lane_of_both_kinds_warns_only_for_a_literal_that_is_neither(self):
         # IN "Harmony" names the chords and the keys: a good chord is no key,
@@ -261,7 +271,10 @@ class TestWarnings:
         assert any("'Xyz' is not a key" in w for w in got.warnings)
 
     def test_an_exact_literal_that_matches_custom_text_does_not_warn(self):
-        assert any("'N.C.' is not a chord" in w for w in run(HARMONY, '"N.C." IN harmony').warnings)
+        assert any(
+            "'N.C.' is not a chord" in w
+            for w in run(HARMONY, '"N.C." IN harmony').warnings
+        )
         index = fixture_index.build_index(HARMONY)
         con = index.connection()
         con.execute(
@@ -298,7 +311,9 @@ class TestWarnings:
             tql.run(index, text)
             return calls[0]
 
-        assert count("phrase THEN phrase THEN phrase IN form") == count("phrase IN form")
+        assert count("phrase THEN phrase THEN phrase IN form") == count(
+            "phrase IN form"
+        )
         assert count("V7 THEN I THEN V7 IN harmony") == count("V7 IN harmony")
         assert count("Xyz THEN Xyz THEN Xyz IN harmony") == count("Xyz IN harmony")
 
@@ -600,7 +615,9 @@ class TestFieldsAsMusic:
             "(SELECT id FROM components WHERE uuid LIKE '%k2')"
         )
         assert [r[0] for r in con.execute("SELECT key FROM keys")] == ["c", "Cm"]
-        assert len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
+        assert (
+            len(tql.run(index, "* THEN * IN keys WHERE $1.key = $2.key").matches) == 1
+        )
         assert tql.run(index, "* THEN * IN keys WHERE $1.key != $2.key").matches == []
 
 

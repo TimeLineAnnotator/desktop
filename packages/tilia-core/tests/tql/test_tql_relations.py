@@ -56,7 +56,9 @@ TOLERANCE = fixture(
 # P has exactly a's extent and Q exactly b's: each parent lies in its child in
 # time (tql.md §8, Q33), but is not below it in the hierarchy.
 SAME_EXTENT_PAIRS = fixture(
-    hierarchy("Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8], ["P", 2, 0, 4], ["Q", 2, 4, 8]])
+    hierarchy(
+        "Form (X)", [["a", 1, 0, 4], ["b", 1, 4, 8], ["P", 2, 0, 4], ["Q", 2, 4, 8]]
+    )
 )
 # a starts 0.05 s before P, so the index does not make it P's child, though it
 # lies in P within the tolerance; b is P's child.
@@ -693,7 +695,7 @@ class TestLabelsAndMatches:
                 "a OR b IN form CONTAINS p OR q IN Marks",
                 ["a@0 | p@2", "b@4 | q@6", "a@0 | q@2", "b@4 | p@6"],
             ),
-            ("*[DURING a OR b IN form] IN Marks", ["p@2", "q@6", "q@2", "p@6"]),
+            ("*[DURING (a OR b) IN form] IN Marks", ["p@2", "q@6", "q@2", "p@6"]),
         ],
     )
     def test_an_or_keeps_its_file_lane_and_timing_tests(self, query, expected):
@@ -921,8 +923,7 @@ def two_points(first, second):
 def hold(fix, rel, a, b, within=""):
     """Whether ``a REL b`` holds, in each form: all must agree."""
     got = {
-        bool(rows(fix, form.format(a=a, rel=rel, b=b, within=within)))
-        for form in FORMS
+        bool(rows(fix, form.format(a=a, rel=rel, b=b, within=within))) for form in FORMS
     }
     assert len(got) == 1, (rel, a, b, "SQL and Python disagree")
     return got.pop()

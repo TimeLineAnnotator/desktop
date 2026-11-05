@@ -23,9 +23,10 @@ class Measure:
     ``count`` is its place in playing order, from 1; ``number`` and ``label``
     its printed number and name ("16a"); ``start`` and ``end`` its downbeat and
     the next one; ``beats`` how many beats it has; ``pass_`` which pass through
-    a repeat it belongs to (1 without repeats). ``beat_unit``,
-    ``time_signature`` and ``assumed`` are WP9's further columns, which the
-    tables don't hold yet."""
+    a repeat it belongs to (1 without repeats); ``time_signature`` how a
+    musician reads it ("6/8"); ``cadenza`` whether it is a cadenza bar; and
+    ``movement`` which movement or song it is in, from 1. ``beat_unit`` and
+    ``assumed`` are WP9's further columns, which the tables don't hold yet."""
 
     count: int
     number: int
@@ -37,11 +38,14 @@ class Measure:
     beat_unit: int
     time_signature: str | None
     assumed: bool
+    cadenza: bool
+    movement: int
 
 
 @dataclass(frozen=True)
 class Positions:
-    """Where a unit falls on the map: a row of ``positions`` (data-model.md)."""
+    """Where a unit falls on the map: a row of ``positions`` (data-model.md).
+    ``cadenza`` and ``movement`` are those of the bar it starts in."""
 
     bar: int
     end_bar: int
@@ -51,6 +55,8 @@ class Positions:
     bar_label: str
     bar_beat_count: int
     downbeat: bool
+    cadenza: bool
+    movement: int
 
 
 class TimeMap(Protocol):

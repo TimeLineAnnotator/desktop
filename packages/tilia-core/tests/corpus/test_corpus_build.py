@@ -325,14 +325,25 @@ def test_with_a_time_map_measures_and_positions():
     tmap = fake_timemap.time_map_of(doc, {})
     rows = build.rows(doc, NoSettings(), counter(), tmap)
     assert [r[1:] for r in rows.measures] == [
-        (1, 1, "1", 0.0, 4.0, 4, 1),
-        (2, 2, "2", 4.0, 8.0, 4, 1),
+        (1, 1, "1", 0.0, 4.0, 4, 1, 0, 1, "4/4"),
+        (2, 2, "2", 4.0, 8.0, 4, 1, 0, 1, "4/4"),
     ]
     (x,) = [r for r in rows.components if r[3] == "m:c1"]
     positions = {r[0]: r[1:] for r in rows.positions}
-    assert positions[x[0]] == (2, 2, 1.5, 1, 2, "2", 4, 0)
+    assert positions[x[0]] == (2, 2, 1.5, 1, 2, "2", 4, 0, 0, 1)
     # every unit on the map has a row, the beats of both timelines too
     assert len(rows.positions) == len(rows.components)
+
+
+def test_a_bars_cadenza_movement_and_time_signature_reach_the_tables():
+    doc = beats_document()
+    tmap = fake_timemap.FakeTimeMap(
+        0.0, 1.0, 4, [1, 2], cadenzas=[2], restarts=[2], time_signature="6/8"
+    )
+    rows = build.rows(doc, NoSettings(), counter(), tmap)
+    assert [r[-3:] for r in rows.measures] == [(0, 1, "6/8"), (1, 2, "6/8")]
+    (x,) = [r for r in rows.components if r[3] == "m:c1"]
+    assert {r[0]: r[-2:] for r in rows.positions}[x[0]] == (1, 2)
 
 
 def test_a_unit_off_the_map_has_no_position():
@@ -371,10 +382,12 @@ DUMP = {
     "categories": "SELECT c.uuid, x.category, x.supertype FROM categories x "
     "JOIN components c ON c.id = x.component_id",
     "positions": "SELECT c.uuid, p.bar, p.end_bar, p.beat, p.pass, p.bar_count, "
-    "p.bar_label, p.bar_beat_count, p.downbeat FROM positions p "
+    "p.bar_label, p.bar_beat_count, p.downbeat, p.bar_cadenza, p.bar_movement "
+    "FROM positions p "
     "JOIN components c ON c.id = p.component_id",
     "measures": 'SELECT f.document_id, m.count, m.number, m.label, m.start, m."end", '
-    "m.beats, m.pass FROM measures m JOIN files f ON f.id = m.file_id",
+    "m.beats, m.pass, m.cadenza, m.movement, m.time_signature "
+    "FROM measures m JOIN files f ON f.id = m.file_id",
     "fields": "SELECT x.scope, CASE x.scope "
     "WHEN 'file' THEN (SELECT document_id FROM files WHERE id = x.owner_id) "
     "WHEN 'timeline' THEN (SELECT uuid FROM timelines WHERE id = x.owner_id) "
