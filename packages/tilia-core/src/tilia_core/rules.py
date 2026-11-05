@@ -576,13 +576,6 @@ def check_timeline(
     kept, as an importer keeps it with the default color, and so is one whose
     rules couldn't be checked without music21.
 
-    A join names a range that starts later, so with `skip_broken` it is checked
-    last: once every range has been kept or left out by its own rules, each
-    range's join is checked against its row's next ranges among all the ranges
-    kept. A range whose join is broken is reported, and is among the kept when the
-    other joins are checked. No import passes a join here: the range importer
-    joins the ranges kept, then checks them by default, with every other one.
-
     Ranges need the timeline's `rows`, and PDF markers the PDF's `page_count`.
     music21 is looked up once, for the first harmony or key.
 
@@ -608,24 +601,14 @@ def check_timeline(
         for place in covered:
             others.add(place)
     found: dict[str, Checked] = {}
-    joining: list[int] = []  # with skip_broken, ranges whose joins are checked last
     for place in covered:
         component = components[place]
-        kind, attrs = component.kind, component.attrs
-        if skip_broken and kind == "range" and attrs.get("joined_right") is not None:
-            broken, cant_check = kinds.broken(kind, {**attrs, "joined_right": None}, ())
-            if broken is None:
-                joining.append(place)
-        else:
-            broken, cant_check = kinds.broken(kind, attrs, others.of(place))
-        found[component.id] = _found(attrs, broken, cant_check)
+        broken, cant_check = kinds.broken(
+            component.kind, component.attrs, others.of(place)
+        )
+        found[component.id] = _found(component.attrs, broken, cant_check)
         if skip_broken and broken is None:
             others.add(place)
-    for place in joining:
-        component = components[place]
-        kind, attrs = component.kind, component.attrs
-        broken, cant_check = kinds.broken(kind, attrs, others.of(place))
-        found[component.id] = _found(attrs, broken, cant_check)
     return found
 
 
