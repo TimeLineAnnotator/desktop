@@ -511,11 +511,11 @@ class SvgViewer(ViewDockWidget):
         for key, beat in beat_pos.items():
             t = beat_tl.get_time_by_measure(*beat)
             if not t and are_viewport_edges:
-                if beat[0] < min(beat_tl.measure_numbers):
+                if beat[0] < min(beat_tl.numbers_of_measures):
                     t = [0]
                 # Rounded as get_time_by_measure rounds it: the fraction 1 of
                 # the highest measure is already past it.
-                elif round(sum(beat), 3) >= max(beat_tl.measure_numbers) + 1:
+                elif round(sum(beat), 3) >= max(beat_tl.numbers_of_measures) + 1:
                     t = [get(Get.MEDIA_DURATION)]
             output[key] = t
 
