@@ -149,6 +149,22 @@ def test_a_measures_number_is_the_previous_ones_plus_one_and_the_first_is_1():
     ]
 
 
+def test_a_pickups_0_and_a_number_below_0_are_read_as_they_are():
+    # The rule that a number is from 0 is the rules' (rules.beat): the table
+    # holds what the file says, and the numbers after it follow.
+    doc = tla.loads(
+        one_timeline(
+            [
+                (B[0], beat(0.0, measure={"number": 0})),
+                (B[1], beat(1.0, measure={})),
+                (B[2], beat(2.0, measure={"number": -1})),
+                (B[3], beat(3.0, measure={})),
+            ]
+        )
+    )
+    assert [r.number for r in rows_of(doc)] == [0, 1, -1, 0]
+
+
 def test_the_beats_of_a_measure_are_in_time_order_whatever_their_ids():
     doc = tla.loads(
         one_timeline(
