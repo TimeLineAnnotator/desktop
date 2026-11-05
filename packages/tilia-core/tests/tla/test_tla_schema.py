@@ -29,7 +29,7 @@ BROKEN_FILES = sorted((HERE / "broken").glob("*.tla"))
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 # The schema as the format's specification has it, byte for byte: a change to
 # the schema is made there first (TimeLineAnnotator/project-management#179).
-SCHEMA_SHA256 = "54108019d0360960d4d7220a3dd39a6d0508a7539cc670a66d1913d2a441a271"
+SCHEMA_SHA256 = "2e859e1691c87af02854071304c7ef0634b67e81473a83f9e679ce80323370f5"
 
 VALIDATOR = jsonschema.Draft202012Validator(tla.schema())
 
@@ -657,6 +657,16 @@ AGREEMENT = [
         False,
         False,
         id="ordinal below 1",
+    ),
+    pytest.param(
+        changed(
+            lambda c: first_component(timeline_of(c, "Beat")).update(
+                measure={"number": -1}
+            )
+        ),
+        False,
+        False,
+        id="measure number below 0",
     ),
     pytest.param(
         changed(lambda c: c.update(time_unit="frames")),

@@ -387,7 +387,19 @@ def _beat(
     attrs: Mapping[str, Any],
     context: _Context,
 ) -> Outcome | None:
-    return _point("beat", media_length, others, attrs)
+    broken = _point("beat", media_length, others, attrs)
+    if broken is not None:
+        return broken
+    return _measure_number(attrs.get("measure"))
+
+
+def _measure_number(measure: Any) -> Outcome | None:
+    """A measure mark's number, when it has one, is from 0: a pickup is 0, and
+    TiLiA's "Set measure number" asks for no less."""
+    number = measure.get("number") if isinstance(measure, Mapping) else None
+    if _is_integer(number) and number < 0:
+        return _broken(f"Measure number can't be below 0. Got '{_shown(number)}'")
+    return None
 
 
 def _pdf_marker(

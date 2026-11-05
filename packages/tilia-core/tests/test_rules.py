@@ -620,6 +620,73 @@ class TestPointKinds:
         )
 
 
+class TestMeasureNumber:
+    """A measure mark's number is from 0 (a pickup), as TiLiA's "Set measure
+    number" asks (TimeLineAnnotator/project-management#420)."""
+
+    BELOW = "Measure number can't be below 0. Got '{}'"
+
+    @pytest.mark.parametrize("number", [-1, -2, -(10**3)])
+    def test_a_number_below_0_breaks_a_rule(self, number):
+        assert check("beat", measure={"number": number}) == (
+            False,
+            self.BELOW.format(number),
+        )
+
+    def test_a_number_too_long_to_show_is_named(self):
+        outcome = check("beat", measure={"number": -(10**5000)})
+        assert outcome == (False, self.BELOW.format("an integer too long to show"))
+
+    @pytest.mark.parametrize("number", [0, 1, 16])
+    def test_a_number_from_0_passes(self, number):
+        assert check("beat", measure={"number": number}) == OK
+
+    def test_a_number_too_long_to_show_passes_from_0(self):
+        assert check("beat", measure={"number": 10**5000}) == OK
+
+    @pytest.mark.parametrize(
+        "measure",
+        [
+            None,
+            {},
+            {"number": None},
+            {"label": "16a"},
+            {"number": 0, "label": "0", "force_display": True},
+            {"number": 2, "label": "2c", "cadenza": True},
+        ],
+    )
+    def test_a_mark_without_a_number_below_0_passes(self, measure):
+        assert check("beat", measure=measure) == OK
+
+    def test_a_beat_without_a_mark_passes(self):
+        assert check("beat") == OK
+
+    def test_other_rules_of_the_beat_come_first(self):
+        assert check("beat", time=-1.0, measure={"number": -1}) == (
+            False,
+            "Time can't be negative. Got '-00:01.0'",
+        )
+
+    @pytest.mark.parametrize("skip_broken", [True, False])
+    def test_a_timeline_finds_a_number_below_0_where_it_is(self, skip_broken):
+        pickup = component("beat", time=0.0, measure={"number": 0})
+        broken = component("beat", time=1.0, measure={"number": -1})
+        unmarked = component("beat", time=2.0)
+
+        checked = rules.check_timeline(
+            MEDIA, [pickup, broken, unmarked], skip_broken=skip_broken
+        )
+
+        assert {key: value.outcome for key, value in checked.items()} == {
+            pickup.id: OK,
+            broken.id: (False, self.BELOW.format(-1)),
+            unmarked.id: OK,
+        }
+
+    def test_a_number_below_0_on_another_kind_is_nobodys_business(self):
+        assert check("marker", measure={"number": -1}) == OK
+
+
 class TestPdfMarker:
     @pytest.mark.parametrize("page_number", [1, 2, PAGES])
     def test_a_page_the_pdf_has(self, page_number):

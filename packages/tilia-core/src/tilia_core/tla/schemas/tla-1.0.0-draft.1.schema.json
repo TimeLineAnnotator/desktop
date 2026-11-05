@@ -226,7 +226,7 @@
       "type": "object",
       "properties": {
         "number": {
-          "description": "The printed bar number, written whenever it is set: a pickup's 0, a repeat going back, an ending or a cadenza sharing a number, a restart. Without one, a measure is the previous measure's number plus one, and the first measure is 1 (desktop#700).",
+          "description": "From 0, a pickup's number; a rule for a valid component, not enforced here (TimeLineAnnotator/project-management#420). The printed bar number, written whenever it is set: a pickup's 0, a repeat going back, an ending or a cadenza sharing a number, a restart. Without one, a measure is the previous measure's number plus one, and the first measure is 1 (desktop#700).",
           "type": ["integer", "null"],
           "x-default-from": "the previous measure's number + 1"
         },
