@@ -16,6 +16,8 @@ tilia library [FOLDER] [--port N] [--no-browser]
 
 Starts the library on 127.0.0.1, on port 14600 or the first free one after it (`--port N` starts from N), prints its address, and opens it in your browser (`--no-browser` doesn't). `FOLDER` is added to the library if it is new. If a library is already running, the command adds `FOLDER` to it and opens the browser there instead of starting a second one.
 
+Only you can use a running library: the address it prints and opens holds a token, new for each run, after a `#`. The page takes the token from there and keeps it for that browser tab, so reloading works. A new tab on the plain address says to run `tilia library`, which opens one that works. The library sets no cookies, since a cookie on 127.0.0.1 goes to every local server you visit.
+
 ## Panels
 
 - **Files**: the files of a corpus (a folder), with their fields and timelines. The table sorts and filters.
