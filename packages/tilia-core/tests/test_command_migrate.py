@@ -423,7 +423,8 @@ def test_apply_lists_files_changed_since_read_and_files_in_use(
         "  a.tla\n"
         "Changes the migration makes:\n"
         "  sub/b.tla               dropped 2 formal_type and formal_function values;"
-        " dropped 3 amplitude bars; moved 2 marks to metadata\n"
+        " dropped 3 amplitude bars; moved 2 marks to metadata;"
+        " changed 2 display modes from chord to letter\n"
         "\n"
         "Wrote 1 file.\n"
     )
