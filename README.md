@@ -86,6 +86,7 @@ Failure to do so may cause dependency issues.
 
 - Install TiLiA and its dependencies with:
 ```
+pip install -e packages/tilia-core
 pip install -e .
 ```
 
@@ -94,7 +95,7 @@ pip install -e .
 tilia-ui
 ```
 
-With tilia-core installed as well (`pip install -e packages/tilia-core`), `tilia ui` does the same.
+`tilia ui` does the same.
 
 - TiLiA also offers a CLI mode, which can be run with:
 ```
@@ -108,6 +109,7 @@ Note that the binaries will be for the platform you are building on, as `Nuitka`
 
 - After cloning TiLiA, install TiLiA's run and build dependencies with:
 ```
+pip install -e packages/tilia-core
 pip install -e . --group build
 ```
 - To build a stand-alone executable, run the script:
