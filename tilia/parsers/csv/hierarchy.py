@@ -194,7 +194,7 @@ def import_by_measure(
             end_times = times["end"].copy()
             # start_times and end_times are always sorted. If start_times[n] is greater than end_time[n], all start_times[n+] will also be greater than end_times[n], which would create a segment-like component with start > end. Therefore, pop off head of end_times until a suitable end_time is found.
             while len(start_times) and len(end_times):
-                if (start := start_times[0]) < (end := end_times[0]):
+                if (start := start_times[0]) <= (end := end_times[0]):
                     component, fail_reason = hierarchy_tl.create_component(
                         ComponentKind.HIERARCHY,
                         start,
