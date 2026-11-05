@@ -24,7 +24,9 @@ breaks. For one read past the end of the old one, past the end of the new one is
 the same problem. When no length was read, no time was compared with any, so the
 same goes for every component once one is given. Their states are kept for that:
 `unmeasured`. A known length that puts a time past it for the first time is a new
-problem, since what the file came with kept to its length.
+problem, since what the file came with kept to its length: TiLiA leaves nothing
+past the end when it scales or crops (TimeLineAnnotator/project-management#496,
+point 1).
 
 A beat without a time has its warning from the check, which names its
 timeline (TimeLineAnnotator/project-management#285), so the rule it breaks adds
@@ -231,7 +233,9 @@ def cant_check(document: Document) -> rules.CantCheck | None:
 
 def _between(problem: ReadProblem) -> tuple[tuple[str, str], ...]:
     """The other components `problem` is between, each as a place and a state: the
-    range a join joins, whatever comes next in its row, or those it names."""
+    range a join joins, whatever comes next in its row, or those it names. So a
+    change to that range makes the join new, and TiLiA checks it with the edit
+    (TimeLineAnnotator/project-management#496, point 2)."""
     return problem.others if problem.joined is None else (problem.joined,)
 
 
