@@ -9,7 +9,7 @@ from tilia.file.migration import normalize_kind_string
 from tilia.requests import Get, Post, get, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
-from tilia.timelines.base.timeline import Timeline, TimelineFlag
+from tilia.timelines.base.timeline import Timeline, TimelineFlag, id_order
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hash_timelines import hash_function
 from tilia.timelines.slider.timeline import SliderTimeline
@@ -174,6 +174,37 @@ class Timelines:
         if type(timeline) not in self.timeline_types:
             post(Post.TIMELINE_TYPE_NOT_INSTANCED, type(timeline))
 
+    def duplicate_timeline(self, timeline: Timeline, name: str) -> Timeline:
+        """
+        Creates a copy of `timeline` with the given name and places it
+        right below the original. Components get fresh ids, as ids must be
+        unique across the whole app.
+        """
+        state = copy.deepcopy(timeline.get_state())
+        kind = state.pop("kind")
+        components = state.pop("components")
+        for attr in ("hash", "components_hash", "ordinal"):
+            state.pop(attr, None)
+        state["name"] = name
+
+        # Serialized components are sorted by id, which reflects creation
+        # order. Keep it, as some kinds depend on it (e.g. score notes need
+        # their staff to exist).
+        components = {get(Get.ID): data for data in components.values()}
+
+        duplicate = self.create_timeline(kind, components=components, **state)
+        if not components and len(duplicate):
+            # Creating a timeline without components may populate it
+            # (e.g. the initial hierarchy), but the original was empty.
+            duplicate.clear()
+
+        for tl in self:
+            if tl is not duplicate and tl.ordinal > timeline.ordinal:
+                self.set_timeline_data(tl.id, "ordinal", tl.ordinal + 1)
+        self.set_timeline_data(duplicate.id, "ordinal", timeline.ordinal + 1)
+
+        return duplicate
+
     @staticmethod
     def clear_timeline(timeline: Timeline):
         timeline.clear()
@@ -206,12 +237,15 @@ class Timelines:
 
     def _remove_from_timelines(self, timeline: Timeline) -> None:
         try:
-            self._timelines.remove(timeline)
+            # Look up by identity: list.remove() would use Timeline.__eq__,
+            # which compares attributes and may match another timeline.
+            index = next(i for i, tl in enumerate(self._timelines) if tl is timeline)
+            del self._timelines[index]
             # update ordinal of all timelines that came after the removed timeline
             for tl in self:
                 if tl.ordinal > timeline.ordinal:
                     tl.ordinal -= 1
-        except ValueError as e:
+        except StopIteration as e:
             raise ValueError(
                 f"Can't remove timeline '{timeline}' from {self}: not in"
                 " self._timelines."
@@ -225,7 +259,9 @@ class Timelines:
         ]
 
     def serialize_timelines(self):
-        state = {tl.id: tl.get_state() for tl in self}
+        # Sorted, so the hash doesn't depend on the order timelines were
+        # created in (e.g. undoing a deletion re-adds the timeline at the end).
+        state = {tl.id: tl.get_state() for tl in sorted(self)}
         hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
@@ -239,18 +275,20 @@ class Timelines:
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
-        shared_tl_ids = list(set(timeline_states) & set(id_to_timelines))
+        shared_tl_ids = timeline_states.keys() & id_to_timelines.keys()
 
-        # restore state of timelines that already exist
-        for id in shared_tl_ids:
-            self._restore_timeline_state(id_to_timelines[id], timeline_states[id])
-
-        # delete timelines not in restored state
-        for id in list(set(id_to_timelines) - set(shared_tl_ids)):
+        # delete timelines not in restored state. This must come before
+        # restoring the shared timelines, as deleting shifts the ordinals
+        # of the timelines below and would offset the restored ones.
+        for id in sorted(id_to_timelines.keys() - shared_tl_ids, key=id_order):
             self.delete_timeline(id_to_timelines[id])
 
+        # restore state of timelines that already exist
+        for id in sorted(shared_tl_ids, key=id_order):
+            self._restore_timeline_state(id_to_timelines[id], timeline_states[id])
+
         # create timelines that are only in restored state
-        for id in list(set(timeline_states) - set(shared_tl_ids)):
+        for id in sorted(timeline_states.keys() - shared_tl_ids, key=id_order):
             params = timeline_states[id].copy()
             # We need to pop so no duplicate arguments are passed
             kind_string = normalize_kind_string(params.pop("kind"))
@@ -269,7 +307,7 @@ class Timelines:
 
         if (
             timeline.component_manager is not None
-            and timeline.component_manager.hash_components() != state["components_hash"]
+            and not timeline.component_manager.matches_state(state["components"])
         ):
             timeline.component_manager.restore_state(state["components"])
 

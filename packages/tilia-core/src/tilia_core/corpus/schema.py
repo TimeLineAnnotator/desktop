@@ -17,7 +17,11 @@ SQL on them, so users see them: they are lower case and name what they hold.
 - ``positions`` and ``measures``: what the file's time map gives. ``measures``
   holds one row per bar in playing order: its place in that order (``count``),
   its printed ``number`` and ``label``, its ``start`` and ``end``, its ``beats``
-  and its ``pass`` through a repeat (1 without repeats).
+  and its ``pass`` through a repeat (1 without repeats). ``cadenza`` is 1 for a
+  cadenza bar, ``movement`` counts movements or songs from 1 (a bar marked
+  ``restart`` begins the next), and ``time_signature`` is the bar's as a musician
+  reads it (``"6/8"``, ``"2+2+3/8"``). ``positions`` gives a unit the ``cadenza``
+  and ``movement`` of the bar it starts in.
 - ``fields``: the fields of files, timelines and components, one row per value.
 
 **Keys.** ``files.id``, ``timelines.id`` and ``components.id`` are the index's
@@ -27,7 +31,7 @@ across runs. Every column that points to one is an integer too. The ids the
 files store are columns of their own: ``files.document_id``,
 ``timelines.uuid`` and ``components.uuid``.
 
-``PRAGMA user_version`` is 1: the version of these names. They, the SQL that
+``PRAGMA user_version`` is 2: the version of these names. They, the SQL that
 ``show SQL`` prints and the ``tql_*`` functions of
 :mod:`tilia_core.tql.sqlfuncs` may change, and nothing in them is promised yet.
 Tests pin the names, and any rename or removal of a name that SQL can see
@@ -130,7 +134,9 @@ CREATE TABLE positions (
     bar_count INTEGER,
     bar_label TEXT,
     bar_beat_count INTEGER,
-    downbeat INTEGER
+    downbeat INTEGER,
+    bar_cadenza INTEGER,
+    bar_movement INTEGER
 );
 
 CREATE TABLE measures (
@@ -141,7 +147,10 @@ CREATE TABLE measures (
     start REAL,
     "end" REAL,
     beats INTEGER,
-    pass INTEGER
+    pass INTEGER,
+    cadenza INTEGER,
+    movement INTEGER,
+    time_signature TEXT
 );
 
 CREATE TABLE fields (
@@ -159,7 +168,7 @@ CREATE INDEX fields_by_owner ON fields (scope, owner_id);
 CREATE INDEX fields_by_name ON fields (name);
 CREATE INDEX hierarchies_by_parent ON hierarchies (parent_id);
 
-PRAGMA user_version = 1;
+PRAGMA user_version = 2;
 """
 # positions (component_id), an index data-model.md lists, is the table's
 # primary key, as each kind table's component_id is: an alias of the rowid,

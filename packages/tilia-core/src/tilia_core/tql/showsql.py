@@ -153,11 +153,8 @@ def unit_text(text: str, unit: syntax.Unit) -> str:
     head = ""
     end = unit.pos
     if unit.term is not None:
-        head = " OR ".join(a.raw for a in unit.term.alts)
-        if unit.term.negate:
-            head = "NOT " + head
-        last = unit.term.alts[-1]
-        end = last.pos + len(last.raw)
+        head = one_line(unit.term.raw)
+        end = unit.term.end
     start = end
     while end < len(text) and text[end : end + 1] == "[":
         end = _bracket_end(text, end)
@@ -167,7 +164,8 @@ def unit_text(text: str, unit: syntax.Unit) -> str:
 def step_text(text: str, step: syntax.Step) -> str:
     item = step.item
     if isinstance(item, syntax.Group):
-        return "(" + ") OR (".join(seq_text(text, o) for o in item.options) + ")"
+        body = "(" + ") OR (".join(seq_text(text, o) for o in item.options) + ")"
+        return f"NOT {body}" if item.negate else body
     return unit_text(text, item)
 
 
@@ -232,7 +230,7 @@ def describe_units(query: syntax.Query) -> dict[int, str]:
                     out[id(unit)] = f"${n}: {what}"
                 else:
                     out[id(unit)] = f"in the brackets of ${owner}: {what}"
-                for cond in unit.conds:
+                for cond in syntax.leaf_conds(unit.conds):
                     if isinstance(cond, syntax.RelCond):
                         rel = cond.relation
                         seq(rel.target, rel.lane or lane, 1, owner or n)

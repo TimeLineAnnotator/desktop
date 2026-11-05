@@ -147,7 +147,7 @@ class _Reader:
 
 def _check_key(reader: _Reader, key: str) -> None:
     """Raise ``ValueError`` naming the allowed keys unless ``key`` is one."""
-    if key in ("label", "category", "file", "timeline"):
+    if key in ("label", "category", "file", "timeline", "parent"):
         return
     if key.startswith("file.") and key[5:] in reader.file_field_names():
         return
@@ -160,6 +160,7 @@ def _check_key(reader: _Reader, key: str) -> None:
         "category",
         "file",
         "timeline",
+        "parent",
         *(f"file.{n}" for n in reader.file_field_names()),
         *(f"tl.{n}" for n in sorted(names.TIMELINE_FIELDS)),
         *reader.component_field_names(),
@@ -179,12 +180,23 @@ def _values(reader: _Reader, comp: Component, key: str, fold: bool) -> list[Any]
     set twice) gives them joined by ``, ``, as the result table does."""
     if key == "label":
         return [nfc(comp.label)]
-    if key == "file":  # by path: keys change between runs, copies share an id
+    if key == "file":
+        # by path, not id: keys change between runs, and a copy of a file shares
+        # its original's document id (tql.md §10, research R18)
         return [reader.one("SELECT path FROM files WHERE id = ?", (comp.file_id,))]
     if key == "timeline":
         return [
             reader.one("SELECT name FROM timelines WHERE id = ?", (comp.timeline_id,))
         ]
+    if key == "parent":
+        # the direct parent's label, so that all As are one group; a unit with
+        # no parent, or not in a hierarchy, has the one value None (tql.md §10)
+        label = reader.one(
+            "SELECT p.label FROM hierarchies h JOIN components p ON p.id = h.parent_id "
+            "WHERE h.component_id = ?",
+            (comp.id,),
+        )
+        return [None if label is None else nfc(label)]
     if key == "category":
         rows = reader.con.execute(
             "SELECT category, supertype FROM categories WHERE component_id = ?",
