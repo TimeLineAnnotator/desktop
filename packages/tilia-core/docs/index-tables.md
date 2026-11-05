@@ -143,6 +143,8 @@ Where each unit of a file with a time map starts and ends in bars and beats. A u
 | `bar_label` | TEXT | the bar's printed name, such as `16a` | computed from the time map |
 | `bar_beat_count` | INTEGER | how many beats that bar has | computed from the time map |
 | `downbeat` | INTEGER | 1 when the unit starts on the bar's first beat, 0 otherwise | computed from the time map |
+| `bar_cadenza` | INTEGER | 1 when the bar where it starts is a cadenza bar, 0 otherwise | computed from the time map |
+| `bar_movement` | INTEGER | which movement or song that bar is in, from 1 | computed from the time map |
 
 ## `measures`
 
@@ -158,6 +160,9 @@ The bars of each file with a time map, one row per bar in playing order.
 | `end` | REAL | the next bar's downbeat. Write it `"end"` | computed from the time map |
 | `beats` | INTEGER | how many beats it has | computed from the time map |
 | `pass` | INTEGER | which pass through a repeat it belongs to: 1 without repeats | computed from the time map |
+| `cadenza` | INTEGER | 1 for a cadenza bar, 0 otherwise | computed from the time map |
+| `movement` | INTEGER | which movement or song it is in, from 1; a bar marked `restart` begins the next | computed from the time map |
+| `time_signature` | TEXT | its time signature as a musician reads it, such as `6/8` or `2+2+3/8` | computed from the time map |
 
 ## `fields`
 
