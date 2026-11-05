@@ -3,8 +3,7 @@ from __future__ import annotations
 import itertools
 import math
 from bisect import bisect, bisect_left
-from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Collection, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
@@ -212,8 +211,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         the measure's only beat, the measure goes, and its beat unit moves to
         the next measure, so the measures it governed keep it. A beat unit on
         a beat that doesn't start a measure moves to the first beat of the
-        measure. Outside bulk changes, `BeatTimeline.delete_components` then
-        gives the measures back their lengths.
+        measure. Outside bulk changes, `BeatTimeline.delete_components` has
+        already moved the measures off the beats that go, unless no beats are
+        left for them.
         """
         beats = self._components
         index = beats.index(beat)
@@ -1104,8 +1104,8 @@ class BeatTimeline(Timeline):
         by where it falls: after the last beat, it starts a measure once the
         last one has as many beats as the beat pattern gives it; anywhere
         else, it joins the measure it falls in (before the first beat, the
-        first measure), and every measure keeps its length, so the measures
-        after it start one beat later.
+        first measure), and every measure keeps its length, so each one after
+        it gives up its last beat and starts a beat earlier in time.
         """
         is_placed = kwargs.get("is_first_in_measure") is not None
         component, reason = super().create_component(kind, *args, id=id, **kwargs)
@@ -1487,19 +1487,28 @@ class BeatTimeline(Timeline):
         last = len(counts) - 1
         return counts[:last] + [self._get_open_beat_count(last, counts[last])]
 
-    def _remeasure(self, counts: list[int], from_measure: int) -> None:
+    def _remeasure(
+        self, counts: list[int], from_measure: int, going: Collection[Beat] = ()
+    ) -> None:
         """
         Makes the measures from `from_measure` on hold `counts[from_measure:]`
-        beats each. Each keeps its number, display and the beat unit on its
-        first beat, by position. Beats left over at the end make measures
-        from the beat pattern; measures past the last beat go. The caller
-        refreshes the measures (see `refresh_measures`) once it is done.
+        beats each, leaving out `going`, the beats about to be deleted. Each
+        keeps its number, display and the beat unit on its first beat, by
+        position. Beats left over at the end make measures from the beat
+        pattern; measures past the last beat go. The caller refreshes the
+        measures (see `refresh_measures`) once it is done.
         """
         measures = self.measures
         if not 0 <= from_measure < measures.count:
             return
 
         beats = self.components
+        first = measures.starts[from_measure]
+        going_ids = {beat.id for beat in going}
+        staying = [beat for beat in beats[first:] if beat.id not in going_ids]
+        if not staying:
+            return
+
         old_first_beats = [beats[start] for start in measures.starts[from_measure:]]
         kept_data = [
             (
@@ -1510,8 +1519,7 @@ class BeatTimeline(Timeline):
             for beat in old_first_beats
         ]
 
-        first = measures.starts[from_measure]
-        remaining = len(beats) - first
+        remaining = len(staying)
         new_counts = []
         for count in counts[from_measure:]:
             if remaining <= 0:
@@ -1528,8 +1536,8 @@ class BeatTimeline(Timeline):
                     % len(pattern)
                 ),
             )
-        new_starts = [first] + [
-            first + offset for offset in itertools.accumulate(new_counts[:-1])
+        new_first_beats = [staying[0]] + [
+            staying[offset] for offset in itertools.accumulate(new_counts[:-1])
         ]
 
         with self.component_manager.bulk():
@@ -1538,12 +1546,10 @@ class BeatTimeline(Timeline):
             # still holds another. Those that stay are left in place.
             beat_unit_values: list[tuple[int, str, bool] | None] = []
             for index, (_, _, beat_unit) in enumerate(kept_data):
-                new_start = new_starts[index] if index < len(new_starts) else None
-                old_first = old_first_beats[index]
-                if beat_unit is None:
-                    beat_unit_values.append(None)
-                    continue
-                if new_start is not None and beats[new_start] is old_first:
+                new_first = (
+                    new_first_beats[index] if index < len(new_first_beats) else None
+                )
+                if beat_unit is None or new_first is old_first_beats[index]:
                     beat_unit_values.append(None)
                     continue
                 beat_unit_values.append(
@@ -1551,13 +1557,15 @@ class BeatTimeline(Timeline):
                 )
                 self.component_manager.delete_component(beat_unit)
 
-            new_data = dict(zip(new_starts, kept_data, strict=False))
-            new_starts_set = set(new_starts)
-            for index in range(first, len(beats)):
-                beat = beats[index]
-                override, always_shown, _ = new_data.get(index, (None, False, None))
+            new_data = {
+                beat.id: data
+                for beat, data in zip(new_first_beats, kept_data, strict=False)
+            }
+            new_first_ids = {beat.id for beat in new_first_beats}
+            for beat in beats[first:]:
+                override, always_shown, _ = new_data.get(beat.id, (None, False, None))
                 values = {
-                    "is_first_in_measure": index in new_starts_set,
+                    "is_first_in_measure": beat.id in new_first_ids,
                     "measure_number_override": override,
                     "measure_number_always_shown": always_shown,
                 }
@@ -1565,11 +1573,12 @@ class BeatTimeline(Timeline):
                     if getattr(beat, attr) != value:
                         self.set_component_data(beat.id, attr, value)
 
-            for start, values in zip(new_starts, beat_unit_values, strict=False):
-                if values is not None:
-                    self.put_beat_unit_on_beat(beats[start].id, *values)
+            for beat, values in zip(new_first_beats, beat_unit_values, strict=False):
+                # One already on the beat stays, as `move_measure_start` has it.
+                if values is not None and not self.get_beat_unit_on_beat(beat.id):
+                    self.put_beat_unit_on_beat(beat.id, *values)
 
-            if len(new_starts) > len(kept_data):
+            if len(new_first_beats) > len(kept_data):
                 # Measures made from the pattern for the beats left over.
                 self.lay_planned_beat_units(from_measure + len(kept_data))
 
@@ -1641,8 +1650,10 @@ class BeatTimeline(Timeline):
 
     def delete_components(self, components: list[TC]) -> None:
         """
-        Every measure keeps its length, so the measures after a deleted beat
-        start one beat earlier. A measure whose beats are all deleted goes.
+        Every measure keeps its length, so each one after a deleted beat takes
+        the next beat and starts a beat later in time. Only measures with no
+        beats left for them go, so deleting beats together does what deleting
+        them one at a time does.
         """
         self._validate_delete_components(components)
 
@@ -1655,11 +1666,19 @@ class BeatTimeline(Timeline):
             key=self.get_beat_index,
             reverse=True,
         )
-        lengths = None
+        for beat_unit in beat_units:
+            manager.delete_component(beat_unit)
+
         if beats and not (manager.is_restoring or manager.is_bulk):
-            lengths = self._get_lengths_after_deleting(beats)
-        for component in beat_units + beats:
-            manager.delete_component(component)
+            earliest = self.get_beat_index(beats[-1])
+            self._remeasure(
+                self.beats_in_measure.copy(),
+                self.measures.measure_of_beat[earliest],
+                going=beats,
+            )
+
+        for beat in beats:
+            manager.delete_component(beat)
 
         if manager.is_restoring or manager.is_bulk:
             return
@@ -1669,27 +1688,9 @@ class BeatTimeline(Timeline):
         if beat_units:
             self._ensure_first_beat_unit(copy_next=False)
 
-        if lengths is not None and len(self):
-            self._remeasure(*lengths)
         if not len(self):
             self.beat_pattern_shift = 0
         self.refresh_measures()
-
-    def _get_lengths_after_deleting(self, beats: list[Beat]) -> tuple[list[int], int]:
-        """
-        The lengths of the measures left once `beats` go, as they are now,
-        and the first measure one of them is in.
-        """
-        measures = self.measures
-        lost = Counter(
-            measures.measure_of_beat[self.get_beat_index(beat)] for beat in beats
-        )
-        counts = [
-            count
-            for measure_index, count in enumerate(measures.counts)
-            if lost[measure_index] < count
-        ]
-        return counts, min(lost)
 
     def clear(self) -> None:
         super().clear()

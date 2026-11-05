@@ -310,6 +310,19 @@ def add_beats(times) -> None:
         commands.execute("timeline.beat.add")
 
 
+def delete_beats(timeline_ui, times) -> None:
+    """Selects the beats at `times` and deletes them, in one action."""
+    timeline_ui.deselect_all_elements()
+    for index, beat in enumerate(timeline_ui.timeline):
+        if beat.time in times:
+            timeline_ui.select_element(timeline_ui[index])
+    commands.execute("timeline.component.delete")
+
+
+def get_barlines(timeline):
+    return [beat.time for beat in timeline if beat.is_first_in_measure]
+
+
 class TestBeatPattern:
     def test_bracketed_pattern_sets_bar_lengths(self, tluis):
         add_beat_timeline_with_pattern("2[3] 4")
@@ -1058,6 +1071,115 @@ class TestCreateDeleteBeat:
         assert time_signatures(timeline) == [("2", 4), ("2", 4), ("6", 8)]
         assert timeline.get_beat_unit_on_beat(timeline[4].id).denominator == 8
         assert not any(meter.is_conflicting for meter in timeline.measure_meters)
+
+    @pytest.mark.parametrize("how", ["together", "in order", "last first"])
+    @pytest.mark.parametrize(
+        "pattern, beat_count, times, counts, barlines",
+        [
+            # All of the bar 2.
+            ("4/4 2[3/4] 3[2/4]", 16, [4, 5, 6], [4, 3, 3, 2, 1], [0, 7, 10, 13, 15]),
+            # All of the first bar.
+            ("4/4 2[3/4] 3[2/4]", 16, [0, 1, 2, 3], [4, 3, 3, 2], [4, 8, 11, 14]),
+            # All of two bars in a row.
+            ("4/4 2[3/4] 3[2/4]", 16, [4, 5, 6, 7, 8, 9], [4, 3, 3], [0, 10, 13]),
+            # Some of two bars.
+            ("4/4 2[3/4] 3[2/4]", 16, [3, 4], [4, 3, 3, 2, 2], [0, 6, 9, 12, 14]),
+            # All of the last bar, so there's nothing left for it.
+            ("4/4 2[3/4] 3[2/4]", 16, [14, 15], [4, 3, 3, 2, 2], [0, 4, 7, 10, 12]),
+            # A bar of one beat.
+            ("1 4", 5, [0], [1, 3], [1, 2]),
+            ("4 1 3", 8, [4], [4, 1, 2], [0, 5, 6]),
+            # A bar of one beat and a beat before it.
+            ("2 1 3", 6, [1, 2], [2, 1, 1], [0, 4, 5]),
+        ],
+    )
+    def test_deleting_beats_together_or_one_at_a_time_gives_the_same_bars(
+        self, tluis, how, pattern, beat_count, times, counts, barlines
+    ):
+        add_beat_timeline_with_pattern(pattern)
+        add_beats(range(beat_count))
+        timeline = tluis[0].timeline
+
+        if how == "together":
+            delete_beats(tluis[0], times)
+        else:
+            for time in times if how == "in order" else reversed(times):
+                delete_beats(tluis[0], [time])
+
+        assert timeline.beats_in_measure == counts
+        assert get_barlines(timeline) == barlines
+
+    def test_deleting_all_of_a_bars_beats_keeps_every_bars_time_signature(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+        timeline = tluis[0].timeline
+        for index in range(4, 7):
+            tluis[0].select_element(tluis[0][index])
+
+        with undoable():
+            commands.execute("timeline.component.delete")
+
+        assert time_signatures(timeline) == [
+            ("4", 4),
+            ("3", 4),
+            ("3", 4),
+            ("2", 4),
+            ("1", 4),
+        ]
+        assert timeline.measure_numbers == [1, 2, 3, 4, 5]
+
+    def test_time_signatures_set_by_hand_stay_on_their_bars(self, tluis):
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(16))
+        timeline = tluis[0].timeline
+        set_beat_unit(tluis[0], 1, 8, "3")
+        set_beat_unit(tluis[0], 2, 4, "1")
+
+        delete_beats(tluis[0], [4, 5, 6, 7])
+
+        assert time_signatures(timeline) == [("4", 4), ("12", 8), ("4", 4)]
+        assert [
+            (timeline.get_component(beat_unit.beat_id).time, beat_unit.denominator)
+            for beat_unit in timeline.beat_units
+        ] == [(0, 4), (8, 8), (12, 4)]
+
+    def test_numbers_stay_on_their_bars_when_all_of_a_bars_beats_go(self, tluis):
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(8))
+        timeline = tluis[0].timeline
+        timeline.set_measure_number(2, 10)
+
+        delete_beats(tluis[0], [2, 3])
+
+        assert timeline.beats_in_measure == [2, 2, 2]
+        assert timeline.measure_numbers == [1, 2, 10]
+
+    @pytest.mark.parametrize(
+        "beat_count, more, counts",
+        [
+            (16, range(16, 32), [4, 3, 3, 2, 2, 2, 4, 3, 3, 2, 1]),
+            (32, range(32, 48), [4, 3, 3, 2, 2, 2, 4, 3, 3, 2, 2, 2, 4, 3, 3, 2, 1]),
+        ],
+    )
+    def test_the_pattern_stays_in_step_after_all_of_a_bars_beats_go(
+        self, tluis, beat_count, more, counts
+    ):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(beat_count))
+
+        delete_beats(tluis[0], [4, 5, 6])
+        add_beats(more)
+
+        assert tluis[0].timeline.beats_in_measure == counts
+
+    def test_taking_back_the_last_bars_leaves_the_pattern_where_it_was(self, tluis):
+        add_beat_timeline_with_pattern("4/4 2[3/4] 3[2/4]")
+        add_beats(range(16))
+
+        delete_beats(tluis[0], [12, 13, 14, 15])
+        add_beats(range(16, 26))
+
+        assert tluis[0].timeline.beats_in_measure == [4, 3, 3, 2, 2, 2, 4, 2]
 
 
 class TestSelect:

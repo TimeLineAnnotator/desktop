@@ -547,11 +547,10 @@ class TestSetTimeSignature:
 class TestDeletingBeats:
     def test_beat_unit_moves_to_another_beat_of_its_measure(self, beat_tl):
         add_beats(beat_tl, 8)
-        beat_unit = add_beat_unit(beat_tl, 4, 8, "1")
+        add_beat_unit(beat_tl, 4, 8, "1")
 
         beat_tl.delete_components([beat_tl[4]])
 
-        assert beat_unit.beat_id == beat_tl[4].id
         assert beat_unit_values(beat_tl) == [(0, 4, "1"), (4, 8, "1")]
 
     def test_beat_unit_moves_to_the_next_measure_when_its_measure_goes(self, beat_tl):
@@ -582,6 +581,7 @@ class TestDeletingBeats:
         beat_tl.delete_components([beat_tl[4]])
 
         assert beat_tl.beat_units == [first_beat_unit(beat_tl), kept]
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (4, 2, "1")]
 
     def test_deleting_a_beat_unit(self, beat_tl):
         beat_tl.set_data("beat_pattern", [2])
