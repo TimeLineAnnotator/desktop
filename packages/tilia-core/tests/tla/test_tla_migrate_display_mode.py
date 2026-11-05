@@ -114,6 +114,9 @@ def test_the_document_id_is_the_same_with_chord_or_letter():
     ],
 )
 def test_the_report_words_the_count(tmp_path, capsys, files, line):
+    # Without the harmony extra, a file with harmonies is left alone, so the
+    # report lists no changes (test_command_migrate.py has that case).
+    pytest.importorskip("music21", reason="needs the harmony extra")
     content = old_file()
     if files == 2:
         content["timelines"]["1"]["components"]["3"] = {
