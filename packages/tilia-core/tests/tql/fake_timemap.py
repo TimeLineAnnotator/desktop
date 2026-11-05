@@ -219,8 +219,10 @@ class FakeTimeMap:
                 beats=self.beats_per_bar,
                 pass_=self.pass_of(start),
                 beat_unit=4,
-                time_signature=f"{self.beats_per_bar}/4",
+                time_signature=self.time_signature,
                 assumed=False,
+                cadenza=count in self.cadenzas,
+                movement=self.movement_of(count),
             )
             for count, (start, end, number, label) in enumerate(self.measures(), 1)
         ]
@@ -240,6 +242,8 @@ class FakeTimeMap:
             bar_label=self.bar_label(start),
             bar_beat_count=self.measure_beats(start),
             downbeat=self.is_downbeat(start),
+            cadenza=bool(self.cadenza(start)),
+            movement=self.movement(start),
         )
 
 
