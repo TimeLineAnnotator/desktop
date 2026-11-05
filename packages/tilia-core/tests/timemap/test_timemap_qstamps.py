@@ -928,6 +928,7 @@ def test_an_assumed_meter_past_a_last_movement_of_one_beat_is_the_last_gaps():
 
     assert tm.assumed_between(10.0, 10.5)
     assert tm.assumed_between(9.0, 10.0)
+    assert tm.assumed_between(9.0, 9.0)  # a point takes that gap too
     assert not tm.assumed_between(4.0, 9.0)
     assert tm.assumed_between(4.0, 9.5)
 
