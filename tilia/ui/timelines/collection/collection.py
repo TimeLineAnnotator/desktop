@@ -6,6 +6,8 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 if TYPE_CHECKING:
+    from PySide6.QtGui import QColor
+
     from tilia.file.tilia_file import TiliaFile
 
 from PySide6.QtCore import QPoint, Qt
@@ -33,7 +35,7 @@ from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.enums import ScrollType
 from tilia.ui.player import PlayerToolbarElement
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
 from tilia.ui.timelines.collection.import_ import _on_import_to_timeline
@@ -100,7 +102,10 @@ class TimelineUIs:
         self.loop_time = (self.selected_time, self.selected_time)
         self.loop_elements = set()
         self.loop_delete_ignore = set()
-        setup_smooth(self)
+        self.playback_lines_time = self.selected_time
+        self.smooth_playback_lines = SmoothSetter(
+            lambda: self.playback_lines_time, self._set_playback_lines_time
+        )
 
     def __str__(self) -> str:
         return self.__class__.__name__ + "-" + str(id(self))
@@ -186,6 +191,8 @@ class TimelineUIs:
 
         commands.register("timeline.clear", self.on_timeline_clear, "Clear")
 
+        commands.register("timeline.duplicate", self.on_timeline_duplicate, "Duplicate")
+
         commands.register(
             "timeline.set_name",
             self.on_timeline_set_name,
@@ -208,6 +215,13 @@ class TimelineUIs:
             self.on_timeline_copy_element,
             text="&Copy",
             shortcut="Ctrl+C",
+        )
+
+        commands.register(
+            "timeline.component.cut",
+            self.on_timeline_cut_element,
+            text="Cu&t",
+            shortcut="Ctrl+X",
         )
 
         commands.register(
@@ -280,11 +294,24 @@ class TimelineUIs:
         if isinstance(kind, type(Timeline)):
             kind = [kind]
 
+        self._run_timeline_command(
+            self.get_timelines_uis_for_request(kind, selector),
+            callback,
+            *args,
+            **kwargs,
+        )
+
+    def _run_timeline_command(
+        self,
+        timeline_uis: list[TimelineUI],
+        callback: Callable | str,
+        *args,
+        **kwargs,
+    ) -> None:
         # Passing method names is allowed to enable calling methods overridden by TimelineUI subclasses,
         # as we wouldn't be able to pass a different callback for each subclass.
         method_name = callback if isinstance(callback, str) else None
 
-        timeline_uis = self.get_timelines_uis_for_request(kind, selector)
         state_backup = get(Get.APP_STATE)
         result = []
 
@@ -591,8 +618,16 @@ class TimelineUIs:
             getattr(self, "update_" + attr)()
 
     def delete_timeline_ui(self, timeline_ui: TimelineUI):
+        # Before delete(), which schedules the scene for deletion: a selection
+        # box kept past that makes the next clear_selection_boxes() raise.
+        self._forget_selection_boxes_in_scene(timeline_ui.scene)
         timeline_ui.delete()
         self.scene.removeItem(timeline_ui.view.proxy)
+        # Out of the scene, nothing else deletes the proxy and the view it
+        # holds. Left to the garbage collector, they were freed with the
+        # timeline's scene and items at any later moment, in any order, which
+        # could corrupt the heap.
+        timeline_ui.view.proxy.deleteLater()
         self._remove_from_timeline_uis_set(timeline_ui)
         self._remove_from_timeline_ui_select_order(timeline_ui)
         self._hide_toolbar_if_needed(timeline_ui)
@@ -643,7 +678,10 @@ class TimelineUIs:
     def update_height(self):
         self.update_timeline_uis_position()
         self.scene.setSceneRect(0, 0, get(Get.TIMELINE_WIDTH), self.get_scene_height())
-        self.set_playback_lines_position(get(Get.MEDIA_CURRENT_TIME))
+        # The media time, which can change without a time change being posted,
+        # as when media is unloaded. At once, so a movement can't carry on from
+        # where it was.
+        self.smooth_playback_lines.set_now(get(Get.MEDIA_CURRENT_TIME))
         self.change_loop_box_position()
 
     def update_level_count(self):
@@ -876,6 +914,12 @@ class TimelineUIs:
         for sb in self.selection_boxes.copy():
             sb.scene().removeItem(sb)
             self.selection_boxes.remove(sb)
+
+    def _forget_selection_boxes_in_scene(self, scene: QGraphicsScene) -> None:
+        """Forgets the selection boxes in `scene`, which is about to be deleted."""
+        self.selection_boxes = [
+            sb for sb in self.selection_boxes if sb.scene() is not scene
+        ]
 
     def on_selection_box_select_item(
         self, scene: QGraphicsScene, item: QGraphicsItem
@@ -1256,6 +1300,18 @@ class TimelineUIs:
         return True
 
     @staticmethod
+    @command_callback
+    def on_timeline_duplicate(timeline_ui: TimelineUI) -> bool:
+        timeline = timeline_ui.timeline
+        if TimelineFlag.NOT_DUPLICATABLE in timeline.FLAGS:
+            return False
+
+        get(Get.TIMELINE_COLLECTION).duplicate_timeline(
+            timeline, timeline.get_data("name") + "_copy"
+        )
+        return True
+
+    @staticmethod
     def on_timeline_data_set(id: int, attr: str, value: Any) -> bool:
         return get(Get.TIMELINE_COLLECTION).set_timeline_data(id, attr, value)
 
@@ -1296,9 +1352,12 @@ class TimelineUIs:
 
         return self.on_timeline_data_set(timeline_ui.id, "height", height)
 
-    def on_timeline_set_component_color(self) -> None:
-        success, color = get(Get.FROM_USER_COLOR)
-        if not success or not color.isValid():
+    def on_timeline_set_component_color(self, color: QColor | None = None) -> None:
+        if color is None:
+            success, color = get(Get.FROM_USER_COLOR)
+            if not success:
+                return
+        if not color.isValid():
             return
 
         @with_elements
@@ -1331,16 +1390,10 @@ class TimelineUIs:
         )
 
     def on_timeline_delete_element(self):
-        def components_are_deletable(flags: list[TimelineFlag]):
-            return (
-                TimelineFlag.COMPONENTS_NOT_DELETABLE not in flags
-                and TimelineFlag.COMPONENTS_NOT_EDITABLE not in flags
-            )
-
         kinds = [
             cls
             for cls in Timeline.__subclasses__()
-            if components_are_deletable(cls.FLAGS)
+            if _components_are_deletable(cls.FLAGS)
         ]
 
         self.on_timeline_command(
@@ -1349,7 +1402,7 @@ class TimelineUIs:
             TimelineSelector.SELECTED,
         )
 
-    def on_timeline_copy_element(self):
+    def _get_timeline_ui_to_copy_from(self) -> TimelineUI | None:
         kinds = Timeline.get_kinds_by_flag(TimelineFlag.COMPONENTS_COPYABLE)
         timeline_uis = self.get_timelines_uis_for_request(
             kinds, TimelineSelector.SELECTED
@@ -1365,8 +1418,26 @@ class TimelineUIs:
             )
             return
 
-        timeline_ui = timeline_uis[0]
-        timeline_ui.on_copy_element(timeline_ui.selected_elements)
+        return timeline_uis[0]
+
+    def on_timeline_copy_element(self) -> None:
+        timeline_ui = self._get_timeline_ui_to_copy_from()
+        if timeline_ui is not None:
+            timeline_ui.on_copy_element(timeline_ui.selected_elements)
+
+    def on_timeline_cut_element(self) -> None:
+        timeline_ui = self._get_timeline_ui_to_copy_from()
+        if (
+            timeline_ui is None
+            # Hierarchy paste only applies attributes to a selected hierarchy,
+            # so a cut hierarchy could not be pasted back.
+            or timeline_ui.timeline_class is HierarchyTimeline
+            or not _components_are_deletable(timeline_ui.timeline_class.FLAGS)
+            or not timeline_ui.on_copy_element(timeline_ui.selected_elements)
+        ):
+            return
+
+        self._run_timeline_command([timeline_ui], "on_delete_component")
 
     def on_timeline_paste_element(self, type: str = ""):
         if type == "complete":
@@ -1415,15 +1486,15 @@ class TimelineUIs:
     def _apply_zoom(self, new_width: float) -> bool:
         if new_width < 1 or new_width > MAX_PLAYBACK_WIDTH:
             return False
-        prev_smooth_scroll = settings.get("general", "prioritise_performance")
-        if not prev_smooth_scroll:
-            settings.set("general", "prioritise_performance", True)
         self.view.setUpdatesEnabled(False)
         post(Post.PLAYBACK_AREA_SET_WIDTH, new_width)
-        self.center_on_time(self.selected_time)
+        # At once, as a smooth movement would start from where the old width put
+        # the view. On the playback lines, which may still be moving towards
+        # the selected time.
+        self.view.smooth_x.set_now(
+            time_x_converter.get_x_by_time(self.playback_lines_time)
+        )
         self.view.setUpdatesEnabled(True)
-        if not prev_smooth_scroll:
-            settings.set("general", "prioritise_performance", False)
         return True
 
     def _on_file_loaded(self, file: TiliaFile) -> None:
@@ -1473,18 +1544,17 @@ class TimelineUIs:
         self.view.move_to_x(x + self.view.scroll_offset)
 
     def on_media_time_change(self, time: float, reason: MediaTimeChangeReason) -> None:
-        def __get_time():
-            return self.selected_time
-
-        @smooth(self, __get_time)
-        def __set_time(time):
-            self.set_playback_lines_position(time)
-            self.selected_time = time
-
         self._auto_scroll(reason, time)
 
         if not self.is_dragging:
-            __set_time(time)
+            # Only the lines move smoothly: what is added at the selected time
+            # goes at the media's time.
+            self.selected_time = time
+            self.smooth_playback_lines(time)
+
+    def _set_playback_lines_time(self, time: float) -> None:
+        self.playback_lines_time = time
+        self.set_playback_lines_position(time)
 
     def set_is_dragging(self, is_dragging: bool) -> None:
         # noinspection PyAttributeOutsideInit
@@ -1493,9 +1563,8 @@ class TimelineUIs:
             self.clear_selection_boxes()
 
     def on_slider_drag(self, x: float):
-        time = time_x_converter.get_time_by_x(x)
-        self.selected_time = time
-        self.set_playback_lines_position(time)
+        self.selected_time = time_x_converter.get_time_by_x(x)
+        self.smooth_playback_lines.set_now(self.selected_time)
 
     def set_auto_scroll(self, value: ScrollType):
         # noinspection PyAttributeOutsideInit
@@ -1635,6 +1704,13 @@ class TimelineUIs:
 
     def on_timeline_deleted(self, id: int):
         self.delete_timeline_ui(self.get_timeline_ui(id))
+
+
+def _components_are_deletable(flags: list[TimelineFlag]) -> bool:
+    return (
+        TimelineFlag.COMPONENTS_NOT_DELETABLE not in flags
+        and TimelineFlag.COMPONENTS_NOT_EDITABLE not in flags
+    )
 
 
 class TimelineSelector(Enum):

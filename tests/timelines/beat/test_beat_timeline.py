@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.utils import undoable
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui import commands
 
 
@@ -256,6 +257,37 @@ class TestBeatTimeline:
         beat_tl.set_measure_number(2, 10)
         assert beat_tl.measure_numbers == [1, 2, 10, 11, 5, 6]
         assert beat_tl.measures_to_force_display == [4, 2]
+
+    def test_set_measure_number_twice_forces_display_once(self, beat_tl):
+        beat_tl.measure_numbers = [1, 2, 3, 4]
+        beat_tl.set_measure_number(1, 10)
+        beat_tl.set_measure_number(1, 10)
+        assert beat_tl.measures_to_force_display == [1]
+
+    def test_reset_measure_number_unforces_display_after_repeated_sets(self, beat_tl):
+        beat_tl.measure_numbers = [1, 2, 3, 4]
+        beat_tl.set_measure_number(1, 10)
+        beat_tl.set_measure_number(1, 20)
+        beat_tl.set_measure_number(1, 30)
+        beat_tl.reset_measure_number(1)
+        assert beat_tl.measures_to_force_display == []
+
+    def test_reduce_measure_numbers_drops_forced_display_out_of_range(self, beat_tl):
+        beat_tl.set_data("beat_pattern", [1])
+        for i in range(5):
+            beat_tl.create_beat(time=i + 1)
+        beat_tl.recalculate_measures()
+
+        # forcing a later measure first leaves the list unsorted
+        beat_tl.set_measure_number(4, 40)
+        beat_tl.set_measure_number(1, 10)
+        assert beat_tl.measures_to_force_display == [4, 1]
+
+        beat_tl.delete_components([beat_tl[2], beat_tl[3], beat_tl[4]])
+        beat_tl.recalculate_measures()
+
+        assert beat_tl.measure_count == 2
+        assert beat_tl.measures_to_force_display == [1]
 
     def test_reset_measure_number_first_measure(self, beat_tl):
         beat_tl.measure_numbers = [1, 2, 3, 4]
@@ -517,3 +549,27 @@ class TestBeatTimeline:
                 timeline.delete_components(list(timeline.components))
 
         assert component_manager.compute_is_first_in_measure is True
+
+
+class TestGetExtensionFromBeatPattern:
+    def test_starting_measure_emptier_than_beat_pattern(self):
+        extension = BeatTimeline.get_extension_from_beat_pattern(
+            [4], 3, beats_on_starting_measure=2
+        )
+        assert extension == [2, 1]
+
+    def test_starting_measure_as_full_as_beat_pattern(self):
+        extension = BeatTimeline.get_extension_from_beat_pattern(
+            [4], 3, beats_on_starting_measure=4
+        )
+        assert extension == [3]
+
+    def test_starting_measure_fuller_than_beat_pattern(self):
+        """ "Set amount in measure" can put more beats in a measure than the
+        beat pattern prescribes for it. There is nothing left to fill in that
+        case, so the extension has to start a new measure.
+        """
+        extension = BeatTimeline.get_extension_from_beat_pattern(
+            [4], 3, beats_on_starting_measure=5
+        )
+        assert extension == [3]
