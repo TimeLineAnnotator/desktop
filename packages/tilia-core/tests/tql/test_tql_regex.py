@@ -1274,9 +1274,9 @@ def test_check_packages_installs_the_core_wheel_with_the_extra_in_a_second_envir
 ):
     wheel = tmp_path / "tilia_core-0.0.1-py3-none-any.whl"
     script.check_core_with_regex(wheel, tmp_path)
-    install, probe, tests = script.steps
+    _, install, probe, tests = script.steps
     assert f"{wheel}[regex]" in install[0]  # one argument, for Windows
-    assert "pytest" in install[0]
+    assert install[0][install[0].index("--group") + 1].endswith("pyproject.toml:tests")
     assert probe[0][-2:] == ["-c", script.REGEX_IN_USE]
     assert probe[0][0] == install[0][0]
     assert tests[0][:3] == [install[0][0], "-m", "pytest"]

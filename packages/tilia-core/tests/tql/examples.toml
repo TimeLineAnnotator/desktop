@@ -1,4 +1,4 @@
-# TQL 0.1.0: the printed examples as tests (tql.md §11; constitution, Principle V).
+# TQL 0.2: the printed examples as tests (tql.md §11; constitution, Principle V).
 #
 # Each [[example]] runs `query` on a made-up file, its `fixture`, and must give
 # exactly `rows`, in any order; `plan` names where the plan prints it. The

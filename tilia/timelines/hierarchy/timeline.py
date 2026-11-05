@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import itertools
+from math import isclose
 from typing import Any
 
 import tilia.errors
@@ -16,6 +17,31 @@ from tilia.timelines.component_kinds import ComponentKind
 from ...ui.format import format_media_time
 from ..base.timeline import Timeline, TimelineComponentManager, TimelineFlag
 from .components import Hierarchy
+
+# Hierarchy boundaries are compared with a tolerance rather than with exact
+# float operators. Rescaling operations no longer introduce drift — paste-complete
+# maps the whole subtree with a single affine map, and scaling for a media-duration
+# change applies one factor uniformly — so times meant to be coincident come out
+# coincident. The tolerance is a safeguard for legacy files: those saved before
+# that fix already contain boundaries a few ulps apart (~1e-13) where they should
+# coincide, and exact comparison reads that float noise as a real overlap. The
+# tolerance sits far above the noise and far below any meaningful musical interval,
+# so genuine overlaps are still detected.
+_TIME_ABS_TOL = 1e-9
+
+
+def _times_close(a: float, b: float) -> bool:
+    return isclose(a, b, abs_tol=_TIME_ABS_TOL)
+
+
+def _le(a: float, b: float) -> bool:
+    """``a <= b``, treating near-coincident times as equal."""
+    return a < b or _times_close(a, b)
+
+
+def _lt(a: float, b: float) -> bool:
+    """``a < b``, treating near-coincident times as equal (i.e. not less)."""
+    return a < b and not _times_close(a, b)
 
 
 class HierarchyTLComponentManager(TimelineComponentManager):
@@ -40,7 +66,9 @@ class HierarchyTLComponentManager(TimelineComponentManager):
         candidates = {
             h
             for h in self
-            if h.start <= child.start and h.end >= child.end and h.level > child.level
+            if _le(h.start, child.start)
+            and _le(child.end, h.end)
+            and h.level > child.level
         }
         if not candidates:
             return None
@@ -51,8 +79,8 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             return {
                 h
                 for h in hierarchy_iter
-                if above.start <= h.start
-                and above.end >= h.end
+                if _le(above.start, h.start)
+                and _le(h.end, above.end)
                 and above.level > h.level
             }
 
@@ -73,26 +101,31 @@ class HierarchyTLComponentManager(TimelineComponentManager):
 
         conflicts = []
 
+        def starts_or_ends_strictly_inside(outer: Hierarchy, inner: Hierarchy) -> bool:
+            return (_lt(outer.start, inner.start) and _lt(inner.start, outer.end)) or (
+                _lt(outer.start, inner.end) and _lt(inner.end, outer.end)
+            )
+
         for hrc1, hrc2 in itertools.combinations(self._components, 2):
-            if hrc1.start < hrc2.start < hrc1.end or hrc1.start < hrc2.end < hrc1.end:
+            if starts_or_ends_strictly_inside(hrc1, hrc2):
                 # hrc2 starts or ends inside hrc1
                 if hrc2.level >= hrc1.level:
                     # if it is on the same level or higher, there's a conflict
                     conflicts.append((hrc1, hrc2))
-                elif not hrc1.start > hrc2.start and hrc1.end < hrc2.end:
+                elif not _lt(hrc2.start, hrc1.start) and _lt(hrc1.end, hrc2.end):
                     # if it doesn't start AND end inside, there's a conflict
                     conflicts.append((hrc1, hrc2))
 
             # repeat swapping hr1 and hrc2
-            if hrc2.start < hrc1.start < hrc2.end or hrc2.start < hrc1.end < hrc2.end:
+            if starts_or_ends_strictly_inside(hrc2, hrc1):
                 if hrc1.level >= hrc2.level:
                     conflicts.append((hrc2, hrc1))
-                elif not hrc2.start > hrc1.start and hrc2.end < hrc1.end:
+                elif not _lt(hrc1.start, hrc2.start) and _lt(hrc2.end, hrc1.end):
                     conflicts.append((hrc2, hrc1))
 
             if (
-                hrc1.start == hrc2.start
-                and hrc1.end == hrc2.end
+                _times_close(hrc1.start, hrc2.start)
+                and _times_close(hrc1.end, hrc2.end)
                 and hrc1.level == hrc2.level
             ):
                 # if hierarchies have same times and level, there's a conflict
@@ -136,10 +169,14 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             ]
 
             for unit_to_check in units_to_check:
-                start_inside_group = start <= unit_to_check.start < end
-                ends_inside_group = start < unit_to_check.end <= end
-                comprehends_group = (
-                    unit_to_check.start <= start and end <= unit_to_check.end
+                start_inside_group = _le(start, unit_to_check.start) and _lt(
+                    unit_to_check.start, end
+                )
+                ends_inside_group = _lt(start, unit_to_check.end) and _le(
+                    unit_to_check.end, end
+                )
+                comprehends_group = _le(unit_to_check.start, start) and _le(
+                    end, unit_to_check.end
                 )
 
                 if (
@@ -169,10 +206,10 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             """Raises False if there is a unit in grouping level that spans
             or exceeds the interval between 'start_time' and 'end_time'."""
             if any(
-                [
-                    u.start <= start < u.end or u.start < end <= u.end
-                    for u in [u for u in self.timeline if u.level == grouping_level]
-                ]
+                (_le(u.start, start) and _lt(start, u.end))
+                or (_lt(u.start, end) and _le(end, u.end))
+                for u in self.timeline
+                if u.level == grouping_level
             ):
                 return (
                     False,

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from .syntax import (
     SEQ_RELATIONS,
+    Alt,
+    AnyOf,
     Children,
     Compare,
     Cond,
@@ -78,6 +80,8 @@ _DIRECTLY = ", directly followed by "
 
 
 def _ex_lit(lit: Literal) -> str:
+    if lit.kind == "chord":
+        return lit.raw
     if lit.kind == "any":
         return "anything"
     if lit.kind == "exact":
@@ -87,6 +91,32 @@ def _ex_lit(lit: Literal) -> str:
     return lit.raw
 
 
+def _ex_alt(a: Alt) -> str:
+    """One alternative: ``labelled verse``, ``labelled verse and chorus
+    together``, ``not labelled bridge or outro``, ``labelled verse but not
+    chorus``."""
+    yes = [_ex_lit(lit) for lit in a.lits if not lit.negate and lit.kind != "any"]
+    no = [_ex_lit(lit) for lit in a.lits if lit.negate]
+    if not yes and not no:
+        return "anything"
+    if len(yes) > 1:
+        pos = "labelled " + " and ".join(yes) + " together"
+    elif yes:
+        pos = "labelled " + yes[0]
+    else:
+        pos = ""
+    if not no:
+        return pos
+    if not pos:
+        return "not labelled " + _or_list(no)
+    return f"{pos} but not {_or_list(no)}"
+
+
+def _or_list(xs: list[str]) -> str:
+    """``a``, ``a or b``, ``a, b or c``."""
+    return xs[0] if len(xs) == 1 else ", ".join(xs[:-1]) + " or " + xs[-1]
+
+
 def _ex_term(t: Term | None) -> str:
     if t is None:
         return "any unit"
@@ -94,21 +124,19 @@ def _ex_term(t: Term | None) -> str:
     if len(t.alts) == 1 and len(lits) == 1:
         lit = lits[0]
         if lit.kind == "any":
-            return "nothing (NOT * excludes every unit)" if t.negate else "any unit"
+            return "nothing (NOT * excludes every unit)" if lit.negate else "any unit"
         if lit.kind == "regex":
             return (
                 f"a unit whose label does not match /{lit.text}/"
-                if t.negate
+                if lit.negate
                 else f"a unit whose label matches /{lit.text}/"
             )
-    alts = []
-    for a in t.alts:
-        if len(a.lits) == 1:
-            alts.append(_ex_lit(a.lits[0]))
-        else:
-            alts.append(" and ".join(_ex_lit(lit) for lit in a.lits) + " together")
-    body = " or ".join(alts)
-    return f"a unit not labelled {body}" if t.negate else f"a unit labelled {body}"
+    if all(len(a.lits) == 1 and not a.lits[0].negate for a in t.alts):
+        return "a unit labelled " + " or ".join(_ex_lit(a.lits[0]) for a in t.alts)
+    alts = [_ex_alt(a) for a in t.alts]
+    if len(alts) == 1:
+        return f"a unit {alts[0]}"
+    return "a unit " + ", or ".join(alts)
 
 
 def _num(x: float) -> str:
@@ -159,7 +187,18 @@ def _ex_value(v: Value) -> str:
     return v.raw
 
 
+def _ex_conds(conds: list[Cond]) -> str:
+    return " and ".join(_ex_cond(c) for c in conds)
+
+
 def _ex_cond(c: Cond) -> str:
+    if isinstance(c, AnyOf):
+        s = " or ".join(
+            f"({_ex_conds(cl)})" if len(cl) > 1 else _ex_conds(cl) for cl in c.clauses
+        )
+        if c.negate:
+            return f"none of: {s}" if len(c.clauses) > 1 else f"not ({s})"
+        return f"({s})" if len(c.clauses) > 1 else s
     if isinstance(c, Compare):
         op = _OP_EN[c.op]
         if c.value.kind == "range":
@@ -249,7 +288,7 @@ def _ex_quant(lo: int, hi: int | None) -> str:
 def _ex_unit(u: Unit) -> str:
     s = _ex_term(u.term)
     if u.conds:
-        s += " where " + " and ".join(_ex_cond(c) for c in u.conds)
+        s += " where " + _ex_conds(u.conds)
     return s
 
 
@@ -257,7 +296,7 @@ def _ex_step(st: Step, joiner: str = _DIRECTLY) -> str:
     it = st.item
     if isinstance(it, Group):
         inner = " or ".join(f"({_ex_seq(o, joiner=joiner)})" for o in it.options)
-        body = f"the group {inner}"
+        body = f"one unit that is not {inner}" if it.negate else f"the group {inner}"
     else:
         body = _ex_unit(it)
     return _ex_quant(st.lo, st.hi) + body + (" (the result)" if st.target else "")
@@ -293,10 +332,7 @@ def explain(q: Query) -> str:
         lane = f" in {_ex_lane(p.lane)}" if p.lane else ""
         parts.append(f"{_ex_unit(p.left)}{lane} that {_ex_rel(p.relation)}")
     if q.where:
-        parts.append(
-            ("where " if parts else "everything where ")
-            + " and ".join(_ex_cond(c) for c in q.where)
-        )
+        parts.append(("where " if parts else "everything where ") + _ex_conds(q.where))
     if q.action:
         a = q.action
         if a.verb == "DELETE":
