@@ -36,9 +36,11 @@ Repository = "https://github.com/TimeLineAnnotator/desktop"
 [dependency-groups]
 # jsonschema checks files against the format's schema in the tests only: it
 # pulls in a compiled package, which the core itself never imports.
-# regex stays out: scripts/check_packages.py tests the core without it, and
-# again with the core's regex extra.
-dev = ["pytest>=8.0.0", "jsonschema>=4.23"]
+tests = ["pytest>=8.0.0", "jsonschema>=4.23"]
+# With regex, development tests the time limit. scripts/check_packages.py
+# installs `tests` instead: it tests the core without regex, and again with
+# the core's regex extra.
+dev = [{include-group = "tests"}, "regex>=2024.9.11"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

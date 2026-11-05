@@ -2,7 +2,7 @@
 
 Builds the wheels of tilia-core and tilia-library, installs each into a fresh
 virtual environment (the library with the core wheel from this checkout), with
-its ``dev`` dependency group, checks that neither PySide6 nor the TiLiA app
+the dependency group its tests need, checks that neither PySide6 nor the TiLiA app
 (``tilia``) is importable there, and runs the package's tests with that
 environment's interpreter.
 
@@ -29,6 +29,10 @@ FORBIDDEN = ("PySide6", "shiboken6", "tilia")
 # pip reads a pyproject.toml's dependency groups from 25.1 on. A fresh
 # environment's own pip can be older: Python 3.10 brings 23.0.1.
 PIP_WITH_GROUPS = "pip>=25.1"
+# What a package's tests need besides the package, read from its pyproject.toml
+# so that there is no copy to drift. tilia-core's dev group also has regex, which
+# the first environment must not have.
+TEST_GROUPS = {"tilia-core": "tests", "tilia-library": "dev"}
 
 FIND_SPEC = (
     "import importlib.util, sys\n"
@@ -90,9 +94,7 @@ def check_package(
         tmp,
         f"{name}: a pip that reads dependency groups",
     )
-    # What the package's tests need besides the package: its dev group, which
-    # pip reads from its pyproject.toml, so that there is no copy to drift.
-    group = f"{PACKAGES / name / 'pyproject.toml'}:dev"
+    group = f"{PACKAGES / name / 'pyproject.toml'}:{TEST_GROUPS[name]}"
     run(
         [python, "-m", "pip", "install", "--group", group, *map(str, wheels)],
         tmp,
@@ -130,7 +132,7 @@ def check_core_with_regex(core: Path, tmp: Path) -> None:
         tmp,
         "tilia-core with the regex extra: a pip that reads dependency groups",
     )
-    group = f"{PACKAGES / 'tilia-core' / 'pyproject.toml'}:dev"
+    group = f"{PACKAGES / 'tilia-core' / 'pyproject.toml'}:{TEST_GROUPS['tilia-core']}"
     run(
         # one argument, for Windows: the extra's brackets are no shell syntax
         [python, "-m", "pip", "install", "--group", group, f"{core}[regex]"],
