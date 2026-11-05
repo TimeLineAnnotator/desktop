@@ -17,7 +17,7 @@ from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
 from tilia.ui.menus import ScoreMenu
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.timeline import TimelineUI
 from tilia.ui.timelines.cursors import CursorMixIn
 from tilia.ui.timelines.drag import DragManager
@@ -55,6 +55,11 @@ class ScoreTimelineUI(TimelineUI):
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
 
     STAFF_MIN_HEIGHT = 150
+    # A staff with no clef TiLiA can read (none in the file, or a percussion,
+    # none or TAB clef) places its notes as in treble clef, as MuseScore,
+    # Verovio and OSMD do, and draws no clef: B4 (step 6, octave 4) on the
+    # middle line.
+    TREBLE_CENTRAL_STEP = (6, 4)
     SYMBOLS_ABOVE_STAFF_MAX_HEIGHT = 50
 
     def __init__(self, *args, **kwargs):
@@ -87,25 +92,39 @@ class ScoreTimelineUI(TimelineUI):
     def _setup_pixmaps(self):
         self.pixmaps = {
             "time signature": {
-                n: QIcon.fromTheme(self.get_time_signature_icon_name(n)).pixmap(48, 48)
-                for n in range(10)
+                character: QIcon.fromTheme(
+                    self.get_time_signature_icon_name(character)
+                ).pixmap(48, 48)
+                for character in "0123456789+"
             },
         }
 
     @property
-    def svg_view(self):
+    def svg_view(self) -> SvgViewer | None:
+        """The score viewer serving this timeline, or None if there is none.
+
+        Reading this never creates a viewer. Use `get_or_create_svg_view`
+        when one is required.
+        """
         try:
             return get(Get.SCORE_VIEWER, self.id)
         except NoReplyToRequest:
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            if self.timeline.svg_data:
-                viewer.load_svg_data(self.timeline.svg_data)
-                self.measure_tracker.setVisible(not viewer.is_hidden)
+            return None
+
+    def get_or_create_svg_view(self) -> SvgViewer:
+        """This timeline's score viewer, creating and loading one if needed."""
+        if (viewer := self.svg_view) is not None:
             return viewer
 
+        viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
+        if self.timeline.svg_data:
+            viewer.load_svg_data(self.timeline.svg_data)
+            self.measure_tracker.setVisible(not viewer.is_hidden)
+        return viewer
+
     @staticmethod
-    def get_time_signature_icon_name(n: int) -> str:
-        return f"time-signature-{n}"
+    def get_time_signature_icon_name(character: str) -> str:
+        return f"time-signature-{'plus' if character == '+' else character}"
 
     def on_settings_updated(self, updated_settings):
         if "score_timeline" in updated_settings:
@@ -114,8 +133,8 @@ class ScoreTimelineUI(TimelineUI):
     def update_name(self):
         name = self.get_data("name")
         self.scene.set_text(name)
-        if self.svg_view:
-            self.svg_view.update_title(name)
+        if (viewer := self.svg_view) is not None:
+            viewer.update_title(name)
 
     def get_staff_y_cache(self):
         return {
@@ -176,6 +195,10 @@ class ScoreTimelineUI(TimelineUI):
         set_data: Callable[[str, Any], None],
     ):
         element = super().on_timeline_component_created(kind, id, get_data, set_data)
+        self._add_to_caches(element)
+
+    def _add_to_caches(self, element: TimelineUIElement) -> None:
+        kind = element.kind
         if kind == ComponentKind.STAFF:
             self.update_height()
             index = element.get_data("index")
@@ -189,9 +212,9 @@ class ScoreTimelineUI(TimelineUI):
             if not self.first_bar_line:
                 self.first_bar_line = element
                 self.last_bar_line = element
-            elif get_data("time") > self.last_bar_line.get_data("time"):
+            elif element.get_data("time") > self.last_bar_line.get_data("time"):
                 self.last_bar_line = element
-            elif get_data("time") == self.last_bar_line.get_data("time"):
+            elif element.get_data("time") == self.last_bar_line.get_data("time"):
                 self.last_bar_line = element
         elif kind == ComponentKind.NOTE:
             self._update_staff_extreme_notes(element.get_data("staff_index"), element)
@@ -282,6 +305,14 @@ class ScoreTimelineUI(TimelineUI):
             cache[idx][(start_time, get(Get.MEDIA_DURATION))] = clefs_in_staff[-1]
         return cache
 
+    def get_central_step(self, time: float, staff_index: int) -> tuple[int, int]:
+        """The step and octave of a staff's middle line at `time`, as its clef
+        gives them, or as in treble clef if the staff has none."""
+        clef = self.get_clef_by_time(time, staff_index)
+        if not clef:
+            return self.TREBLE_CENTRAL_STEP
+        return clef.central_step()
+
     def get_clef_by_time(self, time: float, staff_index: int) -> ClefUI | None:
         if staff_index not in self.clef_time_cache:
             return None
@@ -365,27 +396,22 @@ class ScoreTimelineUI(TimelineUI):
         if not staff:
             return None
 
-        clef = self.get_clef_by_time(time, staff_index)
         line_count = staff.get_data("line_count")
-        clef_step = clef.get_data("step")
-        clef_octave = clef.get_data("octave")
-        clef_line_number = clef.get_data("line_number")
+        central_step, central_octave = self.get_central_step(time, staff_index)
 
         upper_line_number = math.floor(line_count / 2)
-        upper_step_diff = (upper_line_number - clef_line_number) * 2
-        upper_step = clef_step + upper_step_diff
+        upper_step = central_step + upper_line_number * 2
         upper_step_octave_diff = upper_step // 7
 
         lower_line_number = math.floor(line_count / 2) * -1
-        lower_step_diff = (lower_line_number - clef_line_number) * 2
-        lower_step = clef_step + lower_step_diff
+        lower_step = central_step + lower_line_number * 2
         lower_step_octave_diff = lower_step // 7
         while lower_step < 0:
             lower_step += 7
 
-        return (lower_step, clef_octave + lower_step_octave_diff), (
+        return (lower_step, central_octave + lower_step_octave_diff), (
             upper_step % 7,
-            clef_octave + upper_step_octave_diff,
+            central_octave + upper_step_octave_diff,
         )
 
     def update_height(self):
@@ -413,12 +439,23 @@ class ScoreTimelineUI(TimelineUI):
         if id != self.id:
             return
         self._reset_caches()
+        # The tracker would go on to the cleared score's measures.
+        self.smooth_tracker.stop()
         self.reset_svg()
+
+    def _rebuild_caches(self) -> None:
+        # The caches grow as components are created, but undo and redo also
+        # delete components, one by one: they're rebuilt from the elements
+        # that remain.
+        self._reset_caches()
+        for element in self.elements:
+            self._add_to_caches(element)
 
     def on_score_timeline_components_deserialized(self, id: int):
         if id != self.id:
             return
 
+        self._rebuild_caches()
         success = self._validate_staff_numbers()
         if not success:
             tilia.errors.display(tilia.errors.SCORE_STAFF_ID_ERROR, self.staff_numbers)
@@ -459,31 +496,37 @@ class ScoreTimelineUI(TimelineUI):
         return (x1 - x0) / self._measure_count
 
     def on_audio_time_change(self, time: float, _) -> None:
-        try:
-            svg_view = get(Get.SCORE_VIEWER, self.id)
-        except NoReplyToRequest:
-            return
-        if svg_view.is_svg_loaded:
-            svg_view.scroll_to_time(time, False)
+        if (viewer := self.svg_view) is not None and viewer.is_svg_loaded:
+            viewer.scroll_to_time(time, False)
 
     def _setup_svg_view(self) -> None:
         self.tracker_start = 0
         self.tracker_end = 0
         self.dragged = False
-        setup_smooth(self)
+        self.smooth_tracker = self.create_smooth_setter(
+            lambda: QPointF(self.tracker_start, self.tracker_end),
+            self._set_measure_tracker_times,
+        )
         self.measure_tracker = MeasureTracker()
         self.scene.addItem(self.measure_tracker)
 
         if self.timeline.svg_data:
-            viewer = SvgViewer(name=self.get_data("name"), tl_id=self.id)
-            viewer.load_svg_data(self.timeline.svg_data)
-            self.measure_tracker.show()
+            self.get_or_create_svg_view()
 
     def update_svg_data(self) -> None:
-        self.svg_view.load_svg_data(self.timeline.svg_data)
+        if not self.timeline.svg_data:
+            # No score left to show. Reached when the timeline is cleared and
+            # when undo/redo restores a state where it was.
+            self.reset_svg()
+        elif (viewer := self.svg_view) is None:
+            # Creating the viewer loads the current data as part of its setup.
+            self.get_or_create_svg_view()
+        else:
+            viewer.load_svg_data(self.timeline.svg_data)
 
-    def reset_svg(self):
-        self.svg_view.deleteLater()
+    def reset_svg(self) -> None:
+        if (viewer := self.svg_view) is not None:
+            viewer.deleteLater()
 
     def on_left_click(self, item, modifier, double, x, y):
         if item != self.measure_tracker:
@@ -505,7 +548,8 @@ class ScoreTimelineUI(TimelineUI):
             post(Post.ELEMENT_DRAG_START)
 
     def after_each_drag(self, drag_x: int):
-        self.svg_view.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
+        if (viewer := self.svg_view) is not None:
+            viewer.scroll_to_time(time_x_converter.get_time_by_x(drag_x), True)
 
     def on_drag_end(self):
         if self.dragged:
@@ -515,29 +559,25 @@ class ScoreTimelineUI(TimelineUI):
     def update_measure_tracker_position(
         self, start: float | None = None, end: float | None = None
     ) -> None:
-        def __get_tracker_position() -> QPointF:
-            return QPointF(self.tracker_start, self.tracker_end)
-
-        @smooth(self, __get_tracker_position)
-        def __set_tracker_position(point: QPointF):
-            self.tracker_start = point.x()
-            self.tracker_end = point.y()
-            __update_position()
-
-        def __update_position():
-            self.measure_tracker.update_position(
-                time_x_converter.get_x_by_time(self.tracker_start),
-                time_x_converter.get_x_by_time(self.tracker_end),
-                self.view.height(),
-            )
-
         if not (start or end):
-            __update_position()
+            self._update_measure_tracker()
         else:
-            __set_tracker_position(QPointF(start, end))
+            self.smooth_tracker(QPointF(start, end))
+
+    def _set_measure_tracker_times(self, times: QPointF) -> None:
+        self.tracker_start = times.x()
+        self.tracker_end = times.y()
+        self._update_measure_tracker()
+
+    def _update_measure_tracker(self) -> None:
+        self.measure_tracker.update_position(
+            time_x_converter.get_x_by_time(self.tracker_start),
+            time_x_converter.get_x_by_time(self.tracker_end),
+            self.view.height(),
+        )
 
     def on_timeline_width_set_done(self, _: float) -> None:
-        if self.svg_view and self.svg_view.is_svg_loaded:
+        if (viewer := self.svg_view) is not None and viewer.is_svg_loaded:
             self.update_measure_tracker_position()
 
 

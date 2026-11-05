@@ -76,10 +76,14 @@ class ManageTimelines(QDialog):
 
         self.clear_button = QPushButton("Clear")
         self.clear_button.pressed.connect(list_widget.on_clear_button)
+
+        self.duplicate_button = QPushButton("Duplicate")
+        self.duplicate_button.pressed.connect(list_widget.on_duplicate_button)
         right_layout.addWidget(self.up_button)
         right_layout.addWidget(self.down_button)
         right_layout.addWidget(checkbox)
         right_layout.addWidget(self.clear_button)
+        right_layout.addWidget(self.duplicate_button)
         right_layout.addWidget(self.delete_button)
 
         layout.addLayout(right_layout)
@@ -104,6 +108,9 @@ class ManageTimelines(QDialog):
             is_visible
             and TimelineFlag.NOT_CLEARABLE not in timeline.FLAGS
             and not timeline.is_empty
+        )
+        self.duplicate_button.setEnabled(
+            TimelineFlag.NOT_DUPLICATABLE not in timeline.FLAGS
         )
         if not is_visible:
             self.delete_button.setToolTip("Timeline is hidden; cannot delete.")
@@ -187,8 +194,12 @@ class TimelinesListWidget(QListWidget):
             self.setCurrentRow(max(0, self.model().rowCount() - 1))
 
     def update_items(self):
+        # While the old items go, the current item can land on one whose
+        # timeline was just deleted. Callers set the current row afterwards.
+        self.blockSignals(True)
         self.clear()
         self._setup_items()
+        self.blockSignals(False)
 
     def on_up_button(self):
         if not self.selectedIndexes():
@@ -222,3 +233,6 @@ class TimelinesListWidget(QListWidget):
 
     def on_clear_button(self):
         commands.execute("timeline.clear", self.selected_timeline_ui)
+
+    def on_duplicate_button(self):
+        commands.execute("timeline.duplicate", self.selected_timeline_ui)
