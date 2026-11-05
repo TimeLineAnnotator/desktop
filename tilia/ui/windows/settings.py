@@ -19,12 +19,12 @@ from PySide6.QtWidgets import (
 
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
-from tilia.timelines.harmony.constants import HARMONY_DISPLAY_MODES
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.enums import ScrollType
 from tilia.ui.timelines.range.toolbar import VALID_LABEL_ALIGNMENTS
 from tilia.ui.windows import WindowKind
+from tilia_core.rules import HARMONY_DISPLAY_MODES
 
 
 class SettingsWindow(QDialog):
@@ -249,7 +249,7 @@ def get_widget_for_value(parent, value, text="") -> QWidget:
             return int_input
 
         case list():
-            if len(value[0]) and value[0][0] == "#":
+            if value and value[0].startswith("#"):
                 widget = QWidget()
                 widget.setObjectName("list")
                 layout = QVBoxLayout(widget)
