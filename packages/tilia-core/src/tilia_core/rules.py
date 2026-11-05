@@ -25,6 +25,12 @@ the `harmony` extra. Without it, the other rules are checked, and when none is
 broken, `CantCheck` is raised, before the color is checked: a bad color mustn't
 hide that a rule couldn't be checked. music21 is imported only when a harmony or
 a mode is checked, or a quality's inversions are counted.
+
+A broken rule gives a code along with its reason. The reason is for reading: it
+quotes values, a time or a row's name, and reads otherwise when they change. The
+code says which rule it is, and doesn't change. So it is what tells one problem
+from another, and a program can go by it, where the reasons are free to read
+better.
 """
 
 from __future__ import annotations
@@ -164,6 +170,21 @@ _HEX_LENGTHS = (3, 6, 8, 9, 12)
 _HEX_DIGITS = frozenset(string.hexdigits)
 _COLOR_NAMES = frozenset(webcolors.names("css3")) | {"transparent"}
 
+# The rules' codes. A value that isn't one has `bad_code(attribute)`, whatever the
+# kind and whatever its reason says.
+NEGATIVE_TIME = "negative_time"
+PAST_MEDIA_END = "past_media_end"
+SAME_TIME = "same_time"
+SAME_PLACE = "same_place"
+CROSSING = "crossing"
+NO_SUCH_PAGE = "no_such_page"
+END_NOT_AFTER_START = "end_not_after_start"
+PRE_START_AFTER_START = "pre_start_after_start"
+POST_END_BEFORE_END = "post_end_before_end"
+UNKNOWN_ROW = "unknown_row"
+BAD_JOIN = "bad_join"
+SAME_ROW_ID = "same_row_id"
+
 
 class Outcome(tuple[bool, str]):
     """What checking the rules gives: `(True, "")`, or `(False, reason)`.
@@ -171,28 +192,38 @@ class Outcome(tuple[bool, str]):
     It is true when no rule is broken, so `if rules.marker(...):` reads as "the
     marker keeps to the rules"; it also unpacks as `ok, reason`. `others` are
     the ids of the other components a broken rule is about: those at the same
-    time or place, the hierarchies it crosses, the ranges it should join.
+    time or place, the hierarchies it crosses, the ranges it should join. `code`
+    says which rule it is, in words that don't change with the values its reason
+    quotes.
     """
 
-    # Read through `others`, which can't be set: every outcome that keeps to the
-    # rules is the one `OK`. A tuple's subclass can't give it a slot.
+    # Read through `others` and `code`, which can't be set: every outcome that
+    # keeps to the rules is the one `OK`. A tuple's subclass can't give it a slot.
     _others: tuple[str, ...]
+    _code: str
 
-    def __new__(cls, ok: bool, reason: str = "", others: Iterable[str] = ()) -> Outcome:
+    def __new__(
+        cls, ok: bool, reason: str = "", others: Iterable[str] = (), code: str = ""
+    ) -> Outcome:
         outcome = super().__new__(cls, (bool(ok), reason))
         outcome._others = tuple(others)
+        outcome._code = code
         return outcome
 
     def __bool__(self) -> bool:
         return self[0]
 
-    def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...]]:  # type: ignore[override]
+    def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...], str]:  # type: ignore[override]
         # What copy and pickle give __new__: a tuple's would be the pair alone.
-        return self[0], self[1], self._others
+        return self[0], self[1], self._others, self._code
 
     @property
     def others(self) -> tuple[str, ...]:
         return self._others
+
+    @property
+    def code(self) -> str:
+        return self._code
 
     @property
     def ok(self) -> bool:
@@ -529,7 +560,7 @@ _RULES: dict[str, Rules] = {
     "range": _range,
 }
 # The kinds these rules cover.
-_KINDS = tuple(_RULES)
+KINDS = tuple(_RULES)
 
 
 def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
@@ -539,13 +570,13 @@ def range_rows(rows: Sequence[Mapping[str, Any]]) -> Outcome:
     for row in rows:
         row_id = row.get("id")
         if not _is_row_id(row_id):
-            return _broken(not_valid("row_id", row_id))
+            return _not_valid("row_id", row_id)
         if row_id in ids:
-            return _broken(f"There is already a row with the id {row_id}.")
+            return _broken(SAME_ROW_ID, f"There is already a row with the id {row_id}.")
         ids.add(row_id)
         name = row.get("name")
         if not isinstance(name, str):
-            return _broken(not_valid("row_name", name))
+            return _not_valid("row_name", name)
     for row in rows:
         broken = _color_of(row)
         if broken is not None:
@@ -563,14 +594,14 @@ def color(value: Any) -> Outcome:
         return OK
     if isinstance(value, str) and _qt_reads(value):
         return OK
-    return _broken(not_valid("color", value))
+    return _not_valid("color", value)
 
 
 def media_length(value: Any) -> Outcome:
     """A media length: a positive, finite number, or None when it is unknown."""
     if value is None or (_is_number(value) and value > 0):
         return OK
-    return _broken(not_valid("media_length", value))
+    return _not_valid("media_length", value)
 
 
 def cant_check(kind: str) -> CantCheck | None:
@@ -618,6 +649,11 @@ def not_valid(attribute: str, value: Any) -> str:
     """
     shown = "an empty value" if isinstance(value, str) and not value else _shown(value)
     return f"{shown} is not a valid {attribute.replace('_', ' ')}."
+
+
+def bad_code(attribute: str) -> str:
+    """The code of the rule that `attribute` holds a value that is one."""
+    return f"bad_{attribute}"
 
 
 @dataclass(frozen=True)
@@ -687,7 +723,7 @@ def check_timeline(
     kinds = _Kinds(media_length, rows or (), page_count or 0)
     others = _Others(components)
     covered = [
-        place for place, component in enumerate(components) if component.kind in _KINDS
+        place for place, component in enumerate(components) if component.kind in KINDS
     ]
     if not skip_broken:
         for place in covered:
@@ -740,15 +776,18 @@ def _point(
 
 def _time_not_negative(time: float) -> Outcome | None:
     if time < 0:
-        return _broken(f"Time can't be negative. Got '{_media_time(time)}'")
+        return _broken(
+            NEGATIVE_TIME, f"Time can't be negative. Got '{_media_time(time)}'"
+        )
     return None
 
 
 def _time_in_media(time: float, media_length: float) -> Outcome | None:
     if time > media_length:
         return _broken(
+            PAST_MEDIA_END,
             f"Time '{_media_time(time)}' is bigger than media time"
-            f" '{_media_time(media_length)}'"
+            f" '{_media_time(media_length)}'",
         )
     return None
 
@@ -766,6 +805,7 @@ def _same_time(
             False,
             f"There is already a {_POINT_NAMES[kind]} component at the selected position.",
             same,
+            SAME_TIME,
         )
     return None
 
@@ -777,10 +817,10 @@ def _every_kind(attrs: Mapping[str, Any], times: Iterable[str]) -> Outcome | Non
         if value is None and name in _UNSET_TIMES:
             continue
         if not _is_number(value):
-            return _broken(not_valid(name, value))
+            return _not_valid(name, value)
     for name in _TEXTS:
         if name in attrs and not isinstance(attrs[name], str):
-            return _broken(not_valid(name, attrs[name]))
+            return _not_valid(name, attrs[name])
     return None
 
 
@@ -794,9 +834,9 @@ def _color_of(attrs: Mapping[str, Any]) -> Outcome | None:
 
 def _page(page_number: Any, page_count: float) -> Outcome | None:
     if not _is_integer(page_number):
-        return _broken(not_valid("page_number", page_number))
+        return _not_valid("page_number", page_number)
     if not 1 <= page_number <= page_count:
-        return _broken("The PDF has no page with that number.")
+        return _broken(NO_SUCH_PAGE, "The PDF has no page with that number.")
     return None
 
 
@@ -809,7 +849,7 @@ def _one_of(
     value = attrs[name]
     if (_is_integer(value) or isinstance(value, str)) and value in allowed:
         return None
-    return _broken(not_valid(name, value))
+    return _not_valid(name, value)
 
 
 def _music21() -> tuple[ModuleType | None, Exception | None]:
@@ -833,10 +873,10 @@ def _quality_and_inversion(
     qualities, and the inversion one it has."""
     quality = attrs.get("quality", "major")
     if not _is_quality(music21, quality):
-        return _broken(not_valid("quality", quality))
+        return _not_valid("quality", quality)
     inversion = attrs.get("inversion", 0)
     if not (_is_integer(inversion) and 0 <= inversion <= _inversions(music21, quality)):
-        return _broken(not_valid("inversion", inversion))
+        return _not_valid("inversion", inversion)
     return None
 
 
@@ -877,31 +917,39 @@ def _hierarchy_in_media(
     length = float(media_length) if _is_number(media_length) else _shown(media_length)
     if start > media_length:
         return _broken(
-            f"Start time '{float(start)}' is bigger than media time '{length}'"
+            PAST_MEDIA_END,
+            f"Start time '{float(start)}' is bigger than media time '{length}'",
         )
-    return _broken(f"End time '{float(end)}' is bigger than media time '{length}'")
+    return _broken(
+        PAST_MEDIA_END, f"End time '{float(end)}' is bigger than media time '{length}'"
+    )
 
 
 def _hierarchy_start(start: float) -> Outcome | None:
     if start < 0:
-        return _broken(f"Start time can't be negative. Got '{float(start)}'")
+        return _broken(
+            NEGATIVE_TIME, f"Start time can't be negative. Got '{float(start)}'"
+        )
     return None
 
 
 def _hierarchy_end(start: float, end: float) -> Outcome | None:
     if end <= start:
         return _broken(
+            END_NOT_AFTER_START,
             f"End time '{float(end)}' should be bigger than start time"
-            f" '{float(start)}'"
+            f" '{float(start)}'",
         )
     return None
 
 
 def _hierarchy_level(level: Any) -> Outcome | None:
     if not _is_integer(level):
-        return _broken(not_valid("level", level))
+        return _not_valid("level", level)
     if level < 1:
-        return _broken(f"Level can't be below 1. Got '{_shown(level)}'")
+        return _broken(
+            bad_code("level"), f"Level can't be below 1. Got '{_shown(level)}'"
+        )
     return None
 
 
@@ -910,9 +958,9 @@ def _pre_start(pre_start: float | None, start: float) -> Outcome | None:
     if pre_start is None:
         return None
     if pre_start < 0:
-        return _broken("pre_start is outside media bounds.")
+        return _broken(NEGATIVE_TIME, "pre_start is outside media bounds.")
     if pre_start > start:
-        return _broken("pre_start can't be after start time.")
+        return _broken(PRE_START_AFTER_START, "pre_start can't be after start time.")
     return None
 
 
@@ -923,9 +971,9 @@ def _post_end(
     if post_end is None:
         return None
     if post_end > media_length:
-        return _broken("post_end is outside media bounds.")
+        return _broken(PAST_MEDIA_END, "post_end is outside media bounds.")
     if post_end < end:
-        return _broken("post_end can't be before end time.")
+        return _broken(POST_END_BEFORE_END, "post_end can't be before end time.")
     return None
 
 
@@ -943,6 +991,7 @@ def _same_place(
             False,
             "There is already a hierarchy component at the selected position.",
             same,
+            SAME_PLACE,
         )
     return None
 
@@ -957,7 +1006,7 @@ def _crossed(
     ]
     if crossed:
         return Outcome(
-            False, "Component would overlap with existing component.", crossed
+            False, "Component would overlap with existing component.", crossed, CROSSING
         )
     return None
 
@@ -1003,19 +1052,21 @@ def _lt(a: float, b: float) -> bool:
 
 def _range_row(row_id: Any, row_ids: Sequence[Any]) -> Outcome | None:
     if not row_id or row_id not in row_ids:
-        return _broken("Invalid row ID.")
+        return _broken(UNKNOWN_ROW, "Invalid row ID.")
     return None
 
 
 def _range_times(start: float, end: float) -> Outcome | None:
     if start >= end:
-        return _broken("Start time must be before end time.")
+        return _broken(END_NOT_AFTER_START, "Start time must be before end time.")
     return None
 
 
 def _range_in_media(start: float, end: float, media_length: float) -> Outcome | None:
-    if start < 0 or end > media_length:
-        return _broken("Range is outside media bounds.")
+    if start < 0:
+        return _broken(NEGATIVE_TIME, "Range is outside media bounds.")
+    if end > media_length:
+        return _broken(PAST_MEDIA_END, "Range is outside media bounds.")
     return None
 
 
@@ -1027,7 +1078,8 @@ def _joined(
     """`joined_right`, when set, is a next range in the row, starting at this one's end.
 
     The next ranges are those of the row that start first after this one starts.
-    The reasons are the range importer's (`_apply_pending_joins`).
+    The reasons are the range importer's (`_apply_pending_joins`). They differ by
+    what comes next in the row, but it is one rule, with one code.
     """
     joined = attrs.get("joined_right")
     if joined is None:
@@ -1044,8 +1096,9 @@ def _joined(
     ]
     if not later:
         return _broken(
+            BAD_JOIN,
             f"joined_with_next=true on last range of row {row!r};"
-            " no next neighbor to join with"
+            " no next neighbor to join with",
         )
     next_start = min(other.attrs["start"] for other in later)
     following = [other.id for other in later if other.attrs["start"] == next_start]
@@ -1055,6 +1108,7 @@ def _joined(
             f"joined_with_next=true but next range on row {row!r} starts at"
             f" {float(next_start)} (must equal {float(end)} for ranges to join)",
             following,
+            BAD_JOIN,
         )
     if joined not in following:
         return Outcome(
@@ -1062,6 +1116,7 @@ def _joined(
             "joined_with_next=true but the range it joins isn't the next range"
             f" on row {row!r}",
             following,
+            BAD_JOIN,
         )
     return None
 
@@ -1398,5 +1453,9 @@ def _shown(value: Any) -> str:
         return f"{article} {name} that can't be shown"
 
 
-def _broken(reason: str) -> Outcome:
-    return Outcome(False, reason)
+def _broken(code: str, reason: str) -> Outcome:
+    return Outcome(False, reason, code=code)
+
+
+def _not_valid(attribute: str, value: Any) -> Outcome:
+    return _broken(bad_code(attribute), not_valid(attribute, value))

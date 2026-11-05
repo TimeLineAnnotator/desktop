@@ -279,6 +279,14 @@ class TestOutcome:
         assert not copied
         assert duplicate(rules.OK)
 
+    @pytest.mark.parametrize(
+        "duplicate", [copy.copy, copy.deepcopy, lambda o: pickle.loads(pickle.dumps(o))]
+    )
+    def test_its_code_copies_and_pickles(self, duplicate):
+        outcome = rules.Outcome(False, "Invalid row ID.", code=rules.UNKNOWN_ROW)
+
+        assert duplicate(outcome).code == "unknown_row"
+
     def test_cant_check_pickles_whole(self):
         error = rules.CantCheck("harmony")
 
@@ -324,6 +332,136 @@ class TestOutcome:
             outcome.others = ("zz",)
 
         assert outcome.others == others
+
+    def test_its_code_cant_be_changed(self):
+        outcome = rules.Outcome(False, "Invalid row ID.", code=rules.UNKNOWN_ROW)
+
+        with pytest.raises(AttributeError):
+            outcome.code = "zz"
+
+        assert outcome.code == "unknown_row"
+
+
+class TestCodes:
+    """What each rule gives with its reason, which doesn't change with the values
+    the reason quotes: this table is what they are."""
+
+    def test_a_kept_rule_has_none(self):
+        assert rules.OK.code == ""
+
+    @pytest.mark.parametrize(
+        "kind, attrs, code",
+        [
+            ("marker", {"time": "x"}, "bad_time"),
+            ("marker", {"label": 3}, "bad_label"),
+            ("marker", {"comments": 3}, "bad_comments"),
+            ("harmony", {"custom_text": 3}, "bad_custom_text"),
+            ("marker", {"time": -1.0}, "negative_time"),
+            ("marker", {"time": 61.0}, "past_media_end"),
+            ("beat", {"time": 61.0}, "past_media_end"),
+            ("pdf_marker", {"page_number": 1.5}, "bad_page_number"),
+            ("pdf_marker", {"page_number": 0}, "no_such_page"),
+            ("harmony", {"step": 9}, "bad_step"),
+            ("harmony", {"applied_to": 9}, "bad_applied_to"),
+            ("harmony", {"accidental": 9}, "bad_accidental"),
+            ("harmony", {"quality": "x"}, "bad_quality"),
+            ("harmony", {"inversion": 99}, "bad_inversion"),
+            ("harmony", {"level": 9}, "bad_level"),
+            ("harmony", {"display_mode": "x"}, "bad_display_mode"),
+            ("harmony", {"custom_text_font_type": "x"}, "bad_custom_text_font_type"),
+            ("mode", {"step": 9}, "bad_step"),
+            ("mode", {"type": "x"}, "bad_type"),
+            ("hierarchy", {"start": "x"}, "bad_start"),
+            ("hierarchy", {"end": "x"}, "bad_end"),
+            ("hierarchy", {"pre_start": "x"}, "bad_pre_start"),
+            ("hierarchy", {"post_end": "x"}, "bad_post_end"),
+            ("hierarchy", {"start": 61.0, "end": 62.0}, "past_media_end"),
+            ("hierarchy", {"end": 61.0}, "past_media_end"),
+            ("hierarchy", {"start": -1.0}, "negative_time"),
+            ("hierarchy", {"end": 1.0}, "end_not_after_start"),
+            ("hierarchy", {"level": 0}, "bad_level"),
+            ("hierarchy", {"level": 1.5}, "bad_level"),
+            ("hierarchy", {"pre_start": -1.0}, "negative_time"),
+            ("hierarchy", {"pre_start": 1.5}, "pre_start_after_start"),
+            ("hierarchy", {"post_end": 61.0}, "past_media_end"),
+            ("hierarchy", {"post_end": 1.5}, "post_end_before_end"),
+            ("range", {"row_id": "nothing"}, "unknown_row"),
+            ("range", {"end": 1.0}, "end_not_after_start"),
+            ("range", {"start": -1.0}, "negative_time"),
+            ("range", {"end": 61.0}, "past_media_end"),
+            ("range", {"pre_start": -1.0}, "negative_time"),
+            ("range", {"post_end": 61.0}, "past_media_end"),
+            ("range", {"joined_right": "x"}, "bad_join"),
+        ],
+    )
+    def test_each_rule_of_a_kind_has_its_own(self, kind, attrs, code):
+        assert check(kind, **attrs).code == code
+
+    @pytest.mark.parametrize(
+        "kind, others, code",
+        [
+            ("marker", [component("marker", time=1.0)], "same_time"),
+            ("beat", [component("beat", time=1.0)], "same_time"),
+            ("hierarchy", [hierarchy(1.0, 2.0, 1)], "same_place"),
+            ("hierarchy", [hierarchy(1.5, 3.0, 1)], "crossing"),
+        ],
+    )
+    def test_each_rule_between_components_has_its_own(self, kind, others, code):
+        assert check(kind, others).code == code
+
+    @pytest.mark.parametrize(
+        "outcome, code",
+        [
+            (rules.color("x"), "bad_color"),
+            (rules.media_length(-5.0), "bad_media_length"),
+            (rules.range_rows([{"id": "x", "name": "a"}]), "bad_row_id"),
+            (rules.range_rows([{"id": ROW}]), "bad_row_name"),
+            (rules.range_rows([ROWS[0], ROWS[0]]), "same_row_id"),
+            (rules.range_rows([{**ROWS[0], "color": "x"}]), "bad_color"),
+        ],
+    )
+    def test_each_rule_of_what_isnt_a_component_has_its_own(self, outcome, code):
+        assert outcome.code == code
+
+    @pytest.mark.parametrize(
+        "first, second",
+        [
+            ({"time": 61.0}, {"time": 100.0}),
+            ({"time": "x"}, {"time": "y"}),
+            ({"time": -1.0}, {"time": -2.0}),
+        ],
+    )
+    def test_it_stays_whatever_the_reason_quotes(self, first, second):
+        one, other = (check("marker", **attrs) for attrs in (first, second))
+        assert one.reason != other.reason
+        assert one.code == other.code
+
+    def test_past_the_media_end_is_one_code_with_any_length(self):
+        attrs = {"start": 90.0, "end": 110.0, "level": 1}
+        outcomes = [
+            rules.hierarchy(length, [], attrs) for length in (100.0, 100.01, 85.0)
+        ]
+        assert {outcome.code for outcome in outcomes} == {rules.PAST_MEDIA_END}
+        assert len({outcome.reason for outcome in outcomes}) == 3
+
+    @pytest.mark.parametrize(
+        "attrs, others",
+        [
+            ({"start": 5.0, "end": 6.0, "joined_right": "b"}, ()),
+            (
+                {"start": 0.0, "end": 1.0, "joined_right": "b"},
+                [range_in(ROW, 3.0, 4.0)],
+            ),
+            (
+                {"start": 0.0, "end": 3.0, "joined_right": "b"},
+                [range_in(ROW, 3.0, 4.0)],
+            ),
+        ],
+        ids=["the last of its row", "not where the next starts", "not the next"],
+    )
+    def test_a_join_is_one_code_with_each_of_its_reasons(self, attrs, others):
+        outcome = rules.range_(MEDIA, others, {**attrs, "row_id": ROW}, rows=ROWS)
+        assert outcome.code == rules.BAD_JOIN
 
 
 class TestEveryKind:
