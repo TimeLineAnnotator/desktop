@@ -30,8 +30,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         "level",
         "label",
         "color",
-        "formal_type",
-        "formal_function",
         "comments",
     ]
 
@@ -46,8 +44,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         "color": validate_color,
         "comments": validate_string,
         "level": validate_pre_validated,
-        "formal_type": validate_string,
-        "formal_function": validate_string,
     }
 
     KIND = ComponentKind.HIERARCHY
@@ -65,8 +61,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         pre_start=None,
         post_end=None,
         color="",
-        formal_type="",
-        formal_function="",
         **_,
     ):
 
@@ -76,9 +70,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
         self.label = label
         self.comments = comments
         self.color = color
-
-        self.formal_type = formal_type
-        self.formal_function = formal_function
 
         self.pre_start = pre_start if pre_start is not None else self.start
         self.post_end = post_end if post_end is not None else self.end

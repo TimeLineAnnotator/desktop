@@ -25,6 +25,7 @@ from tilia.requests import (
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.copy_paste import (
@@ -44,6 +45,7 @@ if TYPE_CHECKING:
     from tilia.ui.timelines.collection.collection import TimelineSelector, TimelineUIs
 
 T = TypeVar("T", bound="TimelineUIElement")
+V = TypeVar("V")
 
 
 def with_elements(func: Callable) -> Callable:
@@ -93,6 +95,7 @@ class TimelineUI(ABC):  # noqa: B024
         self.view = view
 
         self.element_manager = element_manager
+        self._smooth_setters: list[SmoothSetter] = []
 
         self._setup_visibility()
         self._setup_collection_requests()
@@ -242,8 +245,10 @@ class TimelineUI(ABC):  # noqa: B024
         self.scene.set_width(int(width))
         self.view.setFixedWidth(int(width))
         self.element_manager.update_time_on_elements()
+        # Where the lines are now, not the selected time: during a smooth
+        # movement that is already its target.
         self.scene.set_playback_line_pos(
-            time_x_converter.get_x_by_time(get(Get.SELECTED_TIME))
+            time_x_converter.get_x_by_time(self.collection.playback_lines_time)
         )
         (loop_start, loop_end) = get(Get.LOOP_TIME)
         self.scene.set_loop_box_position(
@@ -554,9 +559,21 @@ class TimelineUI(ABC):  # noqa: B024
     def belongs_to_selection(self, item: QGraphicsItem):
         return self.element_manager.belongs_to_selection(item)
 
+    def create_smooth_setter(
+        self, getter: Callable[[], V], setter: Callable[[V], None]
+    ) -> SmoothSetter[V]:
+        """A SmoothSetter that is deleted with this timeline UI."""
+        smooth_setter = SmoothSetter(getter, setter)
+        self._smooth_setters.append(smooth_setter)
+        return smooth_setter
+
     def delete(self):
+        for smooth_setter in self._smooth_setters:
+            smooth_setter.delete()
+        self._smooth_setters.clear()
         stop_listening_to_all(self)
         stop_listening_to_all(self.scene)
+        stop_listening_to_all(self.view)
         self.scene.destroy()
 
     def __repr__(self):
