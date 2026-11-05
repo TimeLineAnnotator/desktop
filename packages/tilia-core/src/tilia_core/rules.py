@@ -995,8 +995,7 @@ class _Others:
     """The other components each component is checked with, found without
     comparing it with every one: those its rules could find it at odds with,
     among those added. Every component is added when reading, and each one kept
-    so far when importing, so that the joins an import checks last are checked
-    with every range kept."""
+    so far when importing."""
 
     def __init__(self, components: Sequence[tla.Component]) -> None:
         self._components = components
