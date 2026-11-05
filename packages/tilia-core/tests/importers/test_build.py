@@ -681,6 +681,27 @@ def test_on_windows_the_length_is_that_of_the_file_stored(tmp_path):
     assert doc.media_path == "//?/" + stored(tmp_path / "rec.wav")
 
 
+@windows_only
+def test_on_windows_a_verbatim_path_is_read_as_verbatim(tmp_path, monkeypatch):
+    # `//?/` isn't verbatim to Windows, so a long path couldn't be opened by it
+    # where long paths aren't enabled, and the WAV would have no length.
+    verbatim = f"\\\\?\\{tmp_path}\\rec.wav"
+    pcm16_wav(Path(verbatim), rate=8000, channels=1, frames=8000)
+    read = []
+    wav_length = build.wav_length
+
+    def reading(path):
+        read.append(os.fspath(path))
+        return wav_length(path)
+
+    monkeypatch.setattr(build, "wav_length", reading)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, verbatim) == 1.0
+
+    assert len(read) == 1 and read[0].startswith("\\\\?\\")
+
+
 @posix_only
 @pytest.mark.parametrize("name", ["rec.wav.", "rec.wav "])
 def test_elsewhere_a_name_ending_in_a_dot_or_a_space_isnt_a_wavs(tmp_path, name):
