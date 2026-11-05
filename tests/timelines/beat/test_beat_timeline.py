@@ -573,12 +573,11 @@ class TestGetExtensionFromBeatPattern:
         assert extension == [3]
 
 
-def load_beat_timeline(tls, beats_in_measure, measure_numbers):
+def load_beat_timeline(tls, beats_in_measure, measure_numbers, times=None):
     """A beat timeline as TiLiA loads it from a file, with a beat every second
-    from 1 s."""
-    components = {
-        i: {"kind": "BEAT", "time": i + 1} for i in range(sum(beats_in_measure))
-    }
+    from 1 s, or at `times`."""
+    times = times or [i + 1 for i in range(sum(beats_in_measure))]
+    components = {i: {"kind": "BEAT", "time": time} for i, time in enumerate(times)}
     return tls.create_timeline(
         BeatTimeline,
         components,
@@ -783,6 +782,85 @@ class TestLastMeasureEndsAtTheMediaEnd:
 
         assert beat_tl.get_time_by_measure(1, 1, True) == [2.5]
         assert beat_tl.get_time_by_measure(1, 0.75) == [2.25]
+
+
+class TestLastMeasureNeverEndsBeforeItsLastBeat:
+    """A last measure ends at max(last beat, min(last beat + gap, media's end))."""
+
+    @staticmethod
+    def _load(tls, tilia_state, duration, beats_in_measure, measure_numbers):
+        """Loaded with the media's end on or past the last beat, as a file is, and
+        then shorter, as when a media reports a slightly shorter length: TiLiA
+        keeps the timeline as it is (DURATION_JITTER_TOLERANCE)."""
+        last_beat = sum(beats_in_measure)
+        tilia_state.duration = max(duration, last_beat)
+        beat_tl = load_beat_timeline(tls, beats_in_measure, measure_numbers)
+        tilia_state.set_duration(duration, scale_timelines="keep")
+        return beat_tl
+
+    @pytest.mark.parametrize(
+        "duration, end, at_three_quarters",
+        [(3, 3, 3), (2.5, 3, 3), (12, 4, 3.25)],
+        ids=["on the last beat", "before the last beat", "long after it"],
+    )
+    def test_end(self, tls, tilia_state, duration, end, at_three_quarters):
+        beat_tl = self._load(tls, tilia_state, duration, [3], [1])
+
+        assert beat_tl[-1].time == 3
+        assert beat_tl.get_time_by_measure(1, 0.75) == [at_three_quarters]
+        assert beat_tl.get_time_by_measure(1, 1, True) == [end]
+        assert beat_tl.get_time_by_measure(1, 1) == []
+
+    @pytest.mark.parametrize("duration", [8, 7.95, 6.5])
+    def test_times_never_run_backwards(self, tls, tilia_state, duration):
+        beat_tl = self._load(tls, tilia_state, duration, [4, 4], [1, 2])
+
+        times = [beat_tl.get_time_by_measure(2, i / 16)[0] for i in range(16)]
+        times += beat_tl.get_time_by_measure(2, 1, True)
+
+        assert times == sorted(times)
+        assert times[-1] == 8
+
+    def test_end_of_the_last_pass_as_a_segment_end_on_a_downbeat(
+        self, tls, tilia_state
+    ):
+        beat_tl = self._load(tls, tilia_state, 5.5, [2, 2, 2], [1, 2, 1])
+
+        assert beat_tl.get_time_by_measure(2, 0, True) == [3, 6]
+
+    def test_measure_before_the_last_keeps_its_end(self, tls, tilia_state):
+        beat_tl = self._load(tls, tilia_state, 3.5, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(1, 1, True) == [3]
+
+
+class TestSharedExamplesOfTheLastMeasure:
+    """TimeLineAnnotator/desktop#828 (closing taps) adds these four to the core's
+    shared examples. This branch has neither that file nor its app-side test, so
+    the cases are here, with the same beats, media, questions and answers."""
+
+    @pytest.mark.parametrize(
+        "fraction, is_segment_end, expected",
+        [(0.75, False, 5.75), (1, True, 6)],
+        ids=["past its last beat", "as a segment's end"],
+    )
+    def test_a_last_bar_that_isnt_steady(self, tls, fraction, is_segment_end, expected):
+        beat_tl = load_beat_timeline(tls, [4, 2], [1, 2], [1, 2, 3, 4, 5, 5.5])
+
+        assert beat_tl.get_time_by_measure(2, fraction, is_segment_end) == [expected]
+
+    @pytest.mark.parametrize(
+        "fraction, is_segment_end, expected",
+        [(0.75, False, 3), (1, True, 3)],
+        ids=["past it", "as a segment's end"],
+    )
+    def test_a_last_beat_at_the_medias_end(
+        self, tls, tilia_state, fraction, is_segment_end, expected
+    ):
+        tilia_state.duration = 3
+        beat_tl = load_beat_timeline(tls, [3], [1])
+
+        assert beat_tl.get_time_by_measure(1, fraction, is_segment_end) == [expected]
 
 
 class TestAddMeasureZero:
