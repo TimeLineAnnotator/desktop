@@ -669,16 +669,54 @@ def test_on_windows_a_name_ending_in_a_dot_or_a_space_is_read_as_a_wav(
 
 
 @windows_only
-def test_on_windows_the_length_is_that_of_the_file_stored(tmp_path):
-    # `\\?\` reads `rec.wav.` as a file of its own, but what is stored is `rec.wav`.
+@pytest.mark.parametrize("name", ["rec.wav.", "rec.wav ", "rec.wav. ."])
+def test_on_windows_a_verbatim_name_is_stored_as_given(tmp_path, name):
+    # `\\?\` reads a name as it is, so `rec.wav.` is a file of its own, and
+    # the only path that names it is the one with the dot.
+    verbatim = f"\\\\?\\{tmp_path}\\{name}"
+    pcm16_wav(Path(verbatim), rate=8000, channels=1, frames=40000)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, verbatim) == 5.0
+
+    assert doc.media_path == "//?/" + stored(tmp_path).replace("\\", "/") + "/" + name
+
+
+@windows_only
+def test_on_windows_a_verbatim_name_is_that_of_the_file_given(tmp_path):
+    # `rec.wav` is another file, which this one isn't read as.
     verbatim = f"\\\\?\\{tmp_path}\\rec.wav."
     pcm16_wav(Path(verbatim), rate=8000, channels=1, frames=40000)
     pcm16_wav(tmp_path / "rec.wav", rate=8000, channels=1, frames=8000)
     doc = build.new_script_document()
 
-    assert build.load_media(doc, verbatim) == 1.0
+    assert build.load_media(doc, verbatim) == 5.0
 
-    assert doc.media_path == "//?/" + stored(tmp_path / "rec.wav")
+    assert doc.media_path.endswith("/rec.wav.")
+
+
+@windows_only
+def test_on_windows_a_verbatim_name_stored_can_be_opened_again(tmp_path):
+    # Through `tla.media` and `tla.as_media_path`, which must keep the dot.
+    verbatim = f"\\\\?\\{tmp_path}\\rec.wav."
+    pcm16_wav(Path(verbatim), rate=8000, channels=1, frames=40000)
+    doc = build.new_script_document()
+    build.load_media(doc, verbatim)
+
+    assert tla.as_media_path(doc.media_path) == verbatim
+    found = tla.media(tmp_path / "doc.tla", doc).path
+    assert found is not None and os.path.isfile(found)
+    assert os.fspath(found).endswith("rec.wav.")
+
+
+@windows_only
+def test_on_windows_a_name_without_verbatim_still_loses_the_dot(tmp_path):
+    pcm16_wav(tmp_path / "rec.wav", rate=8000, channels=1, frames=8000)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, f"{tmp_path}\\rec.wav.") == 1.0
+
+    assert doc.media_path == stored(tmp_path / "rec.wav")
 
 
 @windows_only

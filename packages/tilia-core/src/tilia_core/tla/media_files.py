@@ -53,6 +53,8 @@ POSIX = "posix"
 # The form of this system's absolute paths.
 SYSTEM = WINDOWS if os.name == "nt" else POSIX
 _MODULES = {WINDOWS: ntpath, POSIX: posixpath}
+# The starts of a verbatim path, `\\?\` or the `//?/` that a file stores for it.
+_VERBATIM = ("\\\\?\\", "//?/")
 # The starts that `PureWindowsPath`, and Windows, read as a share's two slashes,
 # though they are of two kinds.
 _SLASH_AND_BACKSLASH = ("/\\", "\\/")
@@ -134,6 +136,10 @@ def _absolute(path: str) -> str:
         path = "/" + path.lstrip("/")
     if _not_for_this_system(path):
         return path
+    if SYSTEM == WINDOWS and path.startswith(_VERBATIM):
+        # Already absolute, and its name is as it is: `os.path.abspath` would
+        # take a trailing dot or space off it (FR-052).
+        return path.replace("/", "\\")
     absolute = os.path.abspath(path)
     if SYSTEM == POSIX and not _same_file(absolute, path):
         return str(Path(path).resolve())
