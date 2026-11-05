@@ -779,6 +779,447 @@ class TestWriting:
             assert path.read_bytes() == data
 
 
+# What counts as a new problem: what is wrong, not how it reads (FR-054;
+# TimeLineAnnotator/project-management#494). In the first class the component
+# with the problem isn't touched, whatever a reason quotes or a place was.
+
+BASS = {"id": "bbbbbb", "name": "Bass", "color": "notacolor"}
+TUNE = {"id": "cccccc", "name": "Tune"}
+
+
+def ranges(*components, rows=None):
+    """A change: the Texture timeline holds these ranges, given as (id,
+    attributes), on the row `ROW` unless they say otherwise, and has `rows`."""
+
+    def change(content):
+        timeline = content["timelines"][TEXTURE]
+        timeline["components"] = {
+            key: {"kind": "RANGE", "row_id": ROW, **attrs} for key, attrs in components
+        }
+        if rows is not None:
+            timeline["rows"] = copy.deepcopy(rows)
+
+    return change
+
+
+def a_range(start, end, **attrs):
+    return {"start": start, "end": end, **attrs}
+
+
+def beats(*components):
+    def change(content):
+        content["timelines"][BEATS]["components"].update(
+            {key: {"kind": "BEAT", **attrs} for key, attrs in components}
+        )
+
+    return change
+
+
+def written(doc, tmp_path):
+    path = tmp_path / "piece.tla"
+    tla.write(path, doc)
+    return path
+
+
+def refused(doc, tmp_path):
+    """The problems `write` refuses `doc` for, and nothing written."""
+    path = tmp_path / "piece.tla"
+    with pytest.raises(tla.BrokenRules) as error:
+        tla.write(path, doc)
+    assert not path.exists()
+    return error.value.problems
+
+
+PAST_THE_END = {
+    "marker": (CADENCES, markers((FIRST, {"time": 150.0}))),
+    "beat": (BEATS, beats((FIRST, {"time": 150.0}))),
+    "hierarchy": (FORM, hierarchies((FIRST, at_level(140.0, 150.0, 1)))),
+    "range": (TEXTURE, ranges((FIRST, a_range(140.0, 150.0)))),
+}
+A_MARKER_PAST_THE_END = together(with_media_length(100.0), PAST_THE_END["marker"][1])
+A_GROUP = [make_id(300 + n) for n in range(20)]
+
+
+def a_group(size):
+    """A change: `size` markers at one time, in id order."""
+    return markers(*((key, {"time": 5.0}) for key in A_GROUP[:size]))
+
+
+class TestAnEditElsewhereIsNoNewProblem:
+    def test_a_timeline_renamed_keeps_its_beat_pattern(self, tmp_path):
+        doc = tla.loads(a_file(TestBeatPattern.with_pattern("x y")))
+        doc.timelines[BEATS].name = "Renamed"
+        read = tla.read(written(doc, tmp_path))
+        assert read.timelines[BEATS].name == "Renamed"
+        assert read.timelines[BEATS].attrs["beat_pattern"] == "x y"
+        assert [w.message for w in read.warnings] == [
+            'the beat pattern "x y" of the timeline "Renamed" isn\'t a valid pattern'
+        ]
+
+    @pytest.mark.parametrize(
+        "edit",
+        [
+            lambda rows: rows.insert(0, dict(TUNE)),
+            lambda rows: rows.pop(0),
+            lambda rows: rows.reverse(),
+        ],
+        ids=["a good row inserted first", "row 0 deleted", "the rows reversed"],
+    )
+    def test_a_row_keeps_its_problem_wherever_it_moves(self, edit, tmp_path):
+        rows = [{"id": ROW, "name": "Melody"}, BASS]
+        doc = tla.loads(a_file(ranges(rows=rows)))
+        assert [w.place for w in doc.warnings] == [f"/timelines/{TEXTURE}/rows/1"]
+        kept = doc.timelines[TEXTURE].attrs["rows"]
+        edit(kept)
+        read = tla.read(written(doc, tmp_path))
+        index = [row["id"] for row in kept].index(BASS["id"])
+        assert [(w.place, w.message) for w in read.warnings] == [
+            (f"/timelines/{TEXTURE}/rows/{index}", "notacolor is not a valid color.")
+        ]
+
+    def test_a_range_between_a_join_can_be_deleted(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=THIRD)),
+                    (SECOND, a_range(3.0, 3.5)),
+                    (THIRD, a_range(5.0, 6.0)),
+                )
+            )
+        )
+        assert SECOND in doc.warnings[0].message
+        del doc.timelines[TEXTURE].components[SECOND]
+        read = tla.read(written(doc, tmp_path))
+        assert [w.place for w in read.warnings] == [component_place(TEXTURE, FIRST)]
+        assert "starts at 5.0" in read.warnings[0].message
+
+    def test_a_range_between_a_join_can_change(self, tmp_path):
+        # The problem is between the range and the one it joins. What the
+        # reason quotes of the next range is how it reads.
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=THIRD)),
+                    (SECOND, a_range(3.0, 3.5)),
+                    (THIRD, a_range(5.0, 6.0)),
+                )
+            )
+        )
+        doc.timelines[TEXTURE].components[SECOND].attrs["start"] = 3.2
+        written(doc, tmp_path)
+
+    def test_a_good_range_can_be_added_after_a_backward_join(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0)),
+                    (SECOND, a_range(5.0, 6.0, joined_right=FIRST)),
+                )
+            )
+        )
+        assert "last range of row" in doc.warnings[0].message
+        doc.timelines[TEXTURE].components[THIRD] = tla.Component(
+            id=THIRD, kind="range", attrs={**a_range(8.0, 9.0), "row_id": ROW}
+        )
+        read = tla.read(written(doc, tmp_path))
+        assert [w.place for w in read.warnings] == [component_place(TEXTURE, SECOND)]
+        assert "starts at 8.0" in read.warnings[0].message
+
+    def test_a_row_renamed_keeps_a_join_on_it(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=SECOND)),
+                    (SECOND, a_range(3.0, 4.0)),
+                )
+            )
+        )
+        assert "row 'Melody'" in doc.warnings[0].message
+        doc.timelines[TEXTURE].attrs["rows"][0]["name"] = "Tune"
+        read = tla.read(written(doc, tmp_path))
+        assert "row 'Tune'" in read.warnings[0].message
+
+    @pytest.mark.parametrize("kind", PAST_THE_END)
+    @pytest.mark.parametrize("length", [120.0, 130.5, 90.0, 100.01])
+    def test_a_time_past_the_end_stays_with_a_new_length(self, kind, length, tmp_path):
+        timeline, change = PAST_THE_END[kind]
+        doc = tla.loads(a_file(together(with_media_length(100.0), change)))
+        assert len(doc.warnings) == 1
+        doc.media_length = length
+        read = tla.read(written(doc, tmp_path))
+        assert read.media_length == length
+        assert [w.place for w in read.warnings] == [component_place(timeline, FIRST)]
+
+    def test_a_length_past_it_fixes_the_problem(self, tmp_path):
+        doc = tla.loads(a_file(A_MARKER_PAST_THE_END))
+        doc.media_length = 200.0
+        assert tla.read(written(doc, tmp_path)).warnings == []
+
+    def test_a_hierarchy_past_the_end_by_its_start_or_its_end_is_one_problem(
+        self, tmp_path
+    ):
+        # At 100 its end is past it, and at 85 its start, which the reasons say.
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(90.0, 110.0, 1))),
+                )
+            )
+        )
+        assert doc.warnings[0].message.startswith("End time")
+        doc.media_length = 85.0
+        read = tla.read(written(doc, tmp_path))
+        assert read.warnings[0].message.startswith("Start time")
+
+    @pytest.mark.parametrize("kind", PAST_THE_END)
+    def test_a_length_first_learned_is_no_new_problem(self, kind, tmp_path):
+        # With no length, a time isn't compared with any: it had this problem
+        # all along, for all the reader could tell.
+        timeline, change = PAST_THE_END[kind]
+        doc = tla.loads(a_file(change))
+        assert doc.warnings == []
+        doc.media_length = 100.0
+        read = tla.read(written(doc, tmp_path))
+        assert [w.place for w in read.warnings] == [component_place(timeline, FIRST)]
+
+    def test_a_length_first_learned_after_a_write_is_no_new_problem(self, tmp_path):
+        doc = tla.loads(a_file(PAST_THE_END["marker"][1]))
+        written(doc, tmp_path)
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    @pytest.mark.parametrize("size", [11, 12, 13, 20])
+    def test_any_of_a_group_at_one_time_can_be_deleted(self, size, tmp_path):
+        data = a_file(a_group(size))
+        for gone in A_GROUP[:size]:
+            doc = tla.loads(data)
+            del doc.timelines[CADENCES].components[gone]
+            written(doc, tmp_path)
+
+    @pytest.mark.parametrize("size", [11, 12, 13, 20])
+    def test_any_of_a_group_at_one_time_can_be_moved_away(self, size, tmp_path):
+        data = a_file(a_group(size))
+        for moved in A_GROUP[:size]:
+            doc = tla.loads(data)
+            doc.timelines[CADENCES].components[moved].attrs["time"] = 7.0
+            written(doc, tmp_path)
+
+    def test_several_of_a_group_can_be_deleted_over_several_sessions(self, tmp_path):
+        doc = tla.loads(a_file(a_group(13)))
+        for gone in A_GROUP[:11]:
+            del doc.timelines[CADENCES].components[gone]
+            written(doc, tmp_path)
+        assert len(tla.read(tmp_path / "piece.tla").warnings) == 1
+
+    def test_a_warning_still_names_ten_others_at_most(self):
+        first = tla.loads(a_file(a_group(13))).warnings[0].message
+        assert first.endswith("; and 2 more)")
+        assert first.count("/components/") == 10
+
+
+class TestStillANewProblem:
+    @pytest.mark.parametrize(
+        "attrs, message",
+        [
+            ({"time": -1.0}, "Time can't be negative. Got '-00:01.0'"),
+            ({"time": 150.0}, "Time '02:30.0' is bigger than media time '01:40.0'"),
+            ({"time": 5.0, "color": "bad"}, "bad is not a valid color."),
+        ],
+    )
+    def test_a_new_problem_on_a_new_component(self, attrs, message, tmp_path):
+        doc = tla.loads(a_file(with_media_length(100.0)))
+        doc.timelines[CADENCES].components[FIRST] = tla.Component(
+            id=FIRST, kind="marker", attrs=attrs
+        )
+        problems = refused(doc, tmp_path)
+        assert [(w.place, w.message) for w in problems] == [
+            (component_place(CADENCES, FIRST), message)
+        ]
+
+    def test_a_new_component_past_a_length_first_learned(self, tmp_path):
+        doc = tla.loads(a_file())
+        doc.media_length = 100.0
+        doc.timelines[CADENCES].components[FIRST] = tla.Component(
+            id=FIRST, kind="marker", attrs={"time": 150.0}
+        )
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    def test_a_new_component_past_the_end_beside_one_read_past_it(self, tmp_path):
+        doc = tla.loads(a_file(A_MARKER_PAST_THE_END))
+        doc.timelines[CADENCES].components[SECOND] = tla.Component(
+            id=SECOND, kind="marker", attrs={"time": 160.0}
+        )
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, SECOND)
+        ]
+
+    def test_a_new_component_in_a_group_at_one_time(self, tmp_path):
+        doc = tla.loads(a_file(a_group(13)))
+        doc.timelines[CADENCES].components[FIRST] = tla.Component(
+            id=FIRST, kind="marker", attrs={"time": 5.0}
+        )
+        assert refused(doc, tmp_path)
+
+    def test_a_beat_moved_onto_another(self, tmp_path):
+        doc = tla.loads(a_file())
+        assert doc.read_problems == []
+        doc.timelines[BEATS].components[BEAT_2].attrs["time"] = 0.0
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == [component_place(BEATS, BEAT_1)]
+        assert problems[0].message.startswith(
+            "There is already a beat component at the selected position."
+        )
+
+    def test_a_marker_moved_onto_one_of_two_at_one_time(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                markers(
+                    (FIRST, {"time": 1.0}),
+                    (SECOND, {"time": 1.0}),
+                    (THIRD, {"time": 2.0}),
+                )
+            )
+        )
+        doc.timelines[CADENCES].components[THIRD].attrs["time"] = 1.0
+        message = refused(doc, tmp_path)[0].message
+        assert component_place(CADENCES, THIRD) in message
+        assert component_place(CADENCES, SECOND) not in message
+
+    def test_a_component_changed_breaks_a_rule_it_didnt_break(self, tmp_path):
+        doc = tla.loads(a_file())
+        doc.timelines[CADENCES].components[CADENCE].attrs["time"] = -1.0
+        assert [w.message for w in refused(doc, tmp_path)] == [
+            "Time can't be negative. Got '-00:01.0'"
+        ]
+
+    def test_a_component_with_a_problem_changed_breaks_another_rule(self, tmp_path):
+        doc = tla.loads(a_file(LEVEL_0))
+        doc.timelines[FORM].components[FIRST].attrs["end"] = -1.0
+        assert "End time '-1.0' should be bigger than start time '0.0'" in [
+            w.message for w in refused(doc, tmp_path)
+        ]
+
+    def test_a_component_with_a_problem_changed_keeps_it(self, tmp_path):
+        # FR-054, until tla.keep_read_problems comes:
+        # TimeLineAnnotator/project-management#439.
+        doc = tla.loads(a_file(A_MARKER_PAST_THE_END))
+        doc.timelines[CADENCES].components[FIRST].attrs["label"] = "A"
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    def test_a_component_changed_past_a_new_length(self, tmp_path):
+        doc = tla.loads(a_file(A_MARKER_PAST_THE_END))
+        doc.media_length = 120.0
+        doc.timelines[CADENCES].components[FIRST].attrs["label"] = "A"
+        assert refused(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "edit",
+        [lambda attrs: attrs.update(time=160.0), lambda attrs: attrs.update(label="A")],
+        ids=["moved", "labelled"],
+    )
+    def test_a_component_changed_past_a_length_first_learned(self, edit, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 150.0}))))
+        doc.media_length = 100.0
+        edit(doc.timelines[CADENCES].components[FIRST].attrs)
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    def test_a_range_joined_to_one_that_moved(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=SECOND)),
+                    (SECOND, a_range(3.0, 4.0)),
+                )
+            )
+        )
+        doc.timelines[TEXTURE].components[SECOND].attrs["start"] = 3.5
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == [component_place(TEXTURE, FIRST)]
+        assert "starts at 3.5" in problems[0].message
+
+    def test_a_range_joined_to_one_that_changed(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=THIRD)),
+                    (SECOND, a_range(3.0, 3.5)),
+                    (THIRD, a_range(5.0, 6.0)),
+                )
+            )
+        )
+        doc.timelines[TEXTURE].components[THIRD].attrs["label"] = "A"
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(TEXTURE, FIRST)
+        ]
+
+    def test_a_range_added_before_the_next_breaks_a_join_read_whole(self, tmp_path):
+        doc = tla.loads(a_file())
+        doc.timelines[TEXTURE].components[FIRST] = tla.Component(
+            id=FIRST, kind="range", attrs={**a_range(0.5, 0.7), "row_id": ROW}
+        )
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(TEXTURE, MELODY_1)
+        ]
+
+    def test_two_at_one_time_both_moved_to_another(self, tmp_path):
+        doc = tla.loads(
+            a_file(markers((FIRST, {"time": 1.0}), (SECOND, {"time": 1.0})))
+        )
+        components = doc.timelines[CADENCES].components
+        components[FIRST].attrs["time"] = components[SECOND].attrs["time"] = 2.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    def test_two_that_cross_and_one_changed_to_lie_at_the_same_place(self, tmp_path):
+        doc = tla.loads(a_file(CROSSING))
+        attrs = doc.timelines[FORM].components[SECOND].attrs
+        attrs["start"], attrs["end"] = 0.0, 2.0
+        messages = [w.message for w in refused(doc, tmp_path)]
+        assert any(
+            message.startswith("There is already a hierarchy component")
+            for message in messages
+        )
+
+    def test_a_kind_changed_and_all_else_the_same(self, music21, tmp_path):
+        doc = tla.loads(a_file(harmony_timeline((FIRST, harmony(-1.0)))))
+        assert len(doc.read_problems) == 1
+        doc.timelines[HARMONIES].components[FIRST] = tla.Component(
+            id=FIRST, kind="mode", attrs={"time": -1.0}
+        )
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(HARMONIES, FIRST)
+        ]
+
+    def test_a_row_with_a_problem_changed(self, tmp_path):
+        doc = tla.loads(a_file(ranges(rows=[{"id": ROW, "name": "Melody"}, BASS])))
+        doc.timelines[TEXTURE].attrs["rows"][1]["name"] = "Low"
+        assert [w.message for w in refused(doc, tmp_path)] == [
+            "notacolor is not a valid color."
+        ]
+
+    def test_a_new_row_with_a_problem(self, tmp_path):
+        doc = tla.loads(a_file())
+        doc.timelines[TEXTURE].attrs["rows"].append(dict(BASS))
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            f"/timelines/{TEXTURE}/rows/1"
+        ]
+
+    def test_a_refused_row_is_named_where_it_is_now(self, tmp_path):
+        doc = tla.loads(a_file())
+        doc.timelines[TEXTURE].attrs["rows"].insert(0, dict(BASS))
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            f"/timelines/{TEXTURE}/rows/0"
+        ]
+
+
 class TestBrokenRules:
     def refused(self, tmp_path):
         doc = tla.loads(a_file())
