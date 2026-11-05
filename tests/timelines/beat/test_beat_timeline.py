@@ -692,6 +692,64 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(3, 0, True) == expected
 
 
+class TestLastMeasureEndsAtTheMediaEnd:
+    """A last measure's projected end stops at the media's end."""
+
+    def test_segment_end(self, tls, tilia_state):
+        tilia_state.duration = 4.5
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 1, True) == [4.5]
+
+    def test_time_after_the_last_beat_is_interpolated_up_to_it(self, tls, tilia_state):
+        tilia_state.duration = 4.5
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 0.75) == [4.25]
+
+    def test_time_up_to_the_last_beat_does_not_change(self, tls, tilia_state):
+        tilia_state.duration = 4.5
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 0) == [3]
+        assert beat_tl.get_time_by_measure(2, 0.25) == [3.5]
+        assert beat_tl.get_time_by_measure(2, 0.5) == [4]
+
+    def test_end_of_the_last_pass_as_a_segment_end_on_a_downbeat(
+        self, tls, tilia_state
+    ):
+        tilia_state.duration = 6.5
+        beat_tl = load_beat_timeline(tls, [2, 2, 2], [1, 2, 1])
+
+        assert beat_tl.get_time_by_measure(2, 0, True) == [3, 6.5]
+
+    def test_projected_end_before_the_media_end_does_not_change(self, tls, tilia_state):
+        tilia_state.duration = 10
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 1, True) == [5]
+        assert beat_tl.get_time_by_measure(2, 0.75) == [4.5]
+
+    def test_projected_end_at_the_media_end(self, tls, tilia_state):
+        tilia_state.duration = 5
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 1, True) == [5]
+
+    def test_measure_before_the_last_keeps_its_end(self, tls, tilia_state):
+        tilia_state.duration = 4.5
+        beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
+
+        assert beat_tl.get_time_by_measure(1, 1, True) == [3]
+
+    def test_one_measure_has_nothing_to_project_from(self, tls, tilia_state):
+        tilia_state.duration = 2.5
+        beat_tl = load_beat_timeline(tls, [2], [1])
+
+        assert beat_tl.get_time_by_measure(1, 1, True) == []
+        assert beat_tl.get_time_by_measure(1, 0.75) == []
+
+
 class TestAddMeasureZero:
     def test_timeline_with_no_measure_2(self, tls):
         beat_tl = load_beat_timeline(tls, [2, 2, 2], [1, 3, 4])
