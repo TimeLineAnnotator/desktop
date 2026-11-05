@@ -322,6 +322,43 @@ class TestUndoableWithSeveralComponents:
         assert [c.id for c in score_tl] == order
 
     @staticmethod
+    def _add_a_score(score_tl):
+        for staff_index in range(2):
+            score_tl.create_component(ComponentKind.STAFF, staff_index, 5)
+            score_tl.create_component(
+                ComponentKind.CLEF, staff_index, 0, shorthand=Clef.Shorthand.TREBLE
+            )
+            score_tl.create_component(ComponentKind.NOTE, 0, 1, 0, 0, 3, staff_index)
+        score_tl.create_component(ComponentKind.BAR_LINE, 0)
+        post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, score_tl.id)
+
+    def test_undoing_the_import_of_the_same_score_keeps_the_timeline(
+        self, score_tlui, tls
+    ):
+        score_tl = score_tlui.timeline
+        timeline_id = score_tl.id
+        self._add_a_score(score_tl)
+        first_ids = _ids(score_tl)
+        _record()
+        # What importing does first: tilia/ui/timelines/collection/import_.py
+        score_tl.clear()
+        self._add_a_score(score_tl)
+        assert _ids(score_tl) != first_ids
+        _record()
+
+        commands.execute("edit.undo")
+        assert tls.get_timeline(timeline_id) is not None
+        assert _ids(tls.get_timeline(timeline_id)) == first_ids
+
+        commands.execute("edit.redo")
+        assert tls.get_timeline(timeline_id) is not None
+        assert _ids(tls.get_timeline(timeline_id)) != first_ids
+
+        commands.execute("edit.undo")
+        assert tls.get_timeline(timeline_id) is not None
+        assert _ids(tls.get_timeline(timeline_id)) == first_ids
+
+    @staticmethod
     def _add_harmonies_then_a_mode(harmony_tl):
         """Adding the mode changes the `applied_to` of the harmonies after it."""
         for time in range(0, 40, 10):
@@ -354,6 +391,104 @@ class TestUndoableWithSeveralComponents:
         with undoable():
             harmony_tl.set_component_data(mode.id, "comments", "edited")
             _record()
+
+    @staticmethod
+    def _add_through_commands(harmony_tlui, mode_first):
+        """Add two harmonies and a mode, in the given order, as a user does."""
+        from tests.ui.timelines.harmony.test_harmony_timeline_ui import (
+            add_harmony,
+            add_mode,
+        )
+
+        def add_the_mode():
+            commands.execute("media.seek", 5)
+            add_mode(step=1, accidental=0, type="major")
+
+        if mode_first:
+            add_the_mode()
+        for time in (10, 20):
+            commands.execute("media.seek", time)
+            add_harmony(step=3, accidental=0, quality="major")
+        if not mode_first:
+            add_the_mode()
+        harmony_tlui.deselect_all_elements()
+
+    @staticmethod
+    def _mode_element(harmony_tlui):
+        return next(e for e in harmony_tlui if e.get_data("KIND") == ComponentKind.MODE)
+
+    @staticmethod
+    def _labels(harmony_tlui):
+        """What the labels show, and what they should show."""
+        shown = [h.body.toPlainText() for h in harmony_tlui.harmonies()]
+        should = [h.label for h in harmony_tlui.harmonies()]
+        return shown, should
+
+    @pytest.mark.parametrize("mode_first", [True, False], ids=["older", "newer"])
+    def test_labels_are_right_after_undoing_the_deletion_of_a_mode(
+        self, harmony_tlui, mode_first
+    ):
+        self._add_through_commands(harmony_tlui, mode_first)
+        with_the_mode = self._labels(harmony_tlui)[1]
+        harmony_tlui.select_element(self._mode_element(harmony_tlui))
+        commands.execute("timeline.component.delete")
+        without_the_mode = self._labels(harmony_tlui)[1]
+        assert without_the_mode != with_the_mode
+
+        commands.execute("edit.undo")
+
+        shown, should = self._labels(harmony_tlui)
+        assert should == with_the_mode
+        assert shown == should
+
+    def test_labels_are_right_after_redoing_the_addition_of_a_newer_mode(
+        self, harmony_tlui
+    ):
+        self._add_through_commands(harmony_tlui, mode_first=False)
+        with_the_mode = self._labels(harmony_tlui)[1]
+
+        commands.execute("edit.undo")
+        assert self._labels(harmony_tlui)[1] != with_the_mode
+        commands.execute("edit.redo")
+
+        shown, should = self._labels(harmony_tlui)
+        assert should == with_the_mode
+        assert shown == should
+
+    def test_labels_are_right_after_redoing_a_mode_added_to_harmonies_that_name_it(
+        self, harmony_tlui
+    ):
+        harmony_tl = harmony_tlui.timeline
+        for time in (10, 20):
+            harmony_tl.create_harmony(time, step=3, applied_to=3, display_mode="roman")
+        _record()
+        harmony_tl.create_mode(5, step=1)
+        harmony_tlui.update_harmony_labels()
+        _record()
+        with_the_mode = self._labels(harmony_tlui)[1]
+
+        commands.execute("edit.undo")
+        commands.execute("edit.redo")
+
+        shown, should = self._labels(harmony_tlui)
+        assert should == with_the_mode
+        assert shown == should
+
+    @pytest.mark.parametrize("mode_first", [True, False], ids=["older", "newer"])
+    def test_labels_are_right_after_redoing_the_deletion_of_a_mode(
+        self, harmony_tlui, mode_first
+    ):
+        self._add_through_commands(harmony_tlui, mode_first)
+        harmony_tlui.select_element(self._mode_element(harmony_tlui))
+        commands.execute("timeline.component.delete")
+        without_the_mode = self._labels(harmony_tlui)[1]
+
+        commands.execute("edit.undo")
+        commands.execute("edit.redo")
+
+        shown, should = self._labels(harmony_tlui)
+        assert should == without_the_mode
+        assert shown == should
 
     def test_hierarchies(self, hierarchy_tlui):
         hierarchy_tl = hierarchy_tlui.timeline
