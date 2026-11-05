@@ -740,6 +740,17 @@ def test_on_windows_a_verbatim_path_is_read_as_verbatim(tmp_path, monkeypatch):
     assert len(read) == 1 and read[0].startswith("\\\\?\\")
 
 
+@windows_only
+def test_on_windows_a_verbatim_path_with_forward_slashes_keeps_its_name(tmp_path):
+    verbatim = f"\\\\?\\{tmp_path}\\rec.wav."
+    pcm16_wav(Path(verbatim), rate=8000, channels=1, frames=8000)
+    doc = build.new_script_document()
+
+    assert build.load_media(doc, verbatim.replace("\\", "/")) == 1.0
+
+    assert doc.media_path == "//?/" + stored(tmp_path / "rec.wav") + "."
+
+
 @posix_only
 @pytest.mark.parametrize("name", ["rec.wav.", "rec.wav "])
 def test_elsewhere_a_name_ending_in_a_dot_or_a_space_isnt_a_wavs(tmp_path, name):
