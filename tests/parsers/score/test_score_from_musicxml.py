@@ -2,6 +2,7 @@ import pytest
 
 from tests.mock import patch_yes_or_no_dialog
 from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -746,6 +747,189 @@ def test_the_last_measure_ends_with_a_bar_line(score_tl, beat_tl, tmp_path):
     assert notes[-1].get_data("end") == 3
     bar_lines = _get_components_by_kind(score_tl, ComponentKind.BAR_LINE)
     assert [bar_line.get_data("time") for bar_line in bar_lines] == [1, 2, 3]
+
+
+QUARTER_NOTE = """<note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>4</duration>
+            <type>quarter</type>
+        </note>"""
+QUARTER_REST = """<note><rest/><duration>4</duration><type>quarter</type></note>"""
+
+
+def _measure_of_quarters(attributes: str, notes: int = 4) -> str:
+    """A measure's contents: its attributes, then `notes` quarter notes, then
+    rests up to four quarters."""
+    return (
+        f"<attributes><divisions>4</divisions>{attributes}</attributes>"
+        + QUARTER_NOTE * notes
+        + QUARTER_REST * (4 - notes)
+    )
+
+
+class TestLastMeasureEndsAtTheMediaEnd:
+    """A last measure's projected end stops at the media's end."""
+
+    @staticmethod
+    def _bar_line_times(score_tl) -> list[float]:
+        bar_lines = _get_components_by_kind(score_tl, ComponentKind.BAR_LINE)
+        return [bar_line.get_data("time") for bar_line in bar_lines]
+
+    @staticmethod
+    def _note_times(score_tl) -> list[tuple[float, float]]:
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        return [(n.get_data("start"), n.get_data("end")) for n in notes]
+
+    @staticmethod
+    def _create_one_beat_measures(beat_tl, amount: int) -> None:
+        beat_tl.set_data("beat_pattern", [1])
+        for i in range(amount):
+            beat_tl.create_beat(i)
+        beat_tl.recalculate_measures()
+
+    @staticmethod
+    def _fill_four_beat_measures(beat_tl) -> None:
+        beat_tl.set_data("beat_pattern", [4])
+        beat_tl.fill_with_beats(BeatTimeline.FillMethod.BY_AMOUNT, 16)
+
+    def test_note_running_past_the_media_end_is_cut_there(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        tilia_state.set_duration(2.5, scale_timelines="no")
+        self._create_one_beat_measures(beat_tl, 3)
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure(""),
+                _measure(""),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        assert self._note_times(score_tl) == [(0, 1), (1, 2), (2, 2.5)]
+        assert self._bar_line_times(score_tl) == [1, 2, 2.5]
+
+    def test_time_after_the_last_beat_fits_itself_to_the_media_end(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        tilia_state.set_duration(2.5, scale_timelines="no")
+        self._create_one_beat_measures(beat_tl, 3)
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure(""),
+                _measure_of_quarters("", notes=1),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        # A quarter of the half second left, not of the second it would last.
+        assert self._note_times(score_tl)[-1] == (2, 2.125)
+        assert self._bar_line_times(score_tl) == [1, 2, 2.5]
+
+    def test_rounding_past_the_media_end_gives_no_error(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        # The last measure's end computes as 61.70000000000001.
+        tilia_state.set_duration(61.7, scale_timelines="no")
+        self._fill_four_beat_measures(beat_tl)
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure(""),
+                _measure(""),
+                _measure_of_quarters("", notes=1),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        assert self._bar_line_times(score_tl)[-1] == 61.7
+
+    @pytest.mark.parametrize("duration", [61.7, 300.3, 421.296, 291.974, 100.0])
+    def test_rounding_loses_no_note(
+        self, score_tl, beat_tl, tilia_state, tmp_path, duration
+    ):
+        tilia_state.set_duration(duration, scale_timelines="no")
+        self._fill_four_beat_measures(beat_tl)
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure_of_quarters("".join(SCORE_ATTRIBUTES.values())),
+                _measure_of_quarters(""),
+                _measure_of_quarters(""),
+                _measure_of_quarters(""),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        notes = self._note_times(score_tl)
+        assert len(notes) == 16
+        assert notes[-1][1] == pytest.approx(duration)
+
+    def test_last_measure_that_ends_before_the_media_end_does_not_change(
+        self, score_tl, beat_tl, tilia_state, tmp_path
+    ):
+        tilia_state.set_duration(10, scale_timelines="no")
+        self._create_one_beat_measures(beat_tl, 3)
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure("".join(SCORE_ATTRIBUTES.values())),
+                _measure(""),
+                _measure(""),
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        assert self._note_times(score_tl)[-1] == (2, 3)
+        assert self._bar_line_times(score_tl) == [1, 2, 3]
+
+    @pytest.mark.parametrize("duration", [3.5, 100])
+    def test_timeline_with_one_measure_has_nothing_to_project_from(
+        self, score_tl, beat_tl, tilia_state, tmp_path, duration
+    ):
+        tilia_state.set_duration(duration, scale_timelines="no")
+        beat_tl.set_data("beat_pattern", [4])
+        for i in range(4):
+            beat_tl.create_beat(i)
+        beat_tl.recalculate_measures()
+
+        success, errors = _import_with_patch(
+            score_tl,
+            beat_tl,
+            _score_with_measures(
+                _measure_of_quarters("".join(SCORE_ATTRIBUTES.values()))
+            ),
+            tmp_path,
+        )
+
+        assert success
+        assert errors == []
+        assert self._note_times(score_tl) == [(0, 1), (1, 2), (2, 3)]
+        assert self._bar_line_times(score_tl) == []
 
 
 @pytest.mark.parametrize(
