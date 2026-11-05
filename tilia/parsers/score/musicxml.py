@@ -79,7 +79,7 @@ def notes_from_musicXML(
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 3, "F": 4, "G": 2}
 
-    def _create_component(component_kind: ComponentKind, kwargs: dict) -> int | None:
+    def _create_component(component_kind: ComponentKind, kwargs: dict) -> str | None:
         component, fail_reason = score_tl.create_component(component_kind, **kwargs)
         if not component:
             errors.append(fail_reason)
