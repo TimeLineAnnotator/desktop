@@ -359,6 +359,7 @@ class TestCodes:
             ("marker", {"time": -1.0}, "negative_time"),
             ("marker", {"time": 61.0}, "past_media_end"),
             ("beat", {"time": 61.0}, "past_media_end"),
+            ("beat", {"measure": {"number": -1}}, "negative_measure_number"),
             ("pdf_marker", {"page_number": 1.5}, "bad_page_number"),
             ("pdf_marker", {"page_number": 0}, "no_such_page"),
             ("harmony", {"step": 9}, "bad_step"),
@@ -435,6 +436,12 @@ class TestCodes:
         one, other = (check("marker", **attrs) for attrs in (first, second))
         assert one.reason != other.reason
         assert one.code == other.code
+
+    def test_a_measure_number_has_one_with_any_number(self):
+        numbers = (-1, -2, -(10**5000))
+        outcomes = [check("beat", measure={"number": number}) for number in numbers]
+        assert {outcome.code for outcome in outcomes} == {rules.NEGATIVE_MEASURE_NUMBER}
+        assert len({outcome.reason for outcome in outcomes}) == len(numbers)
 
     def test_past_the_media_end_is_one_code_with_any_length(self):
         attrs = {"start": 90.0, "end": 110.0, "level": 1}
@@ -825,6 +832,18 @@ class TestMeasureNumber:
             broken.id: (False, self.BELOW.format(-1)),
             unmarked.id: OK,
         }
+
+    def test_every_rule_finds_it_after_the_rules_of_the_beat(self):
+        broken = component("beat", time=61.0, measure={"number": -1})
+        checked = rules.check_timeline(MEDIA, [broken], every_rule=True)[broken.id]
+        assert checked.outcome.code == rules.PAST_MEDIA_END
+        assert [(also.code, also.reason) for also in checked.also] == [
+            (rules.NEGATIVE_MEASURE_NUMBER, self.BELOW.format(-1))
+        ]
+
+    @pytest.mark.parametrize("number", [1.5, -1.5, -1.0, "-1", True])
+    def test_a_number_that_isnt_an_integer_is_left_as_it_was(self, number):
+        assert check("beat", measure={"number": number}) == OK
 
     def test_only_a_beat_has_its_measure_number_checked(self):
         # A marker has no measure marks: a `measure` key on one is a key the core
