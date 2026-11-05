@@ -1038,7 +1038,7 @@ def test_a_pattern_that_is_data_falls_back_to_its_text_on_either_engine(either_e
         paired("f4", "abc", "(b)c"),  # a valid pattern is not read as text
     )
     got = tql.run(index, PAIR_QUERY)
-    assert [m.slots[0][0].file_id for m in got.matches] == ["f1", "f2", "f4"]
+    assert [r["file"] for r in got.rows] == ["f1", "f2", "f4"]
     assert [m.captures for m in got.matches] == [(), (), ("b",)]
 
 
@@ -1047,7 +1047,7 @@ def test_a_pattern_that_is_data_falls_back_to_its_text_with_a_time_limit(
 ):
     index = fixture_index.build_index(paired("f1", "a(b", "("))
     got = tql.run(index, PAIR_QUERY, time_limit=60)
-    assert [m.slots[0][0].file_id for m in got.matches] == ["f1"]
+    assert [r["file"] for r in got.rows] == ["f1"]
     # escaped, and ignoring case: two units' fields compare ignoring it (Q25)
     assert strict_spy.compiled == [r"(?i)\("]
     assert all(0 < c["timeout"] <= 60 + CLOCK_SLACK for c in strict_spy.calls)
