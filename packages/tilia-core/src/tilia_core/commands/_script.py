@@ -22,7 +22,6 @@ from tilia_core import importers, rules
 from tilia_core.build import _KINDS as _KINDS_ADDED
 from tilia_core.build import _NOT_A_MEDIA_LENGTH
 from tilia_core.commands._report import Report
-from tilia_core.importers import _HARMONY_NEEDS
 
 # contracts/run.md's refusals, and in their form those it doesn't give
 # (TimeLineAnnotator/project-management#497 (what the check of a script says)).
@@ -38,6 +37,8 @@ _ONE_OF_REQUIRED = "the argument {} or {} is required"
 _NOT_BOTH = "{} and {} can't both be given"
 _NEEDS_A_VALUE = "{} needs a value"
 _TAKES_NO_VALUE = "{} takes no value"
+# importers' text for a harmony import without the extra, from the same rule.
+_HARMONY_NEEDS = f"harmony import needs: {rules.INSTALL_HARMONY}"
 _NOT_UTF8 = "this line isn't UTF-8: save the script as UTF-8"
 
 _KINDS_IMPORTED = ("marker", "hierarchy", "range", "harmony", "pdf")
@@ -49,6 +50,11 @@ _ALIASES = {
     "": {"timeline": "timelines", "tl": "timelines"},
     "timelines import": _ALIASES_OF_KINDS,
 }
+
+# A "--" after the first, which some versions of Python drop and others keep as a
+# value, is passed to argparse as this, a word that can't be taken for either.
+_DASHES = "--"
+_LATER_DASHES = "\0--\0"
 
 # As argparse tells a negative number, which it takes for a value, from an option.
 _NEGATIVE_NUMBER = re.compile(r"-\d+|-\d*\.\d+")
@@ -113,7 +119,7 @@ def split_line(text: str) -> list[str] | None:
     quoted_string = ""
     in_quotes = False
     for arg in text.split(" "):
-        if not in_quotes and arg.startswith('"') and arg.endswith('"'):
+        if not in_quotes and len(arg) > 1 and arg.startswith('"') and arg.endswith('"'):
             args.append(arg[1:-1])
         elif not in_quotes and arg.startswith('"'):
             in_quotes = True
@@ -184,6 +190,7 @@ class _Parser(argparse.ArgumentParser):
         super().__init__(
             prog=prog, add_help=False, allow_abbrev=False, exit_on_error=False
         )
+        self.bad_values: list[str] = []
 
     def error(self, message: str) -> NoReturn:
         raise _ParserError(message)
@@ -345,13 +352,30 @@ def _use(spellings: Sequence[str]) -> str:
     return _USE.format(f'{", ".join(quoted[:-1])} or {quoted[-1]}')
 
 
+def _noting(parser: _Parser, read: Callable[[str], Any]) -> Callable[[str], Any]:
+    """`read`, which notes a bad value in the parser and goes on, so that argparse
+    reads the rest of the line and every bad value is reported. A "--" after the
+    first stands for itself, as argparse would otherwise take it for the end."""
+
+    def noting(text: str) -> Any:
+        try:
+            return read(_DASHES if text == _LATER_DASHES else text)
+        except _BadValue as bad:
+            parser.bad_values.append(str(bad))
+            return None
+
+    return noting
+
+
 @functools.cache
 def _parser(name: str) -> _Parser:
     syntax = _COMMANDS[name]
     parser = _Parser(name)
     for positional in syntax.positionals:
         parser.add_argument(
-            positional.name.lower(), metavar=positional.name, type=positional.type
+            positional.name.lower(),
+            metavar=positional.name,
+            type=_noting(parser, positional.type),
         )
     for option in syntax.options:
         if option.is_flag:
@@ -359,7 +383,7 @@ def _parser(name: str) -> _Parser:
         else:
             parser.add_argument(
                 option.spelling,
-                type=option.type,
+                type=_noting(parser, option.type),
                 default=option.default,
                 nargs="+" if option.is_list else None,
             )
@@ -496,18 +520,33 @@ def _arguments(
     """The line's arguments as argparse gives them, with every text our own, since
     argparse's words change with the version of Python. Options unknown here and
     those a command requires have been seen to by now."""
+    parser = _parser(name)
+    parser.bad_values = []
     try:
-        args, extras = _parser(name).parse_known_args(tokens)
-    except _BadValue as bad:
-        return None, [str(bad)]
+        args, extras = parser.parse_known_args(_dashes_kept(tokens))
     except argparse.ArgumentError as error:
         if error.argument_name is not None:
-            return None, [_NEEDS_A_VALUE.format(error.argument_name)]
-        return None, _missing_positionals(syntax, str(error))
+            return None, parser.bad_values + [
+                _NEEDS_A_VALUE.format(error.argument_name)
+            ]
+        return None, parser.bad_values + _missing_positionals(syntax, str(error))
     except _ParserError as error:
-        return None, _missing_positionals(syntax, str(error))
+        return None, parser.bad_values + _missing_positionals(syntax, str(error))
+    if parser.bad_values:
+        return None, parser.bad_values
+    extras = [_DASHES if token == _LATER_DASHES else token for token in extras]
     too_many = [token for token in extras if token != "--"]
     return args, [_NOT_AN_ARGUMENT.format(token, name) for token in too_many]
+
+
+def _dashes_kept(tokens: list[str]) -> list[str]:
+    """The tokens, with each "--" after the first one that ends the options
+    replaced, since a "--" is a value there and Python's versions differ on whether
+    argparse keeps it."""
+    if "--" not in tokens:
+        return tokens
+    end = tokens.index("--") + 1
+    return tokens[:end] + [_LATER_DASHES if t == "--" else t for t in tokens[end:]]
 
 
 def _missing_positionals(syntax: _Syntax, message: str) -> list[str]:
