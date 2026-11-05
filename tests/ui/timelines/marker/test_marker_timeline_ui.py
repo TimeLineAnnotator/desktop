@@ -4,8 +4,9 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog, QInputDialog
 
-from tests.mock import Serve, patch_ask_for_string_dialog, patch_yes_or_no_dialog
+from tests.mock import patch_ask_for_string_dialog, patch_yes_or_no_dialog
 from tests.ui.test_qtui import get_toolbars_of_class
+from tests.ui.timelines.beat.interact import click_beat_ui
 from tests.ui.timelines.interact import (
     click_timeline_ui,
     drag_mouse_in_timeline_view,
@@ -20,7 +21,7 @@ from tests.utils import (
     get_submenu,
     undoable,
 )
-from tilia.requests import Get, Post, post
+from tilia.requests import Post, post
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.coords import time_x_converter
@@ -73,8 +74,7 @@ class TestSetResetColor:
     def set_color_on_all_markers(self, marker_tlui):
         """Assumes there is a single marker on timeline"""
         marker_tlui.select_all_elements()
-        with Serve(Get.FROM_USER_COLOR, (True, QColor(self.TEST_COLOR))):
-            commands.execute("timeline.component.set_color")
+        commands.execute("timeline.component.set_color", color=QColor(self.TEST_COLOR))
 
     def test_set_color(self, marker_tlui):
         commands.execute("timeline.marker.add")
@@ -222,6 +222,83 @@ class TestCopyPaste:
             assert marker_tlui[index].get_data("label") == label
 
 
+class TestCut:
+    def test_cut(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        with undoable():
+            commands.execute("timeline.component.cut")
+
+        assert len(marker_tlui) == 0
+
+    def test_shortcut(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        press_key("x", modifier=Qt.KeyboardModifier.ControlModifier)
+
+        assert len(marker_tlui) == 0
+
+    def test_cut_then_paste(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+        press_key("Enter")
+        type_string("cut me")
+        commands.execute("timeline.component.cut")
+
+        commands.execute("media.seek", 10)
+        commands.execute("timeline.component.paste")
+
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data("time") == 10
+        assert marker_tlui[0].get_data("label") == "cut me"
+
+    def test_cut_multiple(self, marker_tlui):
+        for time in [0, 10, 20]:
+            commands.execute("media.seek", time)
+            commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        click_marker_ui(marker_tlui[2], modifier="ctrl")
+
+        with undoable():
+            commands.execute("timeline.component.cut")
+
+        assert len(marker_tlui) == 1
+        assert marker_tlui[0].get_data("time") == 10
+
+    def test_cut_with_nothing_selected_does_nothing(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+
+        commands.execute("timeline.component.cut")
+
+        assert len(marker_tlui) == 1
+
+    def test_cut_across_timelines_deletes_nothing(
+        self, marker_tlui, beat_tlui, tilia_errors
+    ):
+        commands.execute("timeline.marker.add")
+        commands.execute("timeline.beat.add", time=0)
+        click_marker_ui(marker_tlui[0])
+        click_beat_ui(beat_tlui[0], modifier="ctrl")
+
+        commands.execute("timeline.component.cut")
+
+        tilia_errors.assert_in_error_message("more than one timeline")
+        assert len(marker_tlui) == 1
+        assert len(beat_tlui) == 1
+
+    def test_cut_via_context_menu(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        context_menu = marker_tlui[0].CONTEXT_MENU_CLASS(marker_tlui[0])
+        get_command_action(context_menu, "timeline.component.cut").trigger()
+
+        assert len(marker_tlui) == 0
+
+
 class TestSelect:
     def test_select(self, marker_tlui, tluis):
         marker_tlui.create_marker(10)
@@ -345,6 +422,7 @@ class TestElementContextMenu:
             "timeline.component.reset_color",
             "timeline.component.set_color",
             "timeline.component.copy",
+            "timeline.component.cut",
             "timeline.component.paste",
         )
 
@@ -432,6 +510,27 @@ class TestTimelineUIContextMenu:
 
         assert tluis[1].get_data("name") == "Move me down"
 
+    def test_redo_after_move_preserves_visual_order(self, tluis):
+        # Manual QA found redo does not preserve order -- undoable() already
+        # checks that Get.APP_STATE (backend ordinals) matches after
+        # undo+redo, but that wouldn't catch the timeline *views* being left
+        # at their pre-redo screen position. Check the actual view Y
+        # coordinates, which is what a manual tester would see.
+        commands.execute("timelines.add.marker", name="A")
+        commands.execute("timelines.add.marker", name="B")
+        commands.execute("timelines.add.marker", name="C")
+        tlui_a, tlui_b, tlui_c = tluis[0], tluis[1], tluis[2]
+
+        context_menu = self.get_context_menu(tluis, 0)
+        move_down_action = get_command_action(context_menu, "timeline.move_down")
+
+        with undoable():
+            move_down_action.trigger()
+
+        # undoable() leaves the app in the post-move state (having just
+        # redone it): B, A, C from top to bottom.
+        assert tlui_b.view.y() < tlui_a.view.y() < tlui_c.view.y()
+
     def test_delete_via_context_menu(self, marker_tlui, tluis):
         context_menu = self.get_context_menu(tluis)
         delete_action = get_command_action(context_menu, "timeline.delete")
@@ -473,6 +572,18 @@ class TestTimelineUIContextMenu:
 
         assert clear_action.isEnabled()
 
+    def test_duplicate_via_context_menu(self, marker_tlui, tluis):
+        commands.execute("timeline.marker.add", time=1)
+
+        context_menu = self.get_context_menu(tluis)
+        duplicate_action = get_command_action(context_menu, "timeline.duplicate")
+        with undoable():
+            duplicate_action.trigger()
+
+        assert len(tluis) == 2
+        assert tluis[1].get_data("name") == marker_tlui.get_data("name") + "_copy"
+        assert len(tluis[1].timeline) == 1
+
 
 class TestInspect:
     def test_open_inspect_menu(self, marker_tlui, tluis, qtui):
@@ -498,6 +609,14 @@ class TestInspect:
         click_marker_ui(marker_tlui[0])
         press_key("Enter")
         press_key("Escape")
+
+        assert not qtui.is_window_open(WindowKind.INSPECT)
+
+    def test_enter_with_no_selection_is_noop(self, marker_tlui, tluis, qtui):
+        # click on an empty part of the timeline to give it focus without
+        # selecting anything, then press Enter: nothing should happen.
+        click_timeline_ui(marker_tlui, 50)
+        press_key("Enter")
 
         assert not qtui.is_window_open(WindowKind.INSPECT)
 
@@ -549,6 +668,28 @@ class TestInspect:
         press_key("A", modifier=Qt.KeyboardModifier.ControlModifier)
         with undoable():
             press_key("Backspace")
+
+        assert marker_tlui[0].get_data("comments") == ""
+
+    def test_set_comments_to_empty_string_is_undoable(self, marker_tlui, tluis):
+        """Clearing the Comments field to an empty string must be
+        undoable/redoable like any other inspector edit -- it shouldn't be
+        special-cased (e.g. skipped from state recording) just because the
+        resulting value is falsy."""
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Enter")
+        press_key("Tab")
+        type_string("some comments")
+        press_key("Escape")
+
+        press_key("Enter")
+        press_key("Tab")
+        press_key("A", modifier=Qt.KeyboardModifier.ControlModifier)
+        with undoable():
+            press_key("Backspace")
+            assert marker_tlui[0].get_data("comments") == ""
 
         assert marker_tlui[0].get_data("comments") == ""
 

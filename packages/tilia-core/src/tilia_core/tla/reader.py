@@ -1,0 +1,457 @@
+"""Reading `.tla` files of any TiLiA version into a `Document`."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from functools import partial
+from pathlib import Path
+from typing import Any
+
+from tilia_core.tla.check import check
+from tilia_core.tla.errors import DraftFormat, NewerFormat, UnreadableFile, printable
+from tilia_core.tla.layout import (
+    BEAT_UNIT_SHAPE,
+    COMPONENT_SHAPES,
+    FORMAT_VERSION,
+    MEASURE_SHAPE,
+    MEDIA_SHAPE,
+    RANGE_ROW_SHAPE,
+    SCORE_SHAPES,
+    SCORE_SOURCE_SHAPE,
+    TIMELINE_SHAPES,
+    TOP_SHAPE,
+    UNKNOWN_COMPONENT,
+    UNKNOWN_SCORE,
+    Shape,
+    nfc_object,
+    nfc_value,
+    pointer_to,
+)
+from tilia_core.tla.migrate.to_1 import Migrated, migrate
+from tilia_core.tla.model import (
+    TIMELINE_COMPONENTS,
+    Component,
+    Document,
+    ReadWarning,
+    Score,
+    Timeline,
+    UnknownKind,
+    component_kind_from_file,
+    measure_table,
+    timeline_kind_from_current_file,
+)
+from tilia_core.tla.parse import add_line, lines_of, parse, text_of
+
+
+def read(path: str | os.PathLike[str]) -> Document:
+    """Read a `.tla` file. Nothing is written, created or touched.
+
+    Raises `UnreadableFile` for content the reader refuses, and lets the
+    system's `OSError` through for a file it can't open or read.
+    """
+    with open(path, "rb") as file:
+        data = file.read()
+    return loads(data, path=path)
+
+
+def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Document:
+    """Read a `.tla` file's bytes. `path`, when given, is where the file is."""
+    return _loads(data, path)[0]
+
+
+def loads_for_fingerprint(
+    data: bytes, *, path: str | os.PathLike[str] | None = None
+) -> Document:
+    """The document a file's fingerprint is taken from (FR-043): `loads`'s,
+    except that an old file's media path and PDF timelines' paths are as the
+    file stores them, not made relative from where it is read (FR-021), so
+    that its fingerprint changes only when the file does: not when its media
+    comes or goes, nor with the folder it is read through (FR-043)."""
+    return _loads(data, path, paths_as_stored=True)[0]
+
+
+def read_with_migration(
+    path: str | os.PathLike[str],
+) -> tuple[Document, Migrated | None]:
+    """`read`, with what the migration did to an old file: its counts and
+    its own warnings, for a migration report; None for a file in the
+    current format. Internal to the core: `migrate_folder` reads with it."""
+    with open(path, "rb") as file:
+        data = file.read()
+    return _loads(data, path)
+
+
+def _loads(
+    data: bytes,
+    path: str | os.PathLike[str] | None,
+    *,
+    paths_as_stored: bool = False,
+) -> tuple[Document, Migrated | None]:
+    # The version first: a newer format may lay out the rest otherwise.
+    content = parse(data, path=path, check=partial(_check_version, path=path))
+    if _is_old(content.get("version", "0.0.0")):
+        return _old(content, data, path, paths_as_stored=paths_as_stored)
+    warnings = check(content, data, path=path)
+    document = _Reader(path).document(content)
+    document.warnings = warnings
+    return document, None
+
+
+def _old(
+    content: dict[str, Any],
+    data: bytes,
+    path: str | os.PathLike[str] | None,
+    *,
+    paths_as_stored: bool,
+) -> tuple[Document, Migrated]:
+    """A file from TiLiA 0.x, migrated in memory; its document's
+    format_version is the version it was read from. The migrated content is
+    checked as a file of the current format is (FR-053), and its warnings
+    come after the migration's.
+
+    What the migration or the check refuses or warns about is named in the
+    old file's terms: its place there, with the old ids, and its line in
+    the old file's bytes (TimeLineAnnotator/project-management#347). The
+    migration names its places so itself; the check names places in the
+    migrated document, which the migration's `places` takes back to the old
+    file, with what it says about them.
+    """
+    try:
+        migrated = migrate(content, path=path, paths_as_stored=paths_as_stored)
+        try:
+            warnings = check(migrated.content, path=path)
+        except UnreadableFile as error:
+            if error.place is None:
+                raise
+            place, message = migrated.places.in_old_file(error.place, error.message)
+            raise UnreadableFile(message, path=path, place=place) from None
+    except UnreadableFile as error:
+        add_line(error, text_of(data))
+        raise
+    named = [(w.place, w.message) for w in migrated.warnings]
+    named += [migrated.places.in_old_file(w.place, w.message) for w in warnings]
+    lines = lines_of(text_of(data), [place for place, _ in named]) if named else {}
+    document = _Reader(path).document(migrated.content)
+    document.warnings = [
+        ReadWarning(place=place, line=lines[place], message=message)
+        for place, message in named
+    ]
+    migrated.data = data
+    return document, migrated
+
+
+# Semantic Versioning's form, which the format's versions take from 1.0.0 on.
+_SEMANTIC = re.compile(
+    r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
+_LEADING_DIGITS = re.compile(r"[0-9]*")
+
+
+def _number(digits: str) -> tuple[int, str]:
+    # Compared without int(), which refuses very long digit strings.
+    digits = digits.lstrip("0")
+    return len(digits), digits
+
+
+_RELEASE = (1,)  # a release sorts after all of its prereleases
+
+
+def _precedence(version: str) -> tuple[Any, ...] | None:
+    """A key that orders versions as Semantic Versioning does, where
+    1.0.0-draft.1 < 1.0.0-draft.2 < 1.0.0; None for another form."""
+    match = _SEMANTIC.fullmatch(version)
+    if match is None:
+        return None
+    major, minor, patch, prerelease = match.groups()
+    if prerelease is None:
+        release: tuple[Any, ...] = _RELEASE
+    else:
+        release = (0,) + tuple(
+            (0, _number(part), "") if part.isdigit() else (1, (0, ""), part)
+            for part in prerelease.split(".")
+        )
+    return _number(major), _number(minor), _number(patch), release
+
+
+def _is_old(version: str) -> bool:
+    """Major version 0, as TiLiA compares versions: a file from TiLiA 0.x."""
+    return not _LEADING_DIGITS.match(version).group().strip("0")
+
+
+def _check_version(
+    content: dict[str, Any], path: str | os.PathLike[str] | None
+) -> None:
+    """Return if the file is in the current format, spelled exactly so, or an
+    old one, which the migration reads, and raise otherwise: a draft other
+    than the current one is converted again from its sources, never read
+    (FR-007), and a newer format is refused, naming its version (FR-014).
+    Nothing else in the file is looked at."""
+    version = content.get("version", "0.0.0")
+    if not isinstance(version, str):
+        raise UnreadableFile(
+            "the format version isn't text", path=path, place="/version"
+        )
+    if version == FORMAT_VERSION or _is_old(version):
+        return
+    ours, theirs = _precedence(FORMAT_VERSION), _precedence(version)
+    # The current version with build metadata, which Semantic Versioning
+    # ignores when it compares versions, is refused too, as the schema's
+    # `const` refuses it (FR-091). It isn't another draft, to convert again
+    # from its sources, so it is refused as a version this TiLiA doesn't
+    # know. Compared as text, since _precedence reads draft.01, which isn't
+    # in its form, as draft.1.
+    with_build = version.partition("+")[0] == FORMAT_VERSION
+    if (
+        theirs is not None
+        and not with_build
+        and (theirs < ours or (theirs[:3] == ours[:3] and theirs[3] != _RELEASE))
+    ):
+        raise DraftFormat(version, path=path)
+    raise NewerFormat(version, path=path)
+
+
+_TIMELINE_FIELDS = frozenset({"kind", "name", "ordinal", "metadata", "components"})
+_COMPONENT_FIELDS = frozenset({"kind", "metadata"})
+_SCORE_FIELDS = frozenset({"id", "format", "content"})
+_SCORE_OWN = frozenset({"source", "license"})  # the fields of an MEI score
+# Inside an attribute, the objects whose defaults are filled in as well. A
+# mark's number, label and source aren't: they depend on the marks before it,
+# and the timeline's measure table is where they are resolved.
+_NESTED = {"measure": MEASURE_SHAPE, "beat_unit": BEAT_UNIT_SHAPE}
+
+
+def _filled(value: Any, shape: Shape) -> Any:
+    """An object with the defaults of its shape filled in, from the schema's
+    `default`s, a null for a key of its shape read as a missing key; anything
+    else as it is."""
+    if not isinstance(value, dict):
+        return value
+    known = shape.known
+    filled = {k: v for k, v in value.items() if v is not None or k not in known}
+    for key, default in shape.defaults.items():
+        filled.setdefault(key, default)
+    return filled
+
+
+def _attrs(
+    value: dict[str, Any], shape: Shape, fields: frozenset[str]
+) -> dict[str, Any]:
+    """An entry's attributes, with those at their default filled in. One whose
+    default is derived from another value (`pre_start` from `start`) stays
+    unset when the file doesn't have it, and follows that value. A null is a
+    missing key, except for an attribute always written, a legacy score's,
+    which is kept as it is."""
+    attrs: dict[str, Any] = {}
+    always = shape.always
+    for key in shape.keys:
+        if key in fields:
+            continue
+        item = value.get(key)
+        if item is not None or (key in always and key in value):
+            kind = type(item)
+            if kind is float or kind is int or (kind is str and item.isascii()):
+                attrs[key] = item  # what most values are: nothing to normalise
+            else:
+                attrs[key] = nfc_value(item)
+        elif key in shape.defaults:
+            attrs[key] = shape.defaults[key]
+    for key, nested in _NESTED.items():
+        if key in attrs:
+            attrs[key] = _filled(attrs[key], nested)
+    if isinstance(attrs.get("rows"), list):
+        attrs["rows"] = [_filled(row, RANGE_ROW_SHAPE) for row in attrs["rows"]]
+    return attrs
+
+
+def _or_default(value: Any, default: Any) -> Any:
+    """`value`, or `default` when it is None: a null is a missing key."""
+    return default if value is None else value
+
+
+def _unknown(value: dict[str, Any], known: frozenset[str]) -> dict[str, Any]:
+    if value.keys() <= known:
+        return {}
+    return {key: nfc_value(item) for key, item in value.items() if key not in known}
+
+
+class _Reader:
+    """Makes a `Document` of a file in the current format: kinds in lower case,
+    the schema's defaults filled in, unknown keys in `extra`, text in NFC
+    except a score's lines."""
+
+    def __init__(self, path: str | os.PathLike[str] | None) -> None:
+        self.path = path
+
+    def _refuse(self, message: str, place: str) -> UnreadableFile:
+        return UnreadableFile(message, path=self.path, place=place)
+
+    def _object(self, value: Any, place: str) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise self._refuse(f"expected an object at {place}", place)
+        return nfc_object(value)
+
+    def _text(self, value: Any, parent: str, key: str | int) -> str:
+        if not isinstance(value, str):
+            place = pointer_to(parent, key)
+            raise self._refuse(f"expected text at {place}", place)
+        return value
+
+    def _require(self, value: dict[str, Any], key: str, place: str) -> Any:
+        if key not in value:
+            name = json.dumps(key, ensure_ascii=False)
+            raise self._refuse(f"{name} is missing", pointer_to(place, key))
+        return value[key]
+
+    def _metadata(self, value: dict[str, Any], place: str) -> dict[str, Any]:
+        if value.get("metadata") is None:  # a null is a missing key
+            return {}
+        return nfc_value(self._object(value["metadata"], pointer_to(place, "metadata")))
+
+    def document(self, content: dict[str, Any]) -> Document:
+        content = nfc_object(content)
+        for key in TOP_SHAPE.keys:
+            self._require(content, key, "")
+        media = self._object(content["media"], "/media")
+        for key in MEDIA_SHAPE.keys:
+            self._require(media, key, "/media")
+        origin = None if self.path is None else Path(os.path.abspath(self.path))
+        return Document(
+            document_id=nfc_value(content["document_id"]),
+            format_version=content["version"],
+            time_unit=nfc_value(content["time_unit"]),
+            media_path=nfc_value(media["path"]),
+            media_length=media["length"],
+            media_extra=_unknown(media, MEDIA_SHAPE.known),
+            metadata=self._metadata(content, ""),
+            timelines=self._timelines(content["timelines"], "/timelines"),
+            scores=self._scores(content["scores"], "/scores"),
+            app_name=nfc_value(content["app_name"]),
+            extra=_unknown(content, TOP_SHAPE.known),
+            origin=origin,
+        )
+
+    def _timelines(self, value: Any, place: str) -> dict[str, Timeline]:
+        timelines = self._object(value, place)
+        return {
+            key: self._timeline(key, timelines[key], pointer_to(place, key))
+            for key in sorted(timelines)
+        }
+
+    def _timeline(self, timeline_id: str, value: Any, place: str) -> Timeline:
+        timeline = self._object(value, place)
+        spelling = self._text(self._require(timeline, "kind", place), place, "kind")
+        kind = timeline_kind_from_current_file(spelling)
+        if isinstance(kind, UnknownKind):
+            # Kept whole in `raw`. Its name, ordinal and metadata are fields
+            # too, copies the writer writes in place of raw's.
+            return Timeline(
+                id=timeline_id,
+                kind=kind,
+                ordinal=nfc_value(timeline.get("ordinal", 0)),
+                name=nfc_value(_or_default(timeline.get("name"), "")),
+                metadata=nfc_value(timeline.get("metadata") or {}),
+                raw=nfc_value(timeline),
+            )
+        shape = TIMELINE_SHAPES[kind]
+        components = self._require(timeline, "components", place)
+        read = Timeline(
+            id=timeline_id,
+            kind=kind,
+            ordinal=self._require(timeline, "ordinal", place),
+            name=nfc_value(_or_default(timeline.get("name"), shape.defaults["name"])),
+            metadata=self._metadata(timeline, place),
+            attrs=_attrs(timeline, shape, _TIMELINE_FIELDS),
+            components=self._components(
+                components, pointer_to(place, "components"), TIMELINE_COMPONENTS[kind]
+            ),
+            extra=_unknown(timeline, shape.known),
+        )
+        # A beat timeline's, built from the marks on its beats (FR-081).
+        read.measures = measure_table(read)
+        return read
+
+    def _components(
+        self, value: Any, place: str, holds: frozenset[str]
+    ) -> dict[str, Component]:
+        components = self._object(value, place)
+        return {
+            key: self._component(key, components[key], pointer_to(place, key), holds)
+            for key in sorted(components)
+        }
+
+    def _component(
+        self, component_id: str, value: Any, place: str, holds: frozenset[str]
+    ) -> Component:
+        """A component, of one of the kinds its timeline `holds`, or kept as it
+        is, as one of a kind the core doesn't know."""
+        component = self._object(value, place)
+        spelling = self._text(self._require(component, "kind", place), place, "kind")
+        kind = component_kind_from_file(spelling)
+        if kind not in holds:
+            kind = UnknownKind(spelling)
+        metadata = self._metadata(component, place)
+        if isinstance(kind, UnknownKind):
+            known = UNKNOWN_COMPONENT.known
+            return Component(
+                id=component_id,
+                kind=kind,
+                metadata=metadata,
+                extra=_unknown(component, known),
+                # Kept as it is: an empty metadata is written back where it was.
+                _metadata_in_file="metadata" in component,
+            )
+        shape = COMPONENT_SHAPES[kind]
+        return Component(
+            id=component_id,
+            kind=kind,
+            attrs=_attrs(component, shape, _COMPONENT_FIELDS),
+            metadata=metadata,
+            extra=_unknown(component, shape.known),
+        )
+
+    def _scores(self, value: Any, place: str) -> dict[str, Score]:
+        if not isinstance(value, list):
+            raise self._refuse(f"expected a list at {place}", place)
+        scores: dict[str, Score] = {}
+        for index, item in enumerate(value):
+            score = self._score(item, pointer_to(place, index))
+            if score.id in scores:
+                name = printable(json.dumps(score.id, ensure_ascii=False))
+                id_place = pointer_to(pointer_to(place, index), "id")
+                raise self._refuse(f"two scores have the id {name}", id_place)
+            scores[score.id] = score
+        return dict(sorted(scores.items()))
+
+    def _score(self, value: Any, place: str) -> Score:
+        score = self._object(value, place)
+        score_id = self._require(score, "id", place)
+        score_format = self._require(score, "format", place)
+        content = self._require(score, "content", place)
+        self._text(score_id, place, "id")
+        self._text(score_format, place, "format")
+        lines = pointer_to(place, "content")
+        if not isinstance(content, list):
+            raise self._refuse(f"expected a list at {lines}", lines)
+        for index, line in enumerate(content):
+            self._text(line, lines, index)
+        # The source and licence of a format that has them; for another,
+        # they are keys the core doesn't know, kept in extra with their
+        # values. A null is a missing key.
+        shape = SCORE_SHAPES.get(score_format, UNKNOWN_SCORE)
+        named = _SCORE_OWN.intersection(shape.known)
+        fields = {k: score[k] for k in named if score.get(k) is not None}
+        # Its default when it is missing: NOASSERTION for an MEI score.
+        license = fields.get("license", shape.defaults.get("license"))
+        return Score(
+            id=nfc_value(score_id),
+            format=nfc_value(score_format),
+            lines=list(content),  # as imported: never in NFC
+            source=nfc_value(_filled(fields.get("source"), SCORE_SOURCE_SHAPE)),
+            license=nfc_value(license),
+            # A legacy score's beat_x among them.
+            extra=_unknown(score, _SCORE_FIELDS.union(named)),
+        )
