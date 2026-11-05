@@ -819,6 +819,7 @@ def test_the_stamps_table_holds_the_closing_barlines_with_no_length():
         (4.5, 8.5, True),
         (5.5, 8.5, False),  # from the barline, bar 2 gives no quarter note
         (5.5, 5.5, False),
+        (5.5, 12.0, False),  # past the last beat, the last gap's own bar counts
         (6.5, 9.0, False),  # `quarters` has no value for it
         (1.0, 6.5, False),
         # Around a pause, a time snaps as its quarter stamp does.
