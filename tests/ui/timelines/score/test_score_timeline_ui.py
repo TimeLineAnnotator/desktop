@@ -498,6 +498,97 @@ class TestClear:
         assert score_tlui.svg_view is None
 
 
+def _geometry(score_tlui) -> list:
+    """What is drawn: each element's kind, position and item rectangles."""
+    drawn = []
+    for element in score_tlui.elements:
+        rects = sorted(
+            tuple(round(v, 3) for v in item.sceneBoundingRect().getRect())
+            for item in element.child_items()
+        )
+        key = (
+            element.kind.name,
+            element.get_data("start") if element.kind == ComponentKind.NOTE else 0,
+            (
+                element.get_data("staff_index")
+                if element.kind in (ComponentKind.NOTE, ComponentKind.CLEF)
+                else -1
+            ),
+        )
+        drawn.append((key, rects))
+    return sorted(drawn)
+
+
+class TestUndoInAnyIdOrder:
+    NAMES = ["staff0", "staff1", "clef0", "clef1", "bar", "n0", "n1"]
+
+    @staticmethod
+    def _uuid(n: int) -> str:
+        return f"019a4f6e-7c10-7000-8000-{n:012d}"
+
+    def _build(self, score_tlui, ids: dict) -> None:
+        tl = score_tlui.timeline
+        tl.create_component(ComponentKind.STAFF, 0, 5, id=ids["staff0"])
+        tl.create_component(ComponentKind.STAFF, 1, 5, id=ids["staff1"])
+        tl.create_component(
+            ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE, id=ids["clef0"]
+        )
+        tl.create_component(
+            ComponentKind.CLEF, 1, 0, shorthand=Clef.Shorthand.BASS, id=ids["clef1"]
+        )
+        tl.create_component(ComponentKind.BAR_LINE, 0.0, id=ids["bar"])
+        tl.create_component(ComponentKind.NOTE, 0.0, 5.0, 0, 0, 4, 0, id=ids["n0"])
+        tl.create_component(ComponentKind.NOTE, 5.0, 10.0, 2, 0, 2, 1, id=ids["n1"])
+        post(Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, tl.id)
+
+    @staticmethod
+    def _reopen(tmp_path, name: str):
+        # Positions on a reopened timeline are on the scale the reopening
+        # sets, so a reopened drawing is only comparable with another one.
+        with patch_file_dialog(True, [tmp_path / f"{name}.tla"]):
+            commands.execute("file.save_as")
+        commands.execute("file.open", tmp_path / f"{name}.tla")
+        return get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+
+    def test_notes_and_clefs_sorting_before_their_staves(
+        self, score_tlui, tilia_errors, tmp_path
+    ):
+        self._build(score_tlui, {n: self._uuid(i) for i, n in enumerate(self.NAMES)})
+        reopened_normal = _geometry(self._reopen(tmp_path, "normal"))
+        score_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        tl = score_tlui.timeline
+        tl.clear()
+        # Now inverted: notes sort first, then clefs, and the staves last.
+        self._build(
+            score_tlui, {n: self._uuid(100 - i) for i, n in enumerate(self.NAMES)}
+        )
+        serialized = tl.component_manager.serialize_components()
+        assert serialized[list(serialized)[0]]["kind"] == "NOTE"
+        assert _geometry(score_tlui) == reopened_normal
+        post(Post.APP_STATE_RECORD, "before clear")
+        tl.clear()
+        post(Post.APP_STATE_RECORD, "after clear")
+
+        commands.execute("edit.undo")
+
+        tilia_errors.assert_no_error()
+        assert len(tl) == len(self.NAMES)
+        assert _geometry(score_tlui) == reopened_normal
+
+        commands.execute("edit.redo")
+        commands.execute("edit.undo")
+
+        tilia_errors.assert_no_error()
+        assert len(tl) == len(self.NAMES)
+        assert _geometry(score_tlui) == reopened_normal
+
+        reopened = self._reopen(tmp_path, "inverted")
+
+        tilia_errors.assert_no_error()
+        assert len(reopened.timeline) == len(self.NAMES)
+        assert _geometry(reopened) == reopened_normal
+
+
 FOUR_FOUR = "<time><beats>4</beats><beat-type>4</beat-type></time>"
 TREBLE_CLEF = "<clef><sign>G</sign><line>2</line></clef>"
 
