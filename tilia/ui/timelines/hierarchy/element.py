@@ -48,8 +48,6 @@ class HierarchyUI(TimelineUIElement):
         ("Start / end (metric)", InspectRowKind.LABEL, None),
         ("Pre-start / post-end", InspectRowKind.LABEL, None),
         ("Length", InspectRowKind.LABEL, None),
-        ("Formal type", InspectRowKind.SINGLE_LINE_EDIT, None),
-        ("Formal function", InspectRowKind.SINGLE_LINE_EDIT, None),
         ("Comments", InspectRowKind.MULTI_LINE_EDIT, None),
     ]
 
@@ -57,14 +55,10 @@ class HierarchyUI(TimelineUIElement):
         "Label": "label",
         "Time": "time",
         "Comments": "comments",
-        "Formal function": "formal_function",
-        "Formal type": "formal_type",
     }
 
     DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
         values=[
-            "formal_type",
-            "formal_function",
             "comments",
             "label",
             "color",
@@ -635,8 +629,6 @@ class HierarchyUI(TimelineUIElement):
             "Start / end": self.start_and_end_formatted,
             "Pre-start / post-end": self.frame_times_for_inspector,
             "Length": self.length_formatted,
-            "Formal type": self.get_data("formal_type"),
-            "Formal function": self.get_data("formal_function"),
             "Comments": self.get_data("comments"),
         }
 

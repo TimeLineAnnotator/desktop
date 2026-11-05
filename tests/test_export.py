@@ -143,6 +143,26 @@ class TestExportJSON:
                 comp_value = list(comp_value)  # JSON converts tuples to lists
             assert comp_value == exported_component[attr]
 
+    def test_hierarchy_export_has_neither_formal_type_nor_formal_function(
+        self, tilia, hierarchy_tlui, tmp_path
+    ):
+        commands.execute(
+            "timeline.hierarchy.add",
+            start=0,
+            end=1,
+            level=1,
+            label="exported",
+            formal_type="sonata",
+            formal_function="opening",
+        )
+
+        data = self._trigger_export_action(tmp_path / "test.json")
+
+        exported_component = data["timelines"][0]["components"][0]
+        assert exported_component["label"] == "exported"
+        assert "formal_type" not in exported_component
+        assert "formal_function" not in exported_component
+
 
 class TestExportImage:
     @staticmethod

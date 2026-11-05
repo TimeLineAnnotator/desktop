@@ -176,9 +176,29 @@ class MediaMetadataWindow(QDialog):
         ]
 
         if not fields_without_required == new_fields:
+            # The edit-fields dialog is a plain text box, so a rename can only
+            # be told apart from a removal plus an addition by comparing the
+            # old and new lists. Only a same-length list where a name at some
+            # position is gone and its replacement is new counts as a rename;
+            # removals, insertions and reorders shift positions and must keep
+            # each value under its own name.
+            renamed_fields = (
+                {
+                    old_name: new_name
+                    for old_name, new_name in zip(
+                        fields_without_required, new_fields, strict=True
+                    )
+                    if old_name != new_name
+                    and old_name not in new_fields
+                    and new_name not in fields_without_required
+                }
+                if len(fields_without_required) == len(new_fields)
+                else {}
+            )
             post(
                 Post.METADATA_UPDATE_FIELDS,
                 get(Get.MEDIA_METADATA_REQUIRED_FIELDS) + new_fields,
+                renamed_fields=renamed_fields,
             )
 
     def apply_fields(self):
