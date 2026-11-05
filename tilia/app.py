@@ -556,14 +556,23 @@ class App:
 
     def restore_player_state(self, media_path: str, duration: float) -> None:
         if self.player.media_path == media_path:
-            # Media has not changed. We need to restore
-            # the duration as it was set to 0 while
-            # clearing the app
-            if duration:
-                self.set_file_media_duration(duration)
+            # Media has not changed. The snapshot's timelines replace the
+            # live ones right after this, so the duration must not go
+            # through the scale/crop prompt: rescaling the live components
+            # just before the restore leaves them scrambled. A loaded
+            # player already reports the media's real length, which wins
+            # over the snapshot's stored one -- that can be stale when the
+            # media differs from what the file was saved with. Only a file
+            # without media takes its duration from the snapshot.
+            if duration and not self.player.is_media_loaded:
+                self._set_duration_without_rescaling(duration)
             return
 
         self.load_media(media_path, record=False, initial_duration=duration)
+
+    def _set_duration_without_rescaling(self, duration: float) -> None:
+        post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+        self.duration = duration
 
     def get_timelines_state(self):
         return self.timelines.serialize_timelines()
