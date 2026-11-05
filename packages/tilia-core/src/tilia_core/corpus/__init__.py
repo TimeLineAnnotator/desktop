@@ -24,6 +24,8 @@ from typing import Any
 
 from . import schema
 from .documents import DocumentReader
+from .fingerprint import NO_READER
+from .fingerprint import of_path as fingerprint
 from .scan import RESCAN_AFTER, ScanReport, Scanner
 from .settings import CorpusSettings, NoSettings
 from .store import Reading, Store
@@ -31,6 +33,7 @@ from .time_map import TimeMap, TimeMapOf
 
 __all__ = [
     "open_corpus",
+    "fingerprint",
     "Corpus",
     "ScanReport",
     "FileRow",
@@ -38,8 +41,6 @@ __all__ = [
     "FileDetail",
     "ComponentRow",
 ]
-
-NO_READER = "no .tla reader yet: TimeLineAnnotator/project-management#7"
 
 
 @dataclass(frozen=True)
@@ -243,6 +244,31 @@ class Corpus:
         self._no_change_inside_a_read("a reread")
         rel, native = self._member(path)
         return self._scanner.reread(rel, native)
+
+    @contextmanager
+    def writing(self) -> Iterator[None]:
+        """Hold the corpus for a writer (WP14) around its atomic write and
+        :meth:`written`: it waits for a running scan or reread, and while it
+        is held, scans and rereads of other threads wait, and reads on this
+        thread don't rescan (research R2, R11). It is re-entrant. Raises
+        ``RuntimeError`` inside a read on the same thread."""
+        self._no_change_inside_a_read("writing()")
+        with self._scanner.turn:
+            yield
+
+    def written(
+        self, path: str | os.PathLike, fingerprint: str | None = None
+    ) -> ScanReport:
+        """Record the core's own write of the file at ``path``: the index
+        reads it again at once and records it, moving the generation only if
+        its content changed (FR-030), so the next scan doesn't report it.
+        ``fingerprint`` is the one the writer wrote: when the file's differs,
+        the index keeps what is on disk, and logs it. Raises ``ValueError``
+        for a path outside the corpus, and ``RuntimeError`` inside a read on
+        the same thread."""
+        self._no_change_inside_a_read("written()")
+        rel, native = self._member(path)
+        return self._scanner.written(rel, native, fingerprint)
 
     # -- the files and their units ------------------------------------------- #
     def _file_rows(
