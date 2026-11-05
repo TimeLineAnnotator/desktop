@@ -19,6 +19,11 @@
         "from music21.midi import tests": ""
         "from music21.braille import test": ""
 
+- module-name: "tilia_core.tla"
+  data-files:
+    - patterns:
+        - "schemas/*.json"
+
 - module-name: "executing._pytest_utils"
   anti-bloat:
     - description: "remove pytest reference"

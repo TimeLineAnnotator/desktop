@@ -39,6 +39,9 @@ UNIT_FIELDS = frozenset(
         "bar.count",
         "bar.label",
         "bar.beat_count",
+        "bar.cadenza",
+        "bar.movement",
+        "time_signature",
         "root",
         "quality",
         "inversion",
@@ -218,7 +221,7 @@ def _conditions(query: syntax.Query) -> Iterator[tuple[syntax.Cond, str]]:
     ``where``), conditions inside children and relation targets included."""
 
     def in_conds(conds: list[syntax.Cond], ctx: str) -> Iterator[Any]:
-        for c in conds:
+        for c in syntax.leaf_conds(conds):
             yield c, ctx
             if isinstance(c, syntax.Children):
                 yield from in_seq(c.seq)
@@ -378,7 +381,7 @@ def where_grain(cat: Catalogue, query: syntax.Query) -> str:
     name counts where it resolves: ``WHERE author = …`` lists timelines,
     ``WHERE level = 2`` units."""
     places = set()
-    for cond in query.where:
+    for cond in syntax.leaf_conds(query.where):
         if not isinstance(cond, syntax.Compare):
             places.add("unit")
             continue
@@ -397,7 +400,7 @@ def named_file_fields(cat: Catalogue, query: syntax.Query) -> list[str]:
     """The file fields ``WHERE`` names, in order of appearance: a file row has a
     column for each."""
     out: list[str] = []
-    for cond in query.where:
+    for cond in syntax.leaf_conds(query.where):
         if not isinstance(cond, syntax.Compare):
             continue
         refs = [cond.field] + ([cond.value.value] if cond.value.kind == "ref" else [])
@@ -413,7 +416,7 @@ def asks_about_harmony(query: syntax.Query) -> bool:
     """Whether ``WHERE`` names a chord or key field of a unit, so that a query of
     only ``WHERE`` must look in chords and keys too."""
     refs: list[syntax.FieldRef] = []
-    for cond in query.where:
+    for cond in syntax.leaf_conds(query.where):
         if isinstance(cond, syntax.Compare):
             refs.append(cond.field)
             if cond.value.kind == "ref":

@@ -15,7 +15,24 @@ BAD = {
     "SRDC(verse THEN chorus)": "parentheses only group",
     "(verse)(chorus)": "parentheses only group",
     "()": "empty group",
-    "NOT (verse THEN chorus)": "NOT does not apply to groups",
+    "NOT (verse THEN chorus)": "NOT applies to one unit, not to a run",
+    "NOT verse+ IN form": "(NOT verse)+",
+    "NOT (verse OR chorus){2} IN form": "(NOT (verse OR chorus)){2}",
+    "NOT (verse) OR (chorus THEN bridge)": "leaves unclear",
+    "NOT (@verse)": "NOT applies to one unit",
+    "verse/chorus IN form": "verse AND chorus is a unit with both",
+    "verse / chorus IN form": "AND combines labels",
+    "C/E IN *": "name their lane: C/E IN harmony",
+    "C/E": "name their lane: C/E IN harmony",
+    "C/E IN keys": '"C/E" the label as written',
+    "ST[C/E]": "only in a chords lane",
+    "verse AND (a THEN b)": "AND between a label and a group",
+    "(verse AND) IN form": "label",
+    "verse AND () IN form": "empty parentheses",
+    "*[(verse AND level = 2)]": "not both",
+    "*[DURING a OR b IN form] IN Marks": "[DURING (a OR b) IN form]",
+    "*[(level = 2 OR level = 3]": "')' to close the conditions",
+    "verse{,}": "count",
     "verse OR (a THEN b)": "OR between a label and a group",
     "(a THEN b) OR c": "OR after a group",
     "START THEN intro": "STARTS WITH",
@@ -27,7 +44,6 @@ BAD = {
     "ST[]": "empty brackets",
     "ST[continuation": "']'",
     "ST[presentation THEN continuation IN form]": "own hierarchy",
-    "* WHERE level = 2 OR level = 3": "joined by AND",
     "* WHERE": "condition",
     "* WHERE time ~ 3": "regular expression",
     '* WHERE label ~ "*erse"': "not one",
@@ -142,7 +158,7 @@ BAD = {
 # Every query here raises a TQLError that names its fragment and points into the text.
 # `*[start = 1:00..50%]` and the like keep m:ss times; h:mm:ss, milliseconds as a
 # value, `$n.first`, `$n.last`, `$-1` and a percentage with `duration` are refused
-# as "not part of TQL v0.1.1" (see test_tql_syntax.py).
+# as "not part of TQL v0.2" (see test_tql_syntax.py).
 
 
 @pytest.mark.parametrize("text, fragment", list(BAD.items()))
@@ -215,7 +231,7 @@ def test_bad_actions_keep_their_messages(text, fragment):
 def test_forms_left_to_the_prototype(text, form):
     with pytest.raises(TQLError) as exc:
         parse(text)
-    assert exc.value.msg == f"{form} is not part of TQL v0.1.1"
+    assert exc.value.msg == f"{form} is not part of TQL v0.2"
     assert text[exc.value.pos : exc.value.end] == form
 
 
@@ -241,6 +257,6 @@ def test_an_unknown_unit_lists_every_unit_and_alias(text):
 @pytest.mark.parametrize("unit", UNIT_NAMES.split())
 def test_every_unit_and_alias_is_read(unit):
     if unit == "ms":
-        return  # not part of TQL v0.1.1 as a value
+        return  # not part of TQL v0.2 as a value
     q = parse(f"a THEN b WITHIN 2 {unit}")
     assert q.pattern.within.amount == 2

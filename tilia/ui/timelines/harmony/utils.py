@@ -1,12 +1,52 @@
+from functools import cache, lru_cache
+from typing import NamedTuple
+
 import music21
 
-from tilia.ui.timelines.harmony.constants import (
+from tilia.timelines.harmony.constants import (
+    CADENTIAL_SIX_FOUR_TONE,
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
     NOTE_NAME_TO_INT,
-    QUALITY_TO_ABBREVIATION,
-    Accidental,
 )
+from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
+from tilia_core.rules import split_added_tone
+
+
+class _ScaleDegree(NamedTuple):
+    step: str
+    alter: float
+    pitch_class: int
+
+
+@cache
+def _scale_degrees(tonic: str, mode: str) -> tuple[_ScaleDegree, ...]:
+    """
+    The steps, alterations and pitch classes of a key's scale, by tonic name
+    and mode. music21 realizes `Key.pitches` anew on every read, which is most
+    of a label's cost, so they are kept here, as values no caller can change.
+    """
+    return tuple(
+        _ScaleDegree(p.step, p.alter, p.pitchClass)
+        for p in music21.key.Key(tonic, mode=mode).pitches
+    )
+
+
+@lru_cache(maxsize=256)
+def _chord_symbol(
+    figure: str, inversion: int | None = None
+) -> music21.harmony.ChordSymbol:
+    """
+    The chord symbol for a figure and inversion. Building one takes music21 a
+    few milliseconds, and labels build the same few over and over: a chord's
+    label in every key, or a label redrawn. The symbols are shared, so they are
+    only read, and only in this module.
+    """
+    return music21.harmony.ChordSymbol(figure, inversion=inversion)
+
+
+def _key_scale_degrees(key: music21.key.Key) -> tuple[_ScaleDegree, ...]:
+    return _scale_degrees(key.tonic.name, key.mode)
 
 
 def _handle_special_qualities(quality: str) -> str | None:
@@ -80,34 +120,28 @@ def _get_chord_size(quality: str) -> str | None:
     return None
 
 
-# Qualities that carry the MusAnalysis major-7th triangle ("^^") at root position.
-# The set is irregular (e.g. major-ninth omits it while major-11th includes it),
-# so it must be listed explicitly.
-_MAJOR_MARKER_QUALITIES = frozenset(
-    {
-        "major-seventh",
-        "minor-major-seventh",
-        "augmented-major-seventh",
-        "minor-major-ninth",
-        "augmented-major-ninth",
-        "augmented-dominant-ninth",
-        "major-11th",
-        "major-13th",
-        "minor-major-13th",
-    }
-)
+_EXTENSION_NUMBERS = {"seventh": 7, "ninth": 9, "eleventh": 11, "thirteenth": 13}
 
-# Qualities with a flat (minor) 9th at root position.
-_FLAT_NINTH_QUALITIES = frozenset(
-    {
-        "half-diminished-minor-ninth",
-        "diminished-minor-ninth",
-    }
-)
+# MusAnalysis raises a lone "#" or "b" beside a figure, but reads two in a row
+# as the accidentals of a two-figure stack and drops the second below the
+# first. So a lone figure's double sharp is a raised x ("^x", as a numeral's is
+# "`x"), and its double flat's two flats are kept apart by a zero-width
+# non-joiner.
+_LONE_FIGURE_ACCIDENTAL = {"#": "#", "##": "^x", "-": "b", "--": "b\u200cb"}
 
 
-def _root_position_suffix(quality: str) -> str:
-    """Compute the root-position suffix from the quality name."""
+def _root_position_suffix(
+    quality: str, note_name: str, key: music21.key.Key, applied_to: int
+) -> str:
+    """
+    Compute the root-position suffix: the quality prefix, then the extension's
+    number. As in the inversions' figures, the number stands for the interval
+    the key gives, so it takes an accidental when the extension is not in the
+    key: in C major, Cmaj7 is I7 and C7 is Ib7. Applied chords get no
+    accidental, as their numeral gets no accidental prefix. Nor does a fully
+    diminished seventh, whose ° already says its seventh is diminished: in
+    C major, Bo7 is viio7.
+    """
     if quality.startswith("half-diminished"):
         prefix = "o\\"
     elif quality.startswith("diminished"):
@@ -118,15 +152,36 @@ def _root_position_suffix(quality: str) -> str:
         prefix = ""
 
     size = _get_chord_size(quality)
-    if size == "triad":
+    if size not in _EXTENSION_NUMBERS:
         return prefix
 
-    number = {"seventh": "7", "ninth": "9", "eleventh": "11", "thirteenth": "13"}.get(
-        size or "", ""
-    )
-    major_marker = "^^" if quality in _MAJOR_MARKER_QUALITIES else ""
-    flat = "b" if quality in _FLAT_NINTH_QUALITIES else ""
-    return prefix + major_marker + flat + number
+    number = _EXTENSION_NUMBERS[size]
+    if applied_to or quality == "diminished-seventh":
+        return prefix + str(number)
+
+    sym = _chord_symbol(note_name + QUALITY_TO_ABBREVIATION[quality])
+    figures = _get_figures(sym, key, quality)
+    idx = _figure_index_for_pitch(figures, sym.getChordStep(number), sym.bass())
+    modifier = figures[idx][1] if idx is not None else None
+    accidental = _LONE_FIGURE_ACCIDENTAL.get(modifier, _fmt_mod(modifier))
+    return prefix + accidental + str(number)
+
+
+def format_added_tone(tone: str) -> str:
+    """
+    Write a quality's added tone in raised parentheses, as a seventh-flat-five
+    writes its flat fifth: "((b9))". Return "" for no tone.
+    """
+    if not tone:
+        return ""
+    if tone == CADENTIAL_SIX_FOUR_TONE:
+        # Raised parentheses hold one figure, so "((64))" leaves the 4 out.
+        # MusAnalysis stacks the cadential six-four's 6 over its 4 in plain
+        # parentheses, as "(64)".
+        return f"({tone})"
+    # In raised parentheses, MusAnalysis draws "11" over the closing
+    # parenthesis. A zero-width non-joiner between the two 1s keeps them apart.
+    return "((" + tone.replace("11", "1\u200c1") + "))"
 
 
 def _fmt_mod(mod: str | None, none_str: str = "") -> str:
@@ -181,23 +236,54 @@ def _to_ascending_generic(generic: int) -> int:
     return (generic - 1) % 7 + 1
 
 
+def _raised_minor_tones(
+    sym: music21.harmony.ChordSymbol, key: music21.key.Key, quality: str
+) -> set[str]:
+    """
+    The names of the root, third and fifth that are the raised sixth or seventh
+    of a minor key. The numeral's case and the chord's quality already say so.
+    So does the ø of a half-diminished seventh, which says that its seventh is
+    minor, as the ° of a fully diminished seventh says that its seventh is
+    diminished: the seventh is included for that chord.
+    """
+    if key.mode != "minor":
+        return set()
+    key_pitches = _key_scale_degrees(key)
+    natural = {p.step: p.alter for p in key_pitches[:7]}
+    sixth_and_seventh = {key_pitches[5].step, key_pitches[6].step}
+    tones = [sym.root(), sym.third, sym.fifth]
+    if quality == "half-diminished-seventh":
+        tones.append(sym.seventh)
+    return {
+        t.name
+        for t in tones
+        if t is not None
+        and t.step in sixth_and_seventh
+        and round(t.alter - natural[t.step]) == 1
+    }
+
+
 def _get_figures(
     sym: music21.harmony.ChordSymbol,
     key: music21.key.Key,
+    quality: str,
 ) -> list[tuple[int, str | None]]:
     """
     Compute figured bass (interval, modifier) pairs for each non-bass chord
     tone, where the modifier reflects the deviation from the diatonic pitch at
-    that scale degree above the bass in the given key.
+    that scale degree above the bass in the given key. A root, third or fifth
+    that is the raised sixth or seventh of a minor key has none, nor has a
+    half-diminished seventh's seventh.
     """
     bass = sym.bass()
-    key_pitches = key.pitches
+    key_pitches = _key_scale_degrees(key)
     key_steps = [p.step for p in key_pitches]
     try:
         bass_idx = key_steps.index(bass.step)
     except ValueError:
         bass_idx = None
 
+    raised_tones = _raised_minor_tones(sym, key, quality)
     figures: list[tuple[int, str | None]] = []
     seen: set[int] = set()
     for pitch in sym.pitches:
@@ -214,6 +300,8 @@ def _get_figures(
         else:
             diatonic_idx = (bass_idx + generic - 1) % 7
             diff = round(pitch.alter - key_pitches[diatonic_idx].alter)
+            if pitch.name in raised_tones:
+                diff = 0  # the numeral's case or the quality symbol says so
             figures.append((generic, Accidental.get_from_int("music21", diff) or None))
 
     figures.sort(key=lambda x: -x[0])
@@ -233,9 +321,17 @@ def _chord_fb(
     the 5th is non-diatonic, drops the diatonic 3rd instead (only when the chord
     has an extension, so triads in 2nd inversion keep both 3rd and 5th).
     """
-    figures = _get_figures(sym, key)
+    figures = _get_figures(sym, key, quality)
     bass = sym.bass()
     size = _get_chord_size(quality)
+
+    if quality == "diminished-seventh":
+        # As in root position, the ° already says the seventh is diminished, so
+        # its figure takes no accidental: in C major, Bo7's first inversion is
+        # viio65.
+        seventh_idx = _figure_index_for_pitch(figures, sym.seventh, bass)
+        if seventh_idx is not None:
+            figures[seventh_idx] = (figures[seventh_idx][0], None)
 
     # Drop intermediate extensions unconditionally (always implied by chord type).
     intermediates: list[music21.pitch.Pitch | None] = []
@@ -277,30 +373,42 @@ def _compute_quality_suffix(
         if inversion > max_inv:
             return None
     abbrev = QUALITY_TO_ABBREVIATION[quality]
-    sym = music21.harmony.ChordSymbol(note_name + abbrev, inversion=inversion)
+    sym = _chord_symbol(note_name + abbrev, inversion)
     return _get_inv_prefix(quality) + _chord_fb(sym, key, quality)
 
 
 def _get_note_degree(key: music21.key.Key, note):
-    steps = [p.step for p in key.pitches]
+    steps = [p.step for p in _key_scale_degrees(key)]
     return (
         steps.index(note.step) + 1
     )  # +1 is needed because music21's degrees are 1-based
 
 
 def _get_roman_numeral_accidental(
-    key: music21.key.Key, note_step: int, note_accidental: int
-):
+    key: music21.key.Key,
+    note_step: int,
+    note_accidental: int,
+    is_lower_case: bool,
+) -> float:
     tonic = INT_TO_NOTE_NAME[note_step]
     accidental_symbol = Accidental.get_from_int("music21", note_accidental)
     note = music21.note.Note(tonic + accidental_symbol)
+    degree = _get_note_degree(key, note)
+
+    if key.mode == "minor" and degree in (6, 7):
+        # As in music21's RomanNumeral, the numeral's case chooses the degree
+        # the accidental is measured from: vi and vii are the raised sixth and
+        # seventh, VI and VII the natural ones. So a typed label gives back the
+        # chord it labels.
+        natural_alter = key.pitchFromDegree(degree).alter
+        return note.pitch.alter - (natural_alter + (1 if is_lower_case else 0))
+
     is_diatonic = (note.step, note.pitch.pitchClass) in (
-        (p.step, p.pitchClass) for p in key.pitches
+        (p.step, p.pitch_class) for p in _key_scale_degrees(key)
     )
     if is_diatonic:
         return 0
 
-    degree = _get_note_degree(key, note)
     key_degree_pitch = key.pitchFromDegree(degree)
     if key_degree_pitch is None:
         return 0
@@ -316,15 +424,46 @@ def to_roman_numeral(
     applied_to: int,
     inversion: int,
 ) -> str:
+    return _to_roman_numeral(
+        step, accidental, quality, key.tonic.name, key.mode, applied_to, inversion
+    )
+
+
+@cache
+def _key(tonic: str, mode: str) -> music21.key.Key:
+    """A key, shared, so only read, and only in this module."""
+    return music21.key.Key(tonic, mode=mode)
+
+
+@lru_cache(maxsize=4096)
+def _to_roman_numeral(
+    step: int,
+    accidental: int,
+    quality: str,
+    tonic: str,
+    mode: str,
+    applied_to: int,
+    inversion: int,
+) -> str:
+    """
+    A label depends on its key only through the key's tonic and mode, so labels
+    are kept by those: a timeline draws the same labels again on every redraw.
+    """
+    key = _key(tonic, mode)
+    # A quality with an added tone is written as its base quality, then the tone.
+    quality, added_tone = split_added_tone(quality)
     if result := _handle_special_qualities(quality):
         return result
 
     key_step = NOTE_NAME_TO_INT[key.tonic.step]
     numeral = INT_TO_ROMAN[(step - key_step - applied_to) % 7]
-    if quality.startswith(("minor", "diminished", "half-diminished")):
+    is_lower_case = quality.startswith(("minor", "diminished", "half-diminished"))
+    if is_lower_case:
         numeral = numeral.lower()
 
-    result_accidental = _get_roman_numeral_accidental(key, step, accidental)
+    result_accidental = _get_roman_numeral_accidental(
+        key, step, accidental, is_lower_case
+    )
     # Applied chords require a different calculation of their prefixes.
     # For now, let's leave them without a prefix, as that will be,
     # by far, the most common correct prefix.
@@ -336,15 +475,17 @@ def to_roman_numeral(
 
     size = _get_chord_size(quality)
     if size is not None:
+        note_name = INT_TO_NOTE_NAME[step] + Accidental.get_from_int(
+            "music21", accidental
+        )
         if inversion > 0:
-            note_name = INT_TO_NOTE_NAME[step] + Accidental.get_from_int(
-                "music21", accidental
-            )
             quality_suffix = _compute_quality_suffix(quality, note_name, inversion, key)
             if quality_suffix is None:
-                quality_suffix = _root_position_suffix(quality)
+                quality_suffix = _root_position_suffix(
+                    quality, note_name, key, applied_to
+                )
         else:
-            quality_suffix = _root_position_suffix(quality)
+            quality_suffix = _root_position_suffix(quality, note_name, key, applied_to)
     else:
         suffix_table = QUALITY_TO_ROMAN_NUMERAL_SUFFIX.get(quality)
         quality_suffix = (
@@ -355,6 +496,7 @@ def to_roman_numeral(
         if quality_suffix is None:
             quality_suffix = (suffix_table[0] if suffix_table else "") or ""
 
+    quality_suffix += format_added_tone(added_tone)
     applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
 
     if "11th" in quality:

@@ -1,18 +1,20 @@
+import copy
 import functools
+import shutil
 import sys
 from pathlib import Path
 from typing import Literal
 
 import pytest
 from colorama import Fore, Style
-from PySide6.QtCore import QCoreApplication, QEvent, QSettings
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
-import tilia.constants as constants_module
 import tilia.log as logging_module
 import tilia.parsers.score.musicxml as musicxml_module
 import tilia.settings as settings_module
 import tilia.utils  # noqa: F401
+from tests import SETTINGS_DIR
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.media.player.base import MediaTimeChangeReason
@@ -91,9 +93,19 @@ class TiliaState:
         self.app.on_clear()
         self.duration = 100
 
-        # reset current time
+        # Reset the current time at once: a smooth movement started here would
+        # take its steps whenever a later test runs the event loop. Setting the
+        # time at once also stops a movement of the playback lines that the
+        # test left running. A timeline's own movements, such as the slider's
+        # trough, stopped when on_clear() deleted the timeline.
         self.player.current_time = 0
-        post(Post.PLAYER_CURRENT_TIME_CHANGED, 0, MediaTimeChangeReason.PLAYBACK)
+        settings = settings_module.settings
+        prioritise_performance = settings.get("general", "prioritise_performance")
+        settings.set("general", "prioritise_performance", True)
+        try:
+            post(Post.PLAYER_CURRENT_TIME_CHANGED, 0, MediaTimeChangeReason.PLAYBACK)
+        finally:
+            settings.set("general", "prioritise_performance", prioritise_performance)
 
         self.media_path = ""
         self._reset_undo_manager()
@@ -229,12 +241,40 @@ def no_score_drawing(request, monkeypatch):
     monkeypatch.setattr(musicxml_module, "musicxml_to_svg", _UndrawnScore)
 
 
+def pytest_unconfigure(config):
+    # Write pending settings while Python is still running. Otherwise QSettings
+    # writes them when the process exits, after the directory is gone, and
+    # creates it again.
+    settings_module.settings._settings.sync()
+    shutil.rmtree(SETTINGS_DIR, ignore_errors=True)
+
+
+@pytest.fixture(autouse=True)
+def restore_settings_after_test():
+    """Undo any setting a test writes.
+
+    Tests are expected to set the values they depend on explicitly, which only
+    works if the next test does not inherit them.
+    """
+    store = settings_module.settings._settings
+    cache_before = copy.deepcopy(settings_module.settings._cache)
+    store_before = _read_store(store)
+    yield
+    settings_module.settings._cache = cache_before
+    if _read_store(store) != store_before:
+        store.clear()
+        for key, value in store_before.items():
+            store.setValue(key, value)
+
+
+def _read_store(store):
+    # The whole store, not just the cached settings, so that recent files,
+    # window geometry and the user's details are restored too.
+    return {key: store.value(key) for key in store.allKeys()}
+
+
 @pytest.fixture(scope="module")
 def use_test_settings(qapplication):
-    settings_module.settings._settings = QSettings(
-        constants_module.APP_NAME, "DesktopTests", None
-    )
-    settings_module.settings._check_all_default_settings_present()
     settings_module.settings.set("general", "prioritise_performance", True)
     yield
 
