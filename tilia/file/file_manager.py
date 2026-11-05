@@ -311,11 +311,19 @@ class FileManager:
             raise MediaMetadataFieldAlreadyExists(f"Field {field_name} already exists.")
         self.file.media_metadata[field_name] = ""
 
-    def on_update_media_metadata_fields(self, fields: list) -> None:
+    def on_update_media_metadata_fields(
+        self, fields: list, renamed_fields: dict[str, str] | None = None
+    ) -> None:
+        """`renamed_fields` maps old field name -> new field name, for fields
+        that were renamed rather than removed/added (see MediaMetadataWindow.
+        update_metadata_fields, the only place both the old and new field
+        lists are available to tell the two cases apart)."""
+        new_name_to_old_name = {new: old for old, new in (renamed_fields or {}).items()}
         new_metadata = {}
         for field in fields:
+            lookup_name = new_name_to_old_name.get(field, field)
             value = self.file.media_metadata.get(
-                field, self.file.media_metadata.get(field.lower(), "")
+                lookup_name, self.file.media_metadata.get(lookup_name.lower(), "")
             )
             new_metadata[field] = value
 
@@ -350,8 +358,16 @@ class FileManager:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
             zoom = get(Get.CURRENT_ZOOM)
         except NoReplyToRequest:
+            # No UI is listening (e.g. CLI usage or tests without a full
+            # Qt UI set up), so there's nothing to persist here.
             geometry, window_state, zoom = None, None, None
-        settings.update_recent_files(path, geometry, window_state, zoom)
+        try:
+            current_time = get(Get.MEDIA_CURRENT_TIME)
+        except NoReplyToRequest:
+            current_time = None
+        settings.update_recent_files(
+            path, geometry, window_state, zoom, time=current_time
+        )
 
     def new(self):
         self._setup_file()

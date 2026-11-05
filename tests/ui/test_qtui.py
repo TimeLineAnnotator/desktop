@@ -1,19 +1,30 @@
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
 from PySide6.QtCore import QEvent, QtMsgType, QUrl
 
+import tilia.ui.qtui as qtui_module
 from tests.conftest import parametrize_tlui
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import PatchPost, Serve
-from tests.utils import get_actions_in_menu, get_main_window_menu, get_submenu
+from tests.utils import (
+    get_actions_in_menu,
+    get_main_window_menu,
+    get_submenu,
+    save_file_with_hierarchy_timeline,
+)
 from tilia.boot import handle_qt_log_message
 from tilia.requests import Get, Post, post
+from tilia.settings import settings
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.qtui import FileDropEventFilter
+from tilia.ui.timelines.base.timeline import TimelineUI
+from tilia.ui.timelines.hierarchy import HierarchyTimelineUI
 from tilia.ui.timelines.marker import MarkerTimelineUI
 from tilia.ui.windows import WindowKind
 
@@ -116,6 +127,11 @@ def is_toolbar_visible(qtui, toolbar_class):
     return not toolbar[0].isHidden() if toolbar else False
 
 
+def open_file(path):
+    with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+        commands.execute("file.open", path)
+
+
 class TestTimelineToolbars:
     @parametrize_tlui
     def test_is_visible_when_timeline_is_instantiated(self, qtui, tlui, request):
@@ -166,6 +182,39 @@ class TestTimelineToolbars:
         tls.set_timeline_data(marker_tl.id, "is_visible", True)
 
         assert is_toolbar_visible(qtui, MarkerTimelineUI.TOOLBAR_CLASS)
+
+    def test_is_visible_when_window_state_stored_for_file_hides_it(
+        self, qtui, tilia, tmp_path
+    ):
+        # Opening a file restores the window state stored under its path, which
+        # includes toolbar visibility. That state can be stale or, before toolbars
+        # had unique object names, belong to another timeline kind. The timelines
+        # in the file decide which toolbars are shown.
+        tmp_file = save_file_with_hierarchy_timeline(tmp_path)
+        open_file(tmp_file)
+
+        get_toolbars_of_class(qtui, HierarchyTimelineUI.TOOLBAR_CLASS)[0].hide()
+        settings.update_recent_files(
+            tmp_file, qtui.get_window_geometry(), qtui.get_window_state()
+        )
+
+        open_file(tmp_file)
+
+        assert is_toolbar_visible(qtui, HierarchyTimelineUI.TOOLBAR_CLASS)
+
+    def test_object_name_is_unique_across_toolbar_classes(self, qtui):
+        # QMainWindow.restoreState matches saved entries to live toolbars by object
+        # name. Duplicate names make it restore one kind's state onto another.
+        toolbar_classes = {
+            timeline_ui_class.TOOLBAR_CLASS
+            for timeline_ui_class in TimelineUI.subclasses()
+            if timeline_ui_class.TOOLBAR_CLASS
+        }
+        object_names = {
+            toolbar_class().objectName() for toolbar_class in toolbar_classes
+        }
+
+        assert len(object_names) == len(toolbar_classes)
 
 
 class TestDragAndDrop:
@@ -255,6 +304,7 @@ class TestMenus:
             "edit.undo",
             "edit.redo",
             "timeline.component.copy",
+            "timeline.component.cut",
             "timeline.component.paste",
             "timeline.component.paste_complete",
             "window.open.settings",
@@ -296,6 +346,61 @@ class TestDynamicTimelinesSubmenus:
         assert marker_submenu.menuAction().isVisible()
         tls.create_timeline(HierarchyTimeline)
         assert marker_submenu.menuAction().isVisible()
+
+
+class TestHelpMenu:
+    def test_help_menu_has_right_actions(self, qtui):
+        menu = get_main_window_menu(qtui, "Help")
+        actions = get_actions_in_menu(menu)
+        expected = [
+            "window.open.about",
+            "open_website_help",
+            "help.check_for_updates",
+        ]
+        # Windows already gets a proper Add/Remove Programs entry from
+        # Velopack, so help.uninstall isn't offered there.
+        if sys.platform != "win32":
+            expected.append("help.uninstall")
+        expected = [get_qaction(action) for action in expected]
+        assert set(actions) == set(expected)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="help.uninstall isn't registered on Windows"
+)
+class TestUninstall:
+    def test_source_run_shows_source_only_message(self, qtui):
+        with patch("tilia.ui.qtui.QMessageBox.information") as info:
+            qtui.on_uninstall()
+
+        info.assert_called_once()
+        assert "only available in the installed app" in info.call_args.args[2]
+
+    def test_declining_confirmation_skips_uninstall(self, qtui, monkeypatch):
+        monkeypatch.setattr(qtui_module, "__compiled__", True, raising=False)
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, False),
+            patch("tilia.ui.qtui.QMessageBox.information") as info,
+            patch("tilia.lifecycle.uninstall") as uninstall,
+        ):
+            qtui.on_uninstall()
+
+        uninstall.assert_not_called()
+        info.assert_not_called()
+
+    def test_confirming_calls_lifecycle_uninstall_and_shows_result(
+        self, qtui, monkeypatch
+    ):
+        monkeypatch.setattr(qtui_module, "__compiled__", True, raising=False)
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, True),
+            patch("tilia.ui.qtui.QMessageBox.information") as info,
+            patch("tilia.lifecycle.uninstall", return_value="done") as uninstall,
+        ):
+            qtui.on_uninstall()
+
+        uninstall.assert_called_once()
+        info.assert_called_once_with(qtui.main_window, "Uninstall TiLiA", "done")
 
 
 class TestHandleQtLogMessage:

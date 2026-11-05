@@ -4,8 +4,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from PySide6.QtCore import QEvent
+from PySide6.QtGui import QFileOpenEvent
 
-from tilia.boot import get_initial_file, setup_parser
+from tilia.boot import PendingFileOpen, TiliaApplication, get_initial_file, setup_parser
 
 
 class TestGetInitialFilePath:
@@ -113,3 +115,63 @@ class TestGetSetupParser:
         args = setup_parser()
 
         assert args.file == win_path
+
+
+class TestPendingFileOpen:
+    """PendingFileOpen backs TiliaApplication's QFileOpenEvent handling (used
+    for macOS "open with"/double-click launches, which arrive as an event
+    rather than in argv). Split out and tested standalone because only one
+    QApplication may exist per process, and the session already owns it.
+    """
+
+    def test_buffers_path_until_callback_is_set(self):
+        pending = PendingFileOpen()
+        pending.handle("/tmp/probe.tla")
+
+        received = []
+        pending.set_callback(received.append)
+
+        assert received == ["/tmp/probe.tla"]
+
+    def test_delivers_immediately_once_callback_is_already_set(self):
+        pending = PendingFileOpen()
+        received = []
+        pending.set_callback(received.append)
+
+        pending.handle("/tmp/probe.tla")
+
+        assert received == ["/tmp/probe.tla"]
+
+    def test_does_not_redeliver_an_already_consumed_path(self):
+        pending = PendingFileOpen()
+        pending.handle("/tmp/probe.tla")
+        first, second = [], []
+        pending.set_callback(first.append)
+        pending.set_callback(second.append)
+
+        assert first == ["/tmp/probe.tla"]
+        assert second == []
+
+    def test_no_path_and_no_callback_is_a_no_op(self):
+        pending = PendingFileOpen()
+        pending.set_callback(lambda path: pytest.fail("should not be called"))
+
+
+class TestTiliaApplicationFileOpenEvent:
+    def test_file_open_event_is_consumed_and_routed(self, qapplication):
+        # Only one QApplication may exist per process, and the session-scoped
+        # qapplication fixture already owns it — even TiliaApplication.__new__
+        # trips PySide6's singleton check, so this reaches into the live
+        # instance's class instead of constructing a second one.
+        instance = qapplication
+        instance._file_open = PendingFileOpen()
+        received = []
+        TiliaApplication.set_file_open_callback(instance, received.append)
+        event = MagicMock(spec=QFileOpenEvent)
+        event.type.return_value = QEvent.Type.FileOpen
+        event.file.return_value = "/tmp/probe.tla"
+
+        handled = TiliaApplication.event(instance, event)
+
+        assert handled is True
+        assert received == ["/tmp/probe.tla"]

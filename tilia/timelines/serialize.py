@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import tilia.errors
+from tilia.timelines.base.media_bounds import restoring_components
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
@@ -56,16 +57,19 @@ def deserialize_components(
     id_to_component_dict = {}
     errors = []
 
-    for id, serialized_component in serialized_components.items():
-        component, error = _deserialize_component(timeline, id, serialized_component)
-        if not component:
-            errors.append(f"id={id} | {error}")
-            continue
+    with restoring_components():
+        for id, serialized_component in serialized_components.items():
+            component, error = _deserialize_component(
+                timeline, id, serialized_component
+            )
+            if not component:
+                errors.append(f"id={id} | {error}")
+                continue
 
-        # Keys will be strings if loading a JSON file.
-        # Must convert to int, as id-based attributes
-        # are either of type int or list[int].
-        id_to_component_dict[int(id)] = component
+            # Keys will be strings if loading a JSON file.
+            # Must convert to int, as id-based attributes
+            # are either of type int or list[int].
+            id_to_component_dict[int(id)] = component
 
     if errors:
         errors_str = "\n".join(errors)

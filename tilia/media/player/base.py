@@ -199,6 +199,11 @@ class Player(ABC):
         if not seek_if_playing and self.is_playing:
             return
 
+        # Components rebuilt from saved or recorded state may sit slightly
+        # past the media end (see tilia.timelines.base.media_bounds), and
+        # clicking one seeks to its time.
+        time = min(max(time, 0.0), get(Get.MEDIA_DURATION))
+
         if self.is_media_loaded:
             self.check_seek_outside_loop(time)
 
@@ -272,6 +277,10 @@ class Player(ABC):
         self.unload_media()
 
     def destroy(self):
+        # A player is destroyed when media of another kind replaces its own,
+        # possibly while it's playing. Stop it first: otherwise its play loop
+        # keeps polling an engine that _engine_exit() has already torn down.
+        self.stop()
         stop_listening_to_all(self)
         stop_serving_all(self)
         self._engine_exit()

@@ -2,6 +2,24 @@ import importlib.metadata
 import sys
 from unittest.mock import patch
 
+import pytest
+
+import tilia
+import tilia.constants
+
+
+@pytest.fixture(autouse=True)
+def restore_constants_module(monkeypatch):
+    """
+    These tests import tilia.constants afresh, which leaves the new module
+    in sys.modules and on the tilia package. Other code reads it through
+    both (`from tilia.constants import APP_NAME`, `tilia.constants.APP_NAME`),
+    so a copy built with mocked metadata would leak into every later test
+    in the same process. Put the original back afterwards.
+    """
+    monkeypatch.setitem(sys.modules, "tilia.constants", tilia.constants)
+    monkeypatch.setattr(tilia, "constants", tilia.constants)
+
 
 def test_tilia_metadata_not_found():
     # If tilia.constants was already imported, we must remove it from sys.modules

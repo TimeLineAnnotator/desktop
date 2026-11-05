@@ -32,9 +32,6 @@ if TYPE_CHECKING:
     from tilia.undo_manager import UndoManager
 
 
-DURATION_JITTER_TOLERANCE = 2.0
-
-
 class App:
     def __init__(
         self,
@@ -121,6 +118,7 @@ class App:
             "file.export.json",
             functools.partial(self.on_export, export_type="json"),
             text="&JSON",
+            shortcut="Ctrl+J",
         )
 
     def set_file_media_duration(
@@ -149,7 +147,8 @@ class App:
     def _is_duration_confirmation(self, duration: float) -> bool:
         return (
             self.should_scale_timelines == "keep"
-            and abs(duration - self.duration) < DURATION_JITTER_TOLERANCE
+            and abs(duration - self.duration)
+            < tilia.constants.DURATION_JITTER_TOLERANCE
         )
 
     def is_file_modified(self) -> bool:
@@ -204,6 +203,10 @@ class App:
             }
 
         self.file_manager.file = file
+        # The undo baseline must be recorded only now: until the line above,
+        # file_manager holds the blank file from on_clear(), and undoing back
+        # to a baseline taken from it would wipe the loaded metadata (#666).
+        self.reset_undo_manager()
         post(Post.APP_FILE_LOADED, file)
         self.update_recent_files()
 
@@ -392,7 +395,7 @@ class App:
         # "keep" leaves the timelines untouched: they already match this
         # media (e.g. we just opened a file), so a duration report that
         # differs only by jitter — YouTube returns it asynchronously, see
-        # DURATION_JITTER_TOLERANCE above — must neither prompt to scale
+        # tilia.constants.DURATION_JITTER_TOLERANCE — must neither prompt to scale
         # nor crop end components (#453). Only the duration itself is
         # updated, below. A difference at or above the tolerance is treated
         # as a genuine media change instead, falling back to "prompt" for
@@ -495,7 +498,7 @@ class App:
                 self._setup_file_media(media_path, media_duration)
 
             self.timelines.deserialize_timelines(file.timelines)
-            self.setup_file()
+            self._ensure_slider_timeline()
         except Exception:
             tilia.errors.display(
                 tilia.errors.LOAD_FILE_ERROR, file.file_path, traceback.format_exc()
@@ -605,10 +608,12 @@ class App:
             "media_path": get(Get.MEDIA_PATH),
         }
 
-    def setup_file(self):
+    def _ensure_slider_timeline(self) -> None:
         # creates a slider timeline if none was loaded
         if not get(Get.TIMELINE_COLLECTION).has_timeline_of_type(SliderTimeline):
             self.timelines.create_timeline(SliderTimeline)
             self.file_manager.set_timelines(*self.get_timelines_state())
 
+    def setup_file(self) -> None:
+        self._ensure_slider_timeline()
         self.reset_undo_manager()

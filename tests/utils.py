@@ -1,18 +1,20 @@
 import importlib.util
-import json
 from contextlib import contextmanager
 from pathlib import Path
 from pprint import pformat
 from typing import Callable
 from unittest.mock import patch
 
+from PySide6.QtCore import QVariantAnimation
 from PySide6.QtGui import QAction
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QMenu, QToolButton, QWidgetAction
 
 from tests.mock import patch_ask_for_string_dialog, patch_file_dialog
 from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.context_menus import TimelineUIContextMenu
 from tilia.ui.timelines.base.timeline import TimelineUI
 
@@ -35,6 +37,9 @@ def load_youtube_media(url: str = EXAMPLE_YOUTUBE_URL):
 
 
 def get_blank_file_data():
+    """Raw file data, only for files the current version can't produce
+    (malformed data, unknown timeline kinds, old formats). Otherwise build
+    the state with commands and save it; see TESTING.md."""
     return {
         "file_path": "",
         "media_path": "",
@@ -68,27 +73,14 @@ def get_blank_file_data():
     }
 
 
-def get_dummy_timeline_data(id: int = 1) -> dict[str, dict]:
-    return {
-        str(id): {
-            "height": 220,
-            "is_visible": True,
-            "ordinal": 1,
-            "name": "test",
-            "kind": "Hierarchy",
-            "components_hash": "",
-            "components": {},
-        }
-    }
+def save_file_with_hierarchy_timeline(tmp_path: Path) -> Path:
+    """Saves a file with an empty hierarchy timeline, then starts a new
+    file, so the saved one can be opened as a different file."""
+    commands.execute("timelines.add.hierarchy", name="test")
+    file_path = Path(save_tilia_to_tmp_path(tmp_path, "hierarchy"))
+    commands.execute("file.new")
 
-
-def get_tmp_file_with_dummy_timeline(tmp_path: Path) -> Path:
-    file_data = get_blank_file_data()
-    file_data["timelines"] = get_dummy_timeline_data()
-    tmp_file = tmp_path / "test.tla"
-    tmp_file.write_text(json.dumps(file_data), encoding="utf-8")
-
-    return tmp_file
+    return file_path
 
 
 def get_method_patch_target(method: Callable) -> str:
@@ -99,6 +91,20 @@ def get_method_patch_target(method: Callable) -> str:
     is defined.
     """
     return method.__module__ + "." + method.__qualname__
+
+
+def wait_for_smooth_movement(*smooth_setters: SmoothSetter, timeout_ms: int = 2000):
+    """Run the event loop until each of `smooth_setters` has finished moving its
+    value. A movement left running would take its next steps whenever a later
+    test runs the event loop, on objects that test has deleted."""
+    waited = 0
+    while any(
+        s.animation.state() is not QVariantAnimation.State.Stopped
+        for s in smooth_setters
+    ):
+        assert waited < timeout_ms, "Smooth movement didn't finish."
+        QTest.qWait(10)
+        waited += 10
 
 
 @contextmanager
@@ -168,9 +174,9 @@ def reloadable(save_path):
     def check_and_reload(checks):
         checks()
 
-        with patch_file_dialog(True, [save_path, save_path]):
+        with patch_file_dialog(True, [save_path]):
             commands.execute("file.save")
-            commands.execute("file.open")
+        commands.execute("file.open", save_path)
 
         checks()
 
@@ -246,8 +252,7 @@ def get_actions_in_menu(menu: QMenu):
 
 def save_tilia_to_tmp_path(tmp_path, filename: str = "test") -> str:
     tmp_file_path = (tmp_path / (filename + ".tla")).resolve().__str__()
-    with patch_file_dialog(True, [tmp_file_path]):
-        commands.execute("file.save_as")
+    commands.execute("file.save_as", tmp_file_path)
     return tmp_file_path
 
 
