@@ -37,7 +37,7 @@ class Marker(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: MarkerTimeline,
-        id: int,
+        id: str,
         time: float,
         label="",
         color=None,

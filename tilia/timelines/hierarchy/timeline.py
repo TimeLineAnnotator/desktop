@@ -57,7 +57,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             start, end, (start, end, level), {(c.start, c.end, c.level) for c in self}
         )
 
-    def deserialize_components(self, components: dict[int, dict[str, Any]]):
+    def deserialize_components(self, components: dict[str, dict[str, Any]]):
         self.clear()  # remove starting hierarchy
 
         super().deserialize_components(components)

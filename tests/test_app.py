@@ -1,5 +1,6 @@
 import json
 import logging
+import uuid
 from pathlib import Path
 from typing import Literal
 from unittest.mock import patch
@@ -32,6 +33,7 @@ from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.serialize import id_order
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.windows import WindowKind
@@ -835,7 +837,7 @@ class TestOpen:
         assert len(ordinals) == len(set(ordinals))
         assert UNKNOWN_TIMELINE_ID not in {tl.id for tl in tilia.timelines}
 
-    def test_reserved_id_survives_a_lower_explicit_id_processed_after(
+    def test_ignored_timelines_id_is_not_given_to_another_timeline(
         self, tilia, tmp_path, tilia_errors
     ):
         file_data = tests.utils.get_blank_file_data()
@@ -868,7 +870,10 @@ class TestOpen:
         tilia_errors.assert_no_error()
         live_ids = {tl.id for tl in tilia.timelines}
         assert "0" in live_ids  # the known timeline
-        assert "1" not in live_ids  # reserved by the ignored timeline
+        assert "1" not in live_ids  # the ignored timeline's
+        new_ids = live_ids - {"0"}
+        assert new_ids  # the slider timeline, made on opening
+        assert all(uuid.UUID(id).version == 7 for id in new_ids)
 
     def test_ignored_unknown_timeline_survives_a_save(
         self, tilia, qtui, tmp_path, tilia_errors
@@ -1294,6 +1299,10 @@ class TestSave:
     # TODO: add tests for saving paths as Posix paths
 
 
+A_UUID = "019a4f6e-7c10-7000-8000-000000000001"
+ANOTHER_UUID = "019a4f6e-7c10-7000-8000-000000000002"
+
+
 class TestIDs:
     @staticmethod
     def assert_ids_are_unique(tls, expected_id_count: int):
@@ -1348,26 +1357,111 @@ class TestIDs:
             tls, 61
         )  # 10 marker timelines + 1 slider timeline + 50 components
 
-    def test_create_component_with_higher_id_before_lower_id(self, marker_tl):
+    def test_new_id_is_a_uuid7(self, tilia):
+        assert uuid.UUID(tilia.get_id()).version == 7
+
+    def test_new_ids_sort_in_the_order_made(self, tilia):
+        ids = [tilia.get_id() for _ in range(1000)]
+
+        assert len(set(ids)) == 1000
+        assert sorted(ids, key=id_order) == ids
+
+    @pytest.mark.parametrize("id", [A_UUID, "not a number", "007", "1"])
+    def test_component_keeps_its_id_as_read_without_a_dialog(
+        self, marker_tl, tilia_errors, id
+    ):
+        marker, _ = marker_tl.create_component(ComponentKind.MARKER, time=1, id=id)
+
+        tilia_errors.assert_no_error()
+        assert marker.id == id
+
+    def test_timeline_keeps_its_id_as_read_without_a_dialog(self, tls, tilia_errors):
+        timeline = tls.create_timeline(MarkerTimeline, id=A_UUID)
+
+        tilia_errors.assert_no_error()
+        assert timeline.id == A_UUID
+
+    def test_free_id_is_returned_as_text(self, marker_tl):
+        marker, _ = marker_tl.create_component(ComponentKind.MARKER, time=1, id=10)
+
+        assert marker.id == "10"
+
+    def test_id_lower_than_an_earlier_one_is_kept(self, marker_tl):
         marker_tl.create_component(ComponentKind.MARKER, time=0, id=10)
         marker_tl.create_component(ComponentKind.MARKER, time=1, id=1)
-        marker_tl.create_component(ComponentKind.MARKER, time=2)
 
-        assert [c.id for c in marker_tl.components] == ["10", "1", "11"]
+        assert [c.id for c in marker_tl.components] == ["10", "1"]
 
-    def test_create_component_with_duplicate_ids(self, marker_tl):
-        marker_tl.create_component(ComponentKind.MARKER, time=0)  # id=1; tl has id=0
-        marker_tl.create_component(ComponentKind.MARKER, time=1, id=1)
-        marker_tl.create_component(ComponentKind.MARKER, time=2, id=1)
+    def test_id_taken_by_a_component_gets_another(self, marker_tl, tilia_errors):
+        first, _ = marker_tl.create_component(ComponentKind.MARKER, time=0, id=A_UUID)
+        second, _ = marker_tl.create_component(ComponentKind.MARKER, time=1, id=A_UUID)
 
-        assert [c.id for c in marker_tl.components] == ["1", "2", "3"]
+        tilia_errors.assert_no_error()
+        assert first.id == A_UUID
+        assert second.id != A_UUID
+        assert uuid.UUID(second.id).version == 7
 
-    @pytest.mark.parametrize("id", ["not an int", 3.1415, False])
-    def test_invalid_id(self, marker_tl, id):
-        with PatchPost("tilia.errors", Post.DISPLAY_ERROR) as error:
-            marker_tl.create_component(ComponentKind.MARKER, time=1, id=id)
-        error.assert_called()
-        assert marker_tl.components[0].id == "1"
+    def test_id_taken_by_a_timeline_gets_another(self, marker_tl, tilia_errors):
+        marker, _ = marker_tl.create_component(
+            ComponentKind.MARKER, time=0, id=marker_tl.id
+        )
+
+        tilia_errors.assert_no_error()
+        assert marker.id != marker_tl.id
+        assert uuid.UUID(marker.id).version == 7
+
+    def test_id_taken_by_a_component_of_another_timeline_gets_another(self, tls):
+        first = tls.create_timeline(MarkerTimeline)
+        second = tls.create_timeline(MarkerTimeline)
+        taken, _ = first.create_component(ComponentKind.MARKER, time=0, id=A_UUID)
+
+        marker, _ = second.create_component(ComponentKind.MARKER, time=0, id=A_UUID)
+
+        assert taken.id == A_UUID
+        assert marker.id != A_UUID
+
+    def test_number_and_its_text_are_the_same_id(self, marker_tl):
+        first, _ = marker_tl.create_component(ComponentKind.MARKER, time=0, id=10)
+        second, _ = marker_tl.create_component(ComponentKind.MARKER, time=1, id="10")
+
+        assert first.id == "10"
+        assert second.id != "10"
+
+    def test_file_with_uuids_as_ids_opens_and_saves_them(
+        self, tilia, tls, tmp_path, tilia_errors
+    ):
+        file_data = tests.utils.get_blank_file_data()
+        file_data["timelines"] = {
+            A_UUID: {
+                "is_visible": True,
+                "ordinal": 1,
+                "height": 40,
+                "name": "",
+                "kind": "MARKER_TIMELINE",
+                "components": {
+                    ANOTHER_UUID: {
+                        "time": 0,
+                        "comments": "",
+                        "label": "",
+                        "color": None,
+                        "kind": "MARKER",
+                        "hash": "irrelevant",
+                    }
+                },
+            }
+        }
+        path = tmp_path / "uuids.tla"
+        path.write_text(json.dumps(file_data))
+
+        commands.execute("file.open", path)
+
+        tilia_errors.assert_no_error()
+        assert tls.get_timeline(A_UUID)[0].id == ANOTHER_UUID
+
+        saved = json.loads(
+            Path(save_tilia_to_tmp_path(tmp_path, "saved")).read_text(encoding="utf-8")
+        )
+        assert list(saved["timelines"][A_UUID]["components"]) == [ANOTHER_UUID]
 
 
 class TestWindowTitle:

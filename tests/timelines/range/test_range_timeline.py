@@ -147,6 +147,67 @@ class TestRangeTimelineComponentManager:
         assert "overlap" in reason
 
 
+class TestDuplicate:
+    @staticmethod
+    def _add_ranges(range_tl, count):
+        row_id = range_tl.rows[0].id
+        return [
+            range_tl.create_component(
+                ComponentKind.RANGE, start=i * 10, end=i * 10 + 5, row_id=row_id
+            )[0]
+            for i in range(count)
+        ]
+
+    @staticmethod
+    def _duplicate_ranges(tls, range_tl):
+        return sorted(tls.duplicate_timeline(range_tl, "copy"), key=lambda r: r.start)
+
+    def test_joins_name_the_duplicates_own_ranges(self, tls, range_tl):
+        ranges = self._add_ranges(range_tl, 3)
+        range_tl.component_manager.join(ranges)
+
+        first, second, third = self._duplicate_ranges(tls, range_tl)
+
+        assert first.joined_right == second.id
+        assert second.joined_right == third.id
+        assert third.joined_right is None
+
+    def test_joins_of_the_original_stay(self, tls, range_tl):
+        first, second = self._add_ranges(range_tl, 2)
+        range_tl.component_manager.join([first, second])
+
+        self._duplicate_ranges(tls, range_tl)
+
+        assert first.joined_right == second.id
+        assert second.joined_right is None
+
+    def test_range_without_a_join_stays_without_one(self, tls, range_tl):
+        self._add_ranges(range_tl, 2)
+
+        first, second = self._duplicate_ranges(tls, range_tl)
+
+        assert first.joined_right is None
+        assert second.joined_right is None
+
+    def test_join_to_a_range_the_timeline_lacks_is_left_as_it_is(self, tls, range_tl):
+        range_ = self._add_ranges(range_tl, 1)[0]
+        range_tl.set_component_data(range_.id, "joined_right", "not here")
+
+        copy = self._duplicate_ranges(tls, range_tl)[0]
+
+        assert copy.joined_right == "not here"
+
+    def test_rows_keep_their_ids(self, tls, range_tl):
+        self._add_ranges(range_tl, 1)
+        row_id = range_tl.rows[0].id
+
+        duplicate = tls.duplicate_timeline(range_tl, "copy")
+
+        assert [row.id for row in duplicate.rows] == [row_id]
+        assert len(row_id) == 6
+        assert duplicate[0].row_id == row_id
+
+
 class TestRowColorValidation:
     def test_set_row_color_rejects_invalid_color(self, range_tl, tilia_errors):
         row = range_tl.rows[0]

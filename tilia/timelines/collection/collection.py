@@ -9,9 +9,10 @@ from tilia.file.migration import normalize_kind_string
 from tilia.requests import Get, Post, get, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
-from tilia.timelines.base.timeline import Timeline, TimelineFlag, id_order
+from tilia.timelines.base.timeline import Timeline, TimelineFlag
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.hash_timelines import hash_function
+from tilia.timelines.serialize import id_order
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
@@ -102,7 +103,7 @@ class Timelines:
     def create_timeline(
         self,
         kind: type[Timeline] | str,
-        components: dict[int, dict[str, Any]] | None = None,
+        components: dict[str, dict[str, Any]] | None = None,
         *args,
         **kwargs,
     ) -> Timeline:
@@ -136,7 +137,7 @@ class Timelines:
 
         return tl
 
-    def get_timeline(self, id: int) -> Timeline | None:
+    def get_timeline(self, id: str) -> Timeline | None:
         return next((tl for tl in self._timelines if tl.id == id), None)
 
     def get_timelines(self):
@@ -154,7 +155,7 @@ class Timelines:
     def get_timelines_by_attr(self, attr: str, value: Any):
         return [tl for tl in self if getattr(tl, attr) == value]
 
-    def set_timeline_data(self, id: int, attr: str, value: Any) -> bool:
+    def set_timeline_data(self, id: str, attr: str, value: Any) -> bool:
         timeline = self.get_timeline(id)
         if timeline.get_data(attr) == value:
             return False
@@ -163,7 +164,7 @@ class Timelines:
             post(Post.TIMELINE_SET_DATA_DONE, id, attr, value)
         return success
 
-    def get_timeline_data(self, id: int, attr: str):
+    def get_timeline_data(self, id: str, attr: str):
         return self.get_timeline(id).get_data(attr)
 
     def delete_timeline(self, timeline: Timeline):
@@ -178,7 +179,7 @@ class Timelines:
         """
         Creates a copy of `timeline` with the given name and places it
         right below the original. Components get fresh ids, as ids must be
-        unique across the whole app.
+        unique across the whole app, and references between them follow.
         """
         state = copy.deepcopy(timeline.get_state())
         kind = state.pop("kind")
@@ -190,7 +191,9 @@ class Timelines:
         # Serialized components are sorted by id, which reflects creation
         # order. Keep it, as some kinds depend on it (e.g. score notes need
         # their staff to exist).
-        components = {get(Get.ID): data for data in components.values()}
+        new_ids = {id: get(Get.ID) for id in components}
+        components = {new_ids[id]: data for id, data in components.items()}
+        timeline.update_component_references(components, new_ids)
 
         duplicate = self.create_timeline(kind, components=components, **state)
         if not components and len(duplicate):

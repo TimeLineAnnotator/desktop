@@ -38,7 +38,7 @@ class SliderTimelineUI(TimelineUI):
 
     def __init__(
         self,
-        id: int,
+        id: str,
         collection: TimelineUIs,
         element_manager: ElementManager,
         scene: TimelineScene,

@@ -130,9 +130,7 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             is_in_harmonic_region, ComponentKind.HARMONY
         )
 
-    def deserialize_components(
-        self, serialized_components: dict[int | str, dict[str, Any]]
-    ):
+    def deserialize_components(self, serialized_components: dict[str, dict[str, Any]]):
         # self.create_component and self.delete_component
         # have to know if we are deserialing to determine
         # if recalculating harmony.applied_to is necessary
@@ -211,6 +209,6 @@ class HarmonyTimeline(Timeline):
 
         return modes[idx - 1].key
 
-    def deserialize_components(self, components: dict[int, dict[str]]):
+    def deserialize_components(self, components: dict[str, dict[str]]):
         super().deserialize_components(components)
         post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)

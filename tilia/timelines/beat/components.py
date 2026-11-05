@@ -22,7 +22,7 @@ class Beat(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: BeatTimeline,
-        id: int,
+        id: str,
         time: float,
         comments="",
         **_,

@@ -190,7 +190,7 @@ class ScoreTimelineUI(TimelineUI):
     def on_timeline_component_created(
         self,
         kind: ComponentKind,
-        id: int,
+        id: str,
         get_data: Callable[[str], Any],
         set_data: Callable[[str, Any], None],
     ):
@@ -435,7 +435,7 @@ class ScoreTimelineUI(TimelineUI):
         self.staff_numbers: list[int] = []
         self.staffs_with_symbol = set()
 
-    def on_score_timeline_clear_done(self, id: int):
+    def on_score_timeline_clear_done(self, id: str):
         if id != self.id:
             return
         self._reset_caches()
@@ -451,7 +451,7 @@ class ScoreTimelineUI(TimelineUI):
         for element in self.elements:
             self._add_to_caches(element)
 
-    def on_score_timeline_components_deserialized(self, id: int):
+    def on_score_timeline_components_deserialized(self, id: str):
         if id != self.id:
             return
 

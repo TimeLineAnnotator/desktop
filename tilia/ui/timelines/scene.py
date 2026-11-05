@@ -12,7 +12,7 @@ class TimelineScene(QGraphicsScene):
 
     def __init__(
         self,
-        id: int,
+        id: str,
         width: int,
         height: int,
         left_margin: int,

@@ -549,7 +549,7 @@ class TimelineUIs:
         for request, callback in SERVES:
             serve(self, request, callback)
 
-    def create_timeline_ui(self, kind: type[Timeline], id: int) -> TimelineUI:
+    def create_timeline_ui(self, kind: type[Timeline], id: str) -> TimelineUI:
         timeline_class = self.get_timeline_ui_class(kind)
         w = get(Get.TIMELINE_WIDTH)
         h = get(Get.TIMELINE, id).get_data("height")
@@ -578,9 +578,9 @@ class TimelineUIs:
     def on_timeline_component_created(
         self,
         _: type[Timeline],
-        tl_id: int,
+        tl_id: str,
         component_kind: ComponentKind,
-        component_id: int,
+        component_id: str,
         get_data: Callable[[str, Any], None],
         set_data: Callable[[str], Any],
     ):
@@ -589,7 +589,7 @@ class TimelineUIs:
         )
 
     def on_timeline_component_deleted(
-        self, _: type[Timeline], tl_id: int, component_id: int
+        self, _: type[Timeline], tl_id: str, component_id: str
     ):
         if (tl_id, component_id) in self.loop_elements:
             if (tl_id, component_id) not in self.loop_delete_ignore:
@@ -599,7 +599,7 @@ class TimelineUIs:
         self.get_timeline_ui(tl_id).on_timeline_component_deleted(component_id)
 
     def on_timeline_component_set_data_done(
-        self, timeline_id: int, component_id: int, attr: str, value: Any
+        self, timeline_id: str, component_id: str, attr: str, value: Any
     ):
         timeline_ui = self.get_timeline_ui(timeline_id)
         element = timeline_ui.get_element(component_id)
@@ -611,7 +611,7 @@ class TimelineUIs:
         ] != self.loop_time[1]:
             self._update_loop_elements()
 
-    def on_timeline_set_data_done(self, id: int, attr: str, _: Any):
+    def on_timeline_set_data_done(self, id: str, attr: str, _: Any):
         self.get_timeline_ui(id).update(attr)
         if attr in self.UPDATE_TRIGGERS:
             # these are the collection updaters
@@ -736,7 +736,7 @@ class TimelineUIs:
         raise ValueError(f"No TimelineUI class found for kind: {kind}")
 
     @staticmethod
-    def create_timeline_scene(id: int, width: int, height: int):
+    def create_timeline_scene(id: str, width: int, height: int):
         return TimelineScene(
             id=id,
             width=width,
@@ -1027,7 +1027,7 @@ class TimelineUIs:
                 commands.execute(winner)
                 return
 
-    def on_beat_timeline_measure_number_change_done(self, id: int, start_index: int):
+    def on_beat_timeline_measure_number_change_done(self, id: str, start_index: int):
         from tilia.ui.timelines.beat import BeatTimelineUI
 
         timeline_ui = cast(BeatTimelineUI, self.get_timeline_ui(id))
@@ -1061,13 +1061,13 @@ class TimelineUIs:
         timeline_ui = cast(HarmonyTimelineUI, self.get_timeline_ui(id))
         timeline_ui.on_timeline_components_deserialized()
 
-    def on_beat_timeline_components_deserialized(self, id: int):
+    def on_beat_timeline_components_deserialized(self, id: str):
         from tilia.ui.timelines.beat import BeatTimelineUI
 
         timeline_ui = cast(BeatTimelineUI, self.get_timeline_ui(id))
         timeline_ui.on_timeline_components_deserialized()
 
-    def on_loop_ignore_delete(self, tl_id: int, comp_id: int):
+    def on_loop_ignore_delete(self, tl_id: str, comp_id: str):
         self.loop_delete_ignore.add((tl_id, comp_id))
 
     def on_loop_cancel(self):
@@ -1313,7 +1313,7 @@ class TimelineUIs:
         return True
 
     @staticmethod
-    def on_timeline_data_set(id: int, attr: str, value: Any) -> bool:
+    def on_timeline_data_set(id: str, attr: str, value: Any) -> bool:
         return get(Get.TIMELINE_COLLECTION).set_timeline_data(id, attr, value)
 
     @command_callback
@@ -1618,10 +1618,10 @@ class TimelineUIs:
     def get_timeline_uis(self):
         return sorted(list(self._timeline_uis))
 
-    def get_timeline_ui(self, tl_id: int) -> TimelineUI | None:
+    def get_timeline_ui(self, tl_id: str) -> TimelineUI | None:
         return next((tlui for tlui in self if tlui.id == tl_id), None)
 
-    def get_timeline_ui_element(self, timeline_id: int, element_id: int):
+    def get_timeline_ui_element(self, timeline_id: str, element_id: str):
         return self.get_timeline_ui(timeline_id).get_element(element_id)
 
     def get_timeline_ui_by_attr(self, attr: str, value: Any) -> TimelineUI | None:
@@ -1683,8 +1683,8 @@ class TimelineUIs:
         self,
         event: Post,
         _: type[Timeline],
-        tl_id: int,
-        component_id: int,
+        tl_id: str,
+        component_id: str,
         *args,
         **kwargs,
     ):
@@ -1694,16 +1694,16 @@ class TimelineUIs:
 
         event_to_callback[event](tlui, component_id, *args, **kwargs)
 
-    def on_timeline_event(self, event: Post, tl_id: int, *args, **kwargs):
+    def on_timeline_event(self, event: Post, tl_id: str, *args, **kwargs):
         event_to_callback = {}
         tlui = self.get_timeline_ui(tl_id)
 
         event_to_callback[event](tlui, *args, **kwargs)
 
-    def on_timeline_created(self, kind: type[Timeline], id: int):
+    def on_timeline_created(self, kind: type[Timeline], id: str):
         self.create_timeline_ui(kind, id)
 
-    def on_timeline_deleted(self, id: int):
+    def on_timeline_deleted(self, id: str):
         self.delete_timeline_ui(self.get_timeline_ui(id))
 
 

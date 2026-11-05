@@ -24,6 +24,7 @@ from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
 from tilia.undo_manager import PauseUndoManager
 from tilia.utils import get_tilia_class_string
+from tilia_core import tla
 
 if TYPE_CHECKING:
     from tilia.clipboard import Clipboard
@@ -47,7 +48,6 @@ class App:
         self.player = player
         self.duration = 0.0
         self.should_scale_timelines = "prompt"
-        self.reset_id_generator()
         self._setup_timelines()
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         self._setup_requests()
@@ -183,8 +183,6 @@ class App:
 
         self.old_file_path = old_path
         self.cur_file_path = Path(file.file_path)
-        if file.unknown_timelines or file.deleted_timelines:
-            self._reserve_ids({**file.unknown_timelines, **file.deleted_timelines})
 
         success = self.on_file_load(file)
         if not success:
@@ -331,65 +329,27 @@ class App:
 
     def get_id(self, id: str | None = None) -> str:
         """
-        Returns an ID string.
+        Returns an ID string: `id` as text if it is free, a new one otherwise.
         IDs are unique across timeline component and timelines.
         Other IDs might contain duplicates.
         """
-
-        def handle_invalid_id(id):
-            tilia.errors.display(tilia.errors.INVALID_ID, id)
-            return self._next_available_id()
-
         if id is None:
-            return self._next_available_id()
+            return tla.new_id()
 
-        if type(id) not in [int, str]:
-            return handle_invalid_id(id)
+        id = str(id)
 
-        try:
-            int_id = int(id)
-        except ValueError:
-            return handle_invalid_id(id)
-
-        timeline_ids = {int(c.id) for c in self.timelines}
+        timeline_ids = {c.id for c in self.timelines}
         component_lists = [
             tl.components for tl in self.timelines if tl.components is not None
         ]
         component_ids = {
-            int(c.id) for component_list in component_lists for c in component_list
+            c.id for component_list in component_lists for c in component_list
         }
-        existing_ids = timeline_ids.union(component_ids)
 
-        if int_id in existing_ids:
-            return self._next_available_id()
+        if id in timeline_ids | component_ids:
+            return tla.new_id()
 
-        self._next_id = max(self._next_id, int_id + 1)
-
-        return str(int_id)
-
-    def _next_available_id(self) -> str:
-        id = self._next_id
-        self._next_id += 1
-        return str(id)
-
-    def reset_id_generator(self):
-        self._next_id = 0
-
-    def _reserve_ids(self, unknown_timelines: dict) -> None:
-        def to_int(value):
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return None
-
-        ids = [
-            n
-            for timeline_id, timeline_data in unknown_timelines.items()
-            for i in (timeline_id, *timeline_data.get("components", {}))
-            if (n := to_int(i)) is not None
-        ]
-        if ids:
-            self._next_id = max(self._next_id, max(ids) + 1)
+        return id
 
     def on_media_duration_changed(self, duration: float):
         # "keep" leaves the timelines untouched: they already match this
@@ -547,7 +507,6 @@ class App:
             self.player.clear()
             self.set_file_media_duration(0.0)
         self.undo_manager.clear()
-        self.reset_id_generator()
         post(Post.REQUEST_CLEAR_UI)
 
     def reset_undo_manager(self):

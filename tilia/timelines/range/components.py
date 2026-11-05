@@ -48,7 +48,7 @@ class Range(SegmentLikeTimelineComponent):
     def __init__(
         self,
         timeline: RangeTimeline,
-        id: int,
+        id: str,
         start: float,
         end: float,
         row_id: str,

@@ -52,7 +52,7 @@ class Hierarchy(SegmentLikeTimelineComponent):
     def __init__(
         self,
         timeline: HierarchyTimeline,
-        id: int,
+        id: str,
         start: float,
         end: float,
         level: int,

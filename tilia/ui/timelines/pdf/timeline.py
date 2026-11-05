@@ -41,7 +41,7 @@ class PdfTimelineUI(TimelineUI):
 
     def __init__(
         self,
-        id: int,
+        id: str,
         collection: TimelineUIs,
         element_manager: ElementManager,
         scene: TimelineScene,
@@ -137,12 +137,12 @@ class PdfTimelineUI(TimelineUI):
         return True
 
     def on_timeline_component_created(
-        self, kind: ComponentKind, id: int, get_data, set_data
+        self, kind: ComponentKind, id: str, get_data, set_data
     ):
         super().on_timeline_component_created(kind, id, get_data, set_data)
         self.update_displayed_page(get(Get.MEDIA_CURRENT_TIME))
 
-    def on_timeline_component_deleted(self, id: int):
+    def on_timeline_component_deleted(self, id: str):
         super().on_timeline_component_deleted(id)
         self.update_displayed_page(get(Get.MEDIA_CURRENT_TIME))
 

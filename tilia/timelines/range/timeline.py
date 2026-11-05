@@ -262,6 +262,16 @@ class RangeTimeline(Timeline):
     validators["rows"] = lambda x: (isinstance(x, list), "")
     validators["default_row_height"] = _validate_default_row_height
 
+    @staticmethod
+    def update_component_references(
+        components: dict[str, dict[str, Any]],
+        new_ids: dict[str, str],
+    ) -> None:
+        # A range names the range it is joined to by its id.
+        for data in components.values():
+            joined_right = data["joined_right"]
+            data["joined_right"] = new_ids.get(joined_right, joined_right)
+
     class Row:
         def __init__(
             self,

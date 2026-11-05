@@ -30,7 +30,7 @@ class ViewWidget(Generic[T]):
         event.ignore()
         self.hide()
 
-    def on_update_request(self: T, window_id: int, to_show: bool) -> None:
+    def on_update_request(self: T, window_id: str, to_show: bool) -> None:
         if window_id == self.id:
             self.blockSignals(True)
             if to_show:

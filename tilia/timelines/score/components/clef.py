@@ -43,7 +43,7 @@ class Clef(PointLikeTimelineComponent):
     def __init__(
         self,
         timeline: ScoreTimeline,
-        id: int,
+        id: str,
         staff_index: int,
         time: float | None = None,
         line_number: int | None = None,

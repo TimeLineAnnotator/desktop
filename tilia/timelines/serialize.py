@@ -16,8 +16,15 @@ from typing import Protocol
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
 
 
+def id_order(id: str) -> tuple[int, str]:
+    """Sort key that puts ids in the order they were made, both UUIDv7s and
+    numbers as text.
+    """
+    return len(id), id
+
+
 class Serializable(Protocol):
-    id: int
+    id: str
     ui: TimelineUIElement
     KIND: ComponentKind
     hash: str
@@ -27,10 +34,10 @@ class Serializable(Protocol):
 
 def serialize_components(
     components: set[Serializable] | list[Serializable],
-) -> dict[int, dict[str]]:
+) -> dict[str, dict[str]]:
 
     result = {}
-    for c in sorted(components, key=lambda c: int(c.id)):
+    for c in sorted(components, key=lambda c: id_order(c.id)):
         result[c.id] = serialize_component(c)
 
     return result
@@ -51,23 +58,16 @@ def serialize_component(component: Serializable) -> dict[str]:
 
 
 def deserialize_components(
-    timeline: Timeline, serialized_components: dict[int | str, dict[str]]
+    timeline: Timeline, serialized_components: dict[str, dict[str]]
 ):
     """Creates the given serialized components in 'timeline'."""
 
-    id_to_component_dict = {}
     errors = []
 
     for id, serialized_component in serialized_components.items():
         component, error = _deserialize_component(timeline, id, serialized_component)
         if not component:
             errors.append(f"id={id} | {error}")
-            continue
-
-        # Keys will be strings if loading a JSON file.
-        # Must convert to int, as id-based attributes
-        # are either of type int or list[int].
-        id_to_component_dict[int(id)] = component
 
     if errors:
         errors_str = "\n".join(errors)

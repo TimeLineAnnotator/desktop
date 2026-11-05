@@ -42,7 +42,7 @@ class ElementManager(Generic[TE]):
     def create_element(
         self,
         kind: ComponentKind,
-        id: int,
+        id: str,
         timeline_ui: TimelineUI,
         scene: TimelineScene,
         get_data: Callable[[str], Any],
@@ -74,7 +74,7 @@ class ElementManager(Generic[TE]):
                 f"Can't remove element '{element}' from {self}: not in self._elements."
             ) from e
 
-    def get_element(self, id: int) -> TE:
+    def get_element(self, id: str) -> TE:
         return self.id_to_element[id]
 
     def get_element_by_attribute(self, attr_name: str, value: Any) -> TE:
