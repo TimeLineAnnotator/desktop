@@ -339,7 +339,8 @@ class TimelineUIs:
                 result,
             )
 
-        success = all(result)
+        # all([]) is True, but with no timeline to act on nothing happened to record.
+        success = bool(result) and all(result)
 
         if success:
             post(

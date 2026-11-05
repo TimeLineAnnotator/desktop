@@ -1046,6 +1046,17 @@ class TestUndoRedo:
             display.assert_called_once()
             assert len(target.children) == 1
 
+    def test_paste_complete_with_empty_clipboard_keeps_redo_history(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("edit.undo")
+        post(Post.TIMELINE_ELEMENT_COPY_DONE, {"components": {}, "timeline_type": None})
+
+        commands.execute("timeline.component.paste_complete")
+
+        commands.execute("edit.redo")
+        assert len(tlui) == 2
+
     @pytest.mark.parametrize(
         "refusal", ["nothing selected", "more than one copied", "different level"]
     )
