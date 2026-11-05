@@ -144,9 +144,10 @@ def load_media(
         stored = _absolute_media_path(local)
         name = local.name
         # The file stored: Windows reads `REC.WAV.` and `REC.WAV ` as `REC.WAV`,
-        # where `\\?\` reads such a name as it is, which can be another file.
+        # where `\\?\` reads such a name as it is, which can be another file. As
+        # a Path, since Windows doesn't take the `//?/` stored for `\\?\`.
         if Path(stored).suffix.lower() == ".wav":
-            length = wav_length(stored)
+            length = wav_length(Path(stored))
     if length is None:
         if duration_if_error is not None:
             length = _media_length(duration_if_error)
