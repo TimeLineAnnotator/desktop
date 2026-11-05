@@ -28,7 +28,7 @@ _NOT_A_MEDIA_LENGTH = (
 )
 _MEDIA_LOADED = "Can't change media length when a media file is loaded."
 # The start of a path Windows takes as it is, a name's dot or space included.
-_VERBATIM = "\\\\?\\"
+_VERBATIM = ("\\\\?\\", "//?/")
 _MEDIA_NOT_FOUND = "No media available at '{}'. Try using another path."
 _NO_DURATION = (
     "No media loaded and no duration set. Load a media file with 'load-media'"
