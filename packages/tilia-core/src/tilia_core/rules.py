@@ -912,7 +912,7 @@ def _hierarchy_in_media(
     # so a media length too large for a float is longer than any time. TiLiA shows
     # them as floats, and so do the reasons, but for such a length, which is shown
     # as it is.
-    if start <= media_length and end <= media_length:
+    if not (start > media_length or end > media_length):
         return None
     length = float(media_length) if _is_number(media_length) else _shown(media_length)
     if start > media_length:

@@ -486,6 +486,11 @@ class TestEveryKind:
     def test_a_time_of_nan(self, kind, attribute, reason):
         assert check(kind, **{attribute: float("nan")}) == (False, reason)
 
+    @pytest.mark.parametrize("kind", [*POINT_KINDS, "hierarchy", "range"])
+    def test_a_media_length_of_nan_leaves_every_kind_alike(self, kind):
+        # Nothing is above nan, so nothing is past it.
+        assert check(kind, media_length=float("nan")) == OK
+
     def test_tilia_creates_components_at_nan(self):
         nan = float("nan")
 
