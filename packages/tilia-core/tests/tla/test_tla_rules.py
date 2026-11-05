@@ -902,8 +902,9 @@ class TestAnEditElsewhereIsNoNewProblem:
         assert "starts at 5.0" in read.warnings[0].message
 
     def test_a_range_between_a_join_can_change(self, tmp_path):
-        # The problem is between the range and the one it joins. What the
-        # reason quotes of the next range is how it reads.
+        # TimeLineAnnotator/project-management#496, point 2, option A. The
+        # problem is between the range and the one it joins, in `joined_right`.
+        # What the reason quotes of the next range is how it reads.
         doc = tla.loads(
             a_file(
                 ranges(
@@ -914,7 +915,9 @@ class TestAnEditElsewhereIsNoNewProblem:
             )
         )
         doc.timelines[TEXTURE].components[SECOND].attrs["start"] = 3.2
-        written(doc, tmp_path)
+        read = tla.read(written(doc, tmp_path))
+        assert read.timelines[TEXTURE].components[SECOND].attrs["start"] == 3.2
+        assert [w.place for w in read.warnings] == [component_place(TEXTURE, FIRST)]
 
     def test_a_good_range_can_be_added_after_a_backward_join(self, tmp_path):
         doc = tla.loads(
@@ -1153,6 +1156,8 @@ class TestStillANewProblem:
         assert "starts at 3.5" in problems[0].message
 
     def test_a_range_joined_to_one_that_changed(self, tmp_path):
+        # TimeLineAnnotator/project-management#496, point 2, option A: TiLiA
+        # checks this with the edit (WP6), and the core stays as it is.
         doc = tla.loads(
             a_file(
                 ranges(
@@ -1168,6 +1173,40 @@ class TestStillANewProblem:
         # As the rule names them: what comes next in its row.
         assert component_place(TEXTURE, SECOND) in problems[0].message
         assert component_place(TEXTURE, THIRD) not in problems[0].message
+
+    @pytest.mark.parametrize(
+        "read_with, length, time, reason",
+        [
+            (
+                100.0,
+                20.0,
+                50.0,
+                "Time '00:50.0' is bigger than media time '00:20.0'",
+            ),
+            (
+                -5.0,
+                100.0,
+                150.0,
+                "Time '02:30.0' is bigger than media time '01:40.0'",
+            ),
+        ],
+        ids=["a shorter length", "a length after one that wasn't"],
+    )
+    def test_a_length_that_puts_an_unchanged_marker_past_it_for_the_first_time(
+        self, read_with, length, time, reason, tmp_path
+    ):
+        # TimeLineAnnotator/project-management#496, point 1, option B. What the
+        # file came with kept to its length, so there is no code to stay the same.
+        doc = tla.loads(
+            a_file(
+                together(with_media_length(read_with), markers((FIRST, {"time": time})))
+            )
+        )
+        place = component_place(CADENCES, FIRST)
+        assert place not in [problem.place for problem in doc.read_problems]
+        doc.media_length = length
+        problems = refused(doc, tmp_path)
+        assert [(w.place, w.message) for w in problems] == [(place, reason)]
 
     def test_an_unchanged_component_goes_past_a_length_it_was_read_within(
         self, tmp_path
@@ -1689,6 +1728,153 @@ class TestBeatWithoutATime:
             'a beat of the timeline "Beats" has no time',
             "Time can't be negative. Got '-00:01.0'",
         ]
+
+
+BELOW_0 = "Measure number can't be below 0. Got '-1'"
+A_DOWNBEAT = {"time": 5.0, "measure": {"number": -1}}
+A_CLOSING_TAP = {"time": 5.0, "measure": {"number": -1}, "closing": True}
+MARKED = pytest.mark.parametrize(
+    "beat", [A_DOWNBEAT, A_CLOSING_TAP], ids=["a downbeat", "a closing tap"]
+)
+# The check's own, on any closing tap with a mark. It isn't a rule's problem.
+CLOSING_TAP_MARKED = (
+    'a closing tap in the timeline "Beats" has a measure mark, which starts no measure'
+)
+
+
+class TestAMeasureNumberBelow0:
+    """In a file, as any rule is (FR-053, FR-054;
+    TimeLineAnnotator/project-management#420). A closing tap's mark starts no
+    measure, and its number is checked all the same."""
+
+    @staticmethod
+    def the_beat(doc):
+        return doc.timelines[BEATS].components[FIRST]
+
+    @MARKED
+    def test_it_is_warned_about_with_its_reason_and_its_place(self, beat):
+        data = a_file(beats((FIRST, beat)))
+        doc = tla.loads(data)
+        assert doc.warnings[-1] == tla.ReadWarning(
+            place=component_place(BEATS, FIRST),
+            line=line_of(data, FIRST),
+            message=BELOW_0,
+        )
+        assert [p.code for p in doc.read_problems] == [rules.NEGATIVE_MEASURE_NUMBER]
+
+    def test_a_downbeats_is_its_one_warning(self):
+        assert len(tla.loads(a_file(beats((FIRST, A_DOWNBEAT)))).warnings) == 1
+
+    def test_a_closing_taps_comes_after_the_checks(self):
+        doc = tla.loads(a_file(beats((FIRST, A_CLOSING_TAP))))
+        assert [w.message for w in doc.warnings] == [CLOSING_TAP_MARKED, BELOW_0]
+
+    @MARKED
+    def test_written_back_unchanged_it_gives_the_same_bytes(self, beat, tmp_path):
+        data = a_file(beats((FIRST, beat)))
+        doc = tla.loads(data)
+        path = written(doc, tmp_path)
+        assert path.read_bytes() == data
+        assert tla.read(path).warnings == doc.warnings
+
+    @MARKED
+    def test_a_write_that_adds_it_is_refused(self, beat, tmp_path):
+        doc = tla.loads(a_file())
+        doc.timelines[BEATS].components[FIRST] = tla.Component(
+            id=FIRST, kind="beat", attrs=copy.deepcopy(beat)
+        )
+        assert [(w.place, w.message) for w in refused(doc, tmp_path)] == [
+            (component_place(BEATS, FIRST), BELOW_0)
+        ]
+
+    @MARKED
+    def test_a_write_that_gives_a_beat_it_is_refused(self, beat, tmp_path):
+        doc = tla.loads(
+            a_file(beats((FIRST, {**beat, "measure": {"number": 2, "label": "2"}})))
+        )
+        assert not doc.read_problems
+        self.the_beat(doc).attrs["measure"]["number"] = -1
+        assert [(w.place, w.message) for w in refused(doc, tmp_path)] == [
+            (component_place(BEATS, FIRST), BELOW_0)
+        ]
+
+    def test_a_number_given_as_a_float_is_refused_as_written(self, tmp_path):
+        doc = tla.loads(a_file(beats((FIRST, {"time": 5.0, "measure": {"number": 2}}))))
+        self.the_beat(doc).attrs["measure"]["number"] = -1.0
+        assert [w.message for w in refused(doc, tmp_path)] == [BELOW_0]
+
+    @MARKED
+    @pytest.mark.parametrize(
+        "edit",
+        [
+            lambda beat: beat.attrs.__setitem__("time", 6.0),
+            lambda beat: beat.attrs["measure"].__setitem__("label", "pickup"),
+            lambda beat: beat.attrs.__setitem__(
+                "beat_unit", {"denominator": 8, "units": "1"}
+            ),
+            lambda beat: beat.metadata.__setitem__("note", "x"),
+            lambda beat: beat.extra.__setitem__("from_a_plugin", 1),
+        ],
+        ids=[
+            "its time",
+            "its mark's label",
+            "its beat unit",
+            "metadata",
+            "unknown key",
+        ],
+    )
+    def test_a_change_to_another_value_on_it_is_refused(self, beat, edit, tmp_path):
+        doc = tla.loads(a_file(beats((FIRST, beat))))
+        edit(self.the_beat(doc))
+        assert [(w.place, w.message) for w in refused(doc, tmp_path)] == [
+            (component_place(BEATS, FIRST), BELOW_0)
+        ]
+
+    @MARKED
+    def test_another_number_below_0_is_refused_with_its_own_reason(
+        self, beat, tmp_path
+    ):
+        doc = tla.loads(a_file(beats((FIRST, beat))))
+        self.the_beat(doc).attrs["measure"]["number"] = -2
+        assert [w.message for w in refused(doc, tmp_path)] == [
+            "Measure number can't be below 0. Got '-2'"
+        ]
+
+    @MARKED
+    def test_an_edit_elsewhere_is_written(self, beat, tmp_path):
+        doc = tla.loads(a_file(beats((FIRST, beat))))
+        doc.timelines[BEATS].name = "Taps"
+        doc.timelines[BEATS].components[BEAT_2].attrs["time"] = 2.0
+        read = tla.read(written(doc, tmp_path))
+        assert read.warnings[-1].message == BELOW_0
+
+    @MARKED
+    def test_set_to_0_or_above_it_is_written_without_a_warning(self, beat, tmp_path):
+        doc = tla.loads(a_file(beats((FIRST, beat))))
+        self.the_beat(doc).attrs["measure"]["number"] = 0
+        read = tla.read(written(doc, tmp_path))
+        assert read.read_problems == []
+        assert BELOW_0 not in [w.message for w in read.warnings]
+
+    @MARKED
+    def test_0_keeps_to_the_rule(self, beat, tmp_path):
+        doc = tla.loads(a_file(beats((FIRST, {**beat, "measure": {"number": 0}}))))
+        assert doc.read_problems == []
+        written(doc, tmp_path)
+
+    def test_it_is_warned_about_with_the_other_rules_it_breaks(self, tmp_path):
+        data = a_file(
+            together(
+                with_media_length(60.0),
+                beats((FIRST, {"time": 70.0, "measure": {"number": -1}})),
+            )
+        )
+        doc = tla.loads(data)
+        assert [p.code for p in doc.read_problems] == [
+            rules.PAST_MEDIA_END,
+            rules.NEGATIVE_MEASURE_NUMBER,
+        ]
+        assert written(doc, tmp_path).read_bytes() == data
 
 
 class TestFingerprint:
