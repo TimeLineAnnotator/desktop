@@ -197,6 +197,23 @@ class TestTargetOfTheWrongKind:
 
         assert failed.message == f"Beat timeline (ordinal 3) {NOT_ONE_OF_THEM}"
 
+    def test_a_lone_surrogate_in_a_name_is_written_out(self, csv_file):
+        target = timeline("beat", name="\ud83d", ordinal=2)
+        doc = document(timelines=[target])
+
+        failed = refused(doc, target.id, csv_file(), by="time")
+
+        assert (
+            failed.message == f"Beat timeline '\\ud83d' (ordinal 2) {NOT_ONE_OF_THEM}"
+        )
+        str(failed).encode("utf-8")
+
+    def test_a_lone_surrogate_in_an_id_is_written_out(self, csv_file):
+        failed = refused(document(), "\ud83d", csv_file(), by="time")
+
+        assert failed.message == "No timeline found with id=\\ud83d"
+        str(failed).encode("utf-8")
+
     def test_the_failure_names_the_csv(self, csv_file):
         target = timeline("beat", name="Measures")
         doc = document(timelines=[target])
