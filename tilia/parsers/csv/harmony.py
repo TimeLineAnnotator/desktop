@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 import music21
 
-import tilia.timelines.harmony.constants
+from tilia.log import logger
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.parsers.csv.common import (
     _get_attr_data,
@@ -21,10 +21,11 @@ from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia_core import rules
 
 
 def _parse_display_mode(value: str):
-    valid_modes = tilia.timelines.harmony.constants.HARMONY_DISPLAY_MODES
+    valid_modes = list(rules.HARMONY_DISPLAY_MODES)
     if value in valid_modes:
         return value
     else:
@@ -32,7 +33,7 @@ def _parse_display_mode(value: str):
 
 
 def _parse_custom_text_font_type(value: str):
-    valid_types = tilia.timelines.harmony.constants.FONT_TYPES
+    valid_types = list(rules.FONT_TYPES)
     if value in valid_types:
         return value
     else:
@@ -69,11 +70,40 @@ def _get_invalid_symbol_error(component_kind: Literal["harmony", "key"], symbol:
     )
 
 
-def _create_component(component_kind, symbol, harmony_tl, time):
-    errors = []
-    success, params = _get_component_params_from_text(
-        component_kind, symbol, harmony_tl.get_key_by_time(time)
+HARMONY_OPTIONAL_ATTRS = (
+    "comments",
+    "display_mode",
+    "custom_text",
+    "custom_text_font_type",
+)
+MODE_OPTIONAL_ATTRS = ("comments",)
+
+
+def _get_optional_params(
+    component_kind: Literal["harmony", "key"], attr_to_value: dict[str, Any]
+) -> dict[str, Any]:
+    optional_attrs = (
+        HARMONY_OPTIONAL_ATTRS if component_kind == "harmony" else MODE_OPTIONAL_ATTRS
     )
+    return {k: v for k, v in attr_to_value.items() if k in optional_attrs}
+
+
+def _create_component(
+    component_kind: Literal["harmony", "key"],
+    symbol: str,
+    harmony_tl: HarmonyTimeline,
+    time: float,
+    optional_params: dict[str, Any] | None = None,
+) -> list[str]:
+    errors = []
+    key = harmony_tl.get_key_by_time(time)
+    try:
+        success, params = _get_component_params_from_text(component_kind, symbol, key)
+    except (music21.Music21Exception, KeyError):
+        # The harmony parser raises on some symbols instead of failing, e.g. an
+        # applied chord to a chromatic degree (#627).
+        logger.exception(f"Parsing {component_kind} symbol {symbol!r} raised.")
+        success, params = False, None
 
     if not success:
         errors.append(_get_invalid_symbol_error(component_kind, symbol))
@@ -82,6 +112,7 @@ def _create_component(component_kind, symbol, harmony_tl, time):
     component, fail_reason = harmony_tl.create_component(
         (ComponentKind.HARMONY if component_kind == "harmony" else ComponentKind.MODE),
         time,
+        **(optional_params or {}),
         **params,
     )
     if not component:
@@ -150,6 +181,7 @@ def import_by_time(
                 attr_to_value["symbol"],
                 timeline,
                 attr_to_value["time"],
+                _get_optional_params(attr_to_value["harmony_or_key"], attr_to_value),
             )
 
         return True, errors
@@ -227,6 +259,9 @@ def import_by_measure(
                     attr_to_value["symbol"],
                     harmony_tl,
                     time,
+                    _get_optional_params(
+                        attr_to_value["harmony_or_key"], attr_to_value
+                    ),
                 )
 
         return True, errors

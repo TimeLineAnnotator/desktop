@@ -33,12 +33,13 @@ class HarmonyTLComponentManager(TimelineComponentManager):
         self,
         kind: ComponentKind,
         time: float,
-        *_,
-        **__,
-    ):
+        **kwargs: Any,
+    ) -> tuple[bool, str]:
+        # Attributes after the time are taken by keyword only, so that none
+        # is passed by position and left unchecked.
         component_class = self._get_component_class_by_kind(kind)
         return component_class.validate_creation(
-            time, {c.get_data("time") for c in self if c.KIND == kind}
+            time, {c.get_data("time") for c in self if c.KIND == kind}, **kwargs
         )
 
     def _update_harmony_applied_to_on_mode_creation(self, mode: Mode):
@@ -58,6 +59,12 @@ class HarmonyTLComponentManager(TimelineComponentManager):
                 harmony.get_data("step") + relative_step - mode.get_data("step")
             )
             harmony.set_data("applied_to", new_applied_to)
+
+    def restore_state(self, prev_state: dict):
+        super().restore_state(prev_state)
+        # Components are restored in id order, so a harmony restored before
+        # the mode it depends on has a label made without it.
+        post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.timeline.id)
 
     def create_component(
         self, kind: ComponentKind, timeline, id, *args, **kwargs

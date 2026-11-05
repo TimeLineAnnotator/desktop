@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 import tilia.errors
+from tilia.log import logger
 from tilia.requests import (
     Get,
     Post,
@@ -38,7 +39,7 @@ from tilia.requests import (
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
-from tilia.ui.smooth_scroll import setup_smooth, smooth
+from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.windows.view_window import ViewDockWidget
 
 
@@ -146,12 +147,15 @@ class SvgViewer(ViewDockWidget):
         return v_toolbar
 
     def load_svg_data(self, data: str) -> None:
+        if not data:
+            logger.error("Score viewer got no SVG data to load.")
+            return
         self.score_root = etree.fromstring(data, None)
         if not (x_pos := self.timeline.get_data("viewer_beat_x")):
             beat_x_pos, success = self.timeline.set_data(
                 "viewer_beat_x", self._get_beat_x_pos(self.score_root)
             )
-            if not success:
+            if not success or not beat_x_pos:
                 tilia.errors.display(
                     tilia.errors.SCORE_SVG_CREATE_ERROR,
                     "File not properly set up. Beat positions not found.",
@@ -342,18 +346,21 @@ class SvgViewer(ViewDockWidget):
         self.scene.addItem(new_annotation)
         return new_annotation
 
-    def annotation_add(self) -> None:
+    def annotation_add(self, text: str | None = None) -> None:
         self.filter_selection(SvgStaveNote)
         if not (to_add := self.scene.selectedItems()):
             return
-        success, annotation = get(
-            Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
-        )
-        if not success or not annotation:
+        if text is None:
+            success, text = get(
+                Get.FROM_USER_STRING, "Score Annotation", "Add annotation"
+            )
+            if not success:
+                return
+        if not text:
             return
         for item in to_add:
             new_annotation = self.create_annotation(
-                annotation, self.next_tla_id, item.x(), item.y()
+                text, self.next_tla_id, item.x(), item.y()
             )
             item.setSelected(False)
             new_annotation.setSelected(True)
@@ -380,19 +387,22 @@ class SvgViewer(ViewDockWidget):
         )
         post(Post.APP_STATE_RECORD, "score annotation")
 
-    def annotation_edit(self) -> None:
+    def annotation_edit(self, text: str | None = None) -> None:
         self.filter_selection(SvgTlaAnnotation)
         if not (to_edit := self.scene.selectedItems()):
             return
         for item in to_edit:
-            success, annotation = get(
-                Get.FROM_USER_STRING,
-                "Score Annotation",
-                "Edit Annotation",
-                text=item.text(),
-            )
-            if not success:
-                continue
+            if text is None:
+                success, annotation = get(
+                    Get.FROM_USER_STRING,
+                    "Score Annotation",
+                    "Edit Annotation",
+                    text=item.text(),
+                )
+                if not success:
+                    continue
+            else:
+                annotation = text
             if not annotation:
                 if get(
                     Get.FROM_USER_YES_OR_NO,
@@ -632,7 +642,13 @@ class SvgGraphicsView(QGraphicsView):
         self._viewport_updated()
         self.update_measure_tracker = update_measure_tracker
         self.update_scroll_margins = update_scroll_margins
-        setup_smooth(self)
+        # Where the view is centred now: current_viewport_x_center is only
+        # updated when the view is painted.
+        self.smooth_x = SmoothSetter(
+            lambda: self.mapToScene(self.viewport().rect().center()).x(),
+            self._center_on_x,
+            parent=self,
+        )
 
     def _viewport_updated(self) -> bool:
         viewport = self.mapToScene(self.viewport().geometry()).boundingRect()
@@ -669,21 +685,15 @@ class SvgGraphicsView(QGraphicsView):
             self._check_scene_bounding_rect()
 
     def scroll_to_x(self, x: float):
-        def __get_x():
-            return self.current_viewport_x_center
+        self.smooth_x(x)
 
-        @smooth(self, __get_x)
-        def __set_x(x):
-            old, has_sb = (
-                (sb.value(), True)
-                if (sb := self.verticalScrollBar())
-                else (None, False)
-            )
-            self.centerOn(x, 0)
-            if has_sb:
-                self.verticalScrollBar().setValue(old)
-
-        __set_x(x)
+    def _center_on_x(self, x: float) -> None:
+        old, has_sb = (
+            (sb.value(), True) if (sb := self.verticalScrollBar()) else (None, False)
+        )
+        self.centerOn(x, 0)
+        if has_sb:
+            self.verticalScrollBar().setValue(old)
 
     def wheelEvent(self, event):
         if Qt.KeyboardModifier.ControlModifier not in event.modifiers():

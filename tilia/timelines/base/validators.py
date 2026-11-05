@@ -1,7 +1,7 @@
 import math
 from typing import Any
 
-from PySide6.QtGui import QColor
+from tilia_core import rules
 
 
 def validate_time(value):
@@ -17,16 +17,8 @@ def validate_bool(value):
 
 
 def validate_color(value):
-    if value is None or value == "":
-        # None or "" mean the default color.
-        # 0 is a valid value for QColor,
-        # so we can't simply use `if not value`.
-        return True
-
-    try:
-        return QColor(value).isValid()
-    except TypeError:
-        return False
+    # None and "" mean the default color.
+    return rules.color(value).ok
 
 
 def validate_read_only(_):
