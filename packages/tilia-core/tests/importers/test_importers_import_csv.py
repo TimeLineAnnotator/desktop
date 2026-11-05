@@ -532,14 +532,15 @@ class TestTheCsvIsNamed:
 class TestSurface:
     # Every name of the importers' contract that exists so far:
     # TimeLineAnnotator/project-management's specs/wp16-importers-command/
-    # contracts/python-api.md and plan.md. `import_beats` and `import_metadata`
-    # join them with their own tasks.
+    # contracts/python-api.md and plan.md. `import_beats` joins them with its
+    # own task.
     CONTRACT = [
         "ImportFailed",
         "ImportResult",
         "RowProblem",
         "harmony_available",
         "import_csv",
+        "import_metadata",
     ]
 
     def test_all_holds_the_names_of_the_contract(self):
