@@ -1397,20 +1397,55 @@ class TestWhatIsComparedIsWhatIsWritten:
         written(doc, tmp_path)
 
 
-class TestAKnownKindInAnotherTimeline:
-    # What the reader makes of it, as FR-054 asks of what is written: kept key
-    # for key, as one of a kind the core doesn't know, to which no rule applies.
+def into_cadences(component):
+    """A document with `component`, of id `FIRST`, in its marker timeline."""
+    doc = tla.loads(a_file())
+    doc.timelines[CADENCES].components[FIRST] = component
+    return doc
 
-    @staticmethod
-    def wrong_kind():
-        doc = tla.loads(a_file())
-        doc.timelines[CADENCES].components[FIRST] = tla.Component(
-            id=FIRST, kind="hierarchy", attrs={"start": 5.0, "end": 1.0, "level": 0}
-        )
-        return doc
+
+def a_hierarchy(**keys):
+    return tla.Component(
+        id=FIRST, kind="hierarchy", attrs={"start": 5.0, "end": 1.0, "level": 0}, **keys
+    )
+
+
+class TestAKnownKindInAnotherTimeline:
+    # What the reader makes of it, from its first write (FR-054;
+    # TimeLineAnnotator/project-management#496, point 3, option A): kept key for
+    # key, in code-point order, as one of a kind the core doesn't know, to which
+    # no rule applies. So a read and a second write change no byte.
+
+    EVERY_SHAPE = {
+        "the example": lambda: a_hierarchy(),
+        "at its kind's defaults": lambda: tla.Component(
+            id=FIRST,
+            kind="hierarchy",
+            attrs={"start": 5.0, "end": 1.0, "level": 1, "label": "", "comments": ""},
+        ),
+        "with None": lambda: tla.Component(
+            id=FIRST,
+            kind="hierarchy",
+            attrs={"start": 1.0, "end": 5.0, "level": 1, "label": None},
+        ),
+        "with metadata": lambda: a_hierarchy(metadata={"z": "1", "a": "2"}),
+        "with empty metadata": lambda: a_hierarchy(metadata={}),
+        "with a key of its own": lambda: a_hierarchy(extra={"zz": 1, "aa": 2}),
+        "a beat with its mark": lambda: tla.Component(
+            id=FIRST,
+            kind="beat",
+            attrs={"time": 5.0, "measure": {"number": -1, "label": "", "metadata": {}}},
+        ),
+        "a legacy score's": lambda: tla.Component(
+            id=FIRST, kind="clef", attrs={"line_number": 2, "step": 0, "octave": 0}
+        ),
+    }
+    every_shape = pytest.mark.parametrize(
+        "component", EVERY_SHAPE.values(), ids=EVERY_SHAPE.keys()
+    )
 
     def test_it_is_written_and_reads_back_kept_as_it_is(self, tmp_path):
-        read = tla.read(written(self.wrong_kind(), tmp_path))
+        read = tla.read(written(into_cadences(a_hierarchy()), tmp_path))
         kept = read.timelines[CADENCES].components[FIRST]
         assert kept.kind == tla.UnknownKind("HIERARCHY")
         assert kept.extra == {"start": 5.0, "end": 1.0, "level": 0}
@@ -1418,18 +1453,119 @@ class TestAKnownKindInAnotherTimeline:
         assert [w.place for w in read.warnings] == [component_place(CADENCES, FIRST)]
         assert "it is kept as it is" in read.warnings[0].message
 
-    def test_it_is_written_back_key_for_key(self, tmp_path):
-        path = written(self.wrong_kind(), tmp_path)
-        content = json.loads(path.read_bytes())
-        assert content["timelines"][CADENCES]["components"][FIRST] == {
-            "kind": "HIERARCHY",
-            "start": 5.0,
-            "end": 1.0,
-            "level": 0,
-        }
-        tla.write(path, tla.read(path))
+    def test_its_first_write_is_in_code_point_order(self, tmp_path):
+        content = json.loads(
+            written(into_cadences(a_hierarchy()), tmp_path).read_bytes()
+        )
+        assert list(content["timelines"][CADENCES]["components"][FIRST].items()) == [
+            ("kind", "HIERARCHY"),
+            ("end", 1.0),
+            ("level", 0),
+            ("start", 5.0),
+        ]
+
+    def test_its_first_write_has_every_key(self, tmp_path):
+        # In a timeline that holds hierarchies, its empty label and comments
+        # are left out.
+        component = self.EVERY_SHAPE["at its kind's defaults"]()
+        content = json.loads(written(into_cadences(component), tmp_path).read_bytes())
+        assert list(content["timelines"][CADENCES]["components"][FIRST]) == [
+            "kind",
+            "comments",
+            "end",
+            "label",
+            "level",
+            "start",
+        ]
+
+    def test_its_metadata_comes_after_its_kind(self, tmp_path):
+        component = a_hierarchy(metadata={"z": "1"})
+        content = json.loads(written(into_cadences(component), tmp_path).read_bytes())
+        assert list(content["timelines"][CADENCES]["components"][FIRST]) == [
+            "kind",
+            "metadata",
+            "end",
+            "level",
+            "start",
+        ]
+
+    @every_shape
+    def test_a_read_and_a_second_write_change_no_byte(self, component, tmp_path):
+        path = written(into_cadences(component()), tmp_path)
         data = path.read_bytes()
-        assert json.loads(data) == content
+        tla.write(path, tla.read(path))
+        assert path.read_bytes() == data
+
+    @every_shape
+    def test_what_write_gives_is_the_fingerprint_of_the_file(self, component, tmp_path):
+        path = tmp_path / "piece.tla"
+        doc = into_cadences(component())
+        given = tla.write(path, doc)
+        assert given == tla.fingerprint(path)
+        assert given == tla.fingerprint_of(doc)
+        assert given == tla.fingerprint_of(tla.read(path))
+
+    @every_shape
+    def test_a_write_expecting_that_fingerprint_goes_through(self, component, tmp_path):
+        path = tmp_path / "piece.tla"
+        doc = into_cadences(component())
+        first = tla.write(path, doc)
+        assert tla.write(path, tla.read(path), expect=first) == first
+        assert tla.write(path, doc, expect=first) == first
+
+    def test_a_float_for_an_integer_elsewhere_keeps_its_bytes(self):
+        # That has the document read again to be written: the same bytes either way.
+        doc = into_cadences(a_hierarchy())
+        data = tla.canonical_bytes(doc)
+        doc.timelines[BEATS].ordinal = float(doc.timelines[BEATS].ordinal)
+        assert tla.canonical_bytes(doc) == data
+
+    def test_one_moved_there_keeps_what_the_reader_filled_in(self, tmp_path):
+        doc = tla.loads(a_file())
+        moved = doc.timelines[CADENCES].components.pop(CADENCE)
+        doc.timelines[FORM].components[CADENCE] = moved
+        path = written(doc, tmp_path)
+        data = path.read_bytes()
+        kept = json.loads(data)["timelines"][FORM]["components"][CADENCE]
+        assert list(kept)[:2] == ["kind", "color"]
+        assert kept["label"] == "PAC"
+        assert kept["comments"] == ""
+        tla.write(path, tla.read(path))
+        assert path.read_bytes() == data
+
+    def test_a_kind_its_timeline_holds_is_in_its_kinds_order(self, tmp_path):
+        doc = tla.loads(a_file(hierarchies()))
+        doc.timelines[FORM].components[FIRST] = tla.Component(
+            id=FIRST,
+            kind="hierarchy",
+            attrs={"end": 5.0, "start": 1.0, "level": 1, "label": ""},
+        )
+        content = json.loads(written(doc, tmp_path).read_bytes())
+        assert list(content["timelines"][FORM]["components"][FIRST]) == [
+            "kind",
+            "start",
+            "end",
+            "level",
+        ]
+
+    def test_a_timeline_of_a_kind_the_core_doesnt_know_holds_no_known_kind(
+        self, tmp_path
+    ):
+        doc = tla.loads(a_file())
+        doc.timelines[FIRST] = tla.Timeline(
+            id=FIRST,
+            kind=tla.UnknownKind("Plugin"),
+            ordinal=9,
+            components={
+                SECOND: tla.Component(
+                    id=SECOND, kind="marker", attrs={"time": 1.0, "label": ""}
+                )
+            },
+        )
+        path = written(doc, tmp_path)
+        data = path.read_bytes()
+        kept = json.loads(data)["timelines"][FIRST]["components"][SECOND]
+        assert list(kept) == ["kind", "label", "time"]
         tla.write(path, tla.read(path))
         assert path.read_bytes() == data
 
