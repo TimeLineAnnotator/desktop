@@ -14,6 +14,7 @@ from tilia_core.importers.marker import import_by_time as marker_by_time
 from tilia_core.importers.metadata import import_metadata
 from tilia_core.importers.pdf import import_by_time as pdf_by_time
 from tilia_core.importers.range import import_by_time as range_by_time
+from tilia_core.tla.errors import printable
 from tilia_core.tla.model import Kind
 
 __all__ = [
@@ -106,7 +107,7 @@ def _timeline(document: tla.Document, timeline_id: str, path: Path) -> tla.Timel
     try:
         return document.timelines[timeline_id]
     except KeyError:
-        raise ImportFailed(path, _NO_TIMELINE.format(timeline_id)) from None
+        raise ImportFailed(path, printable(_NO_TIMELINE.format(timeline_id))) from None
 
 
 def _named(timeline: tla.Timeline) -> str:
@@ -118,4 +119,4 @@ def _named(timeline: tla.Timeline) -> str:
     text = f"{spelling[:1].upper()}{spelling[1:]} timeline".lstrip()
     if timeline.name:
         text += f" '{timeline.name}'"
-    return f"{text} (ordinal {timeline.ordinal})"
+    return printable(f"{text} (ordinal {timeline.ordinal})")
