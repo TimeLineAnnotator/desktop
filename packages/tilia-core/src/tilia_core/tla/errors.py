@@ -68,6 +68,28 @@ class NewerFormat(UnreadableFile):
         self.version = version
 
 
+class DraftFormat(UnreadableFile):
+    """A file in a draft of the format other than the current one: it is
+    converted again from its sources, never read (FR-007). `version` is the
+    file's. For every other caller it is an `UnreadableFile`."""
+
+    def __init__(
+        self,
+        version: str,
+        *,
+        path: str | os.PathLike[str] | None = None,
+        line: int | None = None,
+    ) -> None:
+        super().__init__(
+            f"a draft of the format ({printable(version)}):"
+            " convert it again from its sources",
+            path=path,
+            line=line,
+            place="/version",
+        )
+        self.version = version
+
+
 class FileChanged(Exception):
     """The file on disk isn't the version the caller expected to replace.
 
