@@ -27,6 +27,7 @@ class Reading:
         self._thread = threading.get_ident()
         self.generation = generation
         self.available = available
+        self.warnings = ()
 
     @property
     def connection(self):
