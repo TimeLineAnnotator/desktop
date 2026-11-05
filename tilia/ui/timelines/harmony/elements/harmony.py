@@ -8,11 +8,7 @@ from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
-from tilia.timelines.harmony.constants import (
-    INT_TO_NOTE_NAME,
-    INT_TO_ROMAN,
-    split_added_tone,
-)
+from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME, INT_TO_ROMAN
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -20,6 +16,7 @@ from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
 from tilia.ui.timelines.harmony.context_menu import HarmonyContextMenu
 from tilia.ui.timelines.harmony.utils import format_added_tone, to_roman_numeral
+from tilia_core.rules import split_added_tone
 
 from . import harmony_attrs
 

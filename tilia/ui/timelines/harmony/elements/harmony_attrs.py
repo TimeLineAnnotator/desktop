@@ -1,15 +1,10 @@
-from tilia.timelines.harmony.constants import (
-    FONT_TYPES,
-    HARMONY_DISPLAY_MODES,
-    HARMONY_QUALITIES,
-    NOTE_NAME_TO_INT,
-    get_inversion_amount,
-)
+from tilia.timelines.harmony.constants import HARMONY_QUALITIES, NOTE_NAME_TO_INT
 from tilia.ui.format import format_media_time
 from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.ui.timelines.harmony.constants import ACCIDENTAL_TO_INT
 from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
 from tilia.ui.windows.inspect import InspectRowKind
+from tilia_core.rules import FONT_TYPES, HARMONY_DISPLAY_MODES, get_inversion_amount
 
 _INV_TO_STRING = {0: "", 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th"}
 

@@ -3,7 +3,6 @@ from typing import Any, Literal
 
 import music21
 
-import tilia.timelines.harmony.constants
 from tilia.log import logger
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.parsers.csv.common import (
@@ -22,10 +21,11 @@ from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia_core import rules
 
 
 def _parse_display_mode(value: str):
-    valid_modes = tilia.timelines.harmony.constants.HARMONY_DISPLAY_MODES
+    valid_modes = list(rules.HARMONY_DISPLAY_MODES)
     if value in valid_modes:
         return value
     else:
@@ -33,7 +33,7 @@ def _parse_display_mode(value: str):
 
 
 def _parse_custom_text_font_type(value: str):
-    valid_types = tilia.timelines.harmony.constants.FONT_TYPES
+    valid_types = list(rules.FONT_TYPES)
     if value in valid_types:
         return value
     else:

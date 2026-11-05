@@ -8,9 +8,9 @@ from tilia.timelines.harmony.constants import (
     INT_TO_NOTE_NAME,
     INT_TO_ROMAN,
     NOTE_NAME_TO_INT,
-    split_added_tone,
 )
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
+from tilia_core.rules import split_added_tone
 
 
 class _ScaleDegree(NamedTuple):
