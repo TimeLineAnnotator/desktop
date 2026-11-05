@@ -299,8 +299,8 @@ class BeatTimeline(Timeline):
         3 decimals, is a beat's (0.333 of three beats) gives that beat's time.
 
         Fraction 1 gives the next measure's start if that measure is numbered
-        `number + 1`, and no time otherwise. Past the last beat, the last
-        measure lasts as long as the measure before it, up to the media's end.
+        `number + 1`, and no time otherwise. The last beat lasts as long as the
+        gap before it, up to the media's end.
 
         `is_segment_end` should be set to `True` on the end of any segment-like
         components. Fraction 1 then gives where the measure ends, whatever
@@ -404,18 +404,17 @@ class BeatTimeline(Timeline):
 
     def _get_measure_end(self, beats: list[Beat], measure_index: int) -> float | None:
         """
-        The next measure's start. The last measure is projected to last as long
-        as the measure before it in the timeline, and stops at the media's end
-        if that comes sooner; with no measure before it, there is nothing to
-        project from.
+        The next measure's start. The last measure ends where its last beat does:
+        that beat lasts as long as the gap before it, and stops at the media's
+        end if that comes sooner. A timeline with one beat has no gap to measure
+        it by.
         """
         if measure_index + 1 < self.measure_count:
             return beats[self.beats_that_start_measures[measure_index + 1]].time
-        if measure_index == 0:
+        if len(beats) < 2:
             return None
-        start = beats[self.beats_that_start_measures[measure_index]].time
-        previous_start = beats[self.beats_that_start_measures[measure_index - 1]].time
-        return min(start + (start - previous_start), get(Get.MEDIA_DURATION))
+        last_beat = beats[-1].time
+        return min(last_beat + (last_beat - beats[-2].time), get(Get.MEDIA_DURATION))
 
     def _get_ends_of_measures_before(
         self, beats: list[Beat], number: int

@@ -634,7 +634,7 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(1, 1, True) == [3]
         assert beat_tl.get_time_by_measure(3, 1, True) == [7, 11]
 
-    def test_last_pass_projects_past_last_beat(self, tls):
+    def test_last_pass_lasts_past_last_beat(self, tls):
         beat_tl = load_beat_timeline(tls, [2] * 6, [1, 2, 3, 1, 2, 1])
 
         assert beat_tl.get_time_by_measure(1, 0.75) == [2.5, 8.5, 12.5]
@@ -692,8 +692,45 @@ class TestGetTimeByMeasureEachPass:
         assert beat_tl.get_time_by_measure(3, 0, True) == expected
 
 
+class TestLastMeasureEnd:
+    """The last beat lasts as long as the gap before it."""
+
+    def test_steady_measure(self, tls):
+        beat_tl = load_beat_timeline(tls, [4, 4], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 1, True) == [9]
+
+    def test_measure_longer_than_the_one_before(self, tls):
+        beat_tl = load_beat_timeline(tls, [3, 4], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 1, True) == [8]
+        assert beat_tl.get_time_by_measure(2, 0.875) == [7.5]
+
+    def test_measure_shorter_than_the_one_before(self, tls):
+        beat_tl = load_beat_timeline(tls, [2, 1], [1, 2])
+
+        assert beat_tl.get_time_by_measure(2, 1, True) == [4]
+        assert beat_tl.get_time_by_measure(2, 0.5) == [3.5]
+
+    @pytest.mark.parametrize("beats_in_last_measure", [4, 40])
+    def test_times_never_run_backwards(self, tls, beats_in_last_measure):
+        beat_tl = load_beat_timeline(tls, [2, beats_in_last_measure], [1, 2])
+
+        steps = 2 * beats_in_last_measure
+        times = [beat_tl.get_time_by_measure(2, i / steps)[0] for i in range(steps)]
+        times += beat_tl.get_time_by_measure(2, 1, True)
+
+        assert times == sorted(set(times))
+
+    def test_one_measure_of_two_beats_has_an_end(self, tls):
+        beat_tl = load_beat_timeline(tls, [2], [1])
+
+        assert beat_tl.get_time_by_measure(1, 1, True) == [3]
+        assert beat_tl.get_time_by_measure(1, 0.75) == [2.5]
+
+
 class TestLastMeasureEndsAtTheMediaEnd:
-    """A last measure's projected end stops at the media's end."""
+    """A last measure's end stops at the media's end."""
 
     def test_segment_end(self, tls, tilia_state):
         tilia_state.duration = 4.5
@@ -723,14 +760,14 @@ class TestLastMeasureEndsAtTheMediaEnd:
 
         assert beat_tl.get_time_by_measure(2, 0, True) == [3, 6.5]
 
-    def test_projected_end_before_the_media_end_does_not_change(self, tls, tilia_state):
+    def test_end_before_the_media_end_does_not_change(self, tls, tilia_state):
         tilia_state.duration = 10
         beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
 
         assert beat_tl.get_time_by_measure(2, 1, True) == [5]
         assert beat_tl.get_time_by_measure(2, 0.75) == [4.5]
 
-    def test_projected_end_at_the_media_end(self, tls, tilia_state):
+    def test_end_at_the_media_end(self, tls, tilia_state):
         tilia_state.duration = 5
         beat_tl = load_beat_timeline(tls, [2, 2], [1, 2])
 
@@ -742,12 +779,12 @@ class TestLastMeasureEndsAtTheMediaEnd:
 
         assert beat_tl.get_time_by_measure(1, 1, True) == [3]
 
-    def test_one_measure_has_nothing_to_project_from(self, tls, tilia_state):
+    def test_one_measure_of_two_beats(self, tls, tilia_state):
         tilia_state.duration = 2.5
         beat_tl = load_beat_timeline(tls, [2], [1])
 
-        assert beat_tl.get_time_by_measure(1, 1, True) == []
-        assert beat_tl.get_time_by_measure(1, 0.75) == []
+        assert beat_tl.get_time_by_measure(1, 1, True) == [2.5]
+        assert beat_tl.get_time_by_measure(1, 0.75) == [2.25]
 
 
 class TestAddMeasureZero:
