@@ -155,3 +155,17 @@ class TestTimelines:
 
         assert tl3.ordinal == 1
         assert tl4.ordinal == 2
+
+    def test_delete_timeline_that_equals_another(self, tls):
+        tl1 = tls.create_timeline(MarkerTimeline, name="same")
+        tl2 = tls.create_timeline(MarkerTimeline, name="same")
+        # Timelines compare equal by their attributes, which an invalid
+        # intermediate state can make identical.
+        tl2.ordinal = tl1.ordinal
+        assert tl1 == tl2
+
+        tls.delete_timeline(tl2)
+
+        assert tls.get_timelines() == [tl1]
+        assert tls.get_timeline(tl1.id) is tl1
+        assert tls.get_timeline(tl2.id) is None

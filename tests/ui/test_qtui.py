@@ -304,6 +304,7 @@ class TestMenus:
             "edit.undo",
             "edit.redo",
             "timeline.component.copy",
+            "timeline.component.cut",
             "timeline.component.paste",
             "timeline.component.paste_complete",
             "window.open.settings",

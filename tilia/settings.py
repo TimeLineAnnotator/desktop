@@ -1,12 +1,51 @@
+from enum import Enum
 from pathlib import Path
+from typing import Any, Callable
 
 from PySide6.QtCore import QObject, QSettings
 
 import tilia.constants
 from tilia.ui.enums import ScrollType
 
+STORE_NAME = "Desktop Settings"
+
+
+class _Unreadable:
+    """A stored value that can't be read as its default's type."""
+
+
+UNREADABLE = _Unreadable()
+
+
+def _store_auto_scroll_by_name(qsettings: QSettings) -> None:
+    """Version 1 to 2: auto-scroll was stored as a pickled enum; store its name.
+
+    A pickle that Qt flushed after the interpreter had shut down is empty and
+    can't be read (#711). There is nothing to keep, so it is removed and the
+    default replaces it.
+    """
+    key = "editable/general/auto-scroll"
+    try:
+        value = qsettings.value(key, None)
+    except EOFError:
+        qsettings.remove(key)
+        return
+    if isinstance(value, ScrollType):
+        qsettings.setValue(key, value.name)
+
 
 class SettingsManager(QObject):
+    # Bump VERSION when a setting's name, group or type changes, and add a
+    # function to MIGRATIONS that moves version VERSION - 1 to VERSION.
+    # Settings are migrated, never reset. Version 0 is both a store saved
+    # before settings were versioned and a new, empty one, so a migration
+    # must allow for the settings it moves being missing.
+    VERSION = 2
+    VERSION_KEY = "meta/settings_version"
+    MIGRATIONS: dict[int, Callable[[QSettings], None]] = {
+        1: _store_auto_scroll_by_name,
+    }
+
     DEFAULT_SETTINGS = {
         "general": {
             "auto-scroll": ScrollType.OFF,
@@ -102,13 +141,42 @@ class SettingsManager(QObject):
         "dev": {"log_requests": "false", "max_stored_logs": 100},
     }
 
-    def __init__(self):
-        self._settings = QSettings(
-            tilia.constants.APP_NAME, application="Desktop Settings", parent=None
-        )
+    def __init__(self, qsettings: QSettings | None = None):
+        super().__init__()
+        if qsettings is None:
+            # defaultFormat() is the native store. Calling
+            # QSettings.setDefaultFormat() before this module is imported moves
+            # the settings; tilia never does, and the test suite does on purpose.
+            qsettings = QSettings(
+                QSettings.defaultFormat(),
+                QSettings.Scope.UserScope,
+                tilia.constants.APP_NAME,
+                STORE_NAME,
+            )
+        self._settings = qsettings
         self._files_updated_callbacks = set()
         self._cache = {}
+        self._migrate()
         self._check_all_default_settings_present()
+
+    def _stored_version(self) -> int:
+        value = self._settings.value(self.VERSION_KEY, None)
+        if value is None:
+            return 0  # saved before settings were versioned
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    def _migrate(self) -> None:
+        version = self._stored_version()
+        if version > self.VERSION:
+            # Saved by a newer TiLiA: read what we understand, change nothing.
+            return
+        for from_version in range(version, self.VERSION):
+            if migration := self.MIGRATIONS.get(from_version):
+                migration(self._settings)
+        self._settings.setValue(self.VERSION_KEY, self.VERSION)
 
     def _check_all_default_settings_present(self):
         for group_name, setting in self.DEFAULT_SETTINGS.items():
@@ -121,8 +189,8 @@ class SettingsManager(QObject):
         self._cache = {}
         self._settings.beginGroup("editable")
         self._settings.remove("")
-        self._check_all_default_settings_present()
         self._settings.endGroup()
+        self._check_all_default_settings_present()
 
     def _clear_recent_files(self):
         self._settings.beginGroup("private")
@@ -133,34 +201,91 @@ class SettingsManager(QObject):
         self._files_updated_callbacks.add(updating_function)
 
     def _get(self, group_name: str, setting: str, in_default=True):
-        key = self._get_key(group_name, setting, in_default)
         try:
-            value = self._settings.value(key, None)
-        except EOFError:  #  happens when the group in self._settings is not initiated, but setting a value solves this.
-            value = None
-        if not value or not isinstance(
-            value, type(self.DEFAULT_SETTINGS[group_name][setting])
-        ):
-            try:
-                value = self.DEFAULT_SETTINGS[group_name][setting]
-            except KeyError:
-                return None
-            self._settings.setValue(key, value)
+            default = self.DEFAULT_SETTINGS[group_name][setting]
+        except KeyError:
+            return None
+        key = self._get_key(group_name, setting, in_default)
 
-        # QSettings saves all settings as strings; check typing before parsing
-        if isinstance(value, str):
-            if value.lower() == "true":
-                return True
-            elif value.lower() == "false":
-                return False
-            elif value.isnumeric():
-                return int(value)
+        # Only a missing value is missing. Zero, empty text and empty lists
+        # are values the user chose.
+        # Both probes raise EOFError on an empty pickle, which an older TiLiA
+        # can still leave behind (#711): nothing can read it, so replace it
+        # with the default.
+        try:
+            if not self._settings.contains(key):
+                self._settings.setValue(key, self._to_stored(default))
+                return self._as_setting(default, default)
 
+            stored = self._settings.value(key, None)
+        except EOFError:
+            self._settings.setValue(key, self._to_stored(default))
+            return self._as_setting(default, default)
+
+        value = self._as_setting(stored, default)
+        if value is UNREADABLE:
+            # Keep the stored value, so that a version that can read it
+            # (an older or newer TiLiA) still finds it.
+            return self._as_setting(default, default)
         return value
+
+    @staticmethod
+    def _as_setting(value: Any, default: Any) -> Any:
+        """Reads a stored value with its default's type.
+
+        INI files (Linux) store every value as text, and a list of one item
+        as that item; an empty list reads back as None. The Windows registry
+        stores booleans as text. Booleans have "true" or "false" as defaults.
+        Enums are stored by name.
+        """
+        if isinstance(default, Enum):
+            if isinstance(value, type(default)):
+                return value
+            try:
+                return type(default)[value]
+            except (KeyError, TypeError):
+                return UNREADABLE
+
+        if isinstance(default, str) and default.lower() in ("true", "false"):
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str) and value.lower() in ("true", "false"):
+                return value.lower() == "true"
+            return UNREADABLE
+
+        if isinstance(default, int):
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                try:
+                    return int(value)
+                except ValueError:
+                    return UNREADABLE
+            return UNREADABLE
+
+        if isinstance(default, list):
+            if value is None:
+                return []
+            if isinstance(value, str):
+                return [value]
+            if isinstance(value, list):
+                return value
+            return UNREADABLE
+
+        if isinstance(default, str):
+            return value if isinstance(value, str) else UNREADABLE
+
+        return value if isinstance(value, type(default)) else UNREADABLE
+
+    @staticmethod
+    def _to_stored(value: Any) -> Any:
+        # QSettings would pickle an enum, and a pickle that Qt flushes after
+        # the interpreter has shut down is empty (#711).
+        return value.name if isinstance(value, Enum) else value
 
     def _set(self, group_name: str, setting: str, value, in_default=True):
         key = self._get_key(group_name, setting, in_default)
-        self._settings.setValue(key, value)
+        self._settings.setValue(key, self._to_stored(value))
 
     def get(self, group_name: str, setting: str):
         return self._cache[group_name][setting]
