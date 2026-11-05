@@ -912,6 +912,7 @@ class TestInversionAmount:
             )
 
     def test_the_qualities_without_inversions_are_tilias(self):
+        assert isinstance(rules.NO_INVERSION_QUALITIES, frozenset)
         assert rules.NO_INVERSION_QUALITIES == {
             "Italian",
             "French",
@@ -966,6 +967,8 @@ class TestInversionAmount:
             rules.get_inversion_amount("major")
 
         assert isinstance(raised.value.__cause__, ImportError)
+        assert raised.value.error is raised.value.__cause__
+        assert raised.value.kind == "harmony"
 
 
 class TestMode:

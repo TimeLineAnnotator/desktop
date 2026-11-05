@@ -24,7 +24,7 @@ installed music21, as TiLiA checks them, so checking a harmony or a mode needs
 the `harmony` extra. Without it, the other rules are checked, and when none is
 broken, `CantCheck` is raised, before the color is checked: a bad color mustn't
 hide that a rule couldn't be checked. music21 is imported only when a harmony or
-a mode is checked.
+a mode is checked, or a quality's inversions are counted.
 """
 
 from __future__ import annotations
