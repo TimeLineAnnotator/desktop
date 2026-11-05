@@ -1519,6 +1519,45 @@ class TestFingerprint:
         tla.write(path, tla.read(path), expect=tla.fingerprint(path))
         assert path.read_bytes() == data
 
+    @pytest.mark.parametrize(
+        "data",
+        [
+            a_file(LEVEL_0),
+            json.dumps(
+                {
+                    "file_path": "",
+                    "media_path": "",
+                    "media_metadata": {"media length": 60.0},
+                    "timelines": {},
+                    "app_name": "TiLiA",
+                    "version": "0.6.0",
+                }
+            ).encode(),
+        ],
+        ids=["current", "old"],
+    )
+    def test_it_doesnt_check_the_rules(self, data, monkeypatch, tmp_path):
+        def not_called(*args, **kwargs):
+            raise AssertionError("the rules were checked")
+
+        monkeypatch.setattr(rules, "check_timeline", not_called)
+        monkeypatch.setattr(rules, "media_length", not_called)
+        path = tmp_path / "piece.tla"
+        path.write_bytes(data)
+        assert len(tla.fingerprint(path)) == 64
+
+    def test_it_is_the_fingerprint_of_what_reading_gives(self, tmp_path):
+        data = a_file(LEVEL_0)
+        path = tmp_path / "piece.tla"
+        path.write_bytes(data)
+        assert tla.fingerprint(path) == tla.fingerprint_of(tla.read(path))
+
+    def test_it_is_refused_as_reading_refuses(self, tmp_path):
+        path = tmp_path / "piece.tla"
+        path.write_bytes(b"{}")
+        with pytest.raises(tla.UnreadableFile):
+            tla.fingerprint(path)
+
 
 # Old files
 

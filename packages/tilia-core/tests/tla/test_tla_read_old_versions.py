@@ -2003,13 +2003,15 @@ def test_a_fingerprint_refuses_what_reading_refuses_at_its_place_and_line(
     assert refusal(tla.fingerprint, path) == refused
 
 
-def test_a_fingerprints_document_has_the_warnings_reading_gives():
+def test_a_fingerprints_document_names_what_reading_names_as_reading_does():
+    # It goes through the reader's `_old`, so that the migration's and the
+    # check's warnings have the old file's places and lines. The rules' come
+    # after those, and a fingerprint doesn't check the rules.
     data = replaced(SEVEN.read_bytes(), b'"kind": "MODE"', b'"kind": "MARKER"')
-    warnings = tla.loads(data).warnings
-    # Without the `harmony` extra, a note for the document has neither a place
-    # nor a line.
-    assert all(warning.line is not None for warning in warnings if warning.place)
-    assert loads_for_fingerprint(data).warnings == warnings != []
+    warnings = loads_for_fingerprint(data).warnings
+    assert warnings != []
+    assert all(warning.line is not None for warning in warnings)
+    assert warnings == tla.loads(data).warnings[: len(warnings)]
 
 
 def test_an_old_id_is_named_as_a_json_pointer_names_it():
