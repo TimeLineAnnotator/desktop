@@ -2117,6 +2117,49 @@ class TestOldFiles:
             f" /timelines/3/components/{other})"
         )
 
+    def test_a_measure_number_below_0_is_named_in_the_old_files_terms(self, tmp_path):
+        # TiLiA 0.x keeps the numbers in a list on the timeline.
+        data = json.dumps(
+            {
+                "file_path": "",
+                "media_path": "",
+                "media_metadata": {"media length": 60.0},
+                "timelines": {
+                    "3": {
+                        "kind": "Beat",
+                        "name": "Beats",
+                        "ordinal": 1,
+                        "height": 30,
+                        "is_visible": True,
+                        "beat_pattern": [2],
+                        "beats_in_measure": [2, 2],
+                        "measure_numbers": [-1, 0],
+                        "measures_to_force_display": [],
+                        "components": {
+                            str(17 + n): {
+                                "kind": "BEAT",
+                                "hash": "0e1f",
+                                "time": float(n),
+                            }
+                            for n in range(4)
+                        },
+                    }
+                },
+                "app_name": "TiLiA",
+                "version": "0.6.0",
+            },
+            indent=2,
+        ).encode("utf-8")
+        doc = tla.loads(data)
+        assert doc.warnings == [
+            tla.ReadWarning(
+                place="/timelines/3/components/17",
+                line=line_of(data, "17"),
+                message=BELOW_0,
+            )
+        ]
+        written(doc, tmp_path)
+
     def test_it_migrates_with_its_problem(self, tmp_path):
         data = old_file({"start": 0.0, "end": 2.0, "level": 0})
         path = tmp_path / "piece.tla"
