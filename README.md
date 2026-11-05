@@ -53,7 +53,8 @@ TiLiA can also be run and built from source.
 ### Prerequisites
 
 Before you start, you will need:
-- Python 3.10 - 3.12. Download from the [Python website](https://www.python.org/downloads/). (Support for Python 3.13 is variable due to the dependencies used.)
+- Python 3.12 - 3.14. Download from the [Python website](https://www.python.org/downloads/).
+  To run from source on Python 3.10 or 3.11, use [v0.7.4](https://github.com/TimeLineAnnotator/desktop/releases/tag/v0.7.4), the last release that supports them.
 - <details>
   <summary>Other pre-requisites</summary>
 
@@ -85,17 +86,20 @@ Failure to do so may cause dependency issues.
 
 - Install TiLiA and its dependencies with:
 ```
+pip install -e packages/tilia-core
 pip install -e .
 ```
 
 - To run TiLiA from source, run:
 ```
-tilia
+tilia-ui
 ```
+
+`tilia ui` does the same.
 
 - TiLiA also offers a CLI mode, which can be run with:
 ```
-tilia --user-interface cli
+tilia-ui --user-interface cli
 ```
 > Note: The CLI is currently only available when run from source, and not in the compiled executable.
 
@@ -105,6 +109,7 @@ Note that the binaries will be for the platform you are building on, as `Nuitka`
 
 - After cloning TiLiA, install TiLiA's run and build dependencies with:
 ```
+pip install -e packages/tilia-core
 pip install -e . --group build
 ```
 - To build a stand-alone executable, run the script:
