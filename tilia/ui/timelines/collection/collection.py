@@ -339,7 +339,9 @@ class TimelineUIs:
                 result,
             )
 
-        success = all(result)
+        # all([]) is True: with no timeline to run on, nothing changed, and an
+        # empty undo step would discard the redo history.
+        success = bool(result) and all(result)
 
         if success:
             post(

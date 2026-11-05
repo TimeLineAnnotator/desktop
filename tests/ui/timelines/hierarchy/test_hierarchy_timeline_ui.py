@@ -1078,6 +1078,40 @@ class TestUndoRedo:
         commands.execute("edit.redo")
         assert len(tlui) == 4
 
+    @pytest.mark.parametrize("command", ["paste", "paste_complete"])
+    def test_paste_with_empty_clipboard_keeps_redo_history(self, tlui, command):
+        # No timeline takes part in a paste when nothing was copied, so the
+        # command must not record an undo step that discards the redo history.
+        post(
+            Post.TIMELINE_ELEMENT_COPY_DONE,
+            {"components": {}, "timeline_type": None},
+        )
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("edit.undo")
+        tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 1).id))
+
+        commands.execute(f"timeline.component.{command}")
+
+        assert len(tlui) == 1
+        commands.execute("edit.redo")
+        assert len(tlui) == 2
+
+    def test_command_with_matching_timeline_is_recorded(self, tlui):
+        commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("edit.undo")
+        tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 1).id))
+
+        commands.execute("timeline.component.set_color", color=QColor("#000"))
+
+        # Recorded, so the redo history is gone and one undo restores the colour.
+        commands.execute("edit.redo")
+        assert len(tlui) == 1
+        assert get_hierarchy(tlui, 0, 1).color == "#000000"
+        commands.execute("edit.undo")
+        assert get_hierarchy(tlui, 0, 1).color != "#000000"
+
     @pytest.mark.parametrize("other_level", [1, 3])
     def test_paste_complete_refused_by_one_target_changes_no_target(
         self, tlui, other_level
