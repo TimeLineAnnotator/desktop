@@ -140,14 +140,19 @@ class BeatTimelineUI(TimelineUI):
         return True
 
     @with_elements
-    def on_set_amount_in_measure(self, elements: list[BeatUI] | None = None):
-        accepted, amount = get(
-            Get.FROM_USER_INT,
-            "Change beats in measure",
-            "Insert amount of beats in measure",
-            minValue=1,
-        )
-        if not accepted:
+    def on_set_amount_in_measure(
+        self, elements: list[BeatUI] | None = None, amount: int | None = None
+    ) -> bool:
+        if amount is None:
+            accepted, amount = get(
+                Get.FROM_USER_INT,
+                "Change beats in measure",
+                "Insert amount of beats in measure",
+                minValue=1,
+            )
+            if not accepted:
+                return False
+        elif amount < 1:
             return False
         for i in reversed(self._get_measure_indices(elements)):
             self.timeline.set_beat_amount_in_measure(i, amount)

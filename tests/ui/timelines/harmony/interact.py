@@ -1,3 +1,5 @@
+import re
+
 from tests.ui.timelines.interact import click_timeline_ui_view
 from tilia.ui.coords import time_x_converter
 
@@ -20,3 +22,22 @@ def click_harmony_ui(harmony_ui, button="left", modifier=None, double=False):
 
 def click_mode_ui(mode_ui, button="left", modifier=None, double=False):
     _click_element_ui(mode_ui, button, modifier, double)
+
+
+def numeral_part(label: str) -> str:
+    """The label's accidental and numeral, without its figures and quality."""
+    return re.match(r"(?:`[b#x])*[IViv]+", label).group(0)
+
+
+# The accidentals that start a Roman-numeral label are drawn as MusAnalysis
+# markup, and are typed as plain "#" and "b".
+_LABEL_ACCIDENTAL_TO_TYPED = {"`b": "b", "`#": "#", "`x": "##"}
+
+
+def label_as_typed(label: str) -> str:
+    """What a user types to get a label: its leading accidentals, as typed."""
+    typed = ""
+    while label[:2] in _LABEL_ACCIDENTAL_TO_TYPED:
+        typed += _LABEL_ACCIDENTAL_TO_TYPED[label[:2]]
+        label = label[2:]
+    return typed + label
