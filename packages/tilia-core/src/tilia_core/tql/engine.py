@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from typing import Any, Iterable, Iterator
+from collections.abc import Iterable, Iterator
+from typing import Any
 
 from tilia_core import derived
 from tilia_core.labels import fold
