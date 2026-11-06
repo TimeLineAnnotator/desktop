@@ -439,7 +439,7 @@ def test_a_file_is_checked_once_when_it_is_read(path, monkeypatch):
     def refuse(*args, **kwargs):
         raise AssertionError("checked again")
 
-    monkeypatch.setattr(writer, "check", refuse)
+    monkeypatch.setattr(writer, "turns_integers", refuse)
     assert tla.read(path).fingerprint == expected
 
 

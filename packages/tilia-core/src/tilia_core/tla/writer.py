@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from tilia_core.state import atomic_write
-from tilia_core.tla.check import check
+from tilia_core.tla.check import turns_integers
 from tilia_core.tla.errors import (
     BrokenRules,
     FileChanged,
@@ -504,15 +504,14 @@ def _canonical(
     content = _document(doc)
     text = _text(content)
     try:
-        check(content, text, path=path)
+        turned = turns_integers(content, text, path=path)
     except UnreadableFile:
         if refuse:
             raise
         return text
-    checked = _text(content)
-    if checked == text:
+    if not turned:
         return text
-    return _text(_document(written_document(_utf8(checked))))
+    return _text(_document(written_document(_utf8(_text(content)))))
 
 
 def _text(content: dict[str, Any]) -> str:
