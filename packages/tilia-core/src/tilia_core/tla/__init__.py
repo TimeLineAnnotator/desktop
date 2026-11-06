@@ -3,6 +3,7 @@
 The names here are provisional until they are documented.
 """
 
+from tilia_core.tla.edits import CantMoveMark, delete_beat, mark_edited, mark_moved
 from tilia_core.tla.errors import (
     DraftFormat,
     FileChanged,
@@ -49,6 +50,7 @@ __all__ = [
     "FORMAT_VERSION",
     "TEMPORARY_PATTERN",
     "BeatUnit",
+    "CantMoveMark",
     "Component",
     "Document",
     "FileChanged",
@@ -68,10 +70,13 @@ __all__ = [
     "UnreadableFile",
     "as_media_path",
     "canonical_bytes",
+    "delete_beat",
     "fingerprint",
     "fingerprint_of",
     "is_temporary",
     "loads",
+    "mark_edited",
+    "mark_moved",
     "measure_table",
     "media",
     "migrate_folder",
