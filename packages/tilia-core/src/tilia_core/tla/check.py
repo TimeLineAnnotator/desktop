@@ -82,6 +82,36 @@ def check(
     read from, or the file's bytes, and is read only to find lines. `path` is
     the file's, for messages.
     """
+    checker = _checked(content, source, path)
+    if not checker.warnings:
+        return []
+    warnings = [(_pointer(place), message) for place, message in checker.warnings]
+    lines: dict[str, int] = {}
+    if source is not None:
+        lines = lines_of(text_of(source), [place for place, _ in warnings])
+    return [
+        ReadWarning(place, lines.get(place), message, *ids_at(place))
+        for place, message in warnings
+    ]
+
+
+def turns_integers(
+    content: Mapping[str, Any],
+    source: str | bytes | None = None,
+    *,
+    path: str | os.PathLike[str] | None = None,
+) -> bool:
+    """`check`, for the writer, which has no use for its warnings: whether it
+    turned any integer written as 1.0 into 1, in `content` itself."""
+    return _checked(content, source, path).turned
+
+
+def _checked(
+    content: Mapping[str, Any],
+    source: str | bytes | None,
+    path: str | os.PathLike[str] | None,
+) -> _Checker:
+    """The checker that has been through `content`, or `check`'s `UnreadableFile`."""
     checker = _Checker()
     try:
         checker.document(content)
@@ -93,16 +123,7 @@ def check(
         raise UnreadableFile(
             broken.message, path=path, line=line, place=place
         ) from None
-    if not checker.warnings:
-        return []
-    warnings = [(_pointer(place), message) for place, message in checker.warnings]
-    lines: dict[str, int] = {}
-    if source is not None:
-        lines = lines_of(text_of(source), [place for place, _ in warnings])
-    return [
-        ReadWarning(place, lines.get(place), message, *ids_at(place))
-        for place, message in warnings
-    ]
+    return checker
 
 
 def _quoted(value: Any) -> str:
@@ -410,6 +431,8 @@ class _Checker:
         # holds.
         self.holder: Mapping[str, Any] = {}
         self.holds: frozenset[str] = frozenset()
+        # Whether an integer written as 1.0 has become one in what is checked.
+        self.turned = False
 
     def document(self, content: Mapping[str, Any]) -> None:
         self.value(content, _DOCUMENT, None, None)
@@ -433,6 +456,7 @@ class _Checker:
         if spec.types is not None and not _admits(spec.types, value):
             raise _wrong(value, spec.expected, place, name)
         if spec.types is not None and _whole(value, spec.types):
+            self.turned = True
             return int(value)
         if spec.pattern is not None and not spec.pattern.fullmatch(value):
             message = f"{_subject(place, name)} isn't {spec.expected}: {_quoted(value)}"
@@ -517,7 +541,9 @@ class _Checker:
             # Of a kind its timeline doesn't hold: kept as it is, as one of a
             # kind the core doesn't know, so it is checked on a copy (an
             # integer written as 1.0 stays so), and its references aren't.
+            turned = self.turned
             self.object(copy.deepcopy(value), spec, place)
+            self.turned = turned
             self.warnings.append(
                 (
                     place,

@@ -766,6 +766,144 @@ def test_the_writer_writes_a_whole_float_of_another_type_as_the_integer(lists, p
     assert writer.checked_bytes(given) == writer.checked_bytes(expected)
 
 
+class TestTheTextIsDumpedOnce:
+    """The writer dumps its text once, unless the check has changed a value, so
+    what the check says decides what is written (FR-051a)."""
+
+    @pytest.fixture
+    def dumps(self, monkeypatch):
+        calls = []
+        dump = writer._text
+
+        def counted(content):
+            calls.append(content)
+            return dump(content)
+
+        monkeypatch.setattr(writer, "_text", counted)
+        return calls
+
+    @pytest.fixture
+    def not_read_back(self, monkeypatch):
+        def read_back(*args, **kwargs):
+            raise AssertionError("the check changed nothing: nothing to read back")
+
+        monkeypatch.setattr(writer, "written_document", read_back)
+
+    def test_a_document_the_check_changes_nothing_in(self, dumps, not_read_back):
+        data = base_bytes()
+        assert writer.checked_bytes(tla.loads(data)) == data
+        assert len(dumps) == 1
+
+    def test_a_float_where_the_format_has_a_number_is_no_change(
+        self, dumps, not_read_back
+    ):
+        doc = base_document()
+        _beat_1_attrs(doc)["time"] = 1.0
+        assert b'"time": 1.0' in writer.checked_bytes(doc)
+        assert len(dumps) == 1
+
+    @pytest.mark.parametrize(
+        "change, get",
+        [
+            (
+                lambda doc, n: setattr(named(doc, "Form"), "ordinal", n(2)),
+                lambda top: top["timelines"][FORM]["ordinal"],
+            ),
+            (
+                lambda doc, n: _section(doc).attrs.update(level=n(3)),
+                lambda top: top["timelines"][FORM]["components"][IDS["section"]][
+                    "level"
+                ],
+            ),
+            (
+                lambda doc, n: _beat_1_attrs(doc).update(measure={"number": n(4)}),
+                lambda top: top["timelines"][IDS["beats"]]["components"][IDS["beat_1"]][
+                    "measure"
+                ]["number"],
+            ),
+            (
+                lambda doc, n: _beat_1_attrs(doc).update(
+                    beat_unit={"denominator": n(8), "units": "1"}
+                ),
+                lambda top: top["timelines"][IDS["beats"]]["components"][IDS["beat_1"]][
+                    "beat_unit"
+                ]["denominator"],
+            ),
+            (
+                lambda doc, n: named(doc, "Texture")
+                .attrs["rows"][0]
+                .update(height=n(30)),
+                lambda top: top["timelines"][IDS["texture"]]["rows"][0]["height"],
+            ),
+        ],
+        ids=["an ordinal", "a level", "a measure's number", "a denominator", "a row's"],
+    )
+    def test_a_value_the_check_changes_is_written_as_the_integer(self, change, get):
+        given, expected = base_document(), base_document()
+        change(given, float)
+        change(expected, int)
+        data = writer.checked_bytes(given)
+        assert data == writer.checked_bytes(expected)
+        assert type(get(json.loads(data))) is int
+        assert tla.canonical_bytes(given) == data
+
+    def test_a_value_the_check_changes_in_an_unknown_timeline(self):
+        given, expected = base_document(), base_document()
+        for doc, ordinal in ((given, 2.0), (expected, 2)):
+            form = named(doc, "Form")
+            form.kind, form.raw = tla.UnknownKind("Lyrics"), {"kind": "Lyrics"}
+            form.attrs, form.components, form.ordinal = {}, {}, ordinal
+        data = writer.checked_bytes(given)
+        assert data == writer.checked_bytes(expected)
+        assert type(json.loads(data)["timelines"][FORM]["ordinal"]) is int
+
+    @staticmethod
+    def with_a_kept_component(doc):
+        """`doc`, with a hierarchy in its beat timeline, kept as it is, its level
+        written as 1.0."""
+        key = tla.new_id()
+        named(doc, "Beats").components[key] = tla.Component(
+            id=key,
+            kind=tla.UnknownKind("HIERARCHY"),
+            extra={"start": 0.0, "end": 1.0, "level": 1.0},
+        )
+        return key
+
+    def test_a_float_on_a_component_kept_as_it_is_is_no_change(
+        self, dumps, not_read_back
+    ):
+        # The check goes through it on a copy: what it changes there isn't written.
+        doc = base_document()
+        key = self.with_a_kept_component(doc)
+        top = json.loads(writer.checked_bytes(doc))
+        kept = top["timelines"][IDS["beats"]]["components"][key]
+        assert type(kept["level"]) is float
+        assert len(dumps) == 1
+
+    def test_a_change_before_a_component_kept_as_it_is_still_counts(self):
+        # The ordinal comes first in the file.
+        doc = base_document()
+        key = self.with_a_kept_component(doc)
+        named(doc, "Beats").ordinal = 7.0
+        beats = json.loads(writer.checked_bytes(doc))["timelines"][IDS["beats"]]
+        assert type(beats["ordinal"]) is int
+        assert type(beats["components"][key]["level"]) is float
+
+    def test_a_refused_document_is_written_as_it_was_given(self, dumps):
+        # The check changes the ordinal, then refuses what comes after it: the
+        # text is the one from before the check.
+        doc = base_document()
+        beats = named(doc, "Beats")
+        beats.ordinal = 7.0
+        beats.components[IDS["beat_1"]].attrs["time"] = "soon"
+        with pytest.raises(tla.UnreadableFile):
+            writer.checked_bytes(doc)
+        dumps.clear()
+        data = writer._canonical(doc, refuse=False)
+        assert '"ordinal": 7.0' in data
+        assert len(dumps) == 1
+
+
 @pytest.mark.parametrize(
     "put, where, message",
     [

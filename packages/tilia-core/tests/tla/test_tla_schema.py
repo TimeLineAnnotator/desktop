@@ -163,7 +163,7 @@ def test_a_file_written_once_checked_is_checked_too(monkeypatch):
     # checked_bytes gives what write writes. With the reader's checks off, it
     # gives an object with none of the keys.
     monkeypatch.setattr(writer, "_document", lambda doc: {})
-    monkeypatch.setattr(writer, "check", lambda *args, **kwargs: None)
+    monkeypatch.setattr(writer, "turns_integers", lambda *args, **kwargs: False)
     writer.checked_bytes(tla.new_document(), path="piece.tla")
 
 
