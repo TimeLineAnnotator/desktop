@@ -18,6 +18,7 @@ from tilia_core import rules, tla
 from tilia_core.importers._commit import commit
 from tilia_core.importers._csv import CsvRow, read_csv
 from tilia_core.importers._results import ImportFailed, ImportResult, RowProblem
+from tilia_core.tla.media_files import is_relative, local_file
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,13 @@ def import_by_time(
     page_count = None if pdf is None else _page_count(pdf)
     notes = []
     if page_count is None:
-        notes.append(_CANT_BE_READ.format(pdf or stored) if stored else _NO_PDF)
+        notes.append(
+            _CANT_BE_READ.format(
+                _looked_for(stored, document.origin) if pdf is None else pdf
+            )
+            if stored
+            else _NO_PDF
+        )
 
     problems: list[RowProblem] = []
     built: list[tuple[CsvRow, tla.Component]] = []
@@ -131,15 +138,23 @@ def _problem(path: Path, csv_row: CsvRow, column: str, message: str) -> RowProbl
 
 
 def _pdf_file(stored: str, origin: Path | None) -> Path | None:
-    """The file a PDF timeline's `path` names: a relative one, from the folder of
-    the document's file. Without that folder, only an absolute path names one, as
-    a stored path is never read from where the process happens to run."""
+    """The file a PDF timeline's `path` names, found as `tla.media` finds a
+    media file: `local_file` looks a relative path up from the folder of the
+    document's file, tries the decomposed (NFD) form of the name, and never
+    looks up a path of the other system's form. Without that folder, only an
+    absolute path names one, as a stored path is never read from where the
+    process happens to run. None when it names no file."""
     if not stored:
         return None
-    pdf = Path(stored)
-    if pdf.is_absolute():
-        return pdf
-    return None if origin is None else origin.parent / pdf
+    return local_file(stored, None if origin is None else str(origin.parent))
+
+
+def _looked_for(stored: str, origin: Path | None) -> str:
+    """The path to show for a PDF that wasn't found: a relative one joined to
+    the document's folder, as it was looked for; any other as stored."""
+    if origin is not None and is_relative(stored):
+        return str(origin.parent / stored)
+    return stored
 
 
 def _page_count(pdf: Path) -> int | None:

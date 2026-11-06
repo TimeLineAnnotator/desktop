@@ -1,12 +1,15 @@
 import json
+import os
 import subprocess
 import sys
+import unicodedata
 
 import pypdf
 import pytest
 from import_docs import component, document, timeline
 
 from tilia_core import rules, tla
+from tilia_core.importers import pdf as pdf_module
 from tilia_core.importers._results import ImportFailed
 from tilia_core.importers.pdf import import_by_time
 
@@ -358,6 +361,59 @@ class TestThePdfsPath:
         assert result.notes == [
             f"The PDF '{looked_for}' can't be read: every page number is refused"
         ]
+
+    def test_a_name_stored_composed_is_found_decomposed(self, tmp_path, csv_file):
+        # Files are named in decomposed form (NFD) on macOS's older file
+        # system and copied elsewhere; `tla.media` finds them, and so must this.
+        stored = unicodedata.normalize("NFC", "scores/Études.pdf")
+        named = unicodedata.normalize("NFD", "scores/Études.pdf")
+        assert stored != named
+        (tmp_path / "scores").mkdir()
+        make_pdf(tmp_path / named, 2)
+        target = timeline("pdf", attrs={"path": stored})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / "piece.tla"
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 2]))
+        )
+
+        assert result.problems == []
+        assert result.notes == []
+
+    @pytest.mark.skipif(os.name == "nt", reason="a path of Windows form is Windows's")
+    def test_a_path_of_the_other_systems_form_isnt_looked_up(self, tmp_path, csv_file):
+        # Joined to the folder, `C:/scores/score.pdf` would name a file below it.
+        (tmp_path / "C:" / "scores").mkdir(parents=True)
+        make_pdf(tmp_path / "C:" / "scores" / "score.pdf", 2)
+        target = timeline("pdf", attrs={"path": "C:/scores/score.pdf"})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / "piece.tla"
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
+        )
+
+        assert messages(result) == [NO_SUCH_PAGE]
+        assert result.notes == [
+            "The PDF 'C:/scores/score.pdf' can't be read: every page number is refused"
+        ]
+
+    def test_pdf_file_asks_tlas_local_file(self, tmp_path, csv_file, monkeypatch):
+        asked = []
+
+        def local_file(stored, folder):
+            asked.append((stored, folder))
+            return None
+
+        monkeypatch.setattr(pdf_module, "local_file", local_file)
+        target = timeline("pdf", attrs={"path": "scores/score.pdf"})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / "piece.tla"
+
+        import_by_time(doc, target.id, csv_file("time,page_number\n"))
+
+        assert asked == [("scores/score.pdf", str(tmp_path))]
 
     def test_a_relative_path_with_no_document_folder_isnt_looked_up(
         self, tmp_path, csv_file, monkeypatch
