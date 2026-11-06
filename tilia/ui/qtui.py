@@ -69,6 +69,39 @@ from .windows.settings import SettingsWindow
 
 
 class TiliaMainWindow(QMainWindow):
+    # Keys caught by keyPressEvent instead of registered as their commands'
+    # shortcuts. A shortcut for Delete or Enter would also fire in the score
+    # viewer and the inspector, which use those keys themselves; a key reaches
+    # keyPressEvent only if the focused widget didn't use it. Ctrl+C, Ctrl+X and
+    # Ctrl+V are also registered shortcuts, which run first. The shortcuts sheet
+    # (tilia/ui/shortcuts_sheet.py) lists these keys.
+    KEY_COMMANDS: list[tuple[QKeyCombination, str]] = [
+        (
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_C),
+            "timeline.component.copy",
+        ),
+        (
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_X),
+            "timeline.component.cut",
+        ),
+        (
+            QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_V),
+            "timeline.component.paste",
+        ),
+        (
+            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete),
+            "timeline.component.delete",
+        ),
+        (
+            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
+            "timeline.element.inspect",
+        ),
+        (
+            QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
+            "timeline.element.inspect",
+        ),
+    ]
+
     def __init__(self):
         QIcon.setThemeSearchPaths([(Path(__file__).parent / "icons").as_posix()])
         QIcon.setThemeName(self._tilia_theme_name())
@@ -100,35 +133,7 @@ class TiliaMainWindow(QMainWindow):
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event is None:
             return
-        # these shortcuts have to be 'captured' manually. I don't know why.
-        key_comb_to_taction = [
-            (
-                QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_C),
-                "timeline.component.copy",
-            ),
-            (
-                QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_X),
-                "timeline.component.cut",
-            ),
-            (
-                QKeyCombination(Qt.KeyboardModifier.ControlModifier, Qt.Key.Key_V),
-                "timeline.component.paste",
-            ),
-            (
-                QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Delete),
-                "timeline.component.delete",
-            ),
-            (
-                QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Return),
-                "timeline.element.inspect",
-            ),
-            (
-                QKeyCombination(Qt.KeyboardModifier.NoModifier, Qt.Key.Key_Enter),
-                "timeline.element.inspect",
-            ),
-        ]
-
-        for comb, taction in key_comb_to_taction:
+        for comb, taction in self.KEY_COMMANDS:
             if event.keyCombination() == comb:
                 commands.get_qaction(taction).trigger()
         super().keyPressEvent(event)

@@ -86,7 +86,7 @@ def register(
 
     if shortcut:
         action.setShortcut(QKeySequence(shortcut))
-        _shortcut_to_commands.setdefault(_normalize_shortcut(shortcut), []).append(name)
+        _shortcut_to_commands.setdefault(normalize_shortcut(shortcut), []).append(name)
 
     if icon:
         if QIcon.hasThemeIcon(icon):
@@ -111,6 +111,15 @@ def get_qaction(name):
         return _name_to_action[name]
     except KeyError as e:
         raise ValueError(f"Unknown command: {name}") from e
+
+
+def get_shortcuts() -> dict[str, list[str]]:
+    """
+    Returns every registered shortcut, as PortableText ("Ctrl+Shift+S"), with the
+    commands bound to it. A shared shortcut (see setup_shortcuts) lists all its
+    commands; its QActions no longer hold it once setup_shortcuts has run.
+    """
+    return {key: list(names) for key, names in _shortcut_to_commands.items() if names}
 
 
 def execute(command_name: str, *args, **kwargs):
@@ -163,7 +172,7 @@ def _execute_prod(command_name: str, *args, **kwargs):
         return False
 
 
-def _normalize_shortcut(shortcut: str | QKeySequence | QKeyCombination) -> str:
+def normalize_shortcut(shortcut: str | QKeySequence | QKeyCombination) -> str:
     """Reduce any shortcut form to the same canonical PortableText string,
     so dict lookups work regardless of how the caller specified the key."""
     if isinstance(shortcut, QKeySequence):

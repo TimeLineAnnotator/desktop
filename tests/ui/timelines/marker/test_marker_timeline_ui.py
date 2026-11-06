@@ -67,6 +67,14 @@ class TestCreateDelete:
             commands.execute("timeline.component.delete")
             assert len(marker_tlui) == 0
 
+    def test_delete_with_key(self, marker_tlui):
+        commands.execute("timeline.marker.add")
+        click_marker_ui(marker_tlui[0])
+
+        with undoable():
+            press_key("Delete")
+            assert len(marker_tlui) == 0
+
 
 class TestSetResetColor:
     TEST_COLOR = "#000000"
@@ -594,12 +602,39 @@ class TestInspect:
 
         assert qtui.is_window_open(WindowKind.INSPECT)
 
+    def test_open_inspect_menu_with_return(self, marker_tlui, tluis, qtui):
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Return")
+
+        assert qtui.is_window_open(WindowKind.INSPECT)
+
     def test_close_inspect_menu_with_enter(self, marker_tlui, tluis, qtui):
         commands.execute("timeline.marker.add")
 
         click_marker_ui(marker_tlui[0])
         press_key("Enter")
         press_key("Enter")
+
+        assert not qtui.is_window_open(WindowKind.INSPECT)
+
+    def test_close_inspect_menu_with_return(self, marker_tlui, tluis, qtui):
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Return")
+        press_key("Return")
+
+        assert not qtui.is_window_open(WindowKind.INSPECT)
+
+    def test_keypad_enter_doesnt_open_inspect_menu(self, marker_tlui, tluis, qtui):
+        # A keyboard's keypad Enter comes with KeypadModifier, which the main
+        # window's Enter entry doesn't match.
+        commands.execute("timeline.marker.add")
+
+        click_marker_ui(marker_tlui[0])
+        press_key("Enter", Qt.KeyboardModifier.KeypadModifier)
 
         assert not qtui.is_window_open(WindowKind.INSPECT)
 
