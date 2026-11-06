@@ -89,6 +89,8 @@ uv run --package tilia-core pytest packages/tilia-core   # run one package's tes
 python scripts/check_packages.py               # what CI's Packages workflow runs
 ```
 
+The library's browser tests are in `packages/tilia-library/tests/browser/`. They drive the page with Playwright in one headless Chromium (the session-scoped `browser` fixture in that folder's `conftest.py`) and skip themselves when Playwright is missing. Install the browser with `uv run --package tilia-library --group browser playwright install chromium`, then run `uv run --package tilia-library --group browser pytest packages/tilia-library/tests/browser`. CI runs them in the "library in the browser" job of the Packages workflow. The page's Content-Security-Policy forbids `eval`, so `page.wait_for_function` takes an arrow function (`"() => …"`), never a plain expression string.
+
 `pytest` at the root runs only the app's tests. The two packages share one version number and are released together.
 
 Releasing: set the same version in both packages' `pyproject.toml` and in tilia-library's `tilia-core==` requirement, merge, then push a tag `packages-vX.Y.Z` on that commit. `.github/workflows/publish-packages.yml` checks the tag against the versions, builds and tests the packages, uploads them to PyPI through trusted publishing (environment `pypi`), and installs the release from PyPI on three systems. A manual run builds and tests without uploading. PyPI never accepts the same version twice. The app's own releases keep their `vX.Y.Z` tags.

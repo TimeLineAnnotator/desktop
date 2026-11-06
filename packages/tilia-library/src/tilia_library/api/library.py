@@ -1,0 +1,87 @@
+"""The library's own routes: which corpora there are, adding and removing them."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from tilia_library.corpora import Corpora, Corpus, CorpusHandles
+from tilia_library.liveness import Liveness
+from tilia_library.server import (
+    ApiError,
+    LibraryServer,
+    Request,
+    Response,
+    json_response,
+)
+
+HOW_TO_ADD = "tilia library FOLDER"
+
+
+def _listing(corpus: Corpus, liveness: Liveness | None) -> dict[str, object]:
+    state = liveness.state(corpus.id) if liveness else None
+    return {
+        "id": corpus.id,
+        "name": corpus.name,
+        "path": str(corpus.path),
+        "available": corpus.available,
+        "files": state["files"] if state else None,
+        "unreadable": state["unreadable"] if state else None,
+        "unavailable": state["unavailable"] if state else None,
+    }
+
+
+def register(
+    server: LibraryServer,
+    corpora: Corpora,
+    liveness: Liveness | None = None,
+    handles: CorpusHandles | None = None,
+) -> None:
+    """Add the library routes to the server, working on ``corpora``.
+
+    A removed corpus is also unwatched and its handle dropped, when given.
+    """
+
+    def get_library(request: Request) -> Response:
+        listed = corpora.all()
+        last = corpora.last()
+        notices: list[str] = []
+        if corpora.set_aside_to is not None:
+            notices.append(
+                "library.toml couldn't be read; kept as "
+                f"{corpora.set_aside_to.name}, starting with no corpora"
+            )
+        data: dict[str, object] = {
+            "corpora": [_listing(c, liveness) for c in listed],
+            "last_corpus": last.id if last else None,
+        }
+        if not listed:
+            data["how_to_add"] = HOW_TO_ADD
+        data["notices"] = notices
+        return json_response(data)
+
+    def add_corpus(request: Request) -> Response:
+        body = request.json()
+        path = body.get("path") if isinstance(body, dict) else None
+        if not isinstance(path, str):
+            raise ApiError(400, "the body must be an object with a string path")
+        if not Path(path).is_absolute():
+            raise ApiError(400, f"{path} is not an absolute path")
+        try:
+            corpus = corpora.add(Path(path))
+        except NotADirectoryError:
+            raise ApiError(400, f"{path} is not a folder") from None
+        return json_response({"id": corpus.id})
+
+    def delete_corpus(request: Request) -> Response:
+        cid = request.params["cid"]
+        if not corpora.remove(cid):
+            raise ApiError(404, "unknown corpus")
+        if liveness is not None:
+            liveness.unwatch(cid)
+        if handles is not None:
+            handles.drop(cid)
+        return Response(204)
+
+    server.router.add("GET", "/api/library", get_library)
+    server.router.add("POST", "/api/corpora", add_corpus)
+    server.router.add("DELETE", "/api/corpora/{cid}", delete_corpus)

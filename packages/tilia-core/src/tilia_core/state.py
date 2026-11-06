@@ -1,23 +1,50 @@
 """Per-computer state, and the atomic write every file the core writes goes through.
 
 `atomic_write` is the core's one implementation of atomic writes: the `.tla`
-writer uses it, and so will the per-computer state files.
+writer uses it, and so do the per-computer state files.
+
+Per-computer state is kept in versioned TOML files in a per-user folder. Files
+are read and written with tomlkit, so comments, key order and keys this code
+doesn't know all survive a rewrite: users may edit the files by hand, and an
+older TiLiA must not lose what a newer one wrote. Every file has a top-level
+integer ``version``, and every write goes through `atomic_write`.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
 import stat
 import sys
 import time
+from collections.abc import Callable, Mapping
+from datetime import datetime
 from pathlib import Path
+
+import platformdirs
+import tomlkit
+
+logger = logging.getLogger(__name__)
+
+APP_NAME = "TiLiA"
+APP_AUTHOR = "TiLiA"
+FOLDER = "library"
 
 _IS_WINDOWS: bool = sys.platform == "win32"
 
 # Windows refuses to replace a file another program holds open.
 _REPLACE_RETRY_INTERVAL = 0.05
 _REPLACE_RETRY_TIMEOUT = 1.0
+
+Migration = Callable[[tomlkit.TOMLDocument], None]
+
+
+def state_dir() -> Path:
+    """Return the folder holding the state files, without creating it."""
+    return (
+        Path(platformdirs.user_data_dir(APP_NAME, APP_AUTHOR, roaming=False)) / FOLDER
+    )
 
 
 def _replace_with_retry(tmp: Path, path: Path) -> None:
@@ -76,3 +103,100 @@ def atomic_write(path: Path, data: bytes, *, mode: int | None = None) -> None:
         raise
     if not _IS_WINDOWS:
         _fsync_folder(path.parent)
+
+
+def _valid_version(doc: tomlkit.TOMLDocument) -> str | None:
+    """Return why the document's version is unusable, or None if it's fine."""
+    if "version" not in doc:
+        return "it has no version"
+    version = doc["version"]
+    if isinstance(version, bool) or not isinstance(version, int):
+        return "its version is not an integer"
+    if version < 1:
+        return "its version is less than 1"
+    return None
+
+
+class StateFile:
+    """A versioned TOML file that is migrated, never lost and never downgraded."""
+
+    def __init__(
+        self,
+        path: Path,
+        current_version: int,
+        migrations: Mapping[int, Migration] | None = None,
+    ) -> None:
+        if current_version < 1:
+            raise ValueError("current_version must be at least 1")
+        self._migrations: dict[int, Migration] = dict(migrations or {})
+        for version in range(1, current_version):
+            if version not in self._migrations:
+                raise ValueError(f"no migration from version {version}")
+        self.path: Path = Path(path)
+        self.current_version: int = current_version
+        self.set_aside_to: Path | None = None
+        self.problem: str | None = None
+
+    def _new_document(self) -> tomlkit.TOMLDocument:
+        doc = tomlkit.document()
+        doc["version"] = self.current_version
+        return doc
+
+    def load(self) -> tomlkit.TOMLDocument:
+        """Read the file, migrating it if it is older than the code.
+
+        A missing or unreadable file gives a new document; an unreadable file is
+        first moved aside. A file from a newer version is returned as it is.
+        """
+        self.set_aside_to = None
+        self.problem = None
+        try:
+            raw = self.path.read_bytes()
+        except FileNotFoundError:
+            return self._new_document()
+
+        doc: tomlkit.TOMLDocument | None = None
+        try:
+            doc = tomlkit.parse(raw.decode("utf-8-sig"))
+            reason = _valid_version(doc)
+        except UnicodeDecodeError:
+            reason = "it is not valid UTF-8"
+        except (tomlkit.exceptions.TOMLKitError, ValueError) as error:
+            reason = f"it is not valid TOML ({error})"
+        if reason is not None or doc is None:
+            moved = self.set_aside(reason or "it could not be read")
+            logger.warning(
+                "Could not use %s: %s. Moved it to %s.", self.path, self.problem, moved
+            )
+            return self._new_document()
+
+        version = int(doc["version"])
+        if version < self.current_version:
+            for n in range(version, self.current_version):
+                self._migrations[n](doc)
+                doc["version"] = n + 1
+            self.save(doc)
+        return doc
+
+    def save(self, doc: tomlkit.TOMLDocument) -> None:
+        """Write the document atomically, adding a version if it has none."""
+        text = tomlkit.dumps(doc)
+        if "version" not in doc:
+            # tomlkit can't insert at the front of a document, so do it in text.
+            text = f"version = {self.current_version}\n{text}"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(self.path, text.encode("utf-8"))
+
+    def set_aside(self, reason: str) -> Path:
+        """Rename the file out of the way and return its new path."""
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        base = f"{self.path.stem}.unreadable-{stamp}"
+        target = self.path.with_name(f"{base}.toml")
+        counter = 2
+        while target.exists():
+            target = self.path.with_name(f"{base}-{counter}.toml")
+            counter += 1
+        self.path.rename(target)
+        self.set_aside_to = target
+        self.problem = reason
+        return target

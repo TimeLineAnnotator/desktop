@@ -1,0 +1,37 @@
+import { hasToken, showLocked } from './auth.js';
+import { CORPUS, bootLibrary } from './corpus.js';
+import { loadCategories } from './categories.js';
+import { loadEditLog } from './edit-log.js';
+import { loadFiles } from './files.js';
+import { startPolling } from './liveness.js';
+import { qa } from './lib/dom.js';
+import { showPanel, urlPanel } from './panels.js';
+import { loadQuery } from './query.js';
+import { loadStatistics } from './statistics.js';
+import { errMsg, setStatus } from './util.js';
+
+function openPanel(name) {
+  showPanel(name);
+  if (name === "files") loadFiles().catch(e => setStatus(String(e), "error"));
+  if (name === "query") loadQuery();
+  if (name === "categories") loadCategories().catch(e => setStatus(String(e), "error"));
+  if (name === "statistics") loadStatistics();
+  if (name === "edit-log") loadEditLog().catch(e => setStatus(String(e), "error"));
+}
+
+for (const tab of qa(document, "#tabs button")) {
+  tab.addEventListener("click", () => openPanel(tab.dataset.panel));
+}
+
+if (hasToken()) {
+  bootLibrary().then(() => {
+    if (CORPUS) {
+      openPanel(urlPanel());
+      startPolling();
+    }
+  }).catch(e => setStatus(errMsg(0, { error: String(e) }), "error"));
+} else {
+  showLocked();
+}
+
+window.__bootOk = true;

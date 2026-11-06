@@ -1,0 +1,3 @@
+{"changed": [], "added": [], "removed": [],
+ "unreadable": [{"path": "broken.tla", "line": 12, "message": "Expecting ',' delimiter"}],
+ "unavailable": ["offline.tla"]}

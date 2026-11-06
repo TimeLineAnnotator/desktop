@@ -1,0 +1,15 @@
+.cat-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 12px; }
+#cat-search { min-width: 16em; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip-group { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chip-group-name { flex: 0 0 8em; color: var(--muted); font-size: 12px; }
+.chip { padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--fg); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.chip .n { margin-left: 4px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.active .n { color: rgba(255, 255, 255, .8); }
+.chip.more { border-style: dashed; color: var(--muted); }
+#cat-statement { margin: 8px 0 4px; }
+#cat-statement code { font-family: monospace; }
+.cat-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+#cat-list { overflow-x: auto; }
