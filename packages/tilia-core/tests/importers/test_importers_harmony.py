@@ -997,6 +997,28 @@ class TestSlashChords:
                 in_the_chord = harmony._bass_is_in_the_chord(quality, inversion)
                 assert in_the_chord is drawn, (quality, inversion)
 
+    @pytest.mark.parametrize(
+        "inversion, in_the_chord",
+        [
+            (0, True),
+            (1, False),
+            (2, False),
+            (3, True),
+            (4, True),
+            (5, True),
+            (6, False),
+        ],
+    )
+    def test_a_degrees_accidental_can_be_on_either_side(
+        self, music21, monkeypatch, inversion, in_the_chord
+    ):
+        # music21 9 writes the Neapolitan's "1,2-,3,5-", and 10 "1,-2,3,-5".
+        monkeypatch.setitem(
+            music21.harmony.CHORD_TYPES, "made-up", ["1,2-,#4,--7", ["made-up"]]
+        )
+
+        assert harmony._bass_is_in_the_chord("made-up", inversion) is in_the_chord
+
     def test_a_note_keeps_its_rows_place(self, imported):
         result, target, _ = imported(
             rows("0,harmony,D/C", "1,harmony,Q", "2,harmony,C/Bb")

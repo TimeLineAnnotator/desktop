@@ -373,14 +373,15 @@ def _bass_is_in_the_chord(quality: str, inversion: int) -> bool:
 
     music21 looks for a tone of the chord at that position in a stack of thirds, by
     its letter: 1 is the third, 4 the ninth, so the second. `CHORD_TYPES` lists a
-    chord type's tones by degree ("1,-3,5"), so no chord has to be built here.
+    chord type's tones by degree, whichever side of it the accidental is on ("1,-3,5",
+    and "1,2-,3,5-" in music21 9), so no chord has to be built here.
     """
     import music21
 
     base, _ = rules.split_added_tone(quality)
     position = 2 * inversion % 7
     degrees = str(music21.harmony.CHORD_TYPES[base][0]).split(",")
-    return any((int(degree.lstrip("#-")) - 1) % 7 == position for degree in degrees)
+    return any((int(degree.strip("#-")) - 1) % 7 == position for degree in degrees)
 
 
 def _not_a_symbol(path: Path, row: _Row) -> RowProblem:
