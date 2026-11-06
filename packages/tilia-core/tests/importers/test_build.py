@@ -1046,6 +1046,59 @@ def test_a_youtube_link_takes_a_length_set_earlier():
     assert build.load_media(doc, "https://youtu.be/dQw4w9WgXcQ") == 212.0
 
 
+def test_a_youtube_link_without_a_scheme_is_stored_with_one(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no folder `youtu.be` here
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtu.be/dQw4w9WgXcQ", duration_if_error=212.0)
+
+    assert doc.media_path == "https://youtu.be/dQw4w9WgXcQ"
+
+
+def test_a_path_that_looks_like_a_youtube_link_is_a_file_when_one_is_there(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "youtube.com").mkdir()
+    pcm16_wav(tmp_path / "youtube.com" / "clip.wav", rate=8000, channels=1, frames=8000)
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtube.com/clip.wav")
+
+    assert doc.media_path == stored(tmp_path / "youtube.com" / "clip.wav")
+    assert doc.media_length == 1.0
+
+
+def test_a_youtube_look_alike_that_is_a_file_takes_a_length_given_as_any_media(
+    tmp_path, monkeypatch
+):
+    # `youtube.com/clip.mp4`, as the task names it: a file, not a link.
+    (tmp_path / "youtube.com").mkdir()
+    (tmp_path / "youtube.com" / "clip.mp4").write_bytes(b"not read")
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtube.com/clip.mp4", duration_if_error=9.0)
+
+    assert doc.media_path == stored(tmp_path / "youtube.com" / "clip.mp4")
+
+
+def test_load_media_decides_with_the_cores_function(monkeypatch):
+    asked = []
+
+    def as_media_path(given):
+        asked.append(given)
+        return "https://youtu.be/decided"
+
+    monkeypatch.setattr(tla, "as_media_path", as_media_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "anything", duration_if_error=5.0)
+
+    assert asked == ["anything"]
+    assert doc.media_path == "https://youtu.be/decided"
+
+
 def test_media_of_another_length_is_refused_once_timelines_have_components(tmp_path):
     # FR-056.
     doc = with_a_marker(60.0)

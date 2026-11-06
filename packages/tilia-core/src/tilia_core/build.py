@@ -6,7 +6,6 @@ import logging
 import math
 import numbers
 import os
-import re
 import struct
 from pathlib import Path
 from typing import BinaryIO
@@ -15,6 +14,7 @@ from tilia_core import tla
 from tilia_core.labels import nfc
 from tilia_core.timemap import pattern
 from tilia_core.tla.layout import TIMELINE_SHAPES
+from tilia_core.tla.media_files import YOUTUBE_URL, is_url
 
 logger = logging.getLogger(__name__)
 
@@ -55,14 +55,6 @@ _NOT_VALID = "{} is not a valid {}."
 # (TimeLineAnnotator/project-management#327 (a media length within a
 # millisecond)).
 _SAME_LENGTH = 0.001
-
-# tilia.constants.YOUTUBE_URL_REGEX. A stand-in until WP3 gives its copy
-# (TimeLineAnnotator/project-management#176 (media paths)), which replaces it
-# (TimeLineAnnotator/project-management#317 (WP3's YouTube pattern in build)).
-_YOUTUBE_URL = re.compile(
-    r"^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube(-nocookie)?\.com|youtu.be))"
-    r"(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$"
-)
 
 # The kinds a script adds; the others come with WP28.
 _KINDS = ("beat", "hierarchy", "marker", "harmony")
@@ -135,8 +127,12 @@ def load_media(
     """
     text = os.fspath(path)
     length: float | None = None
-    if _YOUTUBE_URL.match(text):
-        stored = name = text
+    # The core decides what a path without a scheme that looks like a YouTube
+    # link is: a file when one is there, else a link (FR-052). A path that is
+    # local keeps the checks below, which apply to the text as given.
+    link = tla.as_media_path(text)
+    if is_url(link) and YOUTUBE_URL.match(link):
+        stored = name = link
     else:
         local = Path(text.replace("\\", "/"))
         # Not Path.exists: a folder isn't media, and os.path.isfile gives False,
