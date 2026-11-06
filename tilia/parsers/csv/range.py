@@ -307,7 +307,10 @@ def import_by_measure(
             while start_pool and end_pool:
                 start = start_pool[0]
                 end = end_pool[0]
-                if start <= end:
+                # An end at the start's time is passed over while more ends
+                # remain; the last one is a row with no length, which the
+                # timeline refuses.
+                if start < end or (start == end and len(end_pool) == 1):
                     component, fail_reason = timeline.create_component(
                         ComponentKind.RANGE,
                         start=start,
@@ -322,8 +325,7 @@ def import_by_measure(
                     start_pool.pop(0)
                     end_pool.pop(0)
                     continue
-                while end_pool and start_pool[0] > end_pool[0]:
-                    end_pool.pop(0)
+                end_pool.pop(0)
 
             # joined_with_next is interpreted at the CSV-row level: only the
             # last range produced by this row gets the flag. Earlier ranges
