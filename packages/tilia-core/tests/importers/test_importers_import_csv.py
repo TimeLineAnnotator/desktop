@@ -552,6 +552,7 @@ class TestSurface:
     # contracts/python-api.md and plan.md. `import_beats` joins them with its
     # own task.
     CONTRACT = [
+        "IMPORTED_KINDS",
         "ImportFailed",
         "ImportResult",
         "RowProblem",
@@ -559,6 +560,15 @@ class TestSurface:
         "import_csv",
         "import_metadata",
     ]
+
+    def test_the_kinds_are_those_it_imports_into(self):
+        assert importers.IMPORTED_KINDS == (
+            "marker",
+            "hierarchy",
+            "range",
+            "harmony",
+            "pdf",
+        )
 
     def test_all_holds_the_names_of_the_contract(self):
         assert sorted(importers.__all__) == sorted(self.CONTRACT)

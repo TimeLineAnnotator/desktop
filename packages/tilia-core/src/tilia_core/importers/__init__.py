@@ -18,6 +18,7 @@ from tilia_core.tla.errors import printable
 from tilia_core.tla.model import Kind
 
 __all__ = [
+    "IMPORTED_KINDS",
     "ImportFailed",
     "ImportResult",
     "RowProblem",
@@ -33,7 +34,6 @@ _NO_REFERENCE = "Reference beat timeline is required for importing by measure"
 # the one the command asked for, and its `{tl}` a memory address. So the timeline is
 # named by its kind, name and ordinal, and the kinds a target can be are listed
 # (TimeLineAnnotator/project-management#484, answered).
-_NOT_IMPORTED_INTO = "{} is not a marker, hierarchy, range, harmony or pdf timeline"
 _NOT_A_BEAT_TIMELINE = "{} is not a beat timeline"
 _NO_TIMELINE = "No timeline found with id={}"
 _HARMONY_NEEDS = f"harmony import needs: {rules.INSTALL_HARMONY}"
@@ -54,6 +54,12 @@ _BY_TIME: dict[
     "harmony": _harmony_by_time,
     "pdf": pdf_by_time,
 }
+
+# The kinds `import_csv` imports into, for whatever else has to name them.
+IMPORTED_KINDS: tuple[str, ...] = tuple(_BY_TIME)
+_NOT_IMPORTED_INTO = (
+    "{} is not a " f"{', '.join(IMPORTED_KINDS[:-1])} or {IMPORTED_KINDS[-1]} timeline"
+)
 
 
 def import_csv(
