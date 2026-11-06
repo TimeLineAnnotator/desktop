@@ -2,8 +2,11 @@ from enum import Enum, auto
 
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
 from tilia.timelines.base.validators import (
+    validate_boolean,
     validate_color,
     validate_integer,
+    validate_pre_validated,
+    validate_read_only,
     validate_string,
     validate_time,
 )
@@ -33,6 +36,9 @@ class Note(SegmentLikeTimelineComponent):
         "color",
         "comments",
         "display_accidental",
+        "transposition",
+        "is_pitched",
+        "element_id",
     ]
     ORDERING_ATTRS = ("start", "end", "pitch", "staff_index")
 
@@ -50,6 +56,9 @@ class Note(SegmentLikeTimelineComponent):
         "staff_index": validate_integer,
         "color": validate_color,
         "comments": validate_string,
+        "transposition": validate_pre_validated,
+        "is_pitched": validate_boolean,
+        "element_id": validate_read_only,
     }
 
     class TieType(Enum):
@@ -73,6 +82,9 @@ class Note(SegmentLikeTimelineComponent):
         label="",
         color=None,
         comments="",
+        transposition: float = 0,
+        is_pitched: bool = True,
+        element_id: str = "",
         **_,
     ):
 
@@ -87,6 +99,11 @@ class Note(SegmentLikeTimelineComponent):
         self.label = label
         self.color = color
         self.comments = comments
+        # Semitones from the written pitch to the sounding pitch.
+        self.transposition = transposition
+        self.is_pitched = is_pitched
+        # The note's element in the score the timeline shows.
+        self.element_id = element_id
         # assumes start, end, octave, step, accidental and staff_index
         # won't change after instantiation
         self._ordinal = (start, end, octave, step, accidental, staff_index)
@@ -110,6 +127,12 @@ class Note(SegmentLikeTimelineComponent):
     @property
     def pitch(self):
         return pitch(self.step, self.accidental, self.octave)
+
+    @property
+    def sounding_pitch_class_24(self) -> int:
+        """The sounding pitch class in quarter tones, with 0 on C."""
+        semitones = STEP_TO_PC[self.step] + self.accidental + self.transposition
+        return round(semitones * 2) % 24
 
 
 def pitch(step, accidental, octave):

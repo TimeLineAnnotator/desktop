@@ -60,6 +60,21 @@ class TiliaMXLReader:
         self.file.close()
 
 
+# MusicXML's microtonal accidentals, in semitones.
+MICROTONAL_ACCIDENTALS = {
+    "quarter-sharp": 0.5,
+    "three-quarters-sharp": 1.5,
+    "quarter-flat": -0.5,
+    "three-quarters-flat": -1.5,
+    "natural-up": 0.5,
+    "natural-down": -0.5,
+    "sharp-up": 1.5,
+    "sharp-down": 0.5,
+    "flat-up": -0.5,
+    "flat-down": -1.5,
+}
+
+
 def notes_from_musicXML(
     score_tl: ScoreTimeline,
     beat_tl: BeatTimeline,
@@ -75,6 +90,7 @@ def notes_from_musicXML(
     errors = []
     metric_division = MetricDivision()
     element_ids: dict[int, str] = {}
+    part_transposition: dict[str, int | float] = {}
 
     sign_to_octave = {"C": 4, "F": 3, "G": 4}
     sign_to_line = {"C": 3, "F": 4, "G": 2}
@@ -388,15 +404,36 @@ def notes_from_musicXML(
         else:
             return Note.TieType.STOP
 
-    def _parse_pitch(element: etree._Element) -> dict:
+    def _parse_alter(element: etree._Element) -> int | float:
         alter = element.find("pitch/alter")
+        value = float(alter.text) if alter is not None else 0.0
+        if not value:
+            # Some programs write a microtonal accidental without its alter.
+            accidental = element.find("accidental")
+            if accidental is not None:
+                value = MICROTONAL_ACCIDENTALS.get(accidental.text, 0.0)
+        nearest = round(value * 2) / 2
+        if nearest != value:
+            errors.append(
+                f"Note {element.get('id')}: an alteration of {value} semitones was"
+                f" rounded to the nearest quarter tone, {nearest}."
+            )
+        if abs(nearest) > 2:
+            errors.append(
+                f"Note {element.get('id')}: an alteration of {value} semitones"
+                " is too large."
+            )
+            nearest = 0.0
+        return int(nearest) if nearest.is_integer() else nearest
+
+    def _parse_pitch(element: etree._Element) -> dict:
         return {
             "step": NOTE_NAME_TO_INT[element.find("pitch/step").text],
             "octave": int(element.find("pitch/octave").text),
             "display_accidental": (
                 True if element.find("accidental") is not None else False
             ),
-            "accidental": int(alter.text) if alter is not None else 0,
+            "accidental": _parse_alter(element),
         }
 
     def _parse_unpitched(element: etree._Element) -> dict:
@@ -404,6 +441,7 @@ def notes_from_musicXML(
             "step": NOTE_NAME_TO_INT[element.find("unpitched/display-step").text],
             "accidental": 0,
             "octave": int(element.find("unpitched/display-octave").text),
+            "is_pitched": False,
         }
 
     def _get_note_times(
@@ -441,6 +479,8 @@ def notes_from_musicXML(
             return dict()
 
         constructor_kwargs["tie_type"] = _parse_note_tie(element)
+        constructor_kwargs["transposition"] = part_transposition.get(part_id, 0)
+        constructor_kwargs["element_id"] = element.get("id", "")
 
         if element.find("staff") is not None:
             constructor_kwargs["staff_index"] = _parse_staff(element, part_id)
@@ -461,6 +501,14 @@ def notes_from_musicXML(
 
         return output
 
+    def _parse_transpose(transpose: etree._Element) -> int | float:
+        def get_number(tag: str) -> float:
+            element = transpose.find(tag)
+            return float(element.text) if element is not None else 0.0
+
+        semitones = get_number("chromatic") + 12 * get_number("octave-change")
+        return int(semitones) if semitones.is_integer() else semitones
+
     def _parse_element(element: etree._Element, part_id: str) -> dict[str, Any]:
         match element.tag:
             case "note":
@@ -471,6 +519,9 @@ def notes_from_musicXML(
             case "forward":
                 duration = int(element.find("duration").text)
                 metric_division.update_measure_position(duration)
+            case "attributes":
+                if (transpose := element.find("transpose")) is not None:
+                    part_transposition[part_id] = _parse_transpose(transpose)
             case _:
                 pass
         return dict()
@@ -574,6 +625,7 @@ def notes_from_musicXML(
     # The new score replaces one stored as SVG, before the timeline UI
     # hears of its components.
     score_tl.save_svg_data("")
+    score_tl.score_text = score_text
     part_id_to_staves = _parse_staves(tree)
     for part in tree.findall("part"):
         _parse_part(part, part.get("id"))

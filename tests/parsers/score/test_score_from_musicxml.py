@@ -1260,3 +1260,114 @@ def test_time_signature_tilia_cannot_draw_is_reported(score_tl, beat_tl, tmp_pat
     assert success
     assert errors == ["<time> - 2.5/4 not implemented"]
     assert not _get_components_by_kind(score_tl, ComponentKind.TIME_SIGNATURE)
+
+
+class TestMicrotones:
+    @staticmethod
+    def _score(pitch: str, attributes: str = "") -> str:
+        return f"""<score-partwise version="3.1">
+        <part-list>
+            <score-part id="P1"><part-name>Viola</part-name></score-part>
+        </part-list>
+        <part id="P1"><measure number="1">
+            <attributes>
+                <divisions>1</divisions>
+                <time><beats>4</beats><beat-type>4</beat-type></time>
+                <clef><sign>G</sign><line>2</line></clef>
+                {attributes}
+            </attributes>
+            <note>{pitch}<duration>4</duration><type>whole</type></note>
+        </measure></part>
+        </score-partwise>
+        """
+
+    def _import(self, score_tl, beat_tl, tmp_path, pitch, attributes=""):
+        beat_tl.beat_pattern = [4]
+        for i in range(5):
+            beat_tl.create_beat(i)
+        beat_tl.recalculate_measures()
+        data = self._score(pitch, attributes)
+        with patch_yes_or_no_dialog(True):
+            _, errors = _import_with_patch(score_tl, beat_tl, data, tmp_path)
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        return notes, errors
+
+    def test_score_without_key_signature(self, score_tl, beat_tl, tmp_path):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<pitch><step>C</step><octave>4</octave></pitch>",
+        )
+        assert not errors
+        assert len(notes) == 1
+        assert not _get_components_by_kind(score_tl, ComponentKind.KEY_SIGNATURE)
+
+    def test_quarter_tone_alter(self, score_tl, beat_tl, tmp_path):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<pitch><step>D</step><alter>0.5</alter><octave>4</octave></pitch>",
+        )
+        assert not errors
+        assert notes[0].accidental == 0.5
+        assert notes[0].sounding_pitch_class_24 == 5
+
+    def test_three_quarter_tone_flat_alter(self, score_tl, beat_tl, tmp_path):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<pitch><step>E</step><alter>-1.5</alter><octave>4</octave></pitch>",
+        )
+        assert not errors
+        assert notes[0].accidental == -1.5
+        assert notes[0].sounding_pitch_class_24 == 5
+
+    def test_accidental_name_without_alter(self, score_tl, beat_tl, tmp_path):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<pitch><step>C</step><octave>4</octave></pitch>"
+            "<accidental>quarter-sharp</accidental>",
+        )
+        assert not errors
+        assert notes[0].accidental == 0.5
+
+    def test_finer_alter_is_rounded_and_reported(self, score_tl, beat_tl, tmp_path):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<pitch><step>C</step><alter>0.3</alter><octave>4</octave></pitch>",
+        )
+        assert notes[0].accidental == 0.5
+        assert any("0.3" in error for error in errors)
+
+    def test_transposing_part_sounds_at_concert_pitch(
+        self, score_tl, beat_tl, tmp_path
+    ):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<pitch><step>D</step><octave>4</octave></pitch>",
+            "<transpose><diatonic>-1</diatonic><chromatic>-2</chromatic></transpose>",
+        )
+        assert not errors
+        assert notes[0].step == 1  # as written
+        assert notes[0].transposition == -2
+        assert notes[0].sounding_pitch_class_24 == 0  # C
+
+    def test_unpitched_note_is_marked(self, score_tl, beat_tl, tmp_path):
+        notes, errors = self._import(
+            score_tl,
+            beat_tl,
+            tmp_path,
+            "<unpitched><display-step>E</display-step>"
+            "<display-octave>4</display-octave></unpitched>",
+        )
+        assert not errors
+        assert notes[0].is_pitched is False

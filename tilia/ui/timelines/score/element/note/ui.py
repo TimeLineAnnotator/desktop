@@ -108,8 +108,12 @@ class NoteUI(TimelineUIElement):
             self.ledger_line = None
 
     def _setup_accidental(self):
-        if self.get_data("display_accidental"):
-            accidental_number = self.get_data("accidental")
+        accidental_number = self.get_data("accidental")
+        # The timeline has no icons for quarter tones. The viewer shows them.
+        if (
+            self.get_data("display_accidental")
+            and float(accidental_number).is_integer()
+        ):
             scale_factor = self.get_accidental_scale_factor()
             self.accidental = NoteAccidental(
                 *self.get_accidental_position(accidental_number, scale_factor),
@@ -233,6 +237,12 @@ class NoteUI(TimelineUIElement):
             * scale_factor
         )
 
+    def _accidental_text(self) -> str:
+        accidental = self.get_data("accidental")
+        if float(accidental).is_integer():
+            return Accidental.get_from_int("frontend", int(accidental))
+        return f"{accidental:+g} semitones"
+
     def get_accidental_scale_factor(self):
         """
         Scales accidental according to amw = average measure width.
@@ -320,7 +330,7 @@ class NoteUI(TimelineUIElement):
         inspector["Note"] = "".join(
             [
                 chr(65 + (self.get_data("step") - 5) % 7),
-                Accidental.get_from_int("frontend", self.get_data("accidental")),
+                self._accidental_text(),
                 str(self.get_data("octave")),
             ]
         )
