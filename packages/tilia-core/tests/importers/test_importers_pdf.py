@@ -415,6 +415,92 @@ class TestThePdfsPath:
 
         assert asked == [("scores/score.pdf", str(tmp_path))]
 
+    def test_a_stored_url_isnt_looked_up(self, tmp_path, csv_file, monkeypatch):
+        # Joined to the folder, `https://example.com/score.pdf` would name a
+        # file below a folder called `https:` on macOS and Linux.
+        asked = []
+        monkeypatch.setattr(
+            pdf_module, "local_file", lambda *args: asked.append(args) or None
+        )
+        stored = "https://example.com/score.pdf"
+        target = timeline("pdf", attrs={"path": stored})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / "piece.tla"
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
+        )
+
+        assert asked == []
+        assert messages(result) == [NO_SUCH_PAGE]
+        assert result.notes == [
+            f"The PDF '{stored}' can't be read: every page number is refused"
+        ]
+
+    @pytest.mark.skipif(os.name != "nt", reason="the mirror of the POSIX test")
+    def test_a_posix_form_path_isnt_looked_up_on_windows(
+        self, tmp_path, csv_file, monkeypatch
+    ):
+        # `/...` with no drive is the other system's form here, yet Windows
+        # reads it through the current drive and would find the file.
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "scores").mkdir()
+        make_pdf(tmp_path / "scores" / "score.pdf", 2)
+        stored = (tmp_path / "scores" / "score.pdf").as_posix()[2:]
+        assert os.path.isfile(stored)
+        target = timeline("pdf", attrs={"path": stored})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / "piece.tla"
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
+        )
+
+        assert messages(result) == [NO_SUCH_PAGE]
+        assert result.notes == [
+            f"The PDF '{stored}' can't be read: every page number is refused"
+        ]
+
+    def test_the_note_names_the_file_found_when_it_cant_be_read(
+        self, tmp_path, csv_file
+    ):
+        # Found as its decomposed (NFD) name, which differs from the stored
+        # and the joined path: the note names the file, not what was stored.
+        named = unicodedata.normalize("NFD", "Études.pdf")
+        (tmp_path / named).write_bytes(b"this isn't a PDF")
+        stored = unicodedata.normalize("NFC", "Études.pdf")
+        target = timeline("pdf", attrs={"path": stored})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / "piece.tla"
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
+        )
+
+        assert result.notes == [
+            f"The PDF '{tmp_path / named}' can't be read: every page number is refused"
+        ]
+
+    @pytest.mark.parametrize(
+        "stored, folder",
+        [("scores/bad\udcff.pdf", ""), ("score.pdf", "bad\udcff")],
+        ids=["in the stored path", "in the documents folder"],
+    )
+    def test_the_note_can_be_printed_whatever_the_name(
+        self, tmp_path, csv_file, stored, folder
+    ):
+        target = timeline("pdf", attrs={"path": stored})
+        doc = document(timelines=[target])
+        doc.origin = tmp_path / folder / "piece.tla"
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
+        )
+
+        (note,) = result.notes
+        assert note.encode("utf-8")
+        assert "bad\\udcff" in note
+
     def test_a_relative_path_with_no_document_folder_isnt_looked_up(
         self, tmp_path, csv_file, monkeypatch
     ):
