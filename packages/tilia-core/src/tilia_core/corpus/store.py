@@ -146,6 +146,9 @@ class Store:
         self.available = True
         """False while the corpus folder can't be reached (FR-021); reads that
         start then say so."""
+        self.unlisted: tuple[str, ...] = ()
+        """The subfolders the last look at the folder couldn't list; reads that
+        start then warn."""
 
     # -- reads ---------------------------------------------------------------- #
     @property
@@ -201,12 +204,19 @@ class Store:
         return self._failure
 
     def _warnings(self) -> tuple[str, ...]:
-        if self._failure is None:
-            return ()
-        return (
-            f"the index couldn't take the last change ({self._failure}); these "
-            "results come from the files as last indexed",
-        )
+        out = []
+        if self._failure is not None:
+            out.append(
+                f"the index couldn't take the last change ({self._failure}); these "
+                "results come from the files as last indexed"
+            )
+        if self.unlisted:
+            folders = "s" if len(self.unlisted) > 1 else ""
+            out.append(
+                f"can't list the folder{folders} {', '.join(self.unlisted)}; these "
+                "results have the files there only as last read"
+            )
+        return tuple(out)
 
     def connection(self) -> sqlite3.Connection:
         """The connection of the calling thread's read. Raises

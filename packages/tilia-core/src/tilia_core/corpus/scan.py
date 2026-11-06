@@ -80,12 +80,18 @@ def _is_junction(entry: os.DirEntry) -> bool:
     return tag == stat.IO_REPARSE_TAG_MOUNT_POINT
 
 
-def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[Found]:
+def walk(
+    root: Path,
+    reader: DocumentReader,
+    settings: CorpusSettings,
+    unlisted: list[str] | None = None,
+) -> list[Found]:
     """The files of the corpus at ``root``, sorted by path.
 
     The walk goes depth first with ``os.scandir``. Listing ``root`` itself may
     raise ``OSError``; a subfolder that can't be listed is logged and skipped,
-    so its files are not found."""
+    so its files are not found, and its path (as a file's, in NFC) goes into
+    ``unlisted``. So does an entry the walk can't look at."""
     endings = tuple(e.lower() for e in reader.extensions)
     found: list[Found] = []
 
@@ -97,6 +103,8 @@ def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[F
             if not prefix:
                 raise
             LOG.warning("can't list the folder %s; skipped: %s", folder, err)
+            if unlisted is not None:
+                unlisted.append(prefix.removesuffix("/"))
             return
         for entry in entries:
             name = entry.name
@@ -111,6 +119,8 @@ def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[F
                     continue
             except OSError as err:
                 LOG.warning("can't look at %s; skipped: %s", entry.path, err)
+                if unlisted is not None:
+                    unlisted.append(path)
                 continue
             if folder:
                 visit(Path(entry.path), path + "/")
@@ -477,7 +487,9 @@ class Scanner:
         """Read every file of the folder and fill the empty index with their
         rows: the index's first generation, 1 (0 while it is empty). Listing the corpus
         folder itself may raise ``OSError``; nothing inside it does."""
-        found = walk(self.root, self.reader, self.settings)
+        unlisted: list[str] = []
+        found = walk(self.root, self.reader, self.settings, unlisted)
+        self.store.unlisted = tuple(unlisted)
         before = self.store.generation
         records: dict[str, FileRecord] = {}
         inserts: list[Rows] = []

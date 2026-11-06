@@ -326,3 +326,48 @@ def test_a_failed_first_build_warns_and_doesnt_look_empty(tmp_path, monkeypatch)
             "couldn't take the last change" in w and "disk is full" in w
             for w in result.warnings
         )
+
+
+# --------------------------------------------------------------------------- #
+# Subfolders that can't be listed
+# --------------------------------------------------------------------------- #
+def locking(monkeypatch, *locked):
+    real = os.scandir
+
+    def scandir(path="."):
+        if Path(path) in locked:
+            raise PermissionError(13, "Permission denied", str(path))
+        return real(path)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+
+
+def test_the_walk_names_the_folders_it_couldnt_list(tmp_path, monkeypatch):
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "sub" / "locked" / "b.tla", song())
+    locking(monkeypatch, tmp_path / "sub" / "locked")
+    unlisted = []
+    found = scan.walk(tmp_path, READER, scan_settings(), unlisted)
+    assert [f.path for f in found] == ["a.tla"]
+    assert unlisted == ["sub/locked"]
+
+
+def scan_settings():
+    from tilia_core.corpus.settings import NoSettings
+
+    return NoSettings()
+
+
+def test_results_warn_of_a_folder_that_couldnt_be_listed_at_opening(
+    tmp_path, monkeypatch
+):
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "locked" / "b.tla", song())
+    locking(monkeypatch, tmp_path / "locked")
+    with opened(tmp_path) as corpus:
+        assert list(states(corpus)) == ["a.tla"]
+        result = tql.run(corpus, "verse")
+        assert any(
+            "can't list the folder locked" in w and "as last read" in w
+            for w in result.warnings
+        )
