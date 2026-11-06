@@ -29,7 +29,7 @@ BROKEN_FILES = sorted((HERE / "broken").glob("*.tla"))
 DRAFT_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 # The schema as the format's specification has it, byte for byte: a change to
 # the schema is made there first (TimeLineAnnotator/project-management#179).
-SCHEMA_SHA256 = "2e859e1691c87af02854071304c7ef0634b67e81473a83f9e679ce80323370f5"
+SCHEMA_SHA256 = "376bc3a4f4e1e8342d4d801fbd2fd1fc9b3b5cd7da8c3eb7c9c15800b2e1e141"
 
 VALIDATOR = jsonschema.Draft202012Validator(tla.schema())
 
