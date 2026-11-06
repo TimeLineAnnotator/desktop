@@ -226,6 +226,20 @@ class TestByTime:
         assert messages(result) == ["C7b9/Db is not a valid symbol."]
         assert target.components == {}
 
+    def test_chord_tone_bass_beyond_the_dialogs_inversions_has_no_note(self, imported):
+        result, target, _ = imported(rows("0,harmony,C6/9/A"))
+
+        assert result.problems == []
+        assert len(chords(target)) == 1
+
+    def test_bass_outside_an_added_tone_chord_is_drawn_in_root_position(self, imported):
+        result, target, _ = imported(rows("0,harmony,Am(add9)/G"))
+
+        assert messages(result) == [
+            "Am(add9)/G: the bass isn't in the chord, so it is drawn in root position."
+        ]
+        assert len(chords(target)) == 1
+
     def test_harmony_doesnt_consider_a_key_the_import_replaces(self, imported):
         # TiLiA's `test_harmony_considers_existing_key` calls its importer on a
         # timeline holding a key, which its callers clear first. An import replaces
@@ -1578,6 +1592,15 @@ class TestChordSymbolParsing:
     def test_added_tone_in_the_bass_is_refused(self, read, text):
         # No inversion of the base quality puts the added tone in the bass.
         assert read(text) is None
+
+    @pytest.mark.parametrize(
+        "text, inversion",
+        [("C6/9/A", 6), ("C7b9/E", 1), ("Am(add9)/C", 1), ("Am(add9)/G", 3)],
+    )
+    def test_bass_that_is_not_the_added_tone_is_read_by_its_inversion(
+        self, read, text, inversion
+    ):
+        assert read(text)["inversion"] == inversion
 
     @pytest.mark.parametrize("text", ["Cm7(b9)", "CM7(b9)", "C(#9)"])
     def test_tone_in_parentheses_that_makes_no_quality_is_refused(self, read, text):

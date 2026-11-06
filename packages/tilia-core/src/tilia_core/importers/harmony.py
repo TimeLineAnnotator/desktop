@@ -483,13 +483,22 @@ def _get_harmony_params_from_text(
     params = _get_harmony_params_from_music21_object(
         music21_object, object_type, added_tone
     )
-    if added_tone and params["inversion"] > rules.get_inversion_amount(
-        params["quality"]
-    ):
-        # The added tone is in the bass, as in "C7b9/Db". No inversion puts it
-        # there.
+    if added_tone and _bass_is_the_added_tone(added_tone, params["inversion"]):
+        # As in "C7b9/Db". No inversion of the base quality puts it there. A bass
+        # that is another tone, or none of the chord's, is read by its inversion.
         return False, None
     return True, params
+
+
+def _bass_is_the_added_tone(added_tone: str, inversion: int) -> bool:
+    """Whether an inversion puts an added tone in the bass. music21 counts an
+    inversion by stacked thirds, so inversion 4 is the ninth, 5 the eleventh and 6
+    the thirteenth or the sixth, which share a letter. The cadential six-four's "64"
+    is no tone in that stack: its root is its bass, so any inversion is refused."""
+    degree = int(added_tone.lstrip("b#"))
+    if degree > 13:
+        return inversion > 0
+    return 2 * inversion % 7 == (degree - 1) % 7
 
 
 def _replace_special_abbreviations(text: str) -> str:
