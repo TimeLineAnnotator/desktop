@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import bisect
 import copy
+import itertools
 import logging
 import math
 from dataclasses import dataclass, field
+from operator import attrgetter
 from typing import Any, TypeGuard
 
 from tilia_core import tla
@@ -62,10 +64,11 @@ def rows_of(timeline: tla.Timeline) -> list[RowIn]:
     """
     if timeline.measures is None:
         return []
-    taps = closing_taps(timeline)
+    taps: dict[str | None, list[ClosingTap]] = {}
+    for tap in closing_taps(timeline):
+        taps.setdefault(tap.row, []).append(tap)
     rows = (
-        _row_in(timeline, row, [tap for tap in taps if tap.row == row.id])
-        for row in timeline.measures.rows
+        _row_in(timeline, row, taps.get(row.id, [])) for row in timeline.measures.rows
     )
     return [row for row in rows if row is not None]
 
@@ -143,12 +146,27 @@ def _is_number(value: object) -> TypeGuard[int | float]:
 def _beats_with(
     timeline: tla.Timeline, row: tla.Measure, taps: list[ClosingTap]
 ) -> list[str]:
-    """The row's beats, in order, with the taps read as ordinary beats among them."""
-    beats = list(row.beats)
-    for tap in taps:
-        if not tap.barline:
-            place = sum(_before(timeline, beat, tap.time) for beat in beats)
-            beats.insert(place, tap.id)
+    """The row's beats, in order, with the taps read as ordinary beats among them.
+
+    `taps` are in time order, as `closing_taps` gives them. Each goes after as many
+    of the row's beats as are `_before` it, however they stand: they are out of
+    order in a table `table_problem` calls broken. Of taps at one time, the last
+    goes first, as each is put in before those not before it."""
+    read_as_beats = [tap for tap in taps if not tap.barline]
+    if not read_as_beats:
+        return list(row.beats)
+    times = sorted(
+        time for beat in row.beats if (time := _time_of(timeline, beat)) is not None
+    )
+    without_a_time = len(row.beats) - len(times)
+    beats: list[str] = []
+    placed = 0
+    for time, same_time in itertools.groupby(read_as_beats, key=attrgetter("time")):
+        before = without_a_time + bisect.bisect_left(times, time)
+        beats += row.beats[placed:before]
+        beats += reversed([tap.id for tap in same_time])
+        placed = before
+    beats += row.beats[placed:]
     return beats
 
 
