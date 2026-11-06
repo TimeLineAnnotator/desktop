@@ -48,7 +48,7 @@ from operator import itemgetter
 from typing import Any, TypeAlias
 
 from tilia_core.tla.errors import UnreadableFile, printable
-from tilia_core.tla.layout import _SCHEMA, SCORES, _branch, nfc_text
+from tilia_core.tla.layout import _SCHEMA, SCORES, _branch, ids_at, nfc_text
 from tilia_core.tla.model import (
     COMPONENT_KINDS,
     TIMELINE_COMPONENTS,
@@ -99,7 +99,7 @@ def check(
     if source is not None:
         lines = lines_of(text_of(source), [place for place, _ in warnings])
     return [
-        ReadWarning(place=place, line=lines.get(place), message=message)
+        ReadWarning(place, lines.get(place), message, *ids_at(place))
         for place, message in warnings
     ]
 

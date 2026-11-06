@@ -381,3 +381,15 @@ def nfc_value(value: Any) -> Any:
 def pointer_to(parent: str, key: str | int) -> str:
     """The JSON Pointer to `key` in the value `parent` points to."""
     return parent + pointer([str(key)])
+
+
+def ids_at(place: str) -> tuple[str | None, str | None]:
+    """The ids of the timeline and of the component that `place`, a JSON Pointer
+    in a document, is at or in; None where it is in none. The ids it can name
+    are UUIDs, which a pointer writes as they are."""
+    steps = place.split("/")  # "" first: a pointer starts with "/"
+    if len(steps) < 3 or steps[1] != "timelines":
+        return None, None
+    if len(steps) < 5 or steps[3] != "components":
+        return steps[2], None
+    return steps[2], steps[4]

@@ -47,7 +47,8 @@ from tilia_core.tla.problems import keep_problems
 
 
 def read(path: str | os.PathLike[str]) -> Document:
-    """Read a `.tla` file. Nothing is written, created or touched.
+    """Read a `.tla` file. Nothing is written, created or touched. The document's
+    `fingerprint` is that of the bytes read, for a write to state.
 
     Raises `UnreadableFile` for content the reader refuses, and lets the
     system's `OSError` through for a file it can't open or read.
@@ -58,7 +59,8 @@ def read(path: str | os.PathLike[str]) -> Document:
 
 
 def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Document:
-    """Read a `.tla` file's bytes. `path`, when given, is where the file is."""
+    """Read a `.tla` file's bytes. `path`, when given, is where the file is. The
+    document's `fingerprint` is that of `data`."""
     return _loads(data, path)[0]
 
 
@@ -100,8 +102,18 @@ def _loads(
     document = _Reader(path).document(content)
     document.warnings = warnings
     if not for_fingerprint:
+        document.fingerprint = _fingerprint_of(document)
         keep_problems(document, data)
     return document, None
+
+
+def _fingerprint_of(document: Document) -> str:
+    """The fingerprint of the file `document` was just read from, whose media and
+    PDF paths are as the file stores them (FR-043)."""
+    # Imported here: the writer reads this module.
+    from tilia_core.tla.writer import fingerprint_as_read
+
+    return fingerprint_as_read(document)
 
 
 def written_document(
@@ -129,10 +141,14 @@ def _old(
     the old file's bytes (TimeLineAnnotator/project-management#347). The
     migration names its places so itself; the check names places in the
     migrated document, which the migration's `places` takes back to the old
-    file, with what it says about them.
+    file, with what it says about them. A warning's ids are the document's.
+
+    It is migrated once, with its paths as it stores them, what its fingerprint
+    is taken from; only then are they made relative from where the file is. The
+    check reads only their types, which that doesn't change.
     """
     try:
-        migrated = migrate(content, path=path, paths_as_stored=for_fingerprint)
+        migrated = migrate(content, path=path, paths_as_stored=True)
         try:
             warnings = check(migrated.content, path=path)
         except UnreadableFile as error:
@@ -143,18 +159,29 @@ def _old(
     except UnreadableFile as error:
         add_line(error, text_of(data))
         raise
-    named = [(w.place, w.message) for w in migrated.warnings]
-    named += [migrated.places.in_old_file(w.place, w.message) for w in warnings]
-    lines = lines_of(text_of(data), [place for place, _ in named]) if named else {}
+    named = [(w, w.place, w.message) for w in migrated.warnings]
+    named += [(w, *migrated.places.in_old_file(w.place, w.message)) for w in warnings]
+    lines = lines_of(text_of(data), [place for _, place, _ in named]) if named else {}
     document = _Reader(path).document(migrated.content)
     document.warnings = [
-        ReadWarning(place=place, line=lines[place], message=message)
-        for place, message in named
+        ReadWarning(place, lines[place], message, w.timeline_id, w.component_id)
+        for w, place, message in named
     ]
     if not for_fingerprint:
+        document.fingerprint = _fingerprint_of(document)
+        migrated.make_paths_relative(path)
+        _take_paths(document, migrated.content)
         keep_problems(document, data, where=migrated.places.old)
-    migrated.data = data
     return document, migrated
+
+
+def _take_paths(document: Document, content: dict[str, Any]) -> None:
+    """Give `document`, made from `content`, the media's and PDF timelines' paths
+    `content` has now, in NFC, as the reader reads them."""
+    document.media_path = nfc_value(content["media"]["path"])
+    for key, timeline in document.timelines.items():
+        if timeline.kind == "pdf" and "path" in timeline.attrs:
+            timeline.attrs["path"] = nfc_value(content["timelines"][key]["path"])
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.

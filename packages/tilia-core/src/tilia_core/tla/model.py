@@ -164,11 +164,18 @@ def _to_file(
 
 @dataclass(frozen=True)
 class ReadWarning:
-    """Something the reader kept although it breaks a rule, or the migration changed."""
+    """Something the reader kept although it breaks a rule, or the migration changed.
+
+    `timeline_id` and `component_id` are the document's ids of what it concerns,
+    or None where there is none, such as for a component the migration dropped.
+    A migration's `place` can't say: it is in the old file, with the old ids.
+    """
 
     place: str
     line: int | None
     message: str
+    timeline_id: str | None = None
+    component_id: str | None = None
 
     def __str__(self) -> str:
         """As an `UnreadableFile` reads: the line when known, then the message."""
@@ -555,6 +562,10 @@ class Document:
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
     warnings: list[ReadWarning] = field(default_factory=list)
     origin: Path | None = None  # where it was read from, or last written to
+    # The fingerprint of the file as read or last written, for a write to state.
+    # An old file's isn't `fingerprint_of` the document (FR-043). None for a
+    # document built in memory. Never written, and not what a document holds.
+    fingerprint: str | None = field(default=None, compare=False)
     # What it broke when it was read, or last written: the writer writes these
     # back while what they are about hasn't changed (FR-054). A document made
     # in memory has nothing read to keep.
