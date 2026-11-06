@@ -976,6 +976,17 @@ def test_a_read_that_rescans_survives_a_bad_file(tmp_path, change, reason):
         assert corpus.file("bad.tla").reason.startswith(reason)
 
 
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_rereading_a_bad_file_changes_nothing(tmp_path, change, reason):
+    tla_files.write(tmp_path / "bad.tla", spoiled(change))
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        report = corpus.reread("bad.tla")
+        assert not report
+        assert report.generation_after == generation
+        assert corpus.file("bad.tla").reason.startswith(reason)
+
+
 def test_a_reread_that_goes_through_doesnt_clear_a_failed_scans_warning(
     tmp_path, monkeypatch
 ):
