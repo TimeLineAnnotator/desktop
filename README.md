@@ -43,9 +43,9 @@ Here are some examples of TiLiA visualizations:
 
 ## Keyboard shortcuts
 
-[![TiLiA's keyboard shortcuts](https://github.com/TimeLineAnnotator/desktop/releases/latest/download/shortcuts.svg)](https://github.com/TimeLineAnnotator/desktop/releases/latest/download/shortcuts.svg)
+[![TiLiA's keyboard shortcuts](docs/img/shortcuts.svg)](docs/img/shortcuts.svg)
 
-This sheet is made from TiLiA's code for every release and always shows the latest one. The same shortcuts are listed as [text](https://github.com/TimeLineAnnotator/desktop/releases/latest/download/shortcuts.md).
+This sheet is made from TiLiA's code and updated whenever the shortcuts change. The same shortcuts are listed as [text](docs/shortcuts.md).
 
 ## TiLiA binaries
 TiLiA has built binaries for Windows, macOS and Linux. [Download the latest release](https://github.com/TimeLineAnnotator/desktop/releases/latest).
