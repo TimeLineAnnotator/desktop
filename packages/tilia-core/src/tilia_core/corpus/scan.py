@@ -727,9 +727,12 @@ class Scanner:
         at once, as :meth:`reread` does, so the generation moves only if its
         content changed. When ``fingerprint``, the one the writer wrote,
         differs from the file's, the index keeps what is on disk, and says so
-        in the log (research R11)."""
+        in the log (research R11). With the corpus folder out of reach, nothing
+        changes, as for :meth:`reread`."""
         with self.turn:
             report = self.reread(path, native)
+            if not self.store.available:
+                return report  # nothing on disk to compare with
             record = self.records.get(path)
             on_disk = record.fingerprint if record is not None else None
             if fingerprint is not None and on_disk != fingerprint:

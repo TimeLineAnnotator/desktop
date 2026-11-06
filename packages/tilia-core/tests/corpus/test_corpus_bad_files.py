@@ -952,3 +952,20 @@ def test_a_reread_that_goes_through_doesnt_clear_a_failed_scans_warning(
         assert said_last_change(tql.run(corpus, "HC"))
         assert corpus.scan().changed == ("a.tla",)
         assert not said_last_change(tql.run(corpus, "HC"))
+
+
+def test_written_with_the_folder_gone_changes_nothing_and_blames_no_writer(
+    tmp_path, caplog
+):
+    folder = tmp_path / "corpus"
+    tla_files.write(folder / "a.tla", song())
+    with opened(folder) as corpus:
+        generation = corpus.generation
+        rows = rows_by_content(corpus)
+        folder.rename(tmp_path / "elsewhere")
+        with caplog.at_level(logging.WARNING, logger=scan.__name__):
+            report = corpus.written("a.tla", "not what the record says")
+        assert not report and corpus.generation == generation
+        assert rows_by_content(corpus) == rows
+        assert not corpus.available
+        assert not any("writer wrote" in r.getMessage() for r in caplog.records)
