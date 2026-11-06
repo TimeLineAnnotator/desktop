@@ -4,15 +4,22 @@ Script to build TiLiA with Nuitka.
 pyside-deploy has very limited Nuitka-specific options and Nuitka requires a specific file structure to build.
 Hence this pyside-deploy-inspired script.
 
-- Run `python scripts/deploy.py [ref_name] [os_type]`
+- Run `python scripts/deploy.py [ref_name] [os_type]`. Both arguments are
+  optional; see `--help`. CI passes the git ref and the runner image name.
 - Builds the executable directly from the editable install (no sdist step).
   Generates a Nuitka package config from the static YAML + dynamic
-  data-files / implicit-imports entries, then renames the output to the
-  versioned artifact name for GitHub upload:
-    build/[os_type]/exe/TiLiA-[tilia version](-[ref_name, if different])-[os_type]
+  data-files / implicit-imports entries. The app lands in
+  build/[os_type]/exe/ (tilia.dist/ on Windows and Linux, a .app bundle on macOS).
+- Then packs it into an installer with Velopack's `vpk` CLI, into
+  build/[os_type]/velopack/. Locally, this step is skipped when `vpk` is not
+  on PATH; in CI it is required.
+- CI uploads the result under the versioned artifact name
+    TiLiA-v[tilia version](-[ref_name, if different])-[os_type]
 """
 
+import argparse
 import os
+import platform
 import re
 import shutil
 import sys
@@ -93,22 +100,78 @@ def _stable_exe_name() -> str:
         return name
 
 
+# Values build_os can take. They double as Velopack update channels, so the
+# auto-updater relies on them staying the same.
+OS_TYPES = ("windows", "macos-silicon", "macos-intel", "ubuntu")
+
+
+def _host_os_type() -> str:
+    """The os type of the machine running this script (Nuitka can't cross-compile)."""
+    if sys.platform == "win32":
+        return "windows"
+    if sys.platform == "darwin":
+        # platform.machine() reports the interpreter's architecture, which is
+        # what Nuitka compiles for (x86_64 under Rosetta).
+        return "macos-silicon" if platform.machine() == "arm64" else "macos-intel"
+    return "ubuntu"
+
+
+def _normalize_os_type(raw: str) -> str:
+    if raw in OS_TYPES:
+        return raw
+    if raw == "macos":
+        # Not a runner name, so it says nothing about the chip: take this
+        # machine's, if it is a Mac. Elsewhere it stays unknown.
+        host_os = _host_os_type()
+        return host_os if host_os.startswith("macos") else raw
+    # In a GitHub Actions runner, the runner image looks like someOS-latest,
+    # someOS-22.04, macos-15-intel, etc. We strip "latest" and any version
+    # numbers, keeping just someOS. macos-latest is Apple Silicon.
+    if raw.startswith("macos-") and "intel" not in raw:
+        return "macos-silicon"
+    return "-".join(
+        x
+        for x in raw.split("-")
+        if not x.replace(".", "", 1).isdigit() and x != "latest"
+    )
+
+
 def _handle_inputs():
-    assert len(sys.argv) == 3, "Incorrect number of inputs"
+    parser = argparse.ArgumentParser(
+        description="Build a stand-alone TiLiA executable with Nuitka and, if "
+        "Velopack's `vpk` CLI is on PATH, an installer."
+    )
+    parser.add_argument(
+        "ref_name",
+        nargs="?",
+        default="",
+        help="git ref being built. Only used in the name CI gives the "
+        "uploaded artifact. Defaults to the version in pyproject.toml.",
+    )
+    parser.add_argument(
+        "os_type",
+        nargs="?",
+        default=None,
+        help=f"one of {', '.join(OS_TYPES)}, or a GitHub runner image name "
+        "such as windows-latest. Must match this machine. Defaults to this "
+        f"machine's ({_host_os_type()}).",
+    )
+    args = parser.parse_args()
+
     global ref_name, build_os, outdir
-    ref_name = sys.argv[1]
-    # in a git action runner, sys.argv[2] could look like someOS-latest, someOS-22.02, etc, where someOS is probably macos, ubuntu or windows.
-    # we save build_os as the runner os stripped of "latest" and any digits: just someOS.
-    if "macos" in sys.argv[2] and "intel" not in sys.argv[2]:
-        build_os = "macos-silicon"
-        # to identify the difference between macos-silicon and macos-intel. currently uses the images macos-latest and macos-15-intel (which are silicon and intel respectively.)
-    else:
-        build_os = "-".join(
-            [
-                x
-                for x in sys.argv[2].split("-")
-                if not x.replace(".", "", 1).isdigit() and x != "latest"
-            ]
+    ref_name = args.ref_name
+    host_os = _host_os_type()
+    build_os = host_os if args.os_type is None else _normalize_os_type(args.os_type)
+    if build_os not in OS_TYPES:
+        parser.error(
+            f"unknown os_type {args.os_type!r}. Use one of {', '.join(OS_TYPES)}, "
+            "or leave it out to build for this machine."
+        )
+    if build_os != host_os:
+        parser.error(
+            f"os_type {build_os!r} does not match this machine ({host_os!r}). "
+            "Nuitka can't cross-compile: build on the target platform, or leave "
+            "os_type out."
         )
     outdir = buildlib / build_os
 
@@ -127,7 +190,7 @@ def _set_out_filename():
     global out_filename
     name = _project_name()
     version = _semver_version()
-    if _clean_version(version) == _clean_version(ref_name):
+    if not ref_name or _clean_version(version) == _clean_version(ref_name):
         out_filename = f"{name}-v{version}-{build_os}"
     else:
         safe_ref = ref_name.replace("/", "-")
@@ -374,34 +437,75 @@ def _dist_dir() -> Path:
     return outdir / "exe" / "tilia.dist"
 
 
+def _check_python_version():
+    # Nuitka 4.3.1 crashes compiling TiLiA on Python 3.14 with
+    # AttributeError: 'ExpressionBuiltinSlice2' object has no attribute
+    # 'subnode_lower'. Fail up front instead of minutes into the compile.
+    # This blocks 3.14 outright rather than guessing which Nuitka version
+    # fixes the crash: remove it together with a Nuitka bump that has been
+    # checked to compile TiLiA on 3.14.
+    from nuitka.Version import getNuitkaVersion
+
+    nuitka_version = getNuitkaVersion()
+    if sys.version_info >= (3, 14):
+        raise SystemExit(
+            f"Nuitka {nuitka_version} can't compile TiLiA on Python "
+            f"{platform.python_version()}. Build with Python 3.12 or 3.13."
+        )
+
+
+def _app_path() -> Path:
+    return _macos_app_bundle() if "mac" in build_os else _dist_dir()
+
+
+def _package(main_exe: str):
+    if shutil.which("vpk"):
+        _build_velopack(main_exe)
+    elif os.environ.get("GITHUB_ACTIONS"):
+        raise RuntimeError("Velopack's `vpk` CLI is not on PATH.")
+    else:
+        _print(
+            [
+                "Skipped the installer: Velopack's `vpk` CLI is not on PATH.",
+                "To build one too, install the .NET SDK and run "
+                "`dotnet tool install -g vpk --prerelease`.",
+            ]
+        )
+
+
 def build():
     _handle_inputs()
+    _check_python_version()
     env_file = root / ".tilia.env"
     old_env_var = dotenv.dotenv_values(env_file).get("ENVIRONMENT") or ""
     dotenv.set_key(env_file, "ENVIRONMENT", "prod")
-    if buildlib.exists():
-        _print(["Cleaning build folder..."], P.ERROR)
-        shutil.rmtree(buildlib)
-
+    # Everything after the line above sits in the try, and the restore in the
+    # finally: a failed cleanup or a Ctrl+C mid-compile must not leave
+    # ENVIRONMENT=prod behind for the next run from source.
     try:
+        if buildlib.exists():
+            _print(["Cleaning build folder..."], P.ERROR)
+            shutil.rmtree(buildlib)
         _build_exe()
         is_mac = "mac" in build_os
+        app_path = _app_path()
         stable_exe = _stable_exe_name()
         out_binary_name = _patch_macos_plist() if is_mac else stable_exe
-        _build_velopack(out_binary_name)
+        _package(out_binary_name)
         if os.environ.get("GITHUB_OUTPUT"):
-            out_filepath = _macos_app_bundle() if is_mac else _dist_dir()
             with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                f.write(f"out-filepath={out_filepath.as_posix()}\n")
+                f.write(f"out-filepath={app_path.as_posix()}\n")
                 f.write(f"out-filename={out_filename}\n")
                 f.write(f"out-binary-name={out_binary_name}\n")
                 f.write(f"stable-exe-name={stable_exe}\n")
-        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
+        app = app_path if is_mac else app_path / out_binary_name
+        _print([f"App: {app}"], P.OK)
     except Exception as e:
         _print(["Build failed!", e.__str__()], P.ERROR)
         _print([traceback.format_exc()])
-        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
         raise SystemExit(1) from e
+    finally:
+        dotenv.set_key(env_file, "ENVIRONMENT", old_env_var)
 
 
 if __name__ == "__main__":
