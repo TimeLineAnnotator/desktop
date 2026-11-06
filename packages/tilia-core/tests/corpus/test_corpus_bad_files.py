@@ -725,3 +725,83 @@ def test_a_folder_that_can_be_listed_and_is_empty_has_lost_its_files(tmp_path):
     with opened(tmp_path) as corpus:
         (tmp_path / "sub" / "b.tla").unlink()
         assert corpus.scan().unavailable == ("sub/b.tla",)
+
+
+# --------------------------------------------------------------------------- #
+# A deleted file whose id lives on (Felipe's decision 3 on the review)
+# --------------------------------------------------------------------------- #
+def copies(folder, other_content):
+    """``piece1`` and ``piece2``, with one document id; their content differs if
+    ``other_content``."""
+    data = song()
+    tla_files.write(folder / "piece1.tla", data)
+    other = copy.deepcopy(data)
+    if other_content:
+        tla_files.unit(other, "Marker")["label"] = "edited"
+    tla_files.write(folder / "piece2.tla", other)
+    return other
+
+
+def test_a_deleted_file_whose_id_lives_on_in_other_content_is_unavailable(tmp_path):
+    copies(tmp_path, other_content=True)
+    with opened(tmp_path) as corpus:
+        kept = components_per_path(corpus)["piece2.tla"]
+        (tmp_path / "piece1.tla").unlink()
+        report = corpus.scan()
+        assert report.moved == ()
+        assert report.unavailable == ("piece1.tla",)
+        assert states(corpus) == {"piece1.tla": "unavailable", "piece2.tla": "readable"}
+        assert components_per_path(corpus) == {"piece1.tla": 0, "piece2.tla": kept}
+        result = tql.run(corpus, "edited")
+        assert len(result.rows) == 1
+        assert any("1 file was left out: 1 unavailable" in w for w in result.warnings)
+        assert not corpus.scan()
+
+
+def test_it_comes_back_when_it_does(tmp_path):
+    copies(tmp_path, other_content=True)
+    content = (tmp_path / "piece1.tla").read_bytes()
+    with opened(tmp_path) as corpus:
+        (tmp_path / "piece1.tla").unlink()
+        corpus.scan()
+        (tmp_path / "piece1.tla").write_bytes(content)
+        report = corpus.scan()
+        assert report.back == ("piece1.tla",)
+        assert corpus.file("piece1.tla").state == "readable"
+
+
+def test_a_deleted_file_with_an_exact_copy_has_moved_onto_it(tmp_path):
+    copies(tmp_path, other_content=False)
+    with opened(tmp_path) as corpus:
+        (tmp_path / "piece1.tla").unlink()
+        report = corpus.scan()
+        assert report.moved == (("piece1.tla", "piece2.tla"),)
+        assert report.unavailable == ()
+        assert list(states(corpus)) == ["piece2.tla"]
+
+
+def test_a_copy_edited_as_the_original_goes_is_no_copy_any_more(tmp_path):
+    other = copies(tmp_path, other_content=False)
+    with opened(tmp_path) as corpus:
+        (tmp_path / "piece1.tla").unlink()
+        tla_files.unit(other, "Marker")["label"] = "edited"
+        tla_files.write(tmp_path / "piece2.tla", other)
+        report = corpus.scan()
+        assert report.moved == ()
+        assert report.unavailable == ("piece1.tla",)
+        assert report.changed == ("piece2.tla",)
+
+
+def test_an_edit_and_a_rename_into_a_new_path_stays_a_move(tmp_path):
+    data = song()
+    tla_files.write(tmp_path / "a.tla", data)
+    with opened(tmp_path) as corpus:
+        key = corpus.file("a.tla").id
+        (tmp_path / "a.tla").unlink()
+        tla_files.unit(data, "Marker")["label"] = "edited"
+        tla_files.write(tmp_path / "b.tla", data)
+        report = corpus.scan()
+        assert report.moved == (("a.tla", "b.tla"),)
+        assert report.unavailable == ()
+        assert list(states(corpus)) == ["b.tla"]
+        assert corpus.file("b.tla").id == key

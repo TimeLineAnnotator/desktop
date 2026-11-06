@@ -828,7 +828,8 @@ class Scanner:
             if rec.path in taken:
                 continue
             if rec.state == "readable":
-                # a copy indexed earlier, and the original gone: moved onto it
+                # a copy indexed earlier, and the original gone: moved onto it,
+                # if it is a copy still (with other content, this file is missing)
                 targets = [
                     p
                     for p, r in sorted(new.items())
@@ -836,15 +837,13 @@ class Scanner:
                     and p in here
                     and r.state == "readable"
                     and r.document_id == rec.document_id
+                    and r.fingerprint == rec.fingerprint
                 ]
                 if targets:
-                    same_content = [
-                        p for p in targets if new[p].fingerprint == rec.fingerprint
-                    ]
                     new.pop(rec.path)
                     deletes.append(rec.key)
                     maps[rec.key] = None
-                    moved.append((rec.path, (same_content or targets)[0]))
+                    moved.append((rec.path, targets[0]))
                     continue
             kept = rec if rec.state == "readable" else None
             record = FileRecord(
