@@ -313,7 +313,7 @@ def _build(
 
 def _component(row: _Row, params: Mapping[str, Any] | None) -> tla.Component:
     values = row.csv_row.values
-    bad_options = _bad_options(row.csv_row) if row.kind == "harmony" else {}
+    bad_options = _bad_options(row.csv_row)
     return tla.Component(
         id=tla.new_id(),
         kind=row.kind,
