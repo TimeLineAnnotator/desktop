@@ -6,7 +6,7 @@ little. From the repository's root:
     uv run --package tilia-core pytest
         packages/tilia-core/tests/tla/test_tla_speed.py --run-benchmarks
 
-Each test prints what it measured. Only SC-004's own targets are asserted; the
+Each test prints what it measured. Only SC-004's own targets are asserted (5 MB/s, s4, a 2 MB score); the
 crafted files have none. The files below are made here, laid out as the writer
 lays them out, and only `read`, `canonical_bytes` and `build_time_map` are
 called, so that the same file measures any branch of the core.
@@ -39,7 +39,7 @@ HERE = Path(__file__).resolve().parent
 OLD = HERE / "old"
 
 # SC-004's targets.
-TWICE = 2
+AT_LEAST_MB_PER_SECOND = 5.0  # about 30 microseconds per component
 WITH_A_2_MB_SCORE = 0.100
 CORPUS_OF_OLD_FILES = 5.0
 SCORE_BYTES = 2_000_000
@@ -201,10 +201,6 @@ def closed_movements(count: int) -> bytes:
     return as_written("Beat", components, length=count * 4.0)
 
 
-def in_the_tests(path: Path) -> Callable[[], bytes]:
-    return path.read_bytes
-
-
 # Made here, so what the writer writes as it is, without a warning.
 MADE_HERE: dict[str, Callable[[], bytes]] = {
     "10,000 beats": lambda: beats(10_000),
@@ -216,12 +212,12 @@ MADE_HERE: dict[str, Callable[[], bytes]] = {
     "4,000 ranges in 4,000 rows": lambda: ranges_in_rows(4_000),
     "a 2 MB MEI score": with_an_mei_score,
 }
-# The largest of the tests' files. The old ones are read through the migration.
-OF_THE_TESTS: dict[str, Callable[[], bytes]] = {
-    "the largest golden file": in_the_tests(HERE / "golden" / "every-kind.tla"),
-    "the largest old file, 1000 beats": in_the_tests(OLD / "0.5.15.0-many-beats.tla"),
-    "an old file of s4": in_the_tests(OLD / "0.6.0-s4-10.tla"),
-    "an old file with a score": in_the_tests(OLD / "0.7.0-osmd.tla"),
+GOLDEN = HERE / "golden" / "every-kind.tla"
+# The largest of the tests' old files, read through the migration.
+OLD_FILES: dict[str, Path] = {
+    "the largest old file, 1000 beats": OLD / "0.5.15.0-many-beats.tla",
+    "an old file of s4": OLD / "0.6.0-s4-10.tla",
+    "an old file with a score": OLD / "0.7.0-osmd.tla",
 }
 WITH_A_SCORE: dict[str, Callable[[], bytes]] = {
     "MEI": with_an_mei_score,
@@ -238,7 +234,7 @@ CRAFTED: dict[str, Callable[[], bytes]] = {
 
 def runs_for(data: bytes) -> int:
     """More runs for a small file, where one run says less."""
-    return 30 if len(data) < 200_000 else 5 if len(data) < 5_000_000 else 3
+    return 30 if len(data) < 200_000 else 20 if len(data) < 5_000_000 else 3
 
 
 def fastest(run: Callable[[], Any], times: int) -> float:
@@ -276,9 +272,10 @@ def mb(data: bytes) -> str:
     return f"{len(data) / 1_000_000:.2f} MB"
 
 
-def times_a_json_round_trip(name: str, data: bytes, path: Path, capsys: Any) -> float:
-    """How many times a JSON round trip of `path` reading and writing it take, in
-    the run of each that the machine disturbed least. Prints what it measured."""
+def megabytes_per_second(name: str, data: bytes, path: Path, capsys: Any) -> float:
+    """The megabytes of `path` that `read` and `canonical_bytes` get through in a
+    second, in the run of each that the machine disturbed least. Prints that, and
+    how many times a JSON round trip the two take, for information."""
     json_runs, read_runs, write_runs = [], [], []
     for _ in range(runs_for(data)):
         json_runs.append(round_trip(path))
@@ -286,18 +283,18 @@ def times_a_json_round_trip(name: str, data: bytes, path: Path, capsys: Any) -> 
         read_runs.append(read_run)
         write_runs.append(write_run)
     together = min(map(sum, zip(read_runs, write_runs, strict=True)))
-    ratio = together / min(json_runs)
+    speed = len(data) / 1_000_000 / together
     with capsys.disabled():
         print(
             f"\n{name}: {mb(data)}: read {ms(min(read_runs))},"
-            f" canonical_bytes {ms(min(write_runs))}, together {ms(together)};"
-            f" a JSON round trip {ms(min(json_runs))}; {ratio:.2f} times"
+            f" canonical_bytes {ms(min(write_runs))}, together {ms(together)}:"
+            f" {speed:.1f} MB/s; {together / min(json_runs):.1f} times a JSON round trip"
         )
-    return ratio
+    return speed
 
 
 @pytest.mark.parametrize("name", MADE_HERE)
-def test_a_file_made_here_takes_at_most_twice_a_json_round_trip(name, tmp_path, capsys):
+def test_a_file_made_here_is_read_at_5_mb_per_second(name, tmp_path, capsys):
     data = MADE_HERE[name]()
     path = tmp_path / "piece.tla"
     path.write_bytes(data)
@@ -305,18 +302,28 @@ def test_a_file_made_here_takes_at_most_twice_a_json_round_trip(name, tmp_path, 
     assert not document.warnings
     assert canonical_bytes(document) == data
 
-    assert times_a_json_round_trip(name, data, path, capsys) <= TWICE
+    assert megabytes_per_second(name, data, path, capsys) >= AT_LEAST_MB_PER_SECOND
 
 
-@pytest.mark.parametrize("name", OF_THE_TESTS)
-def test_a_file_of_the_tests_takes_at_most_twice_a_json_round_trip(
-    name, tmp_path, capsys
-):
-    data = OF_THE_TESTS[name]()
+def test_the_largest_golden_file_is_read_at_5_mb_per_second(tmp_path, capsys):
+    data = GOLDEN.read_bytes()
     path = tmp_path / "piece.tla"
     path.write_bytes(data)
 
-    assert times_a_json_round_trip(name, data, path, capsys) <= TWICE
+    speed = megabytes_per_second("the largest golden file", data, path, capsys)
+
+    assert speed >= AT_LEAST_MB_PER_SECOND
+
+
+@pytest.mark.parametrize("name", OLD_FILES)
+def test_an_old_file_is_timed(name, tmp_path, capsys):
+    """No target: SC-004's 5 MB/s is for the new format, and an old file is
+    migrated as it is read, which is more work. s4's own target covers them."""
+    data = OLD_FILES[name].read_bytes()
+    path = tmp_path / "piece.tla"
+    path.write_bytes(data)
+
+    megabytes_per_second(name, data, path, capsys)
 
 
 @pytest.mark.parametrize("name", WITH_A_SCORE)
