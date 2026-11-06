@@ -1070,9 +1070,13 @@ class TestUndoRedo:
         commands.execute("edit.undo")
 
         tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 1).id))
-        if refusal == "more than one copied":
-            tlui.select_element(tlui.get_element(get_hierarchy(tlui, 1, 1).id))
         commands.execute("timeline.component.copy")
+        if refusal == "more than one copied":
+            # This copy is refused and keeps what the copy above put on the
+            # clipboard, which outlives each test: without that copy, this
+            # test would paste whatever the test before it left there.
+            tlui.select_element(tlui.get_element(get_hierarchy(tlui, 1, 1).id))
+            commands.execute("timeline.component.copy")
         tlui.deselect_all_elements()
         if refusal != "nothing selected":
             tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 2).id))
