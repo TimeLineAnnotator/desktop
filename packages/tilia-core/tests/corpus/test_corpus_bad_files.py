@@ -805,3 +805,29 @@ def test_an_edit_and_a_rename_into_a_new_path_stays_a_move(tmp_path):
         assert report.unavailable == ()
         assert list(states(corpus)) == ["b.tla"]
         assert corpus.file("b.tla").id == key
+
+
+def test_twins_dont_flip_at_every_scan(tmp_path):
+    twins(tmp_path)
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        rows = rows_by_content(corpus)
+        for _ in range(4):
+            report = corpus.scan()
+            assert not report
+            assert report.generation_after == generation
+            assert rows_by_content(corpus) == rows
+
+
+def test_a_twin_takes_the_path_when_the_other_goes(tmp_path):
+    twins(tmp_path)
+    with opened(tmp_path) as corpus:
+        (tmp_path / NFC).unlink()
+        report = corpus.scan()
+        assert report.changed == (NFC,)
+        assert report.unavailable == (NFD,)
+        assert corpus.file(NFC).state == "readable"
+        assert len(tql.run(corpus, '"two two two"').rows) == 1
+        generation = corpus.generation
+        assert not corpus.scan()
+        assert corpus.generation == generation
