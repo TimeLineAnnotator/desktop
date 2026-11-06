@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tilia_core.tla.errors import printable
+
 
 @dataclass(frozen=True, kw_only=True)
 class RowProblem:
@@ -43,6 +45,8 @@ class ImportFailed(Exception):
     def __str__(self) -> str:
         # A message that names the file already, as TiLiA's UTF-8 text does
         # with its full path, is given as it is, so the file is named once.
-        if self.path is None or str(self.path) in self.message:
+        # The path is written with `printable`: a file name that isn't UTF-8
+        # reaches Python on Linux with a lone surrogate, which can't be encoded.
+        if self.path is None or printable(str(self.path)) in self.message:
             return self.message
-        return f"{self.path.name}: {self.message}"
+        return f"{printable(self.path.name)}: {self.message}"

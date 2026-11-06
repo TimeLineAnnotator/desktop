@@ -66,7 +66,9 @@ def import_metadata(
             else:
                 fields[name] = _field(value)
     except RecursionError as error:
-        raise ImportFailed(path, _JSON_FAILED.format(path, repr(error))) from None
+        raise ImportFailed(
+            path, _JSON_FAILED.format(printable(str(path)), repr(error))
+        ) from None
 
     result = ImportResult(rows=len(content))
     if lengths and document.media_path:
@@ -85,9 +87,11 @@ def _read(path: Path) -> dict[str, Any]:
         with open(path, encoding="utf-8-sig") as file:
             text = file.read()
     except FileNotFoundError:
-        raise ImportFailed(path, _FILE_FAILED.format(path)) from None
+        raise ImportFailed(path, _FILE_FAILED.format(printable(str(path)))) from None
     except UnicodeDecodeError:
-        raise ImportFailed(path, UTF8_DECODE_FAILED.format(path, "JSON")) from None
+        raise ImportFailed(
+            path, UTF8_DECODE_FAILED.format(printable(str(path)), "JSON")
+        ) from None
     # Only the text before the first level too deep is read, so that json.loads
     # never runs out of stack, and a problem there comes first.
     deep = _too_deep(text)
@@ -101,11 +105,15 @@ def _read(path: Path) -> dict[str, Any]:
             or not isinstance(error, json.JSONDecodeError)
             or error.pos < deep
         ):
-            raise ImportFailed(path, _JSON_FAILED.format(path, repr(error))) from None
+            raise ImportFailed(
+                path, _JSON_FAILED.format(printable(str(path)), repr(error))
+            ) from None
     if deep is not None:
-        raise ImportFailed(path, _JSON_FAILED.format(path, _TOO_DEEP))
+        raise ImportFailed(path, _JSON_FAILED.format(printable(str(path)), _TOO_DEEP))
     if not isinstance(content, dict):
-        raise ImportFailed(path, _JSON_FAILED.format(path, _NOT_AN_OBJECT))
+        raise ImportFailed(
+            path, _JSON_FAILED.format(printable(str(path)), _NOT_AN_OBJECT)
+        )
     return content
 
 
