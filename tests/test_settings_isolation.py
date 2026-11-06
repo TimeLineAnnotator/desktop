@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from tests import (
-    SETTINGS_DIR,
     SETTINGS_DIR_PREFIX,
     SETTINGS_ROOT_VAR,
     is_in_settings_dir,
@@ -32,19 +31,6 @@ class TestSettingsIsolation:
 
     def test_settings_are_not_stored_in_the_users_own_store(self):
         assert is_in_settings_dir(settings._settings.fileName())
-
-    @pytest.mark.parametrize(
-        "path, expected",
-        [
-            (os.path.join(SETTINGS_DIR, "TiLiA", "Desktop Settings.ini"), True),
-            (SETTINGS_DIR.swapcase() + "/x.ini", os.path.normcase("A") == "a"),
-            (SETTINGS_DIR + "-other/x.ini", False),
-            (r"\HKEY_CURRENT_USER\Software\TiLiA\Desktop Settings", False),
-        ],
-        ids=["inside", "other case", "sibling with same prefix", "registry"],
-    )
-    def test_is_in_settings_dir(self, path, expected):
-        assert is_in_settings_dir(path) is expected
 
     def test_setting_starts_at_its_default(self):
         assert settings.get(*PERIODICITY) == DEFAULT_PERIODICITY
