@@ -287,6 +287,16 @@ class TestOutcome:
 
         assert duplicate(outcome).code == "unknown_row"
 
+    def test_its_code_is_among_what_copy_and_pickle_give_new(self):
+        # `__new__` is given the code too, whatever else rebuilds the outcome.
+        outcome = rules.Outcome(False, "Invalid row ID.", ["a"], rules.UNKNOWN_ROW)
+
+        again = rules.Outcome.__new__(rules.Outcome, *outcome.__getnewargs__())
+
+        assert again.code == "unknown_row"
+        assert again.others == ("a",)
+        assert again == outcome
+
     def test_cant_check_pickles_whole(self):
         error = rules.CantCheck("harmony")
 
@@ -810,6 +820,11 @@ class TestMeasureNumber:
 
     def test_a_beat_without_a_mark_passes(self):
         assert check("beat") == OK
+
+    @pytest.mark.parametrize("measure", ["x", 16, [("number", -1)], [{"number": -1}]])
+    def test_a_mark_that_isnt_a_mapping_passes(self, measure):
+        # A direct call can give any value; a file's is looked at elsewhere.
+        assert check("beat", measure=measure) == OK
 
     def test_other_rules_of_the_beat_come_first(self):
         assert check("beat", time=-1.0, measure={"number": -1}) == (

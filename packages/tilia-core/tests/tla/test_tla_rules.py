@@ -123,6 +123,14 @@ CROSSING = hierarchies(
     (SECOND, at_level(1.0, 3.0, 1)),
 )
 
+# One hierarchy over twelve that don't touch each other, the one over them first
+# by id: it is at odds with all twelve, and each of them with it alone.
+INNER = [make_id(200 + n) for n in range(12)]
+INSIDE_ONE = hierarchies(
+    (FIRST, at_level(0.0, 90.0, 1)),
+    *((key, at_level(7.0 * n, 7.0 * n + 5.0, 1)) for n, key in enumerate(INNER)),
+)
+
 
 def component_place(timeline, component):
     return f"/timelines/{timeline}/components/{component}"
@@ -220,6 +228,22 @@ class TestReading:
         assert first.message == (
             f"{OVERLAP} {named(data, *ids[:10])[:-1]}; and 3 more)"
         )
+
+    def test_twelve_inside_one_hierarchy_are_named_by_it_and_by_the_last_two(self):
+        # The first ten are named by the hierarchy that holds them, so its
+        # warning is theirs. The last two are in its "and 2 more", which names
+        # nothing, so each has a warning of its own.
+        data = a_file(INSIDE_ONE)
+        warnings = tla.loads(data).warnings
+        assert [w.place for w in warnings] == [
+            component_place(FORM, FIRST),
+            component_place(FORM, INNER[10]),
+            component_place(FORM, INNER[11]),
+        ]
+        assert warnings[0].message == (
+            f"{OVERLAP} {named(data, *INNER[:10])[:-1]}; and 2 more)"
+        )
+        assert warnings[1].message == f"{OVERLAP} {named(data, FIRST)}"
 
     def test_two_markers_at_one_time_have_one_warning_naming_the_other(self):
         data = a_file(
@@ -413,6 +437,14 @@ class TestMediaLength:
         tla.write(tmp_path / "piece.tla", doc)
         assert tla.read(tmp_path / "piece.tla").warnings == []
 
+    @pytest.mark.parametrize("read, new", [(-5.0, -7.0), (-5, -7), (0, -1), (-5.0, 0)])
+    def test_another_length_that_isnt_one_is_a_new_problem(self, read, new, tmp_path):
+        # Not the problem it was read with, though the same rule is broken.
+        doc = tla.loads(a_file(with_media_length(read)))
+        doc.media_length = new
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == ["/media/length"]
+
 
 class TestPdfMarkers:
     # TimeLineAnnotator/project-management#423: the PDF isn't opened when a
@@ -575,6 +607,18 @@ class TestWriting:
         assert [w.place for w in problems] == [component_place(FORM, FIRST)]
         assert problems[0].message.startswith(OVERLAP)
         assert component_place(FORM, SECOND) in problems[0].message
+
+    @pytest.mark.parametrize("index", range(12))
+    def test_a_change_to_one_of_twelve_inside_a_hierarchy_is_refused(
+        self, index, tmp_path
+    ):
+        # Whichever of the twelve it is, and not only the ten the hierarchy's
+        # warning names: the other two are at odds with it all the same.
+        doc = tla.loads(a_file(INSIDE_ONE))
+        doc.timelines[FORM].components[INNER[index]].attrs["label"] = "A"
+        problems = refused(doc, tmp_path)
+        assert len(problems) == 1
+        assert problems[0].message.startswith(OVERLAP)
 
     def test_a_refused_write_leaves_the_file_as_it_was(self, tmp_path):
         data = a_file(LEVEL_0)
@@ -1570,6 +1614,31 @@ class TestAKnownKindInAnotherTimeline:
         assert path.read_bytes() == data
 
 
+class TestWhatWasReadIsNotWhatADocumentIs:
+    """Two documents that hold the same are equal, whatever the one was read with
+    and the other made."""
+
+    def test_the_problems_read_are_not_compared(self):
+        read = tla.loads(a_file(LEVEL_0))
+        assert read.read_problems
+        other = copy.deepcopy(read)
+        other.read_problems = []
+        assert read == other
+
+    def test_the_states_read_with_no_length_are_not_compared(self):
+        read = tla.loads(a_file(PAST_THE_END["marker"][1]))
+        assert read.read_unmeasured
+        other = copy.deepcopy(read)
+        other.read_unmeasured = {}
+        assert read == other
+
+    def test_what_is_held_still_is(self):
+        read = tla.loads(a_file(LEVEL_0))
+        other = copy.deepcopy(read)
+        other.timelines[FORM].components[FIRST].attrs["level"] = 1
+        assert read != other
+
+
 class TestAFailedWrite:
     """What was read stays what was read until the file is written."""
 
@@ -1643,6 +1712,12 @@ class TestBrokenRules:
             assert again.path == error.path
             assert again.problems == error.problems
             assert str(again) == str(error)
+
+    def test_a_file_name_with_a_lone_surrogate_can_be_printed(self):
+        # On Linux, a file name that isn't UTF-8 holds lone surrogates.
+        error = tla.BrokenRules("caf\udce9.tla", [tla.ReadWarning("", None, "no")])
+        assert str(error) == "caf\\udce9.tla: nothing was written: no"
+        str(error).encode("utf-8")
 
 
 # Without the `harmony` extra
@@ -1723,6 +1798,36 @@ class TestWithoutMusic21:
             )
         ]
         assert INSTALL in str(refused.value)
+
+    @pytest.fixture
+    def music21_that_wont_import(self, monkeypatch):
+        # Installed, but its import fails with a text that holds a lone
+        # surrogate, as a path or a key cut inside an emoji would.
+        find_spec = importlib.util.find_spec
+
+        def find_spec_that_fails(name, *args, **kwargs):
+            if name.partition(".")[0] == "music21":
+                raise ImportError("no module at caf\udce9\ud83d")
+            return find_spec(name, *args, **kwargs)
+
+        monkeypatch.setattr(importlib.util, "find_spec", find_spec_that_fails)
+
+    def test_a_note_with_a_lone_surrogate_can_be_printed_on_reading(
+        self, music21_that_wont_import
+    ):
+        note = tla.loads(a_file(KEYS)).warnings[-1]
+        assert "caf\\udce9\\ud83d" in note.message
+        str(note).encode("utf-8")
+
+    def test_a_refusal_with_a_lone_surrogate_in_its_note_can_be_printed(
+        self, music21_that_wont_import, tmp_path
+    ):
+        with pytest.raises(tla.BrokenRules) as refused:
+            tla.write(tmp_path / "piece.tla", tla.loads(a_file(KEYS)))
+        (note,) = refused.value.problems
+        assert "caf\\udce9\\ud83d" in note.message
+        note.message.encode("utf-8")
+        str(refused.value).encode("utf-8")
 
     def test_writing_it_is_refused_when_every_harmony_breaks_another_rule(
         self, without_music21, tmp_path
@@ -2222,3 +2327,22 @@ def test_the_reader_finds_what_the_rules_find():
     # rules give for the same component.
     outcome = rules.hierarchy(float("inf"), (), at_level(0.0, 2.0, 0))
     assert [w.message for w in tla.loads(a_file(LEVEL_0)).warnings] == [outcome.reason]
+
+
+class TestKeyOrderIsNotAChange:
+    """The order of an object's keys in memory is not what is written."""
+
+    def test_a_nested_object_with_its_keys_in_another_order(self, tmp_path):
+        def change(content):
+            content["media"]["length"] = 100.0
+            content["timelines"][BEATS]["components"][FIRST] = {
+                "kind": "BEAT",
+                "time": 150.0,
+                "measure": {"metadata": {"b": "1", "a": "2"}},
+            }
+
+        doc = tla.loads(a_file(change))
+        assert len(doc.read_problems) == 1
+        measure = doc.timelines[BEATS].components[FIRST].attrs["measure"]
+        measure["metadata"] = {"a": "2", "b": "1"}
+        written(doc, tmp_path)
