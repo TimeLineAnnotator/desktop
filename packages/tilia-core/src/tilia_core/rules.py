@@ -21,10 +21,10 @@ do reading and writing a file, and a single change, on the timeline it leaves.
 
 A harmony's quality, and with it its inversion, and a mode's type are checked
 against the installed music21, as TiLiA checks them, so checking a harmony or a
-mode needs the `harmony` extra. Without it, the other rules are checked, and when none is
-broken, `CantCheck` is raised, before the color is checked: a bad color mustn't
-hide that a rule couldn't be checked. music21 is imported only when a harmony or
-a mode is checked, or a quality's inversions are counted.
+mode needs the `harmony` extra. Without it, the other rules are checked, and when
+none is broken, `CantCheck` is raised, before the color is checked: a bad color
+mustn't hide that a rule couldn't be checked. music21 is imported only when a
+harmony or a mode is checked, or a quality's inversions are counted.
 """
 
 from __future__ import annotations
@@ -568,7 +568,8 @@ def get_inversion_amount(quality: str) -> int:
     """A quality's number of inversions, as TiLiA counts them: those of its chord
     type in the installed music21, but none for `NO_INVERSION_QUALITIES`. An
     added-tone quality has its base quality's, since an added tone isn't one the
-    chord can be inverted to.
+    chord can be inverted to. It is what TiLiA's dialog offers: a symbol's slash bass
+    can give more, which the rules allow.
 
     Raises `ValueError` for a value that isn't a quality, with TiLiA's text, and
     `CantCheck` when music21 is missing or won't import.
