@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QGraphicsRectItem
 
 import tilia.errors
 from tilia.exceptions import GetComponentDataError
+from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
@@ -27,6 +28,7 @@ from tilia.ui.timelines.score.element import (
     BarLineUI,
     ClefUI,
     KeySignatureUI,
+    NoteGroupUI,
     NoteUI,
     StaffUI,
     TimeSignatureUI,
@@ -39,6 +41,17 @@ from tilia.ui.windows.score.score_view import ScoreView
 from tilia.ui.windows.svg_viewer import SvgViewer
 
 V = TypeVar("V", SvgViewer, ScoreView)
+
+# Told apart by people with colour-blindness (Okabe and Ito's palette).
+NOTE_GROUP_COLORS = [
+    "#e69f00",
+    "#56b4e9",
+    "#009e73",
+    "#cc79a7",
+    "#0072b2",
+    "#d55e00",
+    "#f0e442",
+]
 
 
 @dataclass(eq=False)
@@ -63,6 +76,7 @@ class ScoreTimelineUI(TimelineUI):
         ClefUI,
         TimeSignatureUI,
         KeySignatureUI,
+        NoteGroupUI,
     ]
 
     CONTEXT_MENU_CLASS = ScoreTimelineUIContextMenu
@@ -234,6 +248,8 @@ class ScoreTimelineUI(TimelineUI):
                 self.last_bar_line = element
         elif kind == ComponentKind.NOTE:
             self._update_staff_extreme_notes(element.get_data("staff_index"), element)
+        elif kind == ComponentKind.NOTE_GROUP:
+            return
         elif kind != ComponentKind.SCORE_ANNOTATION:
             # ComponentKind.CLEF, ComponentKind.KEY_SIGNATURE ComponentKind.TIME_SIGNATURE
             self.staffs_with_symbol.add(element.get_data("staff_index"))
@@ -485,7 +501,7 @@ class ScoreTimelineUI(TimelineUI):
 
     def _get_imported_score(self) -> _ImportedScore | None:
         ids = {element.id for element in self.elements}
-        return next(
+        imported = next(
             (
                 score
                 for score in reversed(self._scores)
@@ -493,6 +509,16 @@ class ScoreTimelineUI(TimelineUI):
             ),
             None,
         )
+        if imported or not ids or not self.timeline.score_text:
+            return imported
+        # A score that came from the file.
+        score = _ImportedScore(
+            self.timeline.score_text,
+            self.timeline.get_element_ids(),
+            frozenset(ids),
+        )
+        self._scores.append(score)
+        return score
 
     def _rebuild_caches(self) -> None:
         # The caches grow as components are created, but undo and redo also
@@ -524,6 +550,7 @@ class ScoreTimelineUI(TimelineUI):
             if element.kind in [
                 ComponentKind.STAFF,
                 ComponentKind.SCORE_ANNOTATION,
+                ComponentKind.NOTE_GROUP,
             ]:
                 continue
             element.on_components_deserialized()
@@ -592,6 +619,78 @@ class ScoreTimelineUI(TimelineUI):
         component_ids = frozenset(element.id for element in self.elements)
         self._scores.append(_ImportedScore(text, element_ids, component_ids))
         self._update_viewer()
+
+    def _note_group_color(self) -> str:
+        count = len(
+            self.timeline.component_manager.get_existing_values_for_attr(
+                "id", ComponentKind.NOTE_GROUP
+            )
+        )
+        return NOTE_GROUP_COLORS[count % len(NOTE_GROUP_COLORS)]
+
+    def _refresh_note_groups(self, active_group: str | None = None) -> None:
+        if isinstance(self._viewer, ScoreView):
+            self._viewer.show_note_groups(active_group)
+
+    def on_create_note_group(
+        self, element_ids: list[str] | None, label: str = ""
+    ) -> bool:
+        if element_ids is None and isinstance(self._viewer, ScoreView):
+            element_ids = self._viewer.selected_note_ids
+        known = set(self.timeline.get_element_ids().values())
+        element_ids = [id for id in dict.fromkeys(element_ids or []) if id in known]
+        if not element_ids:
+            return False
+        group, _ = self.timeline.create_component(
+            ComponentKind.NOTE_GROUP,
+            element_ids=element_ids,
+            label=label,
+            color=self._note_group_color(),
+        )
+        if not group:
+            return False
+        self._refresh_note_groups(group.id)
+        return True
+
+    def _get_note_group(self, group_id: str | None):
+        if group_id is None and isinstance(self._viewer, ScoreView):
+            group_id = self._viewer.active_group_id
+        component = self.timeline.component_manager.id_to_component.get(group_id)
+        if not component or component.KIND != ComponentKind.NOTE_GROUP:
+            logger.error(f"No note group with id {group_id}.")
+            return None
+        return component
+
+    def on_set_note_group_notes(
+        self, group_id: str | None, element_ids: list[str] | None
+    ) -> bool:
+        if not (group := self._get_note_group(group_id)):
+            return False
+        if element_ids is None and isinstance(self._viewer, ScoreView):
+            element_ids = self._viewer.selected_note_ids
+        known = set(self.timeline.get_element_ids().values())
+        element_ids = [id for id in dict.fromkeys(element_ids or []) if id in known]
+        if not element_ids or element_ids == group.element_ids:
+            return False
+        self.timeline.set_component_data(group.id, "element_ids", element_ids)
+        self._refresh_note_groups(group.id)
+        return True
+
+    def on_set_note_group_label(self, group_id: str | None, label: str) -> bool:
+        if not (group := self._get_note_group(group_id)):
+            return False
+        if label == group.label:
+            return False
+        self.timeline.set_component_data(group.id, "label", label)
+        self._refresh_note_groups(group.id)
+        return True
+
+    def on_delete_note_group(self, group_id: str | None) -> bool:
+        if not (group := self._get_note_group(group_id)):
+            return False
+        self.timeline.delete_components([group])
+        self._refresh_note_groups()
+        return True
 
     def reset_svg(self) -> None:
         if self._viewer:

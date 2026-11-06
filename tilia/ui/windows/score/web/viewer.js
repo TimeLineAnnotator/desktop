@@ -27,6 +27,17 @@ let measures = []; // {id, n, qStart, qEnd}, in score order
 let onsets = new Map(); // element id -> qstamp of its onset
 let anchors = []; // {q, x}, both increasing; x in pixels from the score's left
 let lastViewport = "";
+let groups = []; // {id, ids, color, text}, as Python gives them
+let blobShapes = []; // {id, points, edges, radius}, as drawn
+let activeGroup = null; // the id of the group whose notes are selected
+let zoom = 1;
+let band = null; // the drag that may become a selection box
+let wasDragged = false;
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+const DRAG_THRESHOLD = 4; // pixels
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 5;
 
 function send(slot, payload) {
   if (bridge) bridge[slot](JSON.stringify(payload));
@@ -51,6 +62,7 @@ function showSvg(text) {
     }
   }
   scoreEl.replaceChildren(document.importNode(svg, true));
+  activeGroup = null;
 }
 
 function readTimemap(timemap) {
@@ -149,17 +161,20 @@ function qAt(measure, fraction) {
 }
 
 function fit() {
-  const svg = scoreEl.querySelector("svg");
+  const svg = scoreEl.querySelector("svg:not(#tilia-groups)");
   if (!svg) return;
+  // Zoomed in, the score can scroll vertically too.
+  scoreEl.style.overflowY = zoom > 1 ? "auto" : "hidden";
   const [, , width, height] = svg.getAttribute("viewBox").split(/\s+/).map(Number);
   // Twice: widening the score can bring in the horizontal scrollbar, which
   // takes height from the box.
   for (let pass = 0; pass < 2; pass++) {
-    const k = Math.min(1, scoreEl.clientHeight / height);
+    const k = Math.min(1, scoreEl.clientHeight / height) * zoom;
     svg.style.width = `${width * k}px`;
     svg.style.height = `${height * k}px`;
   }
   measureAnchors();
+  drawGroups();
 }
 
 function reportViewport(force) {
@@ -191,6 +206,17 @@ function selectedIds() {
   return [...scoreEl.querySelectorAll(".tilia-selected")].map((el) => el.id);
 }
 
+function notesOf(ids) {
+  const notes = new Set();
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (el.matches("g.note")) notes.add(id);
+    el.querySelectorAll("g.note").forEach((note) => notes.add(note.id));
+  }
+  return [...notes];
+}
+
 function select(ids) {
   scoreEl.querySelectorAll(".tilia-selected").forEach((el) => {
     el.classList.remove("tilia-selected");
@@ -199,18 +225,253 @@ function select(ids) {
     const el = document.getElementById(id);
     if (el) el.classList.add("tilia-selected");
   }
-  send("onSelectionChanged", { ids: selectedIds() });
+  const selected = selectedIds();
+  send("onSelectionChanged", {
+    ids: selected,
+    noteIds: notesOf(selected),
+    group: activeGroup,
+  });
+}
+
+function scoreY(clientY) {
+  return clientY - scoreEl.getBoundingClientRect().top + scoreEl.scrollTop;
+}
+
+function headCentre(el) {
+  const rect = headOf(el).getBoundingClientRect();
+  return {
+    x: scoreX(rect.left + rect.width / 2),
+    y: scoreY(rect.top + rect.height / 2),
+    radius: Math.max(rect.width, rect.height),
+  };
+}
+
+// The edges joining points into one tree with the least total length, so that
+// a blob follows its notes instead of covering all that lies between them.
+function spanningTree(points) {
+  const edges = [];
+  const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const best = points.map((p) => ({ from: points[0], d: distance(points[0], p) }));
+  const done = points.map((_, i) => i === 0);
+  for (let count = 1; count < points.length; count++) {
+    let next = -1;
+    best.forEach((entry, i) => {
+      if (!done[i] && (next < 0 || entry.d < best[next].d)) next = i;
+    });
+    edges.push([best[next].from, points[next]]);
+    done[next] = true;
+    points.forEach((p, i) => {
+      const d = distance(points[next], p);
+      if (!done[i] && d < best[i].d) best[i] = { from: points[next], d };
+    });
+  }
+  return edges;
+}
+
+function svgElement(name, attributes) {
+  const el = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attributes)) el.setAttribute(key, value);
+  return el;
+}
+
+function drawGroups() {
+  scoreEl.querySelector("#tilia-groups")?.remove();
+  scoreEl.querySelector("#tilia-group-labels")?.remove();
+  blobShapes = [];
+  const score = scoreEl.querySelector("svg");
+  if (!score || !groups.length) return;
+  const overlay = svgElement("svg", {
+    id: "tilia-groups",
+    width: score.style.width,
+    height: score.style.height,
+  });
+  // Blobs go behind the score, and labels in front, to be read over the notes.
+  const labels = svgElement("svg", {
+    id: "tilia-group-labels",
+    width: score.style.width,
+    height: score.style.height,
+  });
+  for (const group of groups) {
+    const points = group.ids
+      .map((id) => document.getElementById(id))
+      .filter(Boolean)
+      .map(headCentre);
+    if (!points.length) continue;
+    const radius = Math.max(...points.map((p) => p.radius));
+    const blob = svgElement("g", {
+      class: group.id === activeGroup ? "blob active" : "blob",
+      "data-group": group.id,
+      fill: group.color,
+      stroke: group.color,
+      "stroke-width": radius * 2,
+      "stroke-linecap": "round",
+    });
+    for (const p of points) {
+      blob.append(svgElement("circle", { cx: p.x, cy: p.y, r: radius, stroke: "none" }));
+    }
+    const edges = spanningTree(points);
+    for (const [a, b] of edges) {
+      blob.append(svgElement("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y }));
+    }
+    blobShapes.push({ id: group.id, points, edges, radius });
+    overlay.append(blob);
+    const top = points.reduce((a, b) => (b.y < a.y ? b : a));
+    const text = svgElement("text", { x: top.x - radius, y: Math.max(11, top.y - radius - 3) });
+    text.textContent = group.text;
+    labels.append(text);
+  }
+  scoreEl.append(overlay, labels);
+  separateLabels(labels);
+}
+
+function separateLabels(labels) {
+  // Up while there's room, and then to the right of the label in the way.
+  const placed = [];
+  for (const text of labels.querySelectorAll("text")) {
+    for (let tries = 0; tries < 20; tries++) {
+      const box = text.getBBox();
+      const hit = placed.find(
+        (other) =>
+          box.x < other.x + other.width &&
+          other.x < box.x + box.width &&
+          box.y < other.y + other.height &&
+          other.y < box.y + box.height,
+      );
+      if (!hit) break;
+      const y = Number(text.getAttribute("y"));
+      if (hit.y - box.height - 1 >= 0) {
+        text.setAttribute("y", y - (box.y + box.height - hit.y) - 1);
+      } else {
+        text.setAttribute("x", hit.x + hit.width + 6);
+      }
+    }
+    placed.push(text.getBBox());
+  }
+}
+
+function distanceToSegment(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length2 = dx * dx + dy * dy;
+  const t = length2
+    ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2))
+    : 0;
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+function groupAt(clientX, clientY) {
+  // The score lies over the blobs, so it's worked out from their shapes. Of
+  // overlapping blobs, the one drawn last.
+  const p = { x: scoreX(clientX), y: scoreY(clientY) };
+  for (const shape of [...blobShapes].reverse()) {
+    const near = (a, b) => distanceToSegment(p, a, b) <= shape.radius;
+    if (shape.points.some((a) => near(a, a)) || shape.edges.some(([a, b]) => near(a, b))) {
+      return shape.id;
+    }
+  }
+  return null;
+}
+
+function activateGroup(id) {
+  activeGroup = id;
+  const group = groups.find((each) => each.id === id);
+  drawGroups();
+  select(group ? group.ids : []);
 }
 
 scoreEl.addEventListener("click", (event) => {
+  if (wasDragged) {
+    wasDragged = false;
+    return;
+  }
   const el = clickable(event.target);
   const keep = event.ctrlKey || event.metaKey || event.shiftKey;
+  if (!el && !keep) {
+    const group = groupAt(event.clientX, event.clientY);
+    if (group !== null) {
+      activateGroup(group);
+      return;
+    }
+  }
+  if (!keep && activeGroup !== null) {
+    activeGroup = null;
+    drawGroups();
+  }
   let ids = keep ? selectedIds() : [];
   if (el) {
     ids = ids.includes(el.id) ? ids.filter((id) => id !== el.id) : [...ids, el.id];
   }
   select(ids);
 });
+
+function insideScoreBox(event) {
+  const rect = scoreEl.getBoundingClientRect();
+  // Not on a scrollbar.
+  return (
+    event.clientX - rect.left < scoreEl.clientWidth &&
+    event.clientY - rect.top < scoreEl.clientHeight
+  );
+}
+
+scoreEl.addEventListener("mousedown", (event) => {
+  if (event.button !== 0 || !insideScoreBox(event)) return;
+  band = { x: event.clientX, y: event.clientY, el: null };
+  wasDragged = false;
+});
+
+window.addEventListener("mousemove", (event) => {
+  if (!band) return;
+  const moved = Math.hypot(event.clientX - band.x, event.clientY - band.y);
+  if (!band.el) {
+    if (moved < DRAG_THRESHOLD) return;
+    band.el = document.createElement("div");
+    band.el.id = "tilia-band";
+    document.body.append(band.el);
+  }
+  const { el } = band;
+  el.style.left = `${Math.min(event.clientX, band.x)}px`;
+  el.style.top = `${Math.min(event.clientY, band.y)}px`;
+  el.style.width = `${Math.abs(event.clientX - band.x)}px`;
+  el.style.height = `${Math.abs(event.clientY - band.y)}px`;
+});
+
+window.addEventListener("mouseup", (event) => {
+  if (!band) return;
+  const { el } = band;
+  const start = band;
+  band = null;
+  if (!el) return;
+  el.remove();
+  wasDragged = true;
+  const left = Math.min(event.clientX, start.x);
+  const right = Math.max(event.clientX, start.x);
+  const top = Math.min(event.clientY, start.y);
+  const bottom = Math.max(event.clientY, start.y);
+  const inside = [...scoreEl.querySelectorAll("g.note")]
+    .filter((note) => {
+      const rect = headOf(note).getBoundingClientRect();
+      return rect.right > left && rect.left < right && rect.bottom > top && rect.top < bottom;
+    })
+    .map((note) => note.id);
+  const keep = event.ctrlKey || event.metaKey || event.shiftKey;
+  if (!keep && activeGroup !== null) {
+    activeGroup = null;
+    drawGroups();
+  }
+  select(keep ? [...new Set([...selectedIds(), ...inside])] : inside);
+});
+
+scoreEl.addEventListener(
+  "wheel",
+  (event) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15)));
+    fit();
+    reportViewport(false);
+  },
+  { passive: false },
+);
 
 scoreEl.addEventListener("dblclick", (event) => {
   const el = clickable(event.target);
@@ -269,6 +530,23 @@ window.tiliaSetColors = (colors) => {
 };
 
 window.tiliaReportViewport = () => reportViewport(true);
+
+// `active` makes that group the active one, with its notes selected. Otherwise
+// the active group stays, unless it's gone.
+window.tiliaSetGroups = (newGroups, active) => {
+  groups = newGroups;
+  if (active !== null && active !== undefined) {
+    activateGroup(active);
+    return;
+  }
+  if (activeGroup !== null && !groups.some((group) => group.id === activeGroup)) {
+    activeGroup = null;
+    select([]);
+  }
+  drawGroups();
+  // Whatever the panel shows of the active group may have changed.
+  select(selectedIds());
+};
 
 new QWebChannel(qt.webChannelTransport, (channel) => {
   bridge = channel.objects.tilia;

@@ -20,6 +20,7 @@ from PySide6.QtCore import QObject, Qt, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 import tilia.errors
 from tilia.log import logger
@@ -31,6 +32,7 @@ from tilia.requests import (
     post,
     stop_listening_to_all,
 )
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.enums import WindowState
 from tilia.ui.windows.score.base import (
@@ -38,8 +40,10 @@ from tilia.ui.windows.score.base import (
     get_beat_timeline,
     get_times_at,
 )
+from tilia.ui.windows.score.group_panel import GroupPanel, format_pcs
 
 if TYPE_CHECKING:
+    from tilia.timelines.score.components import NoteGroup
     from tilia.timelines.score.timeline import ScoreTimeline
 
 VIEWER_PATH = Path(__file__).parent / "web" / "viewer.html"
@@ -134,6 +138,9 @@ class _ScorePage(QWebEnginePage):
         logger.debug(f"Score viewer: {message} ({source}:{line})")
 
 
+SCORE_MIN_HEIGHT = 200
+
+
 class ScoreView(ScoreViewerBase):
     """Shows a score with Verovio. It offers what `ScoreTimelineUI` calls on
     `SvgViewer`. The page loads with the first score, as Verovio takes a few
@@ -147,6 +154,10 @@ class ScoreView(ScoreViewerBase):
         self.mei = ""
         self.is_score_loaded = False
         self.selected_ids: list[str] = []
+        # The selected elements' notes: a chord's, for one.
+        self.selected_note_ids: list[str] = []
+        self.active_group_id: str | None = None
+        self.group_panel: GroupPanel | None = None
         self._score_text: str | None = None
         self._is_page_ready = False
         self._page_restarts = 0
@@ -218,6 +229,8 @@ class ScoreView(ScoreViewerBase):
         self.is_score_loaded = False
         self.mei = ""
         self.selected_ids = []
+        self.selected_note_ids = []
+        self.active_group_id = None
         self._varying_elements = set()
         self._shown_colors = {}
 
@@ -247,7 +260,16 @@ class ScoreView(ScoreViewerBase):
         self._channel = QWebChannel(page)
         self._channel.registerObject("tilia", self._bridge)
         page.setWebChannel(self._channel)
-        self.setWidget(self.view)
+        self.group_panel = GroupPanel(self.timeline_id)
+        container = QWidget(self)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self.group_panel)
+        # The score keeps room in a small window: the panel doesn't push it out.
+        self.view.setMinimumHeight(SCORE_MIN_HEIGHT)
+        layout.addWidget(self.view, stretch=1)
+        self.setWidget(container)
         self.view.load(VIEWER_URL)
 
     @staticmethod
@@ -300,6 +322,7 @@ class ScoreView(ScoreViewerBase):
         self._page_restarts = 0
         self._update_varying(self._repeated_elements)
         self._update_colors(self._components_by_element)
+        self.show_note_groups()
         self.scroll_to_time(get(Get.SELECTED_TIME), True)
 
     def on_error(self, data: dict[str, Any]) -> None:
@@ -335,6 +358,56 @@ class ScoreView(ScoreViewerBase):
     def on_selection_changed(self, data: dict[str, Any]) -> None:
         ids = data.get("ids", [])
         self.selected_ids = [id for id in ids if isinstance(id, str)]
+        note_ids = data.get("noteIds", [])
+        self.selected_note_ids = [id for id in note_ids if isinstance(id, str)]
+        group = data.get("group")
+        self.active_group_id = group if isinstance(group, str) else None
+        self._update_group_panel()
+
+    def _note_groups(self) -> list[NoteGroup]:
+        if not (timeline := self.timeline):
+            return []
+        return [
+            c
+            for c in timeline.component_manager.get_components()
+            if c.KIND == ComponentKind.NOTE_GROUP
+        ]
+
+    def show_note_groups(self, active_group: str | None = None) -> None:
+        """Draws the timeline's note groups on the score. An `active_group`
+        becomes the group shown in the panel, with its notes selected."""
+        if not self.is_score_loaded:
+            return
+        groups = [
+            {
+                "id": group.id,
+                "ids": group.element_ids,
+                "color": group.color,
+                "text": self._group_text(group),
+            }
+            for group in self._note_groups()
+        ]
+        self._run_script("tiliaSetGroups", groups, active_group)
+
+    @staticmethod
+    def _group_text(group: NoteGroup) -> str:
+        prime = f"({format_pcs(group.analysis.prime_form)})"
+        return f"{group.label}: {prime}" if group.label else prime
+
+    def _update_group_panel(self) -> None:
+        if not self.group_panel or not (timeline := self.timeline):
+            return
+        analysis = (
+            timeline.analyse_elements(self.selected_note_ids)
+            if self.selected_note_ids
+            else None
+        )
+        group = next(
+            (g for g in self._note_groups() if g.id == self.active_group_id), None
+        )
+        self.group_panel.show_state(
+            analysis, group.id if group else None, group.label if group else ""
+        )
 
     def on_element_double_clicked(self, data: dict[str, Any]) -> None:
         if not (times := self._get_times(data)):
@@ -421,6 +494,7 @@ class ScoreView(ScoreViewerBase):
         if timeline_id == self.timeline_id:
             self._update_varying(self._repeated_elements)
             self._update_colors(self._components_by_element)
+            self.show_note_groups()
 
     def update_annotation(self, tl_component_id: int) -> None:
         """Score annotations aren't shown by this viewer yet."""

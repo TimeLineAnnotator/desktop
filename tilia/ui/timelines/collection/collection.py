@@ -189,6 +189,28 @@ class TimelineUIs:
 
         commands.register("timeline.delete", self.on_timeline_delete, "Delete")
 
+        commands.register(
+            "timeline.score.group.create",
+            self.on_score_group_create,
+            text="Group selected notes",
+            shortcut="Ctrl+G",
+        )
+        commands.register(
+            "timeline.score.group.set_notes",
+            self.on_score_group_set_notes,
+            text="Update group from selection",
+        )
+        commands.register(
+            "timeline.score.group.set_label",
+            self.on_score_group_set_label,
+            text="Set group label",
+        )
+        commands.register(
+            "timeline.score.group.delete",
+            self.on_score_group_delete,
+            text="Delete group",
+        )
+
         commands.register("timeline.clear", self.on_timeline_clear, "Clear")
 
         commands.register("timeline.duplicate", self.on_timeline_duplicate, "Duplicate")
@@ -1299,6 +1321,54 @@ class TimelineUIs:
             return False
         get(Get.TIMELINE_COLLECTION).clear_timeline(timeline_ui.timeline)
         return True
+
+    def _get_score_timeline_ui(self, timeline_id: str | None) -> TimelineUI | None:
+        """The score timeline with this id; without one, the first whose
+        viewer has notes selected, or else the first."""
+        if timeline_id is not None:
+            return self.get_timeline_ui(timeline_id)
+        score_tluis = [t for t in self if isinstance(t.timeline, ScoreTimeline)]
+        with_selection = (
+            t for t in score_tluis if getattr(t.svg_view, "selected_note_ids", None)
+        )
+        return next(with_selection, score_tluis[0] if score_tluis else None)
+
+    @command_callback
+    def on_score_group_create(
+        self,
+        element_ids: list[str] | None = None,
+        label: str = "",
+        timeline_id: str | None = None,
+    ) -> bool:
+        tlui = self._get_score_timeline_ui(timeline_id)
+        return bool(tlui) and tlui.on_create_note_group(element_ids, label)
+
+    @command_callback
+    def on_score_group_set_notes(
+        self,
+        group_id: str | None = None,
+        element_ids: list[str] | None = None,
+        timeline_id: str | None = None,
+    ) -> bool:
+        tlui = self._get_score_timeline_ui(timeline_id)
+        return bool(tlui) and tlui.on_set_note_group_notes(group_id, element_ids)
+
+    @command_callback
+    def on_score_group_set_label(
+        self,
+        label: str,
+        group_id: str | None = None,
+        timeline_id: str | None = None,
+    ) -> bool:
+        tlui = self._get_score_timeline_ui(timeline_id)
+        return bool(tlui) and tlui.on_set_note_group_label(group_id, label)
+
+    @command_callback
+    def on_score_group_delete(
+        self, group_id: str | None = None, timeline_id: str | None = None
+    ) -> bool:
+        tlui = self._get_score_timeline_ui(timeline_id)
+        return bool(tlui) and tlui.on_delete_note_group(group_id)
 
     @staticmethod
     @command_callback

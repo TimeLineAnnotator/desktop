@@ -11,6 +11,7 @@ def get_element_class_by_kind(kind: ComponentKind):
         BarLineUI,
         ClefUI,
         KeySignatureUI,
+        NoteGroupUI,
         NoteUI,
         ScoreAnnotationUI,
         StaffUI,
@@ -31,6 +32,7 @@ def get_element_class_by_kind(kind: ComponentKind):
         ComponentKind.TIME_SIGNATURE: TimeSignatureUI,
         ComponentKind.KEY_SIGNATURE: KeySignatureUI,
         ComponentKind.SCORE_ANNOTATION: ScoreAnnotationUI,
+        ComponentKind.NOTE_GROUP: NoteGroupUI,
     }
 
     return kind_to_class_dict[kind]

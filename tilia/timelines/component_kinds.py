@@ -23,6 +23,7 @@ class ComponentKind(Enum):
     KEY_SIGNATURE = auto()
     SCORE_ANNOTATION = auto()
     RANGE = auto()
+    NOTE_GROUP = auto()
 
 
 def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
@@ -38,6 +39,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         Clef,
         KeySignature,
         Note,
+        NoteGroup,
         ScoreAnnotation,
         Staff,
         TimeSignature,
@@ -59,6 +61,7 @@ def get_component_class_by_kind(kind: ComponentKind) -> type[TimelineComponent]:
         ComponentKind.KEY_SIGNATURE: KeySignature,
         ComponentKind.SCORE_ANNOTATION: ScoreAnnotation,
         ComponentKind.RANGE: Range,
+        ComponentKind.NOTE_GROUP: NoteGroup,
     }
 
     return kind_to_class_dict[kind]

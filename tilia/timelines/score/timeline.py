@@ -16,6 +16,7 @@ from tilia.timelines.base.timeline import (
 )
 from tilia.timelines.base.validators import validate_pre_validated, validate_string
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.score.pcset import PitchClassSetAnalysis, analyse
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -30,6 +31,7 @@ class ScoreTLComponentManager(TimelineComponentManager):
                 ComponentKind.TIME_SIGNATURE,
                 ComponentKind.KEY_SIGNATURE,
                 ComponentKind.SCORE_ANNOTATION,
+                ComponentKind.NOTE_GROUP,
             ],
         )
         self.scale = functools.partial(scale_mixed, self)
@@ -47,8 +49,8 @@ class ScoreTLComponentManager(TimelineComponentManager):
             case ComponentKind.CLEF | ComponentKind.BAR_LINE | ComponentKind.TIME_SIGNATURE | ComponentKind.KEY_SIGNATURE:
                 time = kwargs["time"] if "time" in kwargs else args[0]
                 return PointLikeTimelineComponent.validate_time_is_inbounds(time)
-            case ComponentKind.SCORE_ANNOTATION | ComponentKind.STAFF:
-                # Score annotations do not have a time property.
+            case ComponentKind.SCORE_ANNOTATION | ComponentKind.STAFF | ComponentKind.NOTE_GROUP:
+                # These do not have a time property.
                 return True, ""
             case _:
                 return False, "Invalid component kind."
@@ -74,8 +76,9 @@ class ScoreTimeline(Timeline):
         "ordinal",
         "svg_data",
         "viewer_beat_x",
+        "score_text",
     ]
-    NOT_EXPORTABLE_ATTRS = ["svg_data", "viewer_beat_x"]
+    NOT_EXPORTABLE_ATTRS = ["svg_data", "viewer_beat_x", "score_text"]
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager
     FLAGS = [
         TimelineFlag.COMPONENTS_COLORED,
@@ -87,6 +90,7 @@ class ScoreTimeline(Timeline):
         self,
         svg_data: str = "",
         viewer_beat_x: dict[float, float] = None,
+        score_text: str = "",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -94,9 +98,12 @@ class ScoreTimeline(Timeline):
         self.validators = self.validators | {
             "svg_data": validate_string,
             "viewer_beat_x": validate_pre_validated,
+            "score_text": validate_string,
         }
         self._viewer_beat_x = viewer_beat_x or {}
         self.svg_data = svg_data
+        # The score ScoreView shows, as imported.
+        self.score_text = score_text
 
     @property
     def svg_data(self):
@@ -117,6 +124,26 @@ class ScoreTimeline(Timeline):
 
     def save_svg_data(self, svg_data):
         self._svg_data = svg_data
+
+    def get_element_ids(self) -> dict[int, str]:
+        """The element in the score of each note component that has one."""
+        return {
+            note.id: note.element_id
+            for note in self.component_manager.get_components()
+            if note.KIND == ComponentKind.NOTE and note.element_id
+        }
+
+    def analyse_elements(self, element_ids: list[str]) -> PitchClassSetAnalysis:
+        """The pitch-class set of the score's notes with these elements.
+        Unpitched notes have no pitch class."""
+        wanted = set(element_ids)
+        return analyse(
+            note.sounding_pitch_class_24
+            for note in self.component_manager.get_components()
+            if note.KIND == ComponentKind.NOTE
+            and note.element_id in wanted
+            and note.is_pitched
+        )
 
     @property
     def staff_count(self):

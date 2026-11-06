@@ -180,7 +180,10 @@ class RangeMenu(TiliaMenu):
 
 class ScoreMenu(TiliaMenu):
     menu_title = "&Score"
-    items = [(MenuItemKind.COMMAND, "timelines.import.score")]
+    items = [
+        (MenuItemKind.COMMAND, "timelines.import.score"),
+        (MenuItemKind.COMMAND, "timeline.score.group.create"),
+    ]
 
 
 class TimelinesMenu(TiliaMenu):
