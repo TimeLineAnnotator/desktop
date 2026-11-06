@@ -13,6 +13,7 @@ from typing import BinaryIO
 from tilia_core import tla
 from tilia_core.labels import nfc
 from tilia_core.timemap import pattern
+from tilia_core.tla.errors import printable
 from tilia_core.tla.layout import TIMELINE_SHAPES
 from tilia_core.tla.media_files import YOUTUBE_URL, is_url
 
@@ -128,17 +129,25 @@ def load_media(
     text = os.fspath(path)
     length: float | None = None
     # The core decides what a path without a scheme that looks like a YouTube
-    # link is: a file when one is there, else a link (FR-052). A path that is
-    # local keeps the checks below, which apply to the text as given.
-    link = tla.as_media_path(text)
-    if is_url(link) and YOUTUBE_URL.match(link):
-        stored = name = link
+    # link is: a file when one is there, else a link (FR-052). A backslash
+    # separates folders on every system, so a file is looked for with "/"; a
+    # link is stored as given. A path object is a path, never a link: the core
+    # knows it when asked. A path that is local keeps the checks below, which apply
+    # to the text as given.
+    decided = tla.as_media_path(text.replace("\\", "/"))
+    if is_url(decided):
+        # Asked again of the path as given, which may be a path object.
+        decided = tla.as_media_path(path)
+        # A URL is never looked up as a file, and only YouTube's is media.
+        if not is_url(decided) or not YOUTUBE_URL.match(decided):
+            raise ValueError(_MEDIA_NOT_FOUND.format(printable(text)))
+        stored = name = decided
     else:
         local = Path(text.replace("\\", "/"))
         # Not Path.exists: a folder isn't media, and os.path.isfile gives False,
         # rather than raising, for a path the system can't look at.
         if not os.path.isfile(local):
-            raise ValueError(_MEDIA_NOT_FOUND.format(local))
+            raise ValueError(_MEDIA_NOT_FOUND.format(printable(str(local))))
         verbatim = os.name == "nt" and text.startswith(_VERBATIM)
         stored = _absolute_media_path(local, verbatim=verbatim)
         name = local.name
@@ -155,7 +164,7 @@ def load_media(
         elif not document.media_path:
             length = _known_length(document)
         if length is None:
-            raise ValueError(_NO_LENGTH.format(name))
+            raise ValueError(_NO_LENGTH.format(printable(name)))
     length = _check_change(document, length)
     document.media_path = stored
     document.media_length = length
@@ -340,9 +349,9 @@ def find_timeline(
         timeline_id for timeline_id, timeline in by_ordinal if timeline.name == wanted
     ]
     if not found:
-        raise ValueError(f"No timeline found with name={name}")
+        raise ValueError(f"No timeline found with name={printable(name)}")
     if len(found) > 1 and problems is not None:
-        problems.append(_SHARED_NAME.format(name))
+        problems.append(_SHARED_NAME.format(printable(name)))
     return found[0]
 
 
