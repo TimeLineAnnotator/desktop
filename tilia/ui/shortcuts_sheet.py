@@ -13,6 +13,13 @@ TiLiA's music font and the columns come out too wide. Like starting TiLiA, it
 opens your TiLiA settings, which fills in any setting they lack; the tests run
 it under a settings store of their own.
 
+    python -m tilia.ui.shortcuts_sheet --update <svg file> <markdown file>
+
+writes the same sheet to those two files, unless the date is all that would
+change, so that their date is that of the sheet's last change. This is how
+.github/workflows/shortcuts-sheet.yml keeps the repository's copy current
+(docs/img/shortcuts.svg, which the README shows, and docs/shortcuts.md).
+
 Each shortcut is listed with what it does (its command's text) and where to
 find it: its menu path, its timeline kind's toolbar, or "anywhere" when no
 menu or toolbar has it. Shortcuts are grouped by where they apply: Global, the
@@ -71,6 +78,7 @@ SCORE_VIEWER = "Score viewer"
 ARROW = " → "
 MAC_NOTE = "On macOS, Ctrl is ⌘ (Command) and Alt is ⌥ (Option)."
 FILE_NAMES = ("shortcuts.svg", "shortcuts.md")
+ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 @dataclass(frozen=True)
@@ -244,19 +252,61 @@ def write_sheet(
 ) -> list[Path]:
     """Writes shortcuts.svg and shortcuts.md to folder, or nothing if shortcuts
     clash."""
+    date = date or datetime.date.today()
+    svg_path, md_path = (folder / name for name in FILE_NAMES)
+    sheet = _make_sheet(qtui, svg_path, md_path, version, date)
+    _write(sheet)
+    return list(sheet)
+
+
+def update_sheet(
+    qtui: QtUI,
+    svg_path: Path,
+    md_path: Path,
+    version: str = tilia.constants.VERSION,
+    date: datetime.date | None = None,
+) -> list[Path]:
+    """Writes the sheet to svg_path and md_path, unless both already hold it with
+    no more than another date. Writes nothing if shortcuts clash. Returns the paths
+    written. The two are written together, so that they never show different
+    dates."""
+    date = date or datetime.date.today()
+    sheet = _make_sheet(qtui, svg_path, md_path, version, date)
+    if all(_holds_but_for_the_date(path, text, date) for path, text in sheet.items()):
+        return []
+    _write(sheet)
+    return list(sheet)
+
+
+def _make_sheet(
+    qtui: QtUI, svg_path: Path, md_path: Path, version: str, date: datetime.date
+) -> dict[Path, str]:
+    """Returns the text each of the two files is to hold."""
     groups = collect(qtui)
     check_clashes(groups)
-    date = date or datetime.date.today()
     title = f"TiLiA {version} keyboard shortcuts"
+    return {
+        svg_path: to_svg(groups, title, date),
+        md_path: to_markdown(groups, title, date),
+    }
 
-    svg = to_svg(groups, title, date)
-    markdown = to_markdown(groups, title, date)
 
-    folder.mkdir(parents=True, exist_ok=True)
-    svg_path, md_path = (folder / name for name in FILE_NAMES)
-    svg_path.write_text(svg, encoding="utf-8")
-    md_path.write_text(markdown, encoding="utf-8")
-    return [svg_path, md_path]
+def _write(sheet: dict[Path, str]) -> None:
+    for path, text in sheet.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # The same bytes on every platform, wherever the file is made.
+        path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def _holds_but_for_the_date(path: Path, text: str, date: datetime.date) -> bool:
+    """Whether the file holds text, once its own date, the first one in it (the
+    title's), is replaced by date. Anything else that differs counts, a new version
+    number included."""
+    if not path.exists():
+        return False
+    held = path.read_text(encoding="utf-8")
+    held_date = ISO_DATE.search(held)
+    return bool(held_date) and held.replace(held_date[0], date.isoformat()) == text
 
 
 def _menu_paths(menu_bar: QMenuBar) -> dict[str, str]:
@@ -579,12 +629,23 @@ def main(argv: list[str] | None = None) -> None:
         description="Write TiLiA's keyboard shortcuts as shortcuts.svg and "
         "shortcuts.md.",
     )
-    parser.add_argument(
-        "--out", type=Path, required=True, help="folder to write the files to"
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--out", type=Path, help="folder to write the files to")
+    target.add_argument(
+        "--update",
+        type=Path,
+        nargs=2,
+        metavar=("SVG", "MARKDOWN"),
+        help="files to write the sheet to, left alone if only the date would change",
     )
     args = parser.parse_args(argv)
 
-    for path in write_sheet(_build_qtui(), args.out):
+    qtui = _build_qtui()
+    if args.update:
+        written = update_sheet(qtui, *args.update)
+    else:
+        written = write_sheet(qtui, args.out)
+    for path in written:
         print(path)
 
 

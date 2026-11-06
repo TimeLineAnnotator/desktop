@@ -418,6 +418,131 @@ class TestWrite:
         assert not list(tmp_path.iterdir())
 
 
+class TestUpdate:
+    """The repository keeps a copy of the sheet, committed whenever update_sheet
+    writes it (see .github/workflows/shortcuts-sheet.yml). The title holds the
+    date, so the date alone mustn't count as a change: that would commit a new
+    copy on every push."""
+
+    DATE = datetime.date(2026, 10, 14)
+    LATER = datetime.date(2026, 10, 15)
+
+    @pytest.fixture
+    def paths(self, tmp_path):
+        return tmp_path / "img" / "shortcuts.svg", tmp_path / "shortcuts.md"
+
+    @staticmethod
+    def contents(paths):
+        return [path.read_bytes() for path in paths]
+
+    @staticmethod
+    def texts(paths):
+        return [path.read_text(encoding="utf-8") for path in paths]
+
+    def test_writes_files_that_dont_exist(self, qtui, paths):
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+
+        svg, markdown = self.texts(paths)
+        assert written == list(paths)
+        assert "<title>TiLiA 1.2.3 keyboard shortcuts (2026-10-14)</title>" in svg
+        assert markdown.startswith("# TiLiA 1.2.3 keyboard shortcuts (2026-10-14)\n")
+
+    def test_same_sheet_leaves_the_files_alone(self, qtui, paths):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+        before = self.contents(paths)
+
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+
+        assert written == []
+        assert self.contents(paths) == before
+
+    def test_new_date_alone_leaves_the_files_alone(self, qtui, paths):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+        before = self.contents(paths)
+
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.LATER)
+
+        assert written == []
+        assert self.contents(paths) == before
+
+    def test_new_version_rewrites_both_files(self, qtui, paths):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.4", self.LATER)
+
+        svg, markdown = self.texts(paths)
+        assert written == list(paths)
+        assert "<title>TiLiA 1.2.4 keyboard shortcuts (2026-10-15)</title>" in svg
+        assert markdown.startswith("# TiLiA 1.2.4 keyboard shortcuts (2026-10-15)\n")
+
+    def test_new_shortcut_rewrites_both_files(
+        self, qtui, paths, register_with_shortcut
+    ):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+        register_with_shortcut("timeline.marker.new_command", "Ctrl+Alt+Shift+F12")
+
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.LATER)
+
+        svg, markdown = self.texts(paths)
+        assert written == list(paths)
+        assert ">Ctrl+Alt+Shift+F12</text>" in svg
+        assert "<kbd>Ctrl+Alt+Shift+F12</kbd>" in markdown
+
+    @pytest.mark.parametrize("index", [0, 1], ids=["svg", "markdown"])
+    @pytest.mark.parametrize(
+        "change",
+        [
+            lambda path: path.write_text(
+                path.read_text(encoding="utf-8") + "edited\n", encoding="utf-8"
+            ),
+            lambda path: path.write_text("no date in this file\n", encoding="utf-8"),
+            lambda path: path.unlink(),
+        ],
+        ids=["edited", "without_a_date", "missing"],
+    )
+    def test_change_to_one_file_rewrites_both_with_one_date(
+        self, qtui, paths, index, change
+    ):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+        change(paths[index])
+
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.LATER)
+
+        svg, markdown = self.texts(paths)
+        assert written == list(paths)
+        assert "(2026-10-15)</title>" in svg
+        assert "2026-10-14" not in svg
+        assert markdown.startswith("# TiLiA 1.2.3 keyboard shortcuts (2026-10-15)\n")
+
+    def test_writes_nothing_when_shortcuts_clash(
+        self, qtui, paths, register_with_shortcut
+    ):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+        before = self.contents(paths)
+        register_with_shortcut("timeline.marker.new_command", "m")
+
+        with pytest.raises(ShortcutClash):
+            shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.LATER)
+
+        assert self.contents(paths) == before
+
+    def test_files_have_the_same_line_endings_on_every_platform(self, qtui, paths):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+
+        assert not any(b"\r" in content for content in self.contents(paths))
+
+    def test_line_endings_of_a_checkout_are_no_change(self, qtui, paths):
+        shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.DATE)
+        for path in paths:
+            path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+        before = self.contents(paths)
+
+        written = shortcuts_sheet.update_sheet(qtui, *paths, "1.2.3", self.LATER)
+
+        assert written == []
+        assert self.contents(paths) == before
+
+
 class TestCommandLine:
     """main() runs in this process, where isolate_settings keeps the settings
     off the developer's own store; a subprocess would open that store."""
@@ -432,6 +557,35 @@ class TestCommandLine:
         paths = [tmp_path / "shortcuts.svg", tmp_path / "shortcuts.md"]
         assert all(path.stat().st_size > 0 for path in paths)
         assert capsys.readouterr().out.splitlines() == [str(path) for path in paths]
+
+    def test_update_writes_the_two_files_it_is_given(self, tmp_path, capsys):
+        paths = [tmp_path / "img" / "shortcuts.svg", tmp_path / "shortcuts.md"]
+
+        shortcuts_sheet.main(["--update", str(paths[0]), str(paths[1])])
+
+        assert all(path.stat().st_size > 0 for path in paths)
+        assert capsys.readouterr().out.splitlines() == [str(path) for path in paths]
+
+    def test_update_leaves_the_files_alone_when_only_the_date_differs(
+        self, qtui, tmp_path, capsys
+    ):
+        paths = [tmp_path / "img" / "shortcuts.svg", tmp_path / "shortcuts.md"]
+        shortcuts_sheet.update_sheet(qtui, *paths, date=datetime.date(2000, 1, 1))
+        before = [path.read_bytes() for path in paths]
+
+        shortcuts_sheet.main(["--update", str(paths[0]), str(paths[1])])
+
+        assert [path.read_bytes() for path in paths] == before
+        assert capsys.readouterr().out == ""
+
+    @pytest.mark.parametrize(
+        "argv",
+        [[], ["--out", "folder", "--update", "shortcuts.svg", "shortcuts.md"]],
+        ids=["neither", "both"],
+    )
+    def test_takes_either_out_or_update(self, argv, capsys):
+        with pytest.raises(SystemExit):
+            shortcuts_sheet.main(argv)
 
     def test_opens_no_settings_store(self, tmp_path, monkeypatch):
         def open_store(*args, **kwargs):
