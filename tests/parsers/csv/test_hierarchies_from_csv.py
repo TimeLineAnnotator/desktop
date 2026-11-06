@@ -297,3 +297,69 @@ def test_hierarchy_by_measure_repeated_measure_with_several_passes(
         (1, 3),
         (5, 7),
     ]
+
+
+def _measures_numbered(beat_tlui, tilia_state, numbers):
+    # Two beats to a measure, a beat every second from 1 s.
+    tilia_state.set_duration(2 * len(numbers), scale_timelines="no")
+    beat_tl = beat_tlui.timeline
+    beat_tl.beat_pattern = [2]
+    for t in range(1, 2 * len(numbers) + 1):
+        beat_tlui.create_beat(time=t)
+    beat_tl.recalculate_measures()
+    beat_tl.set_data("measure_numbers", numbers)
+    return beat_tl
+
+
+@pytest.mark.timeout(10)
+@pytest.mark.parametrize(
+    "numbers, row, expected_errors, expected",
+    [
+        # An end at the start's time is passed over for the next end.
+        ([1, 2, 3, 4, 1, 2, 5], "3,2,0,1", 0, [(5, 13)]),
+        ([1, 2, 1, 2, 3], "2,1,0,1", 0, [(3, 7)]),
+        ([1, 2, 3, 2, 4], "3,3,0,0", 0, [(5, 9)]),
+        # Several starts and several ends.
+        ([1, 2, 1, 2], "1,2,0,1", 0, [(1, 5), (5, 8)]),
+        # No end remains: the row has no length.
+        ([1, 2, 3, 4], "4,4,0.75,1", 1, []),
+        ([1, 2, 3, 4], "4,4,0,0", 1, []),
+        # A start after every end.
+        ([1, 2, 3], "3,1,0,0", 0, []),
+        ([1, 2, 1, 2], "2,1,0,0", 0, [(3, 5)]),
+    ],
+)
+def test_hierarchy_by_measure_passes_over_an_end_at_the_start(
+    beat_tlui, hierarchy_tlui, tilia_state, numbers, row, expected_errors, expected
+):
+    beat_tl = _measures_numbered(beat_tlui, tilia_state, numbers)
+    data = f"start,end,start_fraction,end_fraction,level\n{row},1"
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = import_by_measure(hierarchy_tlui.timeline, beat_tl, Path())
+
+    assert success
+    assert len(errors) == expected_errors
+    assert sorted((h.start, h.end) for h in hierarchy_tlui.timeline) == expected
+
+
+@pytest.mark.timeout(10)
+def test_hierarchy_by_measure_rows_around_a_row_with_no_length(
+    beat_tlui, hierarchy_tlui, tilia_state
+):
+    beat_tl = _measures_numbered(beat_tlui, tilia_state, [1, 2, 3, 2, 4])
+    data = (
+        "start,end,start_fraction,end_fraction,level\n"
+        "1,2,0,0,1\n3,3,0,0,1\n4,4,0,0,2\n3,2,0,1,3"
+    )
+
+    with patch("builtins.open", mock_open(read_data=data)):
+        success, errors = import_by_measure(hierarchy_tlui.timeline, beat_tl, Path())
+
+    assert success
+    assert len(errors) == 1
+    assert sorted((h.start, h.end) for h in hierarchy_tlui.timeline) == [
+        (1, 3),
+        (5, 9),
+        (5, 9),
+    ]

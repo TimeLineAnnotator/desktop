@@ -378,3 +378,65 @@ class TestImportByMeasureWithNoLength:
             (1, 3),
             (3, 4),
         ]
+
+
+class TestImportByMeasureThroughRepeats:
+    @pytest.fixture
+    def make(self, beat_tlui, tilia_state):
+        def _make(numbers):
+            tilia_state.set_duration(2 * len(numbers), scale_timelines="no")
+            beat_tl = beat_tlui.timeline
+            beat_tl.beat_pattern = [2]
+            for t in range(1, 2 * len(numbers) + 1):
+                beat_tlui.create_beat(time=t)
+            beat_tl.recalculate_measures()
+            beat_tl.set_data("measure_numbers", numbers)
+
+        return _make
+
+    @pytest.mark.timeout(10)
+    @pytest.mark.parametrize(
+        "numbers, row, expected_errors, expected",
+        [
+            ([1, 2, 3, 4, 1, 2, 5], "3,2,0,1", [], [(5, 13)]),
+            ([1, 2, 1, 2, 3], "2,1,0,1", [], [(3, 7)]),
+            ([1, 2, 3, 2, 4], "3,3,0,0", [], [(5, 9)]),
+            ([1, 2, 1, 2], "1,2,0,1", [], [(1, 5), (5, 8)]),
+            (
+                [1, 2, 3, 4],
+                "4,4,0.75,1",
+                ["Start time must be before end time."],
+                [],
+            ),
+            ([1, 2, 3, 4], "4,4,0,0", ["Start time must be before end time."], []),
+            ([1, 2, 3], "3,1,0,0", [], []),
+            ([1, 2, 1, 2], "2,1,0,0", [], [(3, 5)]),
+        ],
+    )
+    def test_end_at_the_start_is_passed_over_for_the_next_end(
+        self, range_tlui, make, numbers, row, expected_errors, expected
+    ):
+        make(numbers)
+        data = f"start,end,start_fraction,end_fraction,row\n{row},A"
+        success, errors = _trigger_import_through_command("measure", data)
+        assert success
+        assert errors == expected_errors
+        assert sorted((r.get_data("start"), r.get_data("end")) for r in range_tlui) == (
+            expected
+        )
+
+    @pytest.mark.timeout(10)
+    def test_rows_around_a_row_with_no_length_are_imported(self, range_tlui, make):
+        make([1, 2, 3, 2, 4])
+        data = (
+            "start,end,start_fraction,end_fraction,row\n"
+            "1,2,0,0,A\n3,3,0,0,A\n4,4,0,0,B\n3,2,0,1,C"
+        )
+        success, errors = _trigger_import_through_command("measure", data)
+        assert success
+        assert len(errors) == 1
+        assert sorted((r.get_data("start"), r.get_data("end")) for r in range_tlui) == [
+            (1, 3),
+            (5, 9),
+            (5, 9),
+        ]
