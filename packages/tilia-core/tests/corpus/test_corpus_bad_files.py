@@ -831,3 +831,81 @@ def test_a_twin_takes_the_path_when_the_other_goes(tmp_path):
         generation = corpus.generation
         assert not corpus.scan()
         assert corpus.generation == generation
+
+
+# --------------------------------------------------------------------------- #
+# Rereading with the corpus folder gone (FR-021; finding 5)
+# --------------------------------------------------------------------------- #
+def test_a_reread_with_the_folder_gone_changes_nothing(tmp_path):
+    folder = tmp_path / "corpus"
+    tla_files.write(folder / "a.tla", song())
+    tla_files.write(folder / "b.tla", song())
+    with opened(folder) as corpus:
+        generation = corpus.generation
+        rows = rows_by_content(corpus)
+        folder.rename(tmp_path / "elsewhere")
+        report = corpus.reread("a.tla")
+        assert not report
+        assert report.generation_after == generation == corpus.generation
+        assert rows_by_content(corpus) == rows
+        assert not corpus.available
+        assert corpus.file("a.tla").state == "readable"
+        result = tql.run(corpus, "verse")
+        assert len(result.rows) == 2
+        assert any("reach" in w or "unavailable" in w for w in result.warnings)
+        (tmp_path / "elsewhere").rename(folder)
+        report = corpus.scan()
+        assert not report and corpus.generation == generation
+        assert corpus.available
+
+
+def test_a_reread_that_fails_otherwise_with_the_folder_gone_changes_nothing(
+    tmp_path, monkeypatch
+):
+    tla_files.write(tmp_path / "a.tla", song())
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        native = tmp_path / "a.tla"
+
+        def no_share(path, *args, **kwargs):
+            raise OSError(64, "The specified network name is no longer available")
+
+        monkeypatch.setattr(os, "stat", no_share)
+        report = corpus._scanner.reread("a.tla", native)
+        monkeypatch.undo()
+        assert not report and corpus.generation == generation
+        assert not corpus.available
+        assert corpus.file("a.tla").state == "readable"
+
+
+def test_a_reread_of_a_deleted_file_in_a_folder_still_there_marks_it(tmp_path):
+    tla_files.write(tmp_path / "a.tla", song())
+    with opened(tmp_path) as corpus:
+        (tmp_path / "a.tla").unlink()
+        assert corpus.reread("a.tla").unavailable == ("a.tla",)
+        assert corpus.available
+
+
+def test_a_reread_that_fails_otherwise_in_a_folder_still_there_is_unreadable(
+    tmp_path, monkeypatch
+):
+    tla_files.write(tmp_path / "a.tla", song())
+    with opened(tmp_path) as corpus:
+        native = tmp_path / "a.tla"
+        real = os.stat
+
+        def locked(path, *args, **kwargs):
+            if Path(path) == native:
+                raise PermissionError(13, "Permission denied", str(path))
+            return real(path, *args, **kwargs)
+
+        monkeypatch.setattr(os, "stat", locked)
+        monkeypatch.setattr(READER, "read", _refuse, raising=False)
+        report = corpus._scanner.reread("a.tla", native)
+        monkeypatch.undo()
+        assert report.unreadable[0][0] == "a.tla"
+        assert corpus.available
+
+
+def _refuse(path):
+    raise PermissionError(13, "Permission denied", str(path))

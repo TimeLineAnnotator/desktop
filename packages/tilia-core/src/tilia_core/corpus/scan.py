@@ -691,17 +691,31 @@ class Scanner:
         once, whatever its size and date, and bring its record and rows in
         line with it: a new file is added, a missing one becomes unavailable.
         It takes the change mutex, so it never works from the same records as
-        a running scan (FR-020)."""
+        a running scan (FR-020). When the corpus folder itself can't be reached,
+        the file isn't missing: nothing changes (FR-021)."""
         with self.turn:
             try:
                 info = os.stat(native)
-            except FileNotFoundError:
-                found = []
-            except OSError:
-                found = [Found(path, native, None, None)]  # reading will say why
+            except OSError as err:
+                try:
+                    os.stat(self.root)
+                except OSError as gone:
+                    return self._out_of_reach(gone)
+                if isinstance(err, FileNotFoundError):
+                    found = []
+                else:  # reading will say why
+                    found = [Found(path, native, None, None)]
             else:
                 found = [Found(path, native, info.st_size, info.st_mtime_ns)]
             return self._refresh(found, scope={path}, force=frozenset({path}))
+
+    def _out_of_reach(self, err: OSError) -> ScanReport:
+        """The corpus folder itself can't be reached: change nothing (FR-021)."""
+        if self.store.available:
+            LOG.warning("the corpus folder %s can't be reached: %s", self.root, err)
+        self.store.available = False
+        generation = self.store.generation
+        return ScanReport((), (), (), (), (), (), (), generation, generation)
 
     def _scan(self) -> ScanReport:
         """One scan, under the change mutex."""
@@ -709,12 +723,7 @@ class Scanner:
         try:
             found = self._walk()
         except OSError as err:
-            # the corpus folder itself can't be reached: change nothing (FR-021)
-            if self.store.available:
-                LOG.warning("the corpus folder %s can't be reached: %s", self.root, err)
-            self.store.available = False
-            generation = self.store.generation
-            return ScanReport((), (), (), (), (), (), (), generation, generation)
+            return self._out_of_reach(err)
         if not self.store.available:
             LOG.warning("the corpus folder %s can be reached again", self.root)
         self.store.available = True
