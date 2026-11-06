@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1328" viewBox="0 0 1000 1328">
+<title>TiLiA 0.7.4 keyboard shortcuts (2026-11-06)</title>
+<rect width="1000" height="1328" fill="#ffffff"/>
+<rect width="1000" height="6" fill="#f1592a"/>
+<g font-family="system-ui, Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif">
+<text x="32" y="56" font-size="26" font-weight="bold" fill="#1f1f1f">TiLiA 0.7.4 keyboard shortcuts <tspan font-size="18" font-weight="normal" fill="#666666">2026-11-06</tspan></text>
+<text x="32.0" y="86.0" font-size="14" fill="#666666" text-anchor="start">On macOS, Ctrl is ⌘ (Command) and Alt is ⌥ (Option).</text>
+<text x="32.0" y="141.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Global</text>
+<rect x="32.0" y="150.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="69.0" y="164.0" width="57.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="97.5" y="181.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+N</text>
+<text x="138.0" y="181.0" font-size="14" fill="#1f1f1f" text-anchor="start">New</text>
+<text x="138.0" y="199.0" font-size="12" fill="#666666" text-anchor="start">File → New</text>
+<rect x="69.0" y="210.0" width="57.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="97.5" y="227.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+O</text>
+<text x="138.0" y="227.0" font-size="14" fill="#1f1f1f" text-anchor="start">Open</text>
+<text x="138.0" y="245.0" font-size="12" fill="#666666" text-anchor="start">File → Open</text>
+<rect x="72.0" y="256.0" width="54.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="99.0" y="273.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+S</text>
+<text x="138.0" y="273.0" font-size="14" fill="#1f1f1f" text-anchor="start">Save</text>
+<text x="138.0" y="291.0" font-size="12" fill="#666666" text-anchor="start">File → Save</text>
+<rect x="34.0" y="302.0" width="92.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="80.0" y="319.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Shift+S</text>
+<text x="138.0" y="319.0" font-size="14" fill="#1f1f1f" text-anchor="start">Save As</text>
+<text x="138.0" y="337.0" font-size="12" fill="#666666" text-anchor="start">File → Save As</text>
+<rect x="73.0" y="348.0" width="53.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="99.5" y="365.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+J</text>
+<text x="138.0" y="365.0" font-size="14" fill="#1f1f1f" text-anchor="start">JSON</text>
+<text x="138.0" y="383.0" font-size="12" fill="#666666" text-anchor="start">File → Export → JSON</text>
+<rect x="34.0" y="394.0" width="92.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="80.0" y="411.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Shift+L</text>
+<text x="138.0" y="411.0" font-size="14" fill="#1f1f1f" text-anchor="start">Local</text>
+<text x="138.0" y="429.0" font-size="12" fill="#666666" text-anchor="start">File → Load media → Local</text>
+<rect x="71.0" y="440.0" width="55.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="98.5" y="457.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Z</text>
+<text x="138.0" y="457.0" font-size="14" fill="#1f1f1f" text-anchor="start">Undo</text>
+<text x="138.0" y="475.0" font-size="12" fill="#666666" text-anchor="start">Edit → Undo</text>
+<rect x="33.0" y="486.0" width="93.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="79.5" y="503.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Shift+Z</text>
+<text x="138.0" y="503.0" font-size="14" fill="#1f1f1f" text-anchor="start">Redo</text>
+<text x="138.0" y="521.0" font-size="12" fill="#666666" text-anchor="start">Edit → Redo</text>
+<rect x="71.0" y="532.0" width="55.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="98.5" y="549.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+C</text>
+<text x="138.0" y="549.0" font-size="14" fill="#1f1f1f" text-anchor="start">Copy</text>
+<text x="138.0" y="567.0" font-size="12" fill="#666666" text-anchor="start">Edit → Copy</text>
+<rect x="70.0" y="578.0" width="56.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="98.0" y="595.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+X</text>
+<text x="138.0" y="595.0" font-size="14" fill="#1f1f1f" text-anchor="start">Cut</text>
+<text x="138.0" y="613.0" font-size="12" fill="#666666" text-anchor="start">Edit → Cut</text>
+<rect x="70.0" y="624.0" width="56.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="98.0" y="641.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+V</text>
+<text x="138.0" y="641.0" font-size="14" fill="#1f1f1f" text-anchor="start">Paste</text>
+<text x="138.0" y="659.0" font-size="12" fill="#666666" text-anchor="start">Edit → Paste</text>
+<rect x="32.0" y="670.0" width="94.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="79.0" y="687.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Shift+V</text>
+<text x="138.0" y="687.0" font-size="14" fill="#1f1f1f" text-anchor="start">Paste complete</text>
+<text x="138.0" y="705.0" font-size="12" fill="#666666" text-anchor="start">Edit → Paste complete</text>
+<rect x="70.0" y="716.0" width="56.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="98.0" y="733.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl++</text>
+<text x="138.0" y="733.0" font-size="14" fill="#1f1f1f" text-anchor="start">Zoom In</text>
+<text x="138.0" y="751.0" font-size="12" fill="#666666" text-anchor="start">View → Zoom In</text>
+<rect x="74.0" y="762.0" width="52.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="100.0" y="779.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+-</text>
+<text x="138.0" y="779.0" font-size="14" fill="#1f1f1f" text-anchor="start">Zoom Out</text>
+<text x="138.0" y="797.0" font-size="12" fill="#666666" text-anchor="start">View → Zoom Out</text>
+<rect x="89.0" y="808.0" width="37.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="107.5" y="825.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Del</text>
+<text x="138.0" y="825.0" font-size="14" fill="#1f1f1f" text-anchor="start">Delete</text>
+<text x="138.0" y="843.0" font-size="12" fill="#666666" text-anchor="start">anywhere</text>
+<rect x="69.0" y="854.0" width="57.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="97.5" y="871.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Return</text>
+<text x="138.0" y="871.0" font-size="14" fill="#1f1f1f" text-anchor="start">Inspect</text>
+<text x="138.0" y="889.0" font-size="12" fill="#666666" text-anchor="start">anywhere</text>
+<rect x="75.0" y="900.0" width="51.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="100.5" y="917.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Space</text>
+<text x="138.0" y="917.0" font-size="14" fill="#1f1f1f" text-anchor="start">Play / Pause</text>
+<text x="138.0" y="935.0" font-size="12" fill="#666666" text-anchor="start">Player toolbar</text>
+<rect x="86.0" y="946.0" width="40.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="106.0" y="963.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Left</text>
+<text x="138.0" y="963.0" font-size="14" fill="#1f1f1f" text-anchor="start">Select the previous element</text>
+<text x="138.0" y="981.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<rect x="77.0" y="992.0" width="49.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="101.5" y="1009.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Right</text>
+<text x="138.0" y="1009.0" font-size="14" fill="#1f1f1f" text-anchor="start">Select the next element</text>
+<text x="138.0" y="1027.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<text x="32.0" y="1075.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Inspector</text>
+<rect x="32.0" y="1084.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="69.0" y="1098.0" width="57.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="97.5" y="1115.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Return</text>
+<text x="138.0" y="1115.0" font-size="14" fill="#1f1f1f" text-anchor="start">Close the inspector</text>
+<text x="138.0" y="1133.0" font-size="12" fill="#666666" text-anchor="start">in the inspector</text>
+<rect x="91.0" y="1144.0" width="35.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="108.5" y="1161.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Esc</text>
+<text x="138.0" y="1161.0" font-size="14" fill="#1f1f1f" text-anchor="start">Close the inspector</text>
+<text x="138.0" y="1179.0" font-size="12" fill="#666666" text-anchor="start">in the inspector</text>
+<text x="32.0" y="1227.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Beat timeline</text>
+<rect x="32.0" y="1236.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="102.0" y="1250.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="114.0" y="1267.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">B</text>
+<text x="138.0" y="1267.0" font-size="14" fill="#1f1f1f" text-anchor="start">Add beat at current position</text>
+<text x="138.0" y="1285.0" font-size="12" fill="#666666" text-anchor="start">Beat toolbar</text>
+<text x="353.3" y="141.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Harmony timeline</text>
+<rect x="353.3" y="150.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="410.3" y="164.0" width="26.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="423.3" y="181.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">H</text>
+<text x="448.3" y="181.0" font-size="14" fill="#1f1f1f" text-anchor="start">Add harmony</text>
+<text x="448.3" y="199.0" font-size="12" fill="#666666" text-anchor="start">Harmony toolbar</text>
+<text x="353.3" y="247.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Hierarchy timeline</text>
+<rect x="353.3" y="256.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="412.3" y="270.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="287.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">S</text>
+<text x="448.3" y="287.0" font-size="14" fill="#1f1f1f" text-anchor="start">Split at current position</text>
+<text x="448.3" y="305.0" font-size="12" fill="#666666" text-anchor="start">Hierarchy toolbar</text>
+<rect x="412.3" y="316.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="333.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">E</text>
+<text x="448.3" y="333.0" font-size="14" fill="#1f1f1f" text-anchor="start">Merge</text>
+<text x="448.3" y="351.0" font-size="12" fill="#666666" text-anchor="start">Hierarchy toolbar</text>
+<rect x="411.3" y="362.0" width="25.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="423.8" y="379.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">G</text>
+<text x="448.3" y="379.0" font-size="14" fill="#1f1f1f" text-anchor="start">Group</text>
+<text x="448.3" y="397.0" font-size="12" fill="#666666" text-anchor="start">Hierarchy toolbar</text>
+<rect x="372.3" y="408.0" width="64.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="404.3" y="425.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Up</text>
+<text x="448.3" y="425.0" font-size="14" fill="#1f1f1f" text-anchor="start">Move up a level</text>
+<text x="448.3" y="443.0" font-size="12" fill="#666666" text-anchor="start">Hierarchy toolbar</text>
+<rect x="353.3" y="454.0" width="83.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="394.8" y="471.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Down</text>
+<text x="448.3" y="471.0" font-size="14" fill="#1f1f1f" text-anchor="start">Move down a level</text>
+<text x="448.3" y="489.0" font-size="12" fill="#666666" text-anchor="start">Hierarchy toolbar</text>
+<rect x="412.3" y="500.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="517.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">C</text>
+<text x="448.3" y="517.0" font-size="14" fill="#1f1f1f" text-anchor="start">Create child</text>
+<text x="448.3" y="535.0" font-size="12" fill="#666666" text-anchor="start">Hierarchy toolbar</text>
+<rect x="403.3" y="546.0" width="33.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="419.8" y="563.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Up</text>
+<text x="448.3" y="563.0" font-size="14" fill="#1f1f1f" text-anchor="start">Select the parent</text>
+<text x="448.3" y="581.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<rect x="384.3" y="592.0" width="52.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="410.3" y="609.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Down</text>
+<text x="448.3" y="609.0" font-size="14" fill="#1f1f1f" text-anchor="start">Select the first child</text>
+<text x="448.3" y="627.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<text x="353.3" y="675.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Marker timeline</text>
+<rect x="353.3" y="684.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="408.3" y="698.0" width="28.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="422.3" y="715.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">M</text>
+<text x="448.3" y="715.0" font-size="14" fill="#1f1f1f" text-anchor="start">Add marker at current position</text>
+<text x="448.3" y="733.0" font-size="12" fill="#666666" text-anchor="start">Marker toolbar</text>
+<text x="353.3" y="781.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">PDF timeline</text>
+<rect x="353.3" y="790.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="412.3" y="804.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="821.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">P</text>
+<text x="448.3" y="821.0" font-size="14" fill="#1f1f1f" text-anchor="start">Add PDF marker</text>
+<text x="448.3" y="839.0" font-size="12" fill="#666666" text-anchor="start">PDF toolbar</text>
+<text x="353.3" y="887.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Range timeline</text>
+<rect x="353.3" y="896.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="412.3" y="910.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="927.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">R</text>
+<text x="448.3" y="927.0" font-size="14" fill="#1f1f1f" text-anchor="start">Add range</text>
+<text x="448.3" y="945.0" font-size="12" fill="#666666" text-anchor="start">Range toolbar</text>
+<rect x="412.3" y="956.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="973.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">J</text>
+<text x="448.3" y="973.0" font-size="14" fill="#1f1f1f" text-anchor="start">Join ranges</text>
+<text x="448.3" y="991.0" font-size="12" fill="#666666" text-anchor="start">Range toolbar</text>
+<rect x="412.3" y="1002.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="1019.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">E</text>
+<text x="448.3" y="1019.0" font-size="14" fill="#1f1f1f" text-anchor="start">Merge ranges</text>
+<text x="448.3" y="1037.0" font-size="12" fill="#666666" text-anchor="start">Range toolbar</text>
+<rect x="412.3" y="1048.0" width="24.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="424.3" y="1065.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">S</text>
+<text x="448.3" y="1065.0" font-size="14" fill="#1f1f1f" text-anchor="start">Split range</text>
+<text x="448.3" y="1083.0" font-size="12" fill="#666666" text-anchor="start">Range toolbar</text>
+<rect x="403.3" y="1094.0" width="33.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="419.8" y="1111.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Up</text>
+<text x="448.3" y="1111.0" font-size="14" fill="#1f1f1f" text-anchor="start">Select a range in the row above</text>
+<text x="448.3" y="1129.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<rect x="372.3" y="1140.0" width="64.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="404.3" y="1157.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Up</text>
+<text x="448.3" y="1157.0" font-size="14" fill="#1f1f1f" text-anchor="start">Move to row above</text>
+<text x="448.3" y="1175.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<rect x="384.3" y="1186.0" width="52.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="410.3" y="1203.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Down</text>
+<text x="448.3" y="1203.0" font-size="14" fill="#1f1f1f" text-anchor="start">Select a range in the row below</text>
+<text x="448.3" y="1221.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<rect x="353.3" y="1232.0" width="83.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="394.8" y="1249.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Ctrl+Down</text>
+<text x="448.3" y="1249.0" font-size="14" fill="#1f1f1f" text-anchor="start">Move to row below</text>
+<text x="448.3" y="1267.0" font-size="12" fill="#666666" text-anchor="start">in a timeline</text>
+<text x="674.7" y="141.0" font-size="17" font-weight="bold" fill="#1f1f1f" text-anchor="start">Score timeline</text>
+<rect x="674.7" y="150.0" width="293.3" height="2" fill="#f1592a"/>
+<rect x="712.7" y="164.0" width="57.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="741.2" y="181.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Return</text>
+<text x="781.7" y="181.0" font-size="14" fill="#1f1f1f" text-anchor="start">Add Annotation</text>
+<text x="781.7" y="199.0" font-size="12" fill="#666666" text-anchor="start">Score viewer</text>
+<rect x="732.7" y="210.0" width="37.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="751.2" y="227.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Del</text>
+<text x="781.7" y="227.0" font-size="14" fill="#1f1f1f" text-anchor="start">Delete Annotation</text>
+<text x="781.7" y="245.0" font-size="12" fill="#666666" text-anchor="start">Score viewer</text>
+<rect x="674.7" y="256.0" width="95.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="722.2" y="273.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Shift+Return</text>
+<text x="781.7" y="273.0" font-size="14" fill="#1f1f1f" text-anchor="start">Edit Annotation</text>
+<text x="781.7" y="291.0" font-size="12" fill="#666666" text-anchor="start">Score viewer</text>
+<rect x="679.7" y="302.0" width="90.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="724.7" y="319.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Shift+Down</text>
+<text x="781.7" y="319.0" font-size="14" fill="#1f1f1f" text-anchor="start">Decrease Annotation Font</text>
+<text x="781.7" y="337.0" font-size="12" fill="#666666" text-anchor="start">Score viewer</text>
+<rect x="698.7" y="348.0" width="71.0" height="24" rx="4" fill="#f4f4f4" stroke="#bdbdbd"/>
+<text x="734.2" y="365.0" font-size="13" font-weight="bold" fill="#1f1f1f" text-anchor="middle">Shift+Up</text>
+<text x="781.7" y="365.0" font-size="14" fill="#1f1f1f" text-anchor="start">Increase Annotation Font</text>
+<text x="781.7" y="383.0" font-size="12" fill="#666666" text-anchor="start">Score viewer</text>
+</g>
+</svg>
