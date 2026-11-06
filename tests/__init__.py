@@ -1,5 +1,6 @@
 import os
 import tempfile
+from pathlib import Path
 
 from PySide6.QtCore import QSettings
 
@@ -22,3 +23,14 @@ SETTINGS_DIR = tempfile.mkdtemp(
 os.environ.setdefault(SETTINGS_ROOT_VAR, SETTINGS_DIR)
 QSettings.setDefaultFormat(QSettings.Format.IniFormat)
 QSettings.setPath(QSettings.Format.IniFormat, QSettings.Scope.UserScope, SETTINGS_DIR)
+
+
+def is_in_settings_dir(path):
+    """Whether a QSettings file name lies inside SETTINGS_DIR. The paths are
+    compared real and case-normalised, so that short names and case on Windows
+    do not count as a difference."""
+
+    def normalise(p):
+        return Path(os.path.normcase(os.path.realpath(p)))
+
+    return normalise(path).is_relative_to(normalise(SETTINGS_DIR))
