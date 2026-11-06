@@ -10,7 +10,8 @@ from them (research R6, R8; data-model.md, "The file record").
 - **Reading** (:func:`read_file`) goes through the reader, with one retry after
   :data:`READ_RETRY_PAUSE` seconds. A file that fails twice is unreadable, with
   its reason; whatever reading it raised, one file never stops the build
-  (FR-007).
+  (FR-007). The same goes for a file the reader takes but whose rows can't be
+  built, or can't be stored.
 - **The build** (:meth:`Scanner.build`) reads the files in sorted path order,
   so a fresh build of the same folder gives the same keys, and inserts their
   rows through :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`.
@@ -28,7 +29,7 @@ import sys
 import time
 import unicodedata
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import TracebackType
 
@@ -248,6 +249,14 @@ class _Keys:
         return key
 
 
+def _storable(text: str | None) -> str | None:
+    """``text`` as SQLite can store it: a lone surrogate, which a file's name or
+    an error's message can hold, is written out."""
+    if text is None:
+        return None
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")
+
+
 def file_row(
     key: int,
     path: str,
@@ -258,7 +267,7 @@ def file_row(
     """The rows of a file that has no rows but its own in ``files``: an
     unreadable file (``reason``), or an unavailable one, which keeps the
     document id, format version, media length and time unit of ``record``,
-    as last read."""
+    as last read. Its path and reason are stored whatever they hold."""
     kept = (
         (record.document_id, record.format_version)
         if record is not None
@@ -269,8 +278,62 @@ def file_row(
     )
     return Rows(
         file_id=key,
-        files=[(key, path, *kept, state, reason, None, *lengths, None, None)],
+        files=[
+            (
+                key,
+                _storable(path),
+                *kept,
+                state,
+                _storable(reason),
+                None,
+                *lengths,
+                None,
+                None,
+            )
+        ],
     )
+
+
+class _Refused:
+    """``instead`` for :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`:
+    the seam between the store and the scan. The store calls it, inside the
+    transaction, with the rows of a file it can't store. It gives the row of an
+    unreadable file in their place, and :meth:`settle` then brings that file's
+    record in line, once the change is applied."""
+
+    def __init__(self) -> None:
+        self._reasons: dict[int, str] = {}
+
+    def __call__(self, rows: Rows, err: Exception) -> Rows:
+        reason = f"can't index: {type(err).__name__}: {err}"
+        self._reasons[rows.file_id] = reason
+        return file_row(rows.file_id, rows.files[0][1], "unreadable", reason)
+
+    def settle(
+        self, records: dict[str, FileRecord]
+    ) -> list[tuple[str, int | None, str]]:
+        """Make the refused files of ``records`` unreadable; their entries
+        for a report's ``unreadable``."""
+        out: list[tuple[str, int | None, str]] = []
+        if not self._reasons:
+            return out
+        for rec in list(records.values()):
+            reason = self._reasons.get(rec.key)
+            if reason is not None:
+                records[rec.path] = replace(
+                    rec,
+                    state="unreadable",
+                    reason=reason,
+                    fingerprint=None,
+                    document_id=None,
+                    format_version=None,
+                    media_length=None,
+                    time_unit=None,
+                    time_map=None,
+                    keys=(rec.key,),
+                )
+                out.append((rec.path, None, reason))
+        return out
 
 
 # --------------------------------------------------------------------------- #
@@ -372,6 +435,25 @@ class Scanner:
         )
         return record, rows.at(found.path, outcome.fingerprint)
 
+    def _try_rows(
+        self, outcome: Outcome, key: int, replay: tuple[int, ...] = ()
+    ) -> tuple[FileRecord, Rows] | Outcome:
+        """:meth:`_readable`, or an unreadable outcome for a file whose rows
+        can't be built, as for one the reader fails on (FR-007, FR-060): its
+        traceback is logged. Rows half built go with the exception; the keys
+        they took from the corpus's counter are never handed out again."""
+        try:
+            return self._readable(outcome, key, replay)
+        except Exception as err:  # noqa: BLE001 - one file stops nothing
+            reason = f"can't read: {type(err).__name__}: {err}"
+            LOG.error(
+                "the rows of %s can't be built: %s",
+                outcome.found.native,
+                reason,
+                exc_info=True,
+            )
+            return replace(outcome, document=None, fingerprint=None, reason=reason)
+
     def _unreadable(self, outcome: Outcome, key: int) -> tuple[FileRecord, Rows]:
         """The record and rows of a file that couldn't be read, under
         ``key``."""
@@ -404,20 +486,25 @@ class Scanner:
         for f in found:  # sorted by path: the same folder gives the same keys
             outcome = read_file(self.reader, f)
             key = next(self._counter)
-            if outcome.readable:
-                record, rows = self._readable(outcome, key)
-                maps[key] = record.time_map
+            built = self._try_rows(outcome, key) if outcome.readable else outcome
+            if isinstance(built, Outcome):
+                record, rows = self._unreadable(built, key)
+                unreadable.append((f.path, built.line, built.reason or ""))
+                LOG.warning("%s is unreadable: %s", f.native, built.reason)
             else:
-                record, rows = self._unreadable(outcome, key)
-                unreadable.append((f.path, outcome.line, outcome.reason or ""))
-                LOG.warning("%s is unreadable: %s", f.native, outcome.reason)
+                record, rows = built
+                maps[key] = record.time_map
             records[f.path] = record
             inserts.append(rows)
         error = None
+        refused = _Refused()
         if inserts:
-            err = self.store.apply([], inserts, maps)
+            err = self.store.apply([], inserts, maps, instead=refused)
             error = None if err is None else str(err)
         if error is None:
+            unreadable = sorted(
+                [*unreadable, *refused.settle(records)], key=lambda u: u[0]
+            )
             self.records = records
         else:
             records, unreadable = {}, []
