@@ -480,6 +480,8 @@ def _harmony(
         lambda: _one_of(attrs, "applied_to", _STEPS),
         lambda: _one_of(attrs, "accidental", HARMONY_ACCIDENTALS),
         lambda: _quality_and_inversion(music21, attrs) if music21 else None,
+        lambda: _one_of(attrs, "bass_step", _STEPS),
+        lambda: _one_of(attrs, "bass_accidental", HARMONY_ACCIDENTALS),
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
