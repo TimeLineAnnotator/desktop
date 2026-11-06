@@ -47,6 +47,8 @@ _NO_MEDIA_LENGTH = (
 HARMONY_NEEDS = f"harmony import needs: {rules.INSTALL_HARMONY}"
 # A kept chord with a slash bass that TiLiA's `letter_symbol` can't draw.
 _BASS_OUTSIDE = "{}: the bass isn't in the chord, so it is drawn in root position."
+# A kept chord with a cell that isn't one, as for a color: the rules' reason, then this.
+_DEFAULT_USED = "{}: the default is used."
 
 _REQUIRED = ("harmony_or_key", "time", "symbol")  # in the order TiLiA looks for them
 _KINDS = {"harmony": "harmony", "key": "mode"}
@@ -55,8 +57,8 @@ _OPTIONAL = {
     "mode": ("comments",),
 }
 _DEFAULTS = {kind: COMPONENT_SHAPES[kind].defaults for kind in _OPTIONAL}
-# The columns a rule's reason can be about, besides the time and the symbol.
-_CHECKED_COLUMNS = ("display_mode", "custom_text_font_type")
+# A chord's columns that keep the row when they aren't one.
+_OPTIONS = ("display_mode", "custom_text_font_type")
 # How the rules' reasons about a time start: its bounds, and another at that time.
 _TIME_REASON_STARTS = ("Time ", "There is already")
 
@@ -159,7 +161,8 @@ def import_by_time(
     Times are read in the document's time unit. A row that can't be read, with a symbol
     music21 can't read, or that the rules refuse, is skipped and reported. A chord kept
     whose slash bass isn't in the chord gets a note, since TiLiA draws it in root
-    position.
+    position, and one whose `display_mode` or `custom_text_font_type` isn't one gets the
+    default, and a note.
 
     Raises `ImportFailed` when the import can't run, without the `harmony` extra too,
     and `OSError` for a file that can't be opened; both change nothing.
@@ -308,24 +311,36 @@ def _build(
 
 def _component(row: _Row, params: Mapping[str, Any] | None) -> tla.Component:
     values = row.csv_row.values
+    bad_options = _bad_options(row.csv_row) if row.kind == "harmony" else {}
     return tla.Component(
         id=tla.new_id(),
         kind=row.kind,
         attrs={
             **_DEFAULTS[row.kind],
-            **{name: values[name] for name in _OPTIONAL[row.kind] if values.get(name)},
+            **{
+                name: values[name]
+                for name in _OPTIONAL[row.kind]
+                if values.get(name) and name not in bad_options
+            },
             **(params or {}),
             "time": row.time,
         },
     )
 
 
+def _bad_options(csv_row: CsvRow) -> dict[str, str]:
+    """The reasons for a chord's cells that the rules say aren't one, by column."""
+    reasons = {}
+    for column in _OPTIONS:
+        cell = csv_row.values.get(column)
+        if cell and not (outcome := rules.harmony_option(column, cell)):
+            reasons[column] = outcome.reason
+    return reasons
+
+
 def _column_of(reason: str, attrs: Mapping[str, Any]) -> str:
     """The column a rule's reason about `attrs` is about: the rest of a chord's or a
-    key's values are what its symbol reads as."""
-    for column in _CHECKED_COLUMNS:
-        if column in attrs and reason == rules.not_valid(column, attrs[column]):
-            return column
+    key's values are what its symbol reads as, and its options have been checked."""
     if reason.startswith(_TIME_REASON_STARTS) or reason == rules.not_valid(
         "time", attrs["time"]
     ):
@@ -334,14 +349,18 @@ def _column_of(reason: str, attrs: Mapping[str, Any]) -> str:
 
 
 def _notes(path: Path, csv_row: CsvRow, component: tla.Component) -> list[RowProblem]:
-    """What a row that is kept is told about its component."""
+    """What a row that is kept is told about its component: a key has nothing to be
+    told, as those cells aren't read on its row."""
+    if component.kind != "harmony":
+        return []
     notes = []
     attrs = component.attrs
-    if component.kind == "harmony" and not _bass_is_in_the_chord(
-        attrs["quality"], attrs["inversion"]
-    ):
+    if not _bass_is_in_the_chord(attrs["quality"], attrs["inversion"]):
         message = _BASS_OUTSIDE.format(printable(csv_row.values["symbol"]))
         notes.append(_problem(path, csv_row, "symbol", message, skipped=False))
+    for column, reason in _bad_options(csv_row).items():
+        message = _DEFAULT_USED.format(reason.removesuffix("."))
+        notes.append(_problem(path, csv_row, column, message, skipped=False))
     return notes
 
 

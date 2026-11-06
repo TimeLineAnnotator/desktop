@@ -348,17 +348,19 @@ class TestOptionalColumns:
         assert keys(target)[0]["comments"] == ""
 
     @pytest.mark.parametrize(
-        "column, attribute",
+        "column, attribute, default",
         [
-            ("display_mode", "display mode"),
-            ("custom_text_font_type", "custom text font type"),
+            ("display_mode", "display mode", "letter"),
+            ("custom_text_font_type", "custom text font type", "analytic"),
         ],
     )
-    def test_a_value_the_rules_refuse_skips_the_row(self, imported, column, attribute):
-        # FR-037 and `contracts/rules.md`, where TiLiA reports the value and imports the
-        # row with the default. Asked on TimeLineAnnotator/project-management#498.
+    def test_a_value_that_isnt_one_keeps_the_chord_with_the_default_and_a_note(
+        self, imported, column, attribute, default
+    ):
+        # As for a color, and as TiLiA keeps the row: an option of how a chord is drawn
+        # doesn't lose the chord (TimeLineAnnotator/project-management#498).
         result, target, path = imported(
-            f"{HEADER},{column},comments\n0,harmony,C,nonsense,hello\n1,harmony,D,,\n"
+            f"{HEADER},{column},comments\n0,harmony,D,nonsense,hello\n"
         )
 
         assert result.problems == [
@@ -366,15 +368,72 @@ class TestOptionalColumns:
                 path=path,
                 line=2,
                 column=column,
-                message=f"nonsense is not a valid {attribute}.",
-                skipped=True,
+                message=f"nonsense is not a valid {attribute}: the default is used.",
+                skipped=False,
             )
         ]
-        assert [a["step"] for a in chords(target)] == [1]
+        # What makes it a note, status 0: nothing was skipped.
+        assert result.skipped == []
+        chord = chords(target)[0]
+        assert chord[column] == default
+        assert (chord["step"], chord["comments"]) == (1, "hello")
+
+    def test_each_cell_that_isnt_one_has_its_note(self, imported):
+        result, target, path = imported(
+            f"{HEADER},display_mode,custom_text_font_type\n"
+            "0,harmony,D/C,nonsense,bold\n"
+            "1,harmony,E,roman,bold\n"
+        )
+
+        assert [(p.line, p.column, p.message) for p in result.problems] == [
+            (
+                2,
+                "symbol",
+                "D/C: the bass isn't in the chord, so it is drawn in root position.",
+            ),
+            (
+                2,
+                "display_mode",
+                "nonsense is not a valid display mode: the default is used.",
+            ),
+            (
+                2,
+                "custom_text_font_type",
+                "bold is not a valid custom text font type: the default is used.",
+            ),
+            (
+                3,
+                "custom_text_font_type",
+                "bold is not a valid custom text font type: the default is used.",
+            ),
+        ]
+        assert result.skipped == []
+        assert [a["display_mode"] for a in chords(target)] == ["letter", "roman"]
+
+    @pytest.mark.parametrize(
+        "row, column, message",
+        [
+            (
+                "60.5,harmony,C,nonsense",
+                "time",
+                "Time '01:00.5' is bigger than media time '01:00.0'",
+            ),
+            ("abc,harmony,C,nonsense", "time", "abc is not a valid time."),
+            ("0,harmony,Q,nonsense", "symbol", "Q is not a valid symbol."),
+        ],
+    )
+    def test_a_row_that_isnt_kept_has_no_note_about_its_cells(
+        self, imported, row, column, message
+    ):
+        result, target, path = imported(f"{HEADER},display_mode\n{row}\n")
+
+        assert result.problems == [
+            RowProblem(path=path, line=2, column=column, message=message, skipped=True)
+        ]
+        assert target.components == {}
 
     def test_a_key_doesnt_read_the_chords_columns(self, imported):
-        # A key has neither attribute. Asked on
-        # TimeLineAnnotator/project-management#498.
+        # A key has neither attribute (TimeLineAnnotator/project-management#498).
         result, target, _ = imported(
             f"{HEADER},display_mode,custom_text_font_type\n0,key,C,nonsense,nonsense\n"
         )

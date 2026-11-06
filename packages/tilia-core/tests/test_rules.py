@@ -711,6 +711,33 @@ class TestHarmony:
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
 
+    @pytest.mark.parametrize(
+        "name, value, outcome",
+        [
+            ("display_mode", "letter", OK),
+            ("display_mode", "roman", OK),
+            ("display_mode", "custom", OK),
+            ("display_mode", "roman2", (False, "roman2 is not a valid display mode.")),
+            ("display_mode", "normal", (False, "normal is not a valid display mode.")),
+            ("custom_text_font_type", "analytic", OK),
+            ("custom_text_font_type", "normal", OK),
+            (
+                "custom_text_font_type",
+                "bold",
+                (False, "bold is not a valid custom text font type."),
+            ),
+            (
+                "custom_text_font_type",
+                "letter",
+                (False, "letter is not a valid custom text font type."),
+            ),
+        ],
+    )
+    def test_an_option_is_checked_on_its_own(self, name, value, outcome):
+        # An importer keeps a chord whose option isn't one, with the default and a
+        # note, so it asks before it builds the chord. It needs no music21.
+        assert rules.harmony_option(name, value) == outcome
+
     def test_every_quality_music21_has(self, music21):
         for quality in music21.harmony.CHORD_TYPES:
             assert check("harmony", quality=quality) == OK

@@ -58,6 +58,10 @@ INSTALL_HARMONY = 'pip install "tilia-core[harmony]"'
 HARMONY_ACCIDENTALS = (2, 1, 0, -1, -2)
 HARMONY_DISPLAY_MODES = ("letter", "roman", "custom")
 FONT_TYPES = ("analytic", "normal")
+_HARMONY_OPTIONS = {
+    "display_mode": HARMONY_DISPLAY_MODES,
+    "custom_text_font_type": FONT_TYPES,
+}
 _STEPS = range(7)
 _LEVELS = (1, 2)
 _NOT_MODE_TYPES = ("ionian", "aeolian")
@@ -543,6 +547,16 @@ def color(value: Any) -> Outcome:
     if isinstance(value, str) and _qt_reads(value):
         return OK
     return _broken(not_valid("color", value))
+
+
+def harmony_option(name: str, value: Any) -> Outcome:
+    """A harmony's `display_mode` or `custom_text_font_type`.
+
+    An importer keeps a chord whose option isn't one, with the default instead, and
+    a note.
+    """
+    broken = _one_of({name: value}, name, _HARMONY_OPTIONS[name])
+    return OK if broken is None else broken
 
 
 def split_added_tone(quality: str) -> tuple[str, str]:
