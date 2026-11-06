@@ -13,6 +13,7 @@ import time
 import corpus_docs
 import pytest
 
+from tilia_core import tql
 from tilia_core.corpus import build, store
 from tilia_core.corpus.settings import NoSettings
 from tilia_core.corpus.store import Store
@@ -493,3 +494,241 @@ def test_the_database_is_one_per_store():
         assert count(r, "files") == 0
     a.close()
     b.close()
+
+
+# --------------------------------------------------------------------------- #
+# A change that fails with something other than a lock (R2, FR-007)
+# --------------------------------------------------------------------------- #
+class Interrupts:
+    """A value whose binding is interrupted, as Ctrl-C does: the interpreter
+    raises ``KeyboardInterrupt`` in whatever Python code runs at the moment."""
+
+    def __conform__(self, protocol):
+        raise KeyboardInterrupt
+
+
+def hierarchy_rows(next_key, name, level):
+    doc = corpus_docs.document(
+        corpus_docs.hierarchy([["x", level, 0, 10]]), document_id=name
+    )
+    return build.rows(doc, NoSettings(), next_key).at(f"{name}.tla", None)
+
+
+def with_row_id(next_key, name, row_id):
+    doc = corpus_docs.document(
+        corpus_docs.ranges(["first"], [("first", "x", 0, 10)]), document_id=name
+    )
+    rows = build.rows(doc, NoSettings(), next_key).at(f"{name}.tla", None)
+    (first,) = rows.ranges
+    rows.ranges = [(first[0], row_id, *first[2:])]
+    return rows
+
+
+UNSTORABLE = {
+    "a lone surrogate": lambda k: rows_of(k, "bad", "\ud800"),
+    "an integer too big": lambda k: hierarchy_rows(k, "bad", 10**30),
+    "a tuple": lambda k: with_row_id(k, "bad", ("r1",)),
+}
+
+
+def assert_reads_work(s, files):
+    assert s._writer.in_transaction is False
+    with s.reading() as r:
+        assert (
+            r.connection.execute("SELECT count(*) FROM files").fetchone()[0] == files
+        )
+
+
+@pytest.mark.parametrize("make", UNSTORABLE.values(), ids=UNSTORABLE)
+def test_a_value_that_cant_be_stored_fails_the_change_and_rolls_it_back(filled, make):
+    s, next_key = filled
+    before = snapshot(s)
+    err = s.apply([], [rows_of(next_key, "b"), make(next_key)])
+    assert isinstance(err, Exception) and not isinstance(err, sqlite3.OperationalError)
+    assert_reads_work(s, 1)
+    assert snapshot(s) == before and s.generation == 1
+    # nothing stays broken
+    assert s.apply([], [rows_of(next_key, "b")]) is None
+    assert_reads_work(s, 2)
+    assert s.generation == 2
+
+
+def test_ctrl_c_during_a_change_rolls_it_back_and_goes_through(filled):
+    s, next_key = filled
+    before = snapshot(s)
+    with pytest.raises(KeyboardInterrupt):
+        s.apply([], [rows_of(next_key, "b"), hierarchy_rows(next_key, "c", Interrupts())])
+    assert_reads_work(s, 1)
+    assert snapshot(s) == before and s.generation == 1
+    assert s.failure is None  # it didn't fail: it was stopped
+    assert s.apply([], [rows_of(next_key, "b")]) is None
+    assert s.generation == 2
+
+
+def test_ctrl_c_goes_through_a_files_savepoint_too(filled):
+    s, next_key = filled
+    called = []
+    with pytest.raises(KeyboardInterrupt):
+        s.apply(
+            [],
+            [hierarchy_rows(next_key, "c", Interrupts())],
+            instead=lambda rows, err: called.append(rows),
+        )
+    assert called == []
+    assert_reads_work(s, 1)
+
+
+def files_row_of(rows, err):
+    (row,) = rows.files
+    reason = f"{type(err).__name__}"
+    return build.Rows(
+        file_id=rows.file_id,
+        files=[(row[0], row[1], None, None, "unreadable", reason, *(None,) * 5)],
+    )
+
+
+@pytest.mark.parametrize("make", UNSTORABLE.values(), ids=UNSTORABLE)
+def test_a_file_that_cant_be_stored_costs_only_that_file(filled, make):
+    s, next_key = filled
+    bad = make(next_key)
+    good = [rows_of(next_key, "b"), rows_of(next_key, "c")]
+    seen = []
+
+    def instead(rows, err):
+        seen.append((rows.file_id, err))
+        return files_row_of(rows, err)
+
+    assert s.apply([], [good[0], bad, good[1]], instead=instead) is None
+    assert [fid for fid, _ in seen] == [bad.file_id]
+    assert_reads_work(s, 4)
+    assert s.generation == 2 and s.failure is None
+    with s.reading() as r:
+        con = r.connection
+        state = dict(con.execute("SELECT path, state FROM files").fetchall())
+        assert state == {
+            "a.tla": "readable",
+            "b.tla": "readable",
+            "c.tla": "readable",
+            "bad.tla": "unreadable",
+        }
+        # nothing of the refused file stayed behind
+        assert con.execute(
+            "SELECT count(*) FROM components WHERE file_id = ?", (bad.file_id,)
+        ).fetchone() == (0,)
+        assert con.execute(
+            "SELECT count(*) FROM components WHERE file_id = ?", (good[1].file_id,)
+        ).fetchone() == (2,)
+
+
+def test_a_refused_file_replaces_its_old_rows_and_has_no_time_map(filled):
+    s, next_key = filled
+    with s.reading() as r:
+        (fid,) = r.connection.execute("SELECT id FROM files").fetchone()
+    edited = rows_of(iter_from(fid, next_key), "a", "\ud800")
+    marker = object()
+    s.apply([], [], time_maps={fid: marker})
+    assert s.time_map(fid) is marker
+    assert s.apply([fid], [edited], {fid: object()}, instead=files_row_of) is None
+    assert s.time_map(fid) is None
+    with s.reading() as r:
+        con = r.connection
+        assert con.execute("SELECT state FROM files").fetchall() == [("unreadable",)]
+        assert con.execute("SELECT count(*) FROM components").fetchone() == (0,)
+
+
+def iter_from(first, next_key):
+    keys_left = [first]
+
+    def key():
+        return keys_left.pop() if keys_left else next_key()
+
+    return key
+
+
+def test_a_lock_error_is_not_put_down_to_the_file(filled):
+    s, next_key = filled
+    cursor = leave_a_cursor_open(s)
+    with s.reading() as r:
+        (fid,) = r.connection.execute("SELECT id FROM files").fetchone()
+
+    def instead(rows, err):
+        raise AssertionError(f"a file was blamed for {err}")
+
+    err = s.apply([fid], [rows_of(next_key, "b")], instead=instead)
+    assert isinstance(err, sqlite3.OperationalError) and "locked" in str(err)
+    cursor.close()
+    assert s.apply([fid], [rows_of(next_key, "b")], instead=instead) is None
+
+
+def test_a_refusal_that_cant_be_stored_either_fails_the_whole_change(filled):
+    s, next_key = filled
+    bad = rows_of(next_key, "bad", "\ud800")
+    err = s.apply([], [bad], instead=lambda rows, err: rows)
+    assert isinstance(err, UnicodeEncodeError)
+    assert_reads_work(s, 1)
+    assert s.generation == 1 and s.failure
+
+
+# --------------------------------------------------------------------------- #
+# Results warn while the last change failed
+# --------------------------------------------------------------------------- #
+def warned(s):
+    with s.reading() as r:
+        return r.warnings
+
+
+def test_reads_warn_while_the_last_change_failed(filled):
+    s, next_key = filled
+    assert warned(s) == () and s.failure is None
+    s.apply([], [rows_of(next_key, "bad", "\ud800")])
+    assert "UnicodeEncodeError" in s.failure
+    (warning,) = warned(s)
+    assert "couldn't take the last change" in warning and "UnicodeEncodeError" in warning
+    assert s.apply([], [rows_of(next_key, "b")]) is None
+    assert warned(s) == () and s.failure is None
+
+
+def test_a_change_of_some_files_doesnt_clear_the_warning(filled):
+    s, next_key = filled
+    s.apply([], [rows_of(next_key, "bad", "\ud800")])
+    assert s.apply([], [rows_of(next_key, "b")], partial=True) is None
+    assert s.generation == 2  # it was applied
+    assert s.failure and warned(s)
+    assert s.apply([], []) is None  # a whole change with nothing left to do
+    assert s.generation == 2
+    assert s.failure is None and warned(s) == ()
+
+
+def test_a_lock_error_warns_too(filled):
+    s, next_key = filled
+    cursor = leave_a_cursor_open(s)
+    s.apply([], [rows_of(next_key, "b")])
+    (warning,) = warned(s)
+    assert "locked" in warning
+    cursor.close()
+    assert s.apply([], [rows_of(next_key, "b")]) is None
+    assert warned(s) == ()
+
+
+def test_a_query_warns_while_the_last_change_failed(filled):
+    s, next_key = filled
+    assert tql.run(s, "x").warnings == []
+    s.apply([], [rows_of(next_key, "bad", "\ud800")])
+    result = tql.run(s, "x")
+    assert len(result.rows) == 1  # what the index holds still answers
+    assert any("couldn't take the last change" in w for w in result.warnings)
+
+
+def test_a_failed_first_change_doesnt_look_like_an_empty_index():
+    s = Store()
+    next_key = keys()
+    err = s.apply([], [rows_of(next_key), rows_of(next_key, "bad", "\ud800")])
+    assert isinstance(err, UnicodeEncodeError)
+    assert s.generation == 0
+    assert_reads_work(s, 0)
+    result = tql.run(s, "x")
+    assert result.rows == []
+    assert any("couldn't take the last change" in w for w in result.warnings)
+    assert s.apply([], [rows_of(next_key)]) is None
+    assert s.generation == 1 and tql.run(s, "x").warnings == []
+    s.close()

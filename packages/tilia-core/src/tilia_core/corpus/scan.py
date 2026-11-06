@@ -6,11 +6,13 @@ from them (research R6, R8; data-model.md, "The file record").
   extensions, in any letter case. Names that start with ``.`` are left out,
   files and folders alike; links to folders and Windows directory junctions
   aren't followed; and the reader's temporary files are left out. A subfolder that can't be listed
-  is logged and skipped.
+  is logged and skipped. Two names that differ only in Unicode normal form would
+  have one path: one of them keeps it, and the other is unreadable.
 - **Reading** (:func:`read_file`) goes through the reader, with one retry after
   :data:`READ_RETRY_PAUSE` seconds. A file that fails twice is unreadable, with
   its reason; whatever reading it raised, one file never stops the build
-  (FR-007).
+  (FR-007). The same goes for a file the reader takes but whose rows can't be
+  built, or can't be stored.
 - **The build** (:meth:`Scanner.build`) reads the files in sorted path order,
   so a fresh build of the same folder gives the same keys, and inserts their
   rows through :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`.
@@ -74,12 +76,19 @@ def _no_time_map(document: Document, roles: object) -> None:
 class Found:
     """A file the walk took in: its path relative to the corpus folder, with
     ``/`` and in NFC; its native path, to open; and its size and modification
-    time, None when the walk couldn't ``stat`` it."""
+    time, None when the walk couldn't ``stat`` it. ``reason`` says why it isn't
+    to be read: only a file that lost its path to a twin (:data:`TWIN_REASON`)
+    has one, and its path is its name as it is on disk."""
 
     path: str
     native: Path
     size: int | None
     mtime_ns: int | None
+    reason: str | None = None
+
+
+TWIN_REASON = "another file has this name in another Unicode form"
+"""The reason of a file whose name differs from another's only in normal form."""
 
 
 def _is_junction(entry: os.DirEntry) -> bool:
@@ -91,12 +100,41 @@ def _is_junction(entry: os.DirEntry) -> bool:
     return tag != 0 and tag == stat.IO_REPARSE_TAG_MOUNT_POINT
 
 
-def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[Found]:
+def _one_per_path(found: list[Found], root: Path) -> list[Found]:
+    """``found``, with one file per path. Paths are in NFC, so two names that
+    differ only in normal form get the same one (NTFS and ext4 can hold both).
+    The name already in NFC keeps it, else the first by code point: the rule
+    looks only at the names, so every scan and every build choose alike. The
+    others keep their names as their paths, and are not to be read."""
+    by_path: dict[str, list[Found]] = {}
+    for f in found:
+        by_path.setdefault(f.path, []).append(f)
+    if len(by_path) == len(found):
+        return found
+    out = []
+    for path, same in by_path.items():
+        names = {id(f): f.native.relative_to(root).as_posix() for f in same}
+        kept = min(same, key=lambda f: (names[id(f)] != path, names[id(f)]))
+        out.append(kept)
+        for f in same:
+            if f is not kept:
+                LOG.warning("%s: %s; left out", f.native, TWIN_REASON)
+                out.append(replace(f, path=names[id(f)], reason=TWIN_REASON))
+    return out
+
+
+def walk(
+    root: Path,
+    reader: DocumentReader,
+    settings: CorpusSettings,
+    unlisted: list[str] | None = None,
+) -> list[Found]:
     """The files of the corpus at ``root``, sorted by path.
 
     The walk goes depth first with ``os.scandir``. Listing ``root`` itself may
     raise ``OSError``; a subfolder that can't be listed is logged and skipped,
-    so its files are not found."""
+    so its files are not found, and its path (as a file's, in NFC) goes into
+    ``unlisted``. So does an entry the walk can't look at."""
     endings = tuple(e.lower() for e in reader.extensions)
     found: list[Found] = []
 
@@ -108,6 +146,8 @@ def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[F
             if not prefix:
                 raise
             LOG.warning("can't list the folder %s; skipped: %s", folder, err)
+            if unlisted is not None:
+                unlisted.append(prefix.removesuffix("/"))
             return
         for entry in entries:
             name = entry.name
@@ -122,6 +162,8 @@ def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[F
                     continue
             except OSError as err:
                 LOG.warning("can't look at %s; skipped: %s", entry.path, err)
+                if unlisted is not None:
+                    unlisted.append(path)
                 continue
             if folder:
                 visit(Path(entry.path), path + "/")
@@ -138,6 +180,7 @@ def walk(root: Path, reader: DocumentReader, settings: CorpusSettings) -> list[F
             found.append(Found(path, Path(entry.path), size, mtime_ns))
 
     visit(root, "")
+    found = _one_per_path(found, root)
     found.sort(key=lambda f: f.path)
     return found
 
@@ -192,7 +235,9 @@ def read_file(reader: DocumentReader, found: Found) -> Outcome:
     system's message, and ``os_error``; one on which the reader fails in any
     other way with the error's type and message, and its traceback is logged.
     Nothing it raises goes through, but ``KeyboardInterrupt`` and
-    ``SystemExit``."""
+    ``SystemExit``. A file with a ``reason`` isn't read at all."""
+    if found.reason is not None:
+        return Outcome(found, now_ns(), reason=found.reason)
     first = _try_read(reader, found)
     if isinstance(first, Outcome):
         return first
@@ -260,6 +305,14 @@ class _Keys:
         return key
 
 
+def _storable(text: str | None) -> str | None:
+    """``text`` as SQLite can store it: a lone surrogate, which a file's name or
+    an error's message can hold, is written out."""
+    if text is None:
+        return None
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")
+
+
 def file_row(
     key: int,
     path: str,
@@ -270,7 +323,7 @@ def file_row(
     """The rows of a file that has no rows but its own in ``files``: an
     unreadable file (``reason``), or an unavailable one, which keeps the
     document id, format version, media length and time unit of ``record``,
-    as last read."""
+    as last read. Its path and reason are stored whatever they hold."""
     kept = (
         (record.document_id, record.format_version)
         if record is not None
@@ -281,8 +334,62 @@ def file_row(
     )
     return Rows(
         file_id=key,
-        files=[(key, path, *kept, state, reason, None, *lengths, None, None)],
+        files=[
+            (
+                key,
+                _storable(path),
+                *kept,
+                state,
+                _storable(reason),
+                None,
+                *lengths,
+                None,
+                None,
+            )
+        ],
     )
+
+
+class _Refused:
+    """``instead`` for :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`:
+    the seam between the store and the scan. The store calls it, inside the
+    transaction, with the rows of a file it can't store. It gives the row of an
+    unreadable file in their place, and :meth:`settle` then brings that file's
+    record in line, once the change is applied."""
+
+    def __init__(self) -> None:
+        self._reasons: dict[int, str] = {}
+
+    def __call__(self, rows: Rows, err: Exception) -> Rows:
+        reason = f"can't index: {type(err).__name__}: {err}"
+        self._reasons[rows.file_id] = reason
+        return file_row(rows.file_id, rows.files[0][1], "unreadable", reason)
+
+    def settle(
+        self, records: dict[str, FileRecord]
+    ) -> list[tuple[str, int | None, str]]:
+        """Make the refused files of ``records`` unreadable; their entries
+        for a report's ``unreadable``."""
+        out: list[tuple[str, int | None, str]] = []
+        if not self._reasons:
+            return out
+        for rec in list(records.values()):
+            reason = self._reasons.get(rec.key)
+            if reason is not None:
+                records[rec.path] = replace(
+                    rec,
+                    state="unreadable",
+                    reason=reason,
+                    fingerprint=None,
+                    document_id=None,
+                    format_version=None,
+                    media_length=None,
+                    time_unit=None,
+                    time_map=None,
+                    keys=(rec.key,),
+                )
+                out.append((rec.path, None, reason))
+        return out
 
 
 # --------------------------------------------------------------------------- #
@@ -470,6 +577,25 @@ class Scanner:
         )
         return record, rows.at(found.path, outcome.fingerprint)
 
+    def _try_rows(
+        self, outcome: Outcome, key: int, replay: tuple[int, ...] = ()
+    ) -> tuple[FileRecord, Rows] | Outcome:
+        """:meth:`_readable`, or an unreadable outcome for a file whose rows
+        can't be built, as for one the reader fails on (FR-007, FR-060): its
+        traceback is logged. Rows half built go with the exception; the keys
+        they took from the corpus's counter are never handed out again."""
+        try:
+            return self._readable(outcome, key, replay)
+        except Exception as err:  # noqa: BLE001 - one file stops nothing
+            reason = f"can't read: {type(err).__name__}: {err}"
+            LOG.error(
+                "the rows of %s can't be built: %s",
+                outcome.found.native,
+                reason,
+                exc_info=True,
+            )
+            return replace(outcome, document=None, fingerprint=None, reason=reason)
+
     def _unreadable(self, outcome: Outcome, key: int) -> tuple[FileRecord, Rows]:
         """The record and rows of a file that couldn't be read, under
         ``key``."""
@@ -495,7 +621,7 @@ class Scanner:
         folder itself may raise ``OSError``; nothing inside it does."""
         with self.turn:
             self.last_scan = clock()
-            return self._refresh(walk(self.root, self.reader, self.settings))
+            return self._refresh(self._walk())
 
     # -- scans ---------------------------------------------------------------- #
     def scan(self, older_than: float | None = None) -> ScanReport | None:
@@ -546,21 +672,52 @@ class Scanner:
                     self._job = None
                 job.done.set()
 
+    def _unlisted(self, path: str) -> bool:
+        """Whether ``path`` lies under what the last walk couldn't look at."""
+        return any(
+            path == place or path.startswith(place + "/")
+            for place in self.store.unlisted
+        )
+
+    def _walk(self) -> list[Found]:
+        """The folder's files; the store learns which subfolders it couldn't list."""
+        unlisted: list[str] = []
+        found = walk(self.root, self.reader, self.settings, unlisted)
+        self.store.unlisted = tuple(unlisted)
+        return found
+
     def reread(self, path: str, native: Path) -> ScanReport:
         """Read the file at ``path`` (relative, in NFC; ``native`` to open) at
         once, whatever its size and date, and bring its record and rows in
         line with it: a new file is added, a missing one becomes unavailable.
         It takes the change mutex, so it never works from the same records as
-        a running scan (FR-020)."""
+        a running scan (FR-020). When the corpus folder itself can't be reached,
+        the file isn't missing: nothing changes (FR-021)."""
         with self.turn:
             try:
                 info = os.stat(native)
-            except FileNotFoundError:
-                found = []
-            except OSError:
-                found = [Found(path, native, None, None)]  # reading will say why
+            except OSError as err:
+                try:
+                    os.stat(self.root)
+                except OSError as gone:
+                    return self._out_of_reach(gone)
+                if isinstance(err, FileNotFoundError):
+                    found = []
+                else:  # reading will say why
+                    found = [Found(path, native, None, None)]
             else:
-                found = [Found(path, native, info.st_size, info.st_mtime_ns)]
+                name = self._twin_name(path, native)
+                if name is not None:  # the other one has the path
+                    path = name
+                found = [
+                    Found(
+                        path,
+                        native,
+                        info.st_size,
+                        info.st_mtime_ns,
+                        None if name is None else TWIN_REASON,
+                    )
+                ]
             return self._refresh(found, scope={path}, force=frozenset({path}))
 
     def written(
@@ -570,9 +727,12 @@ class Scanner:
         at once, as :meth:`reread` does, so the generation moves only if its
         content changed. When ``fingerprint``, the one the writer wrote,
         differs from the file's, the index keeps what is on disk, and says so
-        in the log (research R11)."""
+        in the log (research R11). With the corpus folder out of reach, nothing
+        changes, as for :meth:`reread`."""
         with self.turn:
             report = self.reread(path, native)
+            if not self.store.available:
+                return report  # nothing on disk to compare with
             record = self.records.get(path)
             on_disk = record.fingerprint if record is not None else None
             if fingerprint is not None and on_disk != fingerprint:
@@ -585,18 +745,32 @@ class Scanner:
                 )
             return report
 
+    def _twin_name(self, path: str, native: Path) -> str | None:
+        """The name of ``native`` as it is on disk, if it differs from ``path``
+        in normal form only and another file has ``path`` (see :func:`walk`)."""
+        try:
+            name = native.relative_to(self.root).as_posix()
+            if name == path or not os.path.lexists(self.root / path):
+                return None
+            return None if os.path.samefile(native, self.root / path) else name
+        except (OSError, ValueError):
+            return None
+
+    def _out_of_reach(self, err: OSError) -> ScanReport:
+        """The corpus folder itself can't be reached: change nothing (FR-021)."""
+        if self.store.available:
+            LOG.warning("the corpus folder %s can't be reached: %s", self.root, err)
+        self.store.available = False
+        generation = self.store.generation
+        return ScanReport((), (), (), (), (), (), (), generation, generation)
+
     def _scan(self) -> ScanReport:
         """One scan, under the change mutex."""
         self.last_scan = clock()
         try:
-            found = walk(self.root, self.reader, self.settings)
+            found = self._walk()
         except OSError as err:
-            # the corpus folder itself can't be reached: change nothing (FR-021)
-            if self.store.available:
-                LOG.warning("the corpus folder %s can't be reached: %s", self.root, err)
-            self.store.available = False
-            generation = self.store.generation
-            return ScanReport((), (), (), (), (), (), (), generation, generation)
+            return self._out_of_reach(err)
         if not self.store.available:
             LOG.warning("the corpus folder %s can be reached again", self.root)
         self.store.available = True
@@ -611,7 +785,9 @@ class Scanner:
         """Bring the records and the index in line with ``found``: the whole
         folder, or, with ``scope``, only those paths. Files in ``force`` are
         read whatever their size and date. The records change only once the
-        change is applied (research R2)."""
+        change is applied (research R2). A file under a subfolder the walk
+        couldn't list isn't missing: it keeps its last state, as the whole corpus
+        does when its own folder can't be reached (FR-021)."""
         before = self.store.generation
         old = self.records
         here = {f.path: f for f in found}
@@ -625,7 +801,7 @@ class Scanner:
             for path, rec in sorted(old.items())
             if path not in here
             and rec.state != "unavailable"
-            and (scope is None or path in scope)
+            and (path in scope if scope is not None else not self._unlisted(path))
         ]
         new = dict(old)
         deletes: list[int] = []
@@ -683,12 +859,13 @@ class Scanner:
             rec = claims.get(path) or old.get(path)
             if rec is None:
                 key = next(self._counter)
-                if o.readable:
-                    put(*self._readable(o, key), None)
+                built = self._try_rows(o, key) if o.readable else o
+                if isinstance(built, Outcome):
+                    put(*self._unreadable(built, key), None)
+                    unreadable.append((path, built.line, built.reason or ""))
+                    LOG.warning("%s is unreadable: %s", o.found.native, built.reason)
                 else:
-                    put(*self._unreadable(o, key), None)
-                    unreadable.append((path, o.line, o.reason or ""))
-                    LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
+                    put(*built, None)
                 added.append(path)
                 continue
             is_move = path in claims
@@ -711,30 +888,34 @@ class Scanner:
                     )
                     continue
                 # the same content keeps its rows' keys
-                put(*self._readable(o, rec.key, rec.keys if same else ()), rec)
-                if rec.state != "unavailable" and (not same or newer):
-                    changed.append(path)
-            else:
-                if rec.state == "unreadable" and rec.reason == o.reason:
-                    new[path] = replace(
-                        rec,
-                        native=o.found.native,
-                        size=o.found.size,
-                        mtime_ns=o.found.mtime_ns,
-                        read_at_ns=o.read_at_ns,
-                        os_error=o.os_error,
-                    )
+                built = self._try_rows(o, rec.key, rec.keys if same else ())
+                if not isinstance(built, Outcome):
+                    put(*built, rec)
+                    if rec.state != "unavailable" and (not same or newer):
+                        changed.append(path)
                     continue
-                put(*self._unreadable(o, rec.key), rec)
-                unreadable.append((path, o.line, o.reason or ""))
-                LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
+                o = built
+            if rec.state == "unreadable" and rec.reason == o.reason:
+                new[path] = replace(
+                    rec,
+                    native=o.found.native,
+                    size=o.found.size,
+                    mtime_ns=o.found.mtime_ns,
+                    read_at_ns=o.read_at_ns,
+                    os_error=o.os_error,
+                )
+                continue
+            put(*self._unreadable(o, rec.key), rec)
+            unreadable.append((path, o.line, o.reason or ""))
+            LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
 
         taken = {r.path for r in claims.values()}
         for rec in vanished:
             if rec.path in taken:
                 continue
             if rec.state == "readable":
-                # a copy indexed earlier, and the original gone: moved onto it
+                # a copy indexed earlier, and the original gone: moved onto it,
+                # if it is a copy still (with other content, this file is missing)
                 targets = [
                     p
                     for p, r in sorted(new.items())
@@ -742,15 +923,13 @@ class Scanner:
                     and p in here
                     and r.state == "readable"
                     and r.document_id == rec.document_id
+                    and r.fingerprint == rec.fingerprint
                 ]
                 if targets:
-                    same_content = [
-                        p for p in targets if new[p].fingerprint == rec.fingerprint
-                    ]
                     new.pop(rec.path)
                     deletes.append(rec.key)
                     maps[rec.key] = None
-                    moved.append((rec.path, (same_content or targets)[0]))
+                    moved.append((rec.path, targets[0]))
                     continue
             kept = rec if rec.state == "readable" else None
             record = FileRecord(
@@ -772,11 +951,22 @@ class Scanner:
             gone.append(rec.path)
             LOG.warning("%s is unavailable", rec.native)
 
-        if deletes or inserts:
-            err = self.store.apply(deletes, inserts, maps)
+        refused = _Refused()
+        # a whole scan that finds nothing to do still clears a failed change's
+        # warning: the index and the folder agree again
+        if deletes or inserts or (scope is None and self.store.failure is not None):
+            err = self.store.apply(
+                deletes, inserts, maps, instead=refused, partial=scope is not None
+            )
             if err is not None:
                 after = self.store.generation
                 return ScanReport((), (), (), (), (), (), (), before, after, str(err))
+        settled = refused.settle(new)
+        if settled:
+            # as for any file that turned unreadable: listed there, not as changed
+            paths = {path for path, _, _ in settled}
+            changed = [path for path in changed if path not in paths]
+            unreadable = sorted([*unreadable, *settled], key=lambda u: u[0])
         self.records = new
         new_paths = set(added)
         return ScanReport(
