@@ -920,3 +920,35 @@ def test_rereading_a_twin_by_its_name_leaves_the_rows_alone(tmp_path):
         assert report.changed == () and corpus.generation == generation
         assert rows_by_content(corpus) == rows
         assert not corpus.scan()
+
+
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_a_read_that_rescans_survives_a_bad_file(tmp_path, change, reason):
+    tla_files.write(tmp_path / "a.tla", song())
+    with opened(tmp_path, rescan_before_reads=True) as corpus:
+        tla_files.write(tmp_path / "bad.tla", spoiled(change))
+        corpus._scanner.last_scan = None  # the rescan is due
+        result = tql.run(corpus, "verse")
+        assert len(result.rows) == 1
+        assert any("1 file was left out: 1 unreadable" in w for w in result.warnings)
+        assert corpus.file("bad.tla").reason.startswith(reason)
+
+
+def test_a_reread_that_goes_through_doesnt_clear_a_failed_scans_warning(
+    tmp_path, monkeypatch
+):
+    a = song()
+    tla_files.write(tmp_path / "a.tla", a)
+    tla_files.write(tmp_path / "b.tla", song())
+    with opened(tmp_path) as corpus:
+        tla_files.unit(a, "Marker")["label"] = "PAC"
+        tla_files.write(tmp_path / "a.tla", a)
+        with monkeypatch.context() as m:
+            m.setattr(store_module, "_insert", disk_full)
+            assert corpus.scan().error is not None
+        tla_files.write(tmp_path / "b.tla", song("edited"))
+        assert corpus.reread("b.tla").error is None
+        # a.tla is still as last indexed
+        assert said_last_change(tql.run(corpus, "HC"))
+        assert corpus.scan().changed == ("a.tla",)
+        assert not said_last_change(tql.run(corpus, "HC"))
