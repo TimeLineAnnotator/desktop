@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core import rules, tla
-from tilia_core.tla import writer
+from tilia_core.tla import problems, reader, writer
 
 BROKEN = Path(__file__).parent / "broken"
 OLD = Path(__file__).parent / "old"
@@ -1397,6 +1397,317 @@ class TestWithNoLengthRead:
         written(doc, tmp_path)
         doc.media_length = 100.0
         written(doc, tmp_path)
+
+
+class TestStatesMadeWhenAWriteNeedsThem:
+    """A document read with no media length makes its components' states only for
+    a write that finds a time past the end, and makes them from what was read, so
+    that what a write refuses is what it would have refused had they been kept."""
+
+    @pytest.fixture
+    def made(self, monkeypatch):
+        """How many times the states of a whole document were made."""
+        calls = []
+        make = problems.unmeasured
+
+        def counted(document):
+            calls.append(document)
+            return make(document)
+
+        monkeypatch.setattr(problems, "unmeasured", counted)
+        return calls
+
+    def test_a_read_makes_none(self, made):
+        doc = tla.loads(a_file(PAST_THE_END["marker"][1]))
+        assert doc.warnings == []
+        assert made == []
+
+    def test_a_write_with_nothing_past_the_end_makes_none(self, made, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 50.0}))))
+        written(doc, tmp_path)  # with no length
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+        assert made == []
+
+    def test_a_write_with_a_time_past_the_end_makes_them_once(self, made, tmp_path):
+        doc = tla.loads(
+            a_file(markers((FIRST, {"time": 150.0}), (SECOND, {"time": 160.0})))
+        )
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+        assert len(made) == 1
+
+    @pytest.mark.parametrize("kind", PAST_THE_END)
+    def test_a_component_changed_since_it_was_read_is_a_new_problem(
+        self, kind, tmp_path
+    ):
+        # By its state as it was read, not as it is when the states are made.
+        timeline, change = PAST_THE_END[kind]
+        doc = tla.loads(a_file(change))
+        doc.timelines[timeline].components[FIRST].attrs["label"] = "changed"
+        doc.media_length = 100.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(timeline, FIRST)
+        ]
+
+    def test_a_change_inside_a_value_is_a_new_problem(self, tmp_path):
+        doc = tla.loads(a_file(beats((FIRST, {"time": 150.0, "measure": {}}))))
+        doc.timelines[BEATS].components[FIRST].attrs["measure"]["label"] = "changed"
+        doc.media_length = 100.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(BEATS, FIRST)
+        ]
+
+    def test_the_time_moved_past_the_end_is_a_new_problem(self, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 50.0}))))
+        doc.timelines[CADENCES].components[FIRST].attrs["time"] = 150.0
+        doc.media_length = 100.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    def test_only_the_changed_one_of_two_is_new(self, tmp_path):
+        doc = tla.loads(
+            a_file(markers((FIRST, {"time": 150.0}), (SECOND, {"time": 160.0})))
+        )
+        doc.timelines[CADENCES].components[SECOND].attrs["label"] = "changed"
+        doc.media_length = 100.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, SECOND)
+        ]
+
+    def test_a_change_put_back_is_no_new_problem(self, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 150.0}))))
+        attrs = doc.timelines[CADENCES].components[FIRST].attrs
+        attrs["label"] = "changed"
+        doc.media_length = 100.0
+        refused(doc, tmp_path)
+        del attrs["label"]
+        written(doc, tmp_path)
+
+    def test_a_float_read_as_an_integer_is_compared_as_it_was_read(self, tmp_path):
+        # The check makes the level an integer: the states are made after it.
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(140.0, 150.0, 1.0)))))
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    @staticmethod
+    def an_old_file():
+        """A TiLiA 0.6 file with no media length, one hierarchy past the end of
+        any length under 150."""
+        content = json.loads(old_file({"start": 140.0, "end": 150.0, "level": 1}))
+        content["media_metadata"] = {}
+        return json.dumps(content, indent=2).encode("utf-8")
+
+    def test_an_old_file_unchanged_is_no_new_problem(self, tmp_path):
+        doc = tla.loads(self.an_old_file())
+        assert doc.media_length is None
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    def test_an_old_file_changed_since_it_was_read_is_a_new_problem(self, tmp_path):
+        doc = tla.loads(self.an_old_file())
+        form = next(iter(doc.timelines.values()))
+        next(iter(form.components.values())).attrs["label"] = "changed"
+        doc.media_length = 100.0
+        assert len(refused(doc, tmp_path)) == 1
+
+    def test_an_old_file_read_from_a_path_keeps_its_states(self, tmp_path):
+        # Its paths are made relative to it, but its components don't change.
+        path = tmp_path / "old.tla"
+        path.write_bytes(self.an_old_file())
+        doc = tla.read(path)
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    def test_the_file_is_not_read_again(self, tmp_path):
+        path = tmp_path / "piece.tla"
+        path.write_bytes(a_file(markers((FIRST, {"time": 150.0}))))
+        doc = tla.read(path)
+        path.unlink()
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    def test_what_replaced_the_file_is_not_what_was_read(self, tmp_path):
+        path = tmp_path / "read.tla"
+        path.write_bytes(a_file(markers((FIRST, {"time": 150.0}))))
+        doc = tla.read(path)
+        path.write_bytes(a_file(markers((FIRST, {"time": 170.0}))))
+        doc.timelines[CADENCES].components[FIRST].attrs["time"] = 170.0
+        doc.media_length = 100.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    def test_a_write_keeps_the_states_of_what_it_wrote(self, tmp_path):
+        doc = tla.loads(a_file(markers((FIRST, {"time": 150.0}))))
+        attrs = doc.timelines[CADENCES].components[FIRST].attrs
+        attrs["label"] = "written"
+        tla.write(tmp_path / "first.tla", doc)
+        attrs["label"] = "changed since"
+        doc.media_length = 100.0
+        refused(doc, tmp_path)
+        attrs["label"] = "written"
+        written(doc, tmp_path)
+
+    def test_the_states_are_what_was_read_whenever_they_are_looked_at(self):
+        data = a_file(markers((FIRST, {"time": 150.0})))
+        before = dict(tla.loads(data).read_unmeasured)
+        doc = tla.loads(data)
+        doc.timelines[CADENCES].components[FIRST].attrs["time"] = 1.0
+        del doc.timelines[FORM]
+        assert dict(doc.read_unmeasured) == before
+        assert before[component_place(CADENCES, FIRST)]
+
+    def test_they_read_copy_and_pickle_as_a_dict_does(self):
+        data = a_file(markers((FIRST, {"time": 150.0})))
+        states = tla.loads(data).read_unmeasured
+        expected = dict(tla.loads(data).read_unmeasured)
+        assert repr(states) == repr(expected)
+        assert states == expected
+        assert expected == states
+        assert len(states) == len(expected)
+        assert set(states) == set(expected)
+        assert copy.deepcopy(states) == expected
+        assert pickle.loads(pickle.dumps(states)) == expected
+
+        doc = tla.loads(data)
+        assert dataclasses.asdict(doc)["read_unmeasured"] == expected
+        assert type(dataclasses.asdict(doc)["read_unmeasured"]) is dict
+
+    def test_a_copy_made_before_they_are_looked_at_compares_as_read(self, tmp_path):
+        doc = copy.deepcopy(tla.loads(a_file(markers((FIRST, {"time": 150.0})))))
+        doc.timelines[CADENCES].components[FIRST].attrs["label"] = "changed"
+        doc.media_length = 100.0
+        refused(doc, tmp_path)
+
+    def test_a_pickled_document_compares_as_read(self, tmp_path):
+        data = a_file(markers((FIRST, {"time": 150.0})))
+        doc = pickle.loads(pickle.dumps(tla.loads(data)))
+        doc.timelines[CADENCES].components[FIRST].attrs["label"] = "changed"
+        doc.media_length = 100.0
+        refused(doc, tmp_path)
+        doc = pickle.loads(pickle.dumps(tla.loads(data)))
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+
+class TestALongIntegerWithNoLengthRead:
+    """Every Python reads and writes an integer of fewer than 640 digits. A longer
+    one may not read again, so the states of its file are made while it is read,
+    as they have always been."""
+
+    @pytest.fixture
+    def limit(self):
+        before = sys.get_int_max_str_digits()
+        yield sys.set_int_max_str_digits
+        sys.set_int_max_str_digits(before)
+
+    @staticmethod
+    def a_file_with(digits, length=None):
+        """A marker past the end of a length under 150, and one holding an integer."""
+        with_digits = {"time": 5.0, "unknown": "digits"}
+        data = a_file(
+            together(
+                with_media_length(length),
+                markers((FIRST, {"time": 150.0}), (SECOND, with_digits)),
+            )
+        ).decode("utf-8")
+        return data.replace('"digits"', "1" * digits).encode("utf-8")
+
+    @pytest.mark.parametrize("length", [None, 200.0], ids=["no length", "a length"])
+    def test_one_a_write_would_refuse_is_refused_while_reading(self, limit, length):
+        # Its fingerprint is made while it is read too, with a length or not.
+        limit(0)
+        with pytest.raises(ValueError, match="an integer too long to read back"):
+            tla.loads(self.a_file_with(4301, length))
+
+    def test_with_a_length_it_is_read(self, monkeypatch):
+        calls = []
+        make = problems.unmeasured
+        monkeypatch.setattr(
+            problems, "unmeasured", lambda doc: calls.append(doc) or make(doc)
+        )
+        doc = tla.loads(self.a_file_with(1000, length=200.0))
+        assert doc.read_unmeasured == {}
+        assert calls == []
+
+    def test_under_the_usual_limit_it_is_refused_as_too_long(self):
+        with pytest.raises(tla.UnreadableFile, match="too large"):
+            tla.loads(self.a_file_with(4301))
+
+    def test_a_limit_lowered_since_it_was_read_changes_nothing(self, limit, tmp_path):
+        doc = tla.loads(self.a_file_with(1000))
+        limit(640)
+        del doc.timelines[CADENCES].components[SECOND]
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    def test_a_limit_lowered_since_it_was_written_changes_nothing(
+        self, limit, tmp_path
+    ):
+        # The states of what a write wrote are made as it writes.
+        doc = tla.loads(self.a_file_with(1000))
+        written(doc, tmp_path)
+        limit(640)
+        del doc.timelines[CADENCES].components[SECOND]
+        doc.media_length = 100.0
+        written(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "change, searches",
+        [
+            (None, 1),
+            (with_media_length(100.0), 0),
+            (lambda content: content.update(time_unit="quarters"), 0),
+        ],
+        ids=["no length", "a length", "quarters"],
+    )
+    def test_a_write_searches_what_it_wrote_only_for_states_to_make(
+        self, change, searches, monkeypatch, tmp_path
+    ):
+        doc = tla.loads(a_file(change))
+        search = writer.has_long_integer
+        found = []
+        monkeypatch.setattr(
+            writer, "has_long_integer", lambda data: found.append(data) or search(data)
+        )
+        written(doc, tmp_path)
+        assert len(found) == searches
+
+    @staticmethod
+    def an_old_file_with(digits):
+        """A TiLiA 0.6 file with no media length, a hierarchy past the end of a
+        length under 150, and an integer."""
+        content = json.loads(old_file({"start": 140.0, "end": 150.0, "level": 1}))
+        content["media_metadata"] = {}
+        content["count"] = "digits"
+        data = json.dumps(content, indent=2)
+        return data.replace('"digits"', "1" * digits).encode("utf-8")
+
+    @pytest.mark.parametrize("old", [False, True], ids=["a file", "an old file"])
+    def test_its_states_and_fingerprint_are_made_while_reading(self, old, monkeypatch):
+        # Both from one look for a long integer.
+        made = []
+
+        def counted(module, name):
+            make = getattr(module, name)
+
+            def count(*args, **kwargs):
+                made.append(name)
+                return make(*args, **kwargs)
+
+            monkeypatch.setattr(module, name, count)
+
+        counted(reader, "has_long_integer")
+        counted(writer, "_fingerprint_of_bytes")
+        counted(problems, "unmeasured")
+        with_digits = self.an_old_file_with if old else self.a_file_with
+        tla.loads(with_digits(640))
+        assert made == ["has_long_integer", "_fingerprint_of_bytes", "unmeasured"]
+        made.clear()
+        tla.loads(with_digits(639))
+        assert made == ["has_long_integer"]
 
 
 class TestWhatIsComparedIsWhatIsWritten:

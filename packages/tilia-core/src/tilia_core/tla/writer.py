@@ -22,6 +22,7 @@ import math
 import os
 import re
 from collections.abc import Callable, Mapping
+from functools import partial
 from operator import itemgetter
 from pathlib import Path
 from typing import Any
@@ -87,10 +88,14 @@ from tilia_core.tla.problems import (
     cant_check,
     find_problems,
     new_problems,
-    unmeasured,
+    unmeasured_later,
     warnings_of,
 )
-from tilia_core.tla.reader import loads_for_fingerprint, written_document
+from tilia_core.tla.reader import (
+    has_long_integer,
+    loads_for_fingerprint,
+    written_document,
+)
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -852,7 +857,7 @@ def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> N
 
 def _checked_with_the_rules(
     doc: Document, data: bytes, path: str | os.PathLike[str]
-) -> tuple[list[ReadProblem], dict[str, str]]:
+) -> tuple[list[ReadProblem], Mapping[str, str]]:
     """The problems of the document `data` holds, as the reader finds them, so
     that a float given for an integer is checked as it is written (FR-051a), and
     its components' states when it has no media length. Raises `BrokenRules` for
@@ -867,7 +872,9 @@ def _checked_with_the_rules(
         refused.append(ReadWarning(place="", line=None, message=printable(str(unable))))
     if refused:
         raise BrokenRules(path, refused)
-    return problems, unmeasured(written)
+    return problems, unmeasured_later(
+        written, partial(written_document, data), partial(has_long_integer, data)
+    )
 
 
 # Windows' errors for a rename refused because another program holds a file

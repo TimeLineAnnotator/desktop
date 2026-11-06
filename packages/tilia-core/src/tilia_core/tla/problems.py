@@ -23,10 +23,11 @@ The rules read a media length, so a new one can change what an unchanged compone
 breaks. For one read past the end of the old one, past the end of the new one is
 the same problem. When no length was read, no time was compared with any, so the
 same goes for every component once one is given. Their states are kept for that:
-`unmeasured`. A known length that puts a time past it for the first time is a new
-problem, since what the file came with kept to its length: TiLiA leaves nothing
-past the end when it scales or crops (TimeLineAnnotator/project-management#496,
-point 1).
+`unmeasured`, made from what was read when a write first needs them
+(`unmeasured_later`). A known length that puts a time past it for the first time
+is a new problem, since what the file came with kept to its length: TiLiA leaves
+nothing past the end when it scales or crops
+(TimeLineAnnotator/project-management#496, point 1).
 
 A beat without a time has its warning from the check, which names its
 timeline (TimeLineAnnotator/project-management#285), so the rule it breaks adds
@@ -77,14 +78,18 @@ _NO_TIME = rules.not_valid("time", None)
 def keep_problems(
     document: Document,
     source: str | bytes,
+    as_read: Callable[[], Document],
+    long_integer: bool,
     where: Callable[[str], str] | None = None,
 ) -> None:
     """Give `document`, just read, what it breaks: its `read_problems`, and a
     warning for each, after those it has. `source` is what it was read from,
-    for lines. `where` takes a place in the document to the place to name, in
-    what it was read from."""
+    for lines. `as_read` makes the same document again from `source`, and
+    `long_integer` is whether `source` holds an integer a Python may not read
+    or write, as `unmeasured_later` needs them. `where` takes a place in the
+    document to the place to name, in what it was read from."""
     document.read_problems = find_problems(document)
-    document.read_unmeasured = unmeasured(document)
+    document.read_unmeasured = unmeasured_later(document, as_read, lambda: long_integer)
     not_warned = [p for p in document.read_problems if not p.warned]
     document.warnings.extend(warnings_of(not_warned, source, where))
     unable = cant_check(document)
@@ -141,6 +146,60 @@ def unmeasured(document: Document) -> dict[str, str]:
                 at = pointer_to(held, component_id)
                 states[at] = _component_state(component, at, holds)
     return states
+
+
+def unmeasured_later(
+    document: Document,
+    as_read: Callable[[], Document],
+    long_integer: Callable[[], bool],
+) -> Mapping[str, str]:
+    """`unmeasured(document)`, for `document` just made from bytes, put off until
+    it is looked at: most reads aren't written, and a write looks at it only for a
+    time past the end. It is then made from `as_read()`, which makes the document
+    again from those bytes, never from `document`, which may have changed by then.
+
+    From bytes with an integer that a Python may not read or write, it is made
+    now: what it raises for one is raised while reading, and a limit lowered since
+    can't stop it being made. `long_integer()` says whether they hold one
+    (`reader.has_long_integer`). It is asked only when there are states to make,
+    so that a write with a media length, or in quarters, doesn't search what it
+    wrote."""
+    if document.media_length is not None or document.time_unit != "seconds":
+        return {}
+    if long_integer():
+        return unmeasured(document)
+    return _Unmeasured(as_read)
+
+
+class _Unmeasured(Mapping[str, str]):
+    """The states `unmeasured` gives for the document `as_read` makes, made the
+    first time they are looked at."""
+
+    def __init__(self, as_read: Callable[[], Document]) -> None:
+        self._as_read = as_read
+        self._states: dict[str, str] | None = None
+
+    def _made(self) -> dict[str, str]:
+        if self._states is None:
+            self._states = unmeasured(self._as_read())
+            del self._as_read  # it holds the file's bytes
+        return self._states
+
+    def __getitem__(self, place: str) -> str:
+        return self._made()[place]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._made())
+
+    def __len__(self) -> int:
+        return len(self._made())
+
+    def __repr__(self) -> str:
+        return repr(self._made())
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> dict[str, str]:
+        # As `dataclasses.asdict` copies it: what it holds, as a dict.
+        return dict(self._made())
 
 
 def new_problems(

@@ -691,8 +691,9 @@ class Document:
     )
     # When it had no media length: each component's state, by its place, as in a
     # `ReadProblem`. Its times weren't compared with any, so one past a length
-    # given since is no new problem while it hasn't changed.
-    read_unmeasured: dict[str, str] = field(
+    # given since is no new problem while it hasn't changed. Made when it is
+    # looked at, from what was read (`problems.unmeasured_later`).
+    read_unmeasured: Mapping[str, str] = field(
         default_factory=dict, repr=False, compare=False
     )
 
