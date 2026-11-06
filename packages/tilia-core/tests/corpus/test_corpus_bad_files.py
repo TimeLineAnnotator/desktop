@@ -460,6 +460,9 @@ ANY_BAD = {
 }
 
 
+CANT_STORE_BAD = {name: (c, f"can't index: {e}") for name, (c, e) in CANT_STORE.items()}
+
+
 def long_ago(*paths):
     """Date ``paths`` long past, so a scan reads them again only if they change."""
     then = time.time() - 3600
@@ -526,6 +529,37 @@ def test_a_bad_file_on_record_is_left_alone_by_later_scans(tmp_path, change, rea
             report = corpus.scan()
             assert not report
             assert report.generation_after == generation
+
+
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_a_bad_file_read_again_within_its_racy_time_changes_nothing(
+    tmp_path, change, reason
+):
+    # dated now, so every scan reads it again, and finds what it found before
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "bad.tla", spoiled(change))
+    long_ago(tmp_path / "a.tla")
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        rows = rows_by_content(corpus)
+        for _ in range(3):
+            report = corpus.scan()
+            assert not report
+            assert report.generation_after == generation
+            assert rows_by_content(corpus) == rows
+        assert corpus.file("bad.tla").reason.startswith(reason)
+
+
+@pytest.mark.parametrize("change,reason", CANT_STORE_BAD.values(), ids=CANT_STORE_BAD)
+def test_a_refused_file_edited_is_tried_again(tmp_path, change, reason):
+    tla_files.write(tmp_path / "bad.tla", spoiled(change))
+    with opened(tmp_path) as corpus:
+        assert corpus.file("bad.tla").state == "unreadable"
+        tla_files.write(tmp_path / "bad.tla", song())
+        report = corpus.scan()
+        assert report.changed == ("bad.tla",) and report.unreadable == ()
+        assert corpus.file("bad.tla").state == "readable"
+        assert components_per_path(corpus)["bad.tla"] > 0
 
 
 @pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)

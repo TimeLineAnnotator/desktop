@@ -266,7 +266,9 @@ class FileRecord:
     ``fingerprint`` and ``document_id`` are as in ``files``, and ``line`` the
     line of an unreadable file's reason. ``os_error`` is true when the file
     couldn't be opened or read. ``time_map`` is what ``time_map_of`` gave.
-    ``keys`` are the keys its rows took, in the order they were handed out."""
+    ``keys`` are the keys its rows took, in the order they were handed out.
+    ``refused`` is the fingerprint of content the index couldn't store: the file
+    is unreadable for as long as it has that content."""
 
     key: int
     path: str
@@ -285,6 +287,7 @@ class FileRecord:
     os_error: bool = False
     time_map: TimeMap | None = None
     keys: tuple[int, ...] = ()
+    refused: str | None = None
 
 
 class _KeyCounter:
@@ -403,6 +406,7 @@ class _Refused:
                     time_unit=None,
                     time_map=None,
                     keys=(rec.key,),
+                    refused=rec.fingerprint,
                 )
                 out.append((rec.path, None, reason))
         return out
@@ -807,7 +811,9 @@ class Scanner:
                 assert o.document is not None
                 same = rec.state == "readable" and o.fingerprint == rec.fingerprint
                 newer = o.document.format_version != rec.format_version
-                if same and not newer and not is_move:
+                # content the index refused before would only be refused again
+                refused_again = rec.refused == o.fingerprint
+                if refused_again or (same and not newer and not is_move):
                     new[path] = replace(
                         rec,
                         native=o.found.native,
