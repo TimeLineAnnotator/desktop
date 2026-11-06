@@ -1127,3 +1127,13 @@ class TestTheParser:
 
         assert extras == ["--over"]
         assert args.overwrite is False
+
+
+def test_the_kinds_a_script_imports_are_the_importers_own():
+    # One list, in `importers`: a kind added there is a command here.
+    from tilia_core import importers
+    from tilia_core.commands import _script
+
+    for kind in importers.IMPORTED_KINDS:
+        assert f"timelines import {kind} by-time" in _script._COMMANDS
+        assert f"timelines import {kind} by-measure" in _script._COMMANDS

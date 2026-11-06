@@ -41,7 +41,6 @@ _TAKES_NO_VALUE = "{} takes no value"
 _HARMONY_NEEDS = f"harmony import needs: {rules.INSTALL_HARMONY}"
 _NOT_UTF8 = "this line isn't UTF-8: save the script as UTF-8"
 
-_KINDS_IMPORTED = ("marker", "hierarchy", "range", "harmony", "pdf")
 _SCALE_TIMELINES = ("yes", "no", "prompt")
 
 # TiLiA 0.7's other spellings of a command's words, by the words before them.
@@ -318,7 +317,7 @@ _COMMANDS: dict[str, _Syntax] = {
     "timelines import beat": _import_syntax("beat", None),
     **{
         f"timelines import {kind} by-{by}": _import_syntax(kind, by)
-        for kind in _KINDS_IMPORTED
+        for kind in importers.IMPORTED_KINDS
         for by in ("time", "measure")
     },
     "open": _Syntax(positionals=(_PATH,)),
