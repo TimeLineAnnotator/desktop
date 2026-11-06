@@ -8,7 +8,7 @@ import os
 import struct
 import sys
 import wave
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath
 
 import pytest
 from import_docs import component, document, timeline
@@ -1044,6 +1044,201 @@ def test_a_youtube_link_takes_a_length_set_earlier():
     build.set_media_length(doc, 212.0)
 
     assert build.load_media(doc, "https://youtu.be/dQw4w9WgXcQ") == 212.0
+
+
+def test_a_youtube_link_without_a_scheme_is_stored_with_one(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # no folder `youtu.be` here
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtu.be/dQw4w9WgXcQ", duration_if_error=212.0)
+
+    assert doc.media_path == "https://youtu.be/dQw4w9WgXcQ"
+
+
+def test_a_path_that_looks_like_a_youtube_link_is_a_file_when_one_is_there(
+    tmp_path, monkeypatch
+):
+    (tmp_path / "youtube.com").mkdir()
+    pcm16_wav(tmp_path / "youtube.com" / "clip.wav", rate=8000, channels=1, frames=8000)
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtube.com/clip.wav")
+
+    assert doc.media_path == stored(tmp_path / "youtube.com" / "clip.wav")
+    assert doc.media_length == 1.0
+
+
+def test_a_youtube_look_alike_that_is_a_file_takes_a_length_given_as_any_media(
+    tmp_path, monkeypatch
+):
+    # `youtube.com/clip.mp4`, as the task names it: a file, not a link.
+    (tmp_path / "youtube.com").mkdir()
+    (tmp_path / "youtube.com" / "clip.mp4").write_bytes(b"not read")
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtube.com/clip.mp4", duration_if_error=9.0)
+
+    assert doc.media_path == stored(tmp_path / "youtube.com" / "clip.mp4")
+
+
+def test_load_media_decides_with_the_cores_function(monkeypatch):
+    asked = []
+
+    def as_media_path(given):
+        asked.append(given)
+        return "https://youtu.be/decided"
+
+    monkeypatch.setattr(tla, "as_media_path", as_media_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "anything", duration_if_error=5.0)
+
+    assert set(asked) == {"anything"}
+    assert doc.media_path == "https://youtu.be/decided"
+
+
+class PathLike:
+    """A path object that isn't a `Path`: only `__fspath__`."""
+
+    def __init__(self, text):
+        self.text = text
+
+    def __fspath__(self):
+        return self.text
+
+
+@pytest.mark.parametrize(
+    "given",
+    [PurePosixPath("youtu.be/abc"), PurePath("youtu.be/abc"), PathLike("youtu.be/abc")],
+    ids=["PurePosixPath", "PurePath", "os.PathLike"],
+)
+def test_a_path_object_is_never_taken_for_a_link(given, tmp_path, monkeypatch):
+    # WP3's contract: a path object is always a path, never a link.
+    monkeypatch.chdir(tmp_path)  # no such file here
+    doc = build.new_script_document()
+
+    with pytest.raises(ValueError, match="No media available"):
+        build.load_media(doc, given, duration_if_error=9.0)
+
+    assert doc.media_path == ""
+    assert doc.media_length is None
+
+
+def test_a_url_that_is_not_youtube_is_refused_and_changes_nothing():
+    doc = build.new_script_document()
+
+    message = refused(
+        build.load_media, doc, "https://example.com/a.mp3", duration_if_error=9.0
+    )
+
+    assert message.startswith("No media available at 'https://example.com/a.mp3'")
+    assert doc.media_path == ""
+    assert doc.media_length is None
+
+
+def test_a_url_isnt_looked_up_as_a_file(monkeypatch):
+    # With a folder called `https:` below the working folder on macOS or Linux,
+    # `https://example.com/a.mp3` would be a file.
+    looked_up = []
+    real = os.path.isfile
+    monkeypatch.setattr(
+        os.path, "isfile", lambda path: looked_up.append(path) or real(path)
+    )
+    doc = build.new_script_document()
+
+    refused(build.load_media, doc, "https://example.com/a.mp3", duration_if_error=9.0)
+
+    assert not [path for path in looked_up if "example.com" in os.fspath(path)]
+
+
+def test_a_backslash_in_a_path_that_looks_like_a_link_separates_folders(
+    tmp_path, monkeypatch
+):
+    # FR-052: a backslash separates folders on every system, so the file at
+    # `youtube.com/sub/clip.mp4` wins over a link.
+    (tmp_path / "youtube.com" / "sub").mkdir(parents=True)
+    (tmp_path / "youtube.com" / "sub" / "clip.mp4").write_bytes(b"not read")
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtube.com/sub\\clip.mp4", duration_if_error=9.0)
+
+    assert doc.media_path == stored(tmp_path / "youtube.com" / "sub" / "clip.mp4")
+
+
+def test_a_backslash_with_no_file_there_stays_a_link_as_given(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    build.load_media(doc, "youtube.com/sub\\clip.mp4", duration_if_error=9.0)
+
+    assert doc.media_path == "https://youtube.com/sub\\clip.mp4"
+
+
+BAD_NAME = "bad\udcff.mp3"
+
+
+def test_the_message_for_media_that_is_missing_can_be_printed(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    message = refused(build.load_media, doc, BAD_NAME, duration_if_error=9.0)
+
+    assert message.encode("utf-8")
+    assert "bad\\udcff.mp3" in message
+
+
+def test_the_message_for_a_url_that_is_not_youtube_can_be_printed():
+    doc = build.new_script_document()
+
+    message = refused(build.load_media, doc, "https://example.com/bad\udcff.mp3")
+
+    assert message.encode("utf-8")
+    assert "bad\\udcff.mp3" in message
+
+
+def test_the_message_for_media_with_no_length_can_be_printed(tmp_path, monkeypatch):
+    try:
+        (tmp_path / BAD_NAME).write_bytes(b"not read")
+    except OSError:
+        pytest.skip("this system can't name a file that isn't UTF-8")
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    message = refused(build.load_media, doc, BAD_NAME)
+
+    assert message.encode("utf-8")
+    assert "bad\\udcff.mp3" in message
+
+
+def test_the_message_for_a_link_with_no_length_can_be_printed():
+    doc = build.new_script_document()
+
+    message = refused(build.load_media, doc, "youtu.be/bad\udcff")
+
+    assert message.encode("utf-8")
+    assert "bad\\udcff" in message
+
+
+def test_the_messages_that_name_a_timeline_can_be_printed():
+    doc = document(
+        timelines=[
+            timeline("marker", name="bad\udcff", ordinal=1),
+            timeline("marker", name="bad\udcff", ordinal=2),
+        ]
+    )
+    problems = []
+
+    missing = refused(build.find_timeline, doc, name="other\udcff")
+    build.find_timeline(doc, name="bad\udcff", problems=problems)
+
+    assert missing.encode("utf-8")
+    assert "other\\udcff" in missing
+    assert len(problems) == 1
+    assert problems[0].encode("utf-8")
+    assert "bad\\udcff" in problems[0]
 
 
 def test_media_of_another_length_is_refused_once_timelines_have_components(tmp_path):
