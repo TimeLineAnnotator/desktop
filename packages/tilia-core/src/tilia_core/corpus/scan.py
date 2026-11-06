@@ -266,7 +266,9 @@ class FileRecord:
     ``fingerprint`` and ``document_id`` are as in ``files``, and ``line`` the
     line of an unreadable file's reason. ``os_error`` is true when the file
     couldn't be opened or read. ``time_map`` is what ``time_map_of`` gave.
-    ``keys`` are the keys its rows took, in the order they were handed out."""
+    ``keys`` are the keys its rows took, in the order they were handed out.
+    ``refused`` is the fingerprint of content the index couldn't store: the file
+    is unreadable for as long as it has that content."""
 
     key: int
     path: str
@@ -285,6 +287,23 @@ class FileRecord:
     os_error: bool = False
     time_map: TimeMap | None = None
     keys: tuple[int, ...] = ()
+    refused: str | None = None
+
+
+class _KeyCounter:
+    """The corpus's counter of keys. It can go back over keys that nothing kept
+    (see :meth:`Scanner._try_rows`)."""
+
+    def __init__(self) -> None:
+        self.value = 1
+
+    def __iter__(self) -> _KeyCounter:
+        return self
+
+    def __next__(self) -> int:
+        key = self.value
+        self.value += 1
+        return key
 
 
 class _Keys:
@@ -387,6 +406,7 @@ class _Refused:
                     time_unit=None,
                     time_map=None,
                     keys=(rec.key,),
+                    refused=rec.fingerprint,
                 )
                 out.append((rec.path, None, reason))
         return out
@@ -537,7 +557,7 @@ class Scanner:
         self.settings = settings
         self.time_map_of: TimeMapOf = time_map_of or _no_time_map
         self.records: dict[str, FileRecord] = {}
-        self._counter = itertools.count(1)
+        self._counter = _KeyCounter()
         self.turn = Turn()
         """The change mutex: scans take turns with each other, and with
         rereads and the core's own writes (research R2)."""
@@ -582,11 +602,14 @@ class Scanner:
     ) -> tuple[FileRecord, Rows] | Outcome:
         """:meth:`_readable`, or an unreadable outcome for a file whose rows
         can't be built, as for one the reader fails on (FR-007, FR-060): its
-        traceback is logged. Rows half built go with the exception; the keys
-        they took from the corpus's counter are never handed out again."""
+        traceback is logged. Rows half built go with the exception, and the keys
+        they took go back to the corpus's counter: a scan's turn is the only one
+        taking keys, so nothing else can hold them."""
+        next_key = self._counter.value
         try:
             return self._readable(outcome, key, replay)
         except Exception as err:  # one file stops nothing
+            self._counter.value = next_key
             reason = f"can't read: {type(err).__name__}: {err}"
             LOG.exception(
                 "the rows of %s can't be built: %s", outcome.found.native, reason
@@ -874,7 +897,9 @@ class Scanner:
                 assert o.document is not None
                 same = rec.state == "readable" and o.fingerprint == rec.fingerprint
                 newer = o.document.format_version != rec.format_version
-                if same and not newer and not is_move:
+                # content the index refused before would only be refused again
+                refused_again = rec.refused == o.fingerprint
+                if refused_again or (same and not newer and not is_move):
                     new[path] = replace(
                         rec,
                         native=o.found.native,
