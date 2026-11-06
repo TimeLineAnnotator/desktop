@@ -763,7 +763,9 @@ class TestHarmony:
         )
 
     @pytest.mark.parametrize("quality, base, tone, inversions", COUNTED_FROM_THEIR_BASE)
-    def test_the_added_tone_qualities_tilia_has(self, quality, base, tone, inversions):
+    def test_the_added_tone_qualities_tilia_has(
+        self, music21, quality, base, tone, inversions
+    ):
         # An added tone isn't one the chord can be inverted to: the base quality's
         # inversions count, for what TiLiA's dialog offers.
         assert rules.split_added_tone(quality) == (base, tone)
