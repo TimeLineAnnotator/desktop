@@ -582,13 +582,10 @@ class Scanner:
         they took from the corpus's counter are never handed out again."""
         try:
             return self._readable(outcome, key, replay)
-        except Exception as err:  # noqa: BLE001 - one file stops nothing
+        except Exception as err:  # one file stops nothing
             reason = f"can't read: {type(err).__name__}: {err}"
-            LOG.error(
-                "the rows of %s can't be built: %s",
-                outcome.found.native,
-                reason,
-                exc_info=True,
+            LOG.exception(
+                "the rows of %s can't be built: %s", outcome.found.native, reason
             )
             return replace(outcome, document=None, fingerprint=None, reason=reason)
 
