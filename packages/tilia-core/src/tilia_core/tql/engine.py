@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from typing import Any, Iterator
+from typing import Any, Iterable, Iterator
 
 from tilia_core import derived
 from tilia_core.labels import fold
@@ -36,10 +36,14 @@ MODES = {None: "any", "STARTS_WITH": "start", "ENDS_WITH": "end", "CONSISTS_OF":
 READABLE_FILES = "SELECT id FROM files WHERE state = 'readable' ORDER BY path, id"
 
 
-def left_out_warnings(con: sqlite3.Connection, available: bool) -> list[str]:
+def left_out_warnings(
+    con: sqlite3.Connection, available: bool, others: Iterable[str] = ()
+) -> list[str]:
     """The warnings about what a result could not read: the files left out,
-    unreadable or unavailable (TimeLineAnnotator/project-management#123), and
-    a corpus folder that can't be reached (FR-021)."""
+    unreadable or unavailable (TimeLineAnnotator/project-management#123), a
+    corpus folder that can't be reached (FR-021), and ``others``, what the read
+    itself warns about (``Reading.warnings``), such as a change the index
+    couldn't take."""
     out = []
     # a lookup, not a search statement: kept out of the SQL a result shows
     counts = dict(
@@ -60,6 +64,7 @@ def left_out_warnings(con: sqlite3.Connection, available: bool) -> list[str]:
             "the corpus folder can't be reached; these results come from the "
             "files as last read"
         )
+    out.extend(others)
     return out
 
 
@@ -304,7 +309,9 @@ def _run_on(
         matches=matches,
         explain=explain(query),
         sql_blocks=log.blocks,
-        warnings=warn.messages() + left_out_warnings(log.con, reading.available),
+        warnings=warn.messages() + left_out_warnings(
+            log.con, reading.available, reading.warnings
+        ),
         stopped=stopped,
         generation=reading.generation,
         columns=_columns(grain, query, extra),
