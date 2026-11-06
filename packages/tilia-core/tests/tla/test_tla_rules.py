@@ -185,6 +185,8 @@ class TestReading:
                 place=component_place(FORM, FIRST),
                 line=line_of(data, FIRST),
                 message="Level can't be below 1. Got '0'",
+                timeline_id=FORM,
+                component_id=FIRST,
             )
         ]
         assert doc.timelines[FORM].components[FIRST].attrs["level"] == 0
@@ -196,6 +198,8 @@ class TestReading:
                 place=component_place(FORM, FIRST),
                 line=line_of(data, FIRST),
                 message=f"{OVERLAP} {named(data, SECOND)}",
+                timeline_id=FORM,
+                component_id=FIRST,
             )
         ]
 
@@ -255,6 +259,8 @@ class TestReading:
                 line=line_of(data, FIRST),
                 message="There is already a marker component at the selected position."
                 f" {named(data, SECOND, timeline=CADENCES)}",
+                timeline_id=CADENCES,
+                component_id=FIRST,
             )
         ]
 
@@ -271,6 +277,8 @@ class TestReading:
                 line=line_of(data, IDS["beat_1"]),
                 message="There is already a beat component at the selected position."
                 f" {named(data, IDS['beat_2'], timeline=BEATS)}",
+                timeline_id=BEATS,
+                component_id=IDS["beat_1"],
             )
         ]
         assert len(doc.timelines[BEATS].components) == 2
@@ -286,8 +294,12 @@ class TestReading:
         place = component_place(FORM, FIRST)
         line = line_of(data, FIRST)
         assert tla.loads(data).warnings == [
-            tla.ReadWarning(place, line, "Level can't be below 1. Got '0'"),
-            tla.ReadWarning(place, line, "pre_start can't be after start time."),
+            tla.ReadWarning(
+                place, line, "Level can't be below 1. Got '0'", FORM, FIRST
+            ),
+            tla.ReadWarning(
+                place, line, "pre_start can't be after start time.", FORM, FIRST
+            ),
         ]
 
     def test_a_crossing_is_named_even_when_both_are_at_level_0(self):
@@ -323,6 +335,8 @@ class TestReading:
                 message="joined_with_next=true but next range on row 'Melody' starts"
                 " at 1.5 (must equal 1.0 for ranges to join)"
                 f" {named(data, MELODY_2, timeline=TEXTURE)}",
+                timeline_id=TEXTURE,
+                component_id=MELODY_1,
             )
         ]
 
@@ -344,8 +358,8 @@ class TestReading:
         place = f"/timelines/{TEXTURE}/rows/1"
         line = data.decode().split("\n").index('          "id": "Ab-12",')
         assert tla.loads(data).warnings == [
-            tla.ReadWarning(place, line, "Ab-12 is not a valid row id."),
-            tla.ReadWarning(place, line, "notacolor is not a valid color."),
+            tla.ReadWarning(place, line, "Ab-12 is not a valid row id.", TEXTURE),
+            tla.ReadWarning(place, line, "notacolor is not a valid color.", TEXTURE),
         ]
 
     def test_a_component_the_rules_dont_cover_is_not_checked(self):
@@ -502,6 +516,7 @@ class TestBeatPattern:
                 line=line_of(data, "beat_pattern"),
                 message='the beat pattern "abc" of the timeline "Beats"'
                 " isn't a valid pattern",
+                timeline_id=BEATS,
             )
         ]
         assert doc.timelines[BEATS].attrs["beat_pattern"] == "abc"
@@ -1929,6 +1944,8 @@ class TestBeatWithoutATime:
                 place=component_place(BEATS, BEAT_2),
                 line=line_of(data, BEAT_2),
                 message='a beat of the timeline "Beats" has no time',
+                timeline_id=BEATS,
+                component_id=BEAT_2,
             )
         ]
 
@@ -1951,6 +1968,8 @@ class TestBeatWithoutATime:
                 place=component_place(BEATS, BEAT_2),
                 line=line_of(data, BEAT_2),
                 message="None is not a valid time.",
+                timeline_id=BEATS,
+                component_id=BEAT_2,
             )
         ]
 
@@ -2000,6 +2019,8 @@ class TestAMeasureNumberBelow0:
             place=component_place(BEATS, FIRST),
             line=line_of(data, FIRST),
             message=BELOW_0,
+            timeline_id=BEATS,
+            component_id=FIRST,
         )
         assert [p.code for p in doc.read_problems] == [rules.NEGATIVE_MEASURE_NUMBER]
 
@@ -2200,11 +2221,16 @@ def old_file(*hierarchy_attrs):
 class TestOldFiles:
     def test_a_problem_is_named_in_the_old_files_terms(self):
         data = old_file({"start": 0.0, "end": 2.0, "level": 0})
-        assert tla.loads(data).warnings == [
+        doc = tla.loads(data)
+        (timeline,) = [t for t in doc.timelines.values() if t.kind == "hierarchy"]
+        (component,) = timeline.components
+        assert doc.warnings == [
             tla.ReadWarning(
                 place="/timelines/3/components/17",
                 line=line_of(data, "17"),
                 message="Level can't be below 1. Got '0'",
+                timeline_id=timeline.id,
+                component_id=component,
             )
         ]
 
@@ -2256,11 +2282,19 @@ class TestOldFiles:
             indent=2,
         ).encode("utf-8")
         doc = tla.loads(data)
+        (timeline,) = [t for t in doc.timelines.values() if t.kind == "beat"]
+        (component,) = [
+            key
+            for key, c in timeline.components.items()
+            if c.attrs.get("measure", {}).get("number", 0) < 0
+        ]
         assert doc.warnings == [
             tla.ReadWarning(
                 place="/timelines/3/components/17",
                 line=line_of(data, "17"),
                 message=BELOW_0,
+                timeline_id=timeline.id,
+                component_id=component,
             )
         ]
         written(doc, tmp_path)

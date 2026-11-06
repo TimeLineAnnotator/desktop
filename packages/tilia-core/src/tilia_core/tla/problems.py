@@ -50,7 +50,7 @@ from typing import Any
 
 from tilia_core import rules
 from tilia_core.tla.errors import printable
-from tilia_core.tla.layout import pointer_to
+from tilia_core.tla.layout import ids_at, pointer_to
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
     Component,
@@ -214,7 +214,9 @@ def warnings_of(
                 others.append(f"and {problem.more} more")
             what = "other component" if len(others) == 1 else "other components"
             message = f"{message} ({what}: {'; '.join(others)})"
-        warnings.append(ReadWarning(place=place, line=lines[place], message=message))
+        warnings.append(
+            ReadWarning(place, lines[place], message, *ids_at(problem.place))
+        )
     return warnings
 
 

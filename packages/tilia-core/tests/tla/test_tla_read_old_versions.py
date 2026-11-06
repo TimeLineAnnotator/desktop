@@ -1796,12 +1796,18 @@ def test_what_the_check_refuses_in_an_old_file_is_named_at_its_place_and_line():
 def test_what_the_check_warns_about_in_an_old_file_is_named_at_its_place_and_line():
     data = replaced(SEVEN.read_bytes(), b'"kind": "MODE"', b'"kind": "MARKER"')
     doc = tla.loads(data)
+    (timeline,) = [t for t in doc.timelines.values() if t.kind == "harmony"]
+    (kept,) = [
+        c for c in timeline.components.values() if c.kind == tla.UnknownKind("MARKER")
+    ]
     assert (
         tla.ReadWarning(
             place="/timelines/22/components/23",
             line=line_of(data, b'"23": {'),
             message='the timeline "Harmony" holds a component of kind "MARKER",'
             ' which a timeline of kind "Harmony" doesn\'t have: it is kept as it is',
+            timeline_id=timeline.id,
+            component_id=kept.id,
         )
         in doc.warnings
     )

@@ -87,7 +87,7 @@ from tilia_core.tla.problems import (
     unmeasured,
     warnings_of,
 )
-from tilia_core.tla.reader import loads, loads_for_fingerprint, written_document
+from tilia_core.tla.reader import loads_for_fingerprint, written_document
 
 Writer = Callable[[Any, str, "str | int"], Any]
 
@@ -511,7 +511,7 @@ def _canonical(
     checked = _text(content)
     if checked == text:
         return text
-    return _text(_document(loads(_utf8(checked))))
+    return _text(_document(written_document(_utf8(checked))))
 
 
 def _text(content: dict[str, Any]) -> str:
@@ -555,7 +555,7 @@ ABSENT = _Absent.ABSENT
 def fingerprint_of(doc: Document) -> str:
     """The SHA-256 of `doc`'s canonical bytes, in lower-case hexadecimal
     (FR-043). For a document read from an old file, that isn't the old
-    file's fingerprint: a write states the one `fingerprint` gave."""
+    file's fingerprint: a write states `doc.fingerprint`."""
     return hashlib.sha256(canonical_bytes(doc)).hexdigest()
 
 
@@ -571,9 +571,16 @@ def fingerprint(path: str | os.PathLike[str]) -> str:
     return _fingerprint_of_bytes(data, path)
 
 
+def fingerprint_as_read(doc: Document) -> str:
+    """`fingerprint_of(doc)`, for a document just made from a file's checked
+    content: there is nothing for the check to turn, or refuse, so it isn't run
+    again on every read. `read` and `fingerprint` both take a file's so."""
+    return hashlib.sha256(_utf8(_text(_document(doc)))).hexdigest()
+
+
 def _fingerprint_of_bytes(data: bytes, path: str | os.PathLike[str]) -> str:
     """The fingerprint of a file whose bytes are `data`."""
-    return fingerprint_of(loads_for_fingerprint(data, path=path))
+    return fingerprint_as_read(loads_for_fingerprint(data, path=path))
 
 
 def _found(path: str, expect: str | None = None) -> str | None:
@@ -717,19 +724,21 @@ def write(
     """Write `doc` to `path` atomically, and return the fingerprint of the
     bytes written (FR-040–FR-044).
 
-    `expect` is the fingerprint of the version the caller read, `ABSENT` when
-    no file may be at `path`, or None for no check. When the file on disk is
-    something else, or is missing, or can't be read, `FileChanged` is raised
-    and nothing is written (FR-042). The check and the rename are two steps:
-    a change between them isn't caught.
+    `expect` is the fingerprint of the version the caller read, as
+    `doc.fingerprint` gives it, `ABSENT` when no file may be at `path`, or None
+    for no check, which is also the `fingerprint` of a document built in memory.
+    When the file on disk is something else, or is missing, or can't be read,
+    `FileChanged` is raised and nothing is written (FR-042). The check and the
+    rename are two steps: a change between them isn't caught.
 
     The media's path and PDF timelines' paths are written relative to the
     folder of `path` wherever a relative path exists, recomputed when it
     isn't the folder `doc` was read from or last written to (`rebase_paths`,
     FR-033). After a successful write, `doc` follows the file: its `origin`
-    is `path`, and its media and PDF paths are the ones written, so that
-    `canonical_bytes(doc)` and `fingerprint_of(doc)` are what is on disk. A
-    write that fails leaves `doc` as it was. The write changes `doc`'s own
+    is `path`, its `fingerprint` is the one returned, and its media and PDF
+    paths are the ones written, so that `canonical_bytes(doc)` and
+    `fingerprint_of(doc)` are what is on disk. A write that fails leaves `doc`
+    as it was. The write changes `doc`'s own
     timelines: a document the caller wants to keep as it was must be copied
     with `copy.deepcopy` first, since a shallow copy shares its timelines.
 
@@ -779,7 +788,8 @@ def write(
     _follow(doc, rebased, path)
     doc.read_problems = problems
     doc.read_unmeasured = unmeasured_states
-    return hashlib.sha256(data).hexdigest()
+    doc.fingerprint = hashlib.sha256(data).hexdigest()
+    return doc.fingerprint
 
 
 def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> None:

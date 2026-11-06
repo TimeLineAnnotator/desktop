@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 
 from tilia_core import rules, tla
-from tilia_core.tla import writer
+from tilia_core.tla import reader, writer
+from tilia_core.tla.ids import migrated_id
 
 BROKEN = Path(__file__).parent / "broken"
 
@@ -53,6 +54,7 @@ def test_an_invalid_vocabulary_reads_with_a_warning_naming_its_timeline():
             line=41,
             message='the vocabulary "LCMA/Form@0.3" of the timeline "Form"'
             " isn't a valid reference",
+            timeline_id=FORM,
         )
     ]
     assert doc.timelines[FORM].metadata["vocabulary"] == "LCMA/Form@0.3"
@@ -223,6 +225,8 @@ def test_a_component_of_a_kind_its_timeline_doesnt_hold_reads_with_a_warning():
             line=65,
             message='the timeline "Cadences" holds a component of kind "RANGE", which'
             ' a timeline of kind "Marker" doesn\'t have: it is kept as it is',
+            timeline_id=IDS["cadences"],
+            component_id=KEPT,
         )
     ]
 
@@ -481,6 +485,8 @@ def test_a_beat_without_a_time_is_kept_with_a_warning():
             place=BEAT_2,
             line=line_of(data, f'"{IDS["beat_2"]}": {{'),
             message='a beat of the timeline "Beats" has no time',
+            timeline_id=BEATS,
+            component_id=IDS["beat_2"],
         )
     ]
 
@@ -499,6 +505,8 @@ def test_a_closing_tap_with_a_measure_mark_is_kept_with_a_warning():
             line=line_of(data, f'"{IDS["beat_2"]}": {{'),
             message='a closing tap in the timeline "Beats" has a measure mark,'
             " which starts no measure",
+            timeline_id=BEATS,
+            component_id=IDS["beat_2"],
         )
     ]
     (row,) = doc.timelines[BEATS].measures.rows
@@ -623,3 +631,302 @@ def test_one_beat_timeline_claiming_time_map_has_no_warning():
         second_beat_timeline(content, role="analysis")
 
     assert tla.loads(file_with(change)).warnings == []
+
+
+# The document's ids of what a warning concerns
+# (TimeLineAnnotator/project-management#415)
+
+
+OLD = Path(__file__).parent / "old"
+SEVEN = OLD / "0.7.0.tla"
+
+
+def concerns(warning):
+    return warning.timeline_id, warning.component_id
+
+
+def old_ids(place):
+    """A place in an old file's old timeline and component ids."""
+    steps = place.split("/")
+    return steps[2], (steps[4] if len(steps) > 4 else None)
+
+
+def test_a_warning_says_no_ids_unless_given_them():
+    warning = tla.ReadWarning(place="/x", line=None, message="m")
+    assert concerns(warning) == (None, None)
+
+
+def test_a_warning_reads_as_it_did():
+    warning = tla.ReadWarning(
+        place="/x", line=3, message="m", timeline_id="a", component_id="b"
+    )
+    assert str(warning) == "line 3: m"
+
+
+def test_a_vocabulary_warning_names_its_timeline_and_no_component():
+    (warning,) = tla.loads(with_vocabulary("LCMA/Form@0.3")).warnings
+    assert concerns(warning) == (FORM, None)
+
+
+def test_a_broken_rules_warning_names_its_component():
+    def change(content):
+        content["timelines"][FORM]["components"][IDS["section"]]["level"] = 0
+
+    (warning,) = tla.loads(file_with(change)).warnings
+    assert concerns(warning) == (FORM, IDS["section"])
+    assert warning.place == f"/timelines/{FORM}/components/{IDS['section']}"
+
+
+def test_a_warning_about_a_key_of_a_component_names_that_component():
+    # A place below the component's: a beat unit TiLiA can't read.
+    beats = IDS["beats"]
+    beat = IDS["beat_1"]
+
+    def change(content):
+        content["timelines"][beats]["components"][beat]["beat_unit"] = {
+            "denominator": 4,
+            "units": "not units",
+        }
+
+    doc = tla.loads(file_with(change))
+    (warning,) = [w for w in doc.warnings if w.place.endswith("/beat_unit/units")]
+    assert concerns(warning) == (beats, beat)
+
+
+def test_a_component_of_a_kind_its_timeline_doesnt_hold_is_named():
+    def change(content):
+        content["timelines"][FORM]["components"][IDS["nothing"]] = {
+            "kind": "MARKER",
+            "time": 1.0,
+        }
+
+    doc = tla.loads(file_with(change))
+    (warning,) = [w for w in doc.warnings if "kept as it is" in w.message]
+    assert concerns(warning) == (FORM, IDS["nothing"])
+    assert warning.component_id in doc.timelines[FORM].components
+
+
+def test_a_problem_with_a_row_names_its_timeline_and_no_component():
+    def change(content):
+        content["timelines"][IDS["texture"]]["rows"][0]["color"] = "not a color"
+
+    doc = tla.loads(file_with(change))
+    (warning,) = [w for w in doc.warnings if "/rows/" in w.place]
+    assert concerns(warning) == (IDS["texture"], None)
+
+
+def test_a_problem_with_the_media_length_names_nothing():
+    def change(content):
+        content["media"]["length"] = -1.5
+
+    doc = tla.loads(file_with(change))
+    (warning,) = [w for w in doc.warnings if w.place == "/media/length"]
+    assert concerns(warning) == (None, None)
+
+
+def test_a_rule_a_write_refuses_names_what_it_is_about(tmp_path):
+    doc = tla.loads(make_broken.text_of(make_broken.base()).encode())
+    doc.timelines = {
+        key: timeline
+        for key, timeline in doc.timelines.items()
+        if timeline.kind != "harmony"
+    }
+    doc.timelines[FORM].components[IDS["section"]].attrs["level"] = 0
+    with pytest.raises(tla.BrokenRules) as caught:
+        tla.write(tmp_path / "piece.tla", doc)
+    (problem,) = caught.value.problems
+    assert concerns(problem) == (FORM, IDS["section"])
+
+
+def test_a_migration_warning_names_the_migrated_timeline_and_component():
+    # What TiLiA shows: which hierarchy lost its `formal_type`, by its timeline
+    # and time, though the old ids are gone from the document.
+    data = SEVEN.read_bytes()
+    old = json.loads(data)
+    doc = tla.loads(data)
+    formal = [
+        w for w in doc.warnings if w.place.endswith(("formal_type", "formal_function"))
+    ]
+    assert len(formal) == 2
+    for warning in formal:
+        old_timeline, old_component = old_ids(warning.place)
+        timeline = doc.timelines[warning.timeline_id]
+        component = timeline.components[warning.component_id]
+        assert component.kind == "hierarchy"
+        was = old["timelines"][old_timeline]["components"][old_component]
+        assert timeline.name == old["timelines"][old_timeline]["name"]
+        assert component.attrs["start"] == was["start"]
+        assert component.attrs["end"] == was["end"]
+        assert component.attrs["level"] == was["level"]
+        # Still at its place in the old file, with the old ids.
+        assert warning.place.startswith(
+            f"/timelines/{old_timeline}/components/{old_component}/"
+        )
+
+
+def test_the_ids_of_a_migration_warning_are_those_derived_for_its_old_ids():
+    data = SEVEN.read_bytes()
+    doc = tla.loads(data)
+    positions = {key: index for index, key in enumerate(json.loads(data)["timelines"])}
+    (warning, *_) = [w for w in doc.warnings if w.place.endswith("formal_type")]
+    old_timeline, old_component = old_ids(warning.place)
+    assert warning.timeline_id == migrated_id(
+        doc.document_id, "timeline", old_timeline, position=positions[old_timeline]
+    )
+    timeline = json.loads(data)["timelines"][old_timeline]["components"]
+    index = list(timeline).index(old_component)
+    assert warning.component_id == migrated_id(
+        doc.document_id, "component", old_timeline, old_component, position=index
+    )
+
+
+def test_the_migrations_own_warnings_have_the_ids_before_the_reader_adds_a_line():
+    _, migrated = reader.read_with_migration(SEVEN)
+    (first, *_) = migrated.warnings
+    assert first.line is None
+    assert first.timeline_id is not None
+    assert first.component_id is not None
+
+
+def test_amplitude_bars_dropped_name_their_timeline_and_no_component():
+    doc = tla.loads(SEVEN.read_bytes())
+    (warning,) = [w for w in doc.warnings if "amplitude bar" in w.message]
+    assert doc.timelines[warning.timeline_id].kind == "audiowave"
+    assert warning.component_id is None
+
+
+def old_beats(times, **timeline):
+    """An old file with a beat timeline, whose beats are at `times`."""
+    return {
+        "app_name": "TiLiA",
+        "version": "0.7.0",
+        "media_path": "",
+        "media_metadata": {"media length": 10},
+        "timelines": {
+            "9": {
+                "kind": "Beat",
+                "name": "Beats",
+                "ordinal": 1,
+                "height": 40,
+                "is_visible": True,
+                "beat_pattern": [4],
+                "components": {
+                    str(index + 10): {"kind": "BEAT", "time": time}
+                    for index, time in enumerate(times)
+                },
+                **timeline,
+            }
+        },
+    }
+
+
+def read_old(content):
+    return tla.loads(json.dumps(content).encode())
+
+
+def test_a_beat_the_migration_dropped_names_its_timeline_and_no_component():
+    doc = read_old(old_beats([0.0, 1.0, 50.0]))
+    (warning,) = [w for w in doc.warnings if "outside the media" in w.message]
+    assert warning.place == "/timelines/9/components/12"
+    assert warning.timeline_id in doc.timelines
+    assert doc.timelines[warning.timeline_id].name == "Beats"
+    assert warning.component_id is None
+
+
+def test_a_beat_unit_the_migration_dropped_names_its_timeline_and_no_component():
+    content = old_beats([0.0, 1.0])
+    content["timelines"]["9"]["components"]["20"] = {
+        "kind": "BEAT_UNIT",
+        "beat_id": "99",
+        "denominator": 4,
+        "units": "1",
+    }
+    doc = read_old(content)
+    (warning,) = [w for w in doc.warnings if "beat unit" in w.message]
+    assert warning.place == "/timelines/9/components/20"
+    assert doc.timelines[warning.timeline_id].name == "Beats"
+    assert warning.component_id is None
+
+
+def test_a_beat_timeline_tilia_cant_open_names_its_timeline_and_no_component():
+    doc = read_old(old_beats([0.0, 1.0], beats_in_measure="not a list"))
+    (warning,) = [w for w in doc.warnings if "can't open" in w.message]
+    assert warning.place == "/timelines/9/beats_in_measure"
+    assert doc.timelines[warning.timeline_id].name == "Beats"
+    assert warning.component_id is None
+
+
+def test_the_rules_warning_in_an_old_file_names_the_migrated_component():
+    data = SEVEN.read_bytes().replace(b'"level": 1,', b'"level": 0,', 1)
+    doc = tla.loads(data)
+    (warning,) = [w for w in doc.warnings if "Level can't be below 1" in w.message]
+    # Named in the old file's terms, with the document's ids.
+    assert warning.place.startswith("/timelines/1/components/")
+    component = doc.timelines[warning.timeline_id].components[warning.component_id]
+    assert component.attrs["level"] == 0
+
+
+def test_the_checks_warning_in_an_old_file_names_the_migrated_component():
+    data = SEVEN.read_bytes().replace(b'"kind": "MODE"', b'"kind": "MARKER"')
+    doc = tla.loads(data)
+    (warning,) = [w for w in doc.warnings if "kept as it is" in w.message]
+    assert warning.place == "/timelines/22/components/23"
+    timeline = doc.timelines[warning.timeline_id]
+    assert timeline.kind == "harmony"
+    component = timeline.components[warning.component_id]
+    assert component.kind == tla.UnknownKind("MARKER")
+
+
+def test_an_old_timeline_id_a_pointer_escapes_is_followed():
+    content = old_beats([0.0, 1.0], beats_in_measure="not a list")
+    content["timelines"]["a/b~c"] = content["timelines"].pop("9")
+    doc = read_old(content)
+    (warning,) = [w for w in doc.warnings if "can't open" in w.message]
+    assert warning.place == "/timelines/a~1b~0c/beats_in_measure"
+    assert doc.timelines[warning.timeline_id].name == "Beats"
+
+
+def test_an_old_component_id_a_pointer_escapes_is_followed():
+    content = old_beats([])
+    content["timelines"]["9"] = {
+        "kind": "Hierarchy",
+        "name": "Form",
+        "ordinal": 1,
+        "height": 40,
+        "is_visible": True,
+        "components": {
+            "a/b~c": {
+                "kind": "HIERARCHY",
+                "start": 0.0,
+                "end": 1.0,
+                "level": 1,
+                "formal_type": "sonata form",
+            }
+        },
+    }
+    doc = read_old(content)
+    (warning,) = doc.warnings
+    assert warning.place == "/timelines/9/components/a~1b~0c/formal_type"
+    timeline = doc.timelines[warning.timeline_id]
+    assert timeline.components[warning.component_id].attrs["end"] == 1.0
+
+
+def test_a_warning_about_the_whole_file_names_nothing():
+    # A harmony that can't be checked for want of the `harmony` extra.
+    if importlib.util.find_spec("music21") is not None:
+        pytest.skip("needs a core without the harmony extra")
+    doc = tla.loads(make_broken.text_of(make_broken.base()).encode())
+    (warning,) = [w for w in doc.warnings if "weren't checked" in w.message]
+    assert concerns(warning) == (None, None)
+
+
+@pytest.mark.parametrize("path", sorted(OLD.glob("*.tla")), ids=lambda path: path.name)
+def test_every_id_a_warning_names_in_an_old_file_is_in_its_document(path):
+    doc = tla.read(path)
+    for warning in doc.warnings:
+        if warning.timeline_id is not None:
+            timeline = doc.timelines[warning.timeline_id]
+            if warning.component_id is not None:
+                assert warning.component_id in timeline.components
+        else:
+            assert warning.component_id is None

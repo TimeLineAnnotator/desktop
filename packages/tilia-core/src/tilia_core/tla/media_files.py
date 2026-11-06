@@ -17,8 +17,8 @@ folders. A path is a URL only when it starts with a scheme, such as
 with `//` is a Windows server path, as TiLiA writes one with "/"
 (TimeLineAnnotator/project-management#397).
 
-The lookup is `tla.media`; this module has a name of its own, so that the
-function doesn't hide it.
+The lookups are `tla.media`, and `tla.stored_file` for any stored path; this
+module has a name of its own, so that the function doesn't hide it.
 """
 
 from __future__ import annotations
@@ -230,7 +230,7 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
     taken as it is, and a URL is a YouTube link when it matches TiLiA's
     pattern; another URL is never looked up. A path without a scheme is a
     file's, even one like a link (FR-033). A local file is found as
-    `local_file` finds it; when none is found, `path` is None. TiLiA's
+    `stored_file` finds it; when none is found, `path` is None. TiLiA's
     further fallbacks are its own."""
     stored = doc.media_path
     found: Path | None = None
@@ -239,7 +239,7 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
         kind = "none"
     elif not is_url(stored):
         kind = "local"
-        found = local_file(stored, os.path.dirname(os.path.abspath(path)))
+        found = stored_file(path, stored)
     elif youtube := YOUTUBE_URL.match(stored):
         kind, youtube_id = "youtube", youtube[6]
     else:
@@ -251,6 +251,22 @@ def media(path: str | os.PathLike[str], doc: Document) -> Media:
         youtube_id=youtube_id,
         length=doc.media_length,
     )
+
+
+def stored_file(path: str | os.PathLike[str], stored: str) -> Path | None:
+    """The file that `stored`, the media's path or a PDF timeline's as the file
+    at `path` stores it, names; None when it names none, and for an empty path
+    or a URL, which name no file here and are never looked up (FR-021, FR-033).
+
+    A relative path is resolved against the folder of the file at `path`, and
+    an absolute one is taken as it is. It is tried as stored, then with its
+    name, then all of it, in decomposed form (NFD). A path that starts with `//`
+    is a server path, and a path of the other system's form is never looked up.
+    A backslash is left for the system to read: it separates folders on Windows,
+    and is part of a name on macOS and Linux."""
+    if not stored or is_url(stored):
+        return None
+    return local_file(stored, os.path.dirname(os.path.abspath(path)))
 
 
 def local_file(stored: str, folder: str | None) -> Path | None:

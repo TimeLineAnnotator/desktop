@@ -61,6 +61,9 @@ class OldPlaces:
         # Each reference that names nothing, by its place in the migrated
         # document, with its value in the old file.
         self._nothing: dict[str, Any] = {}
+        # Each timeline's new id, by its old id as a step of a pointer; made when
+        # a warning first asks.
+        self._new_ids: dict[str, str] | None = None
 
     def timeline(
         self, new_id: str, old_id: str, components: Mapping[str, str] | None = None
@@ -114,6 +117,22 @@ class OldPlaces:
                 return old + place[len(held) :], names
             held = held.rpartition("/")[0]
         return place, None
+
+    def ids_of(self, old_place: str) -> tuple[str | None, str | None]:
+        """The document's ids of the timeline and of the component that
+        `old_place`, a place in the old file, is at or in; None where it has
+        none: in no timeline or component, or in one the migration dropped."""
+        steps = old_place.split("/")  # "" first: a pointer starts with "/"
+        if len(steps) < 3 or steps[1] != "timelines":
+            return None, None
+        if self._new_ids is None:
+            self._new_ids = {
+                _step(old_id): new_id for new_id, (old_id, _) in self._timelines.items()
+            }
+        timeline = self._new_ids.get(steps[2])
+        if timeline is None or len(steps) < 5 or steps[3] != "components":
+            return timeline, None
+        return timeline, self._timelines[timeline][1].get(_name(steps[4]))
 
     def in_old_file(self, place: str, message: str) -> tuple[str, str]:
         """`place`, a place in the migrated document, and a message the
