@@ -350,10 +350,22 @@ class TestHarmony:
 
         assert len(result.created) == 1
 
-    @pytest.mark.parametrize("by", ["time", "measure"])
-    def test_with_the_extra_it_isnt_implemented_yet(self, csv_file, with_the_extra, by):
-        # Until TimeLineAnnotator/project-management#269 (harmonies by time) and
-        # TimeLineAnnotator/project-management#274 (harmonies by measure).
+    def test_with_the_extra_it_imports_by_time(self, csv_file):
+        pytest.importorskip("music21", reason="needs the harmony extra")
+        target = timeline("harmony")
+        doc = document(timelines=[target])
+        path = csv_file("time,harmony_or_key,symbol\n1,harmony,C\n")
+
+        result = importers.import_csv(doc, target.id, path, by="time")
+
+        assert result.problems == []
+        assert result.created == list(target.components)
+        assert [one.kind for one in target.components.values()] == ["harmony"]
+
+    def test_with_the_extra_by_measure_isnt_implemented_yet(
+        self, csv_file, with_the_extra
+    ):
+        # Until TimeLineAnnotator/project-management#274 (harmonies by measure).
         target = holding_a_component("harmony")
         reference = timeline("beat", ordinal=2)
         doc = document(timelines=[target, reference])
@@ -361,7 +373,7 @@ class TestHarmony:
 
         with pytest.raises(NotImplementedError):
             importers.import_csv(
-                doc, target.id, csv_file(), by=by, reference=reference.id
+                doc, target.id, csv_file(), by="measure", reference=reference.id
             )
 
         assert doc == before

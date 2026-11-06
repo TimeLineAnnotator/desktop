@@ -12,6 +12,7 @@ from tilia_core import rules, tla
 from tilia_core.tla import writer
 
 BROKEN = Path(__file__).parent / "broken"
+OLD = Path(__file__).parent / "old"
 
 
 def _load_make_broken():
@@ -198,6 +199,51 @@ def test_a_v64_in_root_position_reads_with_no_warning():
         doc.media_length, doc.timelines[IDS["nothing"]].components.values()
     )
     assert checked[v64].outcome == rules.OK
+
+
+# A slash chord's bass, in a file (TimeLineAnnotator/project-management#501)
+
+
+@pytest.mark.parametrize(
+    "step, quality, inversion",
+    [
+        pytest.param(1, "suspended-fourth", 5, id="Dsus/G"),
+        pytest.param(0, "major-sixth", 6, id="C6/A"),
+        pytest.param(1, "major", 3, id="D/C, with its bass outside the chord"),
+    ],
+)
+def test_a_slash_chord_in_an_old_file_reads_with_no_warning_and_is_written_back(
+    tmp_path, step, quality, inversion
+):
+    pytest.importorskip("music21", reason="needs the harmony extra")
+    content = json.loads((OLD / "0.7.0.tla").read_text(encoding="utf-8"))
+    warnings_without_it = tla.loads(json.dumps(content).encode("utf-8")).warnings
+    content["timelines"]["22"]["components"]["25"].update(
+        step=step, quality=quality, inversion=inversion
+    )
+
+    doc = tla.loads(json.dumps(content).encode("utf-8"))
+
+    assert doc.warnings == warnings_without_it
+    harmonies = next(tl for tl in doc.timelines.values() if tl.kind == "harmony")
+    # The reader and the writer don't call the rules yet. This is the check they are
+    # to make.
+    checked = rules.check_timeline(doc.media_length, harmonies.components.values())
+    assert all(found.outcome == rules.OK for found in checked.values())
+
+    path = tmp_path / "piece.tla"
+    tla.write(path, doc)
+
+    written = tla.read(path)
+    assert [w for w in written.warnings if harmonies.id in w.place] == []
+    attrs = [
+        component.attrs
+        for component in written.timelines[harmonies.id].components.values()
+        if component.attrs.get("time") == 2.0
+    ]
+    assert [(a["step"], a["quality"], a["inversion"]) for a in attrs] == [
+        (step, quality, inversion)
+    ]
 
 
 # A component of a kind its timeline doesn't hold

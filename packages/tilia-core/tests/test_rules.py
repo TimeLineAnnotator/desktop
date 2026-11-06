@@ -742,7 +742,7 @@ class TestHarmony:
             ("step", [0, 6]),
             ("applied_to", [0, 6]),
             ("accidental", [-2, -1, 0, 1, 2]),
-            ("inversion", [0, 2]),
+            ("inversion", [0, 6]),
             ("level", [1, 2]),
             ("display_mode", ["letter", "roman", "custom"]),
             ("custom_text_font_type", ["analytic", "normal"]),
@@ -765,7 +765,8 @@ class TestHarmony:
             ("quality", "maj", "maj is not a valid quality."),
             ("quality", None, "None is not a valid quality."),
             ("inversion", -1, "-1 is not a valid inversion."),
-            ("inversion", 3, "3 is not a valid inversion."),
+            ("inversion", 7, "7 is not a valid inversion."),
+            ("inversion", 1.0, "1.0 is not a valid inversion."),
             ("level", 0, "0 is not a valid level."),
             ("level", 3, "3 is not a valid level."),
             ("display_mode", "roman2", "roman2 is not a valid display mode."),
@@ -779,6 +780,33 @@ class TestHarmony:
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
 
+    @pytest.mark.parametrize(
+        "name, value, outcome",
+        [
+            ("display_mode", "letter", OK),
+            ("display_mode", "roman", OK),
+            ("display_mode", "custom", OK),
+            ("display_mode", "roman2", (False, "roman2 is not a valid display mode.")),
+            ("display_mode", "normal", (False, "normal is not a valid display mode.")),
+            ("custom_text_font_type", "analytic", OK),
+            ("custom_text_font_type", "normal", OK),
+            (
+                "custom_text_font_type",
+                "bold",
+                (False, "bold is not a valid custom text font type."),
+            ),
+            (
+                "custom_text_font_type",
+                "letter",
+                (False, "letter is not a valid custom text font type."),
+            ),
+        ],
+    )
+    def test_an_option_is_checked_on_its_own(self, name, value, outcome):
+        # An importer keeps a chord whose option isn't one, with the default and a
+        # note, so it asks before it builds the chord. It needs no music21.
+        assert rules.harmony_option(name, value) == outcome
+
     def test_every_quality_music21_has(self, music21):
         for quality in music21.harmony.CHORD_TYPES:
             assert check("harmony", quality=quality) == OK
@@ -791,25 +819,30 @@ class TestHarmony:
         assert check("harmony", quality="made-up", inversion=3) == OK
 
     @pytest.mark.parametrize(
-        "quality, inversions",
-        [("major", 2), ("dominant-seventh", 3), ("power", 0), ("Italian", 0)],
+        "quality", ["major", "dominant-seventh", "suspended-fourth", "power", "Italian"]
     )
-    def test_inversions_as_tilia_counts_them(self, quality, inversions):
-        assert check("harmony", quality=quality, inversion=inversions) == OK
-        assert check("harmony", quality=quality, inversion=inversions + 1) == (
+    def test_every_position_in_a_stack_of_thirds_is_an_inversion(self, quality):
+        # A slash bass can give any of them, whatever the quality, so a slash chord
+        # is never refused for its bass (TimeLineAnnotator/project-management#501).
+        for inversion in range(7):
+            assert check("harmony", quality=quality, inversion=inversion) == OK
+        assert check("harmony", quality=quality, inversion=7) == (
             False,
-            f"{inversions + 1} is not a valid inversion.",
+            "7 is not a valid inversion.",
         )
 
     @pytest.mark.parametrize("quality, base, tone, inversions", COUNTED_FROM_THEIR_BASE)
-    def test_the_added_tone_qualities_tilia_has(self, quality, base, tone, inversions):
+    def test_the_added_tone_qualities_tilia_has(
+        self, music21, quality, base, tone, inversions
+    ):
         # An added tone isn't one the chord can be inverted to: the base quality's
-        # inversions count.
+        # inversions count, for what TiLiA's dialog offers.
         assert rules.split_added_tone(quality) == (base, tone)
-        assert check("harmony", quality=quality, inversion=inversions) == OK
-        assert check("harmony", quality=quality, inversion=inversions + 1) == (
+        assert rules.get_inversion_amount(quality) == inversions
+        assert check("harmony", quality=quality, inversion=6) == OK
+        assert check("harmony", quality=quality, inversion=7) == (
             False,
-            f"{inversions + 1} is not a valid inversion.",
+            "7 is not a valid inversion.",
         )
 
     def test_the_cadential_six_four_is_written_on_the_major_triad(self):
@@ -818,10 +851,10 @@ class TestHarmony:
     def test_the_cadential_six_four_in_root_position(self):
         assert check("harmony", quality="cadential-six-four", inversion=0) == OK
 
-    @pytest.mark.parametrize("inversion", [1, 2])
+    @pytest.mark.parametrize("inversion", [1, 2, 6])
     def test_the_cadential_six_four_has_no_inversions(self, inversion):
-        # Its root is in the bass by definition, so the major triad's inversions
-        # don't count, as TiLiA doesn't count them.
+        # Its root is in the bass by definition, so no bass gives it an inversion,
+        # as TiLiA doesn't count them.
         assert check("harmony", quality="cadential-six-four", inversion=inversion) == (
             False,
             f"{inversion} is not a valid inversion.",
@@ -838,7 +871,7 @@ class TestHarmony:
         assert rules.split_added_tone("major") == ("major", "")
 
     def test_the_inversion_of_the_default_quality(self):
-        assert check("harmony", inversion=2) == OK
+        assert check("harmony", inversion=6) == OK
 
     def test_the_rules_in_order(self):
         assert check("harmony", step=7, level=3) == (False, "7 is not a valid step.")
@@ -942,14 +975,14 @@ class TestInversionAmount:
             *rules.ADDED_TONE_QUALITIES,
         }
 
-    def test_the_rules_accept_as_many_inversions_and_no_more(self, music21):
+    def test_the_rules_dont_go_by_the_count(self, music21):
+        # The count is what TiLiA's dialog offers. A slash bass can give more.
         for quality in [*music21.harmony.CHORD_TYPES, *rules.ADDED_TONE_QUALITIES]:
-            inversions = rules.get_inversion_amount(quality)
-
-            assert check("harmony", quality=quality, inversion=inversions) == OK
-            assert check("harmony", quality=quality, inversion=inversions + 1) == (
+            if quality != "cadential-six-four":
+                assert check("harmony", quality=quality, inversion=6) == OK
+            assert check("harmony", quality=quality, inversion=7) == (
                 False,
-                f"{inversions + 1} is not a valid inversion.",
+                "7 is not a valid inversion.",
             )
 
     def test_the_qualities_without_inversions_are_tilias(self):
