@@ -86,6 +86,29 @@ jobs:
       working-directory: packages/tilia-library
       run: python -m pytest tests/browser
 
+  # How long reading a .tla file takes (SC-004). A time on a shared runner says
+  # little, so the step's result is there to be read, and doesn't fail the run.
+  speed:
+    name: reading speed
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+
+    - name: Install tilia-core
+      run: |
+        python -m pip install --upgrade "pip>=25.1"
+        python -m pip install ./packages/tilia-core --group packages/tilia-core/pyproject.toml:tests
+
+    - name: Run the benchmark
+      continue-on-error: true
+      working-directory: packages/tilia-core
+      run: python -m pytest tests/tla/test_tla_speed.py --run-benchmarks -p no:cacheprovider
+
   # The job above has no music21, which is what proves the core works without
   # the extra, so the core's harmony tests skip there. This one installs the
   # extra and runs every test of the core.
