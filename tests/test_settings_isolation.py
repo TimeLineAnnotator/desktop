@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from tests import SETTINGS_DIR, SETTINGS_DIR_PREFIX, SETTINGS_ROOT_VAR
+from tests import (
+    SETTINGS_DIR_PREFIX,
+    SETTINGS_ROOT_VAR,
+    is_in_settings_dir,
+)
 from tilia.constants import APP_NAME
 from tilia.settings import STORE_NAME, settings
 
@@ -26,7 +30,7 @@ class TestSettingsIsolation:
     """
 
     def test_settings_are_not_stored_in_the_users_own_store(self):
-        assert Path(settings._settings.fileName()).is_relative_to(SETTINGS_DIR)
+        assert is_in_settings_dir(settings._settings.fileName())
 
     def test_setting_starts_at_its_default(self):
         assert settings.get(*PERIODICITY) == DEFAULT_PERIODICITY

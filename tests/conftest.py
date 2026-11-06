@@ -14,7 +14,7 @@ import tilia.log as logging_module
 import tilia.parsers.score.musicxml as musicxml_module
 import tilia.settings as settings_module
 import tilia.utils  # noqa: F401
-from tests import SETTINGS_DIR
+from tests import SETTINGS_DIR, is_in_settings_dir
 from tilia.app import App
 from tilia.boot import setup_logic
 from tilia.media.player.base import MediaTimeChangeReason
@@ -169,7 +169,7 @@ class TiliaState:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def qapplication():
+def qapplication(settings_are_throwaway):
     q_application = QApplication(sys.argv)
     yield q_application
 
@@ -249,8 +249,27 @@ def pytest_unconfigure(config):
     shutil.rmtree(SETTINGS_DIR, ignore_errors=True)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def settings_are_throwaway():
+    """Stop the run if the settings are not in the directory made for it.
+
+    That happens if something imports tilia.settings before tests/__init__.py
+    moves QSettings, a pytest -p plugin for example. The store would then be
+    the developer's own, and restore_settings_after_test clears it.
+    """
+    file_name = settings_module.settings._settings.fileName()
+    if not is_in_settings_dir(file_name):
+        pytest.exit(
+            f"The tests' settings are stored in {file_name!r}, not in {SETTINGS_DIR!r}: "
+            "something imported tilia.settings before tests/__init__.py moved them "
+            "(a -p plugin, say). Stopped before any test could change that store. "
+            "Do not import tilia from plugins or conftest files outside tests/.",
+            returncode=3,
+        )
+
+
 @pytest.fixture(autouse=True)
-def restore_settings_after_test():
+def restore_settings_after_test(settings_are_throwaway):
     """Undo any setting a test writes.
 
     Tests are expected to set the values they depend on explicitly, which only
