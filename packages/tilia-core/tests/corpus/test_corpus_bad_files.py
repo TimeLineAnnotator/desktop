@@ -177,9 +177,17 @@ def test_nothing_half_built_stays_behind(tmp_path):
             assert con.execute(
                 "SELECT count(*) FROM timelines WHERE file_id = ?", (record.key,)
             ).fetchone() == (0,)
-            # every key once: the gap the failed build left is never handed out
             keys = [x for (x,) in con.execute("SELECT id FROM components")]
             assert len(keys) == len(set(keys))
+
+
+def test_the_keys_of_rows_half_built_go_back_to_the_counter(tmp_path):
+    good_and(tmp_path, spoiled(tla_files.null_beat))
+    with opened(tmp_path) as corpus:
+        records = corpus._scanner.records
+        # the next file's key follows the bad file's own, though its hierarchy
+        # took keys before the beat failed
+        assert records["z.tla"].key == records["bad.tla"].key + 1
 
 
 def test_a_fresh_build_gives_the_same_keys_with_a_bad_file(tmp_path):
