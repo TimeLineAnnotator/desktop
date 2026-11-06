@@ -659,6 +659,13 @@ class Scanner:
                     self._job = None
                 job.done.set()
 
+    def _unlisted(self, path: str) -> bool:
+        """Whether ``path`` lies under what the last walk couldn't look at."""
+        return any(
+            path == place or path.startswith(place + "/")
+            for place in self.store.unlisted
+        )
+
     def _walk(self) -> list[Found]:
         """The folder's files; the store learns which subfolders it couldn't list."""
         unlisted: list[str] = []
@@ -692,7 +699,9 @@ class Scanner:
         """Bring the records and the index in line with ``found``: the whole
         folder, or, with ``scope``, only those paths. Files in ``force`` are
         read whatever their size and date. The records change only once the
-        change is applied (research R2)."""
+        change is applied (research R2). A file under a subfolder the walk
+        couldn't list isn't missing: it keeps its last state, as the whole corpus
+        does when its own folder can't be reached (FR-021)."""
         before = self.store.generation
         old = self.records
         here = {f.path: f for f in found}
@@ -706,7 +715,7 @@ class Scanner:
             for path, rec in sorted(old.items())
             if path not in here
             and rec.state != "unavailable"
-            and (scope is None or path in scope)
+            and (path in scope if scope is not None else not self._unlisted(path))
         ]
         new = dict(old)
         deletes: list[int] = []

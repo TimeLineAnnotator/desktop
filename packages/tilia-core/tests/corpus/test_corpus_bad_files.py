@@ -606,3 +606,122 @@ def test_ctrl_c_during_a_scan_goes_through_and_leaves_reads_working(
         assert len(result.rows) == 1 and not said_last_change(result)
         assert corpus.scan().changed == ("a.tla",)
         assert len(tql.run(corpus, "PAC").rows) == 1
+
+
+# --------------------------------------------------------------------------- #
+# A subfolder that can't be listed, in a scan
+# --------------------------------------------------------------------------- #
+def said_cant_list(result, folder):
+    return any(f"can't list the folder {folder}" in w for w in result.warnings)
+
+
+def test_files_under_a_folder_that_cant_be_listed_keep_their_last_state(
+    tmp_path, monkeypatch
+):
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "locked" / "b.tla", song())
+    tla_files.write(tmp_path / "locked" / "deep" / "c.tla", song())
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        rows = rows_by_content(corpus)
+        with monkeypatch.context() as m:
+            locking(m, tmp_path / "locked")
+            report = corpus.scan()
+            assert not report and report.error is None
+            assert corpus.generation == generation
+            assert rows_by_content(corpus) == rows
+            assert set(states(corpus).values()) == {"readable"}
+            result = tql.run(corpus, "verse")
+            assert len(result.rows) == 3
+            assert said_cant_list(result, "locked")
+            assert not any("left out" in w for w in result.warnings)
+        report = corpus.scan()
+        assert not report and corpus.generation == generation
+        assert not said_cant_list(tql.run(corpus, "verse"), "locked")
+
+
+def test_other_changes_go_through_while_a_folder_cant_be_listed(tmp_path, monkeypatch):
+    a = song()
+    tla_files.write(tmp_path / "a.tla", a)
+    tla_files.write(tmp_path / "gone.tla", song())
+    tla_files.write(tmp_path / "locked" / "b.tla", song())
+    with opened(tmp_path) as corpus:
+        locking(monkeypatch, tmp_path / "locked")
+        tla_files.unit(a, "Marker")["label"] = "PAC"
+        tla_files.write(tmp_path / "a.tla", a)
+        tla_files.write(tmp_path / "new.tla", song())
+        (tmp_path / "gone.tla").unlink()
+        report = corpus.scan()
+        assert report.changed == ("a.tla",)
+        assert report.added == ("new.tla",)
+        assert report.unavailable == ("gone.tla",)
+        assert corpus.file("locked/b.tla").state == "readable"
+
+
+def test_what_went_behind_a_locked_folder_shows_once_it_can_be_listed(
+    tmp_path, monkeypatch
+):
+    tla_files.write(tmp_path / "locked" / "b.tla", song())
+    tla_files.write(tmp_path / "locked" / "c.tla", song())
+    with opened(tmp_path) as corpus:
+        with monkeypatch.context() as m:
+            locking(m, tmp_path / "locked")
+            (tmp_path / "locked" / "b.tla").unlink()
+            tla_files.write(tmp_path / "locked" / "c.tla", song("edited"))
+            assert not corpus.scan()
+            assert corpus.file("locked/b.tla").state == "readable"
+        report = corpus.scan()
+        assert report.unavailable == ("locked/b.tla",)
+        assert len(tql.run(corpus, "edited").rows) == 1
+
+
+def test_a_move_out_of_a_locked_folder_is_a_copy_until_it_can_be_listed(
+    tmp_path, monkeypatch
+):
+    data = song()
+    tla_files.write(tmp_path / "locked" / "b.tla", data)
+    with opened(tmp_path) as corpus:
+        with monkeypatch.context() as m:
+            locking(m, tmp_path / "locked")
+            (tmp_path / "locked" / "b.tla").unlink()
+            tla_files.write(tmp_path / "out.tla", data)
+            report = corpus.scan()
+            assert report.added == ("out.tla",) and report.moved == ()
+            assert report.shared_ids == (("locked/b.tla", "out.tla"),)
+        report = corpus.scan()
+        assert report.moved == (("locked/b.tla", "out.tla"),)
+        assert list(states(corpus)) == ["out.tla"]
+
+
+def test_only_what_lies_under_the_folder_is_kept(tmp_path, monkeypatch):
+    tla_files.write(tmp_path / "sub" / "b.tla", song())
+    tla_files.write(tmp_path / "subway" / "c.tla", song())
+    with opened(tmp_path) as corpus:
+        locking(monkeypatch, tmp_path / "sub")
+        (tmp_path / "subway" / "c.tla").unlink()
+        assert corpus.scan().unavailable == ("subway/c.tla",)
+        assert corpus.file("sub/b.tla").state == "readable"
+
+
+def test_a_file_the_walk_cant_look_at_is_kept_too(tmp_path, monkeypatch):
+    tla_files.write(tmp_path / "a.tla", song())
+    with opened(tmp_path) as corpus:
+        scanner = corpus._scanner
+        real = scan.walk
+
+        def walk(root, reader, settings, unlisted=None):
+            unlisted.append("a.tla")
+            return [f for f in real(root, reader, settings) if f.path != "a.tla"]
+
+        monkeypatch.setattr(scan, "walk", walk)
+        report = scanner.scan()
+        assert not report
+        assert corpus.file("a.tla").state == "readable"
+        assert said_cant_list(tql.run(corpus, "verse"), "a.tla")
+
+
+def test_a_folder_that_can_be_listed_and_is_empty_has_lost_its_files(tmp_path):
+    tla_files.write(tmp_path / "sub" / "b.tla", song())
+    with opened(tmp_path) as corpus:
+        (tmp_path / "sub" / "b.tla").unlink()
+        assert corpus.scan().unavailable == ("sub/b.tla",)
