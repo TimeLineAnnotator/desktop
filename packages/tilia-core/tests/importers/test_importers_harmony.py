@@ -20,6 +20,7 @@ from import_docs import component, document, timeline
 
 from tilia_core import importers, rules, tla
 from tilia_core.importers import harmony
+from tilia_core.importers._csv import CsvRow
 from tilia_core.importers._results import ImportFailed, RowProblem
 
 HARMONY_EXTRA = 'harmony import needs: pip install "tilia-core[harmony]"'
@@ -716,10 +717,6 @@ class TestTheRules:
     @pytest.mark.parametrize(
         "row, message",
         [
-            # A power chord's inversion, which TiLiA's list says it hasn't.
-            ("0,harmony,Cpower/G", "2 is not a valid inversion."),
-            # music21 counts the bass's distance from the root, in a chord without it.
-            ("0,harmony,G/A", "4 is not a valid inversion."),
             ("0,harmony,C###", "3 is not a valid accidental."),
             ("0,key,C###", "3 is not a valid accidental."),
             # music21 reads it, but gives no chord type.
@@ -804,6 +801,151 @@ class TestTheRules:
         assert failed.value.message == (
             'checking a harmony needs: pip install "tilia-core[harmony]"'
         )
+
+
+class TestSlashChords:
+    """A slash chord is never refused for its bass: its inversion is the bass's
+    position in a stack of thirds, as music21 gives it. TiLiA draws a bass outside the
+    chord in root position, and a note says so
+    (TimeLineAnnotator/project-management#501)."""
+
+    @pytest.mark.parametrize(
+        "symbol, quality, inversion",
+        [
+            ("Dsus/G", "suspended-fourth", 5),
+            ("Csus/F", "suspended-fourth", 5),
+            ("Csus2/D", "suspended-second", 4),
+            ("C7sus/F", "suspended-fourth-seventh", 5),
+            ("C6/A", "major-sixth", 6),
+            ("Cm6/A", "minor-sixth", 6),
+            ("Abm6/F", "minor-sixth", 6),
+            ("C/E", "major", 1),
+            ("C7/Bb", "dominant-seventh", 3),
+            ("C13/A", "dominant-13th", 6),
+            # A power chord's fifth, though TiLiA's dialog offers it no inversion.
+            ("Cpower/G", "power", 2),
+            # The added tone is left out: the bass is in the chord without it.
+            ("C7(b9)/Bb", "dominant-seventh-flat-ninth", 3),
+            # A numeral's bass.
+            ("V42", "dominant-seventh", 3),
+            ("I64", "major", 2),
+        ],
+    )
+    def test_a_bass_in_the_chord_has_no_note(
+        self, imported, symbol, quality, inversion
+    ):
+        result, target, _ = imported(rows(f"0,harmony,{symbol}"))
+
+        assert result.problems == []
+        assert chords(target)[0]["quality"] == quality
+        assert chords(target)[0]["inversion"] == inversion
+
+    @pytest.mark.parametrize(
+        "symbol, quality, inversion",
+        [
+            ("G/A", "major", 4),
+            ("C7/D", "dominant-seventh", 4),
+            ("Am/G", "minor", 3),
+            ("D/C", "major", 3),
+            ("C/Bb", "major", 3),
+            ("Co7/A", "diminished-seventh", 6),
+            ("C+/Ab", "augmented", 6),
+            ("Cm/D#", "minor", 4),
+            ("Cmaj7/D", "major-seventh", 4),
+            ("Cpower/E", "power", 1),
+            ("Cpedal/G", "pedal", 2),
+        ],
+    )
+    def test_a_bass_outside_the_chord_is_kept_with_a_note(
+        self, imported, symbol, quality, inversion
+    ):
+        result, target, path = imported(rows(f"0,harmony,{symbol}"))
+
+        assert result.problems == [
+            RowProblem(
+                path=path,
+                line=2,
+                column="symbol",
+                message=(
+                    f"{symbol}: the bass isn't in the chord, so it is drawn in root"
+                    " position."
+                ),
+                skipped=False,
+            )
+        ]
+        # What makes it a note, status 0: nothing was skipped.
+        assert result.skipped == []
+        assert chords(target)[0]["quality"] == quality
+        assert chords(target)[0]["inversion"] == inversion
+
+    def test_a_bass_is_outside_just_where_tilia_falls_back(self, music21):
+        # TiLiA's `letter_symbol` builds the chord in its inversion, from the
+        # abbreviation of its base quality, and falls back to root position when
+        # music21 can't. The importer doesn't build one per row, so this holds its
+        # test to music21's, in the music21 installed.
+        tested = [*music21.harmony.CHORD_TYPES, *rules.ADDED_TONE_QUALITIES]
+        for quality in tested:
+            base, _ = rules.split_added_tone(quality)
+            note = "C" + music21.harmony.CHORD_TYPES[base][1][0]
+            for inversion in range(7):
+                try:
+                    music21.harmony.ChordSymbol(note, inversion=inversion)
+                    drawn = True
+                except music21.chord.ChordException:
+                    drawn = False
+                in_the_chord = harmony._bass_is_in_the_chord(quality, inversion)
+                assert in_the_chord is drawn, (quality, inversion)
+
+    def test_a_note_keeps_its_rows_place(self, imported):
+        result, target, _ = imported(
+            rows("0,harmony,D/C", "1,harmony,Q", "2,harmony,C/Bb")
+        )
+
+        assert [(p.line, p.skipped) for p in result.problems] == [
+            (2, False),
+            (3, True),
+            (4, False),
+        ]
+        assert len(chords(target)) == 2
+
+    def test_a_row_the_rules_refuse_has_no_note(self, imported):
+        result, target, path = imported(rows("60.5,harmony,D/C"))
+
+        assert result.problems == [
+            RowProblem(
+                path=path,
+                line=2,
+                column="time",
+                message="Time '01:00.5' is bigger than media time '01:00.0'",
+                skipped=True,
+            )
+        ]
+        assert target.components == {}
+
+    def test_the_note_can_be_printed(self, imported, monkeypatch):
+        # No CSV gives a lone surrogate, as it is read as UTF-8, but the note quotes
+        # its symbol as the other texts that quote a user's do.
+        symbol = "D/\udc80"
+        row = CsvRow(
+            line=2, values={"time": "0", "harmony_or_key": "harmony", "symbol": symbol}
+        )
+        params = {
+            "step": 1,
+            "accidental": 0,
+            "inversion": 3,
+            "quality": "major",
+            "applied_to": 0,
+        }
+        monkeypatch.setattr(harmony, "read_csv", lambda _: (HEADER.split(","), [row]))
+        monkeypatch.setattr(
+            harmony, "get_harmony_params_from_text", lambda *_: (True, params)
+        )
+
+        result, _, _ = imported(rows("0,harmony,D/C"))
+
+        assert messages(result) == [
+            "D/\\udc80: the bass isn't in the chord, so it is drawn in root position."
+        ]
 
 
 class TestWhatItReports:
@@ -1194,8 +1336,8 @@ class TestChordSymbolParsing:
     def test_slash_chords_where_bass_is_not_in_chord_symbol(self, read):
         params = read("G/A")
         assert params["step"] == 4
-        # bass-not-in-chord slash chords are not supported: the dialog has no such
-        # inversion to select, and stays at the root position, and the rules refuse it.
+        # The dialog has no such inversion to select, and stays at the root position.
+        # The importer keeps the chord, with a note.
         assert params["inversion"] == 4
 
     @pytest.mark.parametrize(

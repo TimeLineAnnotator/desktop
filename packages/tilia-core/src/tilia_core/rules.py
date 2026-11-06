@@ -19,9 +19,9 @@ for each component the others that matter rather than comparing it with every
 one: an import checks its components with it once, before it commits, and so
 do reading and writing a file, and a single change, on the timeline it leaves.
 
-A harmony's quality and inversion and a mode's type are checked against the
-installed music21, as TiLiA checks them, so checking a harmony or a mode needs
-the `harmony` extra. Without it, the other rules are checked, and when none is
+A harmony's quality, and with it its inversion, and a mode's type are checked
+against the installed music21, as TiLiA checks them, so checking a harmony or a
+mode needs the `harmony` extra. Without it, the other rules are checked, and when none is
 broken, `CantCheck` is raised, before the color is checked: a bad color mustn't
 hide that a rule couldn't be checked. music21 is imported only when a harmony or
 a mode is checked, or a quality's inversions are counted.
@@ -82,9 +82,10 @@ ADDED_TONE_QUALITIES: dict[str, tuple[str, str]] = {
     "minor-added-ninth": ("minor", "9"),
     "minor-seventh-added-eleventh": ("minor-seventh", "11"),
 }
-# Qualities TiLiA keeps in root position, whatever their intervals:
+# Qualities TiLiA's dialog keeps in root position, whatever their intervals:
 # `get_inversion_amount` gives 0 for them. TiLiA takes them from here once it
-# checks with the rules.
+# checks with the rules. A symbol's slash bass can still give them an inversion,
+# which the rules allow, but for the cadential six-four.
 #
 # These qualities are locked to root position: the Inspector/Add Harmony
 # dialog offer no inversion choices for them, and to_roman_numeral /
@@ -128,6 +129,14 @@ NO_INVERSION_QUALITIES = frozenset(
         "cadential-six-four",
     }
 )
+
+# The most a harmony's inversion can be. music21 gives a slash chord's inversion
+# as its bass's position in a stack of thirds, up to the thirteenth, whatever the
+# chord's own tones: `Dsus/G` is 5 and `C6/A` is 6. So a slash chord is never
+# refused for its bass (TimeLineAnnotator/project-management#501). What TiLiA's
+# dialog offers is `get_inversion_amount`, which is fewer.
+_HIGHEST_INVERSION = 6
+_CADENTIAL_SIX_FOUR = "cadential-six-four"  # its root is in the bass by definition
 
 # Two hierarchy boundaries count as the same when they are within 1e-9 s of each
 # other, or within a billionth of the larger, whichever is more: `math.isclose`
@@ -555,7 +564,11 @@ def get_inversion_amount(quality: str) -> int:
         raise CantCheck("harmony", error) from error
     if not _is_quality(music21, quality):
         raise ValueError(f'Invalid harmony quality "{_shown(quality)}"')
-    return _inversions(music21, quality)
+    if quality in NO_INVERSION_QUALITIES:
+        return 0
+    quality, _ = split_added_tone(quality)
+    intervals = str(music21.harmony.CHORD_TYPES[quality][0])
+    return len(intervals.split(",")) - 1
 
 
 def not_valid(attribute: str, value: Any) -> str:
@@ -764,12 +777,13 @@ def _quality_and_inversion(
     music21: ModuleType, attrs: Mapping[str, Any]
 ) -> Outcome | None:
     """The quality is one of music21's `CHORD_TYPES` or of TiLiA's added-tone
-    qualities, and the inversion one it has."""
+    qualities, and the inversion one a symbol's slash bass can give."""
     quality = attrs.get("quality", "major")
     if not _is_quality(music21, quality):
         return _broken(not_valid("quality", quality))
     inversion = attrs.get("inversion", 0)
-    if not (_is_integer(inversion) and 0 <= inversion <= _inversions(music21, quality)):
+    highest = 0 if quality == _CADENTIAL_SIX_FOUR else _HIGHEST_INVERSION
+    if not (_is_integer(inversion) and 0 <= inversion <= highest):
         return _broken(not_valid("inversion", inversion))
     return None
 
@@ -779,16 +793,6 @@ def _is_quality(music21: ModuleType, quality: Any) -> bool:
         isinstance(quality, str)
         and split_added_tone(quality)[0] in music21.harmony.CHORD_TYPES
     )
-
-
-def _inversions(music21: ModuleType, quality: str) -> int:
-    """`get_inversion_amount` of a quality that is one, with music21 already looked
-    up: `check_timeline` looks it up once, whatever the harmonies."""
-    if quality in NO_INVERSION_QUALITIES:
-        return 0
-    quality, _ = split_added_tone(quality)
-    intervals = str(music21.harmony.CHORD_TYPES[quality][0])
-    return len(intervals.split(",")) - 1
 
 
 def _mode_type(music21: ModuleType, attrs: Mapping[str, Any]) -> Outcome | None:

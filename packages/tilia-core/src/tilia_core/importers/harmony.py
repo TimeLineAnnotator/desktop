@@ -45,6 +45,8 @@ _NO_MEDIA_LENGTH = (
     " set a duration with 'metadata set-media-length'."
 )
 HARMONY_NEEDS = f"harmony import needs: {rules.INSTALL_HARMONY}"
+# A kept chord with a slash bass that TiLiA's `letter_symbol` can't draw.
+_BASS_OUTSIDE = "{}: the bass isn't in the chord, so it is drawn in root position."
 
 _REQUIRED = ("harmony_or_key", "time", "symbol")  # in the order TiLiA looks for them
 _KINDS = {"harmony": "harmony", "key": "mode"}
@@ -155,7 +157,9 @@ def import_by_time(
     `harmony_or_key`, `time` and `symbol` are required; `comments` is optional, and
     for a chord so are `display_mode`, `custom_text` and `custom_text_font_type`.
     Times are read in the document's time unit. A row that can't be read, with a symbol
-    music21 can't read, or that the rules refuse, is skipped and reported.
+    music21 can't read, or that the rules refuse, is skipped and reported. A chord kept
+    whose slash bass isn't in the chord gets a note, since TiLiA draws it in root
+    position.
 
     Raises `ImportFailed` when the import can't run, without the `harmony` extra too,
     and `OSError` for a file that can't be opened; both change nothing.
@@ -177,16 +181,16 @@ def import_by_time(
     ]
     keys = _kept(document.media_length, _keys(rows, path, problems), path, problems)
     built = _build(rows, keys, path, problems)
-    kept = [
-        component
-        for _, component in _kept(document.media_length, built, path, problems)
-    ]
+    kept = _kept(document.media_length, built, path, problems)
+    for csv_row, component in kept:
+        problems.extend(_notes(path, csv_row, component))
+    components = [component for _, component in kept]
 
-    commit(document, target, kept)
+    commit(document, target, components)
     # In the CSV's order, whichever step found each: reading, the keys, the chords.
     problems.sort(key=lambda problem: problem.line)
     return ImportResult(
-        created=[component.id for component in kept],
+        created=[component.id for component in components],
         rows=len(csv_rows),
         problems=problems,
     )
@@ -329,14 +333,45 @@ def _column_of(reason: str, attrs: Mapping[str, Any]) -> str:
     return "symbol"
 
 
+def _notes(path: Path, csv_row: CsvRow, component: tla.Component) -> list[RowProblem]:
+    """What a row that is kept is told about its component."""
+    notes = []
+    attrs = component.attrs
+    if component.kind == "harmony" and not _bass_is_in_the_chord(
+        attrs["quality"], attrs["inversion"]
+    ):
+        message = _BASS_OUTSIDE.format(printable(csv_row.values["symbol"]))
+        notes.append(_problem(path, csv_row, "symbol", message, skipped=False))
+    return notes
+
+
+def _bass_is_in_the_chord(quality: str, inversion: int) -> bool:
+    """Whether TiLiA's `letter_symbol` draws a chord in its inversion: it builds
+    `ChordSymbol(note, inversion=inversion)`, from the base quality, and falls back to
+    root position when music21 raises `ChordException`.
+
+    music21 looks for a tone of the chord at that position in a stack of thirds, by
+    its letter: 1 is the third, 4 the ninth, so the second. `CHORD_TYPES` lists a
+    chord type's tones by degree ("1,-3,5"), so no chord has to be built here.
+    """
+    import music21
+
+    base, _ = rules.split_added_tone(quality)
+    position = 2 * inversion % 7
+    degrees = str(music21.harmony.CHORD_TYPES[base][0]).split(",")
+    return any((int(degree.lstrip("#-")) - 1) % 7 == position for degree in degrees)
+
+
 def _not_a_symbol(path: Path, row: _Row) -> RowProblem:
     message = rules.not_valid("symbol", row.symbol)
     return _problem(path, row.csv_row, "symbol", message)
 
 
-def _problem(path: Path, csv_row: CsvRow, column: str, message: str) -> RowProblem:
+def _problem(
+    path: Path, csv_row: CsvRow, column: str, message: str, *, skipped: bool = True
+) -> RowProblem:
     return RowProblem(
-        path=path, line=csv_row.line, column=column, message=message, skipped=True
+        path=path, line=csv_row.line, column=column, message=message, skipped=skipped
     )
 
 
