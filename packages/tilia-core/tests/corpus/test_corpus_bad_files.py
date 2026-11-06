@@ -371,3 +371,70 @@ def test_results_warn_of_a_folder_that_couldnt_be_listed_at_opening(
             "can't list the folder locked" in w and "as last read" in w
             for w in result.warnings
         )
+
+
+# --------------------------------------------------------------------------- #
+# Names that differ only in normal form (finding 4)
+# --------------------------------------------------------------------------- #
+NFC = unicodedata.normalize("NFC", "café.tla")
+NFD = unicodedata.normalize("NFD", "café.tla")
+OTHER = "cafe\u0301\u0323.tla"  # another form of another name: only for the rule
+
+
+def twins(folder, first=NFC, second=NFD):
+    tla_files.write(folder / first, song("one"))
+    tla_files.write(folder / second, song("two two two"))
+    if len({unicodedata.normalize("NFC", p.name) for p in folder.iterdir()}) == len(
+        list(folder.iterdir())
+    ):
+        pytest.skip("this file system holds one file per normal form")
+
+
+def found(root, name):
+    return Found(unicodedata.normalize("NFC", name), root / name, 1, 1)
+
+
+def test_one_of_two_twins_keeps_the_path_by_a_rule_of_the_names_alone(tmp_path):
+    a, b = found(tmp_path, NFC), found(tmp_path, NFD)
+    for given in ([a, b], [b, a]):
+        (kept, other) = scan._one_per_path(given, tmp_path)
+        assert kept is a
+        assert other.path == NFD and other.native == b.native
+        assert other.reason == scan.TWIN_REASON
+    # without a name in NFC, the first by code point
+    composed_only_partly = unicodedata.normalize("NFD", "éa\u0323.tla")
+    other_form = "e\u0301\u1ea1.tla"
+    assert unicodedata.normalize("NFC", other_form) == unicodedata.normalize(
+        "NFC", composed_only_partly
+    )
+    c, d = found(tmp_path, composed_only_partly), found(tmp_path, other_form)
+    for given in ([c, d], [d, c]):
+        (kept, other) = scan._one_per_path(given, tmp_path)
+        assert kept is min(c, d, key=lambda f: f.native.name)
+        assert kept.path == unicodedata.normalize("NFC", other_form)
+        assert other.path == max(composed_only_partly, other_form)
+
+
+def test_folders_can_be_twins_too(tmp_path):
+    a = Found("é/x.tla", tmp_path / "é" / "x.tla", 1, 1)
+    b = Found("é/x.tla", tmp_path / "e\u0301" / "x.tla", 1, 1)
+    (kept, other) = scan._one_per_path([b, a], tmp_path)
+    assert kept is a and other.path == "e\u0301/x.tla"
+
+
+def test_files_without_twins_come_back_as_they_were(tmp_path):
+    given = [found(tmp_path, "a.tla"), found(tmp_path, NFD)]
+    assert scan._one_per_path(given, tmp_path) is given
+
+
+def test_a_twin_is_listed_as_unreadable_at_opening(tmp_path):
+    twins(tmp_path)
+    with opened(tmp_path) as corpus:
+        rows = {f.path: f for f in corpus.files()}
+        assert rows[NFC].state == "readable"
+        assert rows[NFD].state == "unreadable"
+        assert rows[NFD].reason == scan.TWIN_REASON
+        assert corpus.open_report.unreadable == ((NFD, None, scan.TWIN_REASON),)
+        assert tql.run(corpus, '"one"').rows and not tql.run(corpus, '"two two two"').rows
+        result = tql.run(corpus, '"one"')
+        assert any("1 file was left out: 1 unreadable" in w for w in result.warnings)

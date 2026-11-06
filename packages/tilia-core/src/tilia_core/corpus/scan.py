@@ -6,7 +6,8 @@ from them (research R6, R8; data-model.md, "The file record").
   extensions, in any letter case. Names that start with ``.`` are left out,
   files and folders alike; links to folders and Windows directory junctions
   aren't followed; and the reader's temporary files are left out. A subfolder that can't be listed
-  is logged and skipped.
+  is logged and skipped. Two names that differ only in Unicode normal form would
+  have one path: one of them keeps it, and the other is unreadable.
 - **Reading** (:func:`read_file`) goes through the reader, with one retry after
   :data:`READ_RETRY_PAUSE` seconds. A file that fails twice is unreadable, with
   its reason; whatever reading it raised, one file never stops the build
@@ -64,12 +65,19 @@ def _no_time_map(document: Document, roles: object) -> None:
 class Found:
     """A file the walk took in: its path relative to the corpus folder, with
     ``/`` and in NFC; its native path, to open; and its size and modification
-    time, None when the walk couldn't ``stat`` it."""
+    time, None when the walk couldn't ``stat`` it. ``reason`` says why it isn't
+    to be read: only a file that lost its path to a twin (:data:`TWIN_REASON`)
+    has one, and its path is its name as it is on disk."""
 
     path: str
     native: Path
     size: int | None
     mtime_ns: int | None
+    reason: str | None = None
+
+
+TWIN_REASON = "another file has this name in another Unicode form"
+"""The reason of a file whose name differs from another's only in normal form."""
 
 
 def _is_junction(entry: os.DirEntry) -> bool:
@@ -78,6 +86,29 @@ def _is_junction(entry: os.DirEntry) -> bool:
     (Python 3.12) would tell."""
     tag = getattr(entry.stat(follow_symlinks=False), "st_reparse_tag", 0)
     return tag == stat.IO_REPARSE_TAG_MOUNT_POINT
+
+
+def _one_per_path(found: list[Found], root: Path) -> list[Found]:
+    """``found``, with one file per path. Paths are in NFC, so two names that
+    differ only in normal form get the same one (NTFS and ext4 can hold both).
+    The name already in NFC keeps it, else the first by code point: the rule
+    looks only at the names, so every scan and every build choose alike. The
+    others keep their names as their paths, and are not to be read."""
+    by_path: dict[str, list[Found]] = {}
+    for f in found:
+        by_path.setdefault(f.path, []).append(f)
+    if len(by_path) == len(found):
+        return found
+    out = []
+    for path, same in by_path.items():
+        names = {id(f): f.native.relative_to(root).as_posix() for f in same}
+        kept = min(same, key=lambda f: (names[id(f)] != path, names[id(f)]))
+        out.append(kept)
+        for f in same:
+            if f is not kept:
+                LOG.warning("%s: %s; left out", f.native, TWIN_REASON)
+                out.append(replace(f, path=names[id(f)], reason=TWIN_REASON))
+    return out
 
 
 def walk(
@@ -137,6 +168,7 @@ def walk(
             found.append(Found(path, Path(entry.path), size, mtime_ns))
 
     visit(root, "")
+    found = _one_per_path(found, root)
     found.sort(key=lambda f: f.path)
     return found
 
@@ -191,7 +223,9 @@ def read_file(reader: DocumentReader, found: Found) -> Outcome:
     system's message, and ``os_error``; one on which the reader fails in any
     other way with the error's type and message, and its traceback is logged.
     Nothing it raises goes through, but ``KeyboardInterrupt`` and
-    ``SystemExit``."""
+    ``SystemExit``. A file with a ``reason`` isn't read at all."""
+    if found.reason is not None:
+        return Outcome(found, now_ns(), reason=found.reason)
     first = _try_read(reader, found)
     if isinstance(first, Outcome):
         return first
