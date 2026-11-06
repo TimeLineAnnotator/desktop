@@ -804,11 +804,12 @@ class TestTheRules:
     @pytest.mark.parametrize(
         "row, message",
         [
-            ("0,harmony,C###", "3 is not a valid accidental."),
-            ("0,key,C###", "3 is not a valid accidental."),
+            ("0,harmony,C###", "C### is not a valid symbol."),
+            ("0,harmony,bbbV", "bbbV is not a valid symbol."),
+            ("0,key,C###", "C### is not a valid symbol."),
         ],
     )
-    def test_a_value_of_the_symbol_the_rules_refuse_is_reported_on_the_symbol(
+    def test_a_value_of_the_symbol_the_rules_refuse_is_reported_as_the_symbol(
         self, imported, row, message
     ):
         result, target, path = imported(rows(row, "1,harmony,D"))
@@ -978,6 +979,21 @@ class TestSlashChords:
         assert result.skipped == []
         assert chords(target)[0]["quality"] == quality
         assert chords(target)[0]["inversion"] == inversion
+
+    @pytest.mark.parametrize(
+        "display_mode, noted",
+        [("custom", False), ("roman", True), ("letter", True), ("nonsense", True)],
+    )
+    def test_a_bass_outside_is_noted_unless_the_chord_is_drawn_as_custom_text(
+        self, imported, display_mode, noted
+    ):
+        result, target, _ = imported(
+            f"{HEADER},display_mode,custom_text\n0,harmony,D/C,{display_mode},mine\n"
+        )
+
+        bass = [p for p in result.problems if "the bass isn't" in p.message]
+        assert bool(bass) is noted
+        assert result.skipped == []
 
     def test_a_bass_is_outside_just_where_tilia_falls_back(self, music21):
         # TiLiA's `letter_symbol` builds the chord in its inversion, from the

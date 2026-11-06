@@ -159,9 +159,10 @@ def import_by_time(
     `harmony_or_key`, `time` and `symbol` are required; `comments` is optional, and
     for a chord so are `display_mode`, `custom_text` and `custom_text_font_type`.
     Times are read in the document's time unit. A row that can't be read, with a symbol
-    music21 can't read, or that the rules refuse, is skipped and reported. A chord kept
-    whose slash bass isn't in the chord gets a note, since TiLiA draws it in root
-    position, and one whose `display_mode` or `custom_text_font_type` isn't one gets the
+    music21 can't read, or that the rules refuse, is skipped and reported, as not being
+    a valid symbol when the fault is in what the symbol reads as. A chord kept whose
+    slash bass isn't in the chord gets a note, since TiLiA draws it in root position,
+    unless its `display_mode` is `custom`, and one whose `display_mode` or `custom_text_font_type` isn't one gets the
     default, and a note.
 
     Raises `ImportFailed` when the import can't run, without the `harmony` extra too,
@@ -270,6 +271,9 @@ def _kept(
         else:
             reason = found.outcome.reason
             column = _column_of(reason, component.attrs)
+            if column == "symbol":
+                # The cell holds the symbol, not the value read from it (FR-022).
+                reason = rules.not_valid("symbol", csv_row.values["symbol"])
             problems.append(_problem(path, csv_row, column, reason))
     return kept
 
@@ -357,7 +361,10 @@ def _notes(path: Path, csv_row: CsvRow, component: tla.Component) -> list[RowPro
         return []
     notes = []
     attrs = component.attrs
-    if not _bass_is_in_the_chord(attrs["quality"], attrs["inversion"]):
+    # A chord drawn as custom text isn't drawn in any position.
+    if attrs["display_mode"] != "custom" and not _bass_is_in_the_chord(
+        attrs["quality"], attrs["inversion"]
+    ):
         message = _BASS_OUTSIDE.format(printable(csv_row.values["symbol"]))
         notes.append(_problem(path, csv_row, "symbol", message, skipped=False))
     for column, reason in _bad_options(csv_row).items():
