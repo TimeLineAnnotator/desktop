@@ -194,7 +194,9 @@ def import_by_measure(
             end_times = times["end"].copy()
             # start_times and end_times are always sorted. If start_times[n] is greater than end_time[n], all start_times[n+] will also be greater than end_times[n], which would create a segment-like component with start > end. Therefore, pop off head of end_times until a suitable end_time is found.
             while len(start_times) and len(end_times):
-                if (start := start_times[0]) <= (end := end_times[0]):
+                start, end = start_times[0], end_times[0]
+                # An end at the start's time is passed over while more ends remain. The last one is a row with no length, which the timeline refuses.
+                if start < end or (start == end and len(end_times) == 1):
                     component, fail_reason = hierarchy_tl.create_component(
                         ComponentKind.HIERARCHY,
                         start,
@@ -209,7 +211,6 @@ def import_by_measure(
                     start_times.pop(0)
                     end_times.pop(0)
                     continue
-                while len(end_times) and start_times[0] > end_times[0]:
-                    end_times.pop(0)
+                end_times.pop(0)
 
         return True, errors
