@@ -416,8 +416,29 @@ class _Context:
     ) -> None:
         self.page_count = page_count
         self.rows = rows
-        self.row_ids = [row.get("id") for row in rows]
+        self.row_ids = _RowIds([row.get("id") for row in rows])
         self.music21 = music21
+
+
+class _RowIds:
+    """The ids of a timeline's rows. `in` finds what it finds in a list of them,
+    but in a set, since a timeline may have thousands. It goes to the list when one
+    of them can't go in a set, as in a broken file, and for a value that can't be
+    looked up in one."""
+
+    def __init__(self, ids: list[Any]) -> None:
+        self._ids = ids
+        self._lookup: Collection[Any]
+        try:
+            self._lookup = frozenset(ids)
+        except TypeError:
+            self._lookup = ids
+
+    def __contains__(self, row_id: Any) -> bool:
+        try:
+            return row_id in self._lookup
+        except TypeError:
+            return row_id in self._ids
 
 
 def _marker(
@@ -1054,7 +1075,7 @@ def _lt(a: float, b: float) -> bool:
     return a < b and not _times_close(a, b)
 
 
-def _range_row(row_id: Any, row_ids: Sequence[Any]) -> Outcome | None:
+def _range_row(row_id: Any, row_ids: _RowIds) -> Outcome | None:
     if not row_id or row_id not in row_ids:
         return _broken(UNKNOWN_ROW, "Invalid row ID.")
     return None

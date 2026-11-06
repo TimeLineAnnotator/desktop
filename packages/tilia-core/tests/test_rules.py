@@ -1654,6 +1654,111 @@ class TestRange:
         assert check("range", others, start=1.0, end=2.0) == OK
 
 
+class _CountedId(str):
+    """A row's id that counts how many times it is compared."""
+
+    compared = 0
+    __hash__ = str.__hash__
+
+    def __eq__(self, other):
+        _CountedId.compared += 1
+        return str.__eq__(self, other)
+
+
+_NAN = float("nan")
+
+
+class TestARangesRowIsLookedUp:
+    # In a set, which finds what a list of the rows' ids finds: `is` or `==`.
+    FOUND = (True, "")
+    NOT_FOUND = (False, "Invalid row ID.")
+
+    @staticmethod
+    def rows_with(ids):
+        return [{"id": row_id, "name": f"Row {n}"} for n, row_id in enumerate(ids)]
+
+    def checked(self, row_id, ids):
+        rows = self.rows_with(ids)
+        attrs = {"start": 1.0, "end": 2.0, "row_id": row_id}
+        one = rules.range_(MEDIA, [], attrs, rows=rows)
+        first = range_in(row_id, 1.0, 2.0)
+        whole = every_rule([first], rows=rows)
+        if not one:
+            assert reasons(whole[first.id]) == [one.reason]
+            assert whole[first.id].outcome.code == rules.UNKNOWN_ROW
+        else:
+            assert first.id not in whole or whole[first.id].outcome.ok
+        return tuple(one)
+
+    @pytest.mark.parametrize(
+        "row_id, ids, expected",
+        [
+            (ROW, [ROW], FOUND),
+            ("Zz99Zz", [ROW, "Ef34Gh"], NOT_FOUND),
+            ("Zz99Zz", [], NOT_FOUND),
+            # Two rows with one id, as a file can't have, but a program can give.
+            (ROW, [ROW, ROW], FOUND),
+            ("Zz99Zz", [ROW, ROW], NOT_FOUND),
+            # What is empty is no row, whatever the rows say.
+            ("", ["", ROW], NOT_FOUND),
+            (None, [None, ROW], NOT_FOUND),
+            (0, [0], NOT_FOUND),
+            ([], [[], ROW], NOT_FOUND),
+            ({}, [{}, ROW], NOT_FOUND),
+            # A row without an id gives None, which is no row.
+            (ROW, [None], NOT_FOUND),
+            # By `==`, as a list compares them.
+            (1, [1.0], FOUND),
+            (1.0, [1], FOUND),
+            (True, [1], FOUND),
+            (2, [1, True], NOT_FOUND),
+            (Decimal(1), [1], FOUND),
+            (Fraction(1, 2), [0.5], FOUND),
+            ("1", [1], NOT_FOUND),
+            # By `is`, as a list finds one: NaN isn't equal to itself.
+            (_NAN, [_NAN], FOUND),
+            (_NAN, [float("nan")], NOT_FOUND),
+            # A value a set can't hold, among ids a set can.
+            ([ROW], [ROW], NOT_FOUND),
+            ({"id": ROW}, [ROW], NOT_FOUND),
+            (bytearray(b"ab"), [b"ab"], FOUND),
+            (bytearray(b"ab"), [b"cd"], NOT_FOUND),
+            ({"a"}, [frozenset({"a"})], FOUND),
+            ({"a"}, [frozenset({"b"})], NOT_FOUND),
+            # An id a set can't hold, among the rows.
+            (ROW, [[], ROW], FOUND),
+            ("Zz99Zz", [[], ROW], NOT_FOUND),
+            ([ROW], [[ROW], "Ef34Gh"], FOUND),
+            ([ROW], [["Ef34Gh"], ROW], NOT_FOUND),
+            ({"id": ROW}, [{"id": ROW}], FOUND),
+            ((ROW,), [(ROW,), []], FOUND),
+            (frozenset({"a"}), [{"a"}], FOUND),
+            (b"ab", [bytearray(b"ab")], FOUND),
+            # Hashed, but holding what can't be.
+            (([],), [([],)], FOUND),
+            (([],), [(["a"],)], NOT_FOUND),
+        ],
+        ids=repr,
+    )
+    def test_it_finds_what_a_list_finds(self, row_id, ids, expected):
+        assert (bool(row_id) and row_id in ids) is expected[0]
+        assert self.checked(row_id, ids) == expected
+
+    def test_among_many_it_finds_each(self):
+        ids = [f"{n:06d}" for n in range(1000)]
+        for row_id in (ids[0], ids[499], ids[-1]):
+            assert self.checked(row_id, ids) == self.FOUND
+        assert self.checked("nothing", ids) == self.NOT_FOUND
+
+    def test_it_doesnt_go_through_them_all(self):
+        ids = [_CountedId(f"{n:06d}") for n in range(1000)]
+        rows = self.rows_with(ids)
+        attrs = {"start": 1.0, "end": 2.0, "row_id": "000999"}
+        _CountedId.compared = 0
+        assert rules.range_(MEDIA, [], attrs, rows=rows)
+        assert _CountedId.compared < 10
+
+
 class TestJoinedRight:
     def test_joined_to_the_next_range_in_its_row(self):
         following = range_in(ROW, 2.0, 3.0)
