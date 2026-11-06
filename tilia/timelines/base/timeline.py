@@ -12,6 +12,7 @@ from tilia.exceptions import (
     InvalidComponentKindError,
     SetTimelineDataError,
 )
+from tilia.log import logger
 from tilia.timelines import serialize
 from tilia.timelines.base.media_bounds import restoring_components
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
@@ -34,6 +35,13 @@ if TYPE_CHECKING:
 
 TC = TypeVar("TC", bound="TimelineComponent")
 T = TypeVar("T", bound="Timeline")
+
+
+def id_order(id: str) -> tuple[int, str]:
+    """Sort key that puts ids in the order they were made, both UUIDv7s and
+    numbers as text.
+    """
+    return len(id), id
 
 
 class TimelineFlag(Enum):
@@ -332,6 +340,10 @@ class TimelineComponentManager(Generic[T, TC]):
 
         self._components: list[TC] = []
         self.id_to_component: dict[int, TC] = {}
+        # True while making components from values that are already final, as when
+        # restoring a state: creating or deleting one must not update the others
+        # then (a mode changes the applied_to of the harmonies after it).
+        self.is_deserializing = False
 
     def __iter__(self):
         return iter(self._components)
@@ -511,9 +523,12 @@ class TimelineComponentManager(Generic[T, TC]):
             self.delete_component(component)
 
     def hash_components(self):
+        # Sorted, as the list can hold the same components in another order after
+        # a restore: those that tie are in the order they were inserted. That
+        # isn't a change.
         str_to_hash = ""
-        for component in self._components:
-            str_to_hash += component.hash + "|"
+        for hash in sorted(component.hash for component in self._components):
+            str_to_hash += hash + "|"
 
         return hash_function(str_to_hash)
 
@@ -525,39 +540,42 @@ class TimelineComponentManager(Generic[T, TC]):
     ):
         serialize.deserialize_components(self.timeline, serialized_components)
 
-    def restore_state(self, prev_state: dict):
-        cur_hash_to_id = {cmp.hash: cmp.id for cmp in self._components}
-        prev_hash_to_data = {
-            data["hash"]: data | {"id": id} for id, data in prev_state.items()
+    def restore_state(self, prev_state: dict[str, dict[str, Any]]) -> None:
+        """Makes the components those of `prev_state`, matching them by id, so
+        that a restored component keeps its id and components with the same
+        values stay apart.
+
+        Ids go in order, so that restoring doesn't depend on the iteration order
+        of a set, which depends on PYTHONHASHSEED, and so that a component is
+        created after those it needs (e.g. a staff before its notes).
+        """
+        current = self.id_to_component
+        changed = {
+            id
+            for id in current.keys() & prev_state.keys()
+            if current[id].hash != prev_state[id]["hash"]
         }
-        cur_hashes = set(cur_hash_to_id.keys())
-        prev_hashes = set(prev_hash_to_data.keys())
-        hashes_to_delete = cur_hashes.difference(prev_hashes)
-        hashes_to_create = prev_hashes.difference(cur_hashes)
+        ids_to_delete = (current.keys() - prev_state.keys()) | changed
+        ids_to_create = (prev_state.keys() - current.keys()) | changed
 
-        # States may have components that share hashes but have different ids
-        # (e.g. a beat was deleted and later created at the exact same timestamp).
-        # In those cases, we want to restore (i.e. recreate) the component
-        # so that its original id is used and references are not broken.
-        hashes_in_common = cur_hashes.intersection(prev_hashes)
-        for hash in hashes_in_common:
-            if cur_hash_to_id[hash] != prev_hash_to_data[hash]["id"]:
-                hashes_to_delete.add(hash)
-                hashes_to_create.add(hash)
+        self.is_deserializing = True
+        try:
+            self.timeline.delete_components(
+                [current[id] for id in sorted(ids_to_delete, key=id_order)]
+            )
 
-        ids_to_delete = [cur_hash_to_id[id] for id in hashes_to_delete]
-        self.timeline.delete_components(
-            [self.timeline.get_component(id) for id in ids_to_delete]
-        )
+            with restoring_components():
+                for id in sorted(ids_to_create, key=id_order):
+                    component_data = prev_state[id].copy()
+                    kind = ComponentKind[component_data.pop("kind")]
 
-        components_to_create = [prev_hash_to_data[hash] for hash in hashes_to_create]
-        with restoring_components():
-            for component_data in components_to_create:
-                component_data = component_data.copy()
-                kind = ComponentKind[component_data.pop("kind")]
-                id = component_data.pop("id")
-
-                self.timeline.create_component(kind, id=id, **component_data)
+                    component, reason = self.timeline.create_component(
+                        kind, id=id, **component_data
+                    )
+                    if component is None:
+                        logger.error(f"Can't restore component {id}: {reason}")
+        finally:
+            self.is_deserializing = False
 
     def post_component_event(self, event: Post, component_id: int, *args, **kwargs):
         post(

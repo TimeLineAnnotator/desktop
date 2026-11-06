@@ -25,7 +25,6 @@ from tilia.timelines.harmony.validators import validate_level_count
 class HarmonyTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: HarmonyTimeline):
         super().__init__(timeline, [ComponentKind.HARMONY, ComponentKind.MODE])
-        self.is_deserializing = False
         self.crop = functools.partial(crop_pointlike, self)
         self.scale = functools.partial(scale_pointlike, self)
 
