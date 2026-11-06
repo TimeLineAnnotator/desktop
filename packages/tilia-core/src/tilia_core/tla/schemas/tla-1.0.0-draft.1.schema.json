@@ -333,6 +333,14 @@
               "accidental": { "type": ["integer", "null"], "default": 0 },
               "quality": { "type": ["string", "null"], "default": "major" },
               "inversion": { "type": ["integer", "null"], "default": 0 },
+              "bass_step": {
+                "description": "The chord's real bass, in the terms of `step`: from 0 to 6. Written together with bass_accidental, and only where the inversion doesn't already give that bass, as in C/Eb, where inversion 1 gives E (TimeLineAnnotator/project-management#514). Without them, the bass is the inversion's.",
+                "type": ["integer", "null"]
+              },
+              "bass_accidental": {
+                "description": "The accidental of the chord's real bass, in the terms of `accidental`: from -2 to 2. Written together with bass_step.",
+                "type": ["integer", "null"]
+              },
               "applied_to": { "type": ["integer", "null"], "default": 0 },
               "level": { "description": "From 1.", "type": ["integer", "null"], "default": 1 },
               "display_mode": { "description": "\"letter\", \"roman\" or \"custom\".", "type": ["string", "null"], "default": "letter" },
