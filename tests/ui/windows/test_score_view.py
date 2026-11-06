@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 import shiboken6
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt, QUrl
 from PySide6.QtGui import QColor, QHideEvent, QShowEvent
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWebEngineCore import QWebEnginePage
@@ -30,7 +30,11 @@ from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.dialogs.choose import ChooseDialog
-from tilia.ui.windows.score.score_view import VIEWER_PATH, ScoreView
+from tilia.ui.windows.score.score_view import (
+    SCORE_INITIAL_HEIGHT,
+    VIEWER_PATH,
+    ScoreView,
+)
 from tilia.ui.windows.svg_viewer import SvgStaveNote, SvgViewer
 
 # The viewer's page compiles Verovio when it loads.
@@ -779,3 +783,38 @@ class TestShortcuts:
                 assert triggered.count() == 1, command
         finally:
             main_window.hide()
+
+
+class TestResize:
+    @pytest.fixture
+    def main_window(self):
+        window = get(Get.MAIN_WINDOW)
+        window.resize(1200, 900)
+        window.show()
+        yield window
+        window.hide()
+
+    @staticmethod
+    def _separator(main_window, score_view):
+        central = main_window.centralWidget().geometry()
+        top = score_view.geometry().top()
+        return QPoint(central.center().x(), (central.bottom() + top + 1) // 2)
+
+    def test_dragging_the_separator_resizes_the_viewer(self, main_window, score_view):
+        assert QTest.qWaitForWindowExposed(main_window)
+        QTest.qWait(100)  # The window lays out its docks after showing them.
+        height = score_view.height()
+        start = self._separator(main_window, score_view)
+        end = start - QPoint(0, 100)
+
+        QTest.mousePress(main_window, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(main_window, end)
+        QTest.qWait(50)  # The window moves its separators on a timer.
+        QTest.mouseRelease(main_window, Qt.MouseButton.LeftButton, pos=end)
+
+        assert wait_until(lambda: score_view.height() == height + 100)
+
+    def test_new_viewer_asks_for_room_for_the_score(self, score_view):
+        # Asserted on the hint as the main window is shared by the tests, and its
+        # dock area keeps the height it had, as it does for a user.
+        assert score_view.sizeHint().height() >= SCORE_INITIAL_HEIGHT

@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
-from PySide6.QtCore import QObject, Qt, QUrl, Slot
+from PySide6.QtCore import QObject, QSize, Qt, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -139,6 +139,14 @@ class _ScorePage(QWebEnginePage):
 
 
 SCORE_MIN_HEIGHT = 200
+SCORE_INITIAL_HEIGHT = 450
+
+
+class _ScoreContainer(QWidget):
+    """The viewer's contents. The main window sizes a new dock by this hint."""
+
+    def sizeHint(self) -> QSize:
+        return QSize(super().sizeHint().width(), SCORE_INITIAL_HEIGHT)
 
 
 class ScoreView(ScoreViewerBase):
@@ -261,7 +269,7 @@ class ScoreView(ScoreViewerBase):
         self._channel.registerObject("tilia", self._bridge)
         page.setWebChannel(self._channel)
         self.group_panel = GroupPanel(self.timeline_id)
-        container = QWidget(self)
+        container = _ScoreContainer(self)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)

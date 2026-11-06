@@ -75,7 +75,11 @@ class TiliaMainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(tilia.constants.APP_NAME)
         self.setWindowIcon(QIcon.fromTheme("tilia"))
-        self.setStyleSheet("QMainWindow::separator { height: 0px; width: 0px; }")
+        # Docks above and below the timelines need a separator to be resized by.
+        self.setStyleSheet(
+            "QMainWindow::separator { height: 6px; width: 0px; }"
+            "QMainWindow::separator:hover { background: palette(highlight); }"
+        )
         self.setAcceptDrops(True)
         self._drop_filter = FileDropEventFilter()
 
