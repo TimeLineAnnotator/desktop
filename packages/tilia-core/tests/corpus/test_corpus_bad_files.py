@@ -2,9 +2,12 @@
 never stops opening, and the others go through (FR-007, FR-060; research R2, R8).
 The files are real ``.tla`` content, read through WP3's reader."""
 
+import copy
+import json
 import logging
 import os
 import sqlite3
+import time
 import unicodedata
 from pathlib import Path
 
@@ -438,3 +441,168 @@ def test_a_twin_is_listed_as_unreadable_at_opening(tmp_path):
         assert tql.run(corpus, '"one"').rows and not tql.run(corpus, '"two two two"').rows
         result = tql.run(corpus, '"one"')
         assert any("1 file was left out: 1 unreadable" in w for w in result.warnings)
+
+
+# --------------------------------------------------------------------------- #
+# The same, in a scan after the opening
+# --------------------------------------------------------------------------- #
+ANY_BAD = {
+    "a beat without a time": (tla_files.null_beat, "can't read: KeyError"),
+    **{name: (c, f"can't index: {e}") for name, (c, e) in CANT_STORE.items()},
+}
+
+
+def long_ago(*paths):
+    """Date ``paths`` long past, so a scan reads them again only if they change."""
+    then = time.time() - 3600
+    for path in paths:
+        os.utime(path, (then, then))
+
+
+def said_last_change(result):
+    return any("couldn't take the last change" in w for w in result.warnings)
+
+
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_a_bad_file_that_appears_stops_no_other_change(tmp_path, change, reason):
+    a = song()
+    tla_files.write(tmp_path / "a.tla", a)
+    tla_files.write(tmp_path / "z.tla", song())
+    with opened(tmp_path) as corpus:
+        tla_files.unit(a, "Marker")["label"] = "PAC"
+        tla_files.write(tmp_path / "a.tla", a)
+        tla_files.write(tmp_path / "bad.tla", spoiled(change))
+        report = corpus.scan()
+        assert report.error is None
+        assert report.added == ("bad.tla",)
+        assert report.changed == ("a.tla",)
+        ((path, line, why),) = report.unreadable
+        assert (path, line) == ("bad.tla", None) and why.startswith(reason)
+        assert corpus.file("bad.tla").state == "unreadable"
+        assert not corpus._store._writer.in_transaction
+        result = tql.run(corpus, "PAC")
+        assert len(result.rows) == 1
+        assert not said_last_change(result)
+
+
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_a_file_edited_badly_loses_its_rows_and_comes_back(tmp_path, change, reason):
+    data = song()
+    good = json.dumps(data, indent=2)
+    tla_files.write(tmp_path / "a.tla", data)
+    with opened(tmp_path) as corpus:
+        assert components_per_path(corpus)["a.tla"] > 0
+        change(data)
+        tla_files.write(tmp_path / "a.tla", data)
+        report = corpus.scan()
+        assert report.error is None and report.changed == ()
+        ((path, _, why),) = report.unreadable
+        assert path == "a.tla" and why.startswith(reason)
+        assert components_per_path(corpus)["a.tla"] == 0
+        assert corpus.file("a.tla").state == "unreadable"
+        (tmp_path / "a.tla").write_text(good, encoding="utf-8")
+        report = corpus.scan()
+        assert report.changed == ("a.tla",) and report.unreadable == ()
+        assert corpus.file("a.tla").state == "readable"
+        assert components_per_path(corpus)["a.tla"] > 0
+
+
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_a_bad_file_on_record_is_left_alone_by_later_scans(tmp_path, change, reason):
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "bad.tla", spoiled(change))
+    long_ago(tmp_path / "a.tla", tmp_path / "bad.tla")
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        for _ in range(3):
+            report = corpus.scan()
+            assert not report
+            assert report.generation_after == generation
+
+
+@pytest.mark.parametrize("change,reason", ANY_BAD.values(), ids=ANY_BAD)
+def test_a_move_into_a_bad_file_is_a_move_and_unreadable(tmp_path, change, reason):
+    data = song()
+    tla_files.write(tmp_path / "a.tla", data)
+    with opened(tmp_path) as corpus:
+        key = corpus.file("a.tla").id
+        (tmp_path / "a.tla").unlink()
+        change(data)
+        tla_files.write(tmp_path / "b.tla", data)
+        report = corpus.scan()
+        assert report.moved == (("a.tla", "b.tla"),)
+        assert report.unreadable[0][0] == "b.tla"
+        assert report.unreadable[0][2].startswith(reason)
+        assert states(corpus) == {"b.tla": "unreadable"}
+        assert corpus.file("b.tla").id == key
+
+
+# --------------------------------------------------------------------------- #
+# A change the index can't take at all, in a scan
+# --------------------------------------------------------------------------- #
+def disk_full(con, rows):
+    raise sqlite3.OperationalError("database or disk is full")
+
+
+def test_a_change_that_fails_warns_until_one_is_applied(tmp_path, monkeypatch):
+    a = song()
+    tla_files.write(tmp_path / "a.tla", a)
+    with opened(tmp_path) as corpus:
+        tla_files.unit(a, "Marker")["label"] = "PAC"
+        tla_files.write(tmp_path / "a.tla", a)
+        generation = corpus.generation
+        with monkeypatch.context() as m:
+            m.setattr(store_module, "_insert", disk_full)
+            report = corpus.scan()
+            assert report.error == "database or disk is full"
+            assert corpus.generation == generation
+            result = tql.run(corpus, "HC")
+            assert len(result.rows) == 1  # as last indexed
+            assert said_last_change(result)
+        report = corpus.scan()
+        assert report.error is None and report.changed == ("a.tla",)
+        result = tql.run(corpus, "PAC")
+        assert len(result.rows) == 1
+        assert not said_last_change(result)
+
+
+def test_the_warning_goes_when_the_failed_change_was_undone(tmp_path, monkeypatch):
+    path = tla_files.write(tmp_path / "a.tla", song())
+    long_ago(path)
+    content, date = path.read_bytes(), path.stat().st_mtime_ns
+    with opened(tmp_path) as corpus:
+        with monkeypatch.context() as m:
+            m.setattr(store_module, "_insert", disk_full)
+            tla_files.write(path, song("edited"))
+            assert corpus.scan().error is not None
+            assert said_last_change(tql.run(corpus, "verse"))
+        path.write_bytes(content)
+        os.utime(path, ns=(date, date))
+        report = corpus.scan()
+        assert not report and report.error is None
+        assert not said_last_change(tql.run(corpus, "verse"))
+
+
+def test_ctrl_c_during_a_scan_goes_through_and_leaves_reads_working(
+    tmp_path, monkeypatch
+):
+    a = song()
+    tla_files.write(tmp_path / "a.tla", a)
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        tla_files.unit(a, "Marker")["label"] = "PAC"
+        tla_files.write(tmp_path / "a.tla", a)
+
+        def interrupted(con, rows):
+            raise KeyboardInterrupt
+
+        with monkeypatch.context() as m:
+            m.setattr(store_module, "_insert", interrupted)
+            with pytest.raises(KeyboardInterrupt):
+                corpus.scan()
+        assert not corpus._store._writer.in_transaction
+        assert corpus.generation == generation
+        result = tql.run(corpus, "HC")
+        assert len(result.rows) == 1 and not said_last_change(result)
+        assert corpus.scan().changed == ("a.tla",)
+        assert len(tql.run(corpus, "PAC").rows) == 1

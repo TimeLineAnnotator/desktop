@@ -617,7 +617,7 @@ class Scanner:
         folder itself may raise ``OSError``; nothing inside it does."""
         with self.turn:
             self.last_scan = clock()
-            return self._refresh(walk(self.root, self.reader, self.settings))
+            return self._refresh(self._walk())
 
     # -- scans ---------------------------------------------------------------- #
     def scan(self) -> ScanReport:
@@ -659,11 +659,18 @@ class Scanner:
                     self._job = None
                 job.done.set()
 
+    def _walk(self) -> list[Found]:
+        """The folder's files; the store learns which subfolders it couldn't list."""
+        unlisted: list[str] = []
+        found = walk(self.root, self.reader, self.settings, unlisted)
+        self.store.unlisted = tuple(unlisted)
+        return found
+
     def _scan(self) -> ScanReport:
         """One scan, under the change mutex."""
         self.last_scan = clock()
         try:
-            found = walk(self.root, self.reader, self.settings)
+            found = self._walk()
         except OSError as err:
             # the corpus folder itself can't be reached: change nothing (FR-021)
             if self.store.available:
@@ -757,12 +764,13 @@ class Scanner:
             rec = claims.get(path) or old.get(path)
             if rec is None:
                 key = next(self._counter)
-                if o.readable:
-                    put(*self._readable(o, key), None)
+                built = self._try_rows(o, key) if o.readable else o
+                if isinstance(built, Outcome):
+                    put(*self._unreadable(built, key), None)
+                    unreadable.append((path, built.line, built.reason or ""))
+                    LOG.warning("%s is unreadable: %s", o.found.native, built.reason)
                 else:
-                    put(*self._unreadable(o, key), None)
-                    unreadable.append((path, o.line, o.reason or ""))
-                    LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
+                    put(*built, None)
                 added.append(path)
                 continue
             is_move = path in claims
@@ -785,23 +793,26 @@ class Scanner:
                     )
                     continue
                 # the same content keeps its rows' keys
-                put(*self._readable(o, rec.key, rec.keys if same else ()), rec)
-                if rec.state != "unavailable" and (not same or newer):
-                    changed.append(path)
-            else:
-                if rec.state == "unreadable" and rec.reason == o.reason:
-                    new[path] = replace(
-                        rec,
-                        native=o.found.native,
-                        size=o.found.size,
-                        mtime_ns=o.found.mtime_ns,
-                        read_at_ns=o.read_at_ns,
-                        os_error=o.os_error,
-                    )
+                built = self._try_rows(o, rec.key, rec.keys if same else ())
+                if not isinstance(built, Outcome):
+                    put(*built, rec)
+                    if rec.state != "unavailable" and (not same or newer):
+                        changed.append(path)
                     continue
-                put(*self._unreadable(o, rec.key), rec)
-                unreadable.append((path, o.line, o.reason or ""))
-                LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
+                o = built
+            if rec.state == "unreadable" and rec.reason == o.reason:
+                new[path] = replace(
+                    rec,
+                    native=o.found.native,
+                    size=o.found.size,
+                    mtime_ns=o.found.mtime_ns,
+                    read_at_ns=o.read_at_ns,
+                    os_error=o.os_error,
+                )
+                continue
+            put(*self._unreadable(o, rec.key), rec)
+            unreadable.append((path, o.line, o.reason or ""))
+            LOG.warning("%s is unreadable: %s", o.found.native, o.reason)
 
         taken = {r.path for r in claims.values()}
         for rec in vanished:
@@ -846,11 +857,22 @@ class Scanner:
             gone.append(rec.path)
             LOG.warning("%s is unavailable", rec.native)
 
-        if deletes or inserts:
-            err = self.store.apply(deletes, inserts, maps)
+        refused = _Refused()
+        # a whole scan that finds nothing to do still clears a failed change's
+        # warning: the index and the folder agree again
+        if deletes or inserts or (scope is None and self.store.failure is not None):
+            err = self.store.apply(
+                deletes, inserts, maps, instead=refused, partial=scope is not None
+            )
             if err is not None:
                 after = self.store.generation
                 return ScanReport((), (), (), (), (), (), (), before, after, str(err))
+        settled = refused.settle(new)
+        if settled:
+            # as for any file that turned unreadable: listed there, not as changed
+            paths = {path for path, _, _ in settled}
+            changed = [path for path in changed if path not in paths]
+            unreadable = sorted([*unreadable, *settled], key=lambda u: u[0])
         self.records = new
         new_paths = set(added)
         return ScanReport(
