@@ -147,8 +147,9 @@ def test_text_is_remembered_per_corpus(page):
     page.fill("#ql-box", "remember me")
     page.reload()
     page.click('#tabs button[data-panel="query"]')
-    page.wait_for_selector("#ql-box")
-    assert page.input_value("#ql-box") == "remember me"
+    page.wait_for_function(
+        "() => document.querySelector('#ql-box')?.value === 'remember me'"
+    )
 
 
 def open_query_while_booting(page):

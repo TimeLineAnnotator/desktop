@@ -95,7 +95,7 @@ def test_field_replaces_the_first_key(page):
     page.fill("#stats-field", "file.composer")
     page.click("#stats-run")
     page.wait_for_function(
-        "() => document.querySelector('section[data-table=counts] th').textContent === 'file.composer'"
+        "() => document.querySelector('section[data-table=counts] th')?.textContent === 'file.composer'"
     )
 
 
