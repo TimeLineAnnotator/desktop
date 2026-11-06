@@ -613,6 +613,34 @@ class TestTheKeyInForce:
         ]
 
 
+class TestWithNoKeyInForce:
+    @pytest.mark.parametrize(
+        "symbol, step, accidental",
+        [
+            # What C major and C minor read differently: "vi" is A in both.
+            ("III", 2, 0),
+            ("VI", 5, 0),
+            ("VII", 6, 0),
+            ("iii", 2, 0),
+            ("vi", 5, 0),
+        ],
+    )
+    def test_a_numeral_is_read_in_c_major(self, imported, symbol, step, accidental):
+        result, target, _ = imported(rows(f"0,harmony,{symbol}"))
+
+        assert result.problems == []
+        assert chords(target)[0]["step"] == step
+        assert chords(target)[0]["accidental"] == accidental
+
+    def test_a_numeral_before_the_first_key_is_read_in_c_major(self, imported):
+        _, target, _ = imported(rows("1,key,c", "0,harmony,VI", "2,harmony,VI"))
+
+        assert [(a["step"], a["accidental"]) for a in chords(target)] == [
+            (5, 0),
+            (5, -1),
+        ]
+
+
 class TestAppliedTo:
     def test_it_comes_from_the_symbol(self, imported):
         _, target, _ = imported(rows("0,harmony,V/V", "1,harmony,V"))
@@ -778,8 +806,6 @@ class TestTheRules:
         [
             ("0,harmony,C###", "3 is not a valid accidental."),
             ("0,key,C###", "3 is not a valid accidental."),
-            # music21 reads it, but gives no chord type.
-            ("0,harmony,C5", "an empty value is not a valid quality."),
         ],
     )
     def test_a_value_of_the_symbol_the_rules_refuse_is_reported_on_the_symbol(
@@ -790,6 +816,22 @@ class TestTheRules:
         assert result.problems == [
             RowProblem(
                 path=path, line=2, column="symbol", message=message, skipped=True
+            )
+        ]
+        assert [a["step"] for a in chords(target)] == [1]
+
+    @pytest.mark.parametrize("symbol", ["C5", "C5/G"])
+    def test_a_symbol_read_with_no_chord_type_is_not_a_symbol(self, imported, symbol):
+        # The cell holds the symbol, so that is what the text is about (FR-022).
+        result, target, path = imported(rows(f"0,harmony,{symbol}", "1,harmony,D"))
+
+        assert result.problems == [
+            RowProblem(
+                path=path,
+                line=2,
+                column="symbol",
+                message=f"{symbol} is not a valid symbol.",
+                skipped=True,
             )
         ]
         assert [a["step"] for a in chords(target)] == [1]
@@ -1529,6 +1571,25 @@ class TestChordSymbolParsing:
     def test_every_added_tone_quality_is_among_them(self):
         assert sorted(self.ADDED_TONE_SYMBOLS) == sorted(rules.ADDED_TONE_QUALITIES)
 
+    def test_a_symbol_music21_reads_with_no_chord_type(self, read):
+        # The reading gives it as TiLiA's does, and the importer refuses it.
+        assert read("C5")["quality"] == ""
+
+    @pytest.mark.parametrize("text", ["C7b9#11", "C7b9add13"])
+    def test_two_tones_are_no_added_tone_quality(self, read, text):
+        # A quality has one, so the chord type stays.
+        assert read(text)["quality"] == "dominant-seventh"
+
+    def test_only_a_tone_added_makes_an_added_tone_quality(self, music21):
+        # No symbol music21 reads gets here today, with a chord type and an altered
+        # tone that are one of the qualities, so the symbol is made by hand.
+        symbol = music21.harmony.ChordSymbol("C7")
+        symbol.addChordStepModification(
+            music21.harmony.ChordStepModification("alter", 9, -1), updatePitches=False
+        )
+
+        assert harmony._get_added_tone(symbol) == ""
+
     def test_applied_to_is_cleared_when_no_longer_applied(self, read):
         assert read("V7/V")["applied_to"] == 4
         assert read("V7")["applied_to"] == 0
@@ -1545,6 +1606,13 @@ class TestRomanNumeralParsing:
             ("V42", "dominant-seventh", 4, 3),
             ("ii7", "minor-seventh", 1, 0),
             ("viio7", "diminished-seventh", 6, 0),
+            ("viio", "diminished", 6, 0),
+            ("IM7", "major-seventh", 0, 0),
+            ("viiø7", "half-diminished-seventh", 6, 0),
+            ("viiø65", "half-diminished-seventh", 6, 1),
+            ("III+", "augmented", 2, 0),
+            ("V+7", "augmented-seventh", 4, 0),
+            ("I+M7", "augmented-major-13th", 0, 0),
         ],
     )
     def test_quality_step_and_inversion(self, read, text, quality, step, inversion):

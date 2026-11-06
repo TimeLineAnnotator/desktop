@@ -300,7 +300,9 @@ def _build(
         success, params = get_harmony_params_from_text(
             row.symbol, in_force.at(row.time)
         )
-        if success:
+        # music21 reads some symbols with no chord type, such as "C5". The reading
+        # gives them, as TiLiA's does, and the cell's symbol is what can't be used.
+        if success and params["quality"]:
             component = _component(row, params)
             chords.append(component)
             built.append((row.csv_row, component))
