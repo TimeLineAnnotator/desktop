@@ -18,7 +18,8 @@ from tilia_core import rules, tla
 from tilia_core.importers._commit import commit
 from tilia_core.importers._csv import CsvRow, read_csv
 from tilia_core.importers._results import ImportFailed, ImportResult, RowProblem
-from tilia_core.tla.media_files import is_relative, local_file
+from tilia_core.tla.errors import printable
+from tilia_core.tla.media_files import is_relative, is_url, local_file
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,9 @@ def import_by_time(
     if page_count is None:
         notes.append(
             _CANT_BE_READ.format(
-                _looked_for(stored, document.origin) if pdf is None else pdf
+                printable(
+                    _looked_for(stored, document.origin) if pdf is None else str(pdf)
+                )
             )
             if stored
             else _NO_PDF
@@ -143,8 +146,8 @@ def _pdf_file(stored: str, origin: Path | None) -> Path | None:
     document's file, tries the decomposed (NFD) form of the name, and never
     looks up a path of the other system's form. Without that folder, only an
     absolute path names one, as a stored path is never read from where the
-    process happens to run. None when it names no file."""
-    if not stored:
+    process happens to run. A URL names no file here. None when it names no file."""
+    if not stored or is_url(stored):
         return None
     return local_file(stored, None if origin is None else str(origin.parent))
 
