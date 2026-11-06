@@ -368,16 +368,15 @@ class Store:
                 _insert(con, rows)
             except sqlite3.OperationalError:
                 raise  # a lock or the like: not this file's doing
-            except Exception as err:  # noqa: BLE001 - one file stops nothing
+            except Exception as err:  # one file stops nothing
                 if instead is None:
                     raise
                 con.execute("ROLLBACK TO one_file")
-                LOG.error(
+                LOG.exception(
                     "the rows of file %s can't be stored: %s: %s",
                     rows.file_id,
                     type(err).__name__,
                     err,
-                    exc_info=True,
                 )
                 refused.add(rows.file_id)
                 _insert(con, instead(rows, err))
