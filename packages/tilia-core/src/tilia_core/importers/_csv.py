@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tilia_core.importers._results import ImportFailed
+from tilia_core.tla.errors import printable
 
 # TiLiA's texts: its importers' (tilia/parsers/csv/) and tilia/ui/strings.py's.
 EMPTY_FILE = "Can't import: file is empty."
@@ -53,7 +54,9 @@ def read_csv(path: str | os.PathLike[str]) -> tuple[list[str], list[CsvRow]]:
                 # A quoted field's line breaks count, so the next row starts here.
                 line = reader.line_num + 1
         except UnicodeDecodeError:
-            raise ImportFailed(path, UTF8_DECODE_FAILED.format(path, "CSV")) from None
+            raise ImportFailed(
+                path, UTF8_DECODE_FAILED.format(printable(str(path)), "CSV")
+            ) from None
         except csv.Error as error:
             raise ImportFailed(
                 path, f"can't read, line {reader.line_num}: {error}"
