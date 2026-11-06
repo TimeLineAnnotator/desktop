@@ -275,6 +275,22 @@ class FileRecord:
     keys: tuple[int, ...] = ()
 
 
+class _KeyCounter:
+    """The corpus's counter of keys. It can go back over keys that nothing kept
+    (see :meth:`Scanner._try_rows`)."""
+
+    def __init__(self) -> None:
+        self.value = 1
+
+    def __iter__(self) -> _KeyCounter:
+        return self
+
+    def __next__(self) -> int:
+        key = self.value
+        self.value += 1
+        return key
+
+
 class _Keys:
     """The keys for one file's rows: ``first``, then the next of the corpus's
     counter; it remembers what it handed out."""
@@ -446,7 +462,7 @@ class Scanner:
         self.settings = settings
         self.time_map_of: TimeMapOf = time_map_of or _no_time_map
         self.records: dict[str, FileRecord] = {}
-        self._counter = itertools.count(1)
+        self._counter = _KeyCounter()
 
     def _readable(
         self, outcome: Outcome, key: int, replay: tuple[int, ...] = ()
@@ -484,11 +500,14 @@ class Scanner:
     ) -> tuple[FileRecord, Rows] | Outcome:
         """:meth:`_readable`, or an unreadable outcome for a file whose rows
         can't be built, as for one the reader fails on (FR-007, FR-060): its
-        traceback is logged. Rows half built go with the exception; the keys
-        they took from the corpus's counter are never handed out again."""
+        traceback is logged. Rows half built go with the exception, and the keys
+        they took go back to the corpus's counter: a scan's turn is the only one
+        taking keys, so nothing else can hold them."""
+        next_key = self._counter.value
         try:
             return self._readable(outcome, key, replay)
         except Exception as err:  # one file stops nothing
+            self._counter.value = next_key
             reason = f"can't read: {type(err).__name__}: {err}"
             LOG.exception(
                 "the rows of %s can't be built: %s", outcome.found.native, reason
