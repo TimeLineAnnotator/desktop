@@ -1,0 +1,68 @@
+name: Keyboard shortcuts sheet
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'tilia/**'
+
+# One run at a time, each working from dev's tip (see "Checkout"). A run that
+# started from an older push could otherwise overwrite a newer sheet, or
+# conflict with it when it rebases: both change the same two files.
+concurrency:
+  group: shortcuts-sheet
+
+jobs:
+  update:
+    # A force-push is diffed against the branch's previous head, so rebasing dev
+    # looks like a change to tilia/, and this job would run for nothing.
+    if: ${{ !github.event.forced }}
+    name: Update the keyboard shortcuts sheet
+    # Without a limit, a hang would hold up later runs for GitHub's six hours.
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # dev's tip rather than the commit that started this run, which a run
+          # that waited for another one has fallen behind.
+          ref: dev
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          cache: "pip"
+
+      - name: Setup additional Linux dependencies
+        run: |
+          chmod +x ./scripts/linux-setup.sh
+          ./scripts/linux-setup.sh
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Make the sheet
+        # Leaves both files alone if only the date would change.
+        run: python -m tilia.ui.shortcuts_sheet --update docs/img/shortcuts.svg docs/shortcuts.md
+
+      - name: Add and commit
+        run: |
+          git add docs/img/shortcuts.svg docs/shortcuts.md
+          if git diff --cached --quiet; then
+            echo "The sheet hasn't changed."
+            exit 0
+          fi
+          git config user.name 'Shortcuts Sheet Workflow Bot'
+          git config user.email 'shortcuts_bot@tilia.github.io'
+          git commit -m "[skip ci] Update: keyboard shortcuts sheet"
+          # Another commit may have reached dev since the checkout.
+          git push origin HEAD:dev || (git pull --rebase origin dev && git push origin HEAD:dev)
