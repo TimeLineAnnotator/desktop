@@ -4,8 +4,8 @@
 The writer records what every query gives at each generation. Readers keep what
 they got, and the answers are compared once all the threads have ended, so how
 fast any thread runs decides only how many answers there are to compare. The
-length is a lower bound: on a slow machine the writer goes on until every reader
-has seen the corpus change. Only a stuck thread fails on time, long after that.
+length is a lower bound: on a slow machine the writer goes on until there are
+generations to compare and every reader has seen the corpus change. Only a stuck thread fails on time, long after that.
 """
 
 import itertools
@@ -101,7 +101,9 @@ def test_results_keep_to_one_generation_while_the_corpus_changes(tmp_path):
             deadline = time.monotonic() + LENGTH
             for take in itertools.count(1):
                 if errors or (
-                    time.monotonic() >= deadline and every_reader_saw_a_change()
+                    time.monotonic() >= deadline
+                    and len(expected) > 2
+                    and every_reader_saw_a_change()
                 ):
                     return
                 edited = rng.choice(sorted(present))
