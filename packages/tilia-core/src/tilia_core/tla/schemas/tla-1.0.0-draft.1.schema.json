@@ -382,9 +382,25 @@
           }
         },
         {
-          "if": { "properties": { "kind": { "enum": ["NOTE", "STAFF", "CLEF", "KEY_SIGNATURE", "TIME_SIGNATURE", "BAR_LINE", "SCORE_ANNOTATION"] } } },
+          "if": { "properties": { "kind": { "enum": ["NOTE", "STAFF", "CLEF", "KEY_SIGNATURE", "BAR_LINE", "SCORE_ANNOTATION"] } } },
           "then": {
             "description": "Only in a score timeline whose score is a legacy SVG (FR-022): kept from the old file with every attribute TiLiA stored."
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "TIME_SIGNATURE" } } },
+          "then": {
+            "description": "Only in a score timeline whose score is a legacy SVG (FR-022): kept from the old file with every attribute TiLiA stored.",
+            "properties": {
+              "pairs": {
+                "description": "A composite time signature's numerators and denominators as written, [numerator, denominator] pairs, at least two, such as [[\"2\", 4], [\"3\", 8]] for 2/4 + 3/8; its numerator and denominator are then null. Left out when it has none (TimeLineAnnotator/project-management#511).",
+                "type": ["array", "null"],
+                "items": {
+                  "type": "array",
+                  "prefixItems": [{ "type": "string" }, { "type": "integer" }]
+                }
+              }
+            }
           }
         }
       ]

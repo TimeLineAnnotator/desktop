@@ -111,7 +111,8 @@ COMPONENT_ATTRIBUTES: dict[str, tuple[str, ...]] = {
     "mode": ("time", "step", "accidental", "type", "comments", "level"),
     "beat": ("time", "measure", "beat_unit", "closing"),
     "pdf_marker": ("time", "page_number"),
-    # A legacy score's components: every attribute is written, as TiLiA 0.7 did.
+    # A legacy score's components: every attribute is written, as TiLiA 0.7 did,
+    # but for those in _LEGACY_LEFT_OUT.
     "note": (
         "start",
         "end",
@@ -126,7 +127,7 @@ COMPONENT_ATTRIBUTES: dict[str, tuple[str, ...]] = {
     "staff": ("line_count", "index"),
     "clef": ("staff_index", "time", "line_number", "step", "octave", "icon"),
     "key_signature": ("staff_index", "time", "fifths"),
-    "time_signature": ("staff_index", "time", "numerator", "denominator"),
+    "time_signature": ("staff_index", "time", "numerator", "denominator", "pairs"),
     "bar_line": ("time",),
     "score_annotation": ("x", "y", "viewer_id", "text", "font_size"),
 }
@@ -141,6 +142,10 @@ LEGACY_SCORE_COMPONENTS = frozenset(
         "score_annotation",
     }
 )
+# A composite time signature's `pairs`, such as [["2", 4], ["3", 8]] for
+# 2/4 + 3/8. Left out when it has none, so that no file gains a line
+# (TimeLineAnnotator/project-management#511).
+_LEGACY_LEFT_OUT = frozenset({"pairs"})
 MEASURE = (
     "number",
     "label",
@@ -268,7 +273,11 @@ COMPONENT_SHAPES: dict[str, Shape] = {
         ("kind", *COMPONENT_ATTRIBUTES[kind], "metadata"),
         _COMPONENT,
         _branch(_COMPONENT, "kind", spelling),
-        always=COMPONENT_ATTRIBUTES[kind] if kind in LEGACY_SCORE_COMPONENTS else (),
+        always=(
+            frozenset(COMPONENT_ATTRIBUTES[kind]) - _LEGACY_LEFT_OUT
+            if kind in LEGACY_SCORE_COMPONENTS
+            else ()
+        ),
         left_out_empty=("metadata",),
     )
     for kind, spelling in COMPONENT_KINDS.items()
