@@ -79,8 +79,8 @@ def test_typing_runs_after_a_pause_and_draws_cards(page):
 
 def test_strips_are_drawn_with_the_matched_blocks(page):
     run(page, "a then b")
-    page.wait_for_selector(".ql-card .strip-block")
     card = page.locator(".ql-card").first
+    card.locator(".strip-block").first.wait_for()
     assert card.locator(".strip-block.matched:not(.matched-parent)").count() >= 1
     assert card.locator(".strip-block.matched-ctx").count() >= 1
     style = card.locator(".strip-block").first.get_attribute("style")
