@@ -706,8 +706,30 @@ class Scanner:
                 else:  # reading will say why
                     found = [Found(path, native, None, None)]
             else:
-                found = [Found(path, native, info.st_size, info.st_mtime_ns)]
+                name = self._twin_name(path, native)
+                if name is not None:  # the other one has the path
+                    path = name
+                found = [
+                    Found(
+                        path,
+                        native,
+                        info.st_size,
+                        info.st_mtime_ns,
+                        None if name is None else TWIN_REASON,
+                    )
+                ]
             return self._refresh(found, scope={path}, force=frozenset({path}))
+
+    def _twin_name(self, path: str, native: Path) -> str | None:
+        """The name of ``native`` as it is on disk, if it differs from ``path``
+        in normal form only and another file has ``path`` (see :func:`walk`)."""
+        try:
+            name = native.relative_to(self.root).as_posix()
+            if name == path or not os.path.lexists(self.root / path):
+                return None
+            return None if os.path.samefile(native, self.root / path) else name
+        except (OSError, ValueError):
+            return None
 
     def _out_of_reach(self, err: OSError) -> ScanReport:
         """The corpus folder itself can't be reached: change nothing (FR-021)."""

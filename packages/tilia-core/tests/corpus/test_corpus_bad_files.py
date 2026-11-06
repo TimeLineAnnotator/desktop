@@ -909,3 +909,14 @@ def test_a_reread_that_fails_otherwise_in_a_folder_still_there_is_unreadable(
 
 def _refuse(path):
     raise PermissionError(13, "Permission denied", str(path))
+
+
+def test_rereading_a_twin_by_its_name_leaves_the_rows_alone(tmp_path):
+    twins(tmp_path)
+    with opened(tmp_path) as corpus:
+        generation = corpus.generation
+        rows = rows_by_content(corpus)
+        report = corpus.reread(NFD)
+        assert report.changed == () and corpus.generation == generation
+        assert rows_by_content(corpus) == rows
+        assert not corpus.scan()
