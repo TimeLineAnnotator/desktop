@@ -9,7 +9,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QPoint, Qt, QUrl
 from PySide6.QtGui import QColor, QHideEvent, QShowEvent
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWebEngineCore import QWebEnginePage
-from PySide6.QtWidgets import QApplication, QComboBox
+from PySide6.QtWidgets import QApplication, QComboBox, QDockWidget, QWidget
 
 from tests.constants import EXAMPLE_MUSICXML_PATH, EXAMPLE_REST_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
@@ -787,7 +787,7 @@ class TestShortcuts:
 
 class TestResize:
     @pytest.fixture
-    def main_window(self):
+    def main_window(self, tluis):
         window = get(Get.MAIN_WINDOW)
         window.resize(1200, 900)
         window.show()
@@ -795,19 +795,28 @@ class TestResize:
         window.hide()
 
     @staticmethod
-    def _separator(main_window, score_view):
+    def _separator(main_window, dock):
         central = main_window.centralWidget().geometry()
-        top = score_view.geometry().top()
+        top = dock.geometry().top()
         return QPoint(central.center().x(), (central.bottom() + top + 1) // 2)
 
-    def test_dragging_the_separator_resizes_the_viewer(self, main_window, score_view):
-        # Resizing a shown web view can crash on the offscreen platform tests run
-        # on, though not on a real one. The separator doesn't depend on the page.
-        score_view.view.hide()
+    @pytest.fixture
+    def dock(self, main_window):
+        # Not a viewer: with a web view in a shown window, the offscreen platform
+        # tests run on can crash, though a real one doesn't. All docks share the
+        # main window's separators, so the viewer's own dock adds nothing here.
+        dock = QDockWidget("Dock", main_window)
+        dock.setWidget(QWidget())
+        main_window.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, dock)
+        yield dock
+        main_window.removeDockWidget(dock)
+        dock.deleteLater()
+
+    def test_dragging_the_separator_resizes_a_dock(self, main_window, dock):
         assert QTest.qWaitForWindowExposed(main_window)
         QTest.qWait(100)  # The window lays out its docks after showing them.
-        height = score_view.height()
-        start = self._separator(main_window, score_view)
+        height = dock.height()
+        start = self._separator(main_window, dock)
         end = start - QPoint(0, 100)
 
         QTest.mousePress(main_window, Qt.MouseButton.LeftButton, pos=start)
@@ -815,7 +824,7 @@ class TestResize:
         QTest.qWait(50)  # The window moves its separators on a timer.
         QTest.mouseRelease(main_window, Qt.MouseButton.LeftButton, pos=end)
 
-        assert wait_until(lambda: score_view.height() == height + 100)
+        assert wait_until(lambda: dock.height() == height + 100)
 
     def test_new_viewer_asks_for_room_for_the_score(self, score_view):
         # Asserted on the hint as the main window is shared by the tests, and its
