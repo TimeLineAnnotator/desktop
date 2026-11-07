@@ -127,11 +127,9 @@ class TestLoadSvgData:
 #
 # These drive the real SvgViewer end to end: toolbar commands via
 # commands.execute(...), keyboard shortcuts via QTest.keyClick, and mouse/
-# wheel input via real Qt events on the view's viewport. They sidestep only
-# the MusicXML -> SVG render step (tilia/parsers/score/musicxml_to_svg.py,
-# which drives a QWebEngineView through VexFlow) by loading a hand-built SVG
-# directly through SvgViewer.load_svg_data -- the same method the app calls
-# once that pipeline hands back its result. This mirrors how this file's own
+# wheel input via real Qt events on the view's viewport. They load a hand-built
+# SVG directly through SvgViewer.load_svg_data -- the same method the app calls
+# for a score stored as SVG in an older file. This mirrors how this file's own
 # _make_svg already stands in for real VexFlow output further up.
 
 NOTE_SEEK_XS = [10.0, 100.0, 200.0]
@@ -172,7 +170,7 @@ def svg_viewer(score_tlui, score_tl, scored_beat_tl):
     score_tl.set_data(
         "viewer_beat_x", dict(zip([0.0, 1.0, 2.0], NOTE_SEEK_XS, strict=True))
     )
-    viewer = score_tlui.get_or_create_svg_view()
+    viewer = score_tlui._ensure_viewer(SvgViewer)
     viewer.load_svg_data(_make_score_svg())
     # The dock widget's own isVisible() (and WindowShortcut-context actions
     # like "Shift+Return") depend on the *main window* being shown too, not
@@ -417,7 +415,7 @@ def viewer_over_measures(score_tlui, score_tl, beat_tl):
             "viewer_beat_x",
             dict(zip([1.0, 2.0, 3.0, 4.0, 5.0], SCORE_MEASURE_XS, strict=True)),
         )
-        viewer = score_tlui.get_or_create_svg_view()
+        viewer = score_tlui._ensure_viewer(SvgViewer)
         viewer.load_svg_data(_make_score_svg())
         get(Get.MAIN_WINDOW).show()
         viewer.show()

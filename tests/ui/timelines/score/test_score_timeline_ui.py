@@ -26,7 +26,6 @@ from tests.utils import (
     wait_for_smooth_movement,
 )
 from tilia.errors import SCORE_STAFF_ID_ERROR
-from tilia.exceptions import NoReplyToRequest
 from tilia.parsers.score.musicxml import notes_from_musicXML
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
@@ -282,21 +281,18 @@ class TestSvgView:
     def test_is_none_when_no_viewer_exists(self, score_tlui):
         assert score_tlui.svg_view is None
 
-    def test_reading_it_does_not_register_a_viewer(self, score_tlui):
-        assert score_tlui.svg_view is None
-
-        with pytest.raises(NoReplyToRequest):
-            get(Get.SCORE_VIEWER, score_tlui.id)
-
-    def test_get_or_create_creates_and_loads(self, score_tlui, tls):
+    def test_svg_data_creates_and_loads_a_viewer(self, score_tlui, tls):
         tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
 
-        assert score_tlui.get_or_create_svg_view().is_svg_loaded
+        assert score_tlui.svg_view.is_svg_loaded
 
-    def test_get_or_create_returns_existing_viewer(self, score_tlui, tls):
+    def test_new_svg_data_keeps_the_viewer(self, score_tlui, tls):
         tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
+        viewer = score_tlui.svg_view
 
-        assert score_tlui.get_or_create_svg_view() is score_tlui.svg_view
+        tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS + " ")
+
+        assert score_tlui.svg_view is viewer
 
     def test_viewer_and_tracker_come_back_after_reloading(
         self, score_tlui, note, tls, tmp_path
@@ -425,8 +421,7 @@ class TestClear:
         commands.execute("view.zoom.in")
         commands.execute("timeline.set_name", score_tlui, name="Renamed")
 
-        with pytest.raises(NoReplyToRequest):
-            get(Get.SCORE_VIEWER, score_tlui.id)
+        assert score_tlui.svg_view is None
 
     def test_redoing_clear_with_an_annotation_does_not_reopen_the_viewer(
         self, score_tlui, note, tls
@@ -446,8 +441,7 @@ class TestClear:
         commands.execute("edit.undo")
         commands.execute("edit.redo")
 
-        with pytest.raises(NoReplyToRequest):
-            get(Get.SCORE_VIEWER, score_tlui.id)
+        assert score_tlui.svg_view is None
 
     def test_restoring_a_cleared_state_closes_the_viewer(self, score_tlui, note, tls):
         # The path undo/redo takes when it lands on a cleared state.

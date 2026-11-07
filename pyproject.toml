@@ -97,7 +97,7 @@ env = [
     "LOG_REQUESTS=",
 ]
 markers = [
-    "draws_scores: imported scores are drawn by OSMD, as in the app (see the no_score_drawing fixture)",
+    "draws_scores: imported scores are drawn by Verovio, as in the app (see the no_score_drawing fixture)",
 ]
 
 [tool.ruff]

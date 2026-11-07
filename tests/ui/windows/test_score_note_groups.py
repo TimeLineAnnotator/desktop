@@ -20,7 +20,7 @@ from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
 from tilia.ui.windows.score.score_view import ScoreView
 
-pytestmark = pytest.mark.timeout(60)
+pytestmark = [pytest.mark.timeout(60), pytest.mark.draws_scores]
 
 
 @pytest.fixture(autouse=True)

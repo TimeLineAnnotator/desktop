@@ -20,6 +20,7 @@ from PySide6.QtWidgets import QToolBar, QWidget
 from tilia.requests import Get, get
 from tilia.ui import commands
 from tilia.ui.commands import CommandQAction
+from tilia.ui.windows.svg_viewer import SvgViewer
 
 # CommandQActions whose name isn't the command they run. Each entry must still
 # be wrong, so fixing one fails test_known_mismatches_are_still_wrong as a
@@ -139,7 +140,7 @@ def test_toolbar_actions_run_their_command(
     score_tlui,
 ):
     toolbars = get(Get.MAIN_WINDOW).findChildren(QToolBar)
-    toolbars += score_tlui.get_or_create_svg_view().findChildren(QToolBar)
+    toolbars += score_tlui._ensure_viewer(SvgViewer).findChildren(QToolBar)
     actions = [a for toolbar in toolbars for a in _command_actions(toolbar)]
     assert actions
 

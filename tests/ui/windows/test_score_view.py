@@ -38,7 +38,7 @@ from tilia.ui.windows.score.score_view import (
 from tilia.ui.windows.svg_viewer import SvgStaveNote, SvgViewer
 
 # The viewer's page compiles Verovio when it loads.
-pytestmark = pytest.mark.timeout(60)
+pytestmark = [pytest.mark.timeout(60), pytest.mark.draws_scores]
 
 # A score as older versions stored it, small enough for the old viewer to load.
 LEGACY_SVG = (

@@ -3,8 +3,8 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 from tests.mock import patch_file_dialog
-from tilia.parsers.score.musicxml_to_svg import musicxml_to_svg
 from tilia.ui import commands
+from tilia.ui.windows.score.score_view import ScoreView
 
 SCORE = """<?xml version="1.0" encoding="UTF-8"?>
 <score-partwise version="4.0">
@@ -39,26 +39,28 @@ def _import_score(beat_tlui, tmp_path):
         commands.execute("timelines.import.score")
 
 
-def _converters() -> list[musicxml_to_svg]:
-    return [w for w in QApplication.allWidgets() if isinstance(w, musicxml_to_svg)]
+def _drawing_viewers() -> list[ScoreView]:
+    return [
+        w
+        for w in QApplication.allWidgets()
+        if isinstance(w, ScoreView) and w.view is not None
+    ]
 
 
 class TestScoreDrawingIsolation:
-    """Drawing a score starts a web engine that loads OSMD from its CDN and
-    finishes long after the test that imported the score, so the suite leaves
-    imported scores undrawn unless a test is marked `draws_scores`."""
+    """Drawing a score starts a web engine that takes seconds to start Verovio
+    and finishes long after the test that imported the score, so the suite
+    leaves imported scores undrawn unless a test is marked `draws_scores`."""
 
     def test_imported_score_is_not_drawn(self, score_tlui, beat_tlui, tmp_path):
         _import_score(beat_tlui, tmp_path)
 
-        assert not _converters()
+        assert not _drawing_viewers()
 
     @pytest.mark.draws_scores
     def test_imported_score_is_drawn_when_marked(self, score_tlui, beat_tlui, tmp_path):
         _import_score(beat_tlui, tmp_path)
 
-        converters = _converters()
-        assert converters
-        for converter in converters:
-            converter.deleteLater()
+        assert _drawing_viewers()
+        score_tlui.reset_svg()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
