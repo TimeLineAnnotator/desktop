@@ -801,6 +801,9 @@ class TestResize:
         return QPoint(central.center().x(), (central.bottom() + top + 1) // 2)
 
     def test_dragging_the_separator_resizes_the_viewer(self, main_window, score_view):
+        # Resizing a shown web view can crash on the offscreen platform tests run
+        # on, though not on a real one. The separator doesn't depend on the page.
+        score_view.view.hide()
         assert QTest.qWaitForWindowExposed(main_window)
         QTest.qWait(100)  # The window lays out its docks after showing them.
         height = score_view.height()
