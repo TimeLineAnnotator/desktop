@@ -58,6 +58,34 @@ def interval_class_vector(
     return tuple(vector)
 
 
+def transpositions(
+    source: Iterable[int], target: Iterable[int], modulus: int = QUARTER_TONES
+) -> tuple[int, ...]:
+    """Every n for which T_n(source) is target, where T_n adds n to each pitch
+    class. A symmetric set has several."""
+    source = {pc % modulus for pc in source}
+    target = {pc % modulus for pc in target}
+    if not source:
+        return ()
+    return tuple(
+        n for n in range(modulus) if {(pc + n) % modulus for pc in source} == target
+    )
+
+
+def inversions(
+    source: Iterable[int], target: Iterable[int], modulus: int = QUARTER_TONES
+) -> tuple[int, ...]:
+    """Every n for which I_n(source) is target, where I_n takes each pitch class
+    to n minus it. A symmetric set has several."""
+    source = {pc % modulus for pc in source}
+    target = {pc % modulus for pc in target}
+    if not source:
+        return ()
+    return tuple(
+        n for n in range(modulus) if {(n - pc) % modulus for pc in source} == target
+    )
+
+
 @lru_cache(maxsize=None)
 def _forte_name_of_semitones(pcs: tuple[int, ...]) -> str | None:
     # Imported here since music21 takes seconds to load, and only analysis needs it.

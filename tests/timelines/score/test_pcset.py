@@ -7,8 +7,10 @@ from tilia.timelines.score.pcset import (
     analyse,
     forte_name,
     interval_class_vector,
+    inversions,
     normal_form,
     prime_form,
+    transpositions,
 )
 
 
@@ -131,3 +133,63 @@ def test_analyse():
     assert analysis.interval_class_vector == ((0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0))
     # A major triad.
     assert analysis.forte_name == "3-11"
+
+
+class TestOperations:
+    def test_transposition(self):
+        assert transpositions([0, 5, 14], [5, 10, 19]) == (5,)
+
+    def test_transposition_wraps(self):
+        assert transpositions([20, 22], [2, 4]) == (6,)
+
+    def test_inversion(self):
+        # 5 - 0, 5 - 5, 5 - 14.
+        assert inversions([0, 5, 14], [5, 0, 15]) == (5,)
+
+    def test_inversion_wraps(self):
+        assert inversions([1, 3], [23, 21]) == (0,)
+
+    def test_asymmetric_set_is_not_its_own_inversion(self):
+        assert transpositions([0, 5, 14], [0, 5, 15]) == ()
+        assert inversions([0, 5, 14], [5, 10, 19]) == ()
+
+    def test_symmetric_set_has_several_operations(self):
+        assert transpositions([1, 13], [4, 16]) == (3, 15)
+        assert inversions([1, 13], [4, 16]) == (5, 17)
+
+    def test_set_is_its_own_transposition(self):
+        assert transpositions([0, 5, 14], [0, 5, 14]) == (0,)
+
+    def test_unrelated_sets(self):
+        assert transpositions([0, 5, 10], [0, 5, 14]) == ()
+        assert inversions([0, 5, 10], [0, 5, 14]) == ()
+
+    def test_different_cardinalities(self):
+        assert transpositions([0, 5], [0, 5, 10]) == ()
+        assert inversions([0, 5], [0, 5, 10]) == ()
+
+    def test_no_pitch_classes(self):
+        assert transpositions([], []) == ()
+        assert inversions([], []) == ()
+        assert transpositions([0], []) == ()
+        assert inversions([], [0]) == ()
+
+    def test_ignores_doublings_and_octaves(self):
+        assert transpositions([0, 24, 5], [2, 7]) == (2,)
+        assert inversions([0, 24, 5], [5, 0, 48]) == (5,)
+
+    def test_in_semitones(self):
+        assert transpositions([0, 4, 7], [7, 11, 2], SEMITONES) == (7,)
+        assert inversions([0, 4, 7], [0, 3, 7], SEMITONES) == (7,)
+
+    def test_found_for_every_operation(self):
+        pcs = [0, 5, 14]
+        for n in range(24):
+            assert n in transpositions(pcs, [pc + n for pc in pcs])
+            assert n in inversions(pcs, [n - pc for pc in pcs])
+
+    def test_related_exactly_when_prime_forms_match(self):
+        source = (0, 5, 14)
+        for target in combinations(range(24), 3):
+            related = transpositions(source, target) or inversions(source, target)
+            assert bool(related) == (prime_form(source) == prime_form(target))

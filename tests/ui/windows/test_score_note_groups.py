@@ -1066,3 +1066,300 @@ class TestGroupColor:
         viewer = get_loaded_view(tlui)
         assert groups_of(tlui)[0].get_data("color") == self.NEW_COLOR
         assert wait_until(lambda: drawn_groups(viewer)[0]["fill"] == self.NEW_COLOR)
+
+
+class TestRelations:
+    # Pitch classes of the notes at (time, staff), with four beats to a measure.
+    SET = [(0, 0), (1, 0), (4, 0)]  # {0 5 14}, in measures 1 and 2
+    TRANSPOSED = [(1, 0), (2, 0), (3, 3)]  # {5 10 19}, T5 of SET
+    INVERTED = [(0, 0), (1, 0), (9, 1)]  # {0 5 15}, I5 of SET
+    UNRELATED = [(0, 0), (1, 0), (2, 0)]  # {0 5 10}
+    DYAD = [(0, 1), (4, 1)]  # {4 16}
+    OTHER_DYAD = [(3, 2), (3, 1)]  # {1 13}, T9, T21, I5 and I17 of DYAD
+
+    def _group(self, score_tlui, notes, **kwargs):
+        before = {g.id for g in groups_of(score_tlui)}
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=[element_at(score_tlui, *note) for note in notes],
+            **kwargs,
+        )
+        return next(g for g in groups_of(score_tlui) if g.id not in before)
+
+    def _click_row(self, view, group, modifier=Qt.KeyboardModifier.NoModifier):
+        window = view.group_table_window
+        if window.isHidden():
+            view.group_panel.table_button.click()
+            assert QTest.qWaitForWindowExposed(window)
+        table = window.table
+        rect = table.visualItemRect(table.item(row_of_group(view, group.id), 2))
+        QTest.mouseClick(
+            table.viewport(), Qt.MouseButton.LeftButton, modifier, rect.center()
+        )
+
+    def _select(self, view, *groups):
+        self._click_row(view, groups[0])
+        for group in groups[1:]:
+            self._click_row(view, group, Qt.KeyboardModifier.ControlModifier)
+
+    def _relations(self, view):
+        table = view.group_table_window.relations
+        return [
+            [table.item(row, column).text() for column in range(table.columnCount())]
+            for row in range(table.rowCount())
+        ]
+
+    def _operations(self, view):
+        return [row[2:] for row in self._relations(view)]
+
+    def test_hint_until_two_rows_are_selected(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        window = score_view.group_table_window
+        self._click_row(score_view, first)
+        assert not window.relations_hint.isHidden()
+        assert window.relations.isHidden()
+        self._click_row(score_view, second, Qt.KeyboardModifier.ControlModifier)
+        assert window.relations_hint.isHidden()
+        assert not window.relations.isHidden()
+        self._click_row(score_view, second, Qt.KeyboardModifier.ControlModifier)
+        assert not window.relations_hint.isHidden()
+        assert window.relations.isHidden()
+
+    def test_transposed(self, score_view, score_tlui):
+        self._select(
+            score_view,
+            self._group(score_tlui, self.SET),
+            self._group(score_tlui, self.TRANSPOSED),
+        )
+        assert self._operations(score_view) == [["T5", "none"]]
+
+    def test_inverted(self, score_view, score_tlui):
+        self._select(
+            score_view,
+            self._group(score_tlui, self.SET),
+            self._group(score_tlui, self.INVERTED),
+        )
+        assert self._operations(score_view) == [["none", "I5"]]
+
+    def test_symmetric_sets_list_every_operation(self, score_view, score_tlui):
+        self._select(
+            score_view,
+            self._group(score_tlui, self.DYAD),
+            self._group(score_tlui, self.OTHER_DYAD),
+        )
+        assert self._operations(score_view) == [["T9, T21", "I5, I17"]]
+
+    def test_unrelated(self, score_view, score_tlui):
+        self._select(
+            score_view,
+            self._group(score_tlui, self.SET),
+            self._group(score_tlui, self.UNRELATED),
+        )
+        assert self._operations(score_view) == [["none", "none"]]
+
+    def test_every_pair_of_three_groups(self, score_view, score_tlui):
+        self._select(
+            score_view,
+            self._group(score_tlui, self.SET),
+            self._group(score_tlui, self.TRANSPOSED),
+            self._group(score_tlui, self.INVERTED),
+        )
+        assert sorted(map(tuple, self._operations(score_view))) == [
+            ("T5", "none"),
+            ("none", "I10"),
+            ("none", "I5"),
+        ]
+
+    def test_shift_click_selects_the_rows_between(self, score_view, score_tlui):
+        groups = [
+            self._group(score_tlui, notes)
+            for notes in (self.SET, self.TRANSPOSED, self.INVERTED)
+        ]
+        self._click_row(score_view, groups[0])
+        table = score_view.group_table_window.table
+        by_row = sorted(groups, key=lambda g: row_of_group(score_view, g.id))
+        self._click_row(score_view, by_row[0])
+        self._click_row(score_view, by_row[2], Qt.KeyboardModifier.ShiftModifier)
+        assert len(table.selected_group_ids()) == 3
+        assert len(self._relations(score_view)) == 3
+
+    def test_goes_from_the_earlier_group(self, score_view, score_tlui):
+        later = self._group(score_tlui, [(8, 3)])  # {14}
+        earlier = self._group(score_tlui, [(0, 0)])  # {0}
+        self._select(score_view, later, earlier)
+        assert self._relations(score_view) == [["m. 1 {0}", "m. 3 {14}", "T14", "I14"]]
+
+    def test_direction_does_not_follow_sorting(self, score_view, score_tlui):
+        later = self._group(score_tlui, [(8, 3)])
+        earlier = self._group(score_tlui, [(0, 0)])
+        self._select(score_view, later, earlier)
+        table = score_view.group_table_window.table
+        table.sortItems(TestGroupTable.MEASURE, Qt.SortOrder.DescendingOrder)
+        commands.execute("timeline.score.group.set_label", "Now", group_id=later.id)
+        assert self._relations(score_view)[0][0] == "m. 1 {0}"
+
+    def test_names_groups(self, score_view, score_tlui):
+        self._select(
+            score_view,
+            self._group(score_tlui, self.SET, label="Motif"),
+            self._group(score_tlui, self.TRANSPOSED),
+        )
+        assert self._relations(score_view)[0][:2] == [
+            "Motif, m. 1\u20132 {0 5 14}",
+            "m. 1 {5 10 19}",
+        ]
+
+    def test_shows_group_colors(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        table = score_view.group_table_window.relations
+        for column, group in enumerate((first, second)):
+            assert table.item(0, column).data(Qt.ItemDataRole.DecorationRole) == QColor(
+                group.get_data("color")
+            )
+
+    def test_tooltips_explain_the_operations(self, score_view):
+        table = score_view.group_table_window.relations
+        assert "quarter tones" in table.horizontalHeaderItem(2).toolTip()
+        assert "minus" in table.horizontalHeaderItem(3).toolTip()
+
+    def test_too_many_rows(self, score_view, score_tlui, monkeypatch):
+        monkeypatch.setattr("tilia.ui.windows.score.group_table.MAX_GROUPS_RELATED", 2)
+        groups = [
+            self._group(score_tlui, notes)
+            for notes in (self.SET, self.TRANSPOSED, self.INVERTED)
+        ]
+        self._select(score_view, *groups)
+        window = score_view.group_table_window
+        assert window.relations.isHidden()
+        assert "at most" in window.relations_hint.text()
+
+    def test_several_rows_leave_the_active_group(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._click_row(score_view, first)
+        assert wait_until(lambda: score_view.active_group_id == first.id)
+        self._click_row(score_view, second, Qt.KeyboardModifier.ControlModifier)
+        QTest.qWait(100)
+        assert score_view.active_group_id == first.id
+
+    def test_is_not_an_undo_step(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        commands.execute("edit.undo")
+        assert len(groups_of(score_tlui)) == 1
+
+    def test_follows_changed_notes(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        commands.execute(
+            "timeline.score.group.set_notes",
+            group_id=second.id,
+            element_ids=[element_at(score_tlui, *note) for note in self.INVERTED],
+        )
+        assert self._operations(score_view) == [["none", "I5"]]
+        table = score_view.group_table_window.table
+        assert set(table.selected_group_ids()) == {first.id, second.id}
+
+    def test_selection_survives_a_change_of_label_and_color(
+        self, score_view, score_tlui
+    ):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        commands.execute("timeline.score.group.set_label", "Motif", group_id=first.id)
+        commands.execute(
+            "timeline.score.group.set_color", color="#123456", group_id=second.id
+        )
+        table = score_view.group_table_window.table
+        assert set(table.selected_group_ids()) == {first.id, second.id}
+        assert self._relations(score_view)[0][0].startswith("Motif, ")
+
+    def test_selection_survives_sorting(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._group(score_tlui, self.INVERTED)
+        self._select(score_view, first, second)
+        table = score_view.group_table_window.table
+        table.sortItems(TestGroupTable.PRIME, Qt.SortOrder.DescendingOrder)
+        assert set(table.selected_group_ids()) == {first.id, second.id}
+
+    def test_deleting_one_of_three(self, score_view, score_tlui):
+        groups = [
+            self._group(score_tlui, notes)
+            for notes in (self.SET, self.TRANSPOSED, self.INVERTED)
+        ]
+        self._select(score_view, *groups)
+        commands.execute("timeline.score.group.delete", group_id=groups[2].id)
+        assert self._operations(score_view) == [["T5", "none"]]
+
+    def test_deleting_one_of_two(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        commands.execute("timeline.score.group.delete", group_id=second.id)
+        window = score_view.group_table_window
+        assert window.relations.isHidden()
+        assert not window.relations_hint.isHidden()
+
+    def test_undoing_a_group_away(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        commands.execute("edit.undo")
+        window = score_view.group_table_window
+        assert wait_until(lambda: window.table.rowCount() == 1)
+        assert wait_until(window.relations.isHidden)
+
+    def test_new_group_takes_the_selection(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        new = self._group(score_tlui, self.INVERTED)
+        table = score_view.group_table_window.table
+        assert table.selected_group_ids() == [new.id]
+        assert score_view.group_table_window.relations.isHidden()
+
+    def test_plain_click_goes_back_to_one_row(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        self._click_row(score_view, second)
+        assert wait_until(lambda: score_view.active_group_id == second.id)
+        window = score_view.group_table_window
+        assert window.table.selected_group_ids() == [second.id]
+        assert window.relations.isHidden()
+
+    def test_click_on_another_blob_goes_back_to_one_row(self, score_view, score_tlui):
+        first = self._group(score_tlui, [(0, 0)])
+        second = self._group(score_tlui, [(1, 0)])
+        third = self._group(score_tlui, [(12, 2)])
+        self._select(score_view, first, second)
+        assert wait_until(lambda: len(self._relations(score_view)) == 1)
+        rect = note_rect(score_view, element_at(score_tlui, 12, 2))
+        click_at(score_view, ((rect[0] + rect[2]) / 2, rect[1] - 2))
+        table = score_view.group_table_window.table
+        assert wait_until(lambda: table.selected_group_ids() == [third.id])
+        assert score_view.group_table_window.relations.isHidden()
+
+    def test_click_on_empty_space_clears_the_rows(self, score_view, score_tlui):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._select(score_view, first, second)
+        click_at(score_view, (1, 1))
+        table = score_view.group_table_window.table
+        assert wait_until(lambda: not table.selected_group_ids())
+        assert score_view.group_table_window.relations.isHidden()
+
+    def test_export_has_every_group(self, score_view, score_tlui, tmp_path):
+        first = self._group(score_tlui, self.SET)
+        second = self._group(score_tlui, self.TRANSPOSED)
+        self._group(score_tlui, self.INVERTED)
+        self._select(score_view, first, second)
+        path = tmp_path / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        assert len(read_csv(path)) == 4
