@@ -685,6 +685,24 @@ class ScoreTimelineUI(TimelineUI):
         self._refresh_note_groups(group.id)
         return True
 
+    def on_set_note_group_color(self, group_id: str | None, color: str | None) -> bool:
+        if not (group := self._get_note_group(group_id)):
+            return False
+        if color is None:
+            accepted, chosen = get(
+                Get.FROM_USER_COLOR, group.color or NOTE_GROUP_COLORS[0]
+            )
+            if not accepted:
+                return False
+            color = chosen.name()
+        if color == group.color:
+            return False
+        _, success = self.timeline.set_component_data(group.id, "color", color)
+        if not success:
+            return False
+        self._refresh_note_groups(group.id)
+        return True
+
     def on_delete_note_group(self, group_id: str | None) -> bool:
         if not (group := self._get_note_group(group_id)):
             return False

@@ -78,6 +78,9 @@ class GroupPanel(QWidget):
         self.update_button.clicked.connect(self._on_update)
         self.delete_button = QPushButton("Delete group")
         self.delete_button.clicked.connect(self._on_delete)
+        self.color_button = QPushButton("Set color")
+        self.color_button.setToolTip("Choose the group's color")
+        self.color_button.clicked.connect(self._on_set_color)
         self.table_button = QPushButton("Table")
         self.table_button.setCheckable(True)
         self.table_button.setToolTip("Show or hide the table of note groups")
@@ -93,6 +96,7 @@ class GroupPanel(QWidget):
             self.create_button,
             self.update_button,
             self.delete_button,
+            self.color_button,
             self.table_button,
         ):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -103,6 +107,7 @@ class GroupPanel(QWidget):
         buttons.addWidget(self.create_button)
         buttons.addWidget(self.update_button)
         buttons.addWidget(self.delete_button)
+        buttons.addWidget(self.color_button)
         buttons.addWidget(self.label_edit)
         buttons.addStretch()
         buttons.addWidget(self.table_button)
@@ -129,6 +134,7 @@ class GroupPanel(QWidget):
         self.create_button.setEnabled(self.has_selection)
         self.update_button.setEnabled(self.has_selection and group_id is not None)
         self.delete_button.setEnabled(group_id is not None)
+        self.color_button.setEnabled(group_id is not None)
         self.label_edit.setEnabled(group_id is not None)
         if self.label_edit.text() != label:
             self.label_edit.setText(label)
@@ -146,6 +152,13 @@ class GroupPanel(QWidget):
     def _on_delete(self) -> None:
         commands.execute(
             "timeline.score.group.delete",
+            group_id=self.group_id,
+            timeline_id=self.timeline_id,
+        )
+
+    def _on_set_color(self) -> None:
+        commands.execute(
+            "timeline.score.group.set_color",
             group_id=self.group_id,
             timeline_id=self.timeline_id,
         )

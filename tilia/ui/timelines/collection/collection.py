@@ -206,6 +206,11 @@ class TimelineUIs:
             text="Set group label",
         )
         commands.register(
+            "timeline.score.group.set_color",
+            self.on_score_group_set_color,
+            text="Set group color",
+        )
+        commands.register(
             "timeline.score.group.delete",
             self.on_score_group_delete,
             text="Delete group",
@@ -1377,6 +1382,16 @@ class TimelineUIs:
     ) -> bool:
         tlui = self._get_score_timeline_ui(timeline_id)
         return bool(tlui) and tlui.on_set_note_group_label(group_id, label)
+
+    @command_callback
+    def on_score_group_set_color(
+        self,
+        color: str | None = None,
+        group_id: str | None = None,
+        timeline_id: str | None = None,
+    ) -> bool:
+        tlui = self._get_score_timeline_ui(timeline_id)
+        return bool(tlui) and tlui.on_set_note_group_color(group_id, color)
 
     @command_callback
     def on_score_group_delete(

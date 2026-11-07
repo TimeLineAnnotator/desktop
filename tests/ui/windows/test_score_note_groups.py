@@ -1,11 +1,13 @@
 import csv
 import json
+from unittest.mock import patch
 
 import pytest
 from lxml import etree
 from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtGui import QColor
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QColorDialog
 
 from tests.constants import EXAMPLE_QUARTER_TONES_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
@@ -944,3 +946,123 @@ class TestExportTable:
         )
         commands.execute("edit.undo")
         assert len(groups_of(score_tlui)) == 1
+
+
+class TestGroupColor:
+    NEW_COLOR = "#123456"
+
+    def _make_group(self, score_view, score_tlui, time=0):
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=[element_at(score_tlui, time, 0)],
+        )
+        group = max(groups_of(score_tlui), key=lambda g: g.id)
+        assert wait_until(lambda: score_view.active_group_id == group.id)
+        return group
+
+    def _click_button(self, score_view, color):
+        with patch.object(QColorDialog, "getColor", return_value=color) as dialog:
+            score_view.group_panel.color_button.click()
+        return dialog
+
+    def test_button_needs_an_active_group(self, score_view, score_tlui):
+        button = score_view.group_panel.color_button
+        assert not button.isEnabled()
+        self._make_group(score_view, score_tlui)
+        assert wait_until(button.isEnabled)
+        click_at(score_view, (1, 1))
+        assert wait_until(lambda: not button.isEnabled())
+
+    def test_button_sets_the_color_chosen(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        assert wait_until(score_view.group_panel.color_button.isEnabled)
+        self._click_button(score_view, QColor(self.NEW_COLOR))
+        assert group.get_data("color") == self.NEW_COLOR
+
+    def test_dialog_starts_on_the_groups_color(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        assert wait_until(score_view.group_panel.color_button.isEnabled)
+        color = group.get_data("color")
+        dialog = self._click_button(score_view, QColor(self.NEW_COLOR))
+        assert dialog.call_args.args[0] == QColor(color)
+
+    def test_cancelling_keeps_the_color(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        color = group.get_data("color")
+        assert wait_until(score_view.group_panel.color_button.isEnabled)
+        self._click_button(score_view, QColor())
+        assert group.get_data("color") == color
+        commands.execute("edit.undo")
+        assert not groups_of(score_tlui)
+
+    def test_redraws_the_blob(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        commands.execute(
+            "timeline.score.group.set_color", color=self.NEW_COLOR, group_id=group.id
+        )
+        assert wait_until(lambda: drawn_groups(score_view)[0]["fill"] == self.NEW_COLOR)
+        assert drawn_groups(score_view)[0]["active"]
+
+    def test_updates_the_table(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        commands.execute(
+            "timeline.score.group.set_color", color=self.NEW_COLOR, group_id=group.id
+        )
+        item = score_view.group_table_window.table.item(0, 0)
+        assert item.data(Qt.ItemDataRole.DecorationRole) == QColor(self.NEW_COLOR)
+
+    def test_changes_the_group_chosen_in_the_table(self, score_view, score_tlui):
+        first = self._make_group(score_view, score_tlui, 0)
+        second = self._make_group(score_view, score_tlui, 12)
+        other_color = second.get_data("color")
+        table = score_view.group_table_window.table
+        table.selectRow(row_of_group(score_view, first.id))
+        assert wait_until(lambda: score_view.active_group_id == first.id)
+        assert wait_until(lambda: score_view.group_panel.group_id == first.id)
+        self._click_button(score_view, QColor(self.NEW_COLOR))
+        assert first.get_data("color") == self.NEW_COLOR
+        assert second.get_data("color") == other_color
+
+    def test_undo_and_redo(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        color = group.get_data("color")
+        with undoable():
+            commands.execute(
+                "timeline.score.group.set_color",
+                color=self.NEW_COLOR,
+                group_id=group.id,
+            )
+        assert wait_until(lambda: drawn_groups(score_view)[0]["fill"] == self.NEW_COLOR)
+        commands.execute("edit.undo")
+        assert wait_until(lambda: drawn_groups(score_view)[0]["fill"] == color)
+
+    def test_same_color_is_not_an_undo_step(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        commands.execute(
+            "timeline.score.group.set_color",
+            color=group.get_data("color"),
+            group_id=group.id,
+        )
+        commands.execute("edit.undo")
+        assert not groups_of(score_tlui)
+
+    def test_invalid_color_is_not_an_undo_step(self, score_view, score_tlui):
+        group = self._make_group(score_view, score_tlui)
+        color = group.get_data("color")
+        commands.execute(
+            "timeline.score.group.set_color", color="not a color", group_id=group.id
+        )
+        assert group.get_data("color") == color
+        commands.execute("edit.undo")
+        assert not groups_of(score_tlui)
+
+    def test_survives_saving(self, score_view, score_tlui, tmp_path):
+        group = self._make_group(score_view, score_tlui)
+        commands.execute(
+            "timeline.score.group.set_color", color=self.NEW_COLOR, group_id=group.id
+        )
+        save_and_reopen(tmp_path)
+        tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        viewer = get_loaded_view(tlui)
+        assert groups_of(tlui)[0].get_data("color") == self.NEW_COLOR
+        assert wait_until(lambda: drawn_groups(viewer)[0]["fill"] == self.NEW_COLOR)

@@ -37,7 +37,7 @@ from tilia.ui.windows.score.group_panel import (
 from tilia.ui.windows.view_window import ViewWidget
 
 COLUMNS = [
-    ("Group", "The group's name and colour."),
+    ("Group", "The group's name and color."),
     ("Measure", "Where the group's notes are first played."),
     ("Prime form", "Sorts by cardinality, and then by pitch class."),
     ("Forte", "Only for sets that also exist in 12 notes to the octave."),
