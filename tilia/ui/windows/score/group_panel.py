@@ -3,6 +3,8 @@ buttons that make and change note groups."""
 
 from __future__ import annotations
 
+import html
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -26,19 +28,27 @@ def format_pcs(pcs: tuple[int, ...]) -> str:
     return " ".join(str(pc) for pc in pcs)
 
 
+def format_prime_form(analysis: PitchClassSetAnalysis) -> str:
+    return f"({format_pcs(analysis.prime_form)})"
+
+
+def format_vector(analysis: PitchClassSetAnalysis) -> str:
+    return "<" + "".join(f"{n:x}" for n in analysis.interval_class_vector) + ">"
+
+
 def format_analysis(analysis: PitchClassSetAnalysis) -> str:
     """The analysis as rich text. Pitch classes are in quarter tones, with 0 on C."""
     if not analysis.pitch_classes:
         return "The selection has no pitched notes."
     forte = analysis.forte_name or "none (not a 12-note set)"
-    vector = "".join(f"{count:x}" for count in analysis.interval_class_vector)
+    vector = html.escape(format_vector(analysis))
     return (
-        f"<b>Prime form ({format_pcs(analysis.prime_form)})</b>"
+        f"<b>Prime form {format_prime_form(analysis)}</b>"
         f" &nbsp;|&nbsp; Forte: {forte}"
         f" &nbsp;|&nbsp; Cardinality: {analysis.cardinality}"
         f" &nbsp;|&nbsp; Normal form: [{format_pcs(analysis.normal_form)}]"
         f" &nbsp;|&nbsp; Pitch classes: {{{format_pcs(analysis.pitch_classes)}}}"
-        f" &nbsp;|&nbsp; Interval-class vector: &lt;{vector}&gt;"
+        f" &nbsp;|&nbsp; Interval-class vector: {vector}"
     )
 
 
@@ -68,6 +78,10 @@ class GroupPanel(QWidget):
         self.update_button.clicked.connect(self._on_update)
         self.delete_button = QPushButton("Delete group")
         self.delete_button.clicked.connect(self._on_delete)
+        self.table_button = QPushButton("Table")
+        self.table_button.setCheckable(True)
+        self.table_button.setToolTip("Show or hide the table of note groups")
+        self.table_button.clicked.connect(self._on_toggle_table)
         self.label_edit = QLineEdit()
         self.label_edit.setPlaceholderText("Group label")
         self.label_edit.setMaximumWidth(240)
@@ -75,7 +89,12 @@ class GroupPanel(QWidget):
 
         # Keyboard focus stays on the score, for the app's shortcuts to keep working
         # after a click on a button or when the window is activated.
-        for button in (self.create_button, self.update_button, self.delete_button):
+        for button in (
+            self.create_button,
+            self.update_button,
+            self.delete_button,
+            self.table_button,
+        ):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.label_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
@@ -86,6 +105,7 @@ class GroupPanel(QWidget):
         buttons.addWidget(self.delete_button)
         buttons.addWidget(self.label_edit)
         buttons.addStretch()
+        buttons.addWidget(self.table_button)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -128,6 +148,11 @@ class GroupPanel(QWidget):
             "timeline.score.group.delete",
             group_id=self.group_id,
             timeline_id=self.timeline_id,
+        )
+
+    def _on_toggle_table(self) -> None:
+        commands.execute(
+            "timeline.score.group.toggle_table", timeline_id=self.timeline_id
         )
 
     def _on_label_edited(self) -> None:

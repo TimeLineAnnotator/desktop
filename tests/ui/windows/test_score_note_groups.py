@@ -10,7 +10,7 @@ from tests.constants import EXAMPLE_QUARTER_TONES_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
 from tests.ui.timelines.interact import press_key
 from tests.utils import run_js, save_and_reopen, undoable, wait_until
-from tilia.requests import Get, get
+from tilia.requests import Get, Post, get, post
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -342,6 +342,14 @@ class TestGroups:
         assert blob["active"]
         assert drawn_labels(score_view) == ["(0 5 10)"]
 
+    def test_new_group_has_no_name(self, score_view, score_tlui):
+        select_notes(score_view, [element_at(score_tlui, t, 0) for t in range(3)])
+        score_view.group_panel.create_button.click()
+        assert groups_of(score_tlui)[0].get_data("label") == ""
+        assert wait_until(lambda: score_view.group_panel.label_edit.isEnabled())
+        assert score_view.group_panel.label_edit.text() == ""
+        assert drawn_labels(score_view) == ["(0 5 10)"]
+
     def test_single_note_makes_a_blob(self, score_view, score_tlui):
         commands.execute(
             "timeline.score.group.create", element_ids=[element_at(score_tlui, 0, 0)]
@@ -539,3 +547,284 @@ class TestSaveAndReopen:
         assert isinstance(beat_tl, BeatTimeline)
         note = notes_of(tlui)[0]
         assert viewer.get_element_id(note.id) == note.get_data("element_id")
+
+
+def table_rows(view):
+    table = view.group_table_window.table
+    return [
+        [table.item(row, column).text() for column in range(table.columnCount())]
+        for row in range(table.rowCount())
+    ]
+
+
+def table_column(view, column):
+    return [row[column] for row in table_rows(view)]
+
+
+def row_of_group(view, group_id):
+    table = view.group_table_window.table
+    return next(r for r in range(table.rowCount()) if table.group_id_at(r) == group_id)
+
+
+class TestGroupTable:
+    GROUP, MEASURE, PRIME, FORTE, CARDINALITY, NORMAL, PITCHES, VECTOR = range(8)
+
+    def _flute(self, score_tlui):
+        # Pitch classes 0 5 10, in measure 1.
+        return [element_at(score_tlui, t, 0) for t in range(3)]
+
+    def _last_measure(self, score_tlui):
+        # One note, in measure 4.
+        return [element_at(score_tlui, 12, 0)]
+
+    def _make_groups(self, score_tlui):
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._last_measure(score_tlui)
+        )
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._flute(score_tlui)
+        )
+        return groups_of(score_tlui)
+
+    def test_starts_hidden(self, score_view):
+        assert score_view.group_table_window.isHidden()
+        assert not score_view.group_panel.table_button.isChecked()
+
+    def test_button_shows_and_hides_it(self, score_view):
+        button = score_view.group_panel.table_button
+        button.click()
+        assert not score_view.group_table_window.isHidden()
+        assert button.isChecked()
+        button.click()
+        assert score_view.group_table_window.isHidden()
+        assert not button.isChecked()
+
+    def test_command_shows_it(self, score_view):
+        commands.execute("timeline.score.group.toggle_table")
+        assert not score_view.group_table_window.isHidden()
+        assert score_view.group_panel.table_button.isChecked()
+
+    def test_closing_the_window_unchecks_the_button(self, score_view):
+        score_view.group_panel.table_button.click()
+        score_view.group_table_window.close()
+        assert score_view.group_table_window.isHidden()
+        assert not score_view.group_panel.table_button.isChecked()
+
+    def test_escape_closes_the_window(self, score_view):
+        window = score_view.group_table_window
+        score_view.group_panel.table_button.click()
+        assert QTest.qWaitForWindowExposed(window)
+        QTest.keyClick(window.table, Qt.Key.Key_Escape)
+        assert window.isHidden()
+        assert not score_view.group_panel.table_button.isChecked()
+
+    def test_windows_menu_request_checks_the_button(self, score_view):
+        window = score_view.group_table_window
+        window.show()
+        window.close()
+        post(Post.WINDOW_UPDATE_REQUEST, window.id, True)
+        assert not window.isHidden()
+        assert score_view.group_panel.table_button.isChecked()
+
+    def test_opening_leaves_the_score_its_width(self, score_view):
+        width = score_view.view.width()
+        score_view.group_panel.table_button.click()
+        assert score_view.view.width() == width
+
+    def test_window_closes_with_the_score(self, score_view, score_tlui):
+        window = score_view.group_table_window
+        score_view.group_panel.table_button.click()
+        score_view.clear_score()
+        assert window.isHidden()
+
+    def test_shows_a_groups_analysis(self, score_view, score_tlui):
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._flute(score_tlui)
+        )
+        assert table_rows(score_view) == [
+            ["", "1", "(0 5 10)", "", "3", "[0 5 10]", "{0 5 10}", "<000020000100>"]
+        ]
+
+    def test_shows_forte_name_of_12_note_set(self, score_view, score_tlui):
+        ids = [
+            element_at(score_tlui, 0, 3),
+            element_at(score_tlui, 2, 3),
+            element_at(score_tlui, 2, 2),
+        ]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        assert table_column(score_view, self.FORTE) == ["3-7"]
+
+    def test_group_across_measures(self, score_view, score_tlui):
+        ids = [element_at(score_tlui, 3, 0), element_at(score_tlui, 4, 0)]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        assert table_column(score_view, self.MEASURE) == ["1–2"]
+
+    def test_shows_label_and_color(self, score_view, score_tlui):
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=self._flute(score_tlui),
+            label="Motif",
+        )
+        assert table_column(score_view, self.GROUP) == ["Motif"]
+        swatch = score_view.group_table_window.table.item(0, 0).data(
+            Qt.ItemDataRole.DecorationRole
+        )
+        assert swatch.name() == groups_of(score_tlui)[0].get_data("color")
+
+    def test_follows_changes_to_a_group(self, score_view, score_tlui):
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._flute(score_tlui)
+        )
+        group = groups_of(score_tlui)[0]
+        commands.execute("timeline.score.group.set_label", "Motif", group_id=group.id)
+        assert table_column(score_view, self.GROUP) == ["Motif"]
+        commands.execute(
+            "timeline.score.group.set_notes",
+            group_id=group.id,
+            element_ids=self._flute(score_tlui)[:2],
+        )
+        assert table_column(score_view, self.CARDINALITY) == ["2"]
+        commands.execute("timeline.score.group.delete", group_id=group.id)
+        assert table_rows(score_view) == []
+
+    def test_follows_undo_and_redo(self, score_view, score_tlui):
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._flute(score_tlui)
+        )
+        assert wait_until(lambda: drawn_groups(score_view))
+        commands.execute("edit.undo")
+        assert table_rows(score_view) == []
+        commands.execute("edit.redo")
+        assert table_column(score_view, self.PRIME) == ["(0 5 10)"]
+
+    def test_survives_reopening_the_file(self, score_view, score_tlui, tmp_path):
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._flute(score_tlui)
+        )
+        save_and_reopen(tmp_path)
+        tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", ScoreTimeline)
+        viewer = get_loaded_view(tlui)
+        assert wait_until(lambda: table_column(viewer, self.PRIME) == ["(0 5 10)"])
+
+    def test_starts_in_score_order(self, score_view, score_tlui):
+        self._make_groups(score_tlui)
+        assert table_column(score_view, self.MEASURE) == ["1", "4"]
+
+    def test_sorts_prime_forms_by_cardinality_first(self, score_view, score_tlui):
+        self._make_groups(score_tlui)
+        table = score_view.group_table_window.table
+        table.sortItems(self.PRIME, Qt.SortOrder.AscendingOrder)
+        assert table_column(score_view, self.PRIME) == ["(0)", "(0 5 10)"]
+        table.sortItems(self.PRIME, Qt.SortOrder.DescendingOrder)
+        assert table_column(score_view, self.PRIME) == ["(0 5 10)", "(0)"]
+
+    def test_stays_sorted_when_a_group_is_added(self, score_view, score_tlui):
+        self._make_groups(score_tlui)
+        table = score_view.group_table_window.table
+        table.sortItems(self.PRIME, Qt.SortOrder.DescendingOrder)
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=[element_at(score_tlui, t, 0) for t in range(2)],
+        )
+        assert table_column(score_view, self.CARDINALITY) == ["3", "2", "1"]
+
+    def test_clicking_a_row_selects_the_group(self, score_view, score_tlui):
+        groups = self._make_groups(score_tlui)
+        score_view.group_panel.table_button.click()
+        assert QTest.qWaitForWindowExposed(score_view.group_table_window)
+        table = score_view.group_table_window.table
+        group = next(g for g in groups if len(g.get_data("element_ids")) == 3)
+        row = row_of_group(score_view, group.id)
+        QTest.mouseClick(
+            table.viewport(),
+            Qt.MouseButton.LeftButton,
+            pos=table.visualItemRect(table.item(row, self.PRIME)).center(),
+        )
+        assert wait_until(lambda: score_view.active_group_id == group.id)
+        wait_for_selection(score_view, group.get_data("element_ids"))
+        assert score_view.group_panel.delete_button.isEnabled()
+        assert table.selected_group_id() == group.id
+
+    def test_selecting_a_row_is_not_an_undo_step(self, score_view, score_tlui):
+        groups = self._make_groups(score_tlui)
+        table = score_view.group_table_window.table
+        table.selectRow(row_of_group(score_view, groups[0].id))
+        assert wait_until(lambda: score_view.active_group_id == groups[0].id)
+        commands.execute("edit.undo")
+        assert len(groups_of(score_tlui)) == 1
+
+    def test_selected_row_follows_sorting(self, score_view, score_tlui):
+        groups = self._make_groups(score_tlui)
+        table = score_view.group_table_window.table
+        table.sortItems(self.PRIME, Qt.SortOrder.DescendingOrder)
+        table.selectRow(0)
+        expected = table.group_id_at(0)
+        assert wait_until(lambda: score_view.active_group_id == expected)
+        assert expected == next(
+            g.id for g in groups if len(g.get_data("element_ids")) == 3
+        )
+
+    def test_click_on_blob_selects_the_row(self, score_view, score_tlui):
+        ids = [element_at(score_tlui, 0, 0), element_at(score_tlui, 1, 0)]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        group_id = groups_of(score_tlui)[0].id
+        select_notes(score_view, [element_at(score_tlui, 3, 3)])
+        table = score_view.group_table_window.table
+        assert wait_until(lambda: table.selected_group_id() is None)
+        rect = note_rect(score_view, ids[0])
+        click_at(score_view, ((rect[0] + rect[2]) / 2, rect[1] - 2))
+        assert wait_until(lambda: table.selected_group_id() == group_id)
+
+    def test_click_on_empty_space_clears_the_row(self, score_view, score_tlui):
+        commands.execute(
+            "timeline.score.group.create", element_ids=self._flute(score_tlui)
+        )
+        table = score_view.group_table_window.table
+        assert wait_until(lambda: table.selected_group_id() is not None)
+        click_at(score_view, (1, 1))
+        assert wait_until(lambda: table.selected_group_id() is None)
+
+    def _narrow_score(self, view):
+        page = view.view.page()
+        run_js(
+            page,
+            "scoreEl.style.width = '300px'; window.dispatchEvent(new Event('resize'))",
+        )
+        assert wait_until(lambda: run_js(page, "scoreEl.clientWidth") == 300)
+        assert run_js(page, "scoreEl.scrollWidth") > 300
+
+    def test_selecting_a_row_scrolls_to_the_group(self, score_view, score_tlui):
+        groups = self._make_groups(score_tlui)
+        self._narrow_score(score_view)
+        run_js(score_view.view.page(), "scoreEl.scrollLeft = 0")
+        group = next(g for g in groups if len(g.get_data("element_ids")) == 1)
+        score_view.group_table_window.table.selectRow(
+            row_of_group(score_view, group.id)
+        )
+        note = group.get_data("element_ids")[0]
+        box = json.loads(
+            run_js(
+                score_view.view.page(),
+                """(() => {
+                    const r = scoreEl.getBoundingClientRect();
+                    return JSON.stringify([r.left, r.right]);
+                })()""",
+            )
+        )
+
+        def is_in_view():
+            rect = note_rect(score_view, note)
+            return box[0] <= rect[0] and rect[2] <= box[1]
+
+        assert wait_until(is_in_view)
+
+    def test_group_in_view_does_not_scroll(self, score_view, score_tlui):
+        groups = self._make_groups(score_tlui)
+        page = score_view.view.page()
+        run_js(page, "scoreEl.scrollLeft = 0")
+        group = next(g for g in groups if len(g.get_data("element_ids")) == 3)
+        score_view.group_table_window.table.selectRow(
+            row_of_group(score_view, group.id)
+        )
+        assert wait_until(lambda: score_view.active_group_id == group.id)
+        assert run_js(page, "scoreEl.scrollLeft") == 0

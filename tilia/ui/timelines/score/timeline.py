@@ -692,6 +692,14 @@ class ScoreTimelineUI(TimelineUI):
         self._refresh_note_groups()
         return True
 
+    def on_select_note_group(self, group_id: str) -> None:
+        if isinstance(self._viewer, ScoreView) and self._get_note_group(group_id):
+            self._viewer.select_note_group(group_id)
+
+    def on_toggle_note_group_table(self) -> None:
+        if isinstance(self._viewer, ScoreView):
+            self._viewer.toggle_group_table()
+
     def reset_svg(self) -> None:
         if self._viewer:
             self._viewer.deleteLater()

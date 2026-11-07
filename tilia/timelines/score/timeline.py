@@ -145,6 +145,17 @@ class ScoreTimeline(Timeline):
             and note.is_pitched
         )
 
+    def get_element_start_times(self, element_ids: list[str]) -> list[float]:
+        """When the score's notes with these elements are first played: a
+        repeated measure's element has a note for each time it's played."""
+        wanted = set(element_ids)
+        starts: dict[str, float] = {}
+        for note in self.component_manager.get_components():
+            if note.KIND == ComponentKind.NOTE and note.element_id in wanted:
+                previous = starts.get(note.element_id, note.start)
+                starts[note.element_id] = min(previous, note.start)
+        return list(starts.values())
+
     @property
     def staff_count(self):
         return len(

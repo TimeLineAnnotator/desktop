@@ -210,6 +210,16 @@ class TimelineUIs:
             self.on_score_group_delete,
             text="Delete group",
         )
+        commands.register(
+            "timeline.score.group.select",
+            self.on_score_group_select,
+            text="Select group",
+        )
+        commands.register(
+            "timeline.score.group.toggle_table",
+            self.on_score_group_toggle_table,
+            text="Show or hide the note group table",
+        )
 
         commands.register("timeline.clear", self.on_timeline_clear, "Clear")
 
@@ -1369,6 +1379,16 @@ class TimelineUIs:
     ) -> bool:
         tlui = self._get_score_timeline_ui(timeline_id)
         return bool(tlui) and tlui.on_delete_note_group(group_id)
+
+    def on_score_group_select(
+        self, group_id: str, timeline_id: str | None = None
+    ) -> None:
+        if tlui := self._get_score_timeline_ui(timeline_id):
+            tlui.on_select_note_group(group_id)
+
+    def on_score_group_toggle_table(self, timeline_id: str | None = None) -> None:
+        if tlui := self._get_score_timeline_ui(timeline_id):
+            tlui.on_toggle_note_group_table()
 
     @staticmethod
     @command_callback

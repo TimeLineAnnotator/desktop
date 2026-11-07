@@ -531,6 +531,23 @@ window.tiliaSetColors = (colors) => {
 
 window.tiliaReportViewport = () => reportViewport(true);
 
+// Makes a group the active one, and scrolls to it unless it's all in view.
+window.tiliaShowGroup = (id) => {
+  activateGroup(id);
+  const shape = blobShapes.find((each) => each.id === id);
+  if (!shape) return;
+  const xs = shape.points.map((p) => p.x);
+  const start = Math.min(...xs) - shape.radius;
+  const end = Math.max(...xs) + shape.radius;
+  const left = scoreEl.scrollLeft;
+  const width = scoreEl.clientWidth;
+  if (start < left || end > left + width) {
+    // A group wider than the box shows its start.
+    scoreEl.scrollLeft = end - start < width ? (start + end - width) / 2 : start;
+  }
+  reportViewport(false);
+};
+
 // `active` makes that group the active one, with its notes selected. Otherwise
 // the active group stays, unless it's gone.
 window.tiliaSetGroups = (newGroups, active) => {

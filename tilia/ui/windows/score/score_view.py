@@ -40,10 +40,12 @@ from tilia.ui.windows.score.base import (
     get_beat_timeline,
     get_times_at,
 )
-from tilia.ui.windows.score.group_panel import GroupPanel, format_pcs
+from tilia.ui.windows.score.group_panel import GroupPanel, format_prime_form
+from tilia.ui.windows.score.group_table import GroupRow, GroupTableWindow
 
 if TYPE_CHECKING:
     from tilia.timelines.score.components import NoteGroup
+    from tilia.timelines.score.pcset import PitchClassSetAnalysis
     from tilia.timelines.score.timeline import ScoreTimeline
 
 VIEWER_PATH = Path(__file__).parent / "web" / "viewer.html"
@@ -166,6 +168,7 @@ class ScoreView(ScoreViewerBase):
         self.selected_note_ids: list[str] = []
         self.active_group_id: str | None = None
         self.group_panel: GroupPanel | None = None
+        self.group_table_window: GroupTableWindow | None = None
         self._score_text: str | None = None
         self._is_page_ready = False
         self._page_restarts = 0
@@ -230,6 +233,8 @@ class ScoreView(ScoreViewerBase):
             post(Post.WINDOW_UPDATE_STATE, self.id, WindowState.DELETED)
             self.is_registered = False
         self.hide()
+        if self.group_table_window:
+            self.group_table_window.close()
         # Not closed by the user: the next score shows the viewer again.
         self.is_hidden = False
 
@@ -277,6 +282,9 @@ class ScoreView(ScoreViewerBase):
         # The score keeps room in a small window: the panel doesn't push it out.
         self.view.setMinimumHeight(SCORE_MIN_HEIGHT)
         layout.addWidget(self.view, stretch=1)
+        self.group_table_window = GroupTableWindow(
+            self.timeline_id, self.menu_title, self.group_panel.table_button.setChecked
+        )
         self.setWidget(container)
         self.view.load(VIEWER_URL)
 
@@ -371,6 +379,8 @@ class ScoreView(ScoreViewerBase):
         group = data.get("group")
         self.active_group_id = group if isinstance(group, str) else None
         self._update_group_panel()
+        if self.group_table_window:
+            self.group_table_window.table.select_group(self.active_group_id)
 
     def _note_groups(self) -> list[NoteGroup]:
         if not (timeline := self.timeline):
@@ -386,21 +396,59 @@ class ScoreView(ScoreViewerBase):
         becomes the group shown in the panel, with its notes selected."""
         if not self.is_score_loaded:
             return
-        groups = [
-            {
-                "id": group.id,
-                "ids": group.element_ids,
-                "color": group.color,
-                "text": self._group_text(group),
-            }
-            for group in self._note_groups()
-        ]
+        groups = []
+        rows = []
+        for group in self._note_groups():
+            analysis = group.analysis
+            prime = format_prime_form(analysis)
+            groups.append(
+                {
+                    "id": group.id,
+                    "ids": group.element_ids,
+                    "color": group.color,
+                    "text": f"{group.label}: {prime}" if group.label else prime,
+                }
+            )
+            rows.append(self._group_row(group, analysis))
         self._run_script("tiliaSetGroups", groups, active_group)
+        if self.group_table_window:
+            self.group_table_window.table.show_groups(
+                rows, active_group or self.active_group_id
+            )
+
+    def _group_row(self, group: NoteGroup, analysis: PitchClassSetAnalysis) -> GroupRow:
+        starts = self.timeline.get_element_start_times(group.element_ids)
+        start, end = (min(starts), max(starts)) if starts else (math.inf, math.inf)
+        return GroupRow(
+            group.id,
+            group.label,
+            group.color,
+            analysis,
+            self._measures_text(start, end) if starts else "",
+            start,
+            end,
+        )
 
     @staticmethod
-    def _group_text(group: NoteGroup) -> str:
-        prime = f"({format_pcs(group.analysis.prime_form)})"
-        return f"{group.label}: {prime}" if group.label else prime
+    def _measures_text(start: float, end: float) -> str:
+        if not (beat_tl := get_beat_timeline()):
+            return ""
+        first = math.floor(beat_tl.get_metric_fraction_by_time(start))
+        last = math.floor(beat_tl.get_metric_fraction_by_time(end))
+        return str(first) if first == last else f"{first}\u2013{last}"
+
+    def select_note_group(self, group_id: str) -> None:
+        """Makes a group the active one and brings it into view."""
+        self._run_script("tiliaShowGroup", group_id)
+
+    def toggle_group_table(self) -> None:
+        if not (window := self.group_table_window):
+            return
+        if window.isHidden():
+            window.show()
+            window.raise_()
+        else:
+            window.close()
 
     def _update_group_panel(self) -> None:
         if not self.group_panel or not (timeline := self.timeline):
@@ -513,6 +561,9 @@ class ScoreView(ScoreViewerBase):
     def deleteLater(self) -> None:
         if self._bridge:
             self._bridge.detach()
+        if self.group_table_window:
+            self.group_table_window.hide()
+            self.group_table_window.deleteLater()
         stop_listening_to_all(self)
         super().deleteLater()
 
