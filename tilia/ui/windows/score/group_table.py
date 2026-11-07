@@ -6,8 +6,10 @@ It's a window of its own so that opening it leaves the score its full width.
 
 from __future__ import annotations
 
+import csv
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from PySide6.QtCore import Qt
@@ -15,7 +17,9 @@ from PySide6.QtGui import QColor, QHideEvent, QShowEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
+    QHBoxLayout,
     QHeaderView,
+    QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -159,6 +163,17 @@ class GroupTable(QTableWidget):
                 break
         self.blockSignals(False)
 
+    def write_csv(self, path: Path) -> None:
+        """Writes the table as it reads, in its current order."""
+        # With the BOM, Excel doesn't garble the dash in a range of measures.
+        with open(path, "w", newline="", encoding="utf-8-sig") as file:
+            writer = csv.writer(file)
+            writer.writerow(title for title, _ in COLUMNS)
+            for row in range(self.rowCount()):
+                writer.writerow(
+                    self.item(row, column).text() for column in range(len(COLUMNS))
+                )
+
     def _on_selection_changed(self) -> None:
         if group_id := self.selected_group_id():
             commands.execute(
@@ -181,9 +196,28 @@ class GroupTableWindow(ViewWidget, QDialog):
         self.resize(INITIAL_WIDTH, INITIAL_HEIGHT)
         self._on_visibility_changed = on_visibility_changed
         self.table = GroupTable(timeline_id, self)
+        self.export_button = QPushButton("Export CSV")
+        self.export_button.setToolTip("Save the table to a CSV file, as it is sorted")
+        self.export_button.setEnabled(False)
+        self.export_button.setAutoDefault(False)
+        self.export_button.clicked.connect(
+            lambda: commands.execute(
+                "timeline.score.group.export_table", timeline_id=timeline_id
+            )
+        )
+        buttons = QHBoxLayout()
+        buttons.setContentsMargins(4, 4, 4, 4)
+        buttons.addStretch()
+        buttons.addWidget(self.export_button)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         layout.addWidget(self.table)
+        layout.addLayout(buttons)
+
+    def show_groups(self, rows: list[GroupRow], active_group: str | None) -> None:
+        self.table.show_groups(rows, active_group)
+        self.export_button.setEnabled(bool(rows))
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)

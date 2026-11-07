@@ -1,3 +1,4 @@
+import csv
 import json
 
 import pytest
@@ -828,3 +829,118 @@ class TestGroupTable:
         )
         assert wait_until(lambda: score_view.active_group_id == group.id)
         assert run_js(page, "scoreEl.scrollLeft") == 0
+
+
+def read_csv(path):
+    with open(path, newline="", encoding="utf-8-sig") as file:
+        return list(csv.reader(file))
+
+
+class TestExportTable:
+    HEADER = [
+        "Group",
+        "Measure",
+        "Prime form",
+        "Forte",
+        "Cardinality",
+        "Normal form",
+        "Pitch classes",
+        "Interval-class vector",
+    ]
+
+    def _make_groups(self, score_tlui):
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=[element_at(score_tlui, 12, 0)],
+            label="Last",
+        )
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=[element_at(score_tlui, t, 0) for t in range(3)],
+        )
+
+    def test_button_is_off_without_groups(self, score_view, score_tlui):
+        button = score_view.group_table_window.export_button
+        assert not button.isEnabled()
+        self._make_groups(score_tlui)
+        assert button.isEnabled()
+        commands.execute("edit.undo")
+        commands.execute("edit.undo")
+        assert wait_until(lambda: not button.isEnabled())
+
+    def test_button_saves_the_path_chosen(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        path = tmp_path / "groups.csv"
+        with patch_file_dialog(True, [str(path)]):
+            score_view.group_table_window.export_button.click()
+        assert read_csv(path) == [self.HEADER] + table_rows(score_view)
+
+    def test_values(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        path = tmp_path / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        rows = read_csv(path)
+        assert [row[0] for row in rows[1:]] == ["", "Last"]
+        assert rows[1][1] == "1"
+        assert rows[1][2] == "(0 5 10)"
+        assert rows[1][4] == "3"
+        assert rows[1][6] == "{0 5 10}"
+
+    def test_range_of_measures(self, score_view, score_tlui, tmp_path):
+        commands.execute(
+            "timeline.score.group.create",
+            element_ids=[element_at(score_tlui, t, 0) for t in (0, 12)],
+        )
+        path = tmp_path / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        assert read_csv(path)[1][1] == "1\u20134"
+
+    def test_keeps_the_order_of_the_table(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        table = score_view.group_table_window.table
+        table.sortByColumn(TestGroupTable.PRIME, Qt.SortOrder.AscendingOrder)
+        by_prime_form = table_column(score_view, TestGroupTable.PRIME)
+        table.sortByColumn(TestGroupTable.PRIME, Qt.SortOrder.DescendingOrder)
+        assert table_column(score_view, TestGroupTable.PRIME) == by_prime_form[::-1]
+        path = tmp_path / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        assert [row[2] for row in read_csv(path)[1:]] == by_prime_form[::-1]
+
+    def test_works_with_the_window_closed(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        assert score_view.group_table_window.isHidden()
+        path = tmp_path / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        assert len(read_csv(path)) == 3
+
+    def test_adds_the_extension(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        with patch_file_dialog(True, [str(tmp_path / "groups")]):
+            commands.execute("timeline.score.group.export_table")
+        assert (tmp_path / "groups.csv").exists()
+
+    def test_cancelling_writes_nothing(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        with patch_file_dialog(False, [str(tmp_path / "groups.csv")]):
+            commands.execute("timeline.score.group.export_table")
+        assert not list(tmp_path.iterdir())
+
+    def test_failure_is_reported(self, score_view, score_tlui, tmp_path, tilia_errors):
+        self._make_groups(score_tlui)
+        path = tmp_path / "missing" / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        tilia_errors.assert_in_error_title("Export note groups")
+        tilia_errors.assert_in_error_message("groups.csv")
+
+    def test_no_groups_writes_nothing(self, score_view, tmp_path):
+        path = tmp_path / "groups.csv"
+        commands.execute("timeline.score.group.export_table", path=str(path))
+        assert not path.exists()
+
+    def test_is_not_an_undo_step(self, score_view, score_tlui, tmp_path):
+        self._make_groups(score_tlui)
+        commands.execute(
+            "timeline.score.group.export_table", path=str(tmp_path / "groups.csv")
+        )
+        commands.execute("edit.undo")
+        assert len(groups_of(score_tlui)) == 1

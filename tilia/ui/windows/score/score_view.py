@@ -412,7 +412,7 @@ class ScoreView(ScoreViewerBase):
             rows.append(self._group_row(group, analysis))
         self._run_script("tiliaSetGroups", groups, active_group)
         if self.group_table_window:
-            self.group_table_window.table.show_groups(
+            self.group_table_window.show_groups(
                 rows, active_group or self.active_group_id
             )
 
@@ -449,6 +449,26 @@ class ScoreView(ScoreViewerBase):
             window.raise_()
         else:
             window.close()
+
+    def export_group_table(self, path: str | None = None) -> None:
+        if not (window := self.group_table_window) or not window.table.rowCount():
+            return
+        if path is None:
+            accepted, path = get(
+                Get.FROM_USER_SAVE_PATH,
+                title="Export note groups",
+                filter="CSV files (*.csv)",
+                initial_filename=f"{self.menu_title} note groups.csv",
+            )
+            if not accepted:
+                return
+        path = Path(path)
+        if not path.suffix:
+            path = path.with_suffix(".csv")
+        try:
+            window.table.write_csv(path)
+        except OSError as error:
+            tilia.errors.display(tilia.errors.EXPORT_NOTE_GROUPS_FAILED, path, error)
 
     def _update_group_panel(self) -> None:
         if not self.group_panel or not (timeline := self.timeline):

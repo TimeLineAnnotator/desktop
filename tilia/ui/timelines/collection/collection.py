@@ -216,6 +216,11 @@ class TimelineUIs:
             text="Select group",
         )
         commands.register(
+            "timeline.score.group.export_table",
+            self.on_score_group_export_table,
+            text="Export note group table to CSV",
+        )
+        commands.register(
             "timeline.score.group.toggle_table",
             self.on_score_group_toggle_table,
             text="Show or hide the note group table",
@@ -1385,6 +1390,12 @@ class TimelineUIs:
     ) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):
             tlui.on_select_note_group(group_id)
+
+    def on_score_group_export_table(
+        self, path: str | None = None, timeline_id: str | None = None
+    ) -> None:
+        if tlui := self._get_score_timeline_ui(timeline_id):
+            tlui.on_export_note_group_table(path)
 
     def on_score_group_toggle_table(self, timeline_id: str | None = None) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):
