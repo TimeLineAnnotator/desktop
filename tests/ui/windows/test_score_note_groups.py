@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from lxml import etree
-from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QItemSelectionModel, Qt
 from PySide6.QtGui import QColor
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QColorDialog
@@ -48,8 +48,9 @@ def score_view(score_tlui):
         commands.execute("timelines.add.beat", name="Beats")
     for time in range(17):
         commands.execute("timeline.beat.add", time=time)
-    with patch_yes_or_no_dialog(False), patch_file_dialog(
-        True, [EXAMPLE_QUARTER_TONES_MUSICXML_PATH]
+    with (
+        patch_yes_or_no_dialog(False),
+        patch_file_dialog(True, [EXAMPLE_QUARTER_TONES_MUSICXML_PATH]),
     ):
         commands.execute("timelines.import.score")
     view = get_loaded_view(score_tlui)
@@ -569,6 +570,26 @@ def row_of_group(view, group_id):
     return next(r for r in range(table.rowCount()) if table.group_id_at(r) == group_id)
 
 
+def create_group(score_tlui, element_ids, **kwargs):
+    """Waits for the page to report the group active. Until then, its reports
+    can undo a selection made after the group was created."""
+    before = {g.id for g in groups_of(score_tlui)}
+    commands.execute("timeline.score.group.create", element_ids=element_ids, **kwargs)
+    group = next(g for g in groups_of(score_tlui) if g.id not in before)
+    assert wait_until(lambda: score_tlui.svg_view.active_group_id == group.id)
+    return group
+
+
+def select_row(table, row):
+    # Not selectRow: it takes the keyboard modifiers of the last input event, and
+    # with those of a Ctrl-click in an earlier test it adds to the selection.
+    table.selectionModel().select(
+        table.model().index(row, 0),
+        QItemSelectionModel.SelectionFlag.ClearAndSelect
+        | QItemSelectionModel.SelectionFlag.Rows,
+    )
+
+
 class TestGroupTable:
     GROUP, MEASURE, PRIME, FORTE, CARDINALITY, NORMAL, PITCHES, VECTOR = range(8)
 
@@ -581,12 +602,8 @@ class TestGroupTable:
         return [element_at(score_tlui, 12, 0)]
 
     def _make_groups(self, score_tlui):
-        commands.execute(
-            "timeline.score.group.create", element_ids=self._last_measure(score_tlui)
-        )
-        commands.execute(
-            "timeline.score.group.create", element_ids=self._flute(score_tlui)
-        )
+        create_group(score_tlui, self._last_measure(score_tlui))
+        create_group(score_tlui, self._flute(score_tlui))
         return groups_of(score_tlui)
 
     def test_starts_hidden(self, score_view):
@@ -751,7 +768,7 @@ class TestGroupTable:
     def test_selecting_a_row_is_not_an_undo_step(self, score_view, score_tlui):
         groups = self._make_groups(score_tlui)
         table = score_view.group_table_window.table
-        table.selectRow(row_of_group(score_view, groups[0].id))
+        select_row(table, row_of_group(score_view, groups[0].id))
         assert wait_until(lambda: score_view.active_group_id == groups[0].id)
         commands.execute("edit.undo")
         assert len(groups_of(score_tlui)) == 1
@@ -760,7 +777,7 @@ class TestGroupTable:
         groups = self._make_groups(score_tlui)
         table = score_view.group_table_window.table
         table.sortItems(self.PRIME, Qt.SortOrder.DescendingOrder)
-        table.selectRow(0)
+        select_row(table, 0)
         expected = table.group_id_at(0)
         assert wait_until(lambda: score_view.active_group_id == expected)
         assert expected == next(
@@ -801,8 +818,8 @@ class TestGroupTable:
         self._narrow_score(score_view)
         run_js(score_view.view.page(), "scoreEl.scrollLeft = 0")
         group = next(g for g in groups if len(g.get_data("element_ids")) == 1)
-        score_view.group_table_window.table.selectRow(
-            row_of_group(score_view, group.id)
+        select_row(
+            score_view.group_table_window.table, row_of_group(score_view, group.id)
         )
         note = group.get_data("element_ids")[0]
         box = json.loads(
@@ -826,8 +843,8 @@ class TestGroupTable:
         page = score_view.view.page()
         run_js(page, "scoreEl.scrollLeft = 0")
         group = next(g for g in groups if len(g.get_data("element_ids")) == 3)
-        score_view.group_table_window.table.selectRow(
-            row_of_group(score_view, group.id)
+        select_row(
+            score_view.group_table_window.table, row_of_group(score_view, group.id)
         )
         assert wait_until(lambda: score_view.active_group_id == group.id)
         assert run_js(page, "scoreEl.scrollLeft") == 0
@@ -952,13 +969,7 @@ class TestGroupColor:
     NEW_COLOR = "#123456"
 
     def _make_group(self, score_view, score_tlui, time=0):
-        commands.execute(
-            "timeline.score.group.create",
-            element_ids=[element_at(score_tlui, time, 0)],
-        )
-        group = max(groups_of(score_tlui), key=lambda g: g.id)
-        assert wait_until(lambda: score_view.active_group_id == group.id)
-        return group
+        return create_group(score_tlui, [element_at(score_tlui, time, 0)])
 
     def _click_button(self, score_view, color):
         with patch.object(QColorDialog, "getColor", return_value=color) as dialog:
@@ -1016,7 +1027,7 @@ class TestGroupColor:
         second = self._make_group(score_view, score_tlui, 12)
         other_color = second.get_data("color")
         table = score_view.group_table_window.table
-        table.selectRow(row_of_group(score_view, first.id))
+        select_row(table, row_of_group(score_view, first.id))
         assert wait_until(lambda: score_view.active_group_id == first.id)
         assert wait_until(lambda: score_view.group_panel.group_id == first.id)
         self._click_button(score_view, QColor(self.NEW_COLOR))
@@ -1078,13 +1089,9 @@ class TestRelations:
     OTHER_DYAD = [(3, 2), (3, 1)]  # {1 13}, T9, T21, I5 and I17 of DYAD
 
     def _group(self, score_tlui, notes, **kwargs):
-        before = {g.id for g in groups_of(score_tlui)}
-        commands.execute(
-            "timeline.score.group.create",
-            element_ids=[element_at(score_tlui, *note) for note in notes],
-            **kwargs,
+        return create_group(
+            score_tlui, [element_at(score_tlui, *note) for note in notes], **kwargs
         )
-        return next(g for g in groups_of(score_tlui) if g.id not in before)
 
     def _click_row(self, view, group, modifier=Qt.KeyboardModifier.NoModifier):
         window = view.group_table_window
