@@ -40,6 +40,17 @@
     background: rgba(26, 127, 255, 0.12);
     pointer-events: none;
   }
+  /* Moved by transform, so that the browser needn't paint the score again. */
+  #tilia-cursor {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 2px;
+    z-index: 1;
+    background: rgba(220, 40, 40, 0.85);
+    pointer-events: none;
+    will-change: transform;
+  }
   g.note, g.rest { cursor: pointer; }
   /* An outline around the selected element's glyphs, so its colour shows. */
   .tilia-selected {

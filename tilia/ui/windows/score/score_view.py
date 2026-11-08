@@ -25,6 +25,7 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 import tilia.errors
 from tilia.log import logger
+from tilia.media.player.base import MediaTimeChangeReason, Player
 from tilia.requests import (
     Get,
     Post,
@@ -431,6 +432,7 @@ class ScoreView(ScoreViewerBase):
         self.show_note_groups()
         self.scroll_to_time(get(Get.SELECTED_TIME), True)
         self._update_highlights()
+        self._update_cursor(get(Get.MEDIA_CURRENT_TIME))
 
     def on_error(self, data: dict[str, Any]) -> None:
         tilia.errors.display(
@@ -676,11 +678,27 @@ class ScoreView(ScoreViewerBase):
             self._shown_colors.update(changed)
             self._run_script("tiliaSetColors", changed)
 
-    def on_current_time_changed(self, time: float, _reason: Any) -> None:
+    def on_current_time_changed(
+        self, time: float, reason: MediaTimeChangeReason
+    ) -> None:
         # The time posted, not Get.SELECTED_TIME, which smooth scrolling
         # updates only later.
         if self._varying_elements:
             self._update_colors(list(self._varying_elements), time)
+        self._update_cursor(
+            time,
+            Player.UPDATE_INTERVAL if reason == MediaTimeChangeReason.PLAYBACK else 0,
+        )
+
+    def _update_cursor(self, time: float, glide: int = 0) -> None:
+        if not self.is_score_loaded or self.is_hidden:
+            return
+        if not (beat_tl := get_beat_timeline()):
+            self._run_script("tiliaSetCursor", None, 0, 0)
+            return
+        metric_fraction = beat_tl.get_metric_fraction_by_time(time)
+        number = math.floor(metric_fraction)
+        self._run_script("tiliaSetCursor", number, metric_fraction - number, glide)
 
     def on_component_set_data_done(
         self, timeline_id: int, component_id: int, attr: str, _value: Any
@@ -716,6 +734,8 @@ class ScoreView(ScoreViewerBase):
     def _update_highlights(self) -> None:
         """Shades, behind the score, what's selected in other timelines."""
         self._is_highlight_update_pending = False
+        # The beats under the cursor may have changed too.
+        self._update_cursor(get(Get.MEDIA_CURRENT_TIME))
         beat_tl = get_beat_timeline()
         if not self.is_score_loaded or not beat_tl:
             return
@@ -774,3 +794,4 @@ class ScoreView(ScoreViewerBase):
         super().on_shown()
         # The range may have changed while the viewer was hidden.
         self._run_script("tiliaReportViewport")
+        self._update_cursor(get(Get.MEDIA_CURRENT_TIME))

@@ -30,7 +30,8 @@ from tests.utils import (
     undoable,
     wait_until,
 )
-from tilia.requests import Get, get
+from tilia.media.player.base import MediaTimeChangeReason, Player
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
@@ -1561,3 +1562,174 @@ class TestDock:
         main_window.addDockWidget(area, score_view)
 
         assert main_window.dockWidgetArea(score_view) == area
+
+
+def get_cursor(score_view: ScoreView) -> dict | None:
+    """The cursor as the page has it, with its position in the score box."""
+    return json.loads(
+        run_js(
+            score_view.view.page(),
+            """(() => {
+                const cursor = document.getElementById('tilia-cursor');
+                if (!cursor) return 'null';
+                const [, x, y] = cursor.style.transform.match(/translate\\((.+)px, (.+)px\\)/);
+                return JSON.stringify({
+                    x: Number(x),
+                    y: Number(y),
+                    height: parseFloat(cursor.style.height),
+                    transition: cursor.style.transition,
+                });
+            })()""",
+        )
+    )
+
+
+def x_at_position(score_view: ScoreView, measure: int, fraction: float) -> float:
+    return run_js(
+        score_view.view.page(),
+        f"(() => {{ const q = qAt({measure}, {fraction});"
+        " return xAt(systemAtQ(q), q); })()",
+    )
+
+
+def seek(time: float) -> None:
+    commands.execute("media.seek", time)
+
+
+def play_to(time: float) -> None:
+    post(Post.PLAYER_CURRENT_TIME_CHANGED, time, MediaTimeChangeReason.PLAYBACK)
+
+
+def wait_for_cursor_x(score_view: ScoreView, x: float) -> bool:
+    return wait_until(
+        lambda: (cursor := get_cursor(score_view))
+        and cursor["x"] == pytest.approx(x, abs=0.01)
+    )
+
+
+class TestCursor:
+    # Three beats a measure, a second each, from 5 s; measure 0 is the pick-up.
+    def test_shows_where_the_time_is_when_the_score_loads(self, score_view):
+        assert wait_until(lambda: get_cursor(score_view))
+
+    def test_seek_moves_it_at_once(self, score_view):
+        seek(6.5)  # Halfway through the measure's second beat.
+        beat_tl = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline).timeline
+        fraction = beat_tl.get_metric_fraction_by_time(6.5)
+        x = x_at_position(score_view, math.floor(fraction), fraction % 1)
+
+        assert wait_for_cursor_x(score_view, x)
+        assert get_cursor(score_view)["transition"] == "none"
+
+    def test_playback_glides_on_until_the_next_report(self, score_view):
+        seek(6)
+        play_to(6.1)
+        assert wait_until(
+            lambda: get_cursor(score_view)["transition"]
+            == f"transform {Player.UPDATE_INTERVAL}ms linear"
+        )
+
+    def test_does_not_glide_backwards(self, score_view):
+        seek(8)
+        play_to(6)
+        assert wait_until(lambda: get_cursor(score_view)["transition"] == "none")
+
+    def test_is_as_tall_as_the_system(self, score_view):
+        seek(6)
+        assert wait_until(lambda: get_cursor(score_view))
+        system = json.loads(
+            run_js(score_view.view.page(), "JSON.stringify(systems[0])")
+        )
+        cursor = get_cursor(score_view)
+        assert cursor["y"] == pytest.approx(system["top"])
+        assert cursor["height"] == pytest.approx(system["bottom"] - system["top"])
+
+    def test_clicks_go_through_it(self, score_view):
+        assert wait_until(lambda: get_cursor(score_view))
+        assert (
+            run_js(
+                score_view.view.page(),
+                "getComputedStyle(document.getElementById('tilia-cursor'))"
+                ".pointerEvents",
+            )
+            == "none"
+        )
+
+    def test_moving_it_does_not_render_the_score(self, score_view):
+        page = score_view.view.page()
+        seek(5)
+        assert wait_until(lambda: get_cursor(score_view))
+        run_js(
+            page,
+            """(() => {
+                window.scoreSvg = pageSvgs()[0];
+                window.renders = 0;
+                for (const name of ['renderToSVG', 'redoLayout', 'loadData']) {
+                    const original = toolkit[name].bind(toolkit);
+                    toolkit[name] = (...args) => { window.renders++; return original(...args); };
+                }
+            })()""",
+        )
+
+        for time in (6, 7, 8, 9):
+            play_to(time)
+        assert wait_until(
+            lambda: get_cursor(score_view)["x"] > x_at_position(score_view, 1, 0)
+        )
+
+        assert run_js(page, "window.renders") == 0
+        assert run_js(page, "pageSvgs()[0] === window.scoreSvg")
+
+    def test_goes_away_past_the_score(self, score_view):
+        assert wait_until(lambda: get_cursor(score_view))
+        run_js(score_view.view.page(), "tiliaSetCursor(999, 0, 0)")
+        assert get_cursor(score_view) is None
+
+    def test_goes_away_without_beats(self, score_view):
+        assert wait_until(lambda: get_cursor(score_view))
+        beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+        commands.execute("timeline.delete", beat_tlui, confirm=False)
+        assert wait_until(lambda: get_cursor(score_view) is None)
+
+    def test_not_updated_while_the_viewer_is_hidden(self, score_view):
+        seek(5)
+        assert wait_until(lambda: get_cursor(score_view))
+        before = get_cursor(score_view)["x"]
+        QApplication.sendEvent(score_view, QHideEvent())
+
+        seek(9)
+        run_js(score_view.view.page(), "1")
+        assert get_cursor(score_view)["x"] == before
+
+        QApplication.sendEvent(score_view, QShowEvent())
+        assert wait_until(lambda: get_cursor(score_view)["x"] > before)
+
+    def test_jumps_to_the_next_system_in_pages(self, long_score_view):
+        show_in_pages(long_score_view)
+        assert wait_until(lambda: system_count(long_score_view) > 1)
+        page = long_score_view.view.page()
+        last_of_first = run_js(page, "systems[0].qEnd") / 4  # 4 beats a measure
+
+        seek(0)
+        assert wait_until(lambda: get_cursor(long_score_view))
+        top = get_cursor(long_score_view)["y"]
+        play_to(last_of_first * 4 - 1)
+        play_to(last_of_first * 4 + 1)
+
+        assert wait_until(lambda: get_cursor(long_score_view)["y"] > top)
+        assert get_cursor(long_score_view)["transition"] == "none"
+
+    def test_stays_on_its_note_after_a_new_layout(self, long_score_view):
+        seek(20)
+        assert wait_until(lambda: get_cursor(long_score_view))
+        page = long_score_view.view.page()
+
+        show_in_pages(long_score_view)
+        assert wait_until(lambda: system_count(long_score_view) > 1)
+
+        q = run_js(page, "cursorQ")
+        x = run_js(page, f"xAt(systemAtQ({q}), {q})")
+        assert wait_for_cursor_x(long_score_view, x)
+        assert get_cursor(long_score_view)["y"] == pytest.approx(
+            run_js(page, f"systemAtQ({q}).top")
+        )

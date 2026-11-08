@@ -44,6 +44,9 @@ let blobShapes = []; // {id, points, edges, radius}, as drawn
 let activeGroup = null; // the id of the group whose notes are selected
 let highlights = []; // {qStart, qEnd}: what's selected in other timelines
 let selectedMeasures = []; // entries of `measures`: those selected by a click
+let cursorQ = null; // where the playback head is, or null when it's off the score
+let cursorSystem = null; // the entry of `systems` the cursor was last drawn in
+let cursorX = 0; // where it was last drawn
 let zoom = 1;
 let band = null; // the drag that may become a selection box
 let wasDragged = false;
@@ -309,6 +312,7 @@ function fit() {
   measureSystems();
   drawGroups();
   drawHighlights();
+  drawCursor(0);
 }
 
 // The systems in view: those at least half shown, or filling half the box, or
@@ -511,6 +515,31 @@ function drawHighlights() {
     for (const rect of highlightRects(highlight)) layer.append(svgElement("rect", rect));
   }
   scoreEl.append(layer);
+}
+
+// Moves its own element only, and on a layer of its own, so that the score is
+// neither rendered nor painted again. `glide` is how long to take to get there,
+// in ms: the time until the player's next report, which keeps the movement even.
+function drawCursor(glide) {
+  let cursor = document.getElementById("tilia-cursor");
+  if (cursorQ === null || !systems.length) {
+    cursor?.remove();
+    return;
+  }
+  if (!cursor) {
+    cursor = document.createElement("div");
+    cursor.id = "tilia-cursor";
+    scoreEl.append(cursor);
+    cursorSystem = null;
+  }
+  const system = systemAtQ(cursorQ);
+  const x = xAt(system, cursorQ);
+  const isGoingOn = system === cursorSystem && x >= cursorX;
+  cursor.style.transition = isGoingOn && glide > 0 ? `transform ${glide}ms linear` : "none";
+  if (system !== cursorSystem) cursor.style.height = `${system.bottom - system.top}px`;
+  cursor.style.transform = `translate(${x}px, ${system.top}px)`;
+  cursorSystem = system;
+  cursorX = x;
 }
 
 function setSelectedMeasures(newMeasures) {
@@ -851,6 +880,7 @@ window.tiliaLoadScore = (text, newLayout) => {
     scoreEl.replaceChildren();
     colors = new Map();
     activeGroup = null;
+    cursorQ = null;
     showPages();
     highlights = [];
     selectedMeasures = [];
@@ -878,6 +908,13 @@ window.tiliaScrollTo = (measure, fraction, centered) => {
     scoreEl.scrollLeft = x - width / 2 + margin * 4;
   }
   reportViewport(false);
+};
+
+// Puts the cursor at a measure and fraction. With no measure of that number, as
+// beats past the score's last measure have, it goes away.
+window.tiliaSetCursor = (measure, fraction, glide) => {
+  cursorQ = qAt(measure, fraction);
+  drawCursor(glide);
 };
 
 window.tiliaSetColors = (newColors) => {
