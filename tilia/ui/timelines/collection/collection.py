@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import traceback
 from enum import Enum, auto
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, cast
 
 if TYPE_CHECKING:
@@ -10,6 +11,7 @@ if TYPE_CHECKING:
 
     from tilia.file.tilia_file import TiliaFile
 
+import soundfile
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
     QGraphicsItem,
@@ -20,6 +22,7 @@ from PySide6.QtWidgets import (
 import tilia
 import tilia.errors
 from tilia.log import logger
+from tilia.media import synth
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
@@ -238,6 +241,11 @@ class TimelineUIs:
             "timeline.score.group.toggle_table",
             self.on_score_group_toggle_table,
             text="Show or hide the note group table",
+        )
+        commands.register(
+            "timeline.score.synthesize_audio",
+            self.on_score_synthesize_audio,
+            text="Synthesize audio from score...",
         )
         commands.register(
             "timeline.score.toggle_page_view",
@@ -1425,6 +1433,56 @@ class TimelineUIs:
     ) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):
             tlui.on_export_note_group_table(path)
+
+    def on_score_synthesize_audio(
+        self, timeline_ui: TimelineUI | None = None, path: str | None = None
+    ) -> bool:
+        """Renders a score timeline's notes to a WAV file at `path`, asking
+        for one if not given, and loads it as the media. The audio lasts as
+        long as the media, so that the timelines keep their times. Without a
+        timeline, as from the menu bar, the first score timeline is played."""
+        if not (tlui := timeline_ui or self._get_score_timeline_ui(None)):
+            tilia.errors.display(
+                tilia.errors.SYNTHESIZE_AUDIO_FAILED, "There is no score timeline."
+            )
+            return False
+        notes = synth.score_notes(
+            c
+            for c in tlui.timeline.component_manager.get_components()
+            if c.KIND == ComponentKind.NOTE
+        )
+        if not notes:
+            tilia.errors.display(
+                tilia.errors.SYNTHESIZE_AUDIO_FAILED,
+                f"Score timeline '{tlui.get_data('name')}' has no notes to play.",
+            )
+            return False
+        if path is None:
+            accepted, path = get(
+                Get.FROM_USER_SAVE_PATH,
+                title="Save synthesized audio",
+                filter="WAV files (*.wav)",
+                initial_filename=f"{tlui.get_data('name') or 'Score'}.wav",
+            )
+            if not accepted:
+                return False
+        path = Path(path)
+        if not path.suffix:
+            path = path.with_suffix(".wav")
+        duration = get(Get.MEDIA_DURATION) or max(n.end for n in notes) + synth.RELEASE
+        try:
+            soundfile.write(
+                path, synth.render(notes, duration), synth.SAMPLE_RATE, "PCM_16"
+            )
+        except (OSError, soundfile.LibsndfileError) as error:
+            tilia.errors.display(
+                tilia.errors.SYNTHESIZE_AUDIO_FAILED,
+                f"Could not write {path}:\n{error}",
+            )
+            return False
+        # As long as the media, give or take a sample: nothing to scale.
+        post(Post.APP_MEDIA_LOAD, str(path), scale_timelines="keep")
+        return True
 
     def on_score_toggle_page_view(self, timeline_id: str | None = None) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):
