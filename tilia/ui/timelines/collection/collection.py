@@ -198,6 +198,7 @@ class TimelineUIs:
             "timelines.permute_ordinal",
             self.on_timeline_ordinal_permute,
         )
+        commands.register("timelines.center_on_time", self.center_on_time)
 
         commands.register("timeline.delete", self.on_timeline_delete, "Delete")
 

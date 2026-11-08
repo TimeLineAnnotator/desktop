@@ -43,12 +43,14 @@ let groups = []; // {id, ids, color, text}, as Python gives them
 let blobShapes = []; // {id, points, edges, radius}, as drawn
 let activeGroup = null; // the id of the group whose notes are selected
 let highlights = []; // {qStart, qEnd}: what's selected in other timelines
+let selectedMeasures = []; // entries of `measures`: those selected by a click
 let zoom = 1;
 let band = null; // the drag that may become a selection box
 let wasDragged = false;
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DRAG_THRESHOLD = 4; // pixels
+const STAFF_CLICK_MARGIN = 4; // pixels above and below the staves that still hit them
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 5;
 
@@ -501,13 +503,19 @@ function highlightRects(highlight) {
 
 function drawHighlights() {
   scoreEl.querySelector("#tilia-highlights")?.remove();
-  if (!pageSvgs().length || !highlights.length) return;
+  const shaded = [...highlights, ...selectedMeasures];
+  if (!pageSvgs().length || !shaded.length) return;
   const { width, height } = contentSize();
   const layer = svgElement("svg", { id: "tilia-highlights", width, height });
-  for (const highlight of highlights) {
+  for (const highlight of shaded) {
     for (const rect of highlightRects(highlight)) layer.append(svgElement("rect", rect));
   }
   scoreEl.append(layer);
+}
+
+function setSelectedMeasures(newMeasures) {
+  selectedMeasures = newMeasures;
+  drawHighlights();
 }
 
 // Scrolls to the first highlight, unless one is in view.
@@ -579,7 +587,80 @@ function activateGroup(id) {
   activeGroup = id;
   const group = groups.find((each) => each.id === id);
   drawGroups();
+  setSelectedMeasures([]);
   select(group ? group.ids : []);
+}
+
+// Where a click on an element takes the player.
+function positionOfElement(el) {
+  const q = onsetOf(el);
+  const measureEl = el.closest("g.measure");
+  const m = measures.find((each) => measureEl && each.id === measureEl.id);
+  return m ? positionIn(m, q) : positionAt(q);
+}
+
+// A group plays from its first note.
+function positionOfGroup(id) {
+  const group = groups.find((each) => each.id === id);
+  const notes = (group ? group.ids : []).map((each) => document.getElementById(each)).filter(Boolean);
+  if (!notes.length) return null;
+  return positionOfElement(notes.reduce((a, b) => (onsetOf(b) < onsetOf(a) ? b : a)));
+}
+
+// The measure whose staves are at a point: those of all its parts and what lies
+// between them, not what's above or below them, or beside the system.
+function measureAt(clientX, clientY) {
+  const x = scoreX(clientX);
+  const y = scoreY(clientY);
+  const system = systemAtY(y);
+  if (!system || x < system.anchors[0].x || x > system.anchors.at(-1).x) return null;
+  // A system's last position is where the next system's first measure starts.
+  const q = Math.min(interpolate(system.anchors, "x", "q", x), system.qEnd - 1e-6);
+  const measure = measures.find((each) => q >= each.qStart && q < each.qEnd);
+  const el = measure && document.getElementById(measure.id);
+  if (!el) return null;
+  const lines = [...el.querySelectorAll(".staff > path")].map((line) => line.getBoundingClientRect());
+  if (!lines.length) return null;
+  const isOnStaves =
+    clientY >= Math.min(...lines.map((line) => line.top)) - STAFF_CLICK_MARGIN &&
+    clientY <= Math.max(...lines.map((line) => line.bottom)) + STAFF_CLICK_MARGIN;
+  return isOnStaves ? measure : null;
+}
+
+function notesOfMeasure(measure) {
+  const el = document.getElementById(measure.id);
+  return el ? [...el.querySelectorAll("g.note")].map((note) => note.id) : [];
+}
+
+function revealMeasure(measure) {
+  const system = systemAtQ(measure.qStart);
+  revealY(system.top, system.bottom, false);
+  const start = xAt(system, measure.qStart);
+  const end = xAt(system, Math.min(measure.qEnd, system.qEnd));
+  const left = scoreEl.scrollLeft;
+  const width = scoreEl.clientWidth;
+  if (start < left || end > left + width) {
+    // A measure wider than the box shows its start.
+    scoreEl.scrollLeft = end - start < width ? (start + end - width) / 2 : start;
+  }
+  reportViewport(false);
+}
+
+// Selects a measure with its notes, or deselects it if it's what is selected.
+function clickMeasure(measure, keep, seek) {
+  const others = keep ? selectedMeasures.filter((each) => each !== measure) : [];
+  const kept = keep ? selectedIds() : [];
+  const notes = notesOfMeasure(measure);
+  const isSelected = selectedMeasures.includes(measure);
+  if (isSelected && (keep || selectedMeasures.length === 1)) {
+    setSelectedMeasures(others);
+    select(kept.filter((id) => !notes.includes(id)));
+    return;
+  }
+  setSelectedMeasures([...others, measure]);
+  select([...new Set([...kept, ...notes])]);
+  revealMeasure(measure);
+  send("onMeasureClicked", { ...positionIn(measure, measure.qStart), seek });
 }
 
 scoreEl.addEventListener("click", (event) => {
@@ -589,10 +670,14 @@ scoreEl.addEventListener("click", (event) => {
   }
   const el = clickable(event.target);
   const keep = event.ctrlKey || event.metaKey || event.shiftKey;
+  // As on the timelines, Alt selects without seeking.
+  const seek = !event.altKey;
   if (!el && !keep) {
     const group = groupAt(event.clientX, event.clientY);
     if (group !== null) {
       activateGroup(group);
+      const position = positionOfGroup(group);
+      if (seek && position) send("onPositionClicked", { ...position, double: false });
       return;
     }
   }
@@ -600,11 +685,20 @@ scoreEl.addEventListener("click", (event) => {
     activeGroup = null;
     drawGroups();
   }
+  const measure = el ? null : measureAt(event.clientX, event.clientY);
+  if (measure) {
+    // The second click of a double click leaves the measure selected.
+    if (event.detail < 2) clickMeasure(measure, keep, seek);
+    return;
+  }
   let ids = keep ? selectedIds() : [];
   if (el) {
     ids = ids.includes(el.id) ? ids.filter((id) => id !== el.id) : [...ids, el.id];
   }
+  const inMeasure = (each) => el && document.getElementById(each.id)?.contains(el);
+  setSelectedMeasures(keep ? selectedMeasures.filter((each) => !inMeasure(each)) : []);
   select(ids);
+  if (el && seek) send("onPositionClicked", { ...positionOfElement(el), double: false });
 });
 
 function insideScoreBox(event) {
@@ -661,6 +755,7 @@ window.addEventListener("mouseup", (event) => {
     activeGroup = null;
     drawGroups();
   }
+  if (!keep) setSelectedMeasures([]);
   select(keep ? [...new Set([...selectedIds(), ...inside])] : inside);
 });
 
@@ -682,11 +777,19 @@ scoreEl.addEventListener(
 
 scoreEl.addEventListener("dblclick", (event) => {
   const el = clickable(event.target);
-  if (!el) return;
-  const q = onsetOf(el);
-  const measureEl = el.closest("g.measure");
-  const m = measures.find((each) => measureEl && each.id === measureEl.id);
-  send("onElementDoubleClicked", { id: el.id, ...(m ? positionIn(m, q) : positionAt(q)) });
+  let position = null;
+  if (el) {
+    position = positionOfElement(el);
+  } else {
+    const group = groupAt(event.clientX, event.clientY);
+    if (group !== null) {
+      position = positionOfGroup(group);
+    } else {
+      const measure = measureAt(event.clientX, event.clientY);
+      if (measure) position = positionIn(measure, measure.qStart);
+    }
+  }
+  if (position) send("onPositionClicked", { ...position, double: true });
 });
 
 scoreEl.addEventListener("scroll", () => reportViewport(false));
@@ -750,6 +853,7 @@ window.tiliaLoadScore = (text, newLayout) => {
     activeGroup = null;
     showPages();
     highlights = [];
+    selectedMeasures = [];
     readTimemap(toolkit.renderToTimemap({ includeRests: true, includeMeasures: true }));
     fit();
     send("onScoreLoaded", { mei: toolkit.getMEI() });

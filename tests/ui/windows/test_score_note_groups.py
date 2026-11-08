@@ -784,6 +784,51 @@ class TestGroupTable:
             g.id for g in groups if len(g.get_data("element_ids")) == 3
         )
 
+    def test_click_on_blob_seeks_to_the_group_first_note(
+        self, score_view, score_tlui, tilia_state
+    ):
+        ids = [element_at(score_tlui, 2, 0), element_at(score_tlui, 3, 0)]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        rect = note_rect(score_view, ids[1])
+
+        click_at(score_view, ((rect[0] + rect[2]) / 2, rect[1] - 2))
+
+        assert wait_until(lambda: tilia_state.current_time == 2)
+
+    def test_click_on_blob_does_not_seek_while_playing(
+        self, score_view, score_tlui, tilia_state
+    ):
+        ids = [element_at(score_tlui, 2, 0), element_at(score_tlui, 3, 0)]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        click_note(score_view, element_at(score_tlui, 0, 3))
+        rect = note_rect(score_view, ids[1])
+        tilia_state.player.is_playing = True
+        try:
+            click_at(score_view, ((rect[0] + rect[2]) / 2, rect[1] - 2))
+            group_id = groups_of(score_tlui)[0].id
+            assert wait_until(lambda: score_view.active_group_id == group_id)
+            assert tilia_state.current_time == 0
+        finally:
+            tilia_state.player.is_playing = False
+
+    def test_double_click_on_blob_seeks_while_playing(
+        self, score_view, score_tlui, tilia_state
+    ):
+        ids = [element_at(score_tlui, 2, 0), element_at(score_tlui, 3, 0)]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        rect = note_rect(score_view, ids[1])
+        tilia_state.player.is_playing = True
+        try:
+            run_js(
+                score_view.view.page(),
+                f"""scoreEl.dispatchEvent(new MouseEvent('dblclick',
+                    {{bubbles: true, clientX: {(rect[0] + rect[2]) / 2},
+                      clientY: {rect[1] - 2}}}))""",
+            )
+            assert wait_until(lambda: tilia_state.current_time == 2)
+        finally:
+            tilia_state.player.is_playing = False
+
     def test_click_on_blob_selects_the_row(self, score_view, score_tlui):
         ids = [element_at(score_tlui, 0, 0), element_at(score_tlui, 1, 0)]
         commands.execute("timeline.score.group.create", element_ids=ids)

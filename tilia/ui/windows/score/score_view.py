@@ -182,9 +182,14 @@ class _Bridge(QObject):
             self._score_view.on_selection_changed(_parse(payload))
 
     @Slot(str)
-    def onElementDoubleClicked(self, payload: str) -> None:
+    def onPositionClicked(self, payload: str) -> None:
         if self._score_view:
-            self._score_view.on_element_double_clicked(_parse(payload))
+            self._score_view.on_position_clicked(_parse(payload))
+
+    @Slot(str)
+    def onMeasureClicked(self, payload: str) -> None:
+        if self._score_view:
+            self._score_view.on_measure_clicked(_parse(payload))
 
     @Slot(str)
     def onError(self, payload: str) -> None:
@@ -588,11 +593,28 @@ class ScoreView(ScoreViewerBase):
             analysis, group.id if group else None, group.label if group else ""
         )
 
-    def on_element_double_clicked(self, data: dict[str, Any]) -> None:
-        if not (times := self._get_times(data)):
-            return
+    def _get_nearest_time(self, position: dict[str, Any]) -> float | None:
+        """The time a score position is played nearest the current time: a
+        position in a repeat is played more than once."""
+        if not (times := self._get_times(position)):
+            return None
         current_time = get(Get.SELECTED_TIME)
-        commands.execute("media.seek", min(times, key=lambda t: abs(t - current_time)))
+        return min(times, key=lambda t: abs(t - current_time))
+
+    def on_position_clicked(self, data: dict[str, Any]) -> None:
+        """As with timeline components, a click seeks unless the media is
+        playing, and a double click seeks even then."""
+        if (time := self._get_nearest_time(data)) is not None:
+            commands.execute(
+                "media.seek", time, seek_if_playing=data.get("double") is True
+            )
+
+    def on_measure_clicked(self, data: dict[str, Any]) -> None:
+        if (time := self._get_nearest_time(data)) is None:
+            return
+        if data.get("seek") is True:
+            commands.execute("media.seek", time, seek_if_playing=False)
+        commands.execute("timelines.center_on_time", time)
 
     def scroll_to_time(self, time: float, is_centered: bool) -> None:
         if not self.is_score_loaded or not (beat_tl := get_beat_timeline()):

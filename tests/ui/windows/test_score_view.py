@@ -180,7 +180,9 @@ def let_page_report():
     wait_until(lambda: False, timeout=0.5)
 
 
-def click(score_view: ScoreView, element_id: str, double: bool = False):
+def click(
+    score_view: ScoreView, element_id: str, double: bool = False, alt: bool = False
+):
     events = ["click", "click", "dblclick"] if double else ["click"]
     run_js(
         score_view.view.page(),
@@ -188,7 +190,8 @@ def click(score_view: ScoreView, element_id: str, double: bool = False):
             const el = document.getElementById({json.dumps(element_id)});
             const target = el.querySelector('.notehead') || el.querySelector('use');
             for (const name of {json.dumps(events)}) {{
-                target.dispatchEvent(new MouseEvent(name, {{bubbles: true}}));
+                target.dispatchEvent(new MouseEvent(name,
+                    {{bubbles: true, altKey: {json.dumps(alt)}}}));
             }}
         }})()""",
     )
@@ -272,7 +275,70 @@ class TestLoad:
         assert score_tlui.timeline.svg_data == ""
 
 
+@pytest.fixture
+def playing(tilia_state):
+    tilia_state.player.is_playing = True
+    yield
+    tilia_state.player.is_playing = False
+
+
 class TestSeek:
+    def test_click_note_seeks_to_its_time(self, score_view, score_tlui, tilia_state):
+        note = get_notes(score_tlui)[1]
+
+        click(score_view, score_view.get_element_id(note.id))
+
+        assert wait_until(
+            lambda: tilia_state.current_time == pytest.approx(note.get_data("start"))
+        )
+
+    def test_click_note_does_not_seek_while_playing(
+        self, score_view, score_tlui, tilia_state, playing
+    ):
+        note = get_notes(score_tlui)[1]
+        element_id = score_view.get_element_id(note.id)
+
+        click(score_view, element_id)
+
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+        let_page_report()
+        assert tilia_state.current_time == 0
+
+    def test_double_click_note_seeks_while_playing(
+        self, score_view, score_tlui, tilia_state, playing
+    ):
+        note = get_notes(score_tlui)[1]
+
+        click(score_view, score_view.get_element_id(note.id), double=True)
+
+        assert wait_until(
+            lambda: tilia_state.current_time == pytest.approx(note.get_data("start"))
+        )
+
+    def test_alt_click_selects_without_seeking(
+        self, score_view, score_tlui, tilia_state
+    ):
+        element_id = score_view.get_element_id(get_notes(score_tlui)[1].id)
+
+        click(score_view, element_id, alt=True)
+
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+        let_page_report()
+        assert tilia_state.current_time == 0
+
+    def test_click_repeated_note_seeks_to_nearest_time(self, score_tlui, tilia_state):
+        add_repeated_beats()
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        first, _, second, _ = get_notes(score_tlui)
+        commands.execute("media.seek", second.get_data("start") - 1)
+
+        click(score_view, score_view.get_element_id(first.id))
+
+        assert wait_until(
+            lambda: tilia_state.current_time == pytest.approx(second.get_data("start"))
+        )
+
     def test_double_click_note_seeks_to_its_time(
         self, score_view, score_tlui, tilia_state
     ):
@@ -737,7 +803,8 @@ class TestPage:
             "onScoreLoaded",
             "onViewportChanged",
             "onSelectionChanged",
-            "onElementDoubleClicked",
+            "onPositionClicked",
+            "onMeasureClicked",
             "onError",
         }
 
@@ -1117,6 +1184,205 @@ def show_in_pages(score_view: ScoreView, width: int = 300, height: int = 150):
 
 def system_count(score_view: ScoreView) -> int:
     return run_js(score_view.view.page(), "systems.length")
+
+
+def measure_point(score_view: ScoreView, number: int) -> tuple[float, float]:
+    """A point in a measure of the long score, between its whole note and the
+    next barline, on the staff."""
+    return tuple(
+        json.loads(
+            run_js(
+                score_view.view.page(),
+                f"""(() => {{
+                    const m = measures.find((each) => each.n === '{number}');
+                    const system = systemAtQ(m.qStart);
+                    const lines = [...document.getElementById(m.id)
+                        .querySelectorAll('.staff > path')]
+                        .map((line) => line.getBoundingClientRect().top);
+                    const box = scoreEl.getBoundingClientRect();
+                    const x = xAt(system, m.qStart + (m.qEnd - m.qStart) * 0.75);
+                    return JSON.stringify([
+                        x - scoreEl.scrollLeft + box.left,
+                        (Math.min(...lines) + Math.max(...lines)) / 2,
+                    ]);
+                }})()""",
+            )
+        )
+    )
+
+
+def click_point(
+    score_view: ScoreView, point: tuple[float, float], double=False, **modifiers
+):
+    options = {"bubbles": True, "clientX": point[0], "clientY": point[1], **modifiers}
+    script = f"scoreEl.dispatchEvent(new MouseEvent('click', {json.dumps(options)}));"
+    if double:
+        second = json.dumps({**options, "detail": 2})
+        script += (
+            f"scoreEl.dispatchEvent(new MouseEvent('click', {second}));"
+            f"scoreEl.dispatchEvent(new MouseEvent('dblclick', {second}));"
+        )
+    run_js(score_view.view.page(), script)
+
+
+def click_measure(score_view: ScoreView, number: int, double=False, **modifiers):
+    click_point(score_view, measure_point(score_view, number), double, **modifiers)
+
+
+class TestClickMeasure:
+    @pytest.fixture
+    def score_view(self, long_score_view):
+        size_box(long_score_view, 300, 150)
+        return long_score_view
+
+    def measure_shading(self, score_view: ScoreView) -> list[int]:
+        return json.loads(
+            run_js(
+                score_view.view.page(),
+                "JSON.stringify(selectedMeasures.map((m) => Number(m.n)))",
+            )
+        )
+
+    def test_selects_its_notes_and_shades_it(self, score_view, score_tlui):
+        note = next(n for n in get_notes(score_tlui) if n.get_data("start") == 4)
+        element_id = score_view.get_element_id(note.id)
+
+        click_measure(score_view, 2)
+
+        assert wait_until(lambda: score_view.selected_note_ids == [element_id])
+        assert self.measure_shading(score_view) == [2]
+        assert (
+            run_js(
+                score_view.view.page(),
+                "scoreEl.querySelectorAll('#tilia-highlights rect').length",
+            )
+            == 1
+        )
+
+    def test_seeks_to_its_start(self, score_view, tilia_state):
+        click_measure(score_view, 2)
+
+        assert wait_until(lambda: tilia_state.current_time == 4)
+
+    def test_does_not_seek_while_playing(self, score_view, tilia_state, playing):
+        click_measure(score_view, 2)
+
+        assert wait_until(lambda: self.measure_shading(score_view) == [2])
+        let_page_report()
+        assert tilia_state.current_time == 0
+
+    def test_double_click_seeks_while_playing(self, score_view, tilia_state, playing):
+        click_measure(score_view, 2, double=True)
+
+        assert wait_until(lambda: tilia_state.current_time == 4)
+
+    def test_double_click_leaves_it_selected(self, score_view, tilia_state):
+        click_measure(score_view, 2, double=True)
+
+        assert wait_until(lambda: tilia_state.current_time == 4)
+        assert self.measure_shading(score_view) == [2]
+
+    def test_alt_click_does_not_seek(self, score_view, tilia_state):
+        click_measure(score_view, 2, altKey=True)
+
+        assert wait_until(lambda: self.measure_shading(score_view) == [2])
+        let_page_report()
+        assert tilia_state.current_time == 0
+
+    def test_clicking_it_again_deselects_it(self, score_view):
+        click_measure(score_view, 2)
+        assert wait_until(lambda: score_view.selected_note_ids)
+
+        click_measure(score_view, 2)
+
+        assert wait_until(lambda: not score_view.selected_note_ids)
+        assert self.measure_shading(score_view) == []
+
+    def test_click_on_another_replaces_it(self, score_view):
+        click_measure(score_view, 2)
+        click_measure(score_view, 1)
+
+        assert self.measure_shading(score_view) == [1]
+        assert wait_until(lambda: len(score_view.selected_note_ids) == 1)
+
+    def test_ctrl_click_adds_and_removes(self, score_view):
+        click_measure(score_view, 1)
+        click_measure(score_view, 2, ctrlKey=True)
+        assert wait_until(lambda: len(score_view.selected_note_ids) == 2)
+        assert self.measure_shading(score_view) == [1, 2]
+
+        click_measure(score_view, 1, ctrlKey=True)
+
+        assert wait_until(lambda: len(score_view.selected_note_ids) == 1)
+        assert self.measure_shading(score_view) == [2]
+
+    def test_click_above_the_staves_deselects(self, score_view):
+        click_measure(score_view, 1)
+        assert wait_until(lambda: score_view.selected_note_ids)
+
+        click_point(score_view, (1, 1))
+
+        assert wait_until(lambda: not score_view.selected_note_ids)
+        assert self.measure_shading(score_view) == []
+
+    def test_click_on_note_clears_it(self, score_view, score_tlui):
+        click_measure(score_view, 1)
+        element_id = score_view.get_element_id(get_notes(score_tlui)[0].id)
+
+        click(score_view, element_id)
+
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+        assert self.measure_shading(score_view) == []
+
+    def test_scrolls_a_cut_off_measure_into_view(self, score_view):
+        page = score_view.view.page()
+        # The next measure lies past the box's right edge.
+        last_in_view = run_js(
+            page,
+            """measures.filter((m) => {
+                const x = xAt(systemAtQ(m.qStart), m.qStart);
+                return x < scoreEl.clientWidth;
+            }).at(-1).n""",
+        )
+        assert run_js(page, "scoreEl.scrollLeft") == 0
+
+        click_measure(score_view, int(last_in_view))
+
+        assert wait_until(lambda: run_js(page, "scoreEl.scrollLeft") > 0)
+
+    def test_scrolls_the_timelines_to_it(self, score_view, tluis):
+        for _ in range(8):
+            commands.execute("view.zoom.in")
+        time = 4 * (LONG_SCORE_MEASURES - 2)
+        run_js(
+            score_view.view.page(),
+            f"scoreEl.scrollLeft = xAt(systemAtQ({time}), {time}) - 20",
+        )
+
+        click_measure(score_view, LONG_SCORE_MEASURES - 1)
+
+        x = time_x_converter.get_x_by_time(time)
+        assert wait_until(lambda: abs(tluis.view._get_center_x() - x) < 2)
+
+    def test_shading_survives_relayout(self, score_view):
+        click_measure(score_view, 2)
+        assert wait_until(lambda: self.measure_shading(score_view) == [2])
+
+        show_in_pages(score_view)
+
+        page = score_view.view.page()
+        assert self.measure_shading(score_view) == [2]
+        assert run_js(page, "scoreEl.querySelectorAll('#tilia-highlights rect').length")
+
+    def test_is_found_in_a_later_system_in_pages(self, score_view, tilia_state):
+        show_in_pages(score_view)
+        assert system_count(score_view) > 1
+
+        click_measure(score_view, LONG_SCORE_MEASURES)
+
+        assert wait_until(
+            lambda: tilia_state.current_time == 4 * (LONG_SCORE_MEASURES - 1)
+        )
 
 
 class TestPageView:
