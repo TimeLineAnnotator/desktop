@@ -38,7 +38,10 @@ from tilia.ui.player import PlayerToolbarElement
 from tilia.ui.smooth_scroll import SmoothSetter
 from tilia.ui.timelines.base.element_manager import ElementManager
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
-from tilia.ui.timelines.collection.import_ import _on_import_to_timeline
+from tilia.ui.timelines.collection.import_ import (
+    _on_import_to_timeline,
+    import_score_with_beat_grid,
+)
 from tilia.ui.timelines.constants import (
     MAX_PLAYBACK_WIDTH,
     PIXELS_PER_SECOND,
@@ -180,6 +183,12 @@ class TimelineUIs:
 
             if register_commands := cls.register_commands:
                 register_commands(self)
+
+        commands.register(
+            "timelines.import.score_with_beats",
+            self.on_import_score_with_beat_grid,
+            "Import score with &beats...",
+        )
 
         # Commands for individual timelines
         commands.register(
@@ -1631,6 +1640,25 @@ class TimelineUIs:
             if errors:
                 tilia.errors.display(tilia.errors.IMPORT_FAILED, "\n".join(errors))
         elif success and errors:
+            tilia.errors.display(tilia.errors.IMPORT_SUCCESS_ERRORS, "\n".join(errors))
+
+        return success
+
+    @command_callback
+    def on_import_score_with_beat_grid(self, path: str | None = None) -> bool:
+        prev_state = get(Get.APP_STATE)
+        prev_duration = get(Get.MEDIA_DURATION)
+        success, errors = import_score_with_beat_grid(path)
+
+        if not success:
+            post(Post.APP_STATE_RESTORE, prev_state)
+            if get(Get.MEDIA_DURATION) != prev_duration:
+                post(
+                    Post.PLAYER_DURATION_AVAILABLE, prev_duration, scale_timelines="no"
+                )
+            if errors:
+                tilia.errors.display(tilia.errors.IMPORT_FAILED, "\n".join(errors))
+        elif errors:
             tilia.errors.display(tilia.errors.IMPORT_SUCCESS_ERRORS, "\n".join(errors))
 
         return success

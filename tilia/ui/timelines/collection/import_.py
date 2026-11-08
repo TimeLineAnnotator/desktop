@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING
 
 import tilia.errors
 from tilia.parsers import get_import_function
-from tilia.requests import Get, get
+from tilia.parsers.score.beat_grid import ScoreMeasures, measures_from_musicxml
+from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.requests import Get, Post, get, post
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.range.timeline import RangeTimeline
@@ -103,6 +105,63 @@ def _on_import_to_timeline(
         timeline.setup_blank_timeline()
 
     return success, errors
+
+
+MUSICXML_FILE_FILTER = "musicXML files (*.musicxml *.mxl *.xml)"
+BEAT_GRID_TIMELINE_NAME = "Beats"
+
+
+def _measures_to_force_display(numbers: list[int]) -> list[int]:
+    """Measures whose number doesn't follow the one before it."""
+    return [i for i in range(1, len(numbers)) if numbers[i] != numbers[i - 1] + 1]
+
+
+def _create_beat_grid(measures: ScoreMeasures) -> BeatTimeline:
+    """A beat timeline with the score's measures, its beats equidistant over the
+    media's duration."""
+    counts = measures.beat_counts
+    beat_tl = get(Get.TIMELINE_COLLECTION).create_timeline(
+        kind=BeatTimeline,
+        name=BEAT_GRID_TIMELINE_NAME,
+        beat_pattern=counts[:1] if len(set(counts)) == 1 else counts,
+        beats_in_measure=list(counts),
+        measure_numbers=measures.numbers,
+        measures_to_force_display=_measures_to_force_display(measures.numbers),
+    )
+    beat_tl.fill_with_beats(BeatTimeline.FillMethod.BY_AMOUNT, measures.beat_count)
+    return beat_tl
+
+
+def import_score_with_beat_grid(path: str | None = None) -> tuple[bool, list[str]]:
+    """Imports a MusicXML score into a new score timeline, with a new beat
+    timeline made from its measures, so no media is needed.
+
+    Without media, the duration is set from the score's first tempo (or one
+    second per beat). With media, the beats are spread evenly over it.
+    """
+    if path is None:
+        success, path = get(
+            Get.FROM_USER_FILE_PATH, "Import score", [MUSICXML_FILE_FILTER]
+        )
+        if not success:
+            return False, []
+
+    try:
+        measures, errors = measures_from_musicxml(path)
+    except UnicodeDecodeError:
+        return False, [UTF8_DECODE_FAILED.format(path, "musicXML")]
+    if measures is None:
+        return False, errors
+
+    if get(Get.MEDIA_DURATION) == 0:
+        duration = measures.beat_count * measures.seconds_per_beat()
+        post(Post.PLAYER_DURATION_AVAILABLE, duration, scale_timelines="prompt")
+
+    beat_tl = _create_beat_grid(measures)
+    score_tl = get(Get.TIMELINE_COLLECTION).create_timeline(
+        kind=ScoreTimeline, name=measures.title
+    )
+    return notes_from_musicXML(score_tl, beat_tl, path)
 
 
 def _get_by_time_or_by_measure_from_user():

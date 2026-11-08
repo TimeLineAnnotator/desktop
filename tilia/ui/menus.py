@@ -111,6 +111,7 @@ class FileMenu(TiliaMenu):
         (MenuItemKind.SUBMENU, ExportMenu),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.SUBMENU, LoadMediaMenu),
+        (MenuItemKind.COMMAND, "timelines.import.score_with_beats"),
         (MenuItemKind.COMMAND, "window.open.metadata"),
         (MenuItemKind.SEPARATOR, None),
         (MenuItemKind.COMMAND, "folder.open.autosaves"),
@@ -181,6 +182,7 @@ class RangeMenu(TiliaMenu):
 class ScoreMenu(TiliaMenu):
     menu_title = "&Score"
     items = [
+        (MenuItemKind.COMMAND, "timelines.import.score_with_beats"),
         (MenuItemKind.COMMAND, "timelines.import.score"),
         (MenuItemKind.COMMAND, "timeline.score.group.create"),
     ]
