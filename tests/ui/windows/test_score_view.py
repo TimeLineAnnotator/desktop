@@ -551,6 +551,35 @@ class TestHighlightSelection:
         expected = score_range(score_view, (measure, 1 / 3), (measure, 1))
         assert wait_until(lambda: has_highlights(score_view, expected))
 
+    def test_repeated_measure_shades_the_measure_it_repeats(self, score_tlui):
+        add_repeated_beats()
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+        second_pass = next(b for b in beat_tlui if b.get_data("time") == 7)
+
+        click_beat_ui(second_pass)
+
+        expected = score_range(score_view, (1, 0), (1, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+    def test_range_across_repeat_shades_both_sides(self, score_tlui):
+        add_repeated_beats()
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        # From beat 2 of measure 2 to beat 3 of measure 1, played again.
+        hierarchy = add_hierarchy(4, 8)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        assert wait_until(
+            lambda: has_highlights(
+                score_view,
+                score_range(score_view, (1, 0), (1, 2 / 3)),
+                score_range(score_view, (2, 1 / 3), (2, 1)),
+            )
+        )
+
     def test_overlapping_selections_are_joined(self, score_view):
         hierarchy = add_hierarchy(5, 8)
         beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)

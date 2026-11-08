@@ -61,17 +61,39 @@ MAX_PAGE_RESTARTS = 2
 
 
 def _metric_position(
-    beat_tl: BeatTimeline, time: float, last_beats: list[float]
+    beat_tl: BeatTimeline, time: float, beat_times: list[float]
 ) -> float:
     """Where `time` falls as a measure number plus a fraction of the measure.
-    Past the last beat, the last measure goes on at the pace of the
-    `last_beats` (the times of the last two), up to its end."""
+    Past the last of the `beat_times`, the last measure goes on at the pace of
+    its last beat, up to its end."""
     position = beat_tl.get_metric_fraction_by_time(time)
-    if len(last_beats) < 2 or time <= last_beats[-1]:
+    if len(beat_times) < 2 or time <= beat_times[-1]:
         return position
-    beat_length = last_beats[-1] - last_beats[-2]
-    past = (time - last_beats[-1]) / beat_length / beat_tl.beats_in_measure[-1]
+    beat_length = beat_times[-1] - beat_times[-2]
+    past = (time - beat_times[-1]) / beat_length / beat_tl.beats_in_measure[-1]
     return min(position + past, math.floor(position) + 1)
+
+
+def _span_positions(
+    beat_tl: BeatTimeline, start: float, end: float, beat_times: list[float]
+) -> list[tuple[float, float]]:
+    """The metric positions from `start` to `end`, split where the measures
+    don't follow each other, as where a repeat goes back."""
+    segments = []
+    segment_start = previous = _metric_position(beat_tl, start, beat_times)
+    inner_beats = [time for time in beat_times if start < time < end]
+    for time in [*inner_beats, end]:
+        position = _metric_position(beat_tl, time, beat_times)
+        if math.floor(position) not in (
+            math.floor(previous),
+            math.floor(previous) + 1,
+        ):
+            # The segment so far ends with the measure it is in.
+            segments.append((segment_start, math.floor(previous) + 1))
+            segment_start = position
+        previous = position
+    segments.append((segment_start, previous))
+    return [(a, b) for a, b in segments if b > a]
 
 
 def _measure_ranges(
@@ -80,17 +102,14 @@ def _measure_ranges(
     """The score ranges that `spans` cover, as a start measure and fraction
     and an end measure and fraction. A time with no end covers its measure.
     Overlapping ranges are joined."""
-    last_beats = sorted(beat.time for beat in beat_tl)[-2:]
+    beat_times = sorted(beat.time for beat in beat_tl)
     positions = []
     for start, end in spans:
-        start_position = _metric_position(beat_tl, start, last_beats)
         if end is None:
-            measure = math.floor(start_position)
+            measure = math.floor(_metric_position(beat_tl, start, beat_times))
             positions.append((measure, measure + 1))
-        elif (
-            end_position := _metric_position(beat_tl, end, last_beats)
-        ) > start_position:
-            positions.append((start_position, end_position))
+        else:
+            positions += _span_positions(beat_tl, start, end, beat_times)
     joined: list[list[float]] = []
     for start, end in sorted(positions):
         if joined and start <= joined[-1][1]:
