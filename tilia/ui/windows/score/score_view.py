@@ -529,8 +529,9 @@ class ScoreView(ScoreViewerBase):
 
     def set_page_view(self, is_page_view: bool) -> None:
         """Shows the score in pages scrolled down, or in one system scrolled
-        sideways."""
+        sideways. Scores open the way the user last chose."""
         self.is_page_view = is_page_view
+        settings.set("score_timeline", "page_view", is_page_view)
         if self.group_panel:
             self.group_panel.pages_button.setChecked(is_page_view)
         if self._score_text is not None:

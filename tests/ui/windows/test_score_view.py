@@ -156,16 +156,20 @@ def get_notes(score_tlui):
     return [element for element in score_tlui if element.kind == ComponentKind.NOTE]
 
 
-def show_narrow(score_view: ScoreView, width: int = 120, height: int = 200):
-    # Makes the score's box narrower than the score, so that it has to scroll.
+def size_box(score_view: ScoreView, width: int, height: int):
     # A page that was never shown gets a tiny viewport, and showing a floating
     # viewer instead crashed a macOS CI worker, so the box is sized in the page.
-    page = score_view.view.page()
     run_js(
-        page,
+        score_view.view.page(),
         f"scoreEl.style.cssText = 'right: auto; bottom: auto; width: {width}px;"
         f" height: {height}px'; window.dispatchEvent(new Event('resize'))",
     )
+
+
+def show_narrow(score_view: ScoreView, width: int = 120, height: int = 200):
+    # Makes the score's box narrower than the score, so that it has to scroll.
+    page = score_view.view.page()
+    size_box(score_view, width, height)
     assert wait_until(lambda: run_js(page, "scoreEl.clientWidth") == width)
     assert run_js(page, "scoreEl.scrollWidth") > width
 
@@ -1087,13 +1091,8 @@ def long_score_view(score_tlui, tmp_path):
 
 
 def show_in_pages(score_view: ScoreView, width: int = 300, height: int = 150):
-    # Sized in the page, as `show_narrow` explains.
     page = score_view.view.page()
-    run_js(
-        page,
-        f"scoreEl.style.cssText = 'right: auto; bottom: auto; width: {width}px;"
-        f" height: {height}px'",
-    )
+    size_box(score_view, width, height)
     commands.execute(
         "timeline.score.toggle_page_view", timeline_id=score_view.timeline_id
     )
@@ -1203,6 +1202,38 @@ class TestPageView:
 
         assert wait_until(lambda: system_count(score_view) < narrow)
 
+    def test_zooming_lays_out_fewer_measures_a_system(self, score_view):
+        show_in_pages(score_view)
+        page = score_view.view.page()
+        before = system_count(score_view)
+
+        run_js(
+            page,
+            "for (let i = 0; i < 5; i++) scoreEl.dispatchEvent(new WheelEvent('wheel',"
+            " {deltaY: -100, ctrlKey: true, bubbles: true, cancelable: true}))",
+        )
+
+        assert wait_until(lambda: system_count(score_view) > before)
+
+    def test_restarted_page_keeps_pages(self, score_view):
+        show_in_pages(score_view)
+        page = score_view.view.page()
+        run_js(page, "window.beforeReload = true")
+
+        page.triggerAction(QWebEnginePage.WebAction.Reload)
+
+        assert wait_until(
+            lambda: run_js(page, "window.beforeReload === undefined && layout")
+            == "pages",
+            timeout=30,
+        )
+        assert wait_until(lambda: system_count(score_view) > 1, timeout=30)
+
+    def test_choice_carries_over_to_new_viewers(self, score_view):
+        show_in_pages(score_view)
+
+        assert settings.get("score_timeline", "page_view") is True
+
 
 class TestDock:
     def test_viewer_can_float(self, score_view):
@@ -1218,4 +1249,10 @@ class TestDock:
         ],
     )
     def test_viewer_docks_on_any_side(self, score_view, area):
+        main_window = get(Get.MAIN_WINDOW)
+        # Dragging the viewer there is allowed: addDockWidget doesn't check.
         assert score_view.isAreaAllowed(area)
+
+        main_window.addDockWidget(area, score_view)
+
+        assert main_window.dockWidgetArea(score_view) == area

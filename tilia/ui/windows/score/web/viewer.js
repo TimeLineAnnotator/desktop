@@ -79,7 +79,7 @@ function sanitizedSvg(text) {
   return page;
 }
 
-function pages() {
+function pageSvgs() {
   return [...scoreEl.querySelectorAll("svg.tilia-page")];
 }
 
@@ -274,7 +274,7 @@ function qAt(measure, fraction) {
 }
 
 function contentSize() {
-  const all = pages();
+  const all = pageSvgs();
   return {
     width: Math.max(0, ...all.map((svg) => parseFloat(svg.style.width) || 0)),
     height: all.reduce((sum, svg) => sum + (parseFloat(svg.style.height) || 0), 0),
@@ -282,7 +282,7 @@ function contentSize() {
 }
 
 function fit() {
-  const all = pages();
+  const all = pageSvgs();
   if (!all.length) return;
   setOverflow();
   if (layout === "pages") {
@@ -309,12 +309,16 @@ function fit() {
   drawHighlights();
 }
 
-// The systems in view: those whose staves show, or else the one around the
-// middle of the box.
+// The systems in view: those at least half shown, or filling half the box, or
+// else the one around the middle of the box.
 function visibleSystems() {
   const top = scoreEl.scrollTop;
-  const bottom = top + scoreEl.clientHeight;
-  const shown = systems.filter((system) => system.bottom > top && system.top < bottom);
+  const height = scoreEl.clientHeight;
+  const bottom = top + height;
+  const shown = systems.filter((system) => {
+    const overlap = Math.min(bottom, system.bottom) - Math.max(top, system.top);
+    return overlap > 0 && (overlap >= (system.bottom - system.top) / 2 || overlap >= height / 2);
+  });
   return shown.length ? shown : [systemAtY((top + bottom) / 2)].filter(Boolean);
 }
 
@@ -435,7 +439,7 @@ function drawGroups() {
   scoreEl.querySelector("#tilia-groups")?.remove();
   scoreEl.querySelector("#tilia-group-labels")?.remove();
   blobShapes = [];
-  if (!pages().length || !groups.length) return;
+  if (!pageSvgs().length || !groups.length) return;
   const { width, height } = contentSize();
   const overlay = svgElement("svg", { id: "tilia-groups", width, height });
   // Blobs go behind the score, and labels in front, to be read over the notes.
@@ -493,7 +497,7 @@ function highlightRects(highlight) {
 
 function drawHighlights() {
   scoreEl.querySelector("#tilia-highlights")?.remove();
-  if (!pages().length || !highlights.length) return;
+  if (!pageSvgs().length || !highlights.length) return;
   const { width, height } = contentSize();
   const layer = svgElement("svg", { id: "tilia-highlights", width, height });
   for (const highlight of highlights) {
@@ -704,9 +708,14 @@ function relayout() {
   if (!measures.length) return;
   const shown = systems.length ? visibleSystems()[0] : null;
   const q = shown ? interpolate(shown.anchors, "x", "q", scoreEl.scrollLeft) : 0;
-  setLayoutOptions();
-  toolkit.redoLayout();
-  showPages();
+  try {
+    setLayoutOptions();
+    toolkit.redoLayout();
+    showPages();
+  } catch (error) {
+    send("onError", { message: String(error) });
+    return;
+  }
   scoreEl.scrollLeft = 0;
   scoreEl.scrollTop = 0;
   fit();
@@ -722,12 +731,17 @@ function relayout() {
 window.tiliaLoadScore = (text, newLayout) => {
   try {
     layout = newLayout === "pages" ? "pages" : "continuous";
-    scoreEl.replaceChildren();
+    clearTimeout(relayoutTimer);
     setLayoutOptions();
     if (!toolkit.loadData(text)) {
+      // Nothing is left to show: not the last score either.
+      scoreEl.replaceChildren();
+      measures = [];
+      systems = [];
       send("onError", { message: "Verovio could not read the score." });
       return;
     }
+    scoreEl.replaceChildren();
     colors = new Map();
     activeGroup = null;
     showPages();
