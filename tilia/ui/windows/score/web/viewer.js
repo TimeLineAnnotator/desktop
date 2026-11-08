@@ -566,9 +566,10 @@ window.tiliaSetColors = (colors) => {
 window.tiliaReportViewport = () => reportViewport(true);
 
 // Shades score ranges, each a start measure and fraction and an end measure
-// and fraction, and scrolls to them unless one is in view already. A range that runs past the score, as beats past its last measure do, is cut
-// at the score's ends.
-window.tiliaSetHighlights = (ranges) => {
+// and fraction, and, if `reveal`, scrolls to them unless one is in view. A
+// range that runs past the score, as beats past its last measure do, is cut at
+// the score's ends.
+window.tiliaSetHighlights = (ranges, reveal) => {
   const first = measures[0]?.qStart ?? 0;
   const last = measures.at(-1)?.qEnd ?? 0;
   highlights = ranges
@@ -580,7 +581,7 @@ window.tiliaSetHighlights = (ranges) => {
     })
     .filter((highlight) => highlight && highlight.qEnd > highlight.qStart);
   drawHighlights();
-  revealHighlights();
+  if (reveal) revealHighlights();
 };
 
 // Makes a group the active one, and scrolls to it unless it's all in view.

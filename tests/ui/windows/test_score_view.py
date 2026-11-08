@@ -18,8 +18,10 @@ from tests.ui.timelines.beat.interact import click_beat_ui
 from tests.ui.timelines.interact import (
     click_timeline_ui_element_body,
     click_timeline_ui_view,
+    drag_mouse_in_timeline_view,
     press_key,
 )
+from tests.ui.timelines.marker.interact import click_marker_ui
 from tests.utils import (
     get_blank_file_data,
     run_js,
@@ -34,6 +36,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
+from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.choose import ChooseDialog
 from tilia.ui.windows.score.score_view import (
     SCORE_INITIAL_HEIGHT,
@@ -512,6 +515,14 @@ def add_hierarchy(start: float, end: float):
     )
 
 
+def add_marker(time: float):
+    commands.execute("timelines.add.marker", name="Cues")
+    commands.execute("media.seek", time)
+    commands.execute("timeline.marker.add")
+    tlui = next(t for t in get(Get.TIMELINE_UIS) if t.get_data("name") == "Cues")
+    return tlui[0]
+
+
 class TestHighlightSelection:
     def test_selected_beat_shades_its_measure(self, score_view):
         beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
@@ -622,16 +633,56 @@ class TestHighlightSelection:
         assert wait_until(lambda: run_js(page, "scoreEl.scrollLeft") > scroll)
         assert wait_until(lambda: score_view.visible_times[1] >= 9)
 
-    def test_moving_selected_hierarchy_moves_shading(self, score_view):
+    def test_dragging_selected_marker_moves_shading(self, score_view):
+        marker = add_marker(6)
+        click_marker_ui(marker)
+        expected = score_range(score_view, (measure_of(6), 0), (measure_of(6), 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+        drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(9), 0)
+
+        expected = score_range(score_view, (measure_of(9), 0), (measure_of(9), 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+    def test_measure_played_twice_in_a_row_shades_it(self, score_tlui):
+        # Measure 1 is played twice, then measure 2: numbered 1, 1, 2.
+        beat_tlui = add_beat_timeline([3], range(9))
+        click_beat_ui(beat_tlui[3])
+        with Serve(Get.FROM_USER_INT, (True, 1)):
+            commands.execute("timeline.beat.set_measure_number")
+        import_score(add_measure_zero=False)
+        score_view = get_score_view(score_tlui)
+        # From beat 2 of the first time to beat 2 of the second.
+        hierarchy = add_hierarchy(1, 4)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        expected = score_range(score_view, (1, 0), (1, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+    def test_deleting_timeline_clears_shading(self, score_view):
         hierarchy = add_hierarchy(5, 8)
         click_timeline_ui_element_body(hierarchy)
         assert wait_until(lambda: get_highlights(score_view))
 
-        hierarchy.set_data("end", 11)
+        with patch_yes_or_no_dialog(True):
+            commands.execute("timeline.delete", hierarchy.timeline_ui)
 
-        measure = measure_of(8)
-        expected = score_range(score_view, (measure_of(5), 0), (measure, 1))
-        assert wait_until(lambda: has_highlights(score_view, expected))
+        assert wait_until(lambda: get_highlights(score_view) == [])
+
+    def test_dragging_selected_marker_does_not_scroll_back(self, score_view):
+        show_narrow(score_view)
+        marker = add_marker(5)
+        click_marker_ui(marker)
+        assert wait_until(lambda: get_highlights(score_view))
+        page = score_view.view.page()
+        run_js(page, "scoreEl.scrollLeft = scoreEl.scrollWidth")
+        scroll = run_js(page, "scoreEl.scrollLeft")
+
+        drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(5.5), 0)
+
+        let_page_report()
+        assert run_js(page, "scoreEl.scrollLeft") == scroll
 
 
 class TestPage:

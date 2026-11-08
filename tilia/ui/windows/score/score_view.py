@@ -10,6 +10,7 @@ timeline turns into times, as imports by measure do.
 
 from __future__ import annotations
 
+import bisect
 import json
 import math
 import os
@@ -81,13 +82,14 @@ def _span_positions(
     don't follow each other, as where a repeat goes back."""
     segments = []
     segment_start = previous = _metric_position(beat_tl, start, beat_times)
-    inner_beats = [time for time in beat_times if start < time < end]
+    inner_beats = beat_times[
+        bisect.bisect_right(beat_times, start) : bisect.bisect_left(beat_times, end)
+    ]
     for time in [*inner_beats, end]:
         position = _metric_position(beat_tl, time, beat_times)
-        if math.floor(position) not in (
-            math.floor(previous),
-            math.floor(previous) + 1,
-        ):
+        # Back, even within the measure (a measure played twice in a row), or
+        # past the next measure.
+        if position < previous or math.floor(position) > math.floor(previous) + 1:
             # The segment so far ends with the measure it is in.
             segments.append((segment_start, math.floor(previous) + 1))
             segment_start = position
@@ -252,10 +254,13 @@ class ScoreView(ScoreViewerBase):
         # whether an update of that shading is on its way.
         self._has_highlights = False
         self._is_highlight_update_pending = False
+        self._should_reveal_highlights = False
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_current_time_changed)
         listen(self, Post.TIMELINE_COMPONENT_SELECTED, self.on_selection_changed_in)
         listen(self, Post.TIMELINE_COMPONENT_DESELECTED, self.on_selection_changed_in)
+        listen(self, Post.TIMELINE_DELETE_DONE, self.on_timelines_changed)
+        listen(self, Post.APP_STATE_RESTORE, self.on_timelines_changed)
         listen(
             self,
             Post.TIMELINE_COMPONENT_SET_DATA_DONE,
@@ -638,8 +643,7 @@ class ScoreView(ScoreViewerBase):
     ) -> None:
         if timeline_id != self.timeline_id:
             # A selected component may have moved, or the beats under it.
-            if self._has_highlights:
-                self._schedule_highlight_update()
+            self._schedule_highlight_update()
             return
         if attr != "color":
             return
@@ -649,7 +653,15 @@ class ScoreView(ScoreViewerBase):
 
     def on_selection_changed_in(self, timeline_id: int, _element_id: int) -> None:
         if timeline_id != self.timeline_id:
+            # Only a new selection scrolls to it: an edit or the user's
+            # scrolling shouldn't be undone.
+            self._should_reveal_highlights = True
             self._schedule_highlight_update()
+
+    def on_timelines_changed(self, *_: Any) -> None:
+        # Selected elements may have gone with their timeline, without being
+        # deselected.
+        self._schedule_highlight_update()
 
     def _schedule_highlight_update(self) -> None:
         # Once for all the elements a selection box or a select-all changes.
@@ -665,8 +677,11 @@ class ScoreView(ScoreViewerBase):
             return
         ranges = _measure_ranges(beat_tl, self._selected_spans())
         if ranges or self._has_highlights:
-            self._run_script("tiliaSetHighlights", ranges)
+            self._run_script(
+                "tiliaSetHighlights", ranges, self._should_reveal_highlights
+            )
         self._has_highlights = bool(ranges)
+        self._should_reveal_highlights = False
 
     def _selected_spans(self) -> list[tuple[float, float | None]]:
         """The times of the components selected in other timelines: a start
