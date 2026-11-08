@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Callable, Generic, Iterable, TypeVar
 
 from PySide6.QtWidgets import QGraphicsItem
 
+from tilia.requests import Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.element_kinds import get_element_class_by_kind
@@ -148,6 +149,7 @@ class ElementManager(Generic[TE]):
         if element not in self._selected_elements:
             self._add_to_selected_elements_set(element)
             element.on_select()
+            post(Post.TIMELINE_COMPONENT_SELECTED, element.timeline_ui.id, element.id)
             return True
         return False
 
@@ -155,6 +157,7 @@ class ElementManager(Generic[TE]):
         if element in self._selected_elements:
             self._remove_from_selected_elements_set(element)
             element.on_deselect()
+            post(Post.TIMELINE_COMPONENT_DESELECTED, element.timeline_ui.id, element.id)
             return True
         return False
 
