@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tilia.requests import Post, post
 from tilia.timelines.base.component import (
@@ -17,6 +17,9 @@ from tilia.timelines.base.timeline import (
 from tilia.timelines.base.validators import validate_pre_validated, validate_string
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.pcset import PitchClassSetAnalysis, analyse
+
+if TYPE_CHECKING:
+    from tilia.timelines.score.components.note import Note
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -148,16 +151,28 @@ class ScoreTimeline(Timeline):
             and note.is_pitched
         )
 
-    def get_element_start_times(self, element_ids: list[str]) -> list[float]:
-        """When the score's notes with these elements are first played: a
-        repeated measure's element has a note for each time it's played."""
+    def _get_first_notes(self, element_ids: list[str]) -> list[Note]:
+        """The score's notes with these elements the first time they're played:
+        a repeated measure's element has a note for each time it's played."""
         wanted = set(element_ids)
-        starts: dict[str, float] = {}
+        first_notes: dict[str, Note] = {}
         for note in self.component_manager.get_components():
             if note.KIND == ComponentKind.NOTE and note.element_id in wanted:
-                previous = starts.get(note.element_id, note.start)
-                starts[note.element_id] = min(previous, note.start)
-        return list(starts.values())
+                first = first_notes.get(note.element_id)
+                if first is None or note.start < first.start:
+                    first_notes[note.element_id] = note
+        return list(first_notes.values())
+
+    def get_element_start_times(self, element_ids: list[str]) -> list[float]:
+        return [note.start for note in self._get_first_notes(element_ids)]
+
+    def get_elements_span(self, element_ids: list[str]) -> tuple[float, float] | None:
+        """From the first note's start to the last note's end, or None if no
+        note has these elements."""
+        notes = self._get_first_notes(element_ids)
+        if not notes:
+            return None
+        return min(n.start for n in notes), max(n.end for n in notes)
 
     @property
     def staff_count(self):

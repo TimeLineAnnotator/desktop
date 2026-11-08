@@ -11,6 +11,7 @@ from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.pdf.timeline import PdfTimeline
 from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
+from tilia.timelines.sets.timeline import SetsTimeline
 from tilia.ui.cli.io import output
 
 # Every kind the user can create, with its abbreviation. SliderTimeline is
@@ -31,6 +32,8 @@ KIND_STR_TO_TIMELINE_CLASS: dict[str, type[Timeline]] = {
     "rng": RangeTimeline,
     "score": ScoreTimeline,
     "sco": ScoreTimeline,
+    "sets": SetsTimeline,
+    "set": SetsTimeline,
 }
 
 # The creation kwargs each kind accepts. This doubles as the validation
@@ -47,6 +50,8 @@ TIMELINE_CLASS_TO_KWARGS_NAMES: dict[type[Timeline], list[str]] = {
     PdfTimeline: ["name", "height", "path"],
     RangeTimeline: ["name", "height", "default_row_height"],
     ScoreTimeline: ["name", "height"],
+    # Takes no height: it has as many rows as its sets need.
+    SetsTimeline: ["name"],
 }
 
 # Kwargs a kind can't be constructed without.

@@ -15,6 +15,7 @@ from tilia.requests import Get, Post, get, listen, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
+from tilia.timelines.sets.timeline import SetsTimeline
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
@@ -631,6 +632,7 @@ class ScoreTimelineUI(TimelineUI):
     def _refresh_note_groups(self, active_group: str | None = None) -> None:
         if isinstance(self._viewer, ScoreView):
             self._viewer.show_note_groups(active_group)
+        post(Post.SCORE_NOTE_GROUPS_CHANGED)
 
     def on_create_note_group(
         self, element_ids: list[str] | None, label: str = ""
@@ -649,8 +651,15 @@ class ScoreTimelineUI(TimelineUI):
         )
         if not group:
             return False
+        self._ensure_sets_lane()
         self._refresh_note_groups(group.id)
         return True
+
+    @staticmethod
+    def _ensure_sets_lane() -> None:
+        timelines = get(Get.TIMELINE_COLLECTION)
+        if not timelines.has_timeline_of_type(SetsTimeline):
+            timelines.create_timeline(SetsTimeline, name="Sets")
 
     def _get_note_group(self, group_id: str | None):
         if group_id is None and isinstance(self._viewer, ScoreView):

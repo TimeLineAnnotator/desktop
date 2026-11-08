@@ -361,6 +361,7 @@ class Timelines:
     def scale_timeline_components(self, factor: float) -> None:
         for tl in [tl for tl in self if hasattr(tl, "scale")]:
             tl.scale(factor)
+        post(Post.TIMELINES_SCALE_DONE)
 
     def crop_timeline_components(self, new_length: float) -> None:
         for tl in [tl for tl in self if hasattr(tl, "crop")]:

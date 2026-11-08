@@ -32,6 +32,7 @@ from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.pdf.timeline import PdfTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
+from tilia.timelines.sets.timeline import SetsTimeline
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
@@ -161,6 +162,9 @@ class TimelineUIs:
                     text = name[0].upper() + "&" + name[1:]
                 elif backend is PdfTimeline:
                     text = "&" + name.upper()
+                elif backend is SetsTimeline:
+                    # "Score" has the first letter.
+                    text = "S&ets"
                 else:
                     text = "&" + name.capitalize()
 
@@ -789,6 +793,8 @@ class TimelineUIs:
         if tlui.timeline_class is SliderTimeline:
             tlui = cast(SliderTimelineUI, tlui)
             tlui.update_items_position()
+        elif tlui.timeline_class is SetsTimeline:
+            tlui.redraw()
         else:
             tlui.element_manager.update_time_on_elements()
 

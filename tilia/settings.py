@@ -122,6 +122,10 @@ class SettingsManager(QObject):
             "measure_tracker_color": "#80ff8000",
             "page_view": "false",
         },
+        "sets_timeline": {
+            "row_height": 22,
+            "default_color": "#999999",
+        },
         "range_timeline": {
             "default_row_height": 30,
             "bottom_margin": 20,
