@@ -19,7 +19,7 @@ from tilia.requests import (
     stop_serving_all,
 )
 from tilia.ui import commands
-from tilia.ui.player import PlayerStatus
+from tilia.ui.player import PlayerStatus, PlayerToolbarElement
 from tilia.utils import get_tilia_class_string
 
 
@@ -49,6 +49,7 @@ class Player(ABC):
         self.is_looping = False
         self.loop_start = 0
         self.loop_end = 0
+        self._is_score_sound_available = False
         self.qtimer = QTimer()
         self.qtimer.timeout.connect(self._play_loop)
 
@@ -136,11 +137,33 @@ class Player(ABC):
         self.media_path = ""
         self.is_playing = False
         self.is_looping = False
+        self._is_score_sound_available = False
         post(Post.PLAYER_CANCEL_LOOP)
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.NO_MEDIA)
 
+    def set_score_sound_available(self, is_available: bool) -> None:
+        """With no media, a player that can do so plays the score's own sound
+        instead. The sound isn't media: `media_path` stays empty, so it doesn't
+        go in the file, and the file's duration doesn't change."""
+        if is_available == self._is_score_sound_available:
+            return
+        self._is_score_sound_available = is_available
+        if is_available:
+            post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
+        else:
+            self.unload_media()
+
+    def _prepare_score_sound(self) -> bool:
+        """Returns False if playback can't start."""
+        return True
+
     def toggle_play(self, toggle_is_playing: bool):
         if toggle_is_playing:
+            if not self._prepare_score_sound():
+                post(
+                    Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_PLAY_PAUSE, False
+                )
+                return
             if self.is_looping:
                 self.on_seek(self.loop_start)
             self._engine_play()
@@ -218,7 +241,7 @@ class Player(ABC):
         )
 
     def on_export_audio(self, segment_name: str, start_time: float, end_time: float):
-        if self.MEDIA_TYPE != "audio":
+        if self.MEDIA_TYPE != "audio" or not self.media_path:
             tilia.errors.display(
                 tilia.errors.EXPORT_AUDIO_FAILED, "Can only export from audio files."
             )

@@ -67,7 +67,6 @@ class LoadMediaMenu(TiliaMenu):
     items = [
         (MenuItemKind.COMMAND, "media.load.local"),
         (MenuItemKind.COMMAND, "media.load.youtube"),
-        (MenuItemKind.COMMAND, "timeline.score.synthesize_audio"),
     ]
 
 

@@ -19,14 +19,14 @@ def load_media(
 
     # change player to audio or video if needed
     if player.MEDIA_TYPE != media_type:
-        player = _change_player_type(player, media_type)
+        player = change_player_type(player, media_type)
 
     success = player.load_media(path, initial_duration=initial_duration)
 
     return success, player
 
 
-def _change_player_type(player, media_type):
+def change_player_type(player, media_type):
     if player.MEDIA_TYPE == "youtube":
         # QWebEngineView holds exclusive CoreAudio/AVFoundation resources; if
         # its renderer process is still alive when QMediaPlayer initialises,

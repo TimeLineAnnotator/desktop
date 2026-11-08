@@ -46,7 +46,6 @@ MEDIA_LOAD_FAILED = Error(
 YOUTUBE_URL_INVALID = Error("Invalid YouTube URL", "{} is not a valid URL.")
 EXPORT_AUDIO_FAILED = Error("Export Audio", "{}")
 EXPORT_NOTE_GROUPS_FAILED = Error("Export note groups", "Could not write {}:\n{}")
-SYNTHESIZE_AUDIO_FAILED = Error("Synthesize audio", "{}")
 ADD_MODE_FAILED = Error("Add key failed", "Adding key failed: {}.")
 ADD_HARMONY_FAILED = Error("Add harmony failed", "{}")
 ADD_PDF_MARKER_FAILED = Error("Add page marker failed", "Can't add page marker: {}")

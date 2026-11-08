@@ -1,6 +1,6 @@
 """Audio for a score: its notes rendered with a simple additive synth.
 
-It lets a score imported without media be heard. Pitches are exact, quarter
+It lets a score be heard when no media is loaded. Pitches are exact, quarter
 tones and any other microtones included, which MIDI and its synths can only
 approximate with pitch bends. The tone is plain on purpose, organ-like with a
 soft attack, so that chords and their pitch classes are easy to hear out.
@@ -8,12 +8,17 @@ soft attack, so that chords and their pitch classes are easy to hear out.
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass
 from typing import Iterable
 
 import numpy as np
+import soundfile
 
+from tilia.requests import Get, get
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components.note import Note
+from tilia.timelines.score.timeline import ScoreTimeline
 
 SAMPLE_RATE = 44100
 # Partials' amplitudes, from the fundamental up.
@@ -100,3 +105,21 @@ def score_notes(notes: Iterable[Note]) -> list[SynthNote]:
         if note.tie_type in joins_next:
             open_ties[key] = index
     return result
+
+
+def get_score_notes() -> list[SynthNote]:
+    """What all the score timelines sound like together."""
+    result: list[SynthNote] = []
+    for timeline in get(Get.TIMELINE_COLLECTION).get_timelines_by_type(ScoreTimeline):
+        result += score_notes(
+            c
+            for c in timeline.component_manager.get_components()
+            if c.KIND == ComponentKind.NOTE
+        )
+    return result
+
+
+def to_wav(samples: np.ndarray, sample_rate: int = SAMPLE_RATE) -> bytes:
+    file = io.BytesIO()
+    soundfile.write(file, samples, sample_rate, format="WAV", subtype="PCM_16")
+    return file.getvalue()

@@ -19,5 +19,4 @@ class ScoreTimelineUIContextMenu(TimelineUIContextMenu):
     name = "Score timeline"
     items = [
         (MenuItemKind.COMMAND, "timeline.set_name"),
-        (MenuItemKind.COMMAND, "timeline.score.synthesize_audio"),
     ]

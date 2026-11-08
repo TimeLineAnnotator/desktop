@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEventLoop, QTimer, QUrl, SignalInstance
+from PySide6.QtCore import (
+    QBuffer,
+    QByteArray,
+    QEventLoop,
+    QIODevice,
+    QTimer,
+    QUrl,
+    SignalInstance,
+)
 from PySide6.QtMultimedia import (
     QAudio,
     QAudioDevice,
@@ -9,7 +17,9 @@ from PySide6.QtMultimedia import (
     QMediaPlayer,
 )
 
-from tilia.requests import Post, post
+import tilia.errors
+from tilia.media import synth
+from tilia.requests import Get, Post, get, long_operation, post
 from tilia.ui.player import PlayerStatus
 
 from .base import Player
@@ -60,6 +70,10 @@ class QtPlayer(Player):
         self.audio_output.setDevice(QAudioDevice())
         self.media_devices = QMediaDevices()
         self.media_devices.audioOutputsChanged.connect(self.on_audio_outputs_changed)
+        # The player reads the score's sound from here while it's loaded.
+        self._score_sound_buffer: QBuffer | None = None
+        # What that sound was rendered from.
+        self._score_sound_source: tuple[list[synth.SynthNote], float] | None = None
         self._init_player()
 
     def _init_player(self):
@@ -69,6 +83,52 @@ class QtPlayer(Player):
     def on_media_load_done(self, path, start, end):
         super().on_media_load_done(path, start, end)
         post(Post.PLAYER_UPDATE_CONTROLS, PlayerStatus.PLAYER_ENABLED)
+
+    def _prepare_score_sound(self) -> bool:
+        """The sound is rendered when it's first played, and again only if the
+        notes changed: a file with a recording never pays for it."""
+        if self.media_path or not self._is_score_sound_available:
+            return True
+        source = (synth.get_score_notes(), get(Get.MEDIA_DURATION))
+        if source == self._score_sound_source:
+            return True
+        if not source[1]:
+            return False
+        if not self._load_score_sound(*source):
+            tilia.errors.display(tilia.errors.MEDIA_LOAD_FAILED, "the score's sound")
+            return False
+        self._score_sound_source = source
+        return True
+
+    @long_operation("Rendering score...")
+    def _load_score_sound(self, notes: list[synth.SynthNote], duration: float) -> bool:
+        buffer = QBuffer()
+        buffer.setData(QByteArray(synth.to_wav(synth.render(notes, duration))))
+        buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+
+        @wait_for_signal(
+            self.player.mediaStatusChanged, QMediaPlayer.MediaStatus.LoadedMedia
+        )
+        def load() -> bool:
+            if not self.player.source().isEmpty():
+                self._engine_stop()
+            # The name tells the backend what the data is.
+            self.player.setSourceDevice(buffer, QUrl("score.wav"))
+            self._score_sound_buffer = buffer
+            return True
+
+        if not load():
+            return False
+        self.is_media_loaded = True
+        # As the player measures it, or playback would never reach its end. It
+        # isn't announced: this isn't media the timelines should be scaled to.
+        self.duration = self.playback_end = self._engine_get_media_duration()
+        self._engine_seek(self.current_time)
+        return True
+
+    def _forget_score_sound(self) -> None:
+        self._score_sound_buffer = None
+        self._score_sound_source = None
 
     def on_audio_outputs_changed(self) -> None:
         """
@@ -87,6 +147,7 @@ class QtPlayer(Player):
             return True
 
         success = load_media(media_path)
+        self._forget_score_sound()
         if success:
             # Divides by 1000 as durations is expected to be in miliseconds
             self.on_media_duration_available(self.player.duration() / 1000)
@@ -124,6 +185,7 @@ class QtPlayer(Player):
             return
         self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
         self.player.setSource(QUrl())
+        self._forget_score_sound()
 
     def _engine_get_media_duration(self) -> float:
         return self.player.duration() / 1000

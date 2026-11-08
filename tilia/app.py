@@ -14,7 +14,8 @@ import tilia.errors
 from tilia.exceptions import NoReplyToRequest
 from tilia.file.file_manager import open_tla
 from tilia.file.tilia_file import TiliaFile
-from tilia.media.loader import load_media
+from tilia.media import synth
+from tilia.media.loader import change_player_type, load_media
 from tilia.requests import Get, Post, get, listen, long_operation, post, serve
 from tilia.settings import settings
 from tilia.timelines.collection.collection import Timelines
@@ -67,6 +68,9 @@ class App:
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_STATE_RECORD, self.on_record_state),
             (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
+            (Post.SCORE_TIMELINE_COMPONENTS_DESERIALIZED, self.update_score_sound),
+            (Post.SCORE_TIMELINE_CLEAR_DONE, self.update_score_sound),
+            (Post.TIMELINE_DELETE_DONE, self.update_score_sound),
         }
 
         SERVES = {
@@ -278,9 +282,19 @@ class App:
             duration = initial_duration or 0.0
             post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
             self.duration = duration
+            self.update_score_sound()
             return True
 
         return self._do_load_media(path, record, initial_duration)
+
+    def update_score_sound(self, *_) -> None:
+        """Without media, a score is heard through the audio player."""
+        if self.player.media_path:
+            return
+        is_available = bool(synth.get_score_notes())
+        if is_available and self.player.MEDIA_TYPE != "audio":
+            self.player = change_player_type(self.player, "audio")
+        self.player.set_score_sound_available(is_available)
 
     @long_operation("Loading media...")
     def _do_load_media(
