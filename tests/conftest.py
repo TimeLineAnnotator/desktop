@@ -16,6 +16,7 @@ import tilia.utils  # noqa: F401
 from tests import SETTINGS_DIR
 from tilia.app import App
 from tilia.boot import setup_logic
+from tilia.media.audition import Audition
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import (
     Get,
@@ -231,6 +232,16 @@ def no_score_drawing(request, monkeypatch):
     if request.node.get_closest_marker("draws_scores"):
         return
     monkeypatch.setattr(ScoreView, "load_score", lambda *_args, **_kwargs: None)
+
+
+@pytest.fixture(autouse=True)
+def auditioned(monkeypatch):
+    """What would've been heard: tests that click notes stay silent."""
+    played = []
+    monkeypatch.setattr(
+        Audition, "play", lambda _self, pitches, volume: played.append(pitches)
+    )
+    return played
 
 
 def pytest_unconfigure(config):

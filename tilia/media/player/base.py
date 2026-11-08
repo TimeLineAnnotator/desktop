@@ -8,6 +8,7 @@ from PySide6.QtCore import QTimer
 
 import tilia.errors
 from tilia.media import exporter
+from tilia.media.audition import Audition
 from tilia.requests import (
     Get,
     Post,
@@ -18,6 +19,7 @@ from tilia.requests import (
     stop_listening_to_all,
     stop_serving_all,
 )
+from tilia.settings import settings
 from tilia.ui import commands
 from tilia.ui.player import PlayerStatus, PlayerToolbarElement
 from tilia.utils import get_tilia_class_string
@@ -50,6 +52,9 @@ class Player(ABC):
         self.loop_start = 0
         self.loop_end = 0
         self._is_score_sound_available = False
+        self._audition = Audition()
+        self._volume = 100
+        self._is_muted = False
         self.qtimer = QTimer()
         self.qtimer.timeout.connect(self._play_loop)
 
@@ -66,6 +71,8 @@ class Player(ABC):
         commands.register("media.volume.mute", self.on_volume_mute)
         commands.register("media.playback_rate.try", self.on_playback_rate_try)
         commands.register("media.export_audio", self.on_export_audio)
+        commands.register("media.audition", self.on_audition)
+        commands.register("media.audition.toggle", self.on_audition_toggle)
 
     def _setup_requests(self):
         LISTENS = {
@@ -159,6 +166,7 @@ class Player(ABC):
 
     def toggle_play(self, toggle_is_playing: bool):
         if toggle_is_playing:
+            self._audition.stop()
             if not self._prepare_score_sound():
                 post(
                     Post.PLAYER_UI_UPDATE, PlayerToolbarElement.TOGGLE_PLAY_PAUSE, False
@@ -211,10 +219,29 @@ class Player(ABC):
         self.loop_end = end_time
 
     def on_volume_change(self, volume: int) -> None:
+        self._volume = volume
         self._engine_set_volume(volume)
 
     def on_volume_mute(self, is_muted: bool) -> None:
+        self._is_muted = is_muted
         self._engine_set_mute(is_muted)
+
+    def on_audition(self, pitches: list[float]) -> None:
+        """Lets notes be heard as they're clicked, unless playback is sounding."""
+        if (
+            pitches
+            and not self.is_playing
+            and not self._is_muted
+            and settings.get("score_timeline", "audition")
+        ):
+            self._audition.play(pitches, self._volume)
+
+    def on_audition_toggle(self) -> None:
+        is_on = not settings.get("score_timeline", "audition")
+        settings.set("score_timeline", "audition", is_on)
+        if not is_on:
+            self._audition.stop()
+        post(Post.SETTINGS_UPDATED, ["score_timeline"])
 
     def on_playback_rate_try(self, playback_rate: float) -> None:
         self._engine_try_playback_rate(playback_rate)
@@ -305,6 +332,7 @@ class Player(ABC):
         # possibly while it's playing. Stop it first: otherwise its play loop
         # keeps polling an engine that _engine_exit() has already torn down.
         self.stop()
+        self._audition.stop()
         stop_listening_to_all(self)
         stop_serving_all(self)
         self._engine_exit()

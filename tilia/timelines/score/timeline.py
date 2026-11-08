@@ -163,6 +163,15 @@ class ScoreTimeline(Timeline):
                     first_notes[note.element_id] = note
         return list(first_notes.values())
 
+    def get_element_pitches(self, element_ids: list[str]) -> list[float]:
+        """What the notes with these elements sound like, in semitones, as MIDI
+        numbers them. Unpitched notes have no pitch."""
+        return [
+            note.sounding_midi_pitch
+            for note in self._get_first_notes(element_ids)
+            if note.is_pitched
+        ]
+
     def get_element_start_times(self, element_ids: list[str]) -> list[float]:
         return [note.start for note in self._get_first_notes(element_ids)]
 

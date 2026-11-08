@@ -1415,3 +1415,60 @@ class TestRelations:
         path = tmp_path / "groups.csv"
         commands.execute("timeline.score.group.export_table", path=str(path))
         assert len(read_csv(path)) == 4
+
+
+class TestAudition:
+    def _group(self, score_tlui):
+        ids = [element_at(score_tlui, 0, 0), element_at(score_tlui, 1, 0)]
+        commands.execute("timeline.score.group.create", element_ids=ids)
+        return ids, groups_of(score_tlui)[0].id
+
+    def _pitches(self, score_tlui, ids):
+        return score_tlui.timeline.get_element_pitches(ids)
+
+    def test_click_on_blob_plays_its_notes_together(
+        self, score_view, score_tlui, auditioned
+    ):
+        ids, group_id = self._group(score_tlui)
+        select_notes(score_view, [element_at(score_tlui, 3, 3)])
+        auditioned.clear()
+        rect = note_rect(score_view, ids[0])
+
+        click_at(score_view, ((rect[0] + rect[2]) / 2, rect[1] - 2))
+
+        assert wait_until(lambda: score_view.active_group_id == group_id)
+        assert wait_until(lambda: auditioned == [self._pitches(score_tlui, ids)])
+        assert len(auditioned[0]) == 2
+
+    def test_click_on_a_grouped_note_plays_that_note(
+        self, score_view, score_tlui, auditioned
+    ):
+        ids, _ = self._group(score_tlui)
+
+        click_note(score_view, ids[0])
+
+        assert wait_until(lambda: auditioned == [self._pitches(score_tlui, ids[:1])])
+
+    def test_click_in_the_table_plays_its_notes(
+        self, score_view, score_tlui, auditioned
+    ):
+        ids, group_id = self._group(score_tlui)
+        commands.execute("timeline.score.group.toggle_table")
+        table = score_view.group_table_window.table
+        select_row(table, row_of_group(score_view, group_id))
+        auditioned.clear()
+
+        table.cellClicked.emit(0, 0)
+
+        assert auditioned == [self._pitches(score_tlui, ids)]
+
+    def test_selecting_a_group_otherwise_is_silent(
+        self, score_view, score_tlui, auditioned
+    ):
+        _, group_id = self._group(score_tlui)
+        auditioned.clear()
+
+        commands.execute("timeline.score.group.select", group_id=group_id)
+
+        assert wait_until(lambda: score_view.active_group_id == group_id)
+        assert not auditioned

@@ -129,6 +129,12 @@ class Note(SegmentLikeTimelineComponent):
         return pitch(self.step, self.accidental, self.octave)
 
     @property
+    def sounding_midi_pitch(self) -> float:
+        """In semitones, fractional for microtones. `pitch` counts from C3,
+        which MIDI numbers 48."""
+        return self.pitch + self.transposition + 48
+
+    @property
     def sounding_pitch_class_24(self) -> int:
         """The sounding pitch class in quarter tones, with 0 on C."""
         semitones = STEP_TO_PC[self.step] + self.accidental + self.transposition

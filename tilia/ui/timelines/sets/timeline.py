@@ -218,7 +218,13 @@ class SetsTimelineUI(TimelineUI):
         )
         if double:
             commands.execute("media.seek", item.span.start)
-        elif modifier != Qt.KeyboardModifier.AltModifier:
+            return
+        commands.execute(
+            "timeline.score.group.audition",
+            group_id=item.span.group_id,
+            timeline_id=item.span.timeline_id,
+        )
+        if modifier != Qt.KeyboardModifier.AltModifier:
             commands.execute("media.seek", item.span.start, seek_if_playing=False)
 
     def __str__(self) -> str:

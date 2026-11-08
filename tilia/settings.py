@@ -121,6 +121,7 @@ class SettingsManager(QObject):
             "default_note_color": "#000000",
             "measure_tracker_color": "#80ff8000",
             "page_view": "false",
+            "audition": "true",
         },
         "sets_timeline": {
             "row_height": 22,

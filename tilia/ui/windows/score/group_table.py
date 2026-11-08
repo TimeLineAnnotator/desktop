@@ -175,6 +175,7 @@ class GroupTable(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setSortingEnabled(True)
         self.itemSelectionChanged.connect(self._on_selection_changed)
+        self.cellClicked.connect(self._on_cell_clicked)
 
     def group_id_at(self, row: int) -> str:
         return self.item(row, 0).data(Qt.ItemDataRole.UserRole)
@@ -265,6 +266,14 @@ class GroupTable(QTableWidget):
                 writer.writerow(
                     self.item(row, column).text() for column in range(len(COLUMNS))
                 )
+
+    def _on_cell_clicked(self) -> None:
+        if group_id := self.selected_group_id():
+            commands.execute(
+                "timeline.score.group.audition",
+                group_id=group_id,
+                timeline_id=self.timeline_id,
+            )
 
     def _on_selection_changed(self) -> None:
         if group_id := self.selected_group_id():

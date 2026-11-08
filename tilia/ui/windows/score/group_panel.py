@@ -92,6 +92,10 @@ class GroupPanel(QWidget):
             " sideways"
         )
         self.pages_button.clicked.connect(self._on_toggle_page_view)
+        self.sound_button = QPushButton("Sound")
+        self.sound_button.setCheckable(True)
+        self.sound_button.setToolTip("Hear notes and groups as they're clicked")
+        self.sound_button.clicked.connect(self._on_toggle_sound)
         self.label_edit = QLineEdit()
         self.label_edit.setPlaceholderText("Group label")
         self.label_edit.setMaximumWidth(240)
@@ -106,6 +110,7 @@ class GroupPanel(QWidget):
             self.color_button,
             self.table_button,
             self.pages_button,
+            self.sound_button,
         ):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.label_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -119,6 +124,7 @@ class GroupPanel(QWidget):
         buttons.addWidget(self.label_edit)
         buttons.addStretch()
         buttons.addWidget(self.pages_button)
+        buttons.addWidget(self.sound_button)
         buttons.addWidget(self.table_button)
 
         layout = QVBoxLayout(self)
@@ -181,6 +187,9 @@ class GroupPanel(QWidget):
         commands.execute(
             "timeline.score.toggle_page_view", timeline_id=self.timeline_id
         )
+
+    def _on_toggle_sound(self) -> None:
+        commands.execute("media.audition.toggle")
 
     def _on_label_edited(self) -> None:
         if self.group_id is not None:

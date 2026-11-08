@@ -358,3 +358,30 @@ class TestClick:
         point = bar.mapToScene(QPointF(1, 1))
         item = get_lane().view.itemAt(int(point.x()), int(point.y()))
         assert isinstance(item, SetBar) or isinstance(item.parentItem(), SetBar)
+
+
+class TestAudition:
+    def test_click_plays_the_groups_tones(self, score_tlui, auditioned):
+        group = create_group(score_tlui, [2, 3])
+
+        click_bar(get_bar(group))
+
+        assert auditioned == [
+            score_tlui.timeline.get_element_pitches(group.element_ids)
+        ]
+        assert len(auditioned[0]) == 2
+
+    def test_alt_click_too(self, score_tlui, auditioned):
+        group = create_group(score_tlui, [2, 3])
+
+        click_bar(get_bar(group), "alt")
+
+        assert len(auditioned) == 1
+
+    def test_double_click_doesnt_strike_it_again(self, score_tlui, auditioned):
+        bar = get_bar(create_group(score_tlui, [2, 3]))
+
+        click_bar(bar)
+        click_bar(bar, double=True)
+
+        assert len(auditioned) == 1

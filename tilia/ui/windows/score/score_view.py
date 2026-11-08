@@ -188,6 +188,11 @@ class _Bridge(QObject):
             self._score_view.on_position_clicked(_parse(payload))
 
     @Slot(str)
+    def onNotesClicked(self, payload: str) -> None:
+        if self._score_view:
+            self._score_view.on_notes_clicked(_parse(payload))
+
+    @Slot(str)
     def onMeasureClicked(self, payload: str) -> None:
         if self._score_view:
             self._score_view.on_measure_clicked(_parse(payload))
@@ -270,6 +275,7 @@ class ScoreView(ScoreViewerBase):
         listen(self, Post.TIMELINE_COMPONENT_SELECTED, self.on_selection_changed_in)
         listen(self, Post.TIMELINE_COMPONENT_DESELECTED, self.on_selection_changed_in)
         listen(self, Post.TIMELINE_DELETE_DONE, self.on_timelines_changed)
+        listen(self, Post.SETTINGS_UPDATED, self.on_settings_updated)
         listen(self, Post.APP_STATE_RESTORE, self.on_timelines_changed)
         listen(
             self,
@@ -365,6 +371,9 @@ class ScoreView(ScoreViewerBase):
         page.setWebChannel(self._channel)
         self.group_panel = GroupPanel(self.timeline_id)
         self.group_panel.pages_button.setChecked(self.is_page_view)
+        self.group_panel.sound_button.setChecked(
+            settings.get("score_timeline", "audition")
+        )
         container = _ScoreContainer(self)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -609,6 +618,20 @@ class ScoreView(ScoreViewerBase):
         if (time := self._get_nearest_time(data)) is not None:
             commands.execute(
                 "media.seek", time, seek_if_playing=data.get("double") is True
+            )
+
+    def on_settings_updated(self, updated_settings: list[str]) -> None:
+        if self.group_panel and "score_timeline" in updated_settings:
+            self.group_panel.sound_button.setChecked(
+                settings.get("score_timeline", "audition")
+            )
+
+    def on_notes_clicked(self, data: dict[str, Any]) -> None:
+        ids = data.get("ids")
+        if isinstance(ids, list) and (timeline := self.timeline):
+            commands.execute(
+                "media.audition",
+                timeline.get_element_pitches([i for i in ids if isinstance(i, str)]),
             )
 
     def on_measure_clicked(self, data: dict[str, Any]) -> None:

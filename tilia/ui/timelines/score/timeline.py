@@ -16,6 +16,7 @@ from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.sets.timeline import SetsTimeline
+from tilia.ui import commands
 from tilia.ui.color import get_tinted_color
 from tilia.ui.consts import TINT_FACTOR_ON_SELECTION
 from tilia.ui.coords import time_x_converter
@@ -722,6 +723,12 @@ class ScoreTimelineUI(TimelineUI):
     def on_select_note_group(self, group_id: str) -> None:
         if isinstance(self._viewer, ScoreView) and self._get_note_group(group_id):
             self._viewer.select_note_group(group_id)
+
+    def on_audition_note_group(self, group_id: str) -> None:
+        if group := self._get_note_group(group_id):
+            commands.execute(
+                "media.audition", self.timeline.get_element_pitches(group.element_ids)
+            )
 
     def on_export_note_group_table(self, path: str | None) -> None:
         if isinstance(self._viewer, ScoreView):

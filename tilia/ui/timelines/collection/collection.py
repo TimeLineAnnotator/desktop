@@ -235,6 +235,11 @@ class TimelineUIs:
             text="Select group",
         )
         commands.register(
+            "timeline.score.group.audition",
+            self.on_score_group_audition,
+            text="Hear group",
+        )
+        commands.register(
             "timeline.score.group.export_table",
             self.on_score_group_export_table,
             text="Export note group table to CSV",
@@ -1426,6 +1431,12 @@ class TimelineUIs:
     ) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):
             tlui.on_select_note_group(group_id)
+
+    def on_score_group_audition(
+        self, group_id: str, timeline_id: str | None = None
+    ) -> None:
+        if tlui := self._get_score_timeline_ui(timeline_id):
+            tlui.on_audition_note_group(group_id)
 
     def on_score_group_export_table(
         self, path: str | None = None, timeline_id: str | None = None

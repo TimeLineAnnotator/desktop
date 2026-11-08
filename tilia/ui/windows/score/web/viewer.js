@@ -361,6 +361,11 @@ function clickable(target) {
   return target.closest ? target.closest("g.note, g.rest, g.chord") : null;
 }
 
+// A click on a stem finds the whole chord; one on a rest, nothing to hear.
+function noteIdsOf(el) {
+  return el.matches("g.note") ? [el.id] : [...el.querySelectorAll("g.note")].map((n) => n.id);
+}
+
 function onsetOf(el) {
   if (onsets.has(el.id)) return onsets.get(el.id);
   const notes = [...el.querySelectorAll("g.note")].filter((n) => onsets.has(n.id));
@@ -705,6 +710,9 @@ scoreEl.addEventListener("click", (event) => {
     const group = groupAt(event.clientX, event.clientY);
     if (group !== null) {
       activateGroup(group);
+      if (event.detail < 2) {
+        send("onNotesClicked", { ids: groups.find((each) => each.id === group)?.ids ?? [] });
+      }
       const position = positionOfGroup(group);
       if (seek && position) send("onPositionClicked", { ...position, double: false });
       return;
@@ -727,6 +735,11 @@ scoreEl.addEventListener("click", (event) => {
   const inMeasure = (each) => el && document.getElementById(each.id)?.contains(el);
   setSelectedMeasures(keep ? selectedMeasures.filter((each) => !inMeasure(each)) : []);
   select(ids);
+  // The second click of a double click doesn't strike the note again, and
+  // taking a note out of the selection doesn't strike it at all.
+  if (el && ids.includes(el.id) && event.detail < 2) {
+    send("onNotesClicked", { ids: noteIdsOf(el) });
+  }
   if (el && seek) send("onPositionClicked", { ...positionOfElement(el), double: false });
 });
 

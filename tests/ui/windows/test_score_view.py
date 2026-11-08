@@ -806,6 +806,7 @@ class TestPage:
             "onSelectionChanged",
             "onPositionClicked",
             "onMeasureClicked",
+            "onNotesClicked",
             "onError",
         }
 
@@ -1733,3 +1734,110 @@ class TestCursor:
         assert get_cursor(long_score_view)["y"] == pytest.approx(
             run_js(page, f"systemAtQ({q}).top")
         )
+
+
+class TestAudition:
+    def sounding(self, note) -> list[float]:
+        return [note.get_data("sounding_midi_pitch")]
+
+    def test_click_note_plays_it(self, score_view, score_tlui, auditioned):
+        note = get_notes(score_tlui)[1]
+
+        click(score_view, score_view.get_element_id(note.id))
+
+        assert wait_until(lambda: auditioned == [self.sounding(note)])
+
+    def test_click_with_alt_plays_it_without_seeking(
+        self, score_view, score_tlui, tilia_state, auditioned
+    ):
+        note = get_notes(score_tlui)[1]
+
+        click(score_view, score_view.get_element_id(note.id), alt=True)
+
+        assert wait_until(lambda: auditioned == [self.sounding(note)])
+        assert tilia_state.current_time == 0
+
+    def test_click_on_a_stem_plays_the_chord(self, score_view, score_tlui, auditioned):
+        note = get_notes(score_tlui)[0]
+        element_id = score_view.get_element_id(note.id)
+        # An element with notes in it, as a chord is.
+        run_js(
+            score_view.view.page(),
+            f"""(() => {{
+                const note = document.getElementById({json.dumps(element_id)});
+                const chord = document.createElementNS(note.namespaceURI, 'g');
+                chord.setAttribute('class', 'chord');
+                chord.id = 'test-chord';
+                const stem = document.createElementNS(note.namespaceURI, 'rect');
+                note.parentNode.insertBefore(chord, note);
+                chord.appendChild(note);
+                chord.appendChild(stem);
+                stem.dispatchEvent(new MouseEvent('click', {{bubbles: true}}));
+            }})()""",
+        )
+
+        assert wait_until(lambda: auditioned == [self.sounding(note)])
+
+    def test_silent_while_playing(self, score_view, score_tlui, auditioned, playing):
+        element_id = score_view.get_element_id(get_notes(score_tlui)[1].id)
+
+        click(score_view, element_id)
+
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+        let_page_report()
+        assert not auditioned
+
+    def test_second_click_of_a_double_click_is_silent(
+        self, score_view, score_tlui, auditioned
+    ):
+        element_id = score_view.get_element_id(get_notes(score_tlui)[1].id)
+
+        run_js(
+            score_view.view.page(),
+            f"""(() => {{
+                const head = document.getElementById({json.dumps(element_id)})
+                    .querySelector('.notehead');
+                for (const detail of [1, 2]) {{
+                    head.dispatchEvent(new MouseEvent('click',
+                        {{bubbles: true, detail}}));
+                }}
+            }})()""",
+        )
+
+        assert wait_until(lambda: auditioned)
+        let_page_report()
+        assert len(auditioned) == 1
+
+    def test_taking_a_note_out_of_the_selection_is_silent(
+        self, score_view, score_tlui, auditioned
+    ):
+        element_id = score_view.get_element_id(get_notes(score_tlui)[1].id)
+        click(score_view, element_id)
+        assert wait_until(lambda: auditioned)
+        script = f"""document.getElementById({json.dumps(element_id)})
+            .querySelector('.notehead').dispatchEvent(
+                new MouseEvent('click', {{bubbles: true, ctrlKey: true}}))"""
+
+        run_js(score_view.view.page(), script)
+
+        assert wait_until(lambda: not score_view.selected_ids)
+        let_page_report()
+        assert len(auditioned) == 1
+
+    def test_sound_button_turns_it_off(self, score_view, score_tlui, auditioned):
+        assert score_view.group_panel.sound_button.isChecked()
+
+        score_view.group_panel.sound_button.click()
+
+        assert not score_view.group_panel.sound_button.isChecked()
+        assert settings.get("score_timeline", "audition") is False
+        click(score_view, score_view.get_element_id(get_notes(score_tlui)[1].id))
+        let_page_report()
+        assert not auditioned
+
+    def test_sound_button_shows_the_setting(self, score_tlui):
+        settings.set("score_timeline", "audition", False)
+        add_beats()
+        import_score()
+
+        assert not get_score_view(score_tlui).group_panel.sound_button.isChecked()

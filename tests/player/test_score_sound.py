@@ -12,7 +12,7 @@ from tests.constants import (
 )
 from tests.mock import PatchPost, Serve, patch_yes_or_no_dialog
 from tests.utils import save_and_reopen, wait_until
-from tilia.media import synth
+from tilia.media import audition, synth
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.ui import commands
@@ -283,3 +283,69 @@ TIED_SCORE = (
     "<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration>"
     "</note></measure></part></score-partwise>"
 )
+
+
+class TestTones:
+    @pytest.mark.parametrize(
+        "pitch, frequency", [(69, 440), (69.5, 452.9), (60, 261.6)]
+    )
+    def test_exact_pitch(self, pitch, frequency):
+        samples = np.frombuffer(audition.render_tones([pitch]), dtype=np.int16)
+
+        spectrum = np.abs(np.fft.rfft(samples))
+        peak = np.fft.rfftfreq(len(samples), 1 / synth.SAMPLE_RATE)[spectrum.argmax()]
+
+        assert peak == pytest.approx(frequency, abs=1.5)
+
+    def test_chord_does_not_clip(self):
+        samples = np.frombuffer(
+            audition.render_tones([60, 64, 67, 71, 74, 77]), dtype=np.int16
+        )
+        assert np.abs(samples).max() < np.iinfo(np.int16).max
+
+
+class TestAuditionCommand:
+    PITCHES = [60.0, 64.5]
+
+    def test_heard(self, tilia, auditioned):
+        commands.execute("media.audition", self.PITCHES)
+        assert auditioned == [self.PITCHES]
+
+    def test_nothing_to_hear(self, tilia, auditioned):
+        commands.execute("media.audition", [])
+        assert not auditioned
+
+    def test_silent_while_playing(self, tilia, score, auditioned):
+        play()
+        commands.execute("media.audition", self.PITCHES)
+        pause()
+        assert not auditioned
+
+    def test_heard_again_after_pausing(self, tilia, score, auditioned):
+        play()
+        pause()
+        commands.execute("media.audition", self.PITCHES)
+        assert auditioned == [self.PITCHES]
+
+    def test_silent_when_muted(self, tilia, auditioned):
+        commands.execute("media.volume.mute", True)
+        commands.execute("media.audition", self.PITCHES)
+        commands.execute("media.volume.mute", False)
+        assert not auditioned
+
+    def test_silent_when_turned_off(self, tilia, auditioned):
+        commands.execute("media.audition.toggle")
+        commands.execute("media.audition", self.PITCHES)
+        assert not auditioned
+
+    def test_turned_on_again(self, tilia, auditioned):
+        commands.execute("media.audition.toggle")
+        commands.execute("media.audition.toggle")
+        commands.execute("media.audition", self.PITCHES)
+        assert auditioned == [self.PITCHES]
+
+    def test_does_not_move_the_player(self, tilia, tilia_state, score):
+        commands.execute("media.seek", 1.0)
+        commands.execute("media.audition", self.PITCHES)
+        assert tilia_state.current_time == 1.0
+        assert tilia.player.is_playing is False

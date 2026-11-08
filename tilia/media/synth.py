@@ -93,8 +93,7 @@ def score_notes(notes: Iterable[Note]) -> list[SynthNote]:
     for note in sorted(notes):
         if not note.is_pitched:
             continue
-        # Note.pitch counts from C3; MIDI numbers C3 48.
-        pitch = note.pitch + note.transposition + 48
+        pitch = note.sounding_midi_pitch
         key = (note.staff_index, pitch)
         index = open_ties.pop(key, None)
         if index is not None and abs(result[index].end - note.start) < 1e-6:
