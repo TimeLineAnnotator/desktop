@@ -258,7 +258,7 @@ class ScoreView(ScoreViewerBase):
         self._should_reveal_highlights = False
         # In pages, the score is broken into systems as wide as the viewer and
         # scrolls down; otherwise it is one system, scrolled sideways.
-        self.is_page_view = bool(settings.get("score_timeline", "page_view"))
+        self.is_page_view: bool = settings.get("score_timeline", "page_view")
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_current_time_changed)
         listen(self, Post.TIMELINE_COMPONENT_SELECTED, self.on_selection_changed_in)
