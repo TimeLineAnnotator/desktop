@@ -270,7 +270,14 @@ class App:
         self.should_scale_timelines = scale_timelines
         if not path:
             self.player.unload_media()
-            self.set_file_media_duration(0.0)
+            # Restoring a state without media gets here, as undoing the load
+            # of a file's first media does, and the timelines are restored
+            # right after: they are neither scaled nor cropped. Such a file
+            # can still have a duration, as one whose score was imported with
+            # a beat grid has.
+            duration = initial_duration or 0.0
+            post(Post.FILE_MEDIA_DURATION_CHANGED, duration)
+            self.duration = duration
             return True
 
         return self._do_load_media(path, record, initial_duration)

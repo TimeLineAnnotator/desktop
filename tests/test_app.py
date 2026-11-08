@@ -8,7 +8,11 @@ import pytest
 
 import tests.utils
 import tilia.log
-from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
+from tests.constants import (
+    EXAMPLE_MEDIA_DURATION,
+    EXAMPLE_MEDIA_PATH,
+    EXAMPLE_MUSICXML_PATH,
+)
 from tests.mock import (
     PatchPost,
     Serve,
@@ -1519,3 +1523,29 @@ class TestWindowTitle:
 
         self.set_media_title("")
         self.assert_window_title(qtui, file_name)
+
+
+class TestUndoFirstMediaLoad:
+    def test_file_without_media_keeps_its_duration(self, tluis, tilia_state):
+        # A score imported with a beat grid gives the file a duration, and no
+        # media.
+        tilia_state.duration = 0
+        commands.execute(
+            "timelines.import.score_with_beats", path=EXAMPLE_MUSICXML_PATH
+        )
+        duration = tilia_state.duration
+        with patch_yes_or_no_dialog(False):  # don't scale the timelines
+            load_local_media(EXAMPLE_MEDIA_PATH)
+        assert tests.utils.wait_until(
+            lambda: tilia_state.duration == EXAMPLE_MEDIA_DURATION
+        )
+
+        # Asked to scale, the test would hang: nothing should change.
+        with patch(
+            "tilia.app.App.prompt_scale_timelines",
+            side_effect=AssertionError("asked to scale"),
+        ):
+            commands.execute("edit.undo")
+
+        assert tilia_state.media_path == ""
+        assert tilia_state.duration == duration
