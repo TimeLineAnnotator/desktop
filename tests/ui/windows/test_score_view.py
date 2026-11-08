@@ -1,6 +1,7 @@
 import json
 import math
 import sys
+from itertools import pairwise
 from typing import Iterable
 from unittest.mock import patch
 
@@ -487,6 +488,21 @@ def has_highlights(score_view: ScoreView, *expected: dict) -> bool:
     return len(highlights) == len(expected) and all(
         highlight == pytest.approx(each, abs=0.01)
         for highlight, each in zip(highlights, expected, strict=True)
+    )
+
+
+def get_highlight_boxes(score_view: ScoreView) -> list[dict]:
+    """The highlight rectangles as drawn, top to bottom."""
+    return json.loads(
+        run_js(
+            score_view.view.page(),
+            """JSON.stringify(
+                [...scoreEl.querySelectorAll('#tilia-highlights rect')].map((rect) => ({
+                    y: rect.y.baseVal.value,
+                    height: rect.height.baseVal.value,
+                }))
+            )""",
+        )
     )
 
 
@@ -1174,6 +1190,29 @@ class TestPageView:
             )
             == system_count(score_view)
         )
+
+    def test_highlights_of_consecutive_systems_keep_apart(self, score_view):
+        show_in_pages(score_view)
+        hierarchy = add_hierarchy(0, 4 * LONG_SCORE_MEASURES)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        assert wait_until(lambda: len(get_highlight_boxes(score_view)) > 1)
+        boxes = get_highlight_boxes(score_view)
+        for upper, lower in pairwise(boxes):
+            assert upper["y"] + upper["height"] < lower["y"]
+
+    def test_highlight_has_a_border(self, score_view):
+        hierarchy = add_hierarchy(0, 4)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        assert wait_until(lambda: get_highlight_boxes(score_view))
+        stroke = run_js(
+            score_view.view.page(),
+            "getComputedStyle(scoreEl.querySelector('#tilia-highlights rect')).stroke",
+        )
+        assert stroke != "none"
 
     def test_selection_and_colors_survive_relayout(self, score_view, score_tlui):
         note = get_notes(score_tlui)[0]

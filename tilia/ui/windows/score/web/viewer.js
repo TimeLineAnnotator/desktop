@@ -477,6 +477,10 @@ function drawGroups() {
   separateLabels(labels);
 }
 
+// Pixels kept clear above and below a highlight, so that a passage crossing a
+// system break reads as one rectangle per system. The bands of two systems touch.
+const HIGHLIGHT_MARGIN = 3;
+
 // A highlight's rectangles, one in each system it reaches.
 function highlightRects(highlight) {
   const rects = [];
@@ -487,9 +491,9 @@ function highlightRects(highlight) {
     const x = xAt(system, qStart);
     rects.push({
       x,
-      y: system.bandTop,
+      y: system.bandTop + HIGHLIGHT_MARGIN,
       width: xAt(system, qEnd) - x,
-      height: system.bandBottom - system.bandTop,
+      height: system.bandBottom - system.bandTop - 2 * HIGHLIGHT_MARGIN,
     });
   }
   return rects;
