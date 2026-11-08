@@ -1,11 +1,12 @@
 import io
 import json
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 import soundfile
-from PySide6.QtMultimedia import QMediaPlayer
+from PySide6.QtMultimedia import QAudioFormat, QMediaPlayer
 
 from tests.constants import (
     EXAMPLE_MEDIA_PATH,
@@ -327,7 +328,9 @@ class TestTones:
         "pitch, frequency", [(69, 440), (69.5, 452.9), (60, 261.6)]
     )
     def test_exact_pitch(self, pitch, frequency):
-        samples = np.frombuffer(audition.render_tones([pitch]), dtype=np.int16)
+        samples = np.frombuffer(
+            audition.render_tones([pitch], audition.get_mono_format()), dtype=np.int16
+        )
 
         spectrum = np.abs(np.fft.rfft(samples))
         peak = np.fft.rfftfreq(len(samples), 1 / synth.SAMPLE_RATE)[spectrum.argmax()]
@@ -336,9 +339,64 @@ class TestTones:
 
     def test_chord_does_not_clip(self):
         samples = np.frombuffer(
-            audition.render_tones([60, 64, 67, 71, 74, 77]), dtype=np.int16
+            audition.render_tones([60, 64, 67, 71, 74, 77], audition.get_mono_format()),
+            dtype=np.int16,
         )
         assert np.abs(samples).max() < np.iinfo(np.int16).max
+
+    @pytest.mark.parametrize(
+        "sample_format, dtype, scale",
+        [
+            (QAudioFormat.SampleFormat.Int16, np.int16, 2**15),
+            (QAudioFormat.SampleFormat.Int32, np.int32, 2**31),
+            (QAudioFormat.SampleFormat.Float, np.float32, 1),
+        ],
+    )
+    def test_exact_pitch_in_other_formats(self, sample_format, dtype, scale):
+        audio_format = QAudioFormat()
+        audio_format.setSampleRate(48000)
+        audio_format.setChannelCount(2)
+        audio_format.setSampleFormat(sample_format)
+
+        samples = np.frombuffer(audition.render_tones([69], audio_format), dtype=dtype)
+
+        left, right = samples[::2], samples[1::2]
+        assert np.array_equal(left, right)
+        assert 0.1 < np.abs(left).max() / scale <= 1
+        spectrum = np.abs(np.fft.rfft(left))
+        assert np.fft.rfftfreq(len(left), 1 / 48000)[spectrum.argmax()] == (
+            pytest.approx(440, abs=1.5)
+        )
+
+    def test_unsigned_samples_center_on_the_middle(self):
+        audio_format = audition.get_mono_format()
+        audio_format.setSampleFormat(QAudioFormat.SampleFormat.UInt8)
+
+        samples = np.frombuffer(
+            audition.render_tones([69], audio_format), dtype=np.uint8
+        )
+
+        assert samples.mean() == pytest.approx(127.5, abs=1)
+
+    @pytest.mark.parametrize(
+        "is_mono_supported, preferred_channels, channels",
+        [(True, 2, 1), (False, 2, 2), (False, 0, 1)],
+    )
+    def test_format_follows_the_output(
+        self, is_mono_supported, preferred_channels, channels
+    ):
+        preferred = QAudioFormat()
+        if preferred_channels:
+            preferred.setSampleRate(48000)
+            preferred.setChannelCount(preferred_channels)
+            preferred.setSampleFormat(QAudioFormat.SampleFormat.Float)
+        device = Mock()
+        device.isFormatSupported.return_value = is_mono_supported
+        device.preferredFormat.return_value = preferred
+
+        with patch.object(audition.QMediaDevices, "defaultAudioOutput") as output:
+            output.return_value = device
+            assert audition.get_output_format().channelCount() == channels
 
 
 class TestAuditionCommand:

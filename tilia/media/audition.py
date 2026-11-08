@@ -8,26 +8,46 @@ from typing import Sequence
 
 import numpy as np
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
-from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSink
+from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 
 from tilia.media import synth
 
 LENGTH = 0.8  # seconds
 
 
-def render_tones(pitches: Sequence[float]) -> bytes:
-    """The pitches sounding together, as mono 16-bit samples."""
-    notes = [synth.SynthNote(0.0, LENGTH, pitch) for pitch in pitches]
-    samples = synth.render(notes, LENGTH + synth.RELEASE)
-    return (samples * np.iinfo(np.int16).max).astype(np.int16).tobytes()
-
-
-def _get_format() -> QAudioFormat:
+def get_mono_format() -> QAudioFormat:
     audio_format = QAudioFormat()
     audio_format.setSampleRate(synth.SAMPLE_RATE)
     audio_format.setChannelCount(1)
     audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
     return audio_format
+
+
+def get_output_format() -> QAudioFormat:
+    """Mono if the output takes it. Not all do, and a format it doesn't take
+    would leave clicks silent."""
+    mono = get_mono_format()
+    device = QMediaDevices.defaultAudioOutput()
+    if device.isFormatSupported(mono):
+        return mono
+    preferred = device.preferredFormat()
+    return preferred if preferred.isValid() else mono
+
+
+def render_tones(pitches: Sequence[float], audio_format: QAudioFormat) -> bytes:
+    """The pitches sounding together, as samples in `audio_format`."""
+    notes = [synth.SynthNote(0.0, LENGTH, pitch) for pitch in pitches]
+    samples = synth.render(notes, LENGTH + synth.RELEASE, audio_format.sampleRate())
+    samples = np.repeat(samples, audio_format.channelCount())
+    match audio_format.sampleFormat():
+        case QAudioFormat.SampleFormat.Float:
+            return samples.astype(np.float32).tobytes()
+        case QAudioFormat.SampleFormat.Int32:
+            return (samples * np.iinfo(np.int32).max).astype(np.int32).tobytes()
+        case QAudioFormat.SampleFormat.UInt8:
+            return ((samples + 1) * 127.5).astype(np.uint8).tobytes()
+        case _:
+            return (samples * np.iinfo(np.int16).max).astype(np.int16).tobytes()
 
 
 class Audition:
@@ -40,10 +60,11 @@ class Audition:
         the player's does."""
         self.stop()
         self._buffer = QBuffer()
-        self._buffer.setData(QByteArray(render_tones(pitches)))
+        audio_format = get_output_format()
+        self._buffer.setData(QByteArray(render_tones(pitches, audio_format)))
         self._buffer.open(QIODevice.OpenModeFlag.ReadOnly)
         # A new one each time, as the default output device may have changed.
-        self._sink = QAudioSink(_get_format())
+        self._sink = QAudioSink(audio_format)
         self._sink.stateChanged.connect(self._on_state_changed)
         self._sink.setVolume(
             QAudio.convertVolume(
