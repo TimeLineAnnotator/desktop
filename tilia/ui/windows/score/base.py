@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QHideEvent, QShowEvent
+from PySide6.QtWidgets import QDockWidget
 
 from tilia.requests import Get, get
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -54,8 +55,12 @@ class ScoreViewerBase(ViewDockWidget):
     def __init__(self, name: str, tl_id: int, *args, **kwargs) -> None:
         super().__init__("TiLiA Score Viewer", *args, menu_title=name, **kwargs)
         self.setObjectName(f"TiLiA Score Viewer {tl_id}")
-        self.setAllowedAreas(
-            Qt.DockWidgetArea.BottomDockWidgetArea | Qt.DockWidgetArea.TopDockWidgetArea
+        # Below or above the timelines, beside them for a score in pages, or
+        # in a window of its own.
+        self.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
         )
         self.timeline_id = tl_id
         self.is_hidden = False

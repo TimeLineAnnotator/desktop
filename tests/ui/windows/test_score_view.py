@@ -1046,3 +1046,20 @@ class TestResize:
         # Asserted on the hint as the main window is shared by the tests, and its
         # dock area keeps the height it had, as it does for a user.
         assert score_view.sizeHint().height() >= SCORE_INITIAL_HEIGHT
+
+
+class TestDock:
+    def test_viewer_can_float(self, score_view):
+        assert score_view.features() & QDockWidget.DockWidgetFeature.DockWidgetFloatable
+
+    @pytest.mark.parametrize(
+        "area",
+        [
+            Qt.DockWidgetArea.LeftDockWidgetArea,
+            Qt.DockWidgetArea.RightDockWidgetArea,
+            Qt.DockWidgetArea.TopDockWidgetArea,
+            Qt.DockWidgetArea.BottomDockWidgetArea,
+        ],
+    )
+    def test_viewer_docks_on_any_side(self, score_view, area):
+        assert score_view.isAreaAllowed(area)
