@@ -192,7 +192,12 @@ def post(post: Post, *args, **kwargs) -> None:
     # Should be used only when a single listener is expected.
     # If there are multiple listeners, the result of the last listener is returned.
     result = None
-    for callback in _posts_to_listeners[post].copy().values():
+    listeners = _posts_to_listeners[post]
+    for listener, callback in list(listeners.items()):
+        # An earlier callback may have stopped it listening, as deleting a
+        # window does: it may be gone already.
+        if listener not in listeners:
+            continue
         result = callback(*args, **kwargs)
     return result
 
