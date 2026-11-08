@@ -155,6 +155,16 @@ def test_title_from_work(tmp_path):
     assert measures.title == "Limited Approximations"
 
 
+def test_title_from_movement_before_work(tmp_path):
+    header = (
+        "<work><work-title>Das Buch der hängenden Gärten</work-title></work>"
+        "<movement-title>Saget mir, auf welchem Pfade</movement-title>"
+    )
+    measures, _ = _read(tmp_path, _score([_measure(1, "")], header))
+
+    assert measures.title == "Saget mir, auf welchem Pfade"
+
+
 def test_title_from_file_name(tmp_path):
     measures, _ = _read(tmp_path, _score([_measure(1, "")]), "in vain.musicxml")
 

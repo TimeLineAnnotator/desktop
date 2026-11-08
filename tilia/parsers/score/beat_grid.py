@@ -103,7 +103,8 @@ def _length_in_divisions(measure: etree._Element) -> int:
 
 
 def _title(tree: etree._Element, path: str) -> str:
-    for xpath in ("work/work-title", "movement-title"):
+    # A movement's title first: the songs of a cycle share their work title.
+    for xpath in ("movement-title", "work/work-title"):
         element = tree.find(xpath)
         if element is not None and (element.text or "").strip():
             return element.text.strip()
