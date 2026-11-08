@@ -1,4 +1,6 @@
 import io
+import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -11,7 +13,7 @@ from tests.constants import (
     EXAMPLE_QUARTER_TONES_MUSICXML_PATH,
 )
 from tests.mock import PatchPost, Serve, patch_yes_or_no_dialog
-from tests.utils import save_and_reopen, wait_until
+from tests.utils import save_and_reopen, save_tilia_to_tmp_path, wait_until
 from tilia.media import audition, synth
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -263,10 +265,45 @@ class TestSynth:
 
         notes = synth.get_score_notes()
 
-        # The tied pair is one note; the last C is struck again.
-        assert len(notes) == 2
-        assert notes[0].end == pytest.approx(notes[1].start)
-        assert notes[0].pitch == notes[1].pitch == 60
+        assert_tie_is_one_note(notes)
+
+    def test_ties_are_kept_by_files(self, tluis, tilia_state, tmp_path):
+        tilia_state.duration = 0
+        path = tmp_path / "tied.musicxml"
+        path.write_text(TIED_SCORE)
+        import_score(str(path))
+
+        save_and_reopen(tmp_path)
+
+        assert_tie_is_one_note(synth.get_score_notes())
+        assert not get(Get.IS_FILE_MODIFIED)
+
+    def test_file_without_ties_opens_with_notes_struck(
+        self, tluis, tilia_state, tmp_path
+    ):
+        tilia_state.duration = 0
+        path = tmp_path / "tied.musicxml"
+        path.write_text(TIED_SCORE)
+        import_score(str(path))
+        file_path = Path(save_tilia_to_tmp_path(tmp_path, "old"))
+        data = json.loads(file_path.read_text())
+        for timeline in data["timelines"].values():
+            for component in timeline["components"].values():
+                component.pop("tie", None)
+        file_path.write_text(json.dumps(data))
+        post(Post.APP_CLEAR)
+
+        commands.execute("file.open", path=file_path)
+
+        assert len(synth.get_score_notes()) == 3
+        assert not get(Get.IS_FILE_MODIFIED)
+
+
+def assert_tie_is_one_note(notes):
+    # The tied pair is one note; the last C is struck again.
+    assert len(notes) == 2
+    assert notes[0].end == pytest.approx(notes[1].start)
+    assert notes[0].pitch == notes[1].pitch == 60
 
 
 TIED_SCORE = (

@@ -83,9 +83,7 @@ def render(
 
 def score_notes(notes: Iterable[Note]) -> list[SynthNote]:
     """What a score timeline's notes sound like: their sounding pitches, with
-    tied notes joined into one. Unpitched notes are left out. Ties are known
-    only right after an import: files don't keep them, so tied notes from a
-    file are struck again."""
+    tied notes joined into one. Unpitched notes are left out."""
     joins_next = (Note.TieType.START, Note.TieType.START_STOP)
     result: list[SynthNote] = []
     # A tie, still open, by staff and pitch: its index in `result`.

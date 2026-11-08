@@ -39,6 +39,7 @@ class Note(SegmentLikeTimelineComponent):
         "transposition",
         "is_pitched",
         "element_id",
+        "tie",
     ]
     ORDERING_ATTRS = ("start", "end", "pitch", "staff_index")
 
@@ -85,6 +86,7 @@ class Note(SegmentLikeTimelineComponent):
         transposition: float = 0,
         is_pitched: bool = True,
         element_id: str = "",
+        tie: str = "",
         **_,
     ):
 
@@ -95,7 +97,8 @@ class Note(SegmentLikeTimelineComponent):
         self.display_accidental = display_accidental
         self.octave = octave
         self.staff_index = staff_index
-        self.tie_type = tie_type
+        # As files have it. Files saved before ties were kept have none.
+        self.tie_type = self.TieType.__members__.get(tie, tie_type)
         self.label = label
         self.color = color
         self.comments = comments
@@ -127,6 +130,10 @@ class Note(SegmentLikeTimelineComponent):
     @property
     def pitch(self):
         return pitch(self.step, self.accidental, self.octave)
+
+    @property
+    def tie(self) -> str:
+        return self.tie_type.name
 
     @property
     def sounding_midi_pitch(self) -> float:
