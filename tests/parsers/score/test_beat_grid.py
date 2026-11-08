@@ -148,6 +148,42 @@ def test_seconds_per_beat_without_tempo(tmp_path):
     assert measures.seconds_per_beat() == 1.0
 
 
+def test_later_tempo_is_not_taken_for_the_start(tmp_path):
+    xml = _score(
+        [
+            _measure(1, _attributes(1, 4, 4) + _note(4)),
+            _measure(2, '<sound tempo="180"/>' + _note(4)),
+        ]
+    )
+    measures, _ = _read(tmp_path, xml)
+
+    assert measures.tempo is None
+
+
+def test_tempo_from_another_part(tmp_path):
+    xml = f"""<score-partwise version="3.1">
+    <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+    <score-part id="P2"><part-name>Voice</part-name></score-part>
+    </part-list>
+    <part id="P1">{_measure(1, _attributes(1, 4, 4) + _note(4))}</part>
+    <part id="P2">{_measure(1, '<sound tempo="72"/>' + _note(4))}</part>
+    </score-partwise>"""
+    measures, _ = _read(tmp_path, xml)
+
+    assert measures.tempo == 72
+
+
+@pytest.mark.parametrize("divisions", ["", "abc"])
+def test_divisions_not_a_number_is_an_error(tmp_path, divisions):
+    xml = _score([_measure(1, _attributes(divisions, 4, 4) + _note(4))])
+
+    measures, errors = _read(tmp_path, xml)
+
+    assert measures is None
+    assert "divisions" in errors[0]
+
+
 def test_title_from_work(tmp_path):
     header = "<work><work-title>Limited Approximations</work-title></work>"
     measures, _ = _read(tmp_path, _score([_measure(1, "")], header))

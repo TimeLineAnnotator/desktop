@@ -111,8 +111,16 @@ def _title(tree: etree._Element, path: str) -> str:
     return Path(path).stem
 
 
-def _first_tempo(part: etree._Element) -> float | None:
-    for sound in part.iter("sound"):
+def _first_tempo(tree: etree._Element) -> float | None:
+    """The tempo the score starts at: one given in its first measure, in any
+    part. A later one isn't taken for the start."""
+    sounds = (
+        sound
+        for part in tree.findall("part")
+        if (measure := part.find("measure")) is not None
+        for sound in measure.iter("sound")
+    )
+    for sound in sounds:
         try:
             tempo = float(sound.get("tempo", ""))
         except ValueError:
@@ -159,7 +167,13 @@ def measures_from_musicxml(
 
         for attributes in measure.iter("attributes"):
             if (element := attributes.find("divisions")) is not None:
-                divisions = int(float(element.text)) or 1
+                try:
+                    divisions = int(float(element.text or "")) or 1
+                except ValueError:
+                    return None, [
+                        f"Measure `{number}` has divisions `{element.text}`,"
+                        " which is not a number."
+                    ]
             if (element := attributes.find("time")) is not None:
                 time_signature = _beats_in_time_signature(element)
                 if time_signature and first_beat_type is None:
@@ -185,7 +199,7 @@ def measures_from_musicxml(
         ScoreMeasures(
             numbers=numbers,
             beat_counts=beat_counts,
-            tempo=_first_tempo(part),
+            tempo=_first_tempo(tree),
             first_beat_type=first_beat_type,
             title=_title(tree, path),
         ),
