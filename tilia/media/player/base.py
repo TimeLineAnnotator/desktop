@@ -200,11 +200,12 @@ class Player(ABC):
 
     def on_loop_changed(self, start_time, end_time):
         self.is_looping = start_time != end_time
-        if end_time == get(Get.MEDIA_DURATION):
-            if start_time != 0:
-                end_time -= self.E
-            else:
-                self._engine_loop(True)
+        is_to_the_end = end_time == get(Get.MEDIA_DURATION)
+        # Only a loop of it all can be left to the engine. A cancelled loop,
+        # which goes from 0 to 0, isn't one, even in a file with no duration yet.
+        self._engine_loop(self.is_looping and is_to_the_end and start_time == 0)
+        if is_to_the_end and start_time != 0:
+            end_time -= self.E
 
         self.loop_start = start_time
         self.loop_end = end_time

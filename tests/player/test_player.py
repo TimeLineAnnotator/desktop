@@ -4,6 +4,7 @@ import time
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QApplication
 
 from tests.constants import EXAMPLE_MEDIA_PATH
@@ -163,3 +164,29 @@ class TestClearWithoutMedia:
         post(Post.APP_CLEAR)
 
         assert time.monotonic() - start < 0.1
+
+
+class TestEngineLoop:
+    def loops(self, tilia):
+        return tilia.player.player.loops()
+
+    def test_loop_of_it_all_is_left_to_the_engine(self, tilia, tilia_state):
+        tilia_state.duration = 100
+        post(Post.PLAYER_CURRENT_LOOP_CHANGED, 0, 100)
+        assert self.loops(tilia) == QMediaPlayer.Loops.Infinite
+
+    def test_cancelling_it_ends_it(self, tilia, tilia_state):
+        tilia_state.duration = 100
+        post(Post.PLAYER_CURRENT_LOOP_CHANGED, 0, 100)
+        post(Post.PLAYER_CURRENT_LOOP_CHANGED, 0, 0)
+        assert self.loops(tilia) == QMediaPlayer.Loops.Once
+
+    def test_a_part_is_not_left_to_the_engine(self, tilia, tilia_state):
+        tilia_state.duration = 100
+        post(Post.PLAYER_CURRENT_LOOP_CHANGED, 10, 100)
+        assert self.loops(tilia) == QMediaPlayer.Loops.Once
+
+    def test_cancelling_with_no_duration_starts_no_loop(self, tilia, tilia_state):
+        tilia_state.duration = 0
+        post(Post.PLAYER_CURRENT_LOOP_CHANGED, 0, 0)
+        assert self.loops(tilia) == QMediaPlayer.Loops.Once

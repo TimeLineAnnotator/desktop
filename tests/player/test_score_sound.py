@@ -153,6 +153,14 @@ class TestPlay:
         commands.execute("media.seek", tilia.player.duration)
         assert wait_until(lambda: not tilia.player.is_playing)
 
+    def test_stops_at_the_end_of_a_reopened_file(self, tilia, score, tmp_path):
+        save_and_reopen(tmp_path)
+        play()
+        commands.execute("media.seek", get(Get.MEDIA_DURATION) - 0.2)
+
+        assert wait_until(lambda: not tilia.player.is_playing)
+        assert tilia.player.current_time == 0
+
     def test_file_modified_state_is_unchanged(self, score):
         modified = get(Get.IS_FILE_MODIFIED)
         play()
