@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable
 
-from PySide6.QtCore import QObject, QSize, Qt, QUrl, Slot
+from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -44,6 +44,7 @@ from tilia.ui.windows.score.group_panel import GroupPanel, format_prime_form
 from tilia.ui.windows.score.group_table import GroupRow, GroupTableWindow
 
 if TYPE_CHECKING:
+    from tilia.timelines.beat.timeline import BeatTimeline
     from tilia.timelines.score.components import NoteGroup
     from tilia.timelines.score.pcset import PitchClassSetAnalysis
     from tilia.timelines.score.timeline import ScoreTimeline
@@ -57,6 +58,54 @@ VIEWPORT_STEPS_PER_MEASURE = 32
 
 # How often the page is restarted after its process dies, before giving up.
 MAX_PAGE_RESTARTS = 2
+
+
+def _metric_position(
+    beat_tl: BeatTimeline, time: float, last_beats: list[float]
+) -> float:
+    """Where `time` falls as a measure number plus a fraction of the measure.
+    Past the last beat, the last measure goes on at the pace of the
+    `last_beats` (the times of the last two), up to its end."""
+    position = beat_tl.get_metric_fraction_by_time(time)
+    if len(last_beats) < 2 or time <= last_beats[-1]:
+        return position
+    beat_length = last_beats[-1] - last_beats[-2]
+    past = (time - last_beats[-1]) / beat_length / beat_tl.beats_in_measure[-1]
+    return min(position + past, math.floor(position) + 1)
+
+
+def _measure_ranges(
+    beat_tl: BeatTimeline, spans: Iterable[tuple[float, float | None]]
+) -> list[list[float]]:
+    """The score ranges that `spans` cover, as a start measure and fraction
+    and an end measure and fraction. A time with no end covers its measure.
+    Overlapping ranges are joined."""
+    last_beats = sorted(beat.time for beat in beat_tl)[-2:]
+    positions = []
+    for start, end in spans:
+        start_position = _metric_position(beat_tl, start, last_beats)
+        if end is None:
+            measure = math.floor(start_position)
+            positions.append((measure, measure + 1))
+        elif (
+            end_position := _metric_position(beat_tl, end, last_beats)
+        ) > start_position:
+            positions.append((start_position, end_position))
+    joined: list[list[float]] = []
+    for start, end in sorted(positions):
+        if joined and start <= joined[-1][1]:
+            joined[-1][1] = max(joined[-1][1], end)
+        else:
+            joined.append([start, end])
+    ranges = []
+    for start, end in joined:
+        start_measure = math.floor(start)
+        # An end on a barline ends the measure before it, which may be the last.
+        end_measure = math.ceil(end) - 1
+        ranges.append(
+            [start_measure, start - start_measure, end_measure, end - end_measure]
+        )
+    return ranges
 
 
 def _parse(payload: str) -> dict[str, Any]:
@@ -180,8 +229,14 @@ class ScoreView(ScoreViewerBase):
         # colour shown depends on the current time.
         self._varying_elements: set[str] = set()
         self._shown_colors: dict[str, str | None] = {}
+        # Whether the page shades what's selected in other timelines, and
+        # whether an update of that shading is on its way.
+        self._has_highlights = False
+        self._is_highlight_update_pending = False
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_current_time_changed)
+        listen(self, Post.TIMELINE_COMPONENT_SELECTED, self.on_selection_changed_in)
+        listen(self, Post.TIMELINE_COMPONENT_DESELECTED, self.on_selection_changed_in)
         listen(
             self,
             Post.TIMELINE_COMPONENT_SET_DATA_DONE,
@@ -246,6 +301,7 @@ class ScoreView(ScoreViewerBase):
         self.active_group_id = None
         self._varying_elements = set()
         self._shown_colors = {}
+        self._has_highlights = False
 
     def _set_element_ids(self, element_ids: dict[int, str]) -> None:
         self._element_ids = dict(element_ids)
@@ -340,6 +396,7 @@ class ScoreView(ScoreViewerBase):
         self._update_colors(self._components_by_element)
         self.show_note_groups()
         self.scroll_to_time(get(Get.SELECTED_TIME), True)
+        self._update_highlights()
 
     def on_error(self, data: dict[str, Any]) -> None:
         tilia.errors.display(
@@ -560,11 +617,59 @@ class ScoreView(ScoreViewerBase):
     def on_component_set_data_done(
         self, timeline_id: int, component_id: int, attr: str, _value: Any
     ) -> None:
-        if timeline_id != self.timeline_id or attr != "color":
+        if timeline_id != self.timeline_id:
+            # A selected component may have moved, or the beats under it.
+            if self._has_highlights:
+                self._schedule_highlight_update()
+            return
+        if attr != "color":
             return
         if element_id := self._element_ids.get(component_id):
             self._update_varying([element_id])
             self._update_colors([element_id])
+
+    def on_selection_changed_in(self, timeline_id: int, _element_id: int) -> None:
+        if timeline_id != self.timeline_id:
+            self._schedule_highlight_update()
+
+    def _schedule_highlight_update(self) -> None:
+        # Once for all the elements a selection box or a select-all changes.
+        if not self._is_highlight_update_pending:
+            self._is_highlight_update_pending = True
+            QTimer.singleShot(0, self, self._update_highlights)
+
+    def _update_highlights(self) -> None:
+        """Shades, behind the score, what's selected in other timelines."""
+        self._is_highlight_update_pending = False
+        beat_tl = get_beat_timeline()
+        if not self.is_score_loaded or not beat_tl:
+            return
+        ranges = _measure_ranges(beat_tl, self._selected_spans())
+        if ranges or self._has_highlights:
+            self._run_script("tiliaSetHighlights", ranges)
+        self._has_highlights = bool(ranges)
+
+    def _selected_spans(self) -> list[tuple[float, float | None]]:
+        """The times of the components selected in other timelines: a start
+        and an end, or a time and None."""
+        spans = []
+        for timeline_ui in get(Get.TIMELINE_UIS):
+            if timeline_ui.id == self.timeline_id:
+                continue
+            # A slider timeline has no components.
+            if not (manager := timeline_ui.timeline.component_manager):
+                continue
+            components = manager.id_to_component
+            for element in timeline_ui.selected_elements:
+                if not (component := components.get(element.id)):
+                    continue
+                start = getattr(component, "start", None)
+                end = getattr(component, "end", None)
+                if start is not None and end is not None:
+                    spans.append((start, end))
+                elif (time := getattr(component, "time", None)) is not None:
+                    spans.append((time, None))
+        return spans
 
     def on_components_deserialized(self, timeline_id: int) -> None:
         if timeline_id == self.timeline_id:

@@ -30,6 +30,7 @@ let lastViewport = "";
 let groups = []; // {id, ids, color, text}, as Python gives them
 let blobShapes = []; // {id, points, edges, radius}, as drawn
 let activeGroup = null; // the id of the group whose notes are selected
+let highlights = []; // {qStart, qEnd}: what's selected in other timelines
 let zoom = 1;
 let band = null; // the drag that may become a selection box
 let wasDragged = false;
@@ -175,6 +176,7 @@ function fit() {
   }
   measureAnchors();
   drawGroups();
+  drawHighlights();
 }
 
 function reportViewport(force) {
@@ -322,6 +324,37 @@ function drawGroups() {
   }
   scoreEl.append(overlay, labels);
   separateLabels(labels);
+}
+
+function highlightXs(highlight) {
+  return [interpolate("q", "x", highlight.qStart), interpolate("q", "x", highlight.qEnd)];
+}
+
+function drawHighlights() {
+  scoreEl.querySelector("#tilia-highlights")?.remove();
+  const score = scoreEl.querySelector("svg");
+  if (!score || !highlights.length) return;
+  const layer = svgElement("svg", {
+    id: "tilia-highlights",
+    width: score.style.width,
+    height: score.style.height,
+  });
+  for (const highlight of highlights) {
+    const [start, end] = highlightXs(highlight);
+    layer.append(svgElement("rect", { x: start, y: 0, width: end - start, height: "100%" }));
+  }
+  scoreEl.append(layer);
+}
+
+// Scrolls to the first highlight, unless one is in view.
+function revealHighlights() {
+  if (!highlights.length) return;
+  const left = scoreEl.scrollLeft;
+  const right = left + scoreEl.clientWidth;
+  const xs = highlights.map(highlightXs);
+  if (xs.some(([start, end]) => end > left && start < right)) return;
+  scoreEl.scrollLeft = xs[0][0] - scoreEl.clientWidth / 10;
+  reportViewport(false);
 }
 
 function separateLabels(labels) {
@@ -496,6 +529,7 @@ window.tiliaLoadScore = (text) => {
       return;
     }
     showSvg(toolkit.renderToSVG(1));
+    highlights = [];
     readTimemap(toolkit.renderToTimemap({ includeRests: true, includeMeasures: true }));
     fit();
     send("onScoreLoaded", { mei: toolkit.getMEI() });
@@ -530,6 +564,24 @@ window.tiliaSetColors = (colors) => {
 };
 
 window.tiliaReportViewport = () => reportViewport(true);
+
+// Shades score ranges, each a start measure and fraction and an end measure
+// and fraction, and scrolls to them unless one is in view already. A range that runs past the score, as beats past its last measure do, is cut
+// at the score's ends.
+window.tiliaSetHighlights = (ranges) => {
+  const first = measures[0]?.qStart ?? 0;
+  const last = measures.at(-1)?.qEnd ?? 0;
+  highlights = ranges
+    .map(([startMeasure, startFraction, endMeasure, endFraction]) => {
+      const qStart = qAt(startMeasure, startFraction);
+      const qEnd = qAt(endMeasure, endFraction);
+      if (qStart === null && qEnd === null) return null;
+      return { qStart: qStart ?? first, qEnd: qEnd ?? last };
+    })
+    .filter((highlight) => highlight && highlight.qEnd > highlight.qStart);
+  drawHighlights();
+  revealHighlights();
+};
 
 // Makes a group the active one, and scrolls to it unless it's all in view.
 window.tiliaShowGroup = (id) => {

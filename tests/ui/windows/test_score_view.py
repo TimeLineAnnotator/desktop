@@ -1,4 +1,5 @@
 import json
+import math
 import sys
 from typing import Iterable
 from unittest.mock import patch
@@ -14,7 +15,11 @@ from PySide6.QtWidgets import QApplication, QComboBox, QDockWidget, QWidget
 from tests.constants import EXAMPLE_MUSICXML_PATH, EXAMPLE_REST_MUSICXML_PATH
 from tests.mock import Serve, patch_file_dialog, patch_yes_or_no_dialog
 from tests.ui.timelines.beat.interact import click_beat_ui
-from tests.ui.timelines.interact import click_timeline_ui_element_body, press_key
+from tests.ui.timelines.interact import (
+    click_timeline_ui_element_body,
+    click_timeline_ui_view,
+    press_key,
+)
 from tests.utils import (
     get_blank_file_data,
     run_js,
@@ -467,6 +472,137 @@ class TestSelect:
 
         assert wait_until(lambda: score_view.selected_ids == [element_id])
         assert get_style(score_view, element_id, "fill") == "rgb(18, 52, 86)"
+
+
+def has_highlights(score_view: ScoreView, *expected: dict) -> bool:
+    # The beat timeline rounds metric positions to thousandths of a measure.
+    highlights = get_highlights(score_view)
+    return len(highlights) == len(expected) and all(
+        highlight == pytest.approx(each, abs=0.01)
+        for highlight, each in zip(highlights, expected, strict=True)
+    )
+
+
+def get_highlights(score_view: ScoreView) -> list[dict]:
+    # The page hands arrays and objects back as empty strings.
+    return json.loads(run_js(score_view.view.page(), "JSON.stringify(highlights)"))
+
+
+def score_range(score_view: ScoreView, start: tuple, end: tuple) -> dict:
+    # A range of the score, from a measure number and fraction to another.
+    script = (
+        f"JSON.stringify({{qStart: qAt({start[0]}, {start[1]}),"
+        f" qEnd: qAt({end[0]}, {end[1]})}})"
+    )
+    return json.loads(run_js(score_view.view.page(), script))
+
+
+def measure_of(time: float) -> int:
+    beat_tl = get(Get.TIMELINE_COLLECTION).get_timelines_by_type(BeatTimeline)[0]
+    return math.floor(beat_tl.get_metric_fraction_by_time(time))
+
+
+def add_hierarchy(start: float, end: float):
+    commands.execute("timelines.add.hierarchy", name="Form")
+    commands.execute("timeline.hierarchy.add", start=start, end=end, level=1)
+    tlui = next(t for t in get(Get.TIMELINE_UIS) if t.get_data("name") == "Form")
+    # The new timeline also has a hierarchy as long as the media.
+    return next(
+        h for h in tlui if (h.get_data("start"), h.get_data("end")) == (start, end)
+    )
+
+
+class TestHighlightSelection:
+    def test_selected_beat_shades_its_measure(self, score_view):
+        beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+        beat = beat_tlui[4]
+        measure = measure_of(beat.get_data("time"))
+
+        click_beat_ui(beat)
+
+        expected = score_range(score_view, (measure, 0), (measure, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+        assert (
+            run_js(
+                score_view.view.page(),
+                "document.querySelectorAll('#tilia-highlights rect').length",
+            )
+            == 1
+        )
+
+    def test_selected_hierarchy_shades_its_range(self, score_view):
+        # Beats 5 to 7 make a measure, 8 to 10 the next: the hierarchy ends on
+        # a barline, so it ends with the measure before it.
+        hierarchy = add_hierarchy(6, 11)
+        first, last = measure_of(6), measure_of(10)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        expected = score_range(score_view, (first, 1 / 3), (last, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+    def test_range_past_score_end_is_cut_at_it(self, score_view):
+        # The score's last measure starts at beat 8; the beats go on to 11.
+        hierarchy = add_hierarchy(9, 12)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        measure = measure_of(8)
+        expected = score_range(score_view, (measure, 1 / 3), (measure, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+    def test_overlapping_selections_are_joined(self, score_view):
+        hierarchy = add_hierarchy(5, 8)
+        beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+        measure = measure_of(5)
+
+        click_timeline_ui_element_body(hierarchy)
+        click_beat_ui(beat_tlui[1], modifier="ctrl")
+
+        expected = score_range(score_view, (measure, 0), (measure, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
+
+    def test_deselecting_clears_shading(self, score_view):
+        beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+        click_beat_ui(beat_tlui[4])
+        assert wait_until(lambda: get_highlights(score_view))
+
+        click_timeline_ui_view(beat_tlui.view, "left", 0, 0)
+
+        assert wait_until(lambda: get_highlights(score_view) == [])
+        assert not run_js(
+            score_view.view.page(), "document.querySelector('#tilia-highlights')"
+        )
+
+    def test_selection_in_score_timeline_is_not_shaded(self, score_view, score_tlui):
+        click_timeline_ui_element_body(get_notes(score_tlui)[0])
+
+        let_page_report()
+        assert get_highlights(score_view) == []
+
+    def test_shading_out_of_view_scrolls_to_it(self, score_view):
+        show_narrow(score_view)
+        beat_tlui = get(Get.TIMELINE_UI_BY_ATTR, "timeline_class", BeatTimeline)
+        page = score_view.view.page()
+        scroll = run_js(page, "scoreEl.scrollLeft")
+
+        beat = next(beat for beat in beat_tlui if beat.get_data("time") == 9)
+
+        click_beat_ui(beat)
+
+        assert wait_until(lambda: run_js(page, "scoreEl.scrollLeft") > scroll)
+        assert wait_until(lambda: score_view.visible_times[1] >= 9)
+
+    def test_moving_selected_hierarchy_moves_shading(self, score_view):
+        hierarchy = add_hierarchy(5, 8)
+        click_timeline_ui_element_body(hierarchy)
+        assert wait_until(lambda: get_highlights(score_view))
+
+        hierarchy.set_data("end", 11)
+
+        measure = measure_of(8)
+        expected = score_range(score_view, (measure_of(5), 0), (measure, 1))
+        assert wait_until(lambda: has_highlights(score_view, expected))
 
 
 class TestPage:

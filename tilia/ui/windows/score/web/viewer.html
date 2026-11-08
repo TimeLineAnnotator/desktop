@@ -17,9 +17,12 @@
   html, body { margin: 0; padding: 0; height: 100%; background: #fff; overflow: hidden; }
   #score { position: absolute; inset: 0; overflow-x: auto; overflow-y: hidden; }
   #score { z-index: 0; user-select: none; -webkit-user-select: none; }
-  #score > svg:not(#tilia-groups, #tilia-group-labels) { display: block; }
+  #score > svg:not(#tilia-groups, #tilia-group-labels, #tilia-highlights) { display: block; }
   /* Behind the score, in the score box's scrolling coordinates. */
   #tilia-groups { position: absolute; left: 0; top: 0; z-index: -1; overflow: visible; }
+  /* Behind the note groups: what's selected in other timelines. */
+  #tilia-highlights { position: absolute; left: 0; top: 0; z-index: -2; overflow: visible; }
+  #tilia-highlights rect { fill: rgba(26, 127, 255, 0.1); }
   #tilia-groups .blob { opacity: 0.32; }
   #tilia-groups .blob.active { opacity: 0.55; }
   #tilia-group-labels { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
