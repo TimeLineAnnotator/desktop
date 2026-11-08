@@ -33,6 +33,7 @@ from tilia.requests import (
     post,
     stop_listening_to_all,
 )
+from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 from tilia.ui.enums import WindowState
@@ -255,6 +256,9 @@ class ScoreView(ScoreViewerBase):
         self._has_highlights = False
         self._is_highlight_update_pending = False
         self._should_reveal_highlights = False
+        # In pages, the score is broken into systems as wide as the viewer and
+        # scrolls down; otherwise it is one system, scrolled sideways.
+        self.is_page_view = bool(settings.get("score_timeline", "page_view"))
 
         listen(self, Post.PLAYER_CURRENT_TIME_CHANGED, self.on_current_time_changed)
         listen(self, Post.TIMELINE_COMPONENT_SELECTED, self.on_selection_changed_in)
@@ -288,7 +292,7 @@ class ScoreView(ScoreViewerBase):
 
         self._setup_page()
         self._score_text = text
-        self._run_script("tiliaLoadScore", text)
+        self._run_script("tiliaLoadScore", text, self._layout)
 
         main_window = get(Get.MAIN_WINDOW)
         if self.parentWidget() is not main_window:
@@ -354,6 +358,7 @@ class ScoreView(ScoreViewerBase):
         self._channel.registerObject("tilia", self._bridge)
         page.setWebChannel(self._channel)
         self.group_panel = GroupPanel(self.timeline_id)
+        self.group_panel.pages_button.setChecked(self.is_page_view)
         container = _ScoreContainer(self)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -387,7 +392,7 @@ class ScoreView(ScoreViewerBase):
             self.is_score_loaded = False
             self._shown_colors = {}
             self._pending_scripts.append(
-                self._script("tiliaLoadScore", self._score_text)
+                self._script("tiliaLoadScore", self._score_text, self._layout)
             )
 
     def _on_render_process_terminated(
@@ -517,6 +522,22 @@ class ScoreView(ScoreViewerBase):
         first = math.floor(beat_tl.get_metric_fraction_by_time(start))
         last = math.floor(beat_tl.get_metric_fraction_by_time(end))
         return str(first) if first == last else f"{first}\u2013{last}"
+
+    @property
+    def _layout(self) -> str:
+        return "pages" if self.is_page_view else "continuous"
+
+    def set_page_view(self, is_page_view: bool) -> None:
+        """Shows the score in pages scrolled down, or in one system scrolled
+        sideways."""
+        self.is_page_view = is_page_view
+        if self.group_panel:
+            self.group_panel.pages_button.setChecked(is_page_view)
+        if self._score_text is not None:
+            self._run_script("tiliaSetLayout", self._layout)
+
+    def toggle_page_view(self) -> None:
+        self.set_page_view(not self.is_page_view)
 
     def select_note_group(self, group_id: str) -> None:
         """Makes a group the active one and brings it into view."""

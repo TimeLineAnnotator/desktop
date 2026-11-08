@@ -120,6 +120,7 @@ class SettingsManager(QObject):
             "note_height": 12,
             "default_note_color": "#000000",
             "measure_tracker_color": "#80ff8000",
+            "page_view": "false",
         },
         "range_timeline": {
             "default_row_height": 30,

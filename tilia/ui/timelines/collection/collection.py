@@ -239,6 +239,11 @@ class TimelineUIs:
             self.on_score_group_toggle_table,
             text="Show or hide the note group table",
         )
+        commands.register(
+            "timeline.score.toggle_page_view",
+            self.on_score_toggle_page_view,
+            text="Show the score in pages or in one line",
+        )
 
         commands.register("timeline.clear", self.on_timeline_clear, "Clear")
 
@@ -1420,6 +1425,10 @@ class TimelineUIs:
     ) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):
             tlui.on_export_note_group_table(path)
+
+    def on_score_toggle_page_view(self, timeline_id: str | None = None) -> None:
+        if tlui := self._get_score_timeline_ui(timeline_id):
+            tlui.on_toggle_page_view()
 
     def on_score_group_toggle_table(self, timeline_id: str | None = None) -> None:
         if tlui := self._get_score_timeline_ui(timeline_id):

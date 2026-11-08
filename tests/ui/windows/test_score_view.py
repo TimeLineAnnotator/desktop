@@ -767,7 +767,7 @@ class TestPage:
             '<g id="x" onclick="window.ran = true"/><foreignObject/></svg>'
         )
 
-        run_js(page, f"showSvg({json.dumps(svg)})")
+        run_js(page, f"scoreEl.replaceChildren(sanitizedSvg({json.dumps(svg)}))")
 
         assert json.loads(
             run_js(
@@ -1046,6 +1046,162 @@ class TestResize:
         # Asserted on the hint as the main window is shared by the tests, and its
         # dock area keeps the height it had, as it does for a user.
         assert score_view.sizeHint().height() >= SCORE_INITIAL_HEIGHT
+
+
+LONG_SCORE_MEASURES = 16
+
+
+def write_long_score(path) -> str:
+    # Whole notes in 4/4, a scale up and down, long enough to break into
+    # several systems in a narrow box.
+    steps = "CDEFGAB"
+    notes = []
+    for i in range(LONG_SCORE_MEASURES):
+        degree = i if i < 8 else 15 - i
+        notes.append(
+            f'<measure number="{i + 1}">'
+            + (
+                "<attributes><divisions>1</divisions><key><fifths>0</fifths></key>"
+                "<time><beats>4</beats><beat-type>4</beat-type></time>"
+                "<clef><sign>G</sign><line>2</line></clef></attributes>"
+                if i == 0
+                else ""
+            )
+            + f"<note><pitch><step>{steps[degree % 7]}</step>"
+            f"<octave>{4 + degree // 7}</octave></pitch>"
+            "<duration>4</duration><type>whole</type></note></measure>"
+        )
+    path.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="4.0">'
+        '<part-list><score-part id="P1"><part-name>P</part-name></score-part>'
+        f'</part-list><part id="P1">{"".join(notes)}</part></score-partwise>'
+    )
+    return str(path)
+
+
+@pytest.fixture
+def long_score_view(score_tlui, tmp_path):
+    add_beat_timeline([4], range(4 * LONG_SCORE_MEASURES + 1))
+    import_score(write_long_score(tmp_path / "long.musicxml"), add_measure_zero=False)
+    return get_score_view(score_tlui)
+
+
+def show_in_pages(score_view: ScoreView, width: int = 300, height: int = 150):
+    # Sized in the page, as `show_narrow` explains.
+    page = score_view.view.page()
+    run_js(
+        page,
+        f"scoreEl.style.cssText = 'right: auto; bottom: auto; width: {width}px;"
+        f" height: {height}px'",
+    )
+    commands.execute(
+        "timeline.score.toggle_page_view", timeline_id=score_view.timeline_id
+    )
+    assert wait_until(lambda: run_js(page, "layout") == "pages")
+
+
+def system_count(score_view: ScoreView) -> int:
+    return run_js(score_view.view.page(), "systems.length")
+
+
+class TestPageView:
+    @pytest.fixture
+    def score_view(self, long_score_view):
+        return long_score_view
+
+    def test_breaks_score_into_systems_down_the_box(self, score_view):
+        page = score_view.view.page()
+
+        show_in_pages(score_view)
+
+        assert system_count(score_view) > 1
+        assert run_js(page, "scoreEl.scrollHeight > scoreEl.clientHeight")
+        assert run_js(page, "scoreEl.scrollWidth <= scoreEl.clientWidth")
+        assert score_view.group_panel.pages_button.isChecked()
+
+    def test_toggling_again_shows_one_system(self, score_view):
+        show_in_pages(score_view)
+
+        commands.execute(
+            "timeline.score.toggle_page_view", timeline_id=score_view.timeline_id
+        )
+
+        assert wait_until(
+            lambda: run_js(score_view.view.page(), "layout") == "continuous"
+        )
+        assert system_count(score_view) == 1
+        assert not score_view.group_panel.pages_button.isChecked()
+
+    def test_pages_button_toggles_page_view(self, score_view):
+        score_view.group_panel.pages_button.click()
+
+        assert wait_until(lambda: run_js(score_view.view.page(), "layout") == "pages")
+
+    def test_setting_opens_scores_in_pages(self, score_tlui):
+        settings.set("score_timeline", "page_view", True)
+        add_beats()
+        import_score()
+
+        score_view = get_score_view(score_tlui)
+
+        assert run_js(score_view.view.page(), "layout") == "pages"
+        assert score_view.group_panel.pages_button.isChecked()
+
+    def test_seek_scrolls_down_to_the_system(self, score_view, score_tlui, tilia_state):
+        show_in_pages(score_view)
+        page = score_view.view.page()
+        last = get_notes(score_tlui)[-1]
+
+        commands.execute("media.seek", last.get_data("start"))
+
+        assert wait_until(lambda: run_js(page, "scoreEl.scrollTop") > 0)
+        assert wait_until(
+            lambda: score_view.visible_times[0]
+            <= last.get_data("start")
+            <= score_view.visible_times[1]
+        )
+
+    def test_highlight_shades_each_system_it_crosses(self, score_view):
+        show_in_pages(score_view)
+
+        hierarchy = add_hierarchy(0, 4 * LONG_SCORE_MEASURES)
+
+        click_timeline_ui_element_body(hierarchy)
+
+        assert wait_until(
+            lambda: run_js(
+                score_view.view.page(),
+                "scoreEl.querySelectorAll('#tilia-highlights rect').length",
+            )
+            == system_count(score_view)
+        )
+
+    def test_selection_and_colors_survive_relayout(self, score_view, score_tlui):
+        note = get_notes(score_tlui)[0]
+        element_id = score_view.get_element_id(note.id)
+        set_color(note, "#ff0000")
+        assert wait_until(
+            lambda: get_style(score_view, element_id, "fill") == "rgb(255, 0, 0)"
+        )
+        click(score_view, element_id)
+        assert wait_until(lambda: score_view.selected_ids == [element_id])
+
+        show_in_pages(score_view)
+
+        assert get_style(score_view, element_id, "fill") == "rgb(255, 0, 0)"
+        assert get_marker(score_view, element_id) != "none"
+
+    def test_wider_box_lays_out_fewer_systems(self, score_view):
+        show_in_pages(score_view)
+        page = score_view.view.page()
+        narrow = system_count(score_view)
+
+        run_js(
+            page,
+            "scoreEl.style.width = '2000px'; window.dispatchEvent(new Event('resize'))",
+        )
+
+        assert wait_until(lambda: system_count(score_view) < narrow)
 
 
 class TestDock:

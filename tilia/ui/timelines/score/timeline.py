@@ -718,6 +718,10 @@ class ScoreTimelineUI(TimelineUI):
         if isinstance(self._viewer, ScoreView):
             self._viewer.export_group_table(path)
 
+    def on_toggle_page_view(self) -> None:
+        if isinstance(self._viewer, ScoreView):
+            self._viewer.toggle_page_view()
+
     def on_toggle_note_group_table(self) -> None:
         if isinstance(self._viewer, ScoreView):
             self._viewer.toggle_group_table()

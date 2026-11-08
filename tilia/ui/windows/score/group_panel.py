@@ -85,6 +85,13 @@ class GroupPanel(QWidget):
         self.table_button.setCheckable(True)
         self.table_button.setToolTip("Show or hide the table of note groups")
         self.table_button.clicked.connect(self._on_toggle_table)
+        self.pages_button = QPushButton("Pages")
+        self.pages_button.setCheckable(True)
+        self.pages_button.setToolTip(
+            "Show the score in pages that scroll down, or in one line that scrolls"
+            " sideways"
+        )
+        self.pages_button.clicked.connect(self._on_toggle_page_view)
         self.label_edit = QLineEdit()
         self.label_edit.setPlaceholderText("Group label")
         self.label_edit.setMaximumWidth(240)
@@ -98,6 +105,7 @@ class GroupPanel(QWidget):
             self.delete_button,
             self.color_button,
             self.table_button,
+            self.pages_button,
         ):
             button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.label_edit.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -110,6 +118,7 @@ class GroupPanel(QWidget):
         buttons.addWidget(self.color_button)
         buttons.addWidget(self.label_edit)
         buttons.addStretch()
+        buttons.addWidget(self.pages_button)
         buttons.addWidget(self.table_button)
 
         layout = QVBoxLayout(self)
@@ -166,6 +175,11 @@ class GroupPanel(QWidget):
     def _on_toggle_table(self) -> None:
         commands.execute(
             "timeline.score.group.toggle_table", timeline_id=self.timeline_id
+        )
+
+    def _on_toggle_page_view(self) -> None:
+        commands.execute(
+            "timeline.score.toggle_page_view", timeline_id=self.timeline_id
         )
 
     def _on_label_edited(self) -> None:
