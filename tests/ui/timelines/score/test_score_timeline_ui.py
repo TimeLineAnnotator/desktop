@@ -22,6 +22,7 @@ from tests.utils import (
     get_main_window_menu,
     get_submenu,
     reloadable,
+    save_and_reopen,
     undoable,
     wait_for_smooth_movement,
 )
@@ -41,6 +42,35 @@ def test_create(tluis):
         commands.execute("timelines.add.score")
 
     assert len(tluis) == 1
+
+
+class TestVisibility:
+    def test_new_timeline_is_hidden(self, tluis):
+        commands.execute("timelines.add.score", name="Score")
+
+        assert tluis[0].view.isHidden()
+
+    def test_imported_score_shows_in_the_viewer_with_timeline_hidden(self, tluis):
+        commands.execute("timelines.import.score_with_beats", EXAMPLE_MUSICXML_PATH)
+
+        score_tlui = tluis.get_timeline_uis_by_type(ScoreTimeline)[0]
+        assert score_tlui.view.isHidden()
+        assert not score_tlui.svg_view.is_hidden
+
+    def test_can_be_shown(self, score_tlui):
+        with undoable():
+            commands.execute("timeline.set_is_visible", score_tlui, True)
+
+        assert not score_tlui.view.isHidden()
+
+    def test_shown_timeline_stays_shown_after_reopening(self, score_tlui, tmp_path):
+        commands.execute("timeline.set_is_visible", score_tlui, True)
+
+        save_and_reopen(tmp_path)
+
+        tlui = get(Get.TIMELINE_UIS)[0]
+        assert tlui.get_data("is_visible")
+        assert not tlui.view.isHidden()
 
 
 def test_create_note(score_tlui, note):

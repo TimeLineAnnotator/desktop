@@ -91,9 +91,12 @@ class ScoreTimeline(Timeline):
         svg_data: str = "",
         viewer_beat_x: dict[float, float] = None,
         score_text: str = "",
+        is_visible: bool = False,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        # Hidden unless asked for: the score viewer shows the score. Files
+        # state their timelines' visibility, so older ones open as they were.
+        super().__init__(is_visible=is_visible, **kwargs)
 
         self.validators = self.validators | {
             "svg_data": validate_string,
