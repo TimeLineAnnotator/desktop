@@ -59,13 +59,12 @@ open-source data sharing that are now *de rigueur* in other fields.
 While one _can_ appropriate score and audio editors for visual analysis [@peebles:2013], they are limited in their annotating capabilities.
 Dedicated tools fall into a few groups, according to their focus.
 Audio-analysis tools such as Sonic Visualiser [@cannam:2010] and Partiels [@guillot:2025] centre on audio and plug-in features, and lack score integration.
-Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] anchor annotations to notated elements rather than to time and lack dedicated types for analytical structures such as form, while others, such as the MPM Toolbox [@berndt:2021], are tied to specific file formats.
+Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] anchor annotations to notated elements rather than to time and lack dedicated types for analytical structures such as form.
 "Timeline-based" annotators such as _Audio Timeliner_ [@yorgason:2018; @notess:2004], _iAnalyse_ [@couprie:2019], _BriFormer_ [@jarvis:2020] and _Dezrann_ [@giraud:2018] tend to focus more on providing tools for rich hand-made analysis.[^commercial] While each group excels at particular tasks, there remains space for a solution that caters to more cross-cutting needs.
 
 [^commercial]: Commercial alternatives include: _Hookpad_ and _Soundslice_ (closed-source and subscription-based). SyncPlayer [@kurth:2005; @fremerey:2007] was another timeline-based annotator that is no longer available.
 
-Platform support, for instance, is often narrow (\autoref{tab:comparison}): Dezrann and BriFormer run only in the browser, where local file access is difficult and copyright media is hard to host, while iAnalyse runs only on macOS.
-Few of the tools are scriptable, and most lock analyses in tool-specific formats, constraining interoperability and work at scale.
+Availability, for instance, is often constrained (\autoref{tab:comparison}): iAnalyse runs only on macOS, while Dezrann and BriFormer are hosted web applications. BriFormer has no open licence and depends on its author's website. Dezrann places uploaded pieces in a public sandbox; working with a private recording means requesting an account by e-mail or deploying the platform oneself. Few of the tools are scriptable, and moving analyses between tools can be cumbersome, constraining interoperability and work at scale.
 
 Most software focuses on a subset of the many forms analytical annotations can take (e.g. hierarchical groupings, metre, overlapping time spans, score elements, harmony, text).
 Audio Timeliner and BriFormer allow only nested spans, whereas Sonic Visualiser and iAnalyse allow overlaps, but only on a flat surface.
