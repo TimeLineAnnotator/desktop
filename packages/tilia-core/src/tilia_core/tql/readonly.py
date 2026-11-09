@@ -165,10 +165,15 @@ def sql(
     backtracks badly can hold the whole process.
 
     The table and column names and the ``tql_*`` functions a statement can use
-    may change, and nothing in them is promised yet."""
-    con = index.connection()
-    with in_use(con):
-        return _sql_on(index, con, text, max_rows, time_limit, cancel)
+    may change, and nothing in them is promised yet.
+
+    The statement runs inside one ``index.reading()``: it sees one generation
+    of the index. It reads ``files`` as it is, unreadable and unavailable files
+    included."""
+    with index.reading() as reading:
+        con = reading.connection
+        with in_use(con):
+            return _sql_on(index, con, text, max_rows, time_limit, cancel)
 
 
 def _sql_on(

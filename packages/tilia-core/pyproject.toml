@@ -49,4 +49,10 @@ dev = [{include-group = "tests"}, "regex>=2024.9.11"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["tests/timemap", "tests/importers", "tests/commands"]
+pythonpath = [
+    "tests/tql",
+    "tests/corpus",
+    "tests/timemap",
+    "tests/importers",
+    "tests/commands",
+]

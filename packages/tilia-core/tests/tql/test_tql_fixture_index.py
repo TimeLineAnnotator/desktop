@@ -147,7 +147,11 @@ def test_chord_before_the_first_key_has_no_key():
         ],
     }
     index = fixture_index.build_index(fixture)
-    assert rows(index, "SELECT key, key_id FROM chords ORDER BY step, accidental") == [
+    assert rows(
+        index,
+        "SELECT ch.key, k.uuid FROM chords ch LEFT JOIN components k "
+        "ON k.id = ch.key_id ORDER BY ch.step, ch.accidental",
+    ) == [
         (None, None),
         ("D", "f1:t1:k1"),
     ]
@@ -244,7 +248,7 @@ def test_measures_and_beats_of_repeat():
 def test_measures_pass_follows_the_repeats():
     index = fixture_index.build_index(FIXTURES["repeat"])
     got = rows(index, "SELECT number, pass FROM measures ORDER BY count")
-    tm = index.time_map("f1")
+    tm = index.time_map(fixture_index.file_key(index, "f1"))
     seen: dict[int, int] = {}
     want = []
     for number in tm.numbers:
@@ -262,7 +266,7 @@ def test_measures_pass_is_1_without_repeats():
 
 def test_fake_timemap_of_repeat():
     index = fixture_index.build_index(FIXTURES["repeat"])
-    tm = index.time_map("f1")
+    tm = index.time_map(fixture_index.file_key(index, "f1"))
     assert isinstance(tm, FakeTimeMap)
     assert tm.position(4.0, "bar") == 1.0
     assert tm.position(4.0, "beat") == 4.0
@@ -351,7 +355,7 @@ def test_a_start_just_before_the_end_of_the_map_is_in_the_last_bar():
     assert one(index, sql, "PAC") == (2, 2, 5.0, 2)
     assert one(index, sql, "span") == (2, 2, 1.0, 2)
     assert rows(index, sql, "X") == []
-    tm = index.time_map("f1")
+    tm = index.time_map(fixture_index.file_key(index, "f1"))
     assert tm.bar(7.95) == 2 and tm.bar(8.0) is None and tm.bar(8.05) is None
     assert tm.position(7.95, "bar") == 2.0 == tm.position(8.0, "bar")
     assert tm.length(4.0, 7.95, "bar") == 1.0
@@ -359,7 +363,7 @@ def test_a_start_just_before_the_end_of_the_map_is_in_the_last_bar():
 
 def test_no_time_map_in_exposition():
     index = fixture_index.build_index(FIXTURES["exposition"])
-    assert index.time_map("f1") is None
+    assert index.time_map(fixture_index.file_key(index, "f1")) is None
     assert one(index, "SELECT time_map FROM files") == (None,)
     assert count(index, "positions") == 0
     assert count(index, "measures") == 0
@@ -367,22 +371,49 @@ def test_no_time_map_in_exposition():
 
 def test_two_fixtures_make_two_files():
     index = fixture_index.build_index(FIXTURES["exposition"], FIXTURES["repeat"])
-    assert rows(index, "SELECT id, path FROM files ORDER BY id") == [
-        ("f1", "f1.tla"),
-        ("f2", "f2.tla"),
+    assert rows(index, "SELECT document_id, path, state FROM files ORDER BY id") == [
+        ("f1", "f1.tla", "readable"),
+        ("f2", "f2.tla", "readable"),
     ]
-    assert index.time_map("f1") is None
-    assert index.time_map("f2") is not None
+    assert index.time_map(fixture_index.file_key(index, "f1")) is None
+    assert index.time_map(fixture_index.file_key(index, "f2")) is not None
     assert one(index, "SELECT COUNT(DISTINCT id), COUNT(*) FROM components") == (
         116,
         116,
     )
 
 
-def test_fixture_name_is_the_file_id():
+def test_fixture_name_is_the_document_id():
     index = fixture_index.build_index({**FIXTURES["recipe"], "name": "song"})
-    assert one(index, "SELECT id, path FROM files") == ("song", "song.tla")
-    assert one(index, "SELECT COUNT(*) FROM components WHERE id LIKE 'song:%'") == (5,)
+    assert one(index, "SELECT document_id, path FROM files") == ("song", "song.tla")
+    assert one(index, "SELECT COUNT(*) FROM components WHERE uuid LIKE 'song:%'") == (
+        5,
+    )
+
+
+def test_keys_are_integers_from_one_counter_and_text_ids_are_uuids():
+    index = fixture_index.build_index(FIXTURES["exposition"], FIXTURES["repeat"])
+    keys = [
+        r[0]
+        for table in ("files", "timelines", "components")
+        for r in index.connection().execute(f"SELECT id FROM {table}")
+    ]
+    assert all(isinstance(k, int) for k in keys)
+    assert len(set(keys)) == len(keys)  # unique across the three tables
+    assert one(index, "SELECT uuid FROM timelines ORDER BY id") == ("f1:t1",)
+    assert one(index, "SELECT uuid FROM components ORDER BY id") == ("f1:t1:c1",)
+    # every key column points to a key
+    for sql in (
+        "SELECT COUNT(*) FROM components c LEFT JOIN files f ON f.id = c.file_id "
+        "WHERE f.id IS NULL",
+        "SELECT COUNT(*) FROM components c LEFT JOIN timelines t "
+        "ON t.id = c.timeline_id WHERE t.id IS NULL",
+        "SELECT COUNT(*) FROM hierarchies h LEFT JOIN components p "
+        "ON p.id = h.parent_id WHERE h.parent_id IS NOT NULL AND p.id IS NULL",
+        "SELECT COUNT(*) FROM files f LEFT JOIN timelines t ON t.id = f.time_map "
+        "WHERE f.time_map IS NOT NULL AND t.id IS NULL",
+    ):
+        assert one(index, sql) == (0,), sql
 
 
 def test_chords_at_one_time_are_ordered_by_the_label_stored():

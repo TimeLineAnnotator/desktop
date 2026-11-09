@@ -16,11 +16,13 @@ LOG = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Component:
-    """A unit of a timeline, as the index stores it."""
+    """A unit of a timeline, as the index stores it. ``id``, ``file_id`` and
+    ``timeline_id`` are the index's keys (a unit of the bars lane, which no
+    component row holds, has a text id of its own: ``lanes.bar_id``)."""
 
-    id: str
-    file_id: str
-    timeline_id: str
+    id: int | str
+    file_id: int
+    timeline_id: int
     kind: str
     label: str
     start: float
@@ -53,8 +55,8 @@ class Match:
     lane_level: int | None = None
     lane_row: str | None = None
     slot_lanes: list[str] = field(default_factory=list)
-    file_id: str | None = None
-    timeline_id: str | None = None
+    file_id: int | None = None
+    timeline_id: int | None = None
 
     def is_target(self, n: int, k: int) -> bool:
         """Whether unit ``k`` (from 0) of step ``n`` (``$n``, from 1) is the
