@@ -1201,6 +1201,21 @@ class TestBeatTimelinesStageOne:
         ]
         assert mark == {}
 
+    def test_a_beat_back_where_no_measure_starts_has_no_mark(self):
+        # The lists say which beats start a measure, whatever a beat brings back.
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "beat")
+        downbeat = timeline.measures.rows[2].id
+        state = copy.deepcopy(opened.component(timeline.id, downbeat))
+        opened.delete_component(timeline.id, downbeat)
+        opened.edit_timeline(timeline.id, beats_in_measure=[1, 3, 2, 3, 3, 1, 2, 1])
+        opened.sync()
+        opened.timeline(timeline.id)["components"][downbeat] = state
+        opened.edit_timeline(timeline.id, beats_in_measure=[1, 6, 3, 3, 1, 2, 1])
+        opened.sync()
+        assert "measure" not in timeline.components[downbeat].attrs
+        assert tla.loads(opened.bytes())
+
     def test_a_deleted_downbeats_measure_gets_a_new_downbeat(self):
         opened = Opened.read(EVERY_KIND)
         timeline = first_of_kind(opened.doc, "beat")
@@ -2175,6 +2190,17 @@ class TestMarksFollowTheirMeasures:
         opened.sync(opened.first)
         assert opened.bytes() == opened.bytes_read
 
+    def test_set_beat_amount_that_takes_the_last_measure_and_its_undo(self, live):
+        # Its beats join the measure before: the measure's mark waits in `removed`.
+        timeline_id, ids, doc = marked_measures()
+        opened = live(doc)
+        opened.timeline(timeline_id).set_beat_amount_in_measure(3, 6)
+        opened.sync()
+        assert "measure" not in opened.written(timeline_id)["components"][ids[12]]
+        assert len(opened.notes) == 1
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
     def test_a_measure_that_is_gone_leaves_a_note_and_comes_back(self, live):
         timeline_id, ids, doc = marked_measures()
         opened = live(doc)
@@ -2847,9 +2873,10 @@ class TestNoSharing:
         return Opened.from_content(file_with({self.TL: timeline}))
 
     def test_a_list_in_a_components_state(self):
-        opened = self.opened()
-        opened.component(self.TL, self.SIGNATURE)["pairs"].append(["5", 8])
-        stored = opened.doc.timelines[self.TL].components[self.SIGNATURE]
+        doc = self.opened().doc
+        state = tla_bridge.state_of(doc)
+        state[self.TL]["components"][self.SIGNATURE]["pairs"].append(["5", 8])
+        stored = doc.timelines[self.TL].components[self.SIGNATURE]
         assert stored.extra["pairs"] == [["2", 4], ["3", 8]]
 
     def test_a_list_written_to_a_component(self):
