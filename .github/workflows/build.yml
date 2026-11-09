@@ -39,6 +39,10 @@ jobs:
 
       - name: Setup additional Linux dependencies
         if: runner.os == 'Linux'
+        env:
+          # A release can wait for a slow mirror: at the default limit, one could
+          # fail this job and publish the release without its Linux asset.
+          APT_ATTEMPT_LIMIT: 600
         run: |
           chmod +x ./scripts/linux-setup.sh
           ./scripts/linux-setup.sh
