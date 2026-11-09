@@ -95,12 +95,12 @@ The Walküre [@balke:2017], Freischütz Digital [@muller:2013], Erkomaishvili [@
 
 : Comparison of music annotation tools. \label{tab:comparison}
 
-*Annotations:* **B** beat · **C** harmony · **E** score elements · **H** hierarchical · **I** instant · **O** overlapping · **T** text\
+*Annotations:* **B** beat · **C** harmony · **E** score elements · **H** hierarchical (nested, e.g. phrases within sections) · **I** instant (single timepoints, e.g. cadences) · **O** overlapping (spans that may coincide, e.g. motifs) · **T** text\
 *Media:* **A** audio · **P** PDF · **S** score · **V** video · **Y** YouTube\
 *Platforms:* **L** Linux · **M** macOS · **W** Windows · **w** web\
 Hollow circles mark partial support.
 
-In response to this challenge, we present 'TiLiA': a timeline annotator for all.
+In response to this challenge, we present 'TiLiA': a timeline annotator.
 It provides an open-source, cross-platform desktop tool that aligns annotations with audio, video, YouTube, PDFs and scores on shared timelines, offers dedicated types for musical structure, harmony and metre, and can be scripted and exchanged through CSV and JSON.
 
 # Specifications
@@ -133,10 +133,10 @@ Currently, there are eight types of timelines:
 | Timeline type | Purpose |
 |------|------------------|
 | **Audiowave** | Displaying amplitude graphs |
-| **Beat** | Marking beats/measures, synchronising metrical and absolute time |
+| **Beat** | Marking beats/measures in metrical structure, and synchronising to absolute time |
 | **Harmony** | Chord symbols and roman numeral analysis |
 | **Hierarchy** | Representing hierarchical relations and sequences|
-| **Marker** | Annotating discrete timepoints |
+| **Marker** | Annotating discrete timepoints, with optional labels |
 | **PDF** | Synchronising external PDF documents with playback |
 | **Range** | Representing non-hierarchical relations and sequences |
 | **Score** | Synchronising digitised scores with playback |
