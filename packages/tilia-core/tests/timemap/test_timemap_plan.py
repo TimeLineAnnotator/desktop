@@ -989,6 +989,65 @@ class TestRestore:
 
             assert p == Plan(changes=[], unreadable=[BarRef(4, "4", 1, 1)])
 
+        def test_a_run_left_out_for_an_opening_unit_goes_whole(self):
+            # Bar 1 stores the unit. Bars 3 and 4, one run, would give the
+            # timeline its first unit; bar 4 alone, set to the 2/4 bar 1
+            # reads, wouldn't change it.
+            doc, tl = piece([2] * 5, units={(0, 0): UNREADABLE})
+
+            p = plan(doc, tl, [*bars(3, text="6/8"), *bars(4, text="2/4")])
+
+            assert p == Plan(changes=[], unreadable=[BarRef(1, "1", 1, 1)])
+
+        def test_the_run_left_out_is_the_one_just_before_the_bar(self):
+            doc, tl = piece([2] * 6, units={(0, 0): DEFAULT, (4, 0): UNREADABLE})
+
+            p = plan(doc, tl, bars(2, 4, text="6/8"))
+
+            assert p.unreadable == [BarRef(5, "5", 1, 1)]
+            assert unit_writes(p) == {
+                downbeat(tl, 1): unit(8, "3"),
+                downbeat(tl, 2): DEFAULT,
+            }
+
+        def test_the_timeline_s_first_bar_leaves_out_its_first_run_only(self):
+            # Bar 1 stores the unit. Bar 2 would give the timeline its first
+            # unit; bar 4, set to the 2/4 bar 1 reads, goes ahead.
+            doc, tl = piece([2] * 6, units={(0, 0): UNREADABLE})
+
+            p = plan(doc, tl, [*bars(2, text="6/8"), *bars(4, text="2/4")])
+
+            assert p.unreadable == [BarRef(1, "1", 1, 1)]
+            assert unit_writes(p) == {
+                downbeat(tl, 3): unit(4, "1"),
+                downbeat(tl, 4): DEFAULT,
+            }
+
+        def test_a_movement_s_first_bar_leaves_out_no_later_movement_s_run(self):
+            # Three songs of two bars; song 2's bar 1 stores the unit. Song 1's
+            # bar 2 needs a write-back there; song 3's bar 2 doesn't.
+            marks = {m: {"number": 1, "restart": True} for m in (2, 4)}
+            doc, tl = piece([2] * 6, marks=marks, units={(2, 0): UNREADABLE})
+            settings = [(BarRef(2, movement=1), ts("6/8"))]
+            settings.append((BarRef(2, movement=3), ts("6/8")))
+
+            p = plan(doc, tl, settings)
+
+            assert p.unreadable == [BarRef(1, "1", 1, 2)]
+            assert unit_writes(p) == {
+                downbeat(tl, 4): DEFAULT,
+                downbeat(tl, 5): unit(8, "3"),
+            }
+
+        @pytest.mark.parametrize("stored", ["junk", 0])
+        def test_a_stored_value_that_isn_t_a_unit_at_all_is_one(self, stored):
+            doc, tl = piece([2, 2, 2])
+            tl.components[downbeat(tl, 2)].attrs["beat_unit"] = stored
+
+            p = plan(doc, tl, bars(2, text="6/8"))
+
+            assert p == Plan(changes=[], unreadable=[BarRef(3, "3", 1, 1)])
+
         # Song 1's bars 2 and 3, and song 2's bar 1.
         ACROSS = [
             (BarRef(2, movement=1), ts("6/8")),
@@ -1222,6 +1281,18 @@ class TestRestore:
             }
             assert [sig for sig, _, _ in read(doc, tl)] == ["6/8", "2/4", "2/4", "2/4"]
 
+        def test_it_takes_in_the_bar_with_a_unit_that_ends_it(self):
+            # Song 2's bar 1, read with song 2's bar 2, reads a copy of its
+            # 6/8, as before.
+            doc, tl = piece([2] * 6, marks=SONGS, units={(4, 0): unit(8, "3")})
+
+            p = plan(doc, tl, [(BarRef(2, movement=1), ts("6/8"))])
+
+            assert unit_writes(p) == {
+                downbeat(tl, 1): unit(8, "3"),
+                downbeat(tl, 2): DEFAULT,
+            }
+
         def test_a_restart_doesn_t_end_it(self):
             # Song 2, without a unit, reads the unit in force before it.
             doc, tl = piece([2] * 6, marks=SONGS)
@@ -1370,6 +1441,84 @@ class TestRestoreOnAnyTable:
                         assert was.pop("beat_unit", None) is None, where
                         is_now.pop("beat_unit")
                     assert is_now == was, where
+
+    def case_with_units_it_cant_read(self, seed):
+        """A table of up to ten bars, where units the reader can't read,
+        restarts and bars set are common."""
+        rng = random.Random(seed)
+        taps = [rng.randint(1, 3) for _ in range(rng.randint(2, 10))]
+        marks = {m: {"restart": True} for m in range(len(taps)) if rng.random() < 0.25}
+        units = {
+            (m, b): rng.choice([UNREADABLE, UNREADABLE, *self.UNITS])
+            if rng.random() < (0.35 if b == 0 else 0.1)
+            else None
+            for m, count in enumerate(taps)
+            for b in range(count)
+        }
+        doc, tl = piece(taps, marks=marks, units=units)
+        settings = [
+            (row.id, ts(rng.choice(self.TIME_SIGNATURES)))
+            for row in tl.measures.rows
+            if rng.random() < 0.5
+        ]
+        return doc, tl, settings
+
+    @staticmethod
+    def runs(rows, wanted):
+        """The runs of bars set, by index: next to each other, in one movement."""
+        runs = []
+        for index, row in enumerate(rows):
+            if row.id not in wanted:
+                continue
+            follows = bool(runs) and runs[-1][-1] == index - 1
+            if follows and rows[index - 1].movement == row.movement:
+                runs[-1].append(index)
+            else:
+                runs.append([index])
+        return runs
+
+    def test_the_runs_left_out_are_those_a_reported_bar_needs(self):
+        # TimeLineAnnotator/project-management#373, and #520 (a run left out
+        # and a restart): a run, which stops at a restart, goes ahead whole or
+        # is left out whole. One left out has a reported bar just after it,
+        # or, if no bar before it in its movement went ahead, on the
+        # movement's first bar. It had to be: with the bars that went ahead,
+        # it makes the plan report a bar again. Every bar reported is beside
+        # such a run, and reported once.
+        for seed in self.SEEDS:
+            doc, tl, settings = self.case_with_units_it_cant_read(seed)
+            rows = build_rows(doc, tl)
+            wanted = dict(settings)
+            p = plan(doc, tl, settings)
+            applied = copy.deepcopy(doc)
+            apply_plan(applied, p)
+            now = build_rows(applied, applied.timelines[tl.id])
+            went = {row.id for row in now if row.source == "score"}
+            reported = {(b.number, b.label, b.pass_, b.movement) for b in p.unreadable}
+            assert len(reported) == len(p.unreadable), f"seed {seed}: reported twice"
+            beside = set()
+
+            for run in self.runs(rows, wanted):
+                where = f"seed {seed}, bars {rows[run[0]].label}-{rows[run[-1]].label}"
+                out = [rows[i].id not in went for i in run]
+                assert all(out) or not any(out), where
+                if not any(out):
+                    continue
+                movement = rows[run[0]].movement
+                first = next(i for i, r in enumerate(rows) if r.movement == movement)
+                bars_ = [run[-1] + 1] if run[-1] + 1 < len(rows) else []
+                if not any(rows[i].id in went for i in range(first, run[0])):
+                    bars_.append(first)
+                names = {
+                    (r.number, r.label, r.pass_, r.movement)
+                    for r in (rows[i] for i in bars_)
+                }
+                assert names & reported, where
+                beside |= names & reported
+                again = [(bar, t) for bar, t in settings if bar in went]
+                again += [(rows[i].id, wanted[rows[i].id]) for i in run]
+                assert plan(doc, tl, again).unreadable, where
+            assert reported == beside, f"seed {seed}"
 
     @pytest.mark.parametrize("after", ["carry", "restore"])
     def test_planning_again_gives_an_empty_plan(self, after):
