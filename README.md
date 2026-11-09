@@ -7,6 +7,8 @@ TiLiA (TimeLine Annotator) is a GUI for producing and displaying complex annotat
 
 TiLiA allows users to annotate media files primarily through timelines of various types. Each one provides different tools and enables specific annotations and visualizations. Currently, there are eight types of timelines, but many more are planned.
 
+[Download](https://github.com/TimeLineAnnotator/desktop/releases/latest) · [Documentation](https://tilia-app.com/help/) · [Video tutorials](https://www.youtube.com/@tilia-app) · [Online platform](https://tilia-app.com) · [Contributing](./CONTRIBUTING.md)
+
 <p align="center">
   <img src="docs/img/tilia-desktop.png" width="600" alt="TiLiA desktop interface" >
 </p>
@@ -22,12 +24,12 @@ Here are some examples of TiLiA visualizations:
 ## Current features
 - 8 kinds of timelines
     - AudioWave: visualize audio files through bars that represent changes in amplitude
-    - Beat: beat and measure markers with support for numbering
-    - Harmony: Roman numeral and letter symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
-    - Hierarchy: nested and levelled units organized in arbitrarily complex hierarchical structures
-    - Marker: simple, labelled markers to indicate discrete events
+    - [Beat](https://tilia-app.com/help/beat-tl): beat and measure markers with support for numbering
+    - [Harmony](https://tilia-app.com/help/harmony-tl): Roman numeral and letter symbol labels using a specialized font, including proper display of inversion numerals, quality symbols and applied chords
+    - [Hierarchy](https://tilia-app.com/help/hierarchy-tl): nested and levelled units organized in arbitrarily complex hierarchical structures
+    - [Marker](https://tilia-app.com/help/marker-tl): simple, labelled markers to indicate discrete events
     - PDF: visualize PDF files synced to playback
-    - Range: labelled time-span bars for non-hierarchical annotations
+    - [Range](https://tilia-app.com/help/range-tl): labelled time-span bars for non-hierarchical annotations
     - Score: visualize music scores in custom, to-scale notation or conventional engraving
 - Controlling playback by clicking on timeline units
 - Multiple attributes linked to each timeline unit
@@ -44,8 +46,6 @@ Here are some examples of TiLiA visualizations:
 
 ## TiLiA binaries
 TiLiA has built binaries for Windows, macOS and Linux. [Download the latest release](https://github.com/TimeLineAnnotator/desktop/releases/latest).
-
-Tutorials on how to use TiLiA can be found on our [website](https://tilia-app.com/help/) and in these [videos](https://www.youtube.com/@tilia-app).
 
 ## TiLiA from source
 
