@@ -57,8 +57,30 @@ jobs:
     - name: Install the packages and Playwright
       run: python -m pip install ./packages/tilia-core && python -m pip install ./packages/tilia-library pytest "playwright>=1.40"
 
+    # An apt mirror can crawl without stalling: 4 of 45 recent runs spent 9 to 12
+    # minutes here at about 35 kB/s, instead of the usual 13 to 39 s. So each
+    # attempt gets a time limit. A later attempt continues from the debs already
+    # downloaded, without Azure's mirror, which is the first on the runner's list.
+    #
+    # install-deps runs as root because Playwright otherwise starts apt through
+    # its own sudo, and a limit around that leaves apt running and holding its locks.
     - name: Install Chromium
-      run: python -m playwright install --with-deps chromium
+      run: |
+        limit=120 # seconds
+        attempts=3
+        for attempt in $(seq "$attempts"); do
+          if sudo timeout --kill-after=15 "$limit" "$(command -v python)" -m playwright install-deps chromium \
+            && timeout --kill-after=15 "$limit" python -m playwright install chromium; then
+            echo "Chromium install succeeded on attempt $attempt of $attempts"
+            exit 0
+          fi
+          echo "::warning::Chromium install attempt $attempt failed or passed ${limit}s"
+          # The limit can land while packages are being unpacked.
+          sudo dpkg --configure -a || true
+          sudo sed -i '/azure\.archive\.ubuntu\.com/d' /etc/apt/apt-mirrors.txt || true
+        done
+        echo "::error::Chromium install failed after $attempts attempts of up to ${limit}s each"
+        exit 1
 
     - name: Run the browser tests
       working-directory: packages/tilia-library
