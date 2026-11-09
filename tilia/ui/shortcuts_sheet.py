@@ -1,24 +1,26 @@
 """
 A cheat sheet of TiLiA's keyboard shortcuts, made from the command registry.
 
-    python -m tilia.ui.shortcuts_sheet --out <folder>
-
-builds the Qt interface without showing it, lists every command that has a
-shortcut, and writes shortcuts.svg and shortcuts.md to <folder>. The release
-workflow (.github/workflows/build.yml) attaches both files to every release, so
-the sheet is never written by hand. Where there is no display, as on the
-release workflow's runner, set QT_QPA_PLATFORM=offscreen. Don't on Windows:
-Qt's offscreen platform finds no system fonts there, so text is measured with
-TiLiA's music font and the columns come out too wide. Like starting TiLiA, it
-opens your TiLiA settings, which fills in any setting they lack; the tests run
-it under a settings store of their own.
-
     python -m tilia.ui.shortcuts_sheet --update <svg file> <markdown file>
 
-writes the same sheet to those two files, unless the date is all that would
-change, so that their date is that of the sheet's last change. This is how
-.github/workflows/shortcuts-sheet.yml keeps the repository's copy current
-(docs/img/shortcuts.svg, which the README shows, and docs/shortcuts.md).
+builds the Qt interface without showing it, lists every command that has a
+shortcut, and writes the sheet to those two files, as SVG and as Markdown,
+unless the date is all that would change, so that their date is that of the
+sheet's last change. This is how .github/workflows/shortcuts-sheet.yml keeps
+the repository's copy current (docs/img/shortcuts.svg, which the README shows,
+and docs/shortcuts.md), so the sheet is never written by hand.
+
+    python -m tilia.ui.shortcuts_sheet --out <folder>
+
+writes shortcuts.svg and shortcuts.md to <folder>, whatever is already there.
+No workflow runs it; it is for making the sheet by hand.
+
+Where there is no display, as on the workflow's runner, set
+QT_QPA_PLATFORM=offscreen. Don't on Windows: Qt's offscreen platform finds no
+system fonts there, so text is measured with TiLiA's music font and the columns
+come out too wide. Like starting TiLiA, it opens your TiLiA settings, which
+fills in any setting they lack; the tests run it under a settings store of
+their own.
 
 Each shortcut is listed with what it does (its command's text) and where to
 find it: its menu path, its timeline kind's toolbar, or "anywhere" when no
@@ -428,9 +430,10 @@ WIDTH = 1000
 MARGIN = 32
 GUTTER = 28
 # TiLiA uses the platform's UI font. Text is measured with the font Qt picks
-# for this value. The release workflow's Linux runner has none of these fonts
-# and falls back to its default sans-serif font, usually DejaVu Sans, which is
-# wider than all of them: text that fits there fits in a browser too.
+# for this value. The Linux runner of .github/workflows/shortcuts-sheet.yml has
+# none of these fonts and falls back to its default sans-serif font, usually
+# DejaVu Sans, which is wider than all of them: text that fits there fits in a
+# browser too.
 FONT_FAMILY = "system-ui, Segoe UI, Helvetica Neue, Helvetica, Arial, sans-serif"
 
 TEXT_COLOR = "#1f1f1f"
