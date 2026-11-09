@@ -8,6 +8,7 @@ must give the same bytes.
 import ast
 import copy
 import difflib
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ from tilia.file import tla_bridge
 from tilia.file.media_metadata import MediaMetadata
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
+from tilia.timelines.hash_timelines import hash_function
 from tilia_core import rules, tla
 
 FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
@@ -302,17 +304,6 @@ class TestSameEditThroughTheCore:
         self.assert_same_bytes(opened, second)
 
     @pytest.mark.parametrize("path", ALL_FILES, ids=ids_of(ALL_FILES))
-    def test_a_measure_number(self, path):
-        opened, second = Opened.read(path), tla.read(path)
-        timeline = first_of_kind(opened.doc, "beat")
-        last = tla.measure_table(timeline).rows[-1]
-        numbers = opened.timeline(timeline.id)["measure_numbers"]
-        opened.edit_timeline(timeline.id, measure_numbers=[*numbers[:-1], 2000])
-        attrs = second.timelines[timeline.id].components[last.id].attrs
-        attrs["measure"]["number"] = 2000
-        self.assert_same_bytes(opened, second)
-
-    @pytest.mark.parametrize("path", ALL_FILES, ids=ids_of(ALL_FILES))
     def test_a_timeline_name(self, path):
         opened, second = Opened.read(path), tla.read(path)
         named = [id for id, tl in opened.timelines.items() if tl["kind"] != "Slider"]
@@ -363,46 +354,11 @@ class TestSameEditThroughTheCore:
         self.assert_same_bytes(opened, second)
 
     @pytest.mark.parametrize("path", ALL_FILES, ids=ids_of(ALL_FILES))
-    def test_adding_a_beat_at_the_end(self, path):
-        opened, second = Opened.read(path), tla.read(path)
-        timeline = first_of_kind(opened.doc, "beat")
-        state = opened.timeline(timeline.id)
-        last_time = max(c.attrs["time"] for c in timeline.components.values())
-        opened.add_component(timeline.id, NEW, "BEAT", time=last_time + 1)
-        counts = state["beats_in_measure"]
-        opened.edit_timeline(
-            timeline.id, beats_in_measure=[*counts[:-1], counts[-1] + 1]
-        )
-        second.timelines[timeline.id].components[NEW] = tla.Component(
-            id=NEW, kind="beat", attrs={"time": last_time + 1}
-        )
-        self.assert_same_bytes(opened, second)
-
-    @pytest.mark.parametrize("path", ALL_FILES, ids=ids_of(ALL_FILES))
     def test_removing_a_marker(self, path):
         opened, second = Opened.read(path), tla.read(path)
         timeline_id, component = first_component(opened.doc, "marker")
         opened.delete_component(timeline_id, component.id)
         del second.timelines[timeline_id].components[component.id]
-        self.assert_same_bytes(opened, second)
-
-    @pytest.mark.parametrize("path", ALL_FILES, ids=ids_of(ALL_FILES))
-    def test_removing_a_beat_that_starts_no_measure(self, path):
-        opened, second = Opened.read(path), tla.read(path)
-        timeline = first_of_kind(opened.doc, "beat")
-        counts = opened.timeline(timeline.id)["beats_in_measure"]
-        index = next((i for i, count in enumerate(counts) if count > 1), None)
-        if index is None:
-            pytest.skip("every measure has one beat")
-        beat_id = tla.measure_table(timeline).rows[index].beats[1]
-        opened.delete_component(timeline.id, beat_id)
-        opened.edit_timeline(
-            timeline.id,
-            beats_in_measure=[
-                count - 1 if i == index else count for i, count in enumerate(counts)
-            ],
-        )
-        del second.timelines[timeline.id].components[beat_id]
         self.assert_same_bytes(opened, second)
 
     @pytest.mark.parametrize("path", ALL_FILES, ids=ids_of(ALL_FILES))
@@ -1206,13 +1162,14 @@ class TestBeatTimelinesStageOne:
         assert written[repeat]["measure"]["metadata"] == {"tags": ["repeat"]}
         assert written[repeat]["measure"]["source"] == "edited"
 
-    def test_a_beat_no_longer_a_downbeat_loses_its_mark_and_gets_it_back(self):
+    def test_a_measure_that_is_gone_leaves_its_mark_for_an_undo(self):
         opened = Opened.read(EVERY_KIND)
         timeline = first_of_kind(opened.doc, "beat")
         rows = timeline.measures.rows
         state = opened.timeline(timeline.id)
         before = copy.deepcopy(state)
-        # "Set beat amount": the second measure takes the third one's beats.
+        # "Set beat amount": the second measure takes the third one's beats, so the
+        # later marks move to the measures before them, and the last one is gone.
         opened.edit_timeline(
             timeline.id,
             beats_in_measure=[1, 6, 3, 3, 1, 2, 1],
@@ -1220,27 +1177,28 @@ class TestBeatTimelinesStageOne:
             measures_to_force_display=[],
         )
         opened.sync()
-        gone = rows[2].id
-        assert "measure" not in timeline.components[gone].attrs
+        assert "measure" not in timeline.components[rows[2].id].attrs
+        assert timeline.components[rows[3].id].attrs["measure"]["label"] == "2a"
         opened.current["timelines"][timeline.id] = before
         opened.sync()
-        assert opened.bytes() == opened.bytes_read
+        assert opened.bytes() == opened.bytes_read, changed_lines(
+            opened.bytes_read, opened.bytes()
+        )
 
-    def test_a_new_downbeat_gets_an_empty_mark(self):
+    def test_a_new_measure_gets_an_empty_mark(self):
         opened = Opened.read(EVERY_KIND)
         timeline = first_of_kind(opened.doc, "beat")
-        rows = timeline.measures.rows
+        state = opened.timeline(timeline.id)
+        opened.add_component(timeline.id, NEW, "BEAT", time=17.0)
         opened.edit_timeline(
             timeline.id,
-            beats_in_measure=[1, 1, 2, 3, 3, 3, 1, 2, 1],
-            measure_numbers=[0, 1, 2, 2, 1, 2, 2, 3, 4],
-            measures_to_force_display=[3],
+            beats_in_measure=[*state["beats_in_measure"], 1],
+            measure_numbers=[*state["measure_numbers"], 5],
         )
         opened.sync()
-        downbeat = rows[1].beats[1]
-        mark = json.loads(opened.bytes())["timelines"][timeline.id]["components"][
-            downbeat
-        ]["measure"]
+        mark = json.loads(opened.bytes())["timelines"][timeline.id]["components"][NEW][
+            "measure"
+        ]
         assert mark == {}
 
     def test_a_deleted_downbeats_measure_gets_a_new_downbeat(self):
@@ -1293,15 +1251,14 @@ class TestBeatTimelinesStageOne:
         opened.sync()
         assert timeline.measures == tla.measure_table(timeline)
 
-    def test_a_next_that_named_a_beat_no_longer_a_downbeat_follows(self):
-        # The writer refuses a next that names no measure.
+    def test_a_next_keeps_naming_the_same_measures(self):
+        # The measure each one names has a new downbeat after a deletion.
         opened = Opened.read(EVERY_KIND)
         timeline = next(
             tl for tl in opened.doc.timelines.values() if tl.name == "Bars of the score"
         )
         rows = timeline.measures.rows
-        named, after = rows[2].id, rows[3].id
-        opened.delete_component(timeline.id, named)
+        opened.delete_component(timeline.id, rows[2].id)
         opened.edit_timeline(
             timeline.id,
             beats_in_measure=[1, 1, 1, 1, 1],
@@ -1309,7 +1266,7 @@ class TestBeatTimelinesStageOne:
         )
         opened.sync()
         following = timeline.components[rows[1].id].attrs["measure"]["next"]
-        assert following == [after, after]
+        assert following == [rows[3].id, rows[4].id]
         assert tla.loads(opened.bytes())
 
     def test_a_next_with_nothing_after_it_goes(self):
@@ -1404,12 +1361,16 @@ class TestLegacyScores:
             '"name": "Score"'
         ]
 
-    def test_an_edited_svg_is_the_scores(self):
+    def test_an_import_makes_a_new_score(self):
         opened, timeline, score = self.opened()
+        lines = list(score.lines)
         opened.edit_timeline(timeline.id, svg_data="<svg>other</svg>\n")
         opened.sync()
-        assert score.lines == ["<svg>other</svg>", ""]
-        assert score.extra["beat_x"]
+        new = opened.doc.scores[timeline.attrs["score"]]
+        assert new is not score and score.id not in opened.doc.scores
+        assert new.lines == ["<svg>other</svg>", ""]
+        assert new.extra["beat_x"]
+        assert score.lines == lines
 
     def test_edited_positions_are_pairs_in_their_order(self):
         opened, timeline, score = self.opened()
@@ -2027,14 +1988,916 @@ class TestLiveTimelines:
         assert tla.canonical_bytes(doc) == before
 
 
+class Live:
+    """A document with TiLiA's real timelines built from it, and the state they give,
+    as `App.get_app_state` gives it, with TiLiA's own digests."""
+
+    def __init__(self, tls, tilia_state, doc):
+        tilia_state.duration = 10_000
+        self.tls, self.doc = tls, doc
+        tls.deserialize_timelines(tla_bridge.state_of(doc))
+        self.removed = {}
+        self.notes = []
+        self.bytes_read = tla.canonical_bytes(doc)
+        self.synced = self.state()
+        self.first = copy.deepcopy(self.synced)
+
+    def state(self):
+        given, digest = self.tls.serialize_timelines()
+        return {
+            "media_metadata": {},
+            "media_path": "",
+            "timelines": given,
+            "timelines_hash": digest,
+        }
+
+    def sync(self, current=None):
+        """Applies TiLiA's state, or `current`, as an undo to it would leave TiLiA."""
+        current = copy.deepcopy(current) if current is not None else self.state()
+        self.notes += tla_bridge.apply_changes(
+            self.doc, self.synced, current, removed=self.removed
+        )
+        self.synced = copy.deepcopy(current)
+
+    def timeline(self, timeline_id):
+        return self.tls.get_timeline(timeline_id)
+
+    def bytes(self):
+        return tla.canonical_bytes(self.doc)
+
+    def written(self, timeline_id):
+        return json.loads(self.bytes())["timelines"][timeline_id]
+
+
+@pytest.fixture
+def live(tls, tilia_state):
+    def make(doc):
+        return Live(tls, tilia_state, doc)
+
+    yield make
+    tls.clear()
+
+
+def loads(content):
+    return tla.loads(json.dumps(content).encode())
+
+
+def marked_measures():
+    """15 beats in 3-beat measures, whose marks hold every key a mark can."""
+    ids = [make_id(i) for i in range(1, 16)]
+    marks = {
+        0: {"label": "A", "source": "tapped", "metadata": {"tags": ["first"]}},
+        3: {"number": 2, "cadenza": True, "next": [ids[9]]},
+        6: {"label": "C", "force_display": True, "x_mark": "kept"},
+        9: {"restart": True, "number": 1, "source": "import"},
+        12: {"label": "E", "metadata": {"tags": ["last"]}, "x_mark": "last"},
+    }
+    beats = {}
+    for place, beat_id in enumerate(ids):
+        beats[beat_id] = beat(float(place), marks.get(place))
+    timeline_id = make_id(99)
+    doc = loads(file_with({timeline_id: beat_timeline(beats, beat_pattern="3")}))
+    return timeline_id, ids, doc
+
+
+def marks_by_measure(written):
+    """The marks in time order, without the beats they are on."""
+    beats = sorted(written["components"].values(), key=lambda b: b["time"])
+    return [b["measure"] for b in beats if "measure" in b]
+
+
+def downbeats(written):
+    beats = sorted(written["components"].items(), key=lambda item: item[1]["time"])
+    return [beat_id for beat_id, b in beats if "measure" in b]
+
+
+class TestMarksFollowTheirMeasures:
+    """Until the beat timeline is on the marks, TiLiA keeps its measures by position,
+    and moves later downbeats when a beat is added or deleted outside the last
+    measure. Each mark follows its measure, and a `next` keeps naming the same
+    measure (TimeLineAnnotator/project-management#523)."""
+
+    def test_a_beat_added_in_the_second_measure(self, live):
+        timeline_id, ids, doc = marked_measures()
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][timeline_id]
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.create_component(ComponentKind.BEAT, 4.5)
+        opened.sync()
+        written = opened.written(timeline_id)
+        after = marks_by_measure(written)
+        assert after[:5] == [
+            *before[:1],
+            {**before[1], "next": [ids[8]]},
+            *before[2:5],
+        ]
+        assert after[5:] == [{}]
+        # The measures that moved start one beat earlier.
+        assert downbeats(written) == [ids[0], ids[3], ids[5], ids[8], ids[11], ids[14]]
+        assert tla.loads(opened.bytes())
+        assert opened.notes == []
+
+    def test_its_undo(self, live):
+        timeline_id, ids, doc = marked_measures()
+        opened = live(doc)
+        opened.timeline(timeline_id).create_component(ComponentKind.BEAT, 4.5)
+        opened.sync()
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_its_undo_through_tilia(self, live):
+        timeline_id, ids, doc = marked_measures()
+        opened = live(doc)
+        opened.timeline(timeline_id).create_component(ComponentKind.BEAT, 4.5)
+        opened.sync()
+        opened.tls.restore_state(copy.deepcopy(opened.first["timelines"]))
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_beat_deleted_in_the_second_measure_and_its_undo(self, live):
+        timeline_id, ids, doc = marked_measures()
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][timeline_id]
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[4])])
+        opened.sync()
+        written = opened.written(timeline_id)
+        assert marks_by_measure(written) == [
+            before[0],
+            {**before[1], "next": [ids[10]]},
+            *before[2:],
+        ]
+        assert downbeats(written) == [ids[0], ids[3], ids[7], ids[10], ids[13]]
+        assert tla.loads(opened.bytes())
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_downbeat_deleted_and_its_undo(self, live):
+        timeline_id, ids, doc = marked_measures()
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][timeline_id]
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[6])])
+        opened.sync()
+        written = opened.written(timeline_id)
+        assert marks_by_measure(written) == [
+            before[0],
+            {**before[1], "next": [ids[10]]},
+            *before[2:],
+        ]
+        assert downbeats(written) == [ids[0], ids[3], ids[7], ids[10], ids[13]]
+        assert opened.notes == []
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_set_beat_amount_and_its_undo(self, live):
+        timeline_id, ids, doc = marked_measures()
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][timeline_id]
+        )
+        opened = live(doc)
+        opened.timeline(timeline_id).set_beat_amount_in_measure(1, 2)
+        opened.sync()
+        written = opened.written(timeline_id)
+        assert marks_by_measure(written)[:5] == [
+            before[0],
+            {**before[1], "next": [ids[8]]},
+            *before[2:],
+        ]
+        assert downbeats(written)[:5] == [ids[0], ids[3], ids[5], ids[8], ids[11]]
+        assert tla.loads(opened.bytes())
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_measure_that_is_gone_leaves_a_note_and_comes_back(self, live):
+        timeline_id, ids, doc = marked_measures()
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(id) for id in ids[12:]])
+        opened.sync()
+        assert len(marks_by_measure(opened.written(timeline_id))) == 4
+        assert len(opened.notes) == 1 and "left the file" in opened.notes[0]
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_next_naming_a_measure_that_is_gone_goes_with_a_note(self, live):
+        timeline_id, ids, doc = marked_measures()
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(id) for id in ids[9:]])
+        opened.sync()
+        assert (
+            "next" not in opened.written(timeline_id)["components"][ids[3]]["measure"]
+        )
+        assert any("followed" in note for note in opened.notes)
+        assert tla.loads(opened.bytes())
+
+    def test_a_next_naming_a_beat_deleted_since_goes(self, live):
+        # a | b (next: d) | c | d e: a mark's next can't name a beat that is gone.
+        a, b, c, d, e = (make_id(i) for i in (1, 2, 3, 4, 5))
+        timeline_id = make_id(9)
+        beats = {
+            a: beat(0.0, {}),
+            b: beat(1.0, {"next": [d]}),
+            c: beat(2.0, {}),
+            d: beat(3.0, {}),
+            e: beat(4.0),
+        }
+        opened = live(loads(file_with({timeline_id: beat_timeline(beats)})))
+        timeline = opened.timeline(timeline_id)
+        timeline.set_beat_amount_in_measure(0, 2)
+        opened.sync()
+        timeline.delete_components([timeline.get_component(d)])
+        opened.sync()
+        timeline.set_beat_amount_in_measure(0, 1)
+        opened.sync()
+        assert tla.loads(opened.bytes())
+
+    def test_a_next_naming_a_downbeat_without_a_time_stays(self):
+        a, b, untimed, c, tl = (make_id(i) for i in (1, 2, 3, 4, 9))
+        beats = {
+            a: beat(0.0, {}),
+            b: beat(1.0, {"next": [untimed]}),
+            untimed: beat(None, {}),
+            c: beat(2.0, {}),
+        }
+        opened = Opened.from_content(file_with({tl: beat_timeline(beats)}))
+        opened.edit_timeline(tl, measure_numbers=[1, 7, 8])
+        opened.sync()
+        mark = opened.doc.timelines[tl].components[b].attrs["measure"]
+        assert mark["next"] == [untimed]
+
+    def test_a_number_the_bridge_wrote_goes_with_its_undo(self, live):
+        timeline_id, ids, doc = marked_measures()
+        opened = live(doc)
+        opened.timeline(timeline_id).set_measure_number(2, 40)
+        opened.sync()
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_number_written_after_the_edited_one_goes_with_its_undo(self):
+        # set_measure_number(1, 40) with measure 2 forced: b is 40, c stays 3.
+        a, b, c, tl = make_id(1), make_id(2), make_id(3), make_id(9)
+        beats = {a: beat(0.0, {}), b: beat(1.0, {}), c: beat(2.0, {})}
+        opened = Opened.from_content(file_with({tl: beat_timeline(beats)}))
+        first = copy.deepcopy(opened.current)
+        opened.edit_timeline(tl, measure_numbers=[1, 40, 3])
+        opened.sync()
+        opened.current = first
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+
+class TestSameEditThroughTiLiA:
+    """SC-002's beat edits, made by TiLiA's own timelines, against the same edit
+    through `attrs`, with what TiLiA's lists also change."""
+
+    BEAT_FILES = [EVERY_KIND, UNKNOWN, *OLD]
+
+    @staticmethod
+    def first_beats(doc):
+        beats = [tl for tl in doc.timelines.values() if tl.kind == "beat"]
+        if not beats:
+            pytest.skip("no beat timeline in this file")
+        return min(beats, key=lambda tl: tl.ordinal)
+
+    @pytest.mark.parametrize("path", BEAT_FILES, ids=ids_of(BEAT_FILES))
+    def test_a_measure_number(self, live, path):
+        # TiLiA's set_measure_number also always shows the number it sets.
+        doc, second = tla.read(path), tla.read(path)
+        beats = self.first_beats(doc)
+        last = beats.measures.rows[-1].id
+        opened = live(doc)
+        timeline = opened.timeline(beats.id)
+        timeline.set_measure_number(timeline.measure_count - 1, 2000)
+        opened.sync()
+        mark = second.timelines[beats.id].components[last].attrs["measure"]
+        mark["number"] = 2000
+        mark["force_display"] = True
+        assert opened.bytes() == tla.canonical_bytes(second)
+
+    @pytest.mark.parametrize("path", BEAT_FILES, ids=ids_of(BEAT_FILES))
+    def test_adding_a_beat_at_the_end(self, live, path):
+        # A beat after a full last measure starts a measure, with an empty mark.
+        doc, second = tla.read(path), tla.read(path)
+        beats = self.first_beats(doc)
+        opened = live(doc)
+        timeline = opened.timeline(beats.id)
+        measures = timeline.measure_count
+        time = max(b.time for b in timeline.components) + 1
+        new, _ = timeline.create_component(ComponentKind.BEAT, time)
+        opened.sync()
+        attrs = {"time": time}
+        if timeline.measure_count > measures:
+            attrs["measure"] = {}
+        second.timelines[beats.id].components[new.id] = tla.Component(
+            id=new.id, kind="beat", attrs=attrs
+        )
+        assert opened.bytes() == tla.canonical_bytes(second)
+
+    @pytest.mark.parametrize("path", BEAT_FILES, ids=ids_of(BEAT_FILES))
+    def test_removing_a_beat_that_starts_no_measure(self, live, path):
+        # TiLiA takes the beat from the last measure, so the later downbeats move,
+        # and each mark follows its measure
+        # (TimeLineAnnotator/project-management#523).
+        doc = tla.read(path)
+        beats = self.first_beats(doc)
+        row = next((r for r in beats.measures.rows[:-1] if len(r.beats) > 1), None)
+        if row is None:
+            pytest.skip("no measure but the last has more than one beat")
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][beats.id]
+        )
+        opened = live(doc)
+        timeline = opened.timeline(beats.id)
+        timeline.delete_components([timeline.get_component(row.beats[1])])
+        opened.sync()
+        written = opened.written(beats.id)
+        after = marks_by_measure(written)
+        assert after == before[: len(after)]
+        live_downbeats = [b.id for b in timeline.components if b.is_first_in_measure]
+        assert downbeats(written) == live_downbeats
+        assert tla.loads(opened.bytes())
+
+
+class TestFilledIn:
+    """What TiLiA fills in for an empty timeline is stored the first time it is edited
+    or something refers to it (TimeLineAnnotator/project-management#524)."""
+
+    def test_an_empty_hierarchy_timeline_saves_unchanged(self, live):
+        tl = make_id(1)
+        doc = loads(
+            file_with(
+                {
+                    tl: {
+                        "kind": "Hierarchy",
+                        "ordinal": 1,
+                        "height": 60,
+                        "components": {},
+                    }
+                }
+            )
+        )
+        opened = live(doc)
+        assert len(opened.timeline(tl)) == 1
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_its_unit_is_stored_once_edited(self, live):
+        tl = make_id(1)
+        doc = loads(
+            file_with(
+                {
+                    tl: {
+                        "kind": "Hierarchy",
+                        "ordinal": 1,
+                        "height": 60,
+                        "components": {},
+                    }
+                }
+            )
+        )
+        opened = live(doc)
+        timeline = opened.timeline(tl)
+        unit = next(iter(timeline.components))
+        timeline.set_component_data(unit.id, "label", "Exposition")
+        opened.sync()
+        written = opened.written(tl)["components"]
+        assert written[unit.id]["label"] == "Exposition"
+        assert written[unit.id]["level"] == 1
+        assert tla.loads(opened.bytes())
+
+    def test_a_range_timeline_without_rows_saves_unchanged(self, live):
+        tl = make_id(1)
+        doc = loads(
+            file_with(
+                {
+                    tl: {
+                        "kind": "Range",
+                        "ordinal": 1,
+                        "height": 40,
+                        "rows": [],
+                        "components": {},
+                    }
+                }
+            )
+        )
+        opened = live(doc)
+        assert len(opened.timeline(tl).rows) == 1
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_its_row_is_stored_once_a_range_names_it(self, live):
+        tl = make_id(1)
+        doc = loads(
+            file_with(
+                {
+                    tl: {
+                        "kind": "Range",
+                        "ordinal": 1,
+                        "height": 40,
+                        "rows": [],
+                        "components": {},
+                    }
+                }
+            )
+        )
+        opened = live(doc)
+        timeline = opened.timeline(tl)
+        row = timeline.rows[0]
+        made, reason = timeline.create_component(
+            ComponentKind.RANGE, start=1.0, end=2.0, row_id=row.id
+        )
+        assert made, reason
+        opened.sync()
+        written = opened.written(tl)
+        assert [r["id"] for r in written["rows"]] == [row.id]
+        assert written["components"][made.id]["row_id"] == row.id
+        assert tla.loads(opened.bytes())
+
+    def test_a_filled_in_row_isnt_stored_for_a_range_on_a_stored_row(self):
+        tl = make_id(1)
+        timeline = {
+            "kind": "Range",
+            "ordinal": 1,
+            "height": 40,
+            "rows": [{"id": "aZ3k9P", "name": "Row"}],
+            "components": {},
+        }
+        opened = Opened.from_content(file_with({tl: timeline}))
+        for state in (opened.synced, opened.current):
+            state["timelines"][tl]["rows"].append(
+                {"id": "filled", "name": "Filled", "color": None, "height": None}
+            )
+        opened.add_component(tl, NEW, "RANGE", start=1.0, end=2.0, row_id="aZ3k9P")
+        opened.sync()
+        assert [r["id"] for r in opened.doc.timelines[tl].attrs["rows"]] == ["aZ3k9P"]
+
+
+class TestComesBackAsTiLiAHeldIt:
+    """A timeline or component back from `removed` is compared with the state it left
+    with, as TiLiA held it, with TiLiA's digest, not with the document."""
+
+    def test_a_pdf_path_found_elsewhere(self):
+        tl = make_id(1)
+        content = file_with(
+            {
+                tl: {
+                    "kind": "Pdf",
+                    "ordinal": 1,
+                    "height": 200,
+                    "path": "score.pdf",
+                    "components": {},
+                }
+            }
+        )
+        opened = Opened.from_content(content)
+        found = "C:/Users/someone/found/score.pdf"
+        for state in (opened.synced, opened.current):
+            state["timelines"][tl]["path"] = found
+            state["timelines"][tl]["hash"] = "TiLiA's digest"
+        opened.sync()
+        before = copy.deepcopy(opened.current)
+        opened.delete_timeline(tl)
+        opened.sync()
+        opened.current = before
+        opened.sync()
+        assert opened.doc.timelines[tl].attrs["path"] == "score.pdf"
+        assert opened.bytes() == opened.bytes_read
+
+    def test_an_audiowave_timeline_tilia_hides(self, live):
+        tl = make_id(1)
+        doc = loads(
+            file_with(
+                {
+                    tl: {
+                        "kind": "AudioWave",
+                        "ordinal": 1,
+                        "height": 40,
+                        "components": {},
+                    }
+                }
+            )
+        )
+        opened = live(doc)
+        assert opened.synced["timelines"][tl]["is_visible"] is False
+        opened.tls.delete_timeline(opened.timeline(tl))
+        opened.sync()
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_component_with_a_value_tilia_fills_in(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline_id, component = first_component(opened.doc, "marker")
+        for state in (opened.synced, opened.current):
+            marker = state["timelines"][timeline_id]["components"][component.id]
+            marker["color"] = "#filled"
+            marker["hash"] = "TiLiA's digest"
+        before = copy.deepcopy(opened.current)
+        opened.delete_component(timeline_id, component.id)
+        opened.sync()
+        opened.current = before
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+
+class TestOrdinalsAfterUndo:
+    def test_a_duplicate_in_the_middle_and_its_undo(self):
+        a, b, c = make_id(1), make_id(2), make_id(3)
+        opened = Opened.from_content(
+            file_with(
+                {a: marker_timeline(1), b: marker_timeline(2), c: marker_timeline(3)}
+            )
+        )
+        first = copy.deepcopy(opened.current)
+        edit(opened.timeline(b), ordinal=3)
+        edit(opened.timeline(c), ordinal=4)
+        opened.add_timeline(NEW, ordinal=2)
+        opened.sync()
+        opened.current = first
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_no_two_timelines_get_one_ordinal(self):
+        # Delete the last, duplicate the first, then undo both: the one deleted comes
+        # back with its ordinal, which no other may have taken.
+        a, b, y = make_id(1), make_id(2), make_id(3)
+        opened = Opened.from_content(
+            file_with(
+                {a: marker_timeline(1), b: marker_timeline(2), y: marker_timeline(3)}
+            )
+        )
+        first = copy.deepcopy(opened.current)
+        opened.delete_timeline(y)
+        opened.sync()
+        edit(opened.timeline(b), ordinal=3)
+        opened.add_timeline(NEW, ordinal=2)
+        opened.sync()
+        ordinals = [tl.ordinal for tl in opened.doc.timelines.values()]
+        assert len(set(ordinals)) == len(ordinals)
+        assert opened.doc.timelines[b].ordinal != 3
+        opened.current = first
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_the_free_ordinal_is_above_those_of_removed_timelines(self):
+        a, y = make_id(1), make_id(2)
+        doc = loads(file_with({a: marker_timeline(1)}))
+        removed = {y: tla.Timeline(id=y, kind="marker", ordinal=7)}
+        assert tla_bridge.stored_ordinals(doc, [a, NEW], removed=removed) == {
+            a: 1,
+            NEW: 8,
+        }
+
+
+class TestScoresShared:
+    """Two timelines can name one score, as a duplicate does (FR-023)."""
+
+    @staticmethod
+    def shared(format):
+        score, a, b = make_id(1), make_id(2), make_id(3)
+
+        def timeline(ordinal):
+            return {
+                "kind": "Score",
+                "ordinal": ordinal,
+                "height": 40,
+                "components": {},
+                "score": score,
+            }
+
+        stored = {"id": score, "format": format, "content": ["<x/>"]}
+        if format == "mei":
+            stored["source"] = {"file": "a.mei"}
+        if format == "svg-osmd-legacy":
+            stored["beat_x"] = [[1.0, 10.0]]
+        opened = Opened.from_content(
+            file_with({a: timeline(1), b: timeline(2)}, scores=[stored])
+        )
+        return opened, a, b, score
+
+    @pytest.mark.parametrize("format", ["mei", "svg-osmd-legacy"])
+    def test_an_import_on_one_leaves_the_others_score(self, format):
+        opened, a, b, score = self.shared(format)
+        before = json.loads(opened.bytes_read)["scores"][0]
+        opened.edit_timeline(a, svg_data="<svg>new</svg>", viewer_beat_x={5.0: 50.0})
+        opened.sync()
+        written = json.loads(opened.bytes())
+        assert written["timelines"][b]["score"] == score
+        assert next(s for s in written["scores"] if s["id"] == score) == before
+        assert written["timelines"][a]["score"] != score
+        assert tla.loads(opened.bytes())
+
+    @pytest.mark.parametrize("format", ["mei", "svg-osmd-legacy"])
+    def test_and_its_undo(self, format):
+        opened, a, b, score = self.shared(format)
+        first = copy.deepcopy(opened.current)
+        opened.edit_timeline(a, svg_data="<svg>new</svg>", viewer_beat_x={5.0: 50.0})
+        opened.sync()
+        opened.current = first
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_new_positions_on_one_leave_the_others(self):
+        opened, a, b, score = self.shared("svg-osmd-legacy")
+        opened.edit_timeline(a, viewer_beat_x={1.0: 99.0})
+        opened.sync()
+        written = json.loads(opened.bytes())
+        shared = next(s for s in written["scores"] if s["id"] == score)
+        assert shared["beat_x"] == [[1.0, 10.0]]
+        own = next(
+            s for s in written["scores"] if s["id"] == written["timelines"][a]["score"]
+        )
+        assert own["beat_x"] == [[1.0, 99.0]]
+
+    def test_clearing_two_with_one_drawing_and_undoing_gives_each_its_own(self):
+        # Two scores with the same drawing, each its timeline's.
+        one, two, a, b = make_id(1), make_id(2), make_id(3), make_id(4)
+
+        def timeline(ordinal, score):
+            return {
+                "kind": "Score",
+                "ordinal": ordinal,
+                "height": 40,
+                "components": {},
+                "score": score,
+            }
+
+        scores = [
+            {
+                "id": id,
+                "format": "svg-osmd-legacy",
+                "content": ["<x/>"],
+                "beat_x": [[1.0, x]],
+            }
+            for id, x in ((one, 10.0), (two, 20.0))
+        ]
+        opened = Opened.from_content(
+            file_with({a: timeline(1, one), b: timeline(2, two)}, scores=scores)
+        )
+        first = copy.deepcopy(opened.current)
+        opened.edit_timeline(b, svg_data="")
+        opened.sync()
+        opened.edit_timeline(a, svg_data="")
+        opened.sync()
+        opened.current = first
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_timeline_of_an_unknown_kind_keeps_the_score_it_names(self):
+        score, a, lyrics = make_id(1), make_id(2), make_id(3)
+        stored = {
+            "id": score,
+            "format": "mei",
+            "content": ["<mei/>"],
+            "source": {"file": "a.mei"},
+        }
+        timelines = {
+            a: {
+                "kind": "Score",
+                "ordinal": 1,
+                "height": 40,
+                "components": {},
+                "score": score,
+            },
+            lyrics: {"kind": "Lyrics", "ordinal": 2, "components": {}, "score": score},
+        }
+        opened = Opened.from_content(file_with(timelines, scores=[stored]))
+        opened.delete_timeline(a)
+        opened.sync()
+        assert score in opened.doc.scores
+        assert tla.loads(opened.bytes())
+
+    @pytest.mark.parametrize(
+        "beat_x",
+        [
+            [],
+            [[1, 10]],
+            [[2.0, 20.0], [1.0, 10.0]],
+            [[1.0, 10.0], [3.0], []],
+            [[1.0, 10.0, 99]],
+        ],
+        ids=repr,
+    )
+    def test_an_import_over_a_legacy_score_and_its_undo(self, beat_x):
+        score, tl = make_id(1), make_id(2)
+        timeline = {
+            "kind": "Score",
+            "ordinal": 1,
+            "height": 40,
+            "components": {},
+            "score": score,
+        }
+        stored = {
+            "id": score,
+            "format": "svg-osmd-legacy",
+            "content": ["<svg/>"],
+            "beat_x": beat_x,
+        }
+        opened = Opened.from_content(file_with({tl: timeline}, scores=[stored]))
+        first = copy.deepcopy(opened.current)
+        opened.edit_timeline(tl, svg_data="<svg>new</svg>", viewer_beat_x={5.0: 50.0})
+        opened.sync()
+        opened.current = first
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+
+class TestLoneSurrogates:
+    """A file can hold a lone surrogate, such as a label cut inside an emoji."""
+
+    def test_tilias_digest_takes_one(self):
+        assert hash_function("\ud83c")
+
+    def test_tilias_digest_of_other_text_is_md5_of_its_utf8(self):
+        for text in ("", "label", "Ständchen 主題 🎻"):
+            assert hash_function(text) == hashlib.md5(text.encode("utf-8")).hexdigest()
+
+    def test_tilia_builds_timelines_with_one(self, live):
+        tl, marker = make_id(1), make_id(2)
+        timeline = marker_timeline(
+            1, **{marker: {"kind": "MARKER", "time": 1.0, "label": "\ud83c"}}
+        )
+        timeline["name"] = "\udfbb"
+        doc = loads(file_with({tl: timeline}))
+        opened = live(doc)
+        given = opened.synced["timelines"][tl]
+        expected = tla_bridge.state_of(doc)[tl]["components"][marker]
+        assert given["components"][marker]["hash"] == expected["hash"]
+        assert given["name"] == "\udfbb"
+        opened.sync()
+        assert opened.bytes() == opened.bytes_read
+
+
+class TestNotes:
+    def test_an_ordinary_edit_gives_none(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline_id, component = first_component(opened.doc, "marker")
+        opened.edit_component(timeline_id, component.id, label="edited")
+        assert (
+            tla_bridge.apply_changes(
+                opened.doc, opened.synced, opened.current, removed=opened.removed
+            )
+            == []
+        )
+
+
+class TestDefensive:
+    """What TiLiA's states don't hold today, and the bridge mustn't trip on."""
+
+    def test_a_beat_both_states_hold_and_the_document_doesnt(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "beat")
+        for state in (opened.synced, opened.current):
+            state["timelines"][timeline.id]["components"][NEW] = {
+                "kind": "BEAT",
+                "time": 0.5,
+                "hash": "same",
+            }
+        numbers = opened.timeline(timeline.id)["measure_numbers"]
+        opened.edit_timeline(timeline.id, measure_numbers=[n + 1 for n in numbers])
+        opened.sync()
+        assert tla.loads(opened.bytes())
+
+    def test_no_counts_is_one_measure(self):
+        opened = Opened.read(UNKNOWN)
+        timeline = first_of_kind(opened.doc, "beat")
+        opened.edit_timeline(timeline.id, beats_in_measure=[], measure_numbers=[])
+        opened.sync()
+        first = min(timeline.components.values(), key=lambda b: b.attrs["time"])
+        assert isinstance(first.attrs.get("measure"), dict)
+        assert tla.loads(opened.bytes())
+
+    def test_fewer_numbers_than_measures(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "beat")
+        opened.edit_timeline(timeline.id, measure_numbers=[0, 1])
+        opened.sync()
+        assert [row.number for row in timeline.measures.rows][:4] == [0, 1, 2, 3]
+
+    def test_a_measure_of_no_beats_and_more_counts_than_beats(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "beat")
+        opened.edit_timeline(
+            timeline.id,
+            beats_in_measure=[1, 0, 3, 3, 3, 3, 1, 2, 1, 4, 4],
+            measure_numbers=list(range(11)),
+        )
+        opened.sync()
+        assert len(timeline.measures.rows) == 8
+        assert tla.loads(opened.bytes())
+
+    def test_a_measure_of_no_beats_starts_none(self):
+        opened = Opened.read(UNKNOWN)
+        timeline = first_of_kind(opened.doc, "beat")
+        opened.edit_timeline(
+            timeline.id, beats_in_measure=[1, 0], measure_numbers=[1, 2]
+        )
+        opened.sync()
+        assert len(timeline.measures.rows) == 1
+
+    def test_a_new_timeline_of_a_kind_tilia_doesnt_store(self):
+        opened = Opened.read(EMPTY)
+        opened.add_timeline(NEW, kind="Lyrics")
+        opened.sync()
+        assert NEW not in opened.doc.timelines
+
+    def test_something_else_under_a_timelines_id_in_removed(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "marker")
+        before = copy.deepcopy(opened.current)
+        opened.delete_timeline(timeline.id)
+        opened.sync()
+        stranger = tla.Component(id=timeline.id, kind="marker")
+        opened.removed[timeline.id] = stranger
+        opened.current = before
+        opened.sync()
+        assert opened.removed[timeline.id] is stranger
+        assert opened.doc.timelines[timeline.id] is not timeline
+
+
+class TestNoSharing:
+    """A value of the state is never the document's, nor the other way round."""
+
+    TL, SIGNATURE = make_id(3), make_id(2)
+
+    def opened(self):
+        timeline = {
+            "kind": "Score",
+            "ordinal": 1,
+            "height": 160,
+            "components": {
+                make_id(1): {"kind": "STAFF", "line_count": 5, "index": 0},
+                self.SIGNATURE: {
+                    "kind": "TIME_SIGNATURE",
+                    "staff_index": 0,
+                    "time": 0.0,
+                    "numerator": None,
+                    "denominator": None,
+                    "pairs": [["2", 4], ["3", 8]],
+                },
+            },
+        }
+        return Opened.from_content(file_with({self.TL: timeline}))
+
+    def test_a_list_in_a_components_state(self):
+        opened = self.opened()
+        opened.component(self.TL, self.SIGNATURE)["pairs"].append(["5", 8])
+        stored = opened.doc.timelines[self.TL].components[self.SIGNATURE]
+        assert stored.extra["pairs"] == [["2", 4], ["3", 8]]
+
+    def test_a_list_written_to_a_component(self):
+        opened = self.opened()
+        opened.edit_component(self.TL, self.SIGNATURE, pairs=[["3", 4]])
+        opened.sync()
+        opened.component(self.TL, self.SIGNATURE)["pairs"].append(["5", 8])
+        stored = opened.doc.timelines[self.TL].components[self.SIGNATURE]
+        assert stored.extra["pairs"] == [["3", 4]]
+
+
+class TestOnlyWhatDiffersOnTimelines:
+    def test_a_timeline_attribute_tilia_fills_in_isnt_written(self):
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "marker")
+        for state in (opened.synced, opened.current):
+            state["timelines"][timeline.id]["height"] = 77
+        opened.edit_timeline(timeline.id, name="Renamed")
+        opened.sync()
+        assert timeline.attrs["height"] == 30
+        assert timeline.name == "Renamed"
+
+
+def imported_modules(path):
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            modules.add(node.module)
+    return modules
+
+
 class TestImports:
     def test_the_module_needs_neither_qt_nor_the_requests(self):
-        tree = ast.parse(Path(tla_bridge.__file__).read_text(encoding="utf-8"))
-        modules = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                modules.update(alias.name for alias in node.names)
-            elif isinstance(node, ast.ImportFrom):
-                modules.add(node.module)
+        # Of the app, only TiLiA's digest, which needs nothing else.
+        bridge = Path(tla_bridge.__file__)
+        digest = bridge.parents[1] / "timelines" / "hash_timelines.py"
+        of_the_app = {"tilia.timelines.hash_timelines"}
+        assert {
+            name for name in imported_modules(bridge) if name.split(".")[0] == "tilia"
+        } == of_the_app
         allowed = set(sys.stdlib_module_names) | {"tilia_core"}
-        assert {name for name in modules if name.split(".")[0] not in allowed} == set()
+        for path in (bridge, digest):
+            outside = {
+                name
+                for name in imported_modules(path) - of_the_app
+                if name.split(".")[0] not in allowed
+            }
+            assert outside == set(), path.name

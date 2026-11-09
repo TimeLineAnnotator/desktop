@@ -5,23 +5,26 @@ state it last gave the document, and applies only what differs from it. So what
 TiLiA fills in on loading is the same on both sides and never reaches the file,
 and what TiLiA doesn't know stays in the document, which nothing rewrites.
 
-This module imports neither Qt nor the requests, and nothing of the app.
+This module imports neither Qt nor the requests. Of the app, it imports only
+TiLiA's digest, so that the digests it gives are those TiLiA's objects give.
 """
 
 from __future__ import annotations
 
 import copy
-import hashlib
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from tilia.timelines.hash_timelines import hash_function
 from tilia_core import tla
 from tilia_core.timemap import pattern
 
 State = dict[str, Any]
 # What `apply_changes` took out of the document this session, so that it comes
-# back whole: timelines, components and scores by their ids, and under keys of their
-# own a range row, a measure mark, and a score a legacy score replaced.
+# back whole: timelines, components and scores by their ids; under keys of their own,
+# the state each timeline and component had, a range row, a measure mark, a number
+# the bridge wrote, the scores a timeline held, and the stored ordinals of each order
+# the timelines left.
 Removed = dict[str, tla.Timeline | tla.Component | tla.Score | dict[str, Any]]
 
 # `Timeline.type_name()` and `ComponentKind.NAME`, and the document's names for them.
@@ -167,16 +170,22 @@ def state_of(doc: tla.Document) -> dict[str, State]:
 
 def apply_changes(
     doc: tla.Document, synced: State, current: State, *, removed: Removed
-) -> None:
+) -> list[str]:
     """Changes the document by what differs from `synced` to `current`, two states as
     `App.get_app_state` gives them. A timeline or component is looked at only if its
     digest differs, then attribute by attribute: an attribute that differs is written,
     and one that doesn't is left as the document has it.
 
-    What it takes out goes into `removed`, and comes back from there whole if its id
-    returns."""
+    What it takes out goes into `removed`, with the state it had in `synced`, and comes
+    back from there whole if its id returns.
+
+    Gives a note, for the caller to log, for each thing of the file it couldn't keep as
+    it was: a measure mark a beat no longer holds, and a repeat that names another
+    measure, or none."""
+    notes: list[str] = []
     _apply_file_fields(doc, synced, current)
-    _apply_timelines(doc, synced["timelines"], current["timelines"], removed)
+    _apply_timelines(doc, synced["timelines"], current["timelines"], removed, notes)
+    return notes
 
 
 def component_for_rules(id: str, kind: str, attrs: Mapping[str, Any]) -> tla.Component:
@@ -193,14 +202,17 @@ def component_for_rules(id: str, kind: str, attrs: Mapping[str, Any]) -> tla.Com
     )
 
 
-def stored_ordinals(doc: tla.Document, order: Sequence[str]) -> dict[str, int]:
+def stored_ordinals(
+    doc: tla.Document, order: Sequence[str], *, removed: Removed | None = None
+) -> dict[str, int]:
     """The ordinals the file stores for these timelines, given by id in display order.
 
     The slots are the stored ordinals of those the document has, sorted, then one free
-    ordinal above every stored one, unknown kinds included, for each new one. They take
-    the slots in display order, so a deletion changes no other timeline, a swap two,
-    and a new timeline at the end takes the next ordinal. A timeline of a kind TiLiA
-    doesn't know keeps its own, and isn't given one."""
+    ordinal for each new one: above every stored one, unknown kinds included, and above
+    those of the timelines in `removed`, which an undo can bring back. They take the
+    slots in display order, so a deletion changes no other timeline, a swap two, and a
+    new timeline at the end takes the next ordinal. A timeline of a kind TiLiA doesn't
+    know keeps its own, and isn't given one."""
     timelines = doc.timelines
     known = [
         id
@@ -208,7 +220,13 @@ def stored_ordinals(doc: tla.Document, order: Sequence[str]) -> dict[str, int]:
         if id not in timelines or timelines[id].kind in _TIMELINE_NAMES
     ]
     slots = sorted(timelines[id].ordinal for id in known if id in timelines)
-    top = max((timeline.ordinal for timeline in timelines.values()), default=0)
+    taken = [timeline.ordinal for timeline in timelines.values()]
+    taken += [
+        item.ordinal
+        for item in (removed or {}).values()
+        if isinstance(item, tla.Timeline)
+    ]
+    top = max(taken, default=0)
     new_count = sum(id not in timelines for id in known)
     slots.extend(range(top + 1, top + 1 + new_count))
     return dict(zip(known, slots, strict=True))
@@ -245,13 +263,13 @@ def _timeline_state(doc: tla.Document, timeline: tla.Timeline, ordinal: int) -> 
         # without a time (FR-048), a tap on a closing barline, one before the first mark.
         in_a_measure = {beat_id for row in rows for beat_id in row.beats}
         components = [c for c in components if c.id in in_a_measure]
-    state["hash"] = _digest("|".join(str(value) for value in state.values()))
+    state["hash"] = hash_function("|".join(str(value) for value in state.values()))
     state["components"] = {
         component.id: _component_state(component)
         for component in components
         if component.kind in _COMPONENT_NAMES
     }
-    state["components_hash"] = _digest(
+    state["components_hash"] = hash_function(
         "".join(
             f"{digest}|"
             for digest in sorted(c["hash"] for c in state["components"].values())
@@ -261,6 +279,7 @@ def _timeline_state(doc: tla.Document, timeline: tla.Timeline, ordinal: int) -> 
 
 
 def _component_state(component: tla.Component) -> State:
+    """With the digest TiLiA's object gives, from the same function."""
     state: State = {}
     digest = ""
     for attr in COMPONENT_ATTRIBUTES[component.kind]:
@@ -271,13 +290,8 @@ def _component_state(component: tla.Component) -> State:
         if attr in component.attrs or attr in _FOLLOWS or attr in _UNKNOWN_TO_THE_CORE:
             state[attr] = copy.deepcopy(value)
     state["kind"] = _COMPONENT_NAMES[component.kind]
-    state["hash"] = _digest(digest)
+    state["hash"] = hash_function(digest)
     return state
-
-
-def _digest(text: str) -> str:
-    """As TiLiA's own digests, and for a lone surrogate too, which a file can hold."""
-    return hashlib.md5(text.encode("utf-8", "surrogatepass")).hexdigest()
 
 
 def _beat_pattern(timeline: tla.Timeline) -> list[int]:
@@ -348,41 +362,78 @@ def _apply_timelines(
     before: Mapping[str, State],
     after: Mapping[str, State],
     removed: Removed,
+    notes: list[str],
 ) -> None:
+    order = _display_order(after)
+    order_changed = order != _display_order(before)
+    if order_changed:
+        _remember_ordinals(doc, _display_order(before), removed)
     for timeline_id in before.keys() - after.keys():
-        _take_out_timeline(doc, timeline_id, removed)
+        _take_out_timeline(doc, timeline_id, before[timeline_id], removed)
     for timeline_id, state in after.items():
         was = before.get(timeline_id)
         if was is None:
-            back = removed.pop(timeline_id, None)
+            back = removed.get(timeline_id)
             if not isinstance(back, tla.Timeline):
                 continue
+            del removed[timeline_id]
             _put_back_timeline(doc, back, removed)
-            was = _timeline_state(doc, back, state["ordinal"])
+            was = removed.pop(_state_key(timeline_id), None) or _timeline_state(
+                doc, back, state["ordinal"]
+            )
         timeline = doc.timelines.get(timeline_id)
         if timeline is not None:
-            _apply_timeline(doc, timeline, was, state, removed)
-    order = _display_order(after)
-    if order == _display_order(before):
+            _apply_timeline(doc, timeline, was, state, removed, notes)
+    if not order_changed:
         return
     # A timeline both states hold and the document doesn't isn't stored, and has
     # no slot: a slider nobody has changed (FR-007).
     stored = [id for id in order if id in doc.timelines or id not in before]
-    for timeline_id, ordinal in stored_ordinals(doc, stored).items():
+    ordinals = _remembered_ordinals(stored, removed) or stored_ordinals(
+        doc, stored, removed=removed
+    )
+    for timeline_id, ordinal in ordinals.items():
         if timeline_id in doc.timelines:
             doc.timelines[timeline_id].ordinal = ordinal
         else:
-            _add_timeline(doc, timeline_id, after[timeline_id], ordinal, removed)
+            _add_timeline(doc, timeline_id, after[timeline_id], ordinal, removed, notes)
 
 
 def _display_order(timelines: Mapping[str, State]) -> list[str]:
     return sorted(timelines, key=lambda id: (timelines[id]["ordinal"], id))
 
 
-def _take_out_timeline(doc: tla.Document, timeline_id: str, removed: Removed) -> None:
+def _remember_ordinals(doc: tla.Document, order: list[str], removed: Removed) -> None:
+    """The stored ordinals of an order the timelines are leaving, so that going back
+    to it, as an undo does, gives them back, rather than new slots."""
+    stored = [id for id in order if id in doc.timelines]
+    ordinals = {id: doc.timelines[id].ordinal for id in stored}
+    removed[_ordinals_key(stored)] = ordinals
+
+
+def _remembered_ordinals(order: list[str], removed: Removed) -> dict[str, int] | None:
+    remembered = removed.get(_ordinals_key(order))
+    return remembered if isinstance(remembered, dict) else None
+
+
+def _ordinals_key(order: list[str]) -> str:
+    return "ordinals/" + "|".join(order)
+
+
+def _state_key(id: str) -> str:
+    """Where `removed` keeps the state a timeline or component had in `synced`, so
+    that it comes back compared with what TiLiA held, not with the document: what
+    TiLiA fills in, such as a PDF's path where it was found, isn't written then."""
+    return f"{id}/state"
+
+
+def _take_out_timeline(
+    doc: tla.Document, timeline_id: str, was: State, removed: Removed
+) -> None:
     timeline = doc.timelines.pop(timeline_id, None)
     if timeline is not None:
         removed[timeline_id] = timeline
+        removed[_state_key(timeline_id)] = copy.deepcopy(was)
         _release_score(doc, timeline.attrs.get("score"), removed)
 
 
@@ -398,7 +449,12 @@ def _put_back_timeline(
 
 
 def _add_timeline(
-    doc: tla.Document, timeline_id: str, state: State, ordinal: int, removed: Removed
+    doc: tla.Document,
+    timeline_id: str,
+    state: State,
+    ordinal: int,
+    removed: Removed,
+    notes: list[str],
 ) -> None:
     kind = TIMELINE_KINDS.get(state["kind"])
     if kind is None:
@@ -406,7 +462,7 @@ def _add_timeline(
     timeline = tla.Timeline(id=timeline_id, kind=kind, ordinal=ordinal)
     doc.timelines[timeline_id] = timeline
     doc.timelines = dict(sorted(doc.timelines.items()))
-    _apply_timeline(doc, timeline, {}, state, removed)
+    _apply_timeline(doc, timeline, {}, state, removed, notes)
 
 
 def _apply_timeline(
@@ -415,6 +471,7 @@ def _apply_timeline(
     was: State,
     state: State,
     removed: Removed,
+    notes: list[str],
 ) -> None:
     attributes_may_differ = _digest_differs(was, state)
     if attributes_may_differ:
@@ -422,8 +479,10 @@ def _apply_timeline(
     components_changed = _apply_components(
         timeline, was.get("components", {}), state.get("components", {}), removed
     )
+    if timeline.kind == "range" and components_changed:
+        _store_rows_named(timeline, state, removed)
     if timeline.kind == "beat" and (attributes_may_differ or components_changed):
-        _apply_measures(timeline, was, state, removed)
+        _apply_measures(timeline, was, state, removed, notes)
         timeline.measures = tla.measure_table(timeline)
 
 
@@ -479,6 +538,20 @@ def _apply_rows(
     ]
 
 
+def _store_rows_named(timeline: tla.Timeline, state: State, removed: Removed) -> None:
+    """A row TiLiA filled in, such as "Row 0" of a range timeline with none, is
+    stored once a range names it, so that the file names no row it doesn't have."""
+    stored = {row["id"] for row in timeline.attrs.get("rows") or ()}
+    named = {
+        component.attrs.get("row_id")
+        for component in timeline.components.values()
+        if component.kind == "range"
+    }
+    rows = state.get("rows") or []
+    if (named - stored) & {row["id"] for row in rows}:
+        _apply_rows(timeline, rows, removed)
+
+
 def _row_key(timeline_id: str, row_id: str) -> str:
     # Row ids are unique only in their timeline: a duplicate's rows keep them.
     return f"{timeline_id}/{row_id}"
@@ -499,50 +572,61 @@ def _apply_score(
     had_svg = was.get("svg_data") or ""
     if svg == had_svg and positions == (was.get("viewer_beat_x") or {}):
         return
-    score_id = timeline.attrs.get("score")
-    score = doc.scores.get(score_id)
-    replaced_key = f"{timeline.id}/replaced score"
-    if not svg:
-        if had_svg:
-            timeline.attrs["score"] = None
-            _release_score(doc, score_id, removed)
-            replaced = removed.pop(replaced_key, None)
-            if isinstance(replaced, tla.Score):
-                _put_back_score(doc, timeline, replaced)
-        return
-    if score is None or score.format != _LEGACY_SCORE:
-        timeline.attrs["score"] = None
+    score = doc.scores.get(timeline.attrs.get("score"))
+    if svg != had_svg:
+        # An import makes a new score, and clearing leaves none (R16). The score the
+        # timeline held is set aside whole, so that an undo gives it back.
+        held = removed.setdefault(_held_key(timeline.id), {})
         if score is not None:
-            removed[replaced_key] = doc.scores.pop(score_id)
-        score = _legacy_score(svg, removed)
-        _put_back_score(doc, timeline, score)
-    if score.text != svg:
-        score.text = svg
-    if "beat_x" not in score.extra or _beat_positions(score) != positions:
-        score.extra["beat_x"] = [[at, positions[at]] for at in sorted(positions)]
+            timeline.attrs["score"] = None
+            held.pop(score.id, None)
+            held[score.id] = score
+            _release_score(doc, score.id, removed)
+        score = _held_score(held, svg)
+        if score is None:
+            return
+        _put_back_score(doc, timeline, score, removed)
+    if score is None or score.format != _LEGACY_SCORE:
+        return
+    if "beat_x" in score.extra and _beat_positions(score) == positions:
+        return
+    if _named_elsewhere(doc, timeline, score.id):
+        # Another timeline names it, and keeps it as it is.
+        score = copy.deepcopy(score)
+        score.id = tla.new_id()
+        _put_back_score(doc, timeline, score, removed)
+    score.extra["beat_x"] = [[at, positions[at]] for at in sorted(positions)]
 
 
-def _put_back_score(
-    doc: tla.Document, timeline: tla.Timeline, score: tla.Score
-) -> None:
-    doc.scores[score.id] = score
-    doc.scores = dict(sorted(doc.scores.items()))
-    timeline.attrs["score"] = score.id
+def _held_key(timeline_id: str) -> str:
+    """Where `removed` keeps the scores a timeline held, by id, the last one last."""
+    return f"{timeline_id}/scores"
 
 
-def _legacy_score(svg: str, removed: Removed) -> tla.Score:
-    """The score this drawing came from, if it is in `removed`, or a new one."""
-    for key, item in removed.items():
-        if (
-            isinstance(item, tla.Score)
-            and item.format == _LEGACY_SCORE
-            and item.text == svg
-        ):
-            del removed[key]
-            return item
+def _held_score(held: dict[str, tla.Score], svg: str) -> tla.Score | None:
+    """For a drawing, the last score the timeline held with it, or a new one. For no
+    drawing, the last one of another format an import replaced, or none: an undo of
+    that import gives it back."""
+    for score in reversed(list(held.values())):
+        if svg and score.format == _LEGACY_SCORE and score.text == svg:
+            return held.pop(score.id)
+        if not svg and score.format != _LEGACY_SCORE:
+            return held.pop(score.id)
+    if not svg:
+        return None
     score = tla.Score(id=tla.new_id(), format=_LEGACY_SCORE)
     score.text = svg
     return score
+
+
+def _put_back_score(
+    doc: tla.Document, timeline: tla.Timeline, score: tla.Score, removed: Removed
+) -> None:
+    if removed.get(score.id) is score:
+        del removed[score.id]
+    doc.scores[score.id] = score
+    doc.scores = dict(sorted(doc.scores.items()))
+    timeline.attrs["score"] = score.id
 
 
 def _release_score(doc: tla.Document, score_id: str | None, removed: Removed) -> None:
@@ -550,9 +634,21 @@ def _release_score(doc: tla.Document, score_id: str | None, removed: Removed) ->
     names."""
     if score_id not in doc.scores:
         return
-    named = any(tl.attrs.get("score") == score_id for tl in doc.timelines.values())
-    if not named:
+    if not any(_names_score(tl, score_id) for tl in doc.timelines.values()):
         removed[score_id] = doc.scores.pop(score_id)
+
+
+def _named_elsewhere(doc: tla.Document, timeline: tla.Timeline, score_id: str) -> bool:
+    return any(
+        tl is not timeline and _names_score(tl, score_id)
+        for tl in doc.timelines.values()
+    )
+
+
+def _names_score(timeline: tla.Timeline, score_id: str) -> bool:
+    """A timeline of a kind TiLiA doesn't know keeps its keys in `raw`."""
+    raw = timeline.raw or {}
+    return score_id in (timeline.attrs.get("score"), raw.get("score"))
 
 
 # Components
@@ -572,15 +668,19 @@ def _apply_components(
         component = components.pop(component_id, None)
         if component is not None:
             removed[component_id] = component
+            removed[_state_key(component_id)] = copy.deepcopy(before[component_id])
             changed = True
     added = False
     for component_id, state in after.items():
         was = before.get(component_id)
         if was is None:
-            back = removed.pop(component_id, None)
+            back = removed.get(component_id)
             if isinstance(back, tla.Component):
+                del removed[component_id]
                 components[component_id] = back
-                was = _component_state(back)
+                was = removed.pop(_state_key(component_id), None) or _component_state(
+                    back
+                )
                 added = True
             else:
                 kind = COMPONENT_KINDS.get(state.get("kind"))
@@ -591,8 +691,13 @@ def _apply_components(
         if not _digest_differs(was, state):
             continue
         component = components.get(component_id)
-        if component is not None and _apply_component(component, was, state):
-            changed = True
+        if component is not None:
+            changed = _apply_component(component, was, state) or changed
+        elif (kind := COMPONENT_KINDS.get(state.get("kind"))) is not None:
+            # One TiLiA filled in, such as the unit of an empty hierarchy timeline:
+            # stored once it is edited.
+            components[component_id] = _new_component(component_id, kind, state)
+            added = True
     if added:
         timeline.components = dict(sorted(components.items()))
     return changed or added
@@ -645,10 +750,14 @@ def _set_attribute(component: tla.Component, attr: str, value: Any) -> None:
 
 
 def _apply_measures(
-    timeline: tla.Timeline, was: State, state: State, removed: Removed
+    timeline: tla.Timeline,
+    was: State,
+    state: State,
+    removed: Removed,
+    notes: list[str],
 ) -> None:
     if _measures_of(was) != _measures_of(state):
-        _rewrite_marks(timeline, was, state, removed)
+        _rewrite_marks(timeline, state, removed, notes)
 
 
 def _measures_of(state: State) -> tuple[Any, ...]:
@@ -665,40 +774,120 @@ def _beats_in_order(beats: Mapping[str, State]) -> list[str]:
 
 
 def _rewrite_marks(
-    timeline: tla.Timeline, was: State, state: State, removed: Removed
+    timeline: tla.Timeline,
+    state: State,
+    removed: Removed,
+    notes: list[str],
 ) -> None:
-    """A measure's beats are those from its mark to the next, so the lists say which
-    beats have a mark. One still a downbeat keeps its mark's other keys, and one no
-    longer a downbeat leaves its mark in `removed`, for when it is one again."""
+    """TiLiA's lists say which beats start a measure, by position, and TiLiA moves them
+    when a beat is added or deleted outside the last measure. Each measure's mark, with
+    all its keys, follows its measure to that measure's downbeat, and a `next` keeps
+    naming the same measure, so that the file says what TiLiA shows. The measures before
+    are the document's table, as it was after the last change."""
     components = timeline.components
+    # A beat both states hold and the document doesn't can't have a mark.
     order = [
         id for id in _beats_in_order(state.get("components", {})) if id in components
     ]
+    # No counts, with beats: one measure, so the first beat keeps its mark.
     counts = state.get("beats_in_measure") or [len(order)]
     numbers = state.get("measure_numbers") or []
     forced = set(state.get("measures_to_force_display") or ())
     starts = _measure_starts(order, counts)
-    following = 1
+    downbeats = {index: beat_id for beat_id, index in starts.items()}
+    before = timeline.measures.rows if timeline.measures is not None else []
+    marks = _take_marks(before, components, removed)
+    # A number this wrote is flagged under the beat its mark is on, so the flags move
+    # with the marks: all are taken first, since a beat can end one measure's mark and
+    # start another's.
+    flagged = {
+        index
+        for index, (started, _) in marks.items()
+        if removed.pop(_number_key(started), None) is not None
+    }
+    renamed = {
+        row.id: downbeats[index]
+        for index, row in enumerate(before)
+        if index in downbeats
+    }
     for beat_id in order:
         attrs = components[beat_id].attrs
-        index = starts.get(beat_id)
-        if index is None:
-            if "measure" in attrs:
-                removed[_mark_key(beat_id)] = attrs.pop("measure")
-            continue
-        mark = attrs.get("measure")
-        if not isinstance(mark, dict):
-            mark = attrs["measure"] = removed.pop(_mark_key(beat_id), {})
+        if beat_id not in starts and "measure" in attrs:
+            _set_aside_mark(timeline, beat_id, attrs.pop("measure"), removed, notes)
+    following = 1
+    for index, beat_id in sorted(downbeats.items()):
+        attrs = components[beat_id].attrs
+        if index in marks:
+            attrs["measure"] = marks.pop(index)[1]
+            removed.pop(_number_key(beat_id), None)
+            if index in flagged:
+                removed[_number_key(beat_id)] = {}
+        elif not isinstance(attrs.get("measure"), dict):
+            attrs["measure"] = removed.pop(_mark_key(beat_id), {})
+        mark = attrs["measure"]
+        # More numbers than measures, or fewer, as TiLiA's lists can be for a moment.
         number = numbers[index] if index < len(numbers) else following
         _set_measure_number(mark, number, following, _number_key(beat_id), removed)
         if bool(mark.get("force_display")) != (index in forced):
             mark["force_display"] = index in forced
         following = number + 1
-    _make_next_follow(timeline, starts, _beats_in_order(was.get("components", {})))
+    # Measures that are gone: their marks wait in `removed` for an undo.
+    for index, (started, mark) in marks.items():
+        _set_aside_mark(timeline, started, mark, removed, notes)
+        if index in flagged:
+            removed[_number_key(started)] = {}
+    _rename_next(timeline, starts, renamed, {row.id for row in before}, notes)
+
+
+def _take_marks(
+    rows: Sequence[tla.Measure],
+    components: Mapping[str, tla.Component],
+    removed: Removed,
+) -> dict[int, tuple[str, dict[str, Any]]]:
+    """Each measure's mark, by the measure's index, with the beat that started it. A
+    beat deleted since keeps its own, whole, in `removed`, so its measure gets a copy."""
+    marks: dict[int, tuple[str, dict[str, Any]]] = {}
+    for index, row in enumerate(rows):
+        component = components.get(row.id)
+        if component is not None:
+            mark = component.attrs.pop("measure", None)
+        else:
+            gone = removed.get(row.id)
+            held = (
+                gone.attrs.get("measure") if isinstance(gone, tla.Component) else None
+            )
+            mark = copy.deepcopy(held)
+        if isinstance(mark, dict):
+            marks[index] = (row.id, mark)
+    return marks
+
+
+def _set_aside_mark(
+    timeline: tla.Timeline,
+    beat_id: str,
+    mark: dict[str, Any],
+    removed: Removed,
+    notes: list[str],
+) -> None:
+    removed[_mark_key(beat_id)] = mark
+    if _carries_more_than_a_number(mark):
+        notes.append(
+            f"The measure that beat {beat_id} of timeline {timeline.id} started is"
+            f" gone: its mark, {mark}, left the file."
+        )
+
+
+def _carries_more_than_a_number(mark: Mapping[str, Any]) -> bool:
+    return any(
+        value not in (None, False, {}, [])
+        for key, value in mark.items()
+        if key not in ("number", "force_display")
+    )
 
 
 def _measure_starts(order: Sequence[str], counts: Iterable[int]) -> dict[str, int]:
-    """The beats that start a measure, each with its measure's index."""
+    """The beats that start a measure, each with its measure's index. A measure of no
+    beats starts at none, and a count past the last beat starts nothing."""
     starts: dict[str, int] = {}
     place = 0
     for index, count in enumerate(counts):
@@ -715,11 +904,11 @@ def _set_measure_number(
     have is written where it differs from that, and goes again when it no longer does,
     while one the file stores stays a number, as the same edit through `attrs` leaves
     it. `key` in `removed` says the number is one this wrote."""
-    if mark.get("number", following) == number:
-        return
     if number == following and key in removed:
-        del mark["number"]
+        mark.pop("number", None)
         del removed[key]
+        return
+    if mark.get("number", following) == number:
         return
     if "number" not in mark:
         removed[key] = {}
@@ -734,26 +923,46 @@ def _number_key(beat_id: str) -> str:
     return f"{beat_id}/number"
 
 
-def _make_next_follow(
-    timeline: tla.Timeline, starts: Mapping[str, int], order_before: Sequence[str]
+def _rename_next(
+    timeline: tla.Timeline,
+    starts: Mapping[str, int],
+    renamed: Mapping[str, str],
+    started_before: set[str],
+    notes: list[str],
 ) -> None:
-    """The writer refuses a `next` that names no measure. Repeats are kept, neither
-    shown nor edited, so one that named a beat no longer a downbeat names the downbeat
-    that comes after that beat, if there is one."""
-    places = {beat_id: place for place, beat_id in enumerate(order_before)}
+    """A `next` keeps naming the same measure, at its new downbeat. One that named a
+    measure that is gone, or a beat that starts none, goes, since the writer refuses a
+    `next` that names no measure. A name of a downbeat the state doesn't hold, such as
+    a beat without a time, stays while it is one."""
+    components = timeline.components
     for beat_id in starts:
-        mark = timeline.components[beat_id].attrs["measure"]
+        mark = components[beat_id].attrs["measure"]
         following = mark.get("next")
         if not following:
             continue
         followed = []
         for name in following:
-            if name in starts or name not in places:
+            if name in renamed:
+                followed.append(renamed[name])
+            elif name not in started_before and _is_downbeat(components.get(name)):
                 followed.append(name)
-                continue
-            later = order_before[places[name] + 1 :]
-            followed.extend(next(([id] for id in later if id in starts), []))
-        if not followed:
-            del mark["next"]
-        elif followed != following:
+        if followed == following:
+            continue
+        if len(followed) < len(following):
+            notes.append(
+                f"The measure at beat {beat_id} of timeline {timeline.id} was followed"
+                f" by {following}, some of which are gone: it is followed by"
+                f" {followed or 'the next measure'}."
+            )
+        if followed:
             mark["next"] = followed
+        else:
+            del mark["next"]
+
+
+def _is_downbeat(component: tla.Component | None) -> bool:
+    """As the writer reads it: a beat with a mark that isn't a closing tap."""
+    if component is None or component.kind != "beat":
+        return False
+    attrs = component.attrs
+    return isinstance(attrs.get("measure"), dict) and not attrs.get("closing")
