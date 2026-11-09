@@ -9,6 +9,8 @@ import importlib.util
 import json
 import pickle
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -1590,6 +1592,105 @@ class TestStatesMadeWhenAWriteNeedsThem:
         doc = pickle.loads(pickle.dumps(tla.loads(data)))
         doc.media_length = 100.0
         written(doc, tmp_path)
+
+
+class TestStatesMadeOnceForEveryone:
+    """The states are made once, from the bytes as they were read: two threads may
+    look at them at once, and a caller may change the buffer it read from."""
+
+    def test_two_threads_looking_at_once_get_them_made_once(self, monkeypatch):
+        components = [(make_id(1000 + n), {"time": 150.0}) for n in range(2000)]
+        data = a_file(markers(*components))
+        expected = dict(tla.loads(data).read_unmeasured)
+        doc = tla.loads(data)
+        calls = []
+        make = problems.unmeasured
+
+        def slow(document):
+            calls.append(document)
+            time.sleep(0.2)  # long enough for the other thread to look too
+            return make(document)
+
+        monkeypatch.setattr(problems, "unmeasured", slow)
+        both = threading.Barrier(2)
+        found, raised = [], []
+
+        def look():
+            both.wait()
+            try:
+                found.append((doc.read_unmeasured.get("x"), len(doc.read_unmeasured)))
+            except Exception as error:
+                raised.append(error)
+
+        threads = [threading.Thread(target=look) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert raised == []
+        assert found == [(None, len(expected))] * 2
+        assert dict(doc.read_unmeasured) == expected
+        assert len(calls) == 1
+
+    def test_a_copy_or_a_pickle_reads_the_same_before_and_after_they_are_made(self):
+        data = a_file(markers((FIRST, {"time": 150.0})))
+        states = tla.loads(data).read_unmeasured
+        expected = dict(tla.loads(data).read_unmeasured)
+        assert copy.copy(states) == expected
+        assert pickle.loads(pickle.dumps(states)) == expected
+        assert copy.copy(states) == expected  # made by now
+        assert pickle.loads(pickle.dumps(states)) == expected
+
+    @staticmethod
+    def a_buffer_changed_after_it_was_read(data, *, changed):
+        buffer = bytearray(data)
+        doc = tla.loads(buffer)
+        buffer[:] = changed
+        doc.media_length = 100.0
+        return doc
+
+    def test_a_buffer_changed_after_the_read_changes_nothing(self, tmp_path):
+        doc = self.a_buffer_changed_after_it_was_read(
+            a_file(markers((FIRST, {"time": 150.0}))),
+            changed=a_file(markers((FIRST, {"time": 170.0}))),
+        )
+        written(doc, tmp_path)
+
+    def test_an_old_files_buffer_changed_after_the_read_changes_nothing(self, tmp_path):
+        old = TestStatesMadeWhenAWriteNeedsThem.an_old_file()
+        changed = json.loads(old)
+        component = changed["timelines"]["3"]["components"]["17"]
+        component["end"] = 170.0
+        doc = self.a_buffer_changed_after_it_was_read(
+            old, changed=json.dumps(changed, indent=2).encode("utf-8")
+        )
+        written(doc, tmp_path)
+
+    def test_a_buffer_changed_after_the_read_still_compares_what_was_read(
+        self, tmp_path
+    ):
+        doc = self.a_buffer_changed_after_it_was_read(
+            a_file(markers((FIRST, {"time": 150.0}))),
+            changed=a_file(markers((FIRST, {"time": 170.0}))),
+        )
+        doc.timelines[CADENCES].components[FIRST].attrs["time"] = 170.0
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(CADENCES, FIRST)
+        ]
+
+    @pytest.mark.parametrize("old", [False, True], ids=["a file", "an old file"])
+    def test_a_buffer_is_copied_once(self, old):
+        # The states and the fingerprint are made from the same copy.
+        if old:
+            data = TestStatesMadeWhenAWriteNeedsThem.an_old_file()
+        else:
+            data = a_file(markers((FIRST, {"time": 150.0})))
+        doc = tla.loads(bytearray(data))
+        kept = doc.read_unmeasured._as_read.args[0]
+        assert type(kept) is bytes
+        assert kept == data
+        assert doc._fingerprint._make.args[0] is kept
 
 
 class TestALongIntegerWithNoLengthRead:

@@ -99,6 +99,9 @@ def _loads(
     *,
     for_fingerprint: bool = False,
 ) -> tuple[Document, Migrated | None]:
+    # The bytes as they are now, once: a caller may change a bytearray it gave,
+    # and the fingerprint and the states are made from them later.
+    data = bytes(data)
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
@@ -136,7 +139,8 @@ def _keep_what_was_read(
     fingerprint of `data`, made from `data` when it is first asked for, so that
     a read costs nothing more and the file isn't read again; and the plain
     SHA-256 of `data`, by which a write finds the file unchanged without reading
-    it as a document again (TimeLineAnnotator/project-management#533).
+    it as a document again (TimeLineAnnotator/project-management#533). `data`
+    is kept as it is given: bytes, which no caller can change (`_loads`).
 
     From a file with an integer that a Python may not read or write
     (`long_integer`), the fingerprint is made now: what it raises for one is
@@ -144,7 +148,6 @@ def _keep_what_was_read(
     # Imported here: the writer reads this module.
     from tilia_core.tla.writer import _fingerprint_of_bytes
 
-    data = bytes(data)  # as they are now: a caller may change a bytearray it gave
     make = partial(_fingerprint_of_bytes, data, path)
     if long_integer:
         document._fingerprint = make()
