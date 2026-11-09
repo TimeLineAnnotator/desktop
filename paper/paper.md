@@ -114,7 +114,7 @@ TiLiA consists of an organisation of digital tools, primarily of its [open-sourc
 
 TiLiA is designed both for the manual creation of analyses — particularly where this requires complex alignment with audio/video sources — and for the large-scale conversion and import of external analyses.
 While the `.tla` format may still change as functionality grows, documentation is available for [importing](https://tilia-app.com/help/import) from CSV and [exporting](https://tilia-app.com/help/export#json-format) to JSON: both steps can be fully automated through the CLI.
-The [tilia-dcml](https://github.com/TimeLineAnnotator/dcml-to-tilia) repository demonstrates this by integrating an external corpus of musical analyses.
+The [dcml-to-tilia](https://github.com/TimeLineAnnotator/dcml-to-tilia) repository demonstrates this by integrating an external corpus of musical analyses.
 
 ## The desktop application
 
