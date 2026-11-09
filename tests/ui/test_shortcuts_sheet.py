@@ -1,6 +1,7 @@
-"""The keyboard shortcuts sheet is made for every release from the command
-registry (see .github/workflows/build.yml), so these tests build it from the
-real registry: a change that breaks the sheet fails here, not at release time.
+"""The keyboard shortcuts sheet is made from the command registry, and the
+repository's copy is updated after each change reaches dev (see
+.github/workflows/shortcuts-sheet.yml), so these tests build it from the real
+registry: a change that breaks the sheet fails here, not after it reaches dev.
 """
 
 import datetime
