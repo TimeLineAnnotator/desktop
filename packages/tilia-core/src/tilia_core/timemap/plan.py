@@ -200,9 +200,10 @@ def plan_time_signatures(
     one set, or the first of a movement whose first unit the plan writes
     (FR-020), and the measures after it carry the unit on as before. Where
     that downbeat stores a unit the reader can't read, the run that needs the
-    write-back is left out and the bar goes to `unreadable`; the rest of the
-    plan goes ahead. With "carry", nothing more is written, so the measures
-    after a run of set measures take its unit, from there on.
+    write-back is left out and the bar goes to `unreadable`; a run stops at a
+    restart, and the rest of the plan goes ahead. With "carry", nothing more
+    is written, so the measures after a run of set measures take its unit,
+    from there on.
 
     Writes nothing to the document. Raises ValueError for a unit too long to
     be read back.
@@ -248,7 +249,9 @@ def _restored(
 
     The run of measures set that needs such a write-back is taken out of
     `wanted`, so nothing is written for it, and the plan is made again
-    without it (TimeLineAnnotator/project-management#373). A measure that
+    without it (TimeLineAnnotator/project-management#373). A write-back the
+    measures that remain still need may then land on a measure of that run:
+    it is written for them, as on any measure not set. A measure that
     gets a write-back has no unit the reader can read, which would govern it
     as before, so any unit stored on its downbeat is one it can't.
     """
@@ -283,7 +286,9 @@ def _run_to_leave_out(
     measure `index`: if `index` starts a movement in which a measure is set,
     the movement's first run, whose unit the movement's first measure would
     otherwise take (TimeLineAnnotator/project-management#322, #357); else the
-    run just before it.
+    run just before it. A run stops at a restart, so that bars set in another
+    movement aren't left out with it
+    (TimeLineAnnotator/project-management#520).
     """
     movement = rows[index].movement
     starts = index == 0 or rows[index - 1].movement != movement
@@ -296,10 +301,14 @@ def _run_to_leave_out(
         start = before[-1]
     else:
         return []
+
+    def in_run(i: int) -> bool:
+        return rows[i].id in wanted and rows[i].movement == rows[start].movement
+
     first = last = start
-    while first > 0 and rows[first - 1].id in wanted:
+    while first > 0 and in_run(first - 1):
         first -= 1
-    while last + 1 < len(rows) and rows[last + 1].id in wanted:
+    while last + 1 < len(rows) and in_run(last + 1):
         last += 1
     return [rows[i].id for i in range(first, last + 1)]
 

@@ -989,6 +989,47 @@ class TestRestore:
 
             assert p == Plan(changes=[], unreadable=[BarRef(4, "4", 1, 1)])
 
+        # Song 1's bars 2 and 3, and song 2's bar 1.
+        ACROSS = [
+            (BarRef(2, movement=1), ts("6/8")),
+            (BarRef(3, movement=1), ts("6/8")),
+            (BarRef(1, movement=2), ts("6/8")),
+        ]
+
+        def test_a_run_stops_at_a_restart(self):
+            # The case of TimeLineAnnotator/project-management#520 (a run left
+            # out and a restart): song 2's bar 2 stores the unit. Song 2's bar
+            # 1 is left out, and song 1's bars go ahead; song 2's bar 1 keeps
+            # its reading through the unit written back on it (#357).
+            doc, tl = piece([2] * 6, marks=SONGS, units={(4, 0): UNREADABLE})
+
+            p = plan(doc, tl, self.ACROSS)
+            apply_plan(doc, p)
+
+            assert p.unreadable == [BarRef(2, "2", 1, 2)]
+            assert unit_writes(p) == {
+                downbeat(tl, 1): unit(8, "3"),
+                downbeat(tl, 3): DEFAULT,
+            }
+            assert read(doc, tl) == [
+                ("2/4", True, "tapped"),
+                *[("6/8", False, "score")] * 2,
+                *[("2/4", True, "tapped")] * 3,
+            ]
+
+        def test_a_run_left_out_for_an_opening_unit_stops_at_a_restart(self):
+            # Song 1's bar 1 stores the unit: song 1's bars 2 and 3 would give
+            # song 1 its first unit. Song 2's bar 1 goes ahead.
+            doc, tl = piece([2] * 6, marks=SONGS, units={(0, 0): UNREADABLE})
+
+            p = plan(doc, tl, self.ACROSS)
+
+            assert p.unreadable == [BarRef(1, "1", 1, 1)]
+            assert unit_writes(p) == {
+                downbeat(tl, 3): unit(8, "3"),
+                downbeat(tl, 4): DEFAULT,
+            }
+
         def test_the_rest_of_the_plan_goes_ahead(self):
             doc, tl = piece([2] * 6, units={(0, 0): DEFAULT, (2, 0): UNREADABLE})
 
