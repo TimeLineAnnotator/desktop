@@ -1058,9 +1058,22 @@ class TestUndoRedo:
         assert len(tlui) == 2
 
     @pytest.mark.parametrize(
-        "refusal", ["nothing selected", "more than one copied", "different level"]
+        "refusal, reason",
+        [
+            pytest.param("nothing selected", None, id="nothing selected"),
+            pytest.param(
+                "more than one copied",
+                "Cannot paste more than one Hierarchy",
+                id="more than one copied",
+            ),
+            pytest.param(
+                "different level",
+                "Cannot paste complete into different level",
+                id="different level",
+            ),
+        ],
     )
-    def test_refused_paste_complete_keeps_redo_history(self, tlui, refusal):
+    def test_refused_paste_complete_keeps_redo_history(self, tlui, refusal, reason):
         # A paste-complete refused before it has changed anything must not be
         # recorded, or the empty undo step would discard the redo history.
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
@@ -1070,9 +1083,15 @@ class TestUndoRedo:
         commands.execute("edit.undo")
 
         tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 1).id))
-        if refusal == "more than one copied":
-            tlui.select_element(tlui.get_element(get_hierarchy(tlui, 1, 1).id))
         commands.execute("timeline.component.copy")
+        if refusal == "more than one copied":
+            # A hierarchy timeline refuses to copy two hierarchies, but the
+            # clipboard can still hold two components from another timeline.
+            contents = get(Get.CLIPBOARD_CONTENTS)
+            post(
+                Post.TIMELINE_ELEMENT_COPY_DONE,
+                {**contents, "components": contents["components"] * 2},
+            )
         tlui.deselect_all_elements()
         if refusal != "nothing selected":
             tlui.select_element(tlui.get_element(get_hierarchy(tlui, 0, 2).id))
@@ -1080,10 +1099,13 @@ class TestUndoRedo:
         with patch("tilia.errors.display") as display:
             commands.execute("timeline.component.paste_complete")
 
-        assert all(
-            call.args[0] == tilia.errors.COMPONENTS_PASTE_ERROR
-            for call in display.call_args_list
-        )
+        if reason is None:
+            display.assert_not_called()
+        else:
+            display.assert_called_once()
+            error, message = display.call_args.args
+            assert error == tilia.errors.COMPONENTS_PASTE_ERROR
+            assert reason in message
         assert len(tlui) == 3
 
         commands.execute("edit.redo")
