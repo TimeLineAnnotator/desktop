@@ -32,6 +32,11 @@ SCORE = "0.7.0-osmd.tla"  # an SVG
 CURRENT = "unknown.tla"  # in the current format
 EVERY_KIND = "0.7.0.tla"
 HIERARCHIES, MARKERS, BEATS, HARMONIES, SCORES, RANGES = "1", "6", "9", "22", "34", "42"
+PDFS = "26"
+# Absolute paths of this system's form, and of the other's, that name nothing.
+HERE, ELSEWHERE = (
+    ("C:/Nowhere", "/nowhere") if os.name == "nt" else ("/nowhere", "C:/Nowhere")
+)
 # A core that checks the rules won't write chords and keys without music21.
 needs_chords = pytest.mark.skipif(
     hasattr(tla, "BrokenRules") and not harmony_available(),
@@ -468,6 +473,19 @@ def set_the_media_path(content):
     content["media"]["path"] = "../elsewhere/another.ogg"
 
 
+def name_of(path):
+    return path.replace("\\", "/").rsplit("/", 1)[-1]
+
+
+def put_the_media_elsewhere(content):
+    content["media"]["path"] = f"../elsewhere/{name_of(content['media']['path'])}"
+
+
+def put_a_pdf_elsewhere(content):
+    timeline = timeline_of(content, "Pdf")
+    timeline["path"] = f"../elsewhere/{name_of(timeline['path'])}"
+
+
 def reverse_the_metadata(content):
     content["metadata"] = dict(reversed(list(content["metadata"].items())))
 
@@ -600,6 +618,12 @@ class TestAWrongMigration:
             ),
             pytest.param(set_the_length, "/media/length: ", id="media length"),
             pytest.param(set_the_media_path, "/media/path: ", id="media path"),
+            pytest.param(
+                put_the_media_elsewhere, "/media/path: ", id="the media's folder"
+            ),
+            pytest.param(
+                put_a_pdf_elsewhere, f"/timelines/{PDFS}/path: ", id="a PDF's folder"
+            ),
             pytest.param(
                 reverse_the_metadata, "/metadata: in the order", id="metadata's order"
             ),
@@ -969,6 +993,38 @@ def with_paths_of_windows(content):
     timeline_of(content, "Pdf")["path"] = "C:\\Music\\scores\\sonata.pdf"
 
 
+def with_paths(media, pdf=None, file_path=None):
+    def change(content):
+        content["media_path"] = media
+        if pdf is not None:
+            timeline_of(content, "Pdf")["path"] = pdf
+        if file_path is None:
+            content.pop("file_path")
+        else:
+            content["file_path"] = file_path
+
+    return change
+
+
+def a_beat_unit(**unit):
+    def change(content):
+        components = components_of(content, BEATS)
+        components[str(900 + len(components))] = {"kind": "BEAT_UNIT", **unit}
+
+    return change
+
+
+def a_beat_at(time):
+    def change(content):
+        components_of(content, BEATS)["11"]["time"] = time
+
+    return change
+
+
+def without_a_time(content):
+    del components_of(content, BEATS)["11"]["time"]
+
+
 class TestWhatTheMigrationChangesOnPurpose:
     """Each isn't a difference: the migration is meant to do it."""
 
@@ -1044,6 +1100,59 @@ class TestWhatTheMigrationChangesOnPurpose:
             pytest.param(with_a_row_filled_in, id="a row's defaults"),
             pytest.param(with_a_link_for_media, id="a link without a scheme"),
             pytest.param(with_paths_of_windows, id="Windows paths"),
+            pytest.param(
+                with_paths(
+                    "/home/me/music/sonata.ogg",
+                    "/home/me/scores/sonata.pdf",
+                    "/home/me/sonata.tla",
+                ),
+                id="POSIX paths",
+            ),
+            pytest.param(
+                with_paths(f"{HERE}/sonata.ogg", f"{HERE}/sonata.pdf"),
+                id="no file_path: from the file's folder",
+            ),
+            pytest.param(
+                with_paths(
+                    f"{ELSEWHERE}/sonata.ogg",
+                    f"{ELSEWHERE}/sonata.pdf",
+                    f"{HERE}/sonata.tla",
+                ),
+                id="the other system's paths stay absolute",
+            ),
+            pytest.param(
+                with_paths("D:/Music/sonata.ogg", "D:/sonata.pdf", "C:/Music/a.tla"),
+                id="another drive",
+            ),
+            pytest.param(
+                with_paths("audio\\sonata.ogg", "scores/sonata.pdf", "C:/a/b.tla"),
+                id="relative by hand",
+            ),
+            pytest.param(
+                with_paths("https://example.org/sonata.ogg", None, "C:/a/b.tla"),
+                id="a URL",
+            ),
+            pytest.param(
+                with_paths("https://www.youtube.com/watch?v=abc", None, "C:/a/b.tla"),
+                id="a link",
+            ),
+            pytest.param(
+                with_paths("//www.youtube.com/watch?v=abc", None, "C:/a/b.tla"),
+                id="a link with two slashes",
+            ),
+            pytest.param(a_beat_at(-1.0), id="a beat before 0"),
+            pytest.param(a_beat_at(9.952 + 3), id="a beat past the media's end"),
+            pytest.param(a_beat_at(0.0), id="a beat at the time of another"),
+            pytest.param(without_a_time, id="a beat without a time"),
+            pytest.param(a_beat_unit(beat_id="no beat"), id="a unit on no beat"),
+            pytest.param(
+                lambda c: (a_beat_unit(beat_id="10")(c), a_beat_unit(beat_id=10)(c)),
+                id="a unit on a beat that has one",
+            ),
+            pytest.param(
+                a_beat_unit(beat_id="10", units="x"), id="units it can't read"
+            ),
+            pytest.param(a_beat_unit(beat_id="10", denominator=0), id="a denominator"),
         ],
     )
     def test_isnt_a_difference(self, folders_with, capsys, change):
@@ -1059,36 +1168,109 @@ class TestWhatTheMigrationChangesOnPurpose:
 
         assert check_migration.main(folders_with(content)) == 0, capsys.readouterr().out
 
-    def test_a_beat_it_drops_is_a_difference_with_its_warning(
+    def test_a_beat_it_drops_is_listed_with_its_warning(self, folders_with, capsys):
+        content = old_file()
+        a_beat_at(0.0)(content)
+
+        assert check_migration.main(folders_with(content)) == 0
+
+        out = capsys.readouterr().out
+        assert "dropped, as TiLiA drops it" in out
+        assert (
+            f"dropped, with its warning: /timelines/{BEATS}/components/11,"
+            " a beat at the time of another" in out
+        )
+        assert "each with its warning, which isn't a difference: 1." in out
+
+    def test_a_beat_unit_it_drops_is_listed_with_its_warning(
         self, folders_with, capsys
     ):
-        # As it was by the totals: SC-002 says nothing is missing but what FR-021
-        # drops. The warning says why.
         content = old_file()
-        components = components_of(content, BEATS)
-        keys = list(components)
-        components[keys[1]]["time"] = components[keys[0]]["time"]
+        a_beat_unit(beat_id="no beat")(content)
+
+        assert check_migration.main(folders_with(content)) == 0
+
+        out = capsys.readouterr().out
+        assert "a beat unit that names" in out
+        assert "dropped, with its warning: " in out
+        assert "a beat unit naming 'no beat', which isn't a beat kept" in out
+
+    def test_a_path_from_a_file_path_of_the_other_system_waits_on_a_decision(
+        self, folders_with, capsys
+    ):
+        # Reading keeps the path absolute, and the writer writes it relative
+        # (TimeLineAnnotator/project-management#530): as before, a difference
+        # between the two, and only its file's name compared with the old file.
+        content = old_file()
+        with_paths(f"{HERE}/sonata.ogg", None, f"{ELSEWHERE}/sonata.tla")(content)
 
         assert check_migration.main(folders_with(content)) == 1
 
         out = capsys.readouterr().out
-        assert f"/timelines/{BEATS}/components/{keys[1]}: missing from the copy" in out
-        assert "warning: " in out and "dropped, as TiLiA drops it" in out
+        assert "/media_path: " in out
+        assert "/media/path: " not in out
 
-    def test_a_beat_unit_it_drops_is_a_difference_with_its_warning(
-        self, folders_with, capsys
+
+MIGRATE = reader.migrate  # the migration itself, before a test changes it
+
+
+def a_migration_without_its_warnings(*args, **kwargs):
+    migrated = MIGRATE(*args, **kwargs)
+    migrated.warnings[:] = [w for w in migrated.warnings if "dropped" not in w.message]
+    return migrated
+
+
+def a_migration_that_drops_beat_11(old, **kwargs):
+    # A beat it shouldn't drop, with a warning that says it did.
+    del old["timelines"][BEATS]["components"]["11"]
+    migrated = MIGRATE(old, **kwargs)
+    place = f"/timelines/{BEATS}/components/11"
+    message = "a beat dropped, as TiLiA drops it when it opens the file"
+    migrated.warnings.append(tla.ReadWarning(place=place, line=None, message=message))
+    return migrated
+
+
+class TestADrop:
+    @pytest.mark.parametrize(
+        "change, place",
+        [
+            (a_beat_at(0.0), f"/timelines/{BEATS}/components/11: missing"),
+            (
+                a_beat_unit(beat_id="no beat"),
+                f"/timelines/{BEATS}/components/9",
+            ),
+        ],
+        ids=["a beat", "a beat unit"],
+    )
+    def test_without_its_warning_is_a_difference(
+        self, folders_with, monkeypatch, capsys, change, place
     ):
         content = old_file()
-        components_of(content, BEATS)["900"] = {
-            "kind": "BEAT_UNIT",
-            "beat_id": "no beat",
-        }
+        change(content)
+        folders = folders_with(content)
+        monkeypatch.setattr(reader, "migrate", a_migration_without_its_warnings)
 
-        assert check_migration.main(folders_with(content)) == 1
+        assert check_migration.main(folders) == 1
 
         out = capsys.readouterr().out
-        assert "components/900: missing from the copy, a beat unit naming" in out
-        assert "warning: " in out and "dropped, as TiLiA drops it" in out
+        assert place in out
+        assert "without its warning" in out
+
+    @pytest.mark.parametrize("time", [None, 9.952 + 1], ids=["any", "within 2 s"])
+    def test_of_a_beat_it_should_keep_is_a_difference_with_a_warning(
+        self, folders_with, monkeypatch, capsys, time
+    ):
+        content = old_file()
+        if time is not None:
+            # Past the media's end, by less than TiLiA's 2 s: kept.
+            a_beat_at(time)(content)
+        folders = folders_with(content)
+        monkeypatch.setattr(reader, "migrate", a_migration_that_drops_beat_11)
+
+        assert check_migration.main(folders) == 1
+
+        out = capsys.readouterr().out
+        assert f"/timelines/{BEATS}/components/11: missing from the copy, was" in out
 
 
 @pytest.mark.parametrize(
