@@ -20,12 +20,15 @@ a file already migrated, then checks each file:
   migration itself gets wrong: both sides would have it. The new ids hold what
   they come from, so that each component is compared with its own original, and
   everything it holds, but for what the migration changes on purpose, which is
-  named below with what says so.
+  named below with what says so. A media or PDF path is compared with what the
+  migration should make of it, relative to the file's folder.
 
 It prints a report, whose first lines say whether chords and keys were checked and
 which files were left out, and exits with 0 when there is no difference, 1 when
 there is any, and 2 when it was given something it won't check, having written
-nothing. What opens with a warning isn't a difference: the report prints it.
+nothing. What opens with a warning isn't a difference: the report prints it. Nor
+is a beat or a beat unit the migration drops, as TiLiA drops it when it opens the
+file, with its warning: the report lists it, and without its warning it is one.
 """
 
 from __future__ import annotations
@@ -34,7 +37,9 @@ import argparse
 import dataclasses
 import json
 import math
+import ntpath
 import os
+import posixpath
 import re
 import secrets
 import sys
@@ -57,6 +62,7 @@ from tilia_core.tla.layout import (
     Shape,
     nfc_value,
 )
+from tilia_core.tla.media_files import YOUTUBE_URL
 from tilia_core.tla.migrate.old import TILIA_0_7_HEIGHTS, renames_display_position
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -114,6 +120,14 @@ NUMBER = re.compile(
     r"[^\S\x1c-\x1f]*"
 )
 PATH_SEPARATORS = re.compile(r"[\\/]")
+# An absolute path of Windows' form, whichever system reads it: a drive and its
+# root, or a share's two slashes of one kind (contract, *Media paths*).
+WINDOWS_PATH = re.compile(r"[A-Za-z]:[\\/]|//|\\\\")
+URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]+://")  # a scheme of two characters or more
+HERE = "windows" if os.name == "nt" else "posix"
+PATHS = {"windows": ntpath, "posix": posixpath}
+# How far past the end of the media TiLiA keeps a beat when it opens a file.
+BEAT_TOLERANCE = 2
 
 
 def plain(value: Any) -> Any:
@@ -207,6 +221,56 @@ def stable(new_id: str) -> int:
 def old_entry(document: tla.Document, kind: str, *old_ids: str) -> int:
     """What `stable` gives for the id migrating that old entry gives."""
     return stable(migrated_id(document.document_id, kind, *old_ids, position=0))
+
+
+def pointer(*parts: str) -> str:
+    """A JSON Pointer, as a warning names a place in the old file."""
+    return "".join("/" + part.replace("~", "~0").replace("/", "~1") for part in parts)
+
+
+class Dropped:
+    """What the migration drops on purpose, as TiLiA drops it when it opens the
+    file, with a warning at its place in the old file: a beat without a time,
+    outside the media or at the time of another, and a beat unit on no beat kept,
+    on a beat that has one, or that desktop#621 can't read (contract, *Beat
+    timelines*, steps 1 and 4). The places warned about; the old media length,
+    as the migration reads it; the old file's version; and what was found dropped
+    so, for the report."""
+
+    def __init__(self, warned: set[str], media_length: Any, version: str) -> None:
+        self.warned = warned
+        self.media_length = media_length
+        self.version = version
+        self.found: list[str] = []
+
+    def check(self, place: str, at: str, why: str) -> Iterator[str]:
+        """Whether a drop at `place`, `at` in the old file, has its warning: listed
+        if so, else a difference."""
+        if at in self.warned:
+            self.found.append(f"dropped, with its warning: {place}, {why}")
+        else:
+            yield f"{place}: missing from the copy, {why}, without its warning"
+
+    def beats(self, old_components: Mapping[str, Any]) -> dict[str, str]:
+        """The beats of a beat timeline to drop, each with why, by old id."""
+        dropped: dict[str, str] = {}
+        times: set[Any] = set()
+        length = self.media_length
+        for key, beat in old_components.items():
+            if beat.get("kind") != "BEAT":
+                continue
+            time = beat.get("time")
+            if time is None:
+                dropped[key] = "a beat without a time"
+            elif is_number(time) and (
+                time < 0 or (length is not None and time > length + BEAT_TOLERANCE)
+            ):
+                dropped[key] = f"a beat at {time!r}, outside the media"
+            elif is_number(time) and time in times:
+                dropped[key] = f"a beat at the time of another, {time!r}"
+            elif is_number(time):
+                times.add(time)
+        return dropped
 
 
 def comment_parts(comment: str) -> tuple[list[str], list[str], list[str]]:
@@ -381,14 +445,16 @@ def measure_differences(
 
 
 def beat_unit_differences(
+    key_of_timeline: str,
     old_components: Mapping[str, Any],
     components: Mapping[str, tla.Component],
     place: str,
+    dropped: Dropped,
 ) -> Iterator[str]:
     """How the beat units on a timeline's beats differ from its old ones, each of
     them on the beat it names, or T12's default on the first beat, assumed, when it
     has none (FR-083). One the migration drops, as TiLiA drops it when it opens the
-    file, is missing."""
+    file, is listed with its warning, and is a difference without one."""
     units: dict[str, dict[str, Any]] = {}
     for key, old in old_components.items():
         if old.get("kind") != BEAT_UNIT:
@@ -398,14 +464,18 @@ def beat_unit_differences(
         text = old.get("units", beat_units.DEFAULT_UNITS)
         parsed = beat_units.parse_units(text) if isinstance(text, str) else None
         denominator = old.get("denominator", beat_units.DEFAULT_DENOMINATOR)
-        if (
-            named not in components
-            or named in units
-            or parsed is None
-            or not parsed.is_valid
-            or not beat_units.validate_denominator(denominator)
-        ):
-            yield f"{place}/{key}: missing from the copy, a beat unit naming {named!r}"
+        why = None
+        if named not in components:
+            why = f"a beat unit naming {named!r}, which isn't a beat kept"
+        elif named in units:
+            why = f"a second beat unit on the beat {named!r}"
+        elif parsed is None or not parsed.is_valid:
+            why = f"a beat unit with the units {text!r}"
+        elif not beat_units.validate_denominator(denominator):
+            why = f"a beat unit with the denominator {denominator!r}"
+        if why is not None:
+            at = pointer("timelines", key_of_timeline, "components", key)
+            yield from dropped.check(f"{place}/{key}", at, why)
             continue
         units[named] = {
             "denominator": denominator,
@@ -471,6 +541,67 @@ def file_name(path: Any) -> Any:
     return PATH_SEPARATORS.split(nfc_value(path))[-1] if isinstance(path, str) else path
 
 
+def path_form(path: str) -> str | None:
+    """`windows` or `posix` for an absolute path of that system's form, whichever
+    system reads it; None for anything else."""
+    if WINDOWS_PATH.match(path):
+        return "windows"
+    return "posix" if path.startswith("/") else None
+
+
+def as_migrated(stored: Any, file_path: Any, folder: str, media: bool) -> Any:
+    """What the migration should store for an old file's media path (`media`) or a
+    PDF timeline's path, for a file in `folder` last saved at `file_path` (FR-021,
+    Q4, contract, *Media paths*): relative to `folder`, starting from where TiLiA
+    would find it now: where it is, if it is on this computer; else beside
+    `file_path`, by that path's own system; else beside the file. Absolute where no
+    relative path exists; a URL, or a path written relative by hand, as it is; a
+    YouTube link without a scheme with one. None for a path of this system's form
+    and a `file_path` of the other's, which reading keeps absolute and the writer
+    writes relative: that waits on TimeLineAnnotator/project-management#530 (a
+    media path that reading keeps absolute), and only its file's name is
+    compared."""
+    if not isinstance(stored, str) or not stored or URL.match(stored):
+        return stored
+    if media and YOUTUBE_URL.match(stored):
+        return f"https:{stored}" if stored.startswith("//") else f"https://{stored}"
+    form = path_form(stored)
+    if form is None:
+        return stored
+    paths = PATHS[form]
+    saved = file_path if isinstance(file_path, str) and not URL.match(file_path) else ""
+    saved_form = path_form(saved) if saved else None
+    if form == HERE and os.path.isfile(stored):
+        base: str | None = folder
+    elif saved_form is None:
+        base = folder if form == HERE else None
+    elif saved_form == form:
+        base = paths.dirname(saved)
+    elif form == HERE:
+        return None
+    else:
+        base = None
+    relative = stored
+    if base is not None:
+        try:
+            relative = paths.relpath(stored, base)
+        except ValueError:  # on another drive or share
+            pass
+    return relative.replace("\\", "/") if form == "windows" else relative
+
+
+def path_differences(
+    stored: Any, file_path: Any, held: Any, folder: str, place: str, media: bool
+) -> Iterator[str]:
+    """How a migrated media or PDF path differs from what the old one should be."""
+    expected = as_migrated(stored, file_path, folder, media)
+    if expected is None:
+        stored, held = file_name(stored), file_name(held)
+    else:
+        stored = nfc_value(expected)
+    yield from differences(stored, held, place, by_value)
+
+
 def as_text(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -525,7 +656,8 @@ def timeline_differences(
     timeline: tla.Timeline,
     document: tla.Document,
     scores: dict[int, tla.Score],
-    version: str,
+    file_path: Any,
+    dropped: Dropped,
 ) -> Iterator[str]:
     """How a migrated timeline differs from its old one: its kind, its settings and
     each of its components."""
@@ -535,7 +667,7 @@ def timeline_differences(
             f"{place}/kind: {short(kind_of(old['kind']))} in the original,"
             f" {short(kind_of(timeline.kind))} in the copy"
         )
-    if renames_display_position(version) and "display_position" in old:
+    if renames_display_position(dropped.version) and "display_position" in old:
         # From 0-based to 1-based (contract, step 1).
         old = {**old, "ordinal": old["display_position"] + 1}
         old = {k: v for k, v in old.items() if k != "display_position"}
@@ -564,8 +696,9 @@ def timeline_differences(
         held.pop("score", None)
     if kind == "pdf":
         path = held.pop("path", None)
-        yield from differences(
-            file_name(old.get("path")), file_name(path), f"{place}/path", by_value
+        folder = str(document.origin.parent) if document.origin else ""
+        yield from path_differences(
+            old.get("path"), file_path, path, folder, f"{place}/path", media=False
         )
     yield from differences(expected_settings(kind, old), held, place, by_value)
 
@@ -575,20 +708,26 @@ def timeline_differences(
     remaining = {stable(new): one for new, one in timeline.components.items()}
     components: dict[str, tla.Component] = {}
     place = f"{place}/components"
+    to_drop = dropped.beats(old_components) if kind == "beat" else {}
     for name, component in old_components.items():
         if kind == "beat" and component.get("kind") == BEAT_UNIT:
             continue
         found = remaining.pop(old_entry(document, "component", key, name), None)
-        if found is None:
-            yield f"{place}/{name}: missing from the copy, was {short(component)}"
-        else:
+        if found is not None:
             components[name] = found
+        elif name in to_drop:
+            at = pointer("timelines", key, "components", name)
+            yield from dropped.check(f"{place}/{name}", at, to_drop[name])
+        else:
+            yield f"{place}/{name}: missing from the copy, was {short(component)}"
     for one in remaining.values():
         yield f"{place}/{one.id}: only in the copy, is a {kind_of(one.kind)}"
     yield from component_differences(kind, old_components, components, place)
     if kind == "beat":
         yield from measure_differences(old, timeline, f"/timelines/{key}")
-        yield from beat_unit_differences(old_components, components, place)
+        yield from beat_unit_differences(
+            key, old_components, components, place, dropped
+        )
     if kind == "score":
         yield from legacy_score_differences(
             key, old, timeline, document, scores, f"/timelines/{key}"
@@ -615,12 +754,13 @@ def as_media_length(value: Any) -> Any:
 
 
 def against_old_file(
-    content: Mapping[str, Any], document: tla.Document
+    content: Mapping[str, Any], document: tla.Document, dropped: Dropped
 ) -> Iterator[str]:
     """How `document`, a migrated file, differs from the old file's own JSON: what
     its top level holds, then each timeline and each component against its own
     original. Each is found through its id, so that what is on another timeline, or
-    on another component of its timeline, is a difference."""
+    on another component of its timeline, is a difference. What the migration drops
+    on purpose, with its warning, goes in `dropped`."""
     metadata = dict(content.get("media_metadata", {}))
     length = metadata.pop("media length", None)
     expected_metadata = nfc_value({k: as_field(v) for k, v in metadata.items()})
@@ -644,14 +784,16 @@ def against_old_file(
             f"/metadata: in the order {short(list(expected_metadata))} in the"
             f" original, {short(list(document.metadata))} in the copy"
         )
-    # Relative to where the file is, or with `https://` (FR-021): its name stays.
-    yield from differences(
-        file_name(content.get("media_path", "")),
-        file_name(document.media_path),
+    file_path = content.get("file_path")
+    folder = str(document.origin.parent) if document.origin else ""
+    yield from path_differences(
+        content.get("media_path", ""),
+        file_path,
+        document.media_path,
+        folder,
         "/media/path",
-        by_value,
+        media=True,
     )
-    version = content.get("version", "0.0.0")
     timelines = {stable(new): one for new, one in document.timelines.items()}
     scores = {stable(new): one for new, one in document.scores.items()}
     for key, old in content["timelines"].items():
@@ -663,7 +805,7 @@ def against_old_file(
             )
         else:
             yield from timeline_differences(
-                key, old, timeline, document, scores, version
+                key, old, timeline, document, scores, file_path, dropped
             )
     for timeline in timelines.values():
         yield (
@@ -743,7 +885,16 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
     else:
         if not found and tla.canonical_bytes(before) != written:
             found.append("the copy isn't what the original migrates to")
-        found.extend(against_old_file(json.loads(original), after))
+        content = json.loads(original)
+        dropped = Dropped(
+            warned={w.place for w in before.warnings if "dropped" in w.message},
+            media_length=as_media_length(
+                content.get("media_metadata", {}).get("media length")
+            ),
+            version=content.get("version", "0.0.0"),
+        )
+        found.extend(against_old_file(content, after, dropped))
+        notes.extend(dropped.found)
         tla.write(copy, after, expect=tla.fingerprint(copy))
         if copy.read_bytes() != written:
             found.append(SECOND_WRITE_CHANGED)
@@ -902,7 +1053,7 @@ def migrate_and_compare(copy: Path, files: dict[str, tuple[Path, Path]]) -> int:
     migrated = tla.migrate_folder(copy, apply=True)
     different = len(migrated.folders_not_listed)
     total: Counter[str] = Counter()
-    warnings = 0
+    warnings = drops = 0
     for unlisted in migrated.folders_not_listed:
         print(f"{unlisted.path}: {unlisted.reason}")
     for result in migrated.files:
@@ -918,6 +1069,7 @@ def migrate_and_compare(copy: Path, files: dict[str, tuple[Path, Path]]) -> int:
                 found.append(f"{type(error).__name__}: {error}")
         total.update(held)
         warnings += sum(note.startswith("warning: ") for note in notes)
+        drops += sum(note.startswith("dropped, ") for note in notes)
         origin = f" (from {result.from_version})" if result.from_version else ""
         if not found:
             print(f"{result.path}{origin}: no difference: {tally(held)}")
@@ -931,6 +1083,9 @@ def migrate_and_compare(copy: Path, files: dict[str, tuple[Path, Path]]) -> int:
     print(f"{len(migrated.files)} files, {different} with a difference.")
     print(f"In all: {tally(total)}.")
     print(f"Warnings, which aren't differences: {warnings}.")
+    print(
+        f"Dropped on purpose, each with its warning, which isn't a difference: {drops}."
+    )
     return 1 if different else 0
 
 
