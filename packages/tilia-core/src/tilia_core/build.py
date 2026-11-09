@@ -128,14 +128,16 @@ def load_media(
     """
     text = os.fspath(path)
     length: float | None = None
-    # A text with a backslash is a path, whatever it looks like (FR-052): it is
-    # looked for as a file, with "/" for each backslash, and refused when none
-    # is there. Otherwise the core decides what a path without a scheme that
-    # looks like a YouTube link is: a file when one is there, else a link. A
-    # path object is a path, never a link, and the core knows it. TiLiA quotes
-    # a refused path, a URL too, as a path: its slashes turn as the system's do.
+    # A text with no scheme that holds a backslash is a path, whatever it looks
+    # like (FR-052; a URL stays a URL, FR-033): it is looked for as a file, with
+    # "/" for each backslash, and refused when none is there. Otherwise the core
+    # decides what a path without a scheme that looks like a YouTube link is: a
+    # file when one is there, else a link. A path object is a path, never a
+    # link, and the core knows it. TiLiA quotes a refused path, a URL too, as a
+    # path: its slashes turn as the system's do.
     local = Path(text.replace("\\", "/"))
-    decided = "" if "\\" in text else tla.as_media_path(path)
+    is_path = "\\" in text and not is_url(text)
+    decided = "" if is_path else tla.as_media_path(path)
     if is_url(decided) and YOUTUBE_URL.match(decided):
         stored = name = decided
     else:
