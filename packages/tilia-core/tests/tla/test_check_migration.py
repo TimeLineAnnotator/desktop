@@ -152,12 +152,14 @@ class TestAnUneditedCopy:
         self, source, copied, capsys
     ):
         # An absolute path that exists here is made relative from where the file
-        # is read, and these two files are in different folders (FR-021).
+        # is read, and these two files are in different folders (FR-021): not
+        # from where it was saved.
         media = source / "media.ogg"
         media.touch()
         for folder in (source, copied):
             content = json.loads((folder / S4).read_bytes())
             content["media_path"] = str(media)
+            content["file_path"] = str(source.parent / "saved" / "here" / "s4.tla")
             (folder / S4).write_text(json.dumps(content), encoding="utf-8")
 
         assert check_migration.main([str(source), str(copied)]) == 0
@@ -1163,7 +1165,10 @@ class TestWhatTheMigrationChangesOnPurpose:
             pytest.param(without_a_time, id="a beat without a time"),
             pytest.param(a_beat_unit(beat_id="no beat"), id="a unit on no beat"),
             pytest.param(
-                lambda c: (a_beat_unit(beat_id="10")(c), a_beat_unit(beat_id=10)(c)),
+                lambda c: (
+                    a_beat_unit(beat_id="10")(c),
+                    a_beat_unit(beat_id=10, units="2")(c),
+                ),
                 id="a unit on a beat that has one",
             ),
             pytest.param(
