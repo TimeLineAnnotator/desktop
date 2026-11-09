@@ -135,6 +135,30 @@ fetch_packages() {
   return 1
 }
 
+# `linux-setup.sh tests` installs only what the tests need: the libraries that
+# PySide6's wheels link against and the runner image lacks. To check this list
+# after a PySide6 or image update, run `ldd` over the wheels' .so files.
+if [[ ${1:-} == tests ]]; then
+  apt_install_args=(
+    --no-install-recommends
+    # Alphabetical order please!
+    libegl1
+    libpulse0
+    libxcb-cursor0
+    libxcb-icccm4
+    libxcb-image0
+    libxcb-keysyms1
+    libxcb-render-util0
+    libxcb-shape0
+    libxcb-util1
+    libxcb-xkb1
+    libxkbcommon-x11-0
+  )
+  fetch_packages "${apt_install_args[@]}"
+  sudo apt-get install -y --no-download "${apt_install_args[@]}"
+  exit 0
+fi
+
 apt_install_args=(
   --no-install-recommends
   "${apt_packages[@]}"
