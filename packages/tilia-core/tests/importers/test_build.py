@@ -1200,6 +1200,44 @@ def test_a_backslash_with_no_file_there_is_a_missing_path_not_a_link(
     assert doc.media_length is None
 
 
+def test_a_url_with_a_backslash_is_still_a_url(tmp_path, monkeypatch):
+    # Only a text with no scheme that holds a backslash is a path (FR-033): a
+    # URL is a URL, and TiLiA's pattern takes this one, so it is stored as given
+    # and never looked up as a file.
+    monkeypatch.chdir(tmp_path)
+    looked_up = []
+    real = os.path.isfile
+    monkeypatch.setattr(
+        os.path, "isfile", lambda path: looked_up.append(path) or real(path)
+    )
+    doc = build.new_script_document()
+
+    build.load_media(doc, "https://youtu.be/abc\\def", duration_if_error=9.0)
+
+    assert doc.media_path == "https://youtu.be/abc\\def"
+    assert not [path for path in looked_up if "youtu.be" in os.fspath(path)]
+
+
+def test_a_url_that_is_not_youtube_with_a_backslash_is_refused_as_a_url(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    doc = build.new_script_document()
+
+    message = refused(
+        build.load_media, doc, "https://example.com/a\\b.mp3", duration_if_error=9.0
+    )
+
+    shown = (
+        "https:\\example.com\\a\\b.mp3"
+        if sys.platform == "win32"
+        else "https:/example.com/a/b.mp3"
+    )
+    assert message == MEDIA_NOT_FOUND.format(shown)
+    assert doc.media_path == ""
+    assert doc.media_length is None
+
+
 BAD_NAME = "bad\udcff.mp3"
 
 
