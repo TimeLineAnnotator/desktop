@@ -1168,8 +1168,8 @@ class TestBeatTimelinesStageOne:
         rows = timeline.measures.rows
         state = opened.timeline(timeline.id)
         before = copy.deepcopy(state)
-        # "Set beat amount": the second measure takes the third one's beats, so the
-        # later marks move to the measures before them, and the last one is gone.
+        # "Set beat amount": the second measure takes the third one's beats. The
+        # third is gone, and the later measures keep their downbeats and marks.
         opened.edit_timeline(
             timeline.id,
             beats_in_measure=[1, 6, 3, 3, 1, 2, 1],
@@ -1178,7 +1178,8 @@ class TestBeatTimelinesStageOne:
         )
         opened.sync()
         assert "measure" not in timeline.components[rows[2].id].attrs
-        assert timeline.components[rows[3].id].attrs["measure"]["label"] == "2a"
+        assert timeline.components[rows[3].id].attrs["measure"]["source"] == "edited"
+        assert len(opened.removed[f"{rows[2].id}/measure"]) > 0
         opened.current["timelines"][timeline.id] = before
         opened.sync()
         assert opened.bytes() == opened.bytes_read, changed_lines(
@@ -1267,7 +1268,8 @@ class TestBeatTimelinesStageOne:
         assert timeline.measures == tla.measure_table(timeline)
 
     def test_a_next_keeps_naming_the_same_measures(self):
-        # The measure each one names has a new downbeat after a deletion.
+        # A one-beat measure is deleted: the measures after it keep their downbeats,
+        # and a `next` naming the one that is gone loses that name.
         opened = Opened.read(EVERY_KIND)
         timeline = next(
             tl for tl in opened.doc.timelines.values() if tl.name == "Bars of the score"
@@ -1281,7 +1283,7 @@ class TestBeatTimelinesStageOne:
         )
         opened.sync()
         following = timeline.components[rows[1].id].attrs["measure"]["next"]
-        assert following == [rows[3].id, rows[4].id]
+        assert following == [rows[3].id]
         assert tla.loads(opened.bytes())
 
     def test_a_next_with_nothing_after_it_goes(self):
@@ -2081,6 +2083,19 @@ def marks_by_measure(written):
     return [b["measure"] for b in beats if "measure" in b]
 
 
+def without_the_lists(marks):
+    """The marks without what TiLiA's lists set by position: the number, and whether
+    it is always shown."""
+    return [
+        {
+            key: value
+            for key, value in mark.items()
+            if key not in ("number", "force_display")
+        }
+        for mark in marks
+    ]
+
+
 def downbeats(written):
     beats = sorted(written["components"].items(), key=lambda item: item[1]["time"])
     return [beat_id for beat_id, b in beats if "measure" in b]
@@ -2160,14 +2175,83 @@ class TestMarksFollowTheirMeasures:
         timeline = opened.timeline(timeline_id)
         timeline.delete_components([timeline.get_component(ids[6])])
         opened.sync()
+        # The deleted downbeat takes its mark with it, and TiLiA's measure there, now
+        # starting a beat later, has an empty one. The later marks follow theirs.
         written = opened.written(timeline_id)
-        assert marks_by_measure(written) == [
-            before[0],
-            {**before[1], "next": [ids[10]]},
-            *before[2:],
-        ]
+        assert without_the_lists(marks_by_measure(written)) == without_the_lists(
+            [before[0], {**before[1], "next": [ids[10]]}, {}, *before[3:]]
+        )
         assert downbeats(written) == [ids[0], ids[3], ids[7], ids[10], ids[13]]
+        assert len(opened.notes) == 1 and ids[6] in opened.notes[0]
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_add_measure_zero_and_its_undo(self, live):
+        # TiLiA adds a measure before the first: the other downbeats stay where they
+        # were, at the next index, and keep their marks.
+        timeline_id, ids, doc = marked_measures()
+        for component in doc.timelines[timeline_id].components.values():
+            component.attrs["time"] += 5
+        doc.timelines[timeline_id].measures = tla.measure_table(
+            doc.timelines[timeline_id]
+        )
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][timeline_id]
+        )
+        opened = live(doc)
+        done, reason = opened.timeline(timeline_id).add_measure_zero(0.5)
+        assert done, reason
+        opened.sync()
+        written = opened.written(timeline_id)
+        marks = marks_by_measure(written)
+        assert marks[0] == {"number": 0}
+        assert without_the_lists(marks[1:]) == without_the_lists(before)
+        assert downbeats(written)[1:] == [ids[0], ids[3], ids[6], ids[9], ids[12]]
         assert opened.notes == []
+        assert tla.loads(opened.bytes())
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_one_beat_measure_deleted_and_its_undo(self, live):
+        # The other measures keep their downbeats and marks, restart included.
+        ids = [make_id(i) for i in range(1, 7)]
+        timeline_id = make_id(99)
+        beats = {
+            beat_id: beat(
+                float(place),
+                {"label": f"m{place + 1}", **({"restart": True} if place == 5 else {})},
+            )
+            for place, beat_id in enumerate(ids)
+        }
+        doc = loads(file_with({timeline_id: beat_timeline(beats)}))
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[1])])
+        opened.sync()
+        written = opened.written(timeline_id)["components"]
+        for place in (0, 2, 3, 4, 5):
+            assert written[ids[place]]["measure"]["label"] == f"m{place + 1}"
+        assert written[ids[5]]["measure"]["restart"] is True
+        assert len(opened.notes) == 1 and ids[1] in opened.notes[0]
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_set_beat_amount_that_takes_the_next_measure_and_its_undo(self, live):
+        # The first measure takes the second's beats: the second is gone, and the
+        # others keep their downbeats and marks.
+        timeline_id, ids, doc = marked_measures()
+        before = marks_by_measure(
+            json.loads(tla.canonical_bytes(doc))["timelines"][timeline_id]
+        )
+        opened = live(doc)
+        opened.timeline(timeline_id).set_beat_amount_in_measure(0, 6)
+        opened.sync()
+        written = opened.written(timeline_id)
+        assert downbeats(written)[:4] == [ids[0], ids[6], ids[9], ids[12]]
+        assert without_the_lists(marks_by_measure(written)[1:4]) == without_the_lists(
+            before[2:]
+        )
+        assert len(opened.notes) == 1
         opened.sync(opened.first)
         assert opened.bytes() == opened.bytes_read
 
