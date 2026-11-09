@@ -441,7 +441,8 @@ def _write_backs(
     measure is kept as the timeline's first is
     (TimeLineAnnotator/project-management#357, after
     TimeLineAnnotator/project-management#322). A unit that can't be read, on
-    the downbeat written to, is replaced
+    the downbeat written to, is never replaced: these writes are only what
+    the measures would need, and `_restored` makes none that lands on one
     (TimeLineAnnotator/project-management#373).
     """
     # rows_in and rows are the same measures, in the same order.
