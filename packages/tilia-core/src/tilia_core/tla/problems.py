@@ -46,6 +46,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+import threading
 from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
@@ -173,17 +174,20 @@ def unmeasured_later(
 
 class _Unmeasured(Mapping[str, str]):
     """The states `unmeasured` gives for the document `as_read` makes, made the
-    first time they are looked at."""
+    first time they are looked at, once, whichever thread looks first."""
 
     def __init__(self, as_read: Callable[[], Document]) -> None:
-        self._as_read = as_read
+        self._as_read: Callable[[], Document] | None = as_read
         self._states: dict[str, str] | None = None
+        self._lock = threading.Lock()
 
     def _made(self) -> dict[str, str]:
-        if self._states is None:
-            self._states = unmeasured(self._as_read())
-            del self._as_read  # it holds the file's bytes
-        return self._states
+        with self._lock:
+            if self._states is None:
+                assert self._as_read is not None  # dropped once they are made
+                self._states = unmeasured(self._as_read())
+                self._as_read = None  # it holds the file's bytes
+            return self._states
 
     def __getitem__(self, place: str) -> str:
         return self._made()[place]
@@ -200,6 +204,13 @@ class _Unmeasured(Mapping[str, str]):
     def __deepcopy__(self, memo: dict[int, Any]) -> dict[str, str]:
         # As `dataclasses.asdict` copies it: what it holds, as a dict.
         return dict(self._made())
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # A lock doesn't pickle or copy: the states once made, else a new one.
+        with self._lock:
+            if self._states is not None:
+                return (dict, (self._states,))
+            return (_Unmeasured, (self._as_read,))
 
 
 def new_problems(
