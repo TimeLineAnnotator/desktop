@@ -373,20 +373,43 @@ class TestWhereItGoes:
             c.component_id for c in p.changes if c.key == "beat_unit"
         }
 
-    @pytest.mark.parametrize("after", ["carry", "restore"])
     @pytest.mark.parametrize("b", [0, 2], ids=["on its downbeat", "on a later beat"])
-    def test_a_unit_the_bar_would_carry_anyway_is_removed(self, b, after):
+    def test_a_unit_the_bar_would_carry_anyway_is_removed(self, b):
         # 3/4 set on bar 1, and restated by a person on bar 3, which a source
         # gives 3/4: bar 3 carries it from bar 2 once its own unit is gone
         # (TimeLineAnnotator/project-management#361).
         doc, tl = piece([3, 3, 3], units={(0, 0): unit(4, "1"), (2, b): unit(4, "1")})
 
-        p = plan(doc, tl, bars(3, text="3/4"), after=after)
+        p = plan(doc, tl, bars(3, text="3/4"))
         apply_plan(doc, p)
 
         assert unit_writes(p) == {beat(tl, 2, b): None}
         assert read(doc, tl)[2] == ("3/4", False, "score")
-        assert plan(doc, tl, bars(3, text="3/4"), after=after).changes == []
+        assert plan(doc, tl, bars(3, text="3/4")).changes == []
+
+    @pytest.mark.parametrize("b", [0, 2], ids=["on its downbeat", "on a later beat"])
+    def test_under_carry_it_stays(self, b):
+        # TimeLineAnnotator/project-management#519 (a later plan running over
+        # a bar that was set): only that unit keeps the bar as it was set.
+        doc, tl = piece([3, 3, 3], units={(0, 0): unit(4, "1"), (2, b): unit(4, "1")})
+
+        p = plan(doc, tl, bars(3, text="3/4"), after="carry")
+        apply_plan(doc, p)
+
+        assert unit_writes(p) == {}
+        assert stored_units(tl)[2, b] == unit(4, "1")
+        assert read(doc, tl)[2] == ("3/4", False, "score")
+        assert plan(doc, tl, bars(3, text="3/4"), after="carry").changes == []
+
+    def test_under_carry_an_assumed_unit_is_confirmed_not_removed(self):
+        units = {(0, 0): unit(4, "1"), (2, 0): DEFAULT}
+        doc, tl = piece([2, 2, 2], units=units)
+
+        p = plan(doc, tl, bars(3, text="2/4"), after="carry")
+        apply_plan(doc, p)
+
+        assert unit_writes(p) == {downbeat(tl, 2): unit(4, "1")}
+        assert plan(doc, tl, bars(3, text="2/4"), after="carry").changes == []
 
     def test_a_unit_another_would_replace_is_edited_not_removed(self):
         # Bar 3 holds two units: without the first, the second would govern.
@@ -488,30 +511,42 @@ class TestSources:
             {}
         ] * 3
 
-    @pytest.mark.parametrize("after", ["carry", "restore"])
     @pytest.mark.parametrize(
         "plans",
         [[(1, 2), (3,), (1, 2, 3)], [(3,), (1, 2), (1, 2, 3)]],
         ids=["bars 1-2, then 3", "bar 3, then 1-2"],
     )
-    def test_a_table_set_in_several_plans_is_written_as_one_set_in_one(
-        self, plans, after
-    ):
+    def test_a_table_set_in_several_plans_is_written_as_one_set_in_one(self, plans):
         # The rows of TimeLineAnnotator/project-management#361's table (split
         # plans and the same file): a unit a later plan's bar would carry
         # anyway is removed, so no plan leaves one behind.
         doc, tl = piece([3, 3, 3])
         once = copy.deepcopy(doc)
-        given = {"source": "import", "after": after}
 
         for numbers in plans:
-            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), **given))
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), "import"))
         apply_plan(
             once,
-            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), **given),
+            plan(once, once.timelines[tl.id], bars(1, 2, 3, text="3/4"), "import"),
         )
 
         assert tla.canonical_bytes(doc) == tla.canonical_bytes(once)
+
+    def test_under_carry_split_plans_read_the_same_but_can_leave_a_unit(self):
+        # The second row of that table, under "carry": bar 3 keeps the unit
+        # its plan wrote (TimeLineAnnotator/project-management#519).
+        doc, tl = piece([3, 3, 3])
+        once = copy.deepcopy(doc)
+        once_tl = once.timelines[tl.id]
+        given = {"source": "import", "after": "carry"}
+
+        for numbers in [(3,), (1, 2), (1, 2, 3)]:
+            apply_plan(doc, plan(doc, tl, bars(*numbers, text="3/4"), **given))
+        apply_plan(once, plan(once, once_tl, bars(1, 2, 3, text="3/4"), **given))
+
+        assert read(doc, tl) == read(once, once_tl)
+        assert stored_units(tl) == {(0, 0): unit(4, "1"), (2, 0): unit(4, "1")}
+        assert stored_units(once_tl) == {(0, 0): unit(4, "1")}
 
     def test_a_plan_of_every_measure_from_the_timeline_s_source_drops_the_copies(
         self,
@@ -729,6 +764,37 @@ class TestAfter:
             ("2/4", True, "tapped"),
             ("6/8", False, "score"),
             ("6/8", False, "tapped"),
+            ("6/8", False, "tapped"),
+        ]
+
+    def test_a_later_plan_doesn_t_run_over_a_bar_set_that_has_a_unit(self):
+        # The case of TimeLineAnnotator/project-management#519 (a later plan
+        # running over a bar that was set).
+        units = {(0, 0): unit(4, "1"), (2, 0): unit(4, "1")}
+        doc, tl = piece([2, 2, 2, 2], units=units)
+
+        apply_plan(doc, plan(doc, tl, bars(3, text="2/4"), after="carry"))
+        apply_plan(doc, plan(doc, tl, bars(2, text="6/8"), after="carry"))
+
+        assert read(doc, tl) == [
+            ("2/4", False, "tapped"),
+            ("6/8", False, "score"),
+            ("2/4", False, "score"),
+            ("2/4", False, "tapped"),
+        ]
+
+    def test_a_later_plan_runs_over_a_bar_set_that_has_no_unit(self):
+        # A bar set to what it carries, with no unit of its own, has nothing
+        # that would stop a later plan's unit.
+        doc, tl = piece([2, 2, 2, 2], units={(0, 0): unit(4, "1")})
+
+        apply_plan(doc, plan(doc, tl, bars(3, text="2/4"), after="carry"))
+        apply_plan(doc, plan(doc, tl, bars(2, text="6/8"), after="carry"))
+
+        assert read(doc, tl) == [
+            ("2/4", False, "tapped"),
+            ("6/8", False, "score"),
+            ("6/8", False, "score"),
             ("6/8", False, "tapped"),
         ]
 
@@ -1264,13 +1330,15 @@ class TestRestoreOnAnyTable:
                         is_now.pop("beat_unit")
                     assert is_now == was, where
 
-    def test_planning_again_gives_an_empty_plan(self):
+    @pytest.mark.parametrize("after", ["carry", "restore"])
+    def test_planning_again_gives_an_empty_plan(self, after):
         for seed in self.SEEDS:
             doc, tl, settings, source = self.case(seed)
 
-            apply_plan(doc, plan(doc, tl, settings, source))
+            apply_plan(doc, plan(doc, tl, settings, source, after=after))
 
-            assert plan(doc, tl, settings, source).changes == [], f"seed {seed}"
+            again = plan(doc, tl, settings, source, after=after)
+            assert again.changes == [], f"seed {seed}"
 
     def test_a_bar_not_set_is_written_only_where_it_must_be(self):
         # On the downbeat of a bar after one set, or of a movement's first
@@ -1334,14 +1402,23 @@ def labels(doc, tl):
 
 
 class TestSplitPlans:
-    """A table set in several plans, in any order and with either `after`,
-    gives the file one plan gives (FR-071), but for three accepted cases
-    (TimeLineAnnotator/project-management#390, split plans' remaining cases):
-    (A) an opening unit an earlier plan wrote on a timeline's or movement's
-    first bar that no later plan sets; (B) the beat a set bar's unit sits on,
-    where a person had placed it on a later beat; (C) which runs a plan leaves
-    out over a unit the reader can't read. In A and B every bar reads the
-    same, and TiLiA draws the same labels."""
+    """With "restore", a table set in several plans, in any order, the last
+    of them naming every bar set, gives the file one plan gives (FR-071), but
+    for three accepted cases (TimeLineAnnotator/project-management#390, split
+    plans' remaining cases): (A) an opening unit an earlier plan wrote on a
+    timeline's or movement's first bar that no later plan sets; (B) the beat a
+    set bar's unit sits on, where a person had placed it on a later beat; (C)
+    which runs a plan leaves out over a unit the reader can't read. In A and B
+    every bar reads the same, and TiLiA draws the same labels.
+
+    That last plan is part of the promise: the fuzz always appends it, and its
+    earlier plans needn't name each bar exactly once. Plans that don't end
+    with it can leave other units and other labels than one plan.
+
+    With "carry", a bar set keeps a unit it has
+    (TimeLineAnnotator/project-management#519), so split plans can leave a
+    unit that one plan wouldn't. With that last plan, what holds is that the
+    bars read the same."""
 
     def split_and_whole(self, doc, tl, steps, whole, after):
         """The document after the plans `steps`, then `whole`, each a list of
@@ -1380,8 +1457,7 @@ class TestSplitPlans:
         assert read(doc, tl) == read(once, once_tl)
         assert labels(doc, tl) == labels(once, once_tl)
 
-    @pytest.mark.parametrize("after", ["carry", "restore"])
-    def test_accepted_case_b_the_beat_a_set_bar_s_unit_sits_on(self, after):
+    def test_accepted_case_b_the_beat_a_set_bar_s_unit_sits_on(self):
         # 3/4 from bar 1, restated by a person on bar 3's last beat. Bar 3 set
         # to 3/4 loses it, as it carries 3/4; once bar 2 is 6/8, bar 3 needs a
         # unit again, which goes on its downbeat.
@@ -1390,7 +1466,7 @@ class TestSplitPlans:
         steps = [[(3, "3/4")], [(2, "6/8")]]
 
         once, once_tl = self.split_and_whole(
-            doc, tl, steps, [(2, "6/8"), (3, "3/4")], after
+            doc, tl, steps, [(2, "6/8"), (3, "3/4")], "restore"
         )
 
         assert stored_units(tl) == {
@@ -1405,6 +1481,19 @@ class TestSplitPlans:
         }
         assert read(doc, tl) == read(once, once_tl)
         assert labels(doc, tl) == labels(once, once_tl)
+
+    def test_under_carry_a_set_bar_s_unit_stays_on_its_beat(self):
+        # The same bars: under "carry", case B doesn't arise.
+        units = {(0, 0): unit(4, "1"), (2, 2): unit(4, "1")}
+        doc, tl = piece([3, 3, 3, 3], units=units)
+        steps = [[(3, "3/4")], [(2, "6/8")]]
+
+        once, once_tl = self.split_and_whole(
+            doc, tl, steps, [(2, "6/8"), (3, "3/4")], "carry"
+        )
+
+        assert stored_units(tl)[2, 2] == unit(4, "1")
+        assert tla.canonical_bytes(doc) == tla.canonical_bytes(once)
 
     def case(self, seed):
         rng = random.Random(seed)
@@ -1428,56 +1517,76 @@ class TestSplitPlans:
         rng.shuffle(steps)
         return doc, tl, wanted, steps, rng.choice(["score", "import", "edit"])
 
+    def played(self, doc, tl, wanted, steps, source, after):
+        """The plans `steps`, then a last plan of every bar set; a copy of the
+        document set in that last plan alone; and the bars either reported."""
+        once = copy.deepcopy(doc)
+        once_tl = once.timelines[tl.id]
+        left_out = []
+        for target, timeline, plans in (
+            (doc, tl, [*steps, list(wanted)]),
+            (once, once_tl, [list(wanted)]),
+        ):
+            for bars_ in plans:
+                settings = [(bar, wanted[bar]) for bar in bars_]
+                p = plan(target, timeline, settings, source, after=after)
+                left_out += p.unreadable
+                apply_plan(target, p)
+        return once, once_tl, left_out
+
     def test_split_plans_give_one_plan_s_file_but_for_the_accepted_cases(self):
         for seed in range(300):
-            for after in ("carry", "restore"):
-                doc, tl, wanted, steps, source = self.case(seed)
-                original = stored_units(tl)
-                rows = build_rows(doc, tl)
-                once = copy.deepcopy(doc)
-                once_tl = once.timelines[tl.id]
-                left_out = []
-                for target, timeline, plans in (
-                    (doc, tl, [*steps, list(wanted)]),
-                    (once, once_tl, [list(wanted)]),
-                ):
-                    for bars_ in plans:
-                        settings = [(bar, wanted[bar]) for bar in bars_]
-                        p = plan(target, timeline, settings, source, after=after)
-                        left_out += p.unreadable
-                        apply_plan(target, p)
-                if left_out:
-                    continue  # C: which runs are left out depends on the split
+            doc, tl, wanted, steps, source = self.case(seed)
+            original = stored_units(tl)
+            rows = build_rows(doc, tl)
+            once, once_tl, left_out = self.played(
+                doc, tl, wanted, steps, source, "restore"
+            )
+            if left_out:
+                continue  # C: which runs are left out depends on the split
 
-                where = f"seed {seed}, {after}"
-                assert read(doc, tl) == read(once, once_tl), where
-                assert labels(doc, tl) == labels(once, once_tl), where
-                split, whole = stored_units(tl), stored_units(once_tl)
-                for m, row in enumerate(rows):
-                    here = {b: u for (n, b), u in split.items() if n == m}
-                    there = {b: u for (n, b), u in whole.items() if n == m}
-                    if here == there:
-                        continue
-                    starts = m == 0 or rows[m - 1].movement != row.movement
-                    case_a = (
-                        row.id not in wanted
-                        and starts
-                        and not there
-                        and list(here) == [0]
-                        and here[0].get("assumed") is True
-                    )
-                    case_b = (
-                        row.id in wanted
-                        and list(here) == [0]
-                        and len(there) == 1
-                        and list(there.values()) == [here[0]]
-                        and (m, *there) in original
-                    )
-                    assert case_a or case_b, f"{where}, bar {m + 1}"
-                    for beat in row.beat_ids:
-                        for timeline in (tl, once_tl):
-                            timeline.components[beat].attrs.pop("beat_unit", None)
-                assert tla.canonical_bytes(doc) == tla.canonical_bytes(once), where
+            where = f"seed {seed}"
+            assert read(doc, tl) == read(once, once_tl), where
+            assert labels(doc, tl) == labels(once, once_tl), where
+            split, whole = stored_units(tl), stored_units(once_tl)
+            for m, row in enumerate(rows):
+                here = {b: u for (n, b), u in split.items() if n == m}
+                there = {b: u for (n, b), u in whole.items() if n == m}
+                if here == there:
+                    continue
+                starts = m == 0 or rows[m - 1].movement != row.movement
+                case_a = (
+                    row.id not in wanted
+                    and starts
+                    and not there
+                    and list(here) == [0]
+                    and here[0].get("assumed") is True
+                )
+                case_b = (
+                    row.id in wanted
+                    and list(here) == [0]
+                    and len(there) == 1
+                    and list(there.values()) == [here[0]]
+                    and (m, *there) in original
+                )
+                assert case_a or case_b, f"{where}, bar {m + 1}"
+                for beat in row.beat_ids:
+                    for timeline in (tl, once_tl):
+                        timeline.components[beat].attrs.pop("beat_unit", None)
+            assert tla.canonical_bytes(doc) == tla.canonical_bytes(once), where
+
+    def test_under_carry_split_plans_read_as_one_plan(self):
+        # Not the file, and not TiLiA's labels: a unit left on a bar set is
+        # drawn (TimeLineAnnotator/project-management#519).
+        for seed in range(300):
+            doc, tl, wanted, steps, source = self.case(seed)
+
+            once, once_tl, left_out = self.played(
+                doc, tl, wanted, steps, source, "carry"
+            )
+
+            assert left_out == [], f"seed {seed}"
+            assert read(doc, tl) == read(once, once_tl), f"seed {seed}"
 
 
 class TestMatching:
