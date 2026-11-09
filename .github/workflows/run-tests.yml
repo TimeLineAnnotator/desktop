@@ -53,9 +53,11 @@ jobs:
 
     - name: Setup additional Linux dependencies
       if: runner.os == 'Linux'
+      # Backstop for the limits inside the script, leaving time for the tests.
+      timeout-minutes: 20
       run: |
         chmod +x ./scripts/linux-setup.sh
-        ./scripts/linux-setup.sh
+        ./scripts/linux-setup.sh tests
 
     - uses: actions/cache@v5
       with:
