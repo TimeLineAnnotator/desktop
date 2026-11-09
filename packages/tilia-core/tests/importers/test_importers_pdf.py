@@ -477,9 +477,16 @@ class TestThePdfsPath:
             doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 1]))
         )
 
-        assert result.notes == [
-            f"The PDF '{tmp_path / named}' can't be read: every page number is refused"
-        ]
+        # The note names the file that was found. macOS's file system doesn't
+        # tell NFC from NFD apart, so there the stored name finds it first and
+        # is the one shown: compare the files, and the exact name elsewhere.
+        (note,) = result.notes
+        start, end = "The PDF '", "' can't be read: every page number is refused"
+        assert note.startswith(start) and note.endswith(end)
+        shown = note[len(start) : -len(end)]
+        assert os.path.samefile(shown, tmp_path / named)
+        if sys.platform != "darwin":
+            assert shown == str(tmp_path / named)
 
     @pytest.mark.parametrize(
         "stored, folder",
