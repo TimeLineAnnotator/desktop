@@ -177,11 +177,14 @@ def plan_time_signatures(
     Each measure's own taps share its time signature: its unit is the
     numerator divided by the taps, exactly, or the parts of a grouping with a
     part per tap. It goes on the beat of the unit that starts in the measure,
-    which is edited, else on the downbeat, and is not assumed. Where the
-    measure would carry that very unit from the measure before once the plan
-    is applied, the unit that starts in it is removed instead, so that a
-    table set in several plans gives the file one plan gives
-    (TimeLineAnnotator/project-management#361). Every measure
+    which is edited, else on the downbeat, and is not assumed. With "restore",
+    where the measure would carry that very unit from the measure before once
+    the plan is applied, the unit that starts in it is removed instead, so
+    that a table set in several plans, the last of them naming every measure
+    set, gives the file one plan gives
+    (TimeLineAnnotator/project-management#361). With "carry" the unit stays,
+    so that a later plan can't run over the measure
+    (TimeLineAnnotator/project-management#519). Every measure
     set records `source` ("score", "import", or "edit": "edited", unless the
     measure is tapped); when every measure of the table is set and records
     the same source, the timeline records it instead, changing its
@@ -362,11 +365,15 @@ def _unit_changes(
     before. With `restore`, a measure not set keeps its reading
     (`_write_backs`), so its meter gives it too.
 
-    A measure set that would carry its unit from the measure before, in the
-    same movement, has the one unit that starts in it removed (a removal is
-    a change whose new value is None), so that plans split in any way give
-    one file (TimeLineAnnotator/project-management#361). Not where a second
-    unit starts in it, which would govern it then.
+    With `restore`, a measure set that would carry its unit from the measure
+    before, in the same movement, has the one unit that starts in it removed
+    (a removal is a change whose new value is None), so that plans split in
+    any way, the last naming every measure set, give one file
+    (TimeLineAnnotator/project-management#361). Not where a second unit
+    starts in it, which would govern it then. Without `restore` the unit
+    stays: nothing is written back after a later plan's run, so only that
+    unit keeps the measure as it was set
+    (TimeLineAnnotator/project-management#519).
     """
     changes: dict[str, Change] = {}
     governing: _Unit | None = None
@@ -381,7 +388,8 @@ def _unit_changes(
         if time_signature is None:
             continue
         unit = (time_signature.denominator, _units(time_signature, row.beats), False)
-        if own is not None and not row.meter.is_conflicting and carried == unit:
+        removable = own is not None and not row.meter.is_conflicting
+        if restore and removable and carried == unit:
             changes[row.id] = _removal(timeline, own)
         elif governing != unit:
             readable = parse_units(format_units(unit[1]))
