@@ -128,25 +128,21 @@ def load_media(
     """
     text = os.fspath(path)
     length: float | None = None
-    # The core decides what a path without a scheme that looks like a YouTube
-    # link is: a file when one is there, else a link (FR-052). A backslash
-    # separates folders on every system, so a file is looked for with "/"; a
-    # link is stored as given. A path object is a path, never a link: the core
-    # knows it when asked. A path that is local keeps the checks below, which apply
-    # to the text as given.
-    decided = tla.as_media_path(text.replace("\\", "/"))
-    if is_url(decided):
-        # Asked again of the path as given, which may be a path object.
-        decided = tla.as_media_path(path)
-        # A URL is never looked up as a file, and only YouTube's is media.
-        if not is_url(decided) or not YOUTUBE_URL.match(decided):
-            raise ValueError(_MEDIA_NOT_FOUND.format(printable(text)))
+    # A text with a backslash is a path, whatever it looks like (FR-052): it is
+    # looked for as a file, with "/" for each backslash, and refused when none
+    # is there. Otherwise the core decides what a path without a scheme that
+    # looks like a YouTube link is: a file when one is there, else a link. A
+    # path object is a path, never a link, and the core knows it. TiLiA quotes
+    # a refused path, a URL too, as a path: its slashes turn as the system's do.
+    local = Path(text.replace("\\", "/"))
+    decided = "" if "\\" in text else tla.as_media_path(path)
+    if is_url(decided) and YOUTUBE_URL.match(decided):
         stored = name = decided
     else:
-        local = Path(text.replace("\\", "/"))
         # Not Path.exists: a folder isn't media, and os.path.isfile gives False,
         # rather than raising, for a path the system can't look at.
-        if not os.path.isfile(local):
+        # A URL is never looked up as a file, and only YouTube's is media.
+        if is_url(decided) or not os.path.isfile(local):
             raise ValueError(_MEDIA_NOT_FOUND.format(printable(str(local))))
         verbatim = os.name == "nt" and text.startswith(_VERBATIM)
         stored = _absolute_media_path(local, verbatim=verbatim)

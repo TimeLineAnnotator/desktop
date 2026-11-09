@@ -1119,9 +1119,11 @@ def test_a_path_object_is_never_taken_for_a_link(given, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # no such file here
     doc = build.new_script_document()
 
-    with pytest.raises(ValueError, match="No media available"):
-        build.load_media(doc, given, duration_if_error=9.0)
+    message = refused(build.load_media, doc, given, duration_if_error=9.0)
 
+    # The path as the system writes it, as for any missing path.
+    shown = "youtu.be\\abc" if sys.platform == "win32" else "youtu.be/abc"
+    assert message == MEDIA_NOT_FOUND.format(shown)
     assert doc.media_path == ""
     assert doc.media_length is None
 
@@ -1133,7 +1135,15 @@ def test_a_url_that_is_not_youtube_is_refused_and_changes_nothing():
         build.load_media, doc, "https://example.com/a.mp3", duration_if_error=9.0
     )
 
-    assert message.startswith("No media available at 'https://example.com/a.mp3'")
+    # TiLiA builds the text from a Path, so the link's slashes are turned as
+    # for a path: `https:\example.com\a.mp3` on Windows, and on macOS and Linux
+    # `https:/example.com/a.mp3` (a Path joins the two slashes).
+    shown = (
+        "https:\\example.com\\a.mp3"
+        if sys.platform == "win32"
+        else "https:/example.com/a.mp3"
+    )
+    assert message == MEDIA_NOT_FOUND.format(shown)
     assert doc.media_path == ""
     assert doc.media_length is None
 
@@ -1168,13 +1178,26 @@ def test_a_backslash_in_a_path_that_looks_like_a_link_separates_folders(
     assert doc.media_path == stored(tmp_path / "youtube.com" / "sub" / "clip.mp4")
 
 
-def test_a_backslash_with_no_file_there_stays_a_link_as_given(tmp_path, monkeypatch):
+def test_a_backslash_with_no_file_there_is_a_missing_path_not_a_link(
+    tmp_path, monkeypatch
+):
+    # A text with a backslash is a path (Anne, 2026-11-09): with no file there
+    # it is refused like any missing path, and is not stored as a link.
     monkeypatch.chdir(tmp_path)
     doc = build.new_script_document()
 
-    build.load_media(doc, "youtube.com/sub\\clip.mp4", duration_if_error=9.0)
+    message = refused(
+        build.load_media, doc, "youtube.com/sub\\clip.mp4", duration_if_error=9.0
+    )
 
-    assert doc.media_path == "https://youtube.com/sub\\clip.mp4"
+    shown = (
+        "youtube.com\\sub\\clip.mp4"
+        if sys.platform == "win32"
+        else "youtube.com/sub/clip.mp4"
+    )
+    assert message == MEDIA_NOT_FOUND.format(shown)
+    assert doc.media_path == ""
+    assert doc.media_length is None
 
 
 BAD_NAME = "bad\udcff.mp3"
