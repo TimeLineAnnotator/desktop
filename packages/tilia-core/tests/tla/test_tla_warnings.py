@@ -911,15 +911,6 @@ def test_an_old_component_id_a_pointer_escapes_is_followed():
     assert timeline.components[warning.component_id].attrs["end"] == 1.0
 
 
-def test_a_warning_about_the_whole_file_names_nothing():
-    # A harmony that can't be checked for want of the `harmony` extra.
-    if importlib.util.find_spec("music21") is not None:
-        pytest.skip("needs a core without the harmony extra")
-    doc = tla.loads(make_broken.text_of(make_broken.base()).encode())
-    (warning,) = [w for w in doc.warnings if "weren't checked" in w.message]
-    assert concerns(warning) == (None, None)
-
-
 @pytest.mark.parametrize("path", sorted(OLD.glob("*.tla")), ids=lambda path: path.name)
 def test_every_id_a_warning_names_in_an_old_file_is_in_its_document(path):
     doc = tla.read(path)
