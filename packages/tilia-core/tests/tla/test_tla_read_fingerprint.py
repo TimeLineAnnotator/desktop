@@ -368,20 +368,22 @@ def test_migrate_states_the_fingerprint_the_document_was_read_with(
 
 
 def test_migrate_has_no_fingerprint_of_its_own(tmp_path, monkeypatch):
-    # It reads each file once, then only the write's own check reads it again.
+    # An old file is migrated twice: when it is read, and by the write's own
+    # check of what is on disk, since an old file's bytes aren't its canonical
+    # bytes. Not a third time to compute what to state.
     piece = tmp_path / "piece.tla"
     shutil.copyfile(OLD_WITHOUT_HARMONIES, piece)
-    taken = []
-    loads = reader.loads_for_fingerprint
+    migrated = []
+    migrate = reader.migrate
 
     def counting(*args, **kwargs):
-        taken.append(args)
-        return loads(*args, **kwargs)
+        migrated.append(args)
+        return migrate(*args, **kwargs)
 
-    monkeypatch.setattr(reader, "loads_for_fingerprint", counting)
-    assert not hasattr(folder_module, "loads_for_fingerprint")
-    tla.migrate_folder(tmp_path, apply=True)
-    assert taken == []
+    monkeypatch.setattr(reader, "migrate", counting)
+    report = tla.migrate_folder(tmp_path, apply=True)
+    assert [file.outcome for file in report.files] == [tla.Outcome.MIGRATED]
+    assert len(migrated) == 2
 
 
 def test_migrate_leaves_alone_a_file_changed_after_it_was_read(tmp_path, monkeypatch):
