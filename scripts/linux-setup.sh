@@ -77,16 +77,34 @@ apt_packages_pw_deps=(
   libudev-dev
   )
 
+# The libraries that PySide6's wheels link against and the runner image lacks.
+# To check this list after a PySide6 or image update, run `ldd` over the wheels'
+# .so files. `ldd` can't see what Qt loads at runtime, such as pipewire and VA-API.
+apt_packages_tests=(
+  # Alphabetical order please!
+  libegl1
+  libpulse0
+  libxcb-cursor0
+  libxcb-icccm4
+  libxcb-image0
+  libxcb-keysyms1
+  libxcb-render-util0
+  libxcb-shape0
+  libxcb-util1
+  libxcb-xkb1
+  libxkbcommon-x11-0
+  )
+
 ##########################################################################
 # DOWNLOAD WITH A TIME LIMIT, THEN INSTALL
 ##########################################################################
 
 # A mirror can crawl without stalling: one job spent its whole 30-minute
 # timeout on 141 of 266 packages. apt's own retries and timeouts only catch a
-# dead connection, so each attempt also gets a time limit. The 107 MB download
-# usually takes under 20 s, but 15 of 261 jobs took over 2 minutes, and most of
-# those over 5. A limit that is too short costs little, since the next attempt
-# continues from what was already downloaded.
+# dead connection, so each apt command also gets a time limit. The 107 MB
+# download usually takes under 20 s, but 15 of 261 jobs took over 2 minutes, and
+# most of those over 5. A limit that is too short costs little, since the next
+# attempt continues from what was already downloaded.
 apt_attempt_limit=${APT_ATTEMPT_LIMIT:-120} # seconds
 apt_max_attempts=3
 apt_options=(
@@ -121,60 +139,45 @@ fetch_packages() {
   local attempt start=$SECONDS
   for (( attempt = 1; attempt <= apt_max_attempts; attempt++ )); do
     if (( attempt > 1 )); then
-      echo "::warning::apt attempt $(( attempt - 1 )) failed or passed ${apt_attempt_limit}s; trying the next mirror"
+      echo "::warning::apt attempt $(( attempt - 1 )) failed or an apt command passed ${apt_attempt_limit}s; trying the next mirror"
       use_next_mirror
     fi
-    if { "$apt_lists_ready" || limited_apt_get update; } \
-      && limited_apt_get install -y --download-only "$@"; then
+    # A source the packages don't come from can stall the update, which plain
+    # apt would only warn about, so a failed update doesn't end the attempt.
+    "$apt_lists_ready" || limited_apt_get update \
+      || echo "::warning::apt-get update failed or passed ${apt_attempt_limit}s; trying the download anyway"
+    if limited_apt_get install -y --download-only "$@"; then
       apt_lists_ready=true
       echo "apt download succeeded on attempt $attempt of $apt_max_attempts after $(( SECONDS - start ))s"
       return 0
     fi
   done
-  echo "::error::apt download failed after $apt_max_attempts attempts of up to ${apt_attempt_limit}s each"
+  echo "::error::apt download failed after $apt_max_attempts attempts, with each apt command limited to ${apt_attempt_limit}s"
   return 1
 }
 
-# `linux-setup.sh tests` installs only what the tests need: the libraries that
-# PySide6's wheels link against and the runner image lacks. To check this list
-# after a PySide6 or image update, run `ldd` over the wheels' .so files.
+install_packages() {
+  # The script has no `set -E`, so its ERR trap only sees this function's
+  # result: keep the &&, or a failed download would run on into the install.
+  fetch_packages "$@" && sudo apt-get install -y --no-download "$@"
+}
+
+# `linux-setup.sh tests` installs only what the tests need.
 if [[ ${1:-} == tests ]]; then
-  apt_install_args=(
-    --no-install-recommends
-    # Alphabetical order please!
-    libegl1
-    libpulse0
-    libxcb-cursor0
-    libxcb-icccm4
-    libxcb-image0
-    libxcb-keysyms1
-    libxcb-render-util0
-    libxcb-shape0
-    libxcb-util1
-    libxcb-xkb1
-    libxkbcommon-x11-0
-  )
-  fetch_packages "${apt_install_args[@]}"
-  sudo apt-get install -y --no-download "${apt_install_args[@]}"
+  install_packages --no-install-recommends "${apt_packages_tests[@]}"
   exit 0
 fi
 
-apt_install_args=(
-  --no-install-recommends
-  "${apt_packages[@]}"
-  "${apt_packages_runtime[@]}"
-  "${apt_packages_ffmpeg[@]}"
+install_packages --no-install-recommends \
+  "${apt_packages[@]}" \
+  "${apt_packages_runtime[@]}" \
+  "${apt_packages_ffmpeg[@]}" \
   "${apt_packages_pw_deps[@]}"
-)
-fetch_packages "${apt_install_args[@]}"
-sudo apt-get install -y --no-download "${apt_install_args[@]}"
 
 ##########################################################################
 # PIPEWIRE
 ##########################################################################
 
-apt_install_args=(pipewire-media-session- wireplumber)
-fetch_packages "${apt_install_args[@]}"
-sudo apt-get install -y --no-download "${apt_install_args[@]}"
+install_packages pipewire-media-session- wireplumber
 
 systemctl --user --now enable wireplumber.service
