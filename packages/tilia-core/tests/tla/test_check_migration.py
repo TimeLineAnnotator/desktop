@@ -143,6 +143,11 @@ class TestAnUneditedCopy:
 
         assert check_migration.main([str(source), str(copied)]) == 0
 
+        out = capsys.readouterr().out
+        assert (
+            "dropped, with its warning: /timelines/900/components, 1 amplitude" in out
+        )
+
     def test_a_media_path_relative_from_each_folder_isnt_a_difference(
         self, source, copied, capsys
     ):
@@ -158,6 +163,18 @@ class TestAnUneditedCopy:
         assert check_migration.main([str(source), str(copied)]) == 0
 
         assert tla.read(copied / S4).media_path == "../source/media.ogg"
+
+    def test_two_beat_units_in_one_measure_stay(self, folders_with, capsys):
+        # On two of its beats: not a drop (contract, *Beat timelines*, step 4).
+        content = old_file()
+        components = components_of(content, BEATS)
+        for key, beat in ("900", "10"), ("901", "11"):
+            components[key] = {"kind": "BEAT_UNIT", "beat_id": beat, "units": "1"}
+
+        assert check_migration.main(folders_with(content)) == 0
+
+        out = capsys.readouterr().out
+        assert "which isn't a difference: 1." in out  # the amplitude bars
 
 
 def set_label(content):
@@ -1180,7 +1197,8 @@ class TestWhatTheMigrationChangesOnPurpose:
             f"dropped, with its warning: /timelines/{BEATS}/components/11,"
             " a beat at the time of another" in out
         )
-        assert "each with its warning, which isn't a difference: 1." in out
+        # The beat, and the file's amplitude bars.
+        assert "each with its warning, which isn't a difference: 2." in out
 
     def test_a_beat_unit_it_drops_is_listed_with_its_warning(
         self, folders_with, capsys
@@ -1239,8 +1257,12 @@ class TestADrop:
                 a_beat_unit(beat_id="no beat"),
                 f"/timelines/{BEATS}/components/9",
             ),
+            (
+                lambda content: None,
+                "/timelines/30/components: missing from the copy, 3 amplitude bars",
+            ),
         ],
-        ids=["a beat", "a beat unit"],
+        ids=["a beat", "a beat unit", "amplitude bars"],
     )
     def test_without_its_warning_is_a_difference(
         self, folders_with, monkeypatch, capsys, change, place

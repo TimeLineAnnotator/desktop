@@ -27,8 +27,8 @@ It prints a report, whose first lines say whether chords and keys were checked a
 which files were left out, and exits with 0 when there is no difference, 1 when
 there is any, and 2 when it was given something it won't check, having written
 nothing. What opens with a warning isn't a difference: the report prints it. Nor
-is a beat or a beat unit the migration drops, as TiLiA drops it when it opens the
-file, with its warning: the report lists it, and without its warning it is one.
+is what the migration drops on purpose, with its warning (`Dropped`): the report
+lists it, and without its warning it is one.
 """
 
 from __future__ import annotations
@@ -229,11 +229,13 @@ def pointer(*parts: str) -> str:
 
 
 class Dropped:
-    """What the migration drops on purpose, as TiLiA drops it when it opens the
-    file, with a warning at its place in the old file: a beat without a time,
-    outside the media or at the time of another, and a beat unit on no beat kept,
-    on a beat that has one, or that desktop#621 can't read (contract, *Beat
-    timelines*, steps 1 and 4). The places warned about; the old media length,
+    """What the migration drops on purpose, with a warning at its place in the old
+    file, and nothing else: an AudioWave timeline's amplitude bars, which the file
+    doesn't store (contract, step 2), and what TiLiA drops when it opens the file: a
+    beat without a time, outside the media or at the time of a beat before it, and a
+    beat unit on no beat kept, on a beat that has one already, or that desktop#621
+    can't read (contract, *Beat timelines*, steps 1 and 4). Two beat units in one
+    measure, on two of its beats, stay. The places warned about; the old media length,
     as the migration reads it; the old file's version; and what was found dropped
     so, for the report."""
 
@@ -702,9 +704,16 @@ def timeline_differences(
         )
     yield from differences(expected_settings(kind, old), held, place, by_value)
 
-    # AudioWave's amplitude bars are computed from the media, and aren't stored
-    # (contract, step 2): one of its components is only in the copy.
-    old_components = {} if kind == "audiowave" else old["components"]
+    old_components = old["components"]
+    if kind == "audiowave" and old_components:
+        # Its amplitude bars, and anything else in it, are computed from the media
+        # and aren't stored (contract, step 2): dropped, with a warning. One of its
+        # components is only in the copy.
+        count = len(old_components)
+        why = f"{count} amplitude bar{'' if count == 1 else 's'}"
+        at = pointer("timelines", key, "components")
+        yield from dropped.check(f"{place}/components", at, why)
+        old_components = {}
     remaining = {stable(new): one for new, one in timeline.components.items()}
     components: dict[str, tla.Component] = {}
     place = f"{place}/components"
