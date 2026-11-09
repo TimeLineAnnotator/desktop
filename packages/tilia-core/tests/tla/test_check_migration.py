@@ -16,6 +16,7 @@ import pytest
 from tilia_core import tla
 from tilia_core.importers import harmony_available
 from tilia_core.tla import reader
+from tilia_core.tla.migrate import beats as migrated_beats
 
 HERE = Path(__file__).parent
 OLD = HERE / "old"
@@ -1243,6 +1244,35 @@ def a_migration_without_its_warnings(*args, **kwargs):
     return migrated
 
 
+def a_migration_that_keeps(reason):
+    """`beats.py`, changed to keep each beat it drops for `reason`, without its
+    warning."""
+    drop = migrated_beats._Converted.beats
+
+    def beats(self, components):
+        before = dict(components)
+        count = len(self.warnings)
+        kept = drop(self, components)
+        for warning in self.warnings[count:]:
+            if reason in warning.message:
+                key = warning.place.rsplit("/", 1)[1]
+                components[key] = before[key]
+        self.warnings[count:] = [
+            warning
+            for warning in self.warnings[count:]
+            if reason not in warning.message
+        ]
+        return kept
+
+    return beats
+
+
+def keep_an_amplitude_bar(content):
+    timeline = timeline_of(content, "AudioWave")
+    bar = {"kind": "AUDIOWAVE", "start": 0.0, "end": 1.0, "amplitude": 0.5}
+    timeline["components"]["01912345-0000-7000-8000-000000000004"] = bar
+
+
 def a_migration_that_drops_beat_11(old, **kwargs):
     # A beat it shouldn't drop, with a warning that says it did.
     del old["timelines"][BEATS]["components"]["11"]
@@ -1282,6 +1312,45 @@ class TestADrop:
         out = capsys.readouterr().out
         assert place in out
         assert "without its warning" in out
+
+    @pytest.mark.parametrize(
+        "change, reason, said",
+        [
+            (a_beat_at(0.0), "at the same time as another", "kept, though"),
+            (a_beat_at(9.952 + 3), "outside the media", "kept, though"),
+            (without_a_time, "without a time", "kept, though"),
+            # The first beat, which has no measure mark: the copy can't be read.
+            (a_beat_at(-1.0), "outside the media", "unreadable: "),
+        ],
+        ids=["at the time of another", "past the media's end", "no time", "before 0"],
+    )
+    def test_of_a_beat_it_keeps_is_a_difference(
+        self, folders_with, monkeypatch, capsys, change, reason, said
+    ):
+        content = old_file()
+        change(content)
+        folders = folders_with(content)
+        keeping = a_migration_that_keeps(reason)
+        monkeypatch.setattr(migrated_beats._Converted, "beats", keeping)
+
+        assert check_migration.main(folders) == 1
+
+        out = capsys.readouterr().out
+        if said == "kept, though":
+            said = f"/timelines/{BEATS}/components/11: kept, though TiLiA drops it"
+        assert said in out
+
+    def test_of_amplitude_bars_it_keeps_is_a_difference(
+        self, folders_with, monkeypatch, capsys
+    ):
+        folders = folders_with(old_file())
+        monkeypatch.setattr(
+            reader, "migrate", a_migration_that_does(keep_an_amplitude_bar)
+        )
+
+        assert check_migration.main(folders) == 1
+
+        assert ": only in the copy, is a audiowave" in capsys.readouterr().out
 
     @pytest.mark.parametrize("time", [None, 9.952 + 1], ids=["any", "within 2 s"])
     def test_of_a_beat_it_should_keep_is_a_difference_with_a_warning(

@@ -230,8 +230,9 @@ def pointer(*parts: str) -> str:
 
 class Dropped:
     """What the migration drops on purpose, with a warning at its place in the old
-    file, and nothing else: an AudioWave timeline's amplitude bars, which the file
-    doesn't store (contract, step 2), and what TiLiA drops when it opens the file: a
+    file, and nothing else, each a difference when it is kept: an AudioWave
+    timeline's amplitude bars, which the file doesn't store (contract, step 2), and
+    what TiLiA drops when it opens the file: a
     beat without a time, outside the media or at the time of a beat before it, and a
     beat unit on no beat kept, on a beat that has one already, or that desktop#621
     can't read (contract, *Beat timelines*, steps 1 and 4). Two beat units in one
@@ -485,8 +486,9 @@ def beat_unit_differences(
             "assumed": bool(old.get("assumed")),
         }
     beats = {k: c for k, c in components.items() if c.kind == "beat"}
-    if beats and not units:
-        first = min(beats, key=lambda key: beats[key].attrs["time"])
+    timed = [key for key, beat in beats.items() if is_number(beat.attrs.get("time"))]
+    if timed and not units:
+        first = min(timed, key=lambda key: beats[key].attrs["time"])
         units[first] = {
             "denominator": beat_units.DEFAULT_DENOMINATOR,
             "units": beat_units.DEFAULT_UNITS,
@@ -724,6 +726,9 @@ def timeline_differences(
         found = remaining.pop(old_entry(document, "component", key, name), None)
         if found is not None:
             components[name] = found
+            if name in to_drop:
+                # Kept, where TiLiA drops it when it opens the file.
+                yield f"{place}/{name}: kept, though TiLiA drops it: {to_drop[name]}"
         elif name in to_drop:
             at = pointer("timelines", key, "components", name)
             yield from dropped.check(f"{place}/{name}", at, to_drop[name])
