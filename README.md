@@ -39,6 +39,7 @@ Here are some examples of TiLiA visualizations:
 - Toggling of timeline visibility
 - Export of audio segments based on analysis
 - Import timeline data from CSV files
+- Export timeline data to JSON files
 - Command-line interface (see the CLI [help page](docs/cli-tutorial.md) for more information)
 
 ## TiLiA binaries
