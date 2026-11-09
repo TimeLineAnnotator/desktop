@@ -234,7 +234,10 @@ def test_a_file_with_a_name_sqlite_cant_store_is_listed_all_the_same(tmp_path):
         assert name in corpus._scanner.records
 
 
-def test_a_reason_with_a_lone_surrogate_is_stored(tmp_path):
+def test_a_reason_with_a_lone_surrogate_is_stored(tmp_path, caplog):
+    # pytest-xdist can't send a captured log that holds a lone surrogate, and
+    # stops the whole run: a worker sends its reports as UTF-8.
+    caplog.set_level(logging.CRITICAL, logger=scan.__name__)
     tla_files.write(tmp_path / "a.tla", song())
 
     class Refuses(TlaReader):
