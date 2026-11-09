@@ -6,6 +6,8 @@ on:
       - dev
     paths:
       - 'tilia/**'
+      # The version, which the sheet's title shows.
+      - 'pyproject.toml'
 
 # One run at a time, each working from dev's tip (see "Checkout"). A run that
 # started from an older push could otherwise overwrite a newer sheet, or
@@ -16,7 +18,8 @@ concurrency:
 jobs:
   update:
     # A force-push is diffed against the branch's previous head, so rebasing dev
-    # looks like a change to tilia/, and this job would run for nothing.
+    # looks like a change to tilia/ or pyproject.toml, and this job would run for
+    # nothing.
     if: ${{ !github.event.forced }}
     name: Update the keyboard shortcuts sheet
     # Without a limit, a hang would hold up later runs for GitHub's six hours.
