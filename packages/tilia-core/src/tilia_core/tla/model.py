@@ -293,13 +293,11 @@ class Timeline:
 # it when it reads a file, and `measure_table` builds it again from a timeline
 # as it is after a change in memory; the writer never writes it.
 #
-# For the code that edits beats, TiLiA (WP6) and the bulk edits (WP14): when a
-# downbeat is deleted, its mark moves to the next beat, and every `next` that
-# named it must name the new downbeat; adding or deleting other beats changes
-# no `next`. A measure a person edits (moves, adds or deletes one of its beats,
-# or changes its number, label or beat unit) gets the source "edited", unless
-# its source is "tapped", which stays; moving a downbeat edits two measures,
-# the one it starts and the one before.
+# For the code that edits beats, TiLiA (WP6) and the bulk edits (WP14): what a
+# deleted downbeat's mark, its beat unit and the `next`s naming it become, and
+# which measures a person's edit marks "edited", are kept in `edits.py`
+# (`delete_beat`, `mark_edited`, `mark_moved`). Adding or deleting other beats
+# changes no `next`.
 
 
 def measure_table(timeline: Timeline) -> MeasureTable | None:
