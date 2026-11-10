@@ -624,7 +624,10 @@ def test_modal_key_props():
         "key": "G Mixolydian",
     }
     assert key_props(mode("Bb", "lydian"))["key"] == "Bb Lydian"
-    assert key_props({**d_dorian, "type": "ionian"})["mode"] == "major"
+    # a mode the index doesn't know stays as stored, with no key label
+    # (TimeLineAnnotator/project-management#383)
+    unknown = key_props({**d_dorian, "type": "ionian"})
+    assert (unknown["mode"], unknown["key"]) == ("ionian", None)
 
 
 def test_modal_key_matches_no_literal():
