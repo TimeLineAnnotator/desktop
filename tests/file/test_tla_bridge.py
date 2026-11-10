@@ -2560,6 +2560,33 @@ class TestMarksInOneAction:
         opened.sync(opened.first)
         assert opened.bytes() == opened.bytes_read
 
+    def test_a_number_written_on_a_measure_that_goes_and_two_undos(self, live):
+        # What `removed` keeps of the mark, the number written on it, stays with it.
+        timeline_id, ids, doc = labelled([3] * 5, pattern="3")
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.set_measure_number(4, 40)
+        opened.sync()
+        numbered = copy.deepcopy(opened.synced)
+        timeline.set_beat_amount_in_measure(3, 6)
+        opened.sync()
+        opened.sync(numbered)
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_the_measure_a_restart_goes_to_states_its_number(self, live):
+        # As the core does: so the number holds whatever comes before it.
+        timeline_id, ids, doc = labelled(
+            [1] * 5, pattern="1", extra={3: {"restart": True}}
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[2])])
+        opened.sync()
+        mark = opened.written(timeline_id)["components"][ids[3]]["measure"]
+        assert mark["restart"] is True
+        assert mark["number"] == 3
+
     def test_a_restart_on_a_measure_that_is_gone_goes_to_the_next(self, live):
         # As the core does when a one-beat measure's downbeat is deleted: the next
         # measure states the number it read, unless TiLiA's lists say another.
