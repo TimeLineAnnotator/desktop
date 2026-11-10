@@ -48,9 +48,10 @@ jobs:
           cache: "pip"
 
       - name: Setup additional Linux dependencies
+        # Only what the tests need, which includes making the sheet.
         run: |
           chmod +x ./scripts/linux-setup.sh
-          ./scripts/linux-setup.sh
+          ./scripts/linux-setup.sh tests
 
       - name: Install dependencies
         run: |
