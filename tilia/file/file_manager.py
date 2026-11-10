@@ -10,7 +10,11 @@ from tilia.exceptions import (
     MediaMetadataFieldNotFound,
     NoReplyToRequest,
 )
-from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
+from tilia.file.common import (
+    are_tilia_data_equal,
+    normalize_media_path,
+    write_tilia_file_to_disk,
+)
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.migration import (
     find_unknown_timeline_kinds,
@@ -152,6 +156,10 @@ class FileManager:
         # mutated object — never reports any change. The snapshot is
         # refreshed by the file setter below and by save().
         self._saved_metadata: dict = {}
+        # Likewise for media_path, which on_player_url_changed keeps in step
+        # with the player. Normalized, as write_tilia_file_to_disk converts
+        # local paths to POSIX while the player may hold backslashes.
+        self._saved_media_path: str = ""
         self._setup_requests()
         self._setup_commands()
         self._setup_file()
@@ -374,6 +382,7 @@ class FileManager:
 
     def resync_saved_metadata(self) -> None:
         self._saved_metadata = dict(self.file.media_metadata)
+        self._saved_media_path = normalize_media_path(self.file.media_path)
 
     def is_file_modified(self, current_data: dict) -> bool:
         # are_tilia_data_equal can't detect media_metadata changes
@@ -391,12 +400,16 @@ class FileManager:
         self, duration: float, is_confirmation: bool = False
     ) -> None:
         self.file.media_metadata["media length"] = duration
-        if is_confirmation:
+        if (
+            is_confirmation
+            and normalize_media_path(self.file.media_path) == self._saved_media_path
+        ):
             # The player is confirming the duration of media that already
             # belongs to the current file (App posts this while
             # should_scale_timelines == "keep", e.g. right after opening a
             # file — see #453) rather than reporting a user-driven change.
-            # Keep the snapshot in sync so it isn't flagged as an edit.
+            # Keep the snapshot in sync so it isn't flagged as an edit. The
+            # length of any other media says nothing about the saved file.
             self._saved_metadata["media length"] = duration
 
     def set_media_metadata(self, value: MediaMetadata):

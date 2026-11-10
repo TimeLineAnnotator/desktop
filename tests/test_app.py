@@ -462,6 +462,17 @@ def hierarchy_bounds(tls):
     ]
 
 
+YOUTUBE_URL_A = "https://www.youtube.com/watch?v=aaaaaaaaaaa"
+YOUTUBE_URL_B = "https://www.youtube.com/watch?v=bbbbbbbbbbb"
+
+
+def report_late_duration(tilia, duration):
+    # Like the YouTube engine's answer, which arrives after load_media returns.
+    tilia.player.on_media_duration_available(
+        duration, requested_video_id=tilia.player.video_id
+    )
+
+
 class TestUndoWithMismatchedMediaDuration:
     # Media whose real length differs from the file's stored media length by
     # more than DURATION_JITTER_TOLERANCE -- a recording found next to a moved
@@ -634,6 +645,55 @@ class TestUndoMediaChangeWithinJitterTolerance:
         assert get(Get.MEDIA_PATH) == self.MEDIA_A
         # The saved file still has B, so A is an unsaved change.
         assert tilia.is_file_modified()
+
+
+class TestLateDurationReportAfterUndoAcrossMediaChange:
+    # YouTube's report for a restored video arrives after the restore, so the
+    # restore guard no longer tells it apart from one for the saved media.
+    LENGTH_A = 100
+    LENGTH_B = 101
+
+    def _save_file_with_media_a(self, tilia_state, tmp_path):
+        # Saved first, so that the undo states have the saved file's title.
+        save_tilia_to_tmp_path(tmp_path, "test")
+        load_youtube_media(YOUTUBE_URL_A)
+        tilia_state.duration = self.LENGTH_A
+        commands.execute("timeline.hierarchy.add", start=10, end=30, level=1)
+
+    def _load_media_b(self, tilia):
+        load_youtube_media(YOUTUBE_URL_B)
+        with Serve(Get.FROM_USER_YES_OR_NO, False):
+            report_late_duration(tilia, self.LENGTH_B)
+
+    def test_report_for_media_other_than_saved_leaves_file_modified(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tmp_path
+    ):
+        self._save_file_with_media_a(tilia_state, tmp_path)
+        self._load_media_b(tilia)
+        save_tilia_to_tmp_path(tmp_path, "test")
+        assert not tilia.is_file_modified()
+
+        commands.execute("edit.undo")
+        assert tilia_state.media_path == YOUTUBE_URL_A
+        assert tilia.is_file_modified()
+
+        report_late_duration(tilia, self.LENGTH_A + 0.5)
+
+        assert tilia.is_file_modified()
+
+    def test_report_for_saved_media_does_not_modify_file(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tmp_path
+    ):
+        self._save_file_with_media_a(tilia_state, tmp_path)
+        save_tilia_to_tmp_path(tmp_path, "test")
+        self._load_media_b(tilia)
+
+        commands.execute("edit.undo")
+        assert tilia_state.media_path == YOUTUBE_URL_A
+
+        report_late_duration(tilia, self.LENGTH_A + 0.5)
+
+        assert not tilia.is_file_modified()
 
 
 class TestMediaLoad:
