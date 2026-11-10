@@ -11,6 +11,14 @@ from tilia.file.tilia_file import TiliaFile
 JSON_CONFIG = {"indent": 2}
 
 
+def normalize_media_path(path: str) -> str:
+    """Returns `path` as it is written to a file: POSIX if it is a local path,
+    unchanged if it is a YouTube URL."""
+    if path and not re.match(tilia.constants.YOUTUBE_URL_REGEX, path):
+        return Path(path).as_posix()
+    return path
+
+
 def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
     """Returns True if data1 is equivalent to data2, False otherwise."""
     for attr in ["media_metadata", "media_path", "timelines_hash"]:
@@ -30,10 +38,7 @@ def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
 
 def write_tilia_file_to_disk(file: TiliaFile, path: str | Path):
     file.file_path = Path(file.file_path).as_posix()
-    if file.media_path and not re.match(
-        tilia.constants.YOUTUBE_URL_REGEX, file.media_path
-    ):
-        file.media_path = Path(file.media_path).as_posix()
+    file.media_path = normalize_media_path(file.media_path)
     # unknown_timelines are already folded into timelines in app.get_app_state().
     # The remaining unknown_timelines/deleted_timelines are runtime-only bookkeeping.
     data = {
