@@ -651,9 +651,14 @@ class App:
         unknown_timelines = self._renumber_ordinal_for_append(
             self.file_manager.file.unknown_timelines, timelines_state
         )
+        timelines = {**unknown_timelines, **timelines_state}
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "timelines": {**unknown_timelines, **timelines_state},
+            # Keyed in id order, which reflects creation order and doesn't
+            # change when the user reorders timelines. Otherwise, reordering
+            # would move whole timeline blocks around the saved file, which
+            # version control shows as every line of those blocks changing.
+            "timelines": {id: timelines[id] for id in sorted(timelines, key=int)},
             "timelines_hash": timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),

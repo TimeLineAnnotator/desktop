@@ -1388,6 +1388,46 @@ class TestOpen:
         ordinals = [tl["ordinal"] for tl in saved_data["timelines"].values()]
         assert len(ordinals) == len(set(ordinals))
 
+    def test_ignored_unknown_timeline_is_saved_in_id_order(
+        self, tilia, qtui, tmp_path, tilia_errors
+    ):
+        # Timelines are saved in id order, so that saving doesn't move whole
+        # timeline blocks around the file. That includes ignored ones.
+        file_data = tests.utils.get_blank_file_data()
+        file_data["version"] = "99.0.0"
+        file_data["timelines"] = {
+            "0": {
+                "is_visible": True,
+                "ordinal": 1,
+                "height": 40,
+                "kind": "MARKER_TIMELINE",
+                "components": {},
+            },
+            "1": {
+                "is_visible": True,
+                "ordinal": 2,
+                "height": 40,
+                "kind": UNKNOWN_TIMELINE_KIND,
+                "components": {},
+            },
+        }
+        open_path = tmp_path / "test.tla"
+        open_path.write_text(json.dumps(file_data))
+
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, True),
+            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
+        ):
+            commands.execute("file.open", open_path)
+
+        save_path = tmp_path / "resaved.tla"
+        commands.execute("file.save_as", str(save_path))
+
+        tilia_errors.assert_no_error()
+        saved_ids = [int(id) for id in json.loads(save_path.read_text())["timelines"]]
+        assert saved_ids[:2] == [0, 1]
+        assert saved_ids == sorted(saved_ids)
+
     def test_known_kind_is_loaded_normally_not_flagged_unknown(self):
         file_data = get_file_data_with_unknown_timeline_kind()
         file_data["timelines"][UNKNOWN_TIMELINE_ID]["kind"] = "MARKER_TIMELINE"
