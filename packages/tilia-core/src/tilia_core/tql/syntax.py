@@ -65,7 +65,8 @@ Lexical rules:
   space, it is part of a chord symbol (``C/E``, ``V/V``), and only where every
   lane searched is a chords lane; elsewhere it is an error that points to
   ``AND``, which combines labels.
-* ``"…"`` is a string (``\\"`` and ``\\\\`` escape); ``-- …`` to the end of a
+* ``"…"`` is a string (``\\"`` and ``\\\\`` escape); a backslash in a word
+  is an error, since words have no escapes. ``-- …`` to the end of a
   line is a comment. ``-->`` is refused: it is a mistyped ``->``, and as a
   comment it would turn an edit into a read.
 * Text in any script: words, strings and regular expressions are read in one
@@ -370,6 +371,13 @@ def lex(text: str) -> list[Tok]:
         ):
             j += 1
         word = text[i:j]
+        if "\\" in word:  # words have no escapes: refuse one rather than misread it
+            k = i + word.index("\\")
+            raise TQLError(
+                "a backslash escapes nothing outside a string - TQL has no "
+                "escapes there; quote the label instead",
+                k,
+            )
         # peel ONE trailing quantifier; `*` alone is the wildcard literal —
         # except right after `)`, `]` or a quoted literal, where no new step can
         # start, so `(verse THEN chorus)*` repeats the group
