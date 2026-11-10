@@ -258,6 +258,7 @@ def _run_on(
     matches: list[Match] = []
     grain = "match"
     measures = values.Measures(log)  # the bars of every file, read once a run
+    lane_catalog = tql_compile.Catalog(con)  # the lanes' tables, read once a run
     scopes: list[relations.Scope] = []  # the search's, for the hints if it finds none
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
@@ -272,6 +273,7 @@ def _run_on(
                     max_matches,
                     limits,
                     measures,
+                    lane_catalog,
                 )
             else:
                 matches, stopped = _pattern_matches(
@@ -283,6 +285,7 @@ def _run_on(
                     warn,
                     limits,
                     measures,
+                    lane_catalog,
                     scopes,
                 )
                 if not matches and stopped is None and limits.stopped is None:
@@ -296,6 +299,7 @@ def _run_on(
                             limits.ensure,
                             measures,
                             scopes,
+                            lane_catalog,
                         )
                     )
                     if limits.stopped == "time_limit":
@@ -312,8 +316,10 @@ def _run_on(
     else:
         matches.sort(key=lambda m: paths.get(m.file_id or 0, ""))
     if pattern is not None:
-        warn.words.update(dict.fromkeys(_harmony_warnings(log, query, limits)))
-        warn.other.extend(_unknown_harmony_warnings(log, query, limits))
+        warn.words.update(
+            dict.fromkeys(_harmony_warnings(log, query, limits, lane_catalog))
+        )
+        warn.other.extend(_unknown_harmony_warnings(log, query, limits, lane_catalog))
     # A limit or a cancel that already stopped the search or the warnings pass
     # still gives a row for every match found; only a cancel that comes later
     # cuts the rows. The time limit never does.
@@ -425,7 +431,12 @@ def _unit_units(
             yield from _seq_units(rel.target, rel.lane or lane)
 
 
-def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> list[str]:
+def _harmony_warnings(
+    log: Recorder,
+    query: syntax.Query,
+    limits: Limits,
+    lane_catalog: tql_compile.Catalog | None = None,
+) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
     neither, in the chords and keys lanes they are looked for in, warn. Only
     a unit with a literal that is no chord or no key can warn, so the lanes
@@ -458,7 +469,9 @@ def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> lis
         kinds_of: dict[int, tuple[str, ...]] = {}
         for unit, lane in pairs:
             if id(lane) not in kinds_of:
-                specs = tql_compile.resolve_lanes(log.con, file_id, lane)
+                specs = tql_compile.resolve_lanes(
+                    lane_catalog or log.con, file_id, lane
+                )
                 kinds = {s.kind for s in specs}
                 kinds_of[id(lane)] = tuple(k for k in ("chord", "key") if k in kinds)
             if kinds_of[id(lane)]:
@@ -469,7 +482,10 @@ def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> lis
 
 
 def _unknown_harmony_warnings(
-    log: Recorder, query: syntax.Query, limits: Limits
+    log: Recorder,
+    query: syntax.Query,
+    limits: Limits,
+    lane_catalog: tql_compile.Catalog | None = None,
 ) -> list[str]:
     """One warning per file whose chords or keys lanes ``query`` looks in hold
     a chord quality or key mode the index doesn't know, naming them: those
@@ -492,7 +508,7 @@ def _unknown_harmony_warnings(
             break
         timelines: dict[str, set[str]] = {}
         for lane in lanes.values():
-            for spec in tql_compile.resolve_lanes(con, file_id, lane):
+            for spec in tql_compile.resolve_lanes(lane_catalog or con, file_id, lane):
                 if spec.kind in ("chord", "key"):
                     timelines.setdefault(spec.timeline_id, set()).add(spec.kind)
         qualities: dict[str, None] = {}
@@ -608,6 +624,7 @@ def _pattern_matches(
     warn: _Warnings,
     limits: Limits,
     measures: values.Measures,
+    lane_catalog: tql_compile.Catalog | None = None,
     kept: list[relations.Scope] | None = None,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
@@ -638,6 +655,7 @@ def _pattern_matches(
                 labels,
                 limits.ensure,
                 measures,
+                lane_catalog,
             )
             if kept is not None:
                 kept.append(scope)
@@ -716,6 +734,7 @@ def _where_only(
     max_matches: int | None,
     limits: Limits,
     measures: values.Measures,
+    lane_catalog: tql_compile.Catalog | None = None,
 ) -> tuple[str, list[Match], list[str], str | None]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
@@ -757,6 +776,7 @@ def _where_only(
                 labels,
                 limits.ensure,
                 measures,
+                lane_catalog,
             )
             timelines = log.execute(
                 "SELECT t.id, t.name FROM timelines t JOIN files f ON "

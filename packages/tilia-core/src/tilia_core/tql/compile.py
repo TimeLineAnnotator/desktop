@@ -86,24 +86,115 @@ def name_pattern(lane: syntax.Lane) -> str:
     return text
 
 
-# The levels and rows of one timeline. The file id lets SQLite find the
-# timeline's components by components_by_timeline (file_id, timeline_id, start)
-# instead of reading every component.
-LEVELS_SQL = (
-    "SELECT DISTINCT h.level FROM hierarchies h "
-    "JOIN components c ON c.id = h.component_id "
-    "WHERE c.file_id = ? AND c.timeline_id = ? AND h.level IS NOT NULL "
-    "ORDER BY h.level"
-)
-ROWS_SQL = (
-    "SELECT DISTINCT r.row_id, r.row FROM ranges r "
-    "JOIN components c ON c.id = r.component_id "
-    "WHERE c.file_id = ? AND c.timeline_id = ? ORDER BY r.row_id"
-)
+class Catalog:
+    """What the lanes of files are built from: their timelines, the levels of
+    their hierarchies, the rows of their ranges, their paths and time maps.
+    Without ``file_id``, those of every file, each read with one statement the
+    first time a run asks for it, so that the files of a run share them
+    (:func:`resolve_lanes` would otherwise ask for every timeline of every
+    file); with it, that file's alone. Lookups, not search statements: they
+    are kept out of the SQL a result shows."""
+
+    def __init__(self, con: sqlite3.Connection, file_id: Any = None) -> None:
+        self.con = con
+        self.file_id = file_id
+        self._files: dict[Any, tuple[Any, Any]] | None = None  # path, time map
+        self._by_file: dict[Any, list[tuple[Any, ...]]] | None = None
+        self._by_id: dict[Any, tuple[Any, ...]] = {}
+        self._levels: dict[tuple[Any, Any], list[Any]] | None = None
+        self._rows: dict[tuple[Any, Any], list[tuple[Any, Any]]] | None = None
+
+    def _where(self, column: str) -> tuple[str, tuple[Any, ...]]:
+        if self.file_id is None:
+            return "", ()
+        return f" WHERE {column} = ?", (self.file_id,)
+
+    def _file(self, file_id: Any) -> tuple[Any, Any] | None:
+        if self._files is None:
+            where, params = self._where("id")
+            self._files = {
+                r[0]: (r[1], r[2])
+                for r in self.con.execute(
+                    f"SELECT id, path, time_map FROM files{where}", params
+                )
+            }
+        return self._files.get(file_id)
+
+    def path(self, file_id: Any) -> str | None:
+        """The file's ``files.path``; None when there is no such file."""
+        got = self._file(file_id)
+        return None if got is None else got[0]
+
+    def time_map(self, file_id: Any) -> Any:
+        """The timeline the file's time map reads, ``files.time_map``."""
+        got = self._file(file_id)
+        return None if got is None else got[1]
+
+    def timelines(self, file_id: Any) -> list[tuple[Any, ...]]:
+        """The timelines of a file in their order, each ``(id, kind, name,
+        name_folded, role, file_id)``."""
+        if self._by_file is None:
+            where, params = self._where("file_id")
+            got: dict[Any, list[tuple[Any, ...]]] = {}
+            for r in self.con.execute(
+                "SELECT id, kind, name, name_folded, role, file_id FROM timelines"
+                f"{where} ORDER BY file_id, ordinal",
+                params,
+            ):
+                row = tuple(r)
+                got.setdefault(row[5], []).append(row)
+                self._by_id[row[0]] = row
+            self._by_file = got
+        return self._by_file.get(file_id, [])
+
+    def timeline(self, timeline_id: Any) -> tuple[Any, ...] | None:
+        """One timeline, as :meth:`timelines` gives it; None when there is no
+        such timeline (or, for a catalog of one file, it is another file's)."""
+        if self._by_file is None:
+            self.timelines(None)
+        return self._by_id.get(timeline_id)
+
+    def levels(self, file_id: Any, timeline_id: Any) -> list[Any]:
+        """The levels of a hierarchy timeline that hold a unit, in order."""
+        if self._levels is None:
+            where, params = self._where("c.file_id")
+            cond = " AND" if where else " WHERE"
+            got: dict[tuple[Any, Any], list[Any]] = {}
+            for f, t, level in self.con.execute(
+                "SELECT DISTINCT c.file_id, c.timeline_id, h.level "
+                "FROM hierarchies h JOIN components c ON c.id = h.component_id"
+                f"{where}{cond} h.level IS NOT NULL ORDER BY h.level",
+                params,
+            ):
+                got.setdefault((f, t), []).append(level)
+            self._levels = got
+        return self._levels.get((file_id, timeline_id), [])
+
+    def rows(self, file_id: Any, timeline_id: Any) -> list[tuple[Any, Any]]:
+        """The rows of a range timeline that hold a unit, ``(row_id, row)``, by
+        id."""
+        if self._rows is None:
+            where, params = self._where("c.file_id")
+            got: dict[tuple[Any, Any], list[tuple[Any, Any]]] = {}
+            for f, t, row_id, row in self.con.execute(
+                "SELECT DISTINCT c.file_id, c.timeline_id, r.row_id, r.row "
+                "FROM ranges r JOIN components c ON c.id = r.component_id"
+                f"{where} ORDER BY r.row_id",
+                params,
+            ):
+                got.setdefault((f, t), []).append((row_id, row))
+            self._rows = got
+        return self._rows.get((file_id, timeline_id), [])
+
+
+def _catalog(src: sqlite3.Connection | Catalog, file_id: Any) -> Catalog:
+    """``src`` itself, or a catalog of ``file_id`` alone on the connection
+    ``src``."""
+    return src if isinstance(src, Catalog) else Catalog(src, file_id)
 
 
 def _lanes_of(
-    con: sqlite3.Connection,
+    cat: Catalog,
     file_id: str,
     tl: tuple[Any, ...],
     kinds: tuple[str, ...] | None,
@@ -113,11 +204,15 @@ def _lanes_of(
     tid, kind, name = tl[0], tl[1], tl[2]
     out: list[LaneSpec] = []
     if kind == "hierarchy":
-        rows = con.execute(LEVELS_SQL, (file_id, tid)).fetchall()
-        out = [LaneSpec(tid, name, "hierarchy", level=r[0]) for r in rows]
+        out = [
+            LaneSpec(tid, name, "hierarchy", level=level)
+            for level in cat.levels(file_id, tid)
+        ]
     elif kind == "range":
-        rows = con.execute(ROWS_SQL, (file_id, tid)).fetchall()
-        out = [LaneSpec(tid, name, "range", row_id=r[0], row=r[1]) for r in rows]
+        out = [
+            LaneSpec(tid, name, "range", row_id=row_id, row=row)
+            for row_id, row in cat.rows(file_id, tid)
+        ]
     elif kind == "marker":
         out = [LaneSpec(tid, name, "marker")]
     elif kind == "harmony":
@@ -130,40 +225,38 @@ def _lanes_of(
 
 
 def resolve_lanes(
-    con: sqlite3.Connection, file_id: str, lane: syntax.Lane | None
+    src: sqlite3.Connection | Catalog, file_id: str, lane: syntax.Lane | None
 ) -> list[LaneSpec]:
     """The lanes of file ``file_id`` that ``IN lane`` names (tql.md §4); with
-    no ``IN``, every hierarchy level, range row and marker timeline."""
-    timelines = con.execute(
-        "SELECT id, kind, name, name_folded, role FROM timelines "
-        "WHERE file_id = ? ORDER BY ordinal",
-        (file_id,),
-    ).fetchall()
+    no ``IN``, every hierarchy level, range row and marker timeline. ``src``
+    is the index's connection, or the run's :class:`Catalog`."""
+    cat = _catalog(src, file_id)
+    timelines = cat.timelines(file_id)
     if lane is None:
         return [
-            s for tl in timelines for s in _lanes_of(con, file_id, tl, DEFAULT_KINDS)
+            s for tl in timelines for s in _lanes_of(cat, file_id, tl, DEFAULT_KINDS)
         ]
 
     word = fold(lane.text.strip())
     if not lane.quoted:
         word = ROLE_ALIASES.get(word, word)
         if word in BAR_WORDS:
-            return _bar_lanes(con, file_id)
+            return _bar_lanes(cat, file_id)
         stored = {tl[4] for tl in timelines if tl[4]}
         if word in BUILTIN_ROLES or word in stored:
-            return _role_lanes(con, file_id, timelines, word)
+            return _role_lanes(cat, file_id, timelines, word)
         if word in KIND_WORDS:
             kind = KIND_WORDS[word]
-            return [s for tl in timelines for s in _lanes_of(con, file_id, tl, (kind,))]
+            return [s for tl in timelines for s in _lanes_of(cat, file_id, tl, (kind,))]
 
     pattern = name_pattern(lane)
     out: list[LaneSpec] = []
     for tl in timelines:
         name = tl[3] if not lane.quoted else nfc(tl[2])
         if fnmatch.fnmatchcase(name, pattern):
-            out.extend(_lanes_of(con, file_id, tl, None))
+            out.extend(_lanes_of(cat, file_id, tl, None))
         elif tl[1] == "range":
-            for spec in _lanes_of(con, file_id, tl, None):
+            for spec in _lanes_of(cat, file_id, tl, None):
                 row = fold(spec.row or "") if not lane.quoted else nfc(spec.row or "")
                 if fnmatch.fnmatchcase(row, pattern):
                     out.append(spec)
@@ -176,28 +269,25 @@ def on_bars(lane: syntax.Lane | None) -> bool:
     return lane is not None and not lane.quoted and fold(lane.text.strip()) in BAR_WORDS
 
 
-def _bar_lanes(con: sqlite3.Connection, file_id: str) -> list[LaneSpec]:
+def _bar_lanes(cat: Catalog, file_id: str) -> list[LaneSpec]:
     """The bars lane of a file: one lane, on the timeline its time map reads,
     when the file has measures."""
-    (has,) = con.execute(
+    (has,) = cat.con.execute(
         "SELECT EXISTS (SELECT 1 FROM measures WHERE file_id = ?)", (file_id,)
     ).fetchone()
-    return bar_lane(con, file_id) if has else []
+    return bar_lane(cat, file_id) if has else []
 
 
-def bar_lane(con: sqlite3.Connection, file_id: str) -> list[LaneSpec]:
+def bar_lane(src: sqlite3.Connection | Catalog, file_id: str) -> list[LaneSpec]:
     """The bars lane of a file that has measures (:func:`_bar_lanes`): one
     lane, on the timeline its time map reads, if it has one."""
-    row = con.execute(
-        "SELECT t.id, t.name FROM files f JOIN timelines t ON t.id = f.time_map "
-        "WHERE f.id = ?",
-        (file_id,),
-    ).fetchone()
-    return [] if row is None else [LaneSpec(row[0], row[1], BAR_KIND)]
+    cat = _catalog(src, file_id)
+    tl = cat.timeline(cat.time_map(file_id))
+    return [] if tl is None else [LaneSpec(tl[0], tl[2], BAR_KIND)]
 
 
 def _role_lanes(
-    con: sqlite3.Connection,
+    cat: Catalog,
     file_id: str,
     timelines: list[tuple[Any, ...]],
     role: str,
@@ -205,30 +295,38 @@ def _role_lanes(
     """The lanes of the timelines with ``role``. A built-in role on its own kind
     of timeline takes only the lane it is about (the chords of a harmony
     timeline, not its keys); any other role takes the whole timeline."""
-    time_map = con.execute(
-        "SELECT time_map FROM files WHERE id = ?", (file_id,)
-    ).fetchone()
-    time_map_id = time_map[0] if time_map else None
+    time_map_id = cat.time_map(file_id)
     out: list[LaneSpec] = []
     for tl in timelines:
         tid, kind, stored = tl[0], tl[1], tl[4]
         if role == "harmony" and kind == "harmony" and stored in ("harmony", "keys"):
-            out.extend(_lanes_of(con, file_id, tl, ("chord",)))
+            out.extend(_lanes_of(cat, file_id, tl, ("chord",)))
         elif role == "keys" and kind == "harmony" and stored in ("harmony", "keys"):
-            out.extend(_lanes_of(con, file_id, tl, ("key",)))
+            out.extend(_lanes_of(cat, file_id, tl, ("key",)))
         elif role == "time_map" and kind == "beat" and tid == time_map_id:
-            out.extend(_lanes_of(con, file_id, tl, None))
+            out.extend(_lanes_of(cat, file_id, tl, None))
         elif stored == role:
-            out.extend(_lanes_of(con, file_id, tl, None))
+            out.extend(_lanes_of(cat, file_id, tl, None))
     return out
 
 
-def timeline_lanes(con: sqlite3.Connection, timeline_id: str) -> list[LaneSpec]:
-    """Every lane of one timeline."""
-    tl = con.execute(
-        "SELECT id, kind, name, file_id FROM timelines WHERE id = ?", (timeline_id,)
-    ).fetchone()
-    return [] if tl is None else _lanes_of(con, tl[3], tl, None)
+def timeline_lanes(
+    src: sqlite3.Connection | Catalog, timeline_id: str, file_id: Any = None
+) -> list[LaneSpec]:
+    """Every lane of one timeline (of the file ``file_id``, when known)."""
+    if isinstance(src, Catalog):
+        cat = src
+    elif file_id is not None:
+        cat = Catalog(src, file_id)
+    else:
+        row = src.execute(
+            "SELECT file_id FROM timelines WHERE id = ?", (timeline_id,)
+        ).fetchone()
+        if row is None:
+            return []
+        cat = Catalog(src, row[0])
+    tl = cat.timeline(timeline_id)
+    return [] if tl is None else _lanes_of(cat, tl[5], tl, None)
 
 
 # --------------------------------------------------------------------------- #
