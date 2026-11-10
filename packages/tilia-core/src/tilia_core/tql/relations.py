@@ -620,6 +620,16 @@ class Scope:
         self.no_length = False  # a percentage needed the media length, and it lacks
         self._steps: dict[int, syntax.Unit] = {}
 
+    def hand_to(self, log: Log) -> None:
+        """Run this scope's statements from now on through ``log``, and look
+        for units in the whole file, whatever lanes the query reads: how the
+        hints of an empty result (:mod:`hints`) take over the scopes the search
+        made, with what they loaded, while the statements they run stay out of
+        the SQL the result shows."""
+        self.log = log
+        self.facts.log = log
+        self.play = None
+
     @property
     def path(self) -> str:
         """The file's path, ``files.path``, which the statements shown name it
