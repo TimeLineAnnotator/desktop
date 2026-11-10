@@ -948,7 +948,7 @@ class Scope:
             )
             return found != cond.negate
         if isinstance(cond, syntax.Downbeat):
-            value = self.facts.unit(comp.id).get("downbeat")
+            value = self.facts.unit(comp.id, comp.timeline_id).get("downbeat")
             return value is not None and bool(value) != cond.negate
         if isinstance(cond, syntax.RelCond):
             if uses_map(cond.relation.within) and off_map(
@@ -990,7 +990,7 @@ class Scope:
             return comp.row
         if name == "parent":
             return self.parent(comp)
-        return self.facts.unit(comp.id).get(name)
+        return self.facts.unit(comp.id, comp.timeline_id).get(name)
 
     def subject_units(
         self, f: syntax.FieldRef, subject: values.Subject
