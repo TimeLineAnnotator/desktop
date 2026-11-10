@@ -268,7 +268,11 @@ class Timelines:
     def deserialize_timelines(self, data: dict) -> None:
         data_copy = copy.deepcopy(data)  # so pop does not modify original data
 
-        for id, tl_data in data_copy.items():
+        # Files list timelines in id order, not in the order they are shown.
+        # Create them top to bottom, as the user would, so that the select
+        # order starts with the bottom timeline.
+        ordered = sorted(data_copy.items(), key=lambda item: item[1].get("ordinal", 0))
+        for id, tl_data in ordered:
             # We need to pop so no duplicate arguments are passed
             kind = normalize_kind_string(tl_data.pop("kind"))
             self.create_timeline(kind, id=id, **tl_data)

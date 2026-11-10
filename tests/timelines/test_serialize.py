@@ -5,8 +5,9 @@ from pathlib import Path
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
-from tilia.requests import Get
+from tilia.requests import Get, get
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.score.components import Clef
 from tilia.timelines.serialize import serialize_components
 from tilia.ui import commands
@@ -175,6 +176,24 @@ class TestRoundTripDesktopFileDesktop:
         save_and_reopen(tmp_path)
 
         assert [(str(tl.id), tl.ordinal) for tl in tls.get_timelines()] == order
+
+    def test_select_order_after_reopening_follows_timeline_order(
+        self, tls, tluis, slider_tlui, tmp_path
+    ):
+        # As when the user creates timelines top to bottom, the last timeline
+        # in the reopened file comes first in select order, whatever their ids.
+        commands.execute("timelines.add.marker", name="first created")
+        commands.execute("timelines.add.marker", name="second created")
+        first, second = (
+            tluis.get_timeline_ui(tl.id)
+            for tl in tls.get_timelines_by_type(MarkerTimeline)
+        )
+        commands.execute("timelines.permute_ordinal", first, second)
+
+        save_and_reopen(tmp_path)
+
+        selected = get(Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, MarkerTimeline)
+        assert selected.get_data("name") == "first created"
 
     def test_save_open_save_preserves_components_per_timeline(
         self, slider_tlui, marker_tlui, beat_tlui, tmp_path
