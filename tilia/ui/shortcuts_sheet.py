@@ -301,9 +301,10 @@ def _write(sheet: dict[Path, str]) -> None:
 
 
 def _holds_but_for_the_date(path: Path, text: str, date: datetime.date) -> bool:
-    """Whether the file holds text, once its own date, the first one in it (the
-    title's), is replaced by date. Anything else that differs counts, a new version
-    number included."""
+    """Whether the file holds text once its own date is replaced by date. Its own
+    date is the first date in it, the title's, and every copy of it is replaced:
+    the SVG holds it twice, in <title> and in the title it shows. Anything else
+    that differs counts, a new version number included."""
     if not path.exists():
         return False
     held = path.read_text(encoding="utf-8")
