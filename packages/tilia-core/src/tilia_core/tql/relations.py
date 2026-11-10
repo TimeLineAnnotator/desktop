@@ -820,8 +820,12 @@ class Scope:
         return got
 
     def _timeline_of(self, comp_id: Any) -> Any:
-        """The timeline of the component ``comp_id`` of this file, from one
-        lookup per file that loads no unit."""
+        """The timeline of the component ``comp_id`` of this file."""
+        return self._timeline_map()[comp_id]
+
+    def _timeline_map(self) -> dict[Any, Any]:
+        """The timeline of each component of this file, from one lookup per
+        file that loads no unit."""
         if self._timelines_of is None:
             # a lookup, not a search statement: kept out of the SQL a result shows
             self._timelines_of = dict(
@@ -830,7 +834,7 @@ class Scope:
                     (self.file_id,),
                 ).fetchall()
             )
-        return self._timelines_of[comp_id]
+        return self._timelines_of
 
     def may_fit(self, units: Iterable[syntax.Unit], spec: LaneSpec) -> bool:
         """Whether a component of the lane ``spec`` may fit one of ``units``.
@@ -845,7 +849,9 @@ class Scope:
         for unit in units:
             got = self._fit_timelines.get(id(unit))
             if got is None and id(unit) in self._fit:
-                got = frozenset(self._timeline_of(i) for i in self._fit[id(unit)])
+                got = frozenset(
+                    map(self._timeline_map().__getitem__, self._fit[id(unit)])
+                )
                 self._fit_timelines[id(unit)] = got
             if got is None:
                 got = self._label_timelines(unit)
