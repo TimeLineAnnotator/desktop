@@ -12,6 +12,7 @@ from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import (
     PatchPost,
     Serve,
+    ServeSequence,
     patch_ask_for_string_dialog,
     patch_file_dialog,
     patch_yes_no_or_cancel_mb,
@@ -36,6 +37,7 @@ from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.windows import WindowKind
+from tilia.undo_manager import PauseUndoManager
 
 
 class TestLogger:
@@ -645,6 +647,159 @@ class TestUndoMediaChangeWithinJitterTolerance:
         assert get(Get.MEDIA_PATH) == self.MEDIA_A
         # The saved file still has B, so A is an unsaved change.
         assert tilia.is_file_modified()
+
+
+class TestUndoAcrossYouTubeMediaChange:
+    # YouTube reports a video's real length asynchronously, after load_media
+    # returns -- so, after an undo or redo that reloads a YouTube video, after
+    # the restore has finished. The opening snapshot is recorded before that
+    # report arrives, so it carries the file's stored length; here the real
+    # one differs from it by more than DURATION_JITTER_TOLERANCE.
+    STORED_DURATION = 100
+    REAL_DURATION = STORED_DURATION + DURATION_JITTER_TOLERANCE + 1
+
+    def test_late_duration_report_after_undo_does_not_prompt_to_scale(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tls, tmp_path
+    ):
+        load_youtube_media(YOUTUBE_URL_A)
+        tilia_state.duration = self.STORED_DURATION
+        commands.execute("timeline.hierarchy.add", start=10, end=30, level=1)
+        save_and_reopen(tmp_path)
+
+        # The real length arrives after opening. That report prompting is
+        # not what this test is about, so just decline to scale.
+        with Serve(Get.FROM_USER_YES_OR_NO, False):
+            report_late_duration(tilia, self.REAL_DURATION)
+        assert tilia_state.duration == self.REAL_DURATION
+
+        load_youtube_media(YOUTUBE_URL_B)
+        commands.execute("edit.undo")
+        assert tilia_state.media_path == YOUTUBE_URL_A
+
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
+            # URL_A's real length, arriving after the restore.
+            report_late_duration(tilia, self.REAL_DURATION)
+
+        assert not scale_prompt.called
+        assert hierarchy_bounds(tls) == [(10, 30)]
+        assert tilia_state.duration == self.REAL_DURATION
+
+
+class TestUndoScaleOrCropFromLateDurationReport:
+    # YouTube's real length arrives after the state for the load is recorded,
+    # so a scale or crop it triggers has to be added to that state. Otherwise
+    # undo brings back the unscaled components at the real length, deleting
+    # any that are past the end of the media.
+    STORED_DURATION = 100
+
+    def _open_file_with_hierarchy(self, tilia_state, tmp_path, start, end):
+        load_youtube_media(YOUTUBE_URL_A)
+        tilia_state.duration = self.STORED_DURATION
+        commands.execute("timeline.hierarchy.add", start=start, end=end, level=1)
+        save_and_reopen(tmp_path)
+
+    @pytest.mark.parametrize(
+        "end,real_duration,replies,expected",
+        [
+            pytest.param(30, 200, [True], [(20, 60)], id="scale up"),
+            pytest.param(90, 50, [True], [(5, 45)], id="scale down"),
+            # Declines to scale, then confirms cropping.
+            pytest.param(90, 50, [False, True], [(10, 50)], id="crop"),
+        ],
+    )
+    def test_undo_keeps_change_made_after_opening_file(
+        self,
+        end,
+        real_duration,
+        replies,
+        expected,
+        tilia,
+        tilia_state,
+        qtui,
+        hierarchy_tlui,
+        tls,
+        tmp_path,
+    ):
+        self._open_file_with_hierarchy(tilia_state, tmp_path, 10, end)
+        with ServeSequence(Get.FROM_USER_YES_OR_NO, replies):
+            report_late_duration(tilia, real_duration)
+        assert hierarchy_bounds(tls) == expected
+
+        commands.execute("timeline.hierarchy.add", start=20, end=30, level=2)
+        commands.execute("edit.undo")
+        assert hierarchy_bounds(tls) == expected
+
+        # Back at the first state, there's nothing left to undo.
+        commands.execute("edit.undo")
+        assert hierarchy_bounds(tls) == expected
+        assert tilia_state.duration == real_duration
+
+    def test_undo_and_redo_treat_change_as_part_of_media_load(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tls
+    ):
+        load_youtube_media(YOUTUBE_URL_A)
+        tilia_state.duration = self.STORED_DURATION
+        commands.execute("timeline.hierarchy.add", start=10, end=30, level=1)
+
+        load_youtube_media(YOUTUBE_URL_B)
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            report_late_duration(tilia, 200)
+        assert hierarchy_bounds(tls) == [(20, 60)]
+
+        commands.execute("edit.undo")
+        assert tilia_state.media_path == YOUTUBE_URL_A
+        assert tilia_state.duration == self.STORED_DURATION
+        assert hierarchy_bounds(tls) == [(10, 30)]
+
+        commands.execute("edit.redo")
+        assert tilia_state.media_path == YOUTUBE_URL_B
+        assert tilia_state.duration == 200
+        assert hierarchy_bounds(tls) == [(20, 60)]
+
+    def test_report_that_changes_no_timelines_keeps_redo(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tls, tmp_path
+    ):
+        self._open_file_with_hierarchy(tilia_state, tmp_path, 10, 30)
+        with Serve(Get.FROM_USER_YES_OR_NO, False):
+            report_late_duration(tilia, 200)
+
+        load_youtube_media(YOUTUBE_URL_B)
+        commands.execute("edit.undo")
+        assert tilia_state.media_path == YOUTUBE_URL_A
+
+        # Within the jitter tolerance, so this confirms the length.
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
+            report_late_duration(tilia, 200 + DURATION_JITTER_TOLERANCE / 2)
+        assert not scale_prompt.called
+
+        commands.execute("edit.redo")
+        assert tilia_state.media_path == YOUTUBE_URL_B
+
+    def test_report_while_undo_is_paused_leaves_history_alone(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tmp_path
+    ):
+        self._open_file_with_hierarchy(tilia_state, tmp_path, 10, 30)
+        state = tilia.undo_manager.stack[-1]["state"]
+        timelines_hash = state["timelines_hash"]
+
+        with PauseUndoManager(), Serve(Get.FROM_USER_YES_OR_NO, True):
+            report_late_duration(tilia, 200)
+
+        assert tilia.undo_manager.stack[-1]["state"] is state
+        assert state["timelines_hash"] == timelines_hash
+
+    def test_report_before_first_state_is_recorded_does_not_fail(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tls, tmp_path
+    ):
+        # Long operations process events, so a report can arrive while a file
+        # is opening, between clearing the history and recording its first state.
+        self._open_file_with_hierarchy(tilia_state, tmp_path, 10, 30)
+        tilia.undo_manager.clear()
+
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            report_late_duration(tilia, 200)
+
+        assert hierarchy_bounds(tls) == [(20, 60)]
 
 
 class TestLateDurationReportAfterUndoAcrossMediaChange:

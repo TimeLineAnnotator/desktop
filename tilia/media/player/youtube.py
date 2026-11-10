@@ -191,7 +191,11 @@ class YouTubePlayer(Player):
         if not duration:
             return self.retry_get_duration(requested_video_id)
 
-        super().on_media_duration_available(duration)
+        # Only the engine's answer carries a video id. load_media's
+        # initial_duration doesn't, and may not be the real length.
+        super().on_media_duration_available(
+            duration, is_late=requested_video_id is not None
+        )
 
     def set_current_time(self, time):
         self.check_seek_outside_loop(time)

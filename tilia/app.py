@@ -128,6 +128,7 @@ class App:
         self,
         duration: float,
         scale_timelines: Literal["yes", "no", "prompt", "keep"] | None = None,
+        is_late: bool = False,
     ) -> None:
         if scale_timelines:
             self.should_scale_timelines = scale_timelines
@@ -145,7 +146,21 @@ class App:
             duration,
             is_confirmation=self._is_duration_confirmation(duration),
         )
-        self.on_media_duration_changed(duration)
+        changed_timelines = self.on_media_duration_changed(duration)
+        if is_late:
+            self._update_undo_states_after_late_duration(duration, changed_timelines)
+
+    def _update_undo_states_after_late_duration(
+        self, duration: float, changed_timelines: bool
+    ) -> None:
+        # This duration came after load_media recorded its state, so the states
+        # for this media may hold a stale length. A scale or crop it caused
+        # belongs to the current state: recording it apart would leave a state
+        # with the unscaled components at the real length, and restoring one
+        # would delete any component past the end of the media.
+        self.undo_manager.update_media_length(get(Get.MEDIA_PATH), duration)
+        if changed_timelines:
+            self.undo_manager.replace_current_state(self.get_app_state())
 
     def _is_duration_confirmation(self, duration: float) -> bool:
         # While restoring across a media change, self.duration is still the
@@ -417,7 +432,8 @@ class App:
         if ids:
             self._next_id = max(self._next_id, max(ids) + 1)
 
-    def on_media_duration_changed(self, duration: float):
+    def on_media_duration_changed(self, duration: float) -> bool:
+        """Returns True if the timelines were scaled or cropped."""
         # "keep" leaves the timelines untouched: they already match this
         # media (e.g. we just opened a file), so a duration report that
         # differs only by jitter — YouTube returns it asynchronously, see
@@ -437,13 +453,13 @@ class App:
         if effective_mode == "keep" and not self._is_duration_confirmation(duration):
             effective_mode = "prompt"
 
+        crop_or_scale = ""
         if (
             not self._is_restoring_state
             and not self.timelines.is_blank
             and duration != self.duration
             and effective_mode != "keep"
         ):
-            crop_or_scale = ""
             if effective_mode == "prompt":
                 if self.prompt_scale_timelines(self.duration, duration):
                     crop_or_scale = "scale"
@@ -464,6 +480,7 @@ class App:
                 self.timelines.crop_timeline_components(duration)
 
         self.duration = duration
+        return bool(crop_or_scale)
 
     @staticmethod
     def prompt_scale_timelines(prev_duration: float, new_duration: float) -> bool:

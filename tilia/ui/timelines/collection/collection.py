@@ -1463,11 +1463,15 @@ class TimelineUIs:
         return duration * PIXELS_PER_SECOND if duration > 0 else PLAYBACK_AREA_WIDTH
 
     def _on_duration_available(
-        self, duration: float, scale_timelines: str | None = None
+        self,
+        duration: float,
+        scale_timelines: str | None = None,
+        is_late: bool = False,
     ) -> None:
-        # scale_timelines is unused here -- accepted only so this listener's
-        # signature stays compatible with callers of Post.PLAYER_DURATION_AVAILABLE
-        # that pass it (see App.set_file_media_duration, the other listener).
+        # scale_timelines and is_late are unused here -- accepted only so this
+        # listener's signature stays compatible with callers of
+        # Post.PLAYER_DURATION_AVAILABLE that pass them (see
+        # App.set_file_media_duration, the other listener).
         if duration > 0:
             self._apply_zoom(duration * PIXELS_PER_SECOND * get(Get.CURRENT_ZOOM))
 
