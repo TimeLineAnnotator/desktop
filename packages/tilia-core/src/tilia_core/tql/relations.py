@@ -22,7 +22,7 @@ import bisect
 import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Protocol
+from typing import Any, Callable, Iterable, Iterator, Protocol
 
 from tilia_core.labels import fold, nfc
 
@@ -486,6 +486,43 @@ def units_of(seq: syntax.Seq) -> Iterator[syntax.Unit]:
             yield st.item
 
 
+def has_negated_group(seq: syntax.Seq) -> bool:
+    """Whether ``seq`` has a ``NOT ( … )`` group anywhere: one unit that fits
+    none of its options, which no fit of a unit of ``seq`` finds."""
+    for st in seq.steps:
+        if isinstance(st.item, syntax.Group):
+            if st.item.negate or any(has_negated_group(o) for o in st.item.options):
+                return True
+    return False
+
+
+def reads_the_file(conds: list[syntax.Cond]) -> bool:
+    """Whether testing ``conds`` on a unit, the units of their relations and
+    children included, may read a field of the file (``file.x``) or its media
+    length (a percentage): what a file lacks of those is noted on the
+    :class:`Scope` whichever unit asked, for the result's warnings."""
+    for cond in conds:
+        if isinstance(cond, syntax.AnyOf):
+            if any(reads_the_file(clause) for clause in cond.clauses):
+                return True
+        elif isinstance(cond, (syntax.Children, syntax.RelCond)):
+            seq = (
+                cond.seq if isinstance(cond, syntax.Children) else cond.relation.target
+            )
+            if any(reads_the_file(u.conds) for u in units_of(seq)):
+                return True
+        elif isinstance(cond, syntax.Compare):
+            f, v = cond.field, cond.value
+            if f.scope == "file" or v.unit == "%":
+                return True
+            if v.kind == "ref" and isinstance(v.value, syntax.FieldRef):
+                if v.value.scope == "file":
+                    return True
+            if v.offset is not None and v.offset[1] == "%":
+                return True
+    return False
+
+
 def _single(seq: syntax.Seq) -> syntax.Unit:
     step = seq.steps[0]
     if len(seq.steps) != 1 or not isinstance(step.item, syntax.Unit):
@@ -564,13 +601,15 @@ class Scope:
         self._row_id: dict[str, str | None] = {}
         self._parent_id: dict[str, str | None] = {}
         self._children: dict[str, list[Component]] = {}
-        self._loaded_all = False
         self._lanes: dict[tuple[str, bool], list[LaneSpec]] = {}
         self._own: dict[str, list[LaneSpec]] = {}
         self._items: dict[LaneSpec, list[Item]] = {}
         self._indexes: dict[int, LaneIndex] = {}  # by id() of a lane's items
         self._descendants: dict[str, list[Component]] = {}
         self._fit: dict[int, frozenset[str]] = {}
+        self._fit_timelines: dict[int, frozenset[Any]] = {}
+        self._timelines_of: dict[Any, Any] | None = None
+        self._label_fits: dict[int, frozenset[Any] | None] = {}
         self._bar_fit: dict[tuple[int, str], bool] = {}
         self._keep: list[Any] = []  # units made here, kept so their ids stay theirs
         self.facts = values.Facts(log, file_id)
@@ -623,17 +662,6 @@ class Scope:
     def component(self, comp_id: str, timeline_id: str) -> Component:
         self.timeline(timeline_id)
         return self._by_id[comp_id]
-
-    def _load_all(self) -> None:
-        if not self._loaded_all:
-            rows = self.log.execute(
-                "SELECT DISTINCT timeline_id FROM components WHERE file_id = ? "
-                "ORDER BY timeline_id",
-                (self.file_id,),
-            )
-            for (tid,) in rows:
-                self.timeline(tid)
-            self._loaded_all = True
 
     def parent(self, comp: Component) -> Component | None:
         pid = self._parent_id.get(comp.id)
@@ -758,7 +786,15 @@ class Scope:
                 f"{part.split(':')[0]}: the brackets SQL does not take are "
                 "tested in Python on the rows above."
             )
-            self._load_all()
+            if ids and self.play is not None and not reads_the_file(in_python):
+                # Python tests only the units the query can reach: those of the
+                # timelines of the lanes in play, since a relation or children
+                # test, a parent or a unit's own lanes never leave a timeline.
+                # A unit elsewhere is never asked whether it fits.
+                reach = {s.timeline_id for s in self.play}
+                ids = [i for i in ids if self._timeline_of(i) in reach]
+            for tid in dict.fromkeys(self._timeline_of(i) for i in ids):
+                self.timeline(tid)
             ids = [
                 i
                 for i in ids
@@ -766,6 +802,72 @@ class Scope:
             ]
         got = self._fit[id(unit)] = frozenset(ids)
         return got
+
+    def _timeline_of(self, comp_id: Any) -> Any:
+        """The timeline of the component ``comp_id`` of this file, from one
+        lookup per file that loads no unit."""
+        if self._timelines_of is None:
+            # a lookup, not a search statement: kept out of the SQL a result shows
+            self._timelines_of = dict(
+                self.log.con.execute(
+                    "SELECT id, timeline_id FROM components WHERE file_id = ?",
+                    (self.file_id,),
+                ).fetchall()
+            )
+        return self._timelines_of[comp_id]
+
+    def may_fit(self, units: Iterable[syntax.Unit], spec: LaneSpec) -> bool:
+        """Whether a component of the lane ``spec`` may fit one of ``units``.
+        Asked before the lane is loaded, so that a lane where nothing can fit is
+        never read. A unit of the bars lane is tested in Python alone
+        (:meth:`bar_fits`): it may. Otherwise the answer comes from the unit's
+        fit, when it is known, or else from its label alone, so that asking
+        runs no statement the result shows and tests no condition: the
+        timelines where some component has the label."""
+        if spec.kind == BAR_KIND:
+            return True
+        for unit in units:
+            got = self._fit_timelines.get(id(unit))
+            if got is None and id(unit) in self._fit:
+                got = frozenset(self._timeline_of(i) for i in self._fit[id(unit)])
+                self._fit_timelines[id(unit)] = got
+            if got is None:
+                got = self._label_timelines(unit)
+            if got is None or spec.timeline_id in got:
+                return True
+        return False
+
+    def _label_timelines(self, unit: syntax.Unit) -> frozenset[Any] | None:
+        """The timelines of the file with a component that has the label of
+        ``unit`` (its brackets left out); None when any label does (no label,
+        or ``*``)."""
+        if id(unit) in self._label_fits:
+            return self._label_fits[id(unit)]
+        term = unit.term
+        got: frozenset[Any] | None = None
+        if term is not None and not any(
+            len(a.lits) == 1 and a.lits[0].kind == "any" and not a.lits[0].negate
+            for a in term.alts
+        ):
+            bld = SqlBuilder(self.lanes, self.time_map is not None)
+            bld.params.append(self.file_id)
+            test = tql_compile.unit_test(syntax.Unit(term, [], unit.pos), "c", bld)
+            # a lookup, not a search statement: kept out of the SQL a result shows
+            rows = self.log.con.execute(
+                "SELECT DISTINCT c.timeline_id FROM components c "
+                f"WHERE c.file_id = ? AND ({test})",
+                bld.params,
+            ).fetchall()
+            got = frozenset(r[0] for r in rows)
+        self._label_fits[id(unit)] = got
+        return got
+
+    def lanes_holding(
+        self, specs: list[LaneSpec], units: list[syntax.Unit]
+    ) -> list[LaneSpec]:
+        """The lanes of ``specs`` where a component may fit one of ``units``
+        (:meth:`may_fit`)."""
+        return [s for s in specs if self.may_fit(units, s)]
 
     def fits(self, unit: syntax.Unit, comp: Component) -> bool:
         if self.check is not None:
@@ -1227,7 +1329,7 @@ class Scope:
     def candidates(self, unit: syntax.Unit, specs: list[LaneSpec]) -> list[Component]:
         seen: set[str] = set()
         out = []
-        for spec in specs:
+        for spec in self.lanes_holding(specs, [unit]):
             for comp, _, _ in self.lane_items(spec):
                 if comp.id not in seen:
                     seen.add(comp.id)
@@ -1251,6 +1353,9 @@ class Scope:
             # the WITHIN after the target's IN lets its THENs cross holes, as
             # after any IN (tql.md §6.1), besides setting the tolerance (§8)
             joins = self.joiner(rel.within)
+            if not has_negated_group(rel.target):
+                # each item of a run fits a unit of the target
+                specs = self.lanes_holding(specs, list(units_of(rel.target)))
             for spec in specs:
                 inner = self.inside_items(self.lane_items(spec), a, metric, own)
                 if not inner:
@@ -1353,7 +1458,7 @@ def matches(
         )
         if id(left) in scope.labels:
             scope.labels[id(test)] = scope.labels[id(left)]
-        for comp in scope.lane_components(specs):
+        for comp in scope.lane_components(scope.lanes_holding(specs, [test])):
             if scope.fits(test, comp):
                 yield scope.match(comp, [])
         return
@@ -1387,7 +1492,7 @@ def matches(
                 continue
             yield scope.match(a, [[(b, b.start, b.end)]])
         return
-    for comp in scope.lane_components(specs):
+    for comp in scope.lane_components(scope.lanes_holding(specs, [left])):
         if scope.fits(left, comp):
             for slots in scope.rel_targets(comp, rel):
                 yield scope.match(comp, slots)

@@ -175,6 +175,7 @@ def _nowhere(
                 if kinds and tql_compile.harmony_problems(probe, kinds):
                     said = True  # no chord or key: the engine's warning says so
                     break
+                specs = scope.lanes_holding(specs, [probe])
                 if any(scope.fits(probe, c) for c in scope.lane_components(specs)):
                     found = True
                     break
