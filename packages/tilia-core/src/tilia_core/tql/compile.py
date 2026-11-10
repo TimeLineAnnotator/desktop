@@ -179,9 +179,18 @@ def on_bars(lane: syntax.Lane | None) -> bool:
 def _bar_lanes(con: sqlite3.Connection, file_id: str) -> list[LaneSpec]:
     """The bars lane of a file: one lane, on the timeline its time map reads,
     when the file has measures."""
+    (has,) = con.execute(
+        "SELECT EXISTS (SELECT 1 FROM measures WHERE file_id = ?)", (file_id,)
+    ).fetchone()
+    return bar_lane(con, file_id) if has else []
+
+
+def bar_lane(con: sqlite3.Connection, file_id: str) -> list[LaneSpec]:
+    """The bars lane of a file that has measures (:func:`_bar_lanes`): one
+    lane, on the timeline its time map reads, if it has one."""
     row = con.execute(
         "SELECT t.id, t.name FROM files f JOIN timelines t ON t.id = f.time_map "
-        "WHERE f.id = ? AND EXISTS (SELECT 1 FROM measures m WHERE m.file_id = f.id)",
+        "WHERE f.id = ?",
         (file_id,),
     ).fetchone()
     return [] if row is None else [LaneSpec(row[0], row[1], BAR_KIND)]
