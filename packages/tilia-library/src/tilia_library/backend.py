@@ -76,6 +76,8 @@ import threading
 from pathlib import Path
 from typing import Protocol
 
+from tilia_core import tql
+
 
 class NotAvailable(Exception):
     """Raised when the core can't do this yet; ``needs`` says what is missing."""
@@ -189,6 +191,14 @@ class Backend(Protocol):
         ...
 
 
+def _parse(text: str) -> tql.Query:
+    """``tql.parse``, with its error as the library's QueryError."""
+    try:
+        return tql.parse(text)
+    except tql.TQLError as error:
+        raise QueryError(error.msg, error.pos, error.end) from error
+
+
 _INDEX = "the index"
 _ENGINE = "the query engine"
 _EDITS = "bulk edits"
@@ -196,7 +206,7 @@ _MEDIA = "media"
 
 
 class CoreBackend:
-    """Backend on tilia-core. For now every method raises NotAvailable."""
+    """Backend on tilia-core. What the core can't do yet raises NotAvailable."""
 
     def open_corpus(self, path: Path) -> object:
         raise NotAvailable(_INDEX)
@@ -220,7 +230,7 @@ class CoreBackend:
         raise NotAvailable(_INDEX)
 
     def explain(self, text: str) -> str:
-        raise NotAvailable(_ENGINE)
+        return tql.explain(_parse(text))
 
     def run(
         self,

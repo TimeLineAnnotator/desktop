@@ -11,6 +11,7 @@ import pytest
 from conftest import send
 from support.fixture_backend import FixtureBackend
 
+from tilia_core import tql
 from tilia_library.backend import Backend, CoreBackend, NotAvailable, QueryError
 from tilia_library.server import ApiError, LibraryServer
 
@@ -75,13 +76,40 @@ def test_core_backend_needs_texts():
     core = CoreBackend()
     assert pytest.raises(NotAvailable, core.scan, None).value.needs == "the index"
     assert (
-        pytest.raises(NotAvailable, core.explain, "x").value.needs == "the query engine"
+        pytest.raises(NotAvailable, core.query_sql, None, "x").value.needs
+        == "the query engine"
     )
     assert (
         pytest.raises(NotAvailable, core.plan, None, "x", set()).value.needs
         == "bulk edits"
     )
     assert pytest.raises(NotAvailable, core.media_of, None, "f").value.needs == "media"
+
+
+def test_core_backend_explains_with_the_query_engine():
+    text = "a THEN b"
+    assert CoreBackend().explain(text) == tql.explain(tql.parse(text))
+
+
+def test_core_backend_error_positions_are_code_points():
+    with pytest.raises(QueryError) as info:
+        CoreBackend().explain("🎵 error")
+    assert (info.value.pos, info.value.end) == (2, 7)
+    assert info.value.msg
+
+
+def test_core_backend_error_on_the_whole_query(monkeypatch):
+    def refuse(text):
+        raise tql.TQLError("not a query")
+
+    monkeypatch.setattr(tql, "parse", refuse)
+    with pytest.raises(QueryError) as info:
+        CoreBackend().explain("x")
+    assert (info.value.msg, info.value.pos, info.value.end) == (
+        "not a query",
+        None,
+        None,
+    )
 
 
 def test_route_with_core_backend_is_501():
