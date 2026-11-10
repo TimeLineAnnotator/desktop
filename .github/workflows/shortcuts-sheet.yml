@@ -8,6 +8,9 @@ on:
       - 'tilia/**'
       # The version, which the sheet's title shows.
       - 'pyproject.toml'
+  # By hand, after a change to this workflow or to the sheet's files. A run
+  # works on dev whichever branch it is started from (see "Checkout").
+  workflow_dispatch:
 
 jobs:
   update:
