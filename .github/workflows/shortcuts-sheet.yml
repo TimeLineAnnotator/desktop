@@ -63,6 +63,10 @@ jobs:
         run: python -m tilia.ui.shortcuts_sheet --update docs/img/shortcuts.svg docs/shortcuts.md
 
       - name: Add and commit
+        # No "[skip ci]" in the message. Releases are tagged on this commit, and
+        # GitHub skips the push workflows of a commit whose message holds it,
+        # which might reach a tag's build. Nothing needs it: a push made with
+        # GITHUB_TOKEN starts no workflow, and run-tests.yml ignores docs/.
         run: |
           git add docs/img/shortcuts.svg docs/shortcuts.md
           if git diff --cached --quiet; then
@@ -71,6 +75,6 @@ jobs:
           fi
           git config user.name 'Shortcuts Sheet Workflow Bot'
           git config user.email 'shortcuts_bot@tilia.github.io'
-          git commit -m "[skip ci] Update: keyboard shortcuts sheet"
+          git commit -m "Update: keyboard shortcuts sheet"
           # Another commit may have reached dev since the checkout.
           git push origin HEAD:dev || (git pull --rebase origin dev && git push origin HEAD:dev)
