@@ -18,6 +18,18 @@ class UndoManager:
     def _setup_requests(self):
         listen(self, Post.UNDO_MANAGER_SET_IS_RECORDING, self.set_is_recording)
 
+    def update_media_length(self, media_path: str, length: float) -> None:
+        """
+        Corrects states recorded with this media before its real length was
+        known (e.g. a YouTube video's opening state, which holds the length
+        stored in the file). Restoring one would otherwise bring back the
+        stale length and prompt to scale when the real one is reported again.
+        """
+        for entry in self.stack:
+            state = entry["state"]
+            if state["media_path"] == media_path:
+                state["media_metadata"]["media length"] = length
+
     @property
     def is_cleared(self):
         return len(self.stack) == 1
@@ -54,6 +66,19 @@ class UndoManager:
 
         if repeat_identifier:
             self.last_repeat_id = repeat_identifier
+
+    def replace_current_state(self, state: dict) -> None:
+        """
+        Overwrites the current state without adding a step to undo. Like
+        recording, it discards undone states, as they don't include the change,
+        and does nothing while recording is paused. With no current state, the
+        next one to be recorded will include the change.
+        """
+        if not self.is_recording or not self.stack:
+            return
+
+        self.discard_undone()
+        self.stack[-1]["state"] = state
 
     def undo(self):
         if abs(self.current_state_index) == len(self.stack) or not self.stack:

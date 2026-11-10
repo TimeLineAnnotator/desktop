@@ -118,9 +118,13 @@ class Player(ABC):
 
         self.is_media_loaded = True
 
-    def on_media_duration_available(self, duration):
+    def on_media_duration_available(
+        self, duration: float, is_late: bool = False
+    ) -> None:
+        # is_late: this is the engine's answer, arriving after load_media
+        # returned and recorded its undo state.
         self.playback_end = self.duration = duration
-        post(Post.PLAYER_DURATION_AVAILABLE, duration)
+        post(Post.PLAYER_DURATION_AVAILABLE, duration, is_late=is_late)
 
     def setup_playback_start_and_end(self, start, end):
         self.playback_start = start
