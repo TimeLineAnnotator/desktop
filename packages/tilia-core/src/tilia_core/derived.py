@@ -90,9 +90,10 @@ def chord_fields(chord: dict, key: dict | None) -> dict:
 
 
 def key_fields(mode: dict) -> dict:
-    """The properties of a key, plus ``label``, its ``key``."""
+    """The properties of a key, plus ``label``, its ``key`` (empty for a mode
+    the index doesn't know)."""
     props = harmony.key_props(mode)
-    props["label"] = props["key"]
+    props["label"] = props["key"] or ""
     return props
 
 

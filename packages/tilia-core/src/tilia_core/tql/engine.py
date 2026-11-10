@@ -16,7 +16,7 @@ import threading
 from collections.abc import Iterable, Iterator
 from typing import Any
 
-from tilia_core import derived
+from tilia_core import derived, harmony
 from tilia_core.labels import fold
 
 from . import compile as tql_compile
@@ -281,6 +281,7 @@ def _run_on(
         matches.sort(key=lambda m: paths.get(m.file_id or 0, ""))
     if pattern is not None:
         warn.words.update(dict.fromkeys(_harmony_warnings(log, query, limits)))
+        warn.other.extend(_unknown_harmony_warnings(log, query, limits))
     # A limit or a cancel that already stopped the search or the warnings pass
     # still gives a row for every match found; only a cancel that comes later
     # cuts the rows. The time limit never does.
@@ -432,6 +433,71 @@ def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> lis
                 out.extend(
                     tql_compile.harmony_problems(unit, kinds_of[id(lane)], has_custom)
                 )
+    return out
+
+
+def _unknown_harmony_warnings(
+    log: Recorder, query: syntax.Query, limits: Limits
+) -> list[str]:
+    """One warning per file whose chords or keys lanes ``query`` looks in hold
+    a chord quality or key mode the index doesn't know, naming them: those
+    units have no labels and match only by ``quality`` or ``mode`` and ``*``
+    (TimeLineAnnotator/project-management#383). A chords lane also warns about
+    its keys, which its Roman numerals are read in. It ends at the first file
+    it reaches after a limit or the cancel has stopped the call."""
+    # lookups, not search statements: kept out of the SQL a result shows
+    con = log.con
+    stored_qualities = con.execute("SELECT DISTINCT quality FROM chords").fetchall()
+    stored_modes = con.execute("SELECT DISTINCT mode FROM keys").fetchall()
+    if all(not q or harmony.known_quality(q) for (q,) in stored_qualities) and all(
+        not m or harmony.known_mode(m) for (m,) in stored_modes
+    ):
+        return []  # the usual case: nothing to look up per file
+    lanes = {id(lane): lane for _, lane in _lane_units(query)}
+    out: list[str] = []
+    for (file_id,) in con.execute(READABLE_FILES):
+        if limits.check():
+            break
+        timelines: dict[str, set[str]] = {}
+        for lane in lanes.values():
+            for spec in tql_compile.resolve_lanes(con, file_id, lane):
+                if spec.kind in ("chord", "key"):
+                    timelines.setdefault(spec.timeline_id, set()).add(spec.kind)
+        qualities: dict[str, None] = {}
+        modes: dict[str, None] = {}
+        for tid, kinds in timelines.items():
+            if "chord" in kinds:
+                for (q,) in con.execute(
+                    "SELECT DISTINCT ch.quality FROM chords ch JOIN components c "
+                    "ON c.id = ch.component_id WHERE c.timeline_id = ? "
+                    "ORDER BY ch.quality",
+                    (tid,),
+                ):
+                    if q and not harmony.known_quality(q):
+                        qualities[q] = None
+            for (m,) in con.execute(
+                "SELECT DISTINCT k.mode FROM keys k JOIN components c "
+                "ON c.id = k.component_id WHERE c.timeline_id = ? ORDER BY k.mode",
+                (tid,),
+            ):
+                if m and not harmony.known_mode(m):
+                    modes[m] = None
+        if not qualities and not modes:
+            continue
+        (path,) = con.execute(
+            "SELECT path FROM files WHERE id = ?", (file_id,)
+        ).fetchone()
+        parts: list[str] = []
+        if qualities:
+            s = "quality" if len(qualities) == 1 else "qualities"
+            parts.append(f"unknown chord {s} " + ", ".join(map(repr, qualities)))
+        if modes:
+            s = "mode" if len(modes) == 1 else "modes"
+            parts.append(f"unknown key {s} " + ", ".join(map(repr, modes)))
+        out.append(
+            f"{path}: {' and '.join(parts)}: indexed without labels, matched "
+            "only by quality or mode and *"
+        )
     return out
 
 
