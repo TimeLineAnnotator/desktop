@@ -635,11 +635,17 @@ def unit_test(
     comp: str,
     bld: SqlBuilder,
     specs: list[LaneSpec] | None = None,
+    label_first: bool = False,
 ) -> str:
     """The test that component ``comp`` fits ``unit``: its label, and the timing
     relations among its brackets as ``EXISTS``. ``specs`` are the lanes the
     component is in, when known: the test reads a chord or key, or a label, only
-    if they can hold one."""
+    if they can hold one. With ``label_first`` (a test in ``WHERE``, which
+    keeps a row only where it is true), the other brackets are tested only on
+    a component with the label: SQLite leaves a subquery such as the label's
+    ``EXISTS`` to the end of an ``AND``, so that a function such as
+    ``tql_length`` would run on every component of the file first. ``CASE``
+    keeps the order."""
     from . import relations  # relations imports this module
 
     in_sql, _ = split_conds(unit)
@@ -657,13 +663,15 @@ def unit_test(
             test = f"({test})"
     if not in_sql:
         return test
-    parts = [f"({test})"] + [
+    rest = [
         compare_sql(c, comp, bld)
         if isinstance(c, syntax.Compare)
         else relations.exists_sql(c.relation, comp, bld)
         for c in in_sql
     ]
-    return " AND ".join(parts)
+    if label_first and term is not None:
+        return f"CASE WHEN ({test}) THEN {' AND '.join(rest)} ELSE 0 END"
+    return " AND ".join([f"({test})", *rest])
 
 
 def candidate_statement(
@@ -685,7 +693,7 @@ def candidate_statement(
     (see :func:`unit_test`)."""
     bld = SqlBuilder(resolve, has_map)
     bld.params.append(path)
-    test = unit_test(unit, "c", bld, specs)
+    test = unit_test(unit, "c", bld, specs, label_first=True)
     sql = (
         "SELECT c.id FROM components c JOIN files f ON f.id = c.file_id "
         f"WHERE f.path = ? AND ({test})"
