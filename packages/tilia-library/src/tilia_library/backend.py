@@ -72,13 +72,16 @@ Shapes returned:
 
 from __future__ import annotations
 
+import logging
 import threading
 from pathlib import Path
 from typing import Any, Protocol
 
 from tilia_core import tql
-from tilia_core.corpus import Corpus
+from tilia_core.corpus import Corpus, ScanReport
 from tilia_core.corpus import open_corpus as open_core_corpus
+
+logger = logging.getLogger(__name__)
 
 
 class NotAvailable(Exception):
@@ -201,10 +204,80 @@ def _parse(text: str) -> tql.Query:
         raise QueryError(error.msg, error.pos, error.end) from error
 
 
-def _corpus(handle: object) -> Corpus:
-    if not isinstance(handle, Corpus):
+class _Handle:
+    """A corpus as CoreBackend holds it. The core can't open a folder that
+    isn't there, and the library keeps listing such a folder as unavailable,
+    so the handle opens the corpus once its folder exists."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._corpus: Corpus | None = None
+        self._lock = threading.Lock()
+
+    def corpus(self) -> Corpus | None:
+        """The corpus, opened now if it wasn't; None while the folder is missing."""
+        with self._lock:
+            if self._corpus is None:
+                try:
+                    # The library rescans on its own timer (liveness), so a read
+                    # answers from the index as the last scan left it.
+                    self._corpus = open_core_corpus(
+                        self.path, rescan_before_reads=False
+                    )
+                except FileNotFoundError:
+                    return None
+            return self._corpus
+
+
+def _handle(handle: object) -> _Handle:
+    if not isinstance(handle, _Handle):
         raise TypeError("not a corpus handle of CoreBackend")
     return handle
+
+
+def _corpus(handle: object) -> Corpus:
+    """The opened corpus; QueryError while its folder is missing."""
+    found = _handle(handle).corpus()
+    if found is None:
+        raise QueryError("the corpus folder is missing")
+    return found
+
+
+def _opened(handle: object, file_id: str) -> Corpus:
+    """The opened corpus; KeyError for ``file_id`` while its folder is missing."""
+    found = _handle(handle).corpus()
+    if found is None:
+        raise KeyError(file_id)
+    return found
+
+
+def _flat(fields: dict[str, tuple[str, ...]]) -> dict[str, Any]:
+    """A field with one value as that value, with several as a list."""
+    return {n: (v[0] if len(v) == 1 else list(v)) for n, v in fields.items()}
+
+
+_NO_CHANGE: dict = {
+    "changed": [],
+    "added": [],
+    "removed": [],
+    "unreadable": [],
+    "unavailable": [],
+}
+
+
+def _report(report: ScanReport) -> dict:
+    if report.error is not None:
+        logger.warning("A change to the index couldn't be applied: %s", report.error)
+    return {
+        "changed": list(report.changed) + [new for _, new in report.moved],
+        "added": list(report.added) + list(report.back),
+        "removed": [old for old, _ in report.moved],
+        "unreadable": [
+            {"path": path, "line": line, "message": message}
+            for path, line, message in report.unreadable
+        ],
+        "unavailable": list(report.unavailable),
+    }
 
 
 def _key(file_id: str) -> int:
@@ -221,7 +294,6 @@ def _json(value: Any) -> Any:
     return value
 
 
-_INDEX = "the index"
 _ENGINE = "the query engine"
 _EDITS = "bulk edits"
 _MEDIA = "media"
@@ -247,25 +319,94 @@ class CoreBackend:
     """
 
     def open_corpus(self, path: Path) -> object:
-        return open_core_corpus(path)
+        handle = _Handle(Path(path))
+        handle.corpus()
+        return handle
 
     def generation(self, corpus: object) -> int:
-        return _corpus(corpus).generation
+        found = _handle(corpus).corpus()
+        return 0 if found is None else found.generation
 
     def scan(self, corpus: object) -> dict:
-        raise NotAvailable(_INDEX)
+        found = _handle(corpus).corpus()
+        if found is None:
+            return {name: [] for name in _NO_CHANGE}
+        return _report(found.scan())
 
     def reread(self, corpus: object, path: Path) -> dict:
-        raise NotAvailable(_INDEX)
+        found = _handle(corpus).corpus()
+        if found is None:
+            return {name: [] for name in _NO_CHANGE}
+        try:
+            return _report(found.reread(path))
+        except ValueError as error:
+            # outside the folder, or a path the scan leaves out
+            logger.debug("Not rereading %s: %s", path, error)
+            return {name: [] for name in _NO_CHANGE}
 
     def files(self, corpus: object) -> list[dict]:
-        raise NotAvailable(_INDEX)
+        found = _handle(corpus).corpus()
+        if found is None:
+            return []
+        out = []
+        for row in found.files():
+            kinds = dict(row.timeline_kinds)
+            out.append(
+                {
+                    "file_id": str(row.id),
+                    "name": Path(row.path).name,
+                    "path": row.path,
+                    "state": "ok" if row.state == "readable" else row.state,
+                    "reason": row.reason,
+                    "fields": _flat(row.fields),
+                    "timelines": {"count": sum(kinds.values()), "kinds": kinds},
+                }
+            )
+        return out
 
     def file_detail(self, corpus: object, file_id: str) -> dict:
-        raise NotAvailable(_INDEX)
+        c = _opened(corpus, file_id)
+        detail = c.file_detail(_key(file_id))
+        with c.reading() as r:
+            con = r.connection
+            units = dict(
+                con.execute(
+                    "SELECT timeline_id, count(*) FROM components WHERE file_id = ? "
+                    "GROUP BY timeline_id",
+                    (detail.file.id,),
+                ).fetchall()
+            )
+            levels = dict(
+                con.execute(
+                    "SELECT c.timeline_id, count(DISTINCT h.level) FROM components c "
+                    "JOIN hierarchies h ON h.component_id = c.id WHERE c.file_id = ? "
+                    "GROUP BY c.timeline_id",
+                    (detail.file.id,),
+                ).fetchall()
+            )
+        timelines = []
+        for tl in detail.timelines:
+            fields = _flat(tl.fields)
+            if tl.role:
+                fields["role"] = tl.role
+            if tl.author:
+                fields["author"] = tl.author
+            if tl.id in levels:
+                fields["levels"] = levels[tl.id]
+            fields["units"] = units.get(tl.id, 0)
+            timelines.append(
+                {"id": str(tl.id), "name": tl.name, "kind": tl.kind, "fields": fields}
+            )
+        return {
+            "file_id": str(detail.file.id),
+            "name": Path(detail.file.path).name,
+            "path": detail.file.path,
+            "fields": _flat(detail.file.fields),
+            "timelines": timelines,
+        }
 
     def context(self, corpus: object, file_id: str, timeline_ids: list[str]) -> dict:
-        c = _corpus(corpus)
+        c = _opened(corpus, file_id)
         fid = _key(file_id)
         wanted = {_key(t) for t in timeline_ids}
         with c.reading() as r:
@@ -334,7 +475,9 @@ class CoreBackend:
         time_limit: float,
         cancel: threading.Event,
     ) -> dict:
-        c = _corpus(corpus)
+        c = _handle(corpus).corpus()
+        if c is None:
+            raise SqlError("the corpus folder is missing")
         try:
             table = tql.sql(
                 c, text, max_rows=max_rows, time_limit=time_limit, cancel=cancel

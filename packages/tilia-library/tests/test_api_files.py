@@ -8,7 +8,7 @@ from conftest import send
 from support.fixture_backend import FixtureBackend
 
 from tilia_library.api import register_all
-from tilia_library.backend import CoreBackend, NotAvailable
+from tilia_library.backend import NotAvailable
 from tilia_library.corpora import Corpora, CorpusHandles
 from tilia_library.server import LibraryServer
 
@@ -90,19 +90,6 @@ def test_unknown_corpus_and_file(library, cid):
         {"error": "unknown corpus"},
     )
     assert _get(library, f"/api/{cid}/files/nope") == (404, {"error": "unknown file"})
-
-
-def test_core_backend_is_not_available(corpora, cid):
-    server = LibraryServer(CoreBackend())
-    register_all(server, corpora)
-    server.start()
-    try:
-        assert _get(server, f"/api/{cid}/files") == (
-            501,
-            {"error": "not available yet", "needs": "the index"},
-        )
-    finally:
-        server.stop()
 
 
 def test_missing_folder_is_unavailable(library, corpora, cid, corpus_dir):

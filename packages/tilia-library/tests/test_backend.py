@@ -69,6 +69,10 @@ def test_protocol_methods_exist_on_both():
 AVAILABLE = {
     "open_corpus",
     "generation",
+    "scan",
+    "reread",
+    "files",
+    "file_detail",
     "context",
     "explain",
     "run",
@@ -87,7 +91,6 @@ def test_core_backend_not_available(name):
 
 def test_core_backend_needs_texts():
     core = CoreBackend()
-    assert pytest.raises(NotAvailable, core.scan, None).value.needs == "the index"
     assert (
         pytest.raises(NotAvailable, core.categories, None, False).value.needs
         == "the query engine"
@@ -132,12 +135,15 @@ def test_route_with_core_backend_is_501():
             "GET",
             "/api/files",
             lambda r: __import__("tilia_library.server", fromlist=["x"]).json_response(
-                r.server.backend.files(None)
+                r.server.backend.categories(None, False)
             ),
         )
         r = send(srv, "GET", "/api/files", {"Authorization": f"Bearer {srv.token}"})
     assert r.status == 501
-    assert json.loads(r.body) == {"error": "not available yet", "needs": "the index"}
+    assert json.loads(r.body) == {
+        "error": "not available yet",
+        "needs": "the query engine",
+    }
 
 
 def test_api_error_and_internal_error(server, caplog):
