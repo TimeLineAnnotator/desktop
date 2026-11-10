@@ -969,7 +969,12 @@ _ADDED_TONE = {
 }
 
 # TiLiA's fixed labels, in both display modes.
-_FIXED_LABEL = {"Italian": "It6+", "French": "Fr6+", "German": "Gr6+", "Neapolitan": "N6"}
+_FIXED_LABEL = {
+    "Italian": "It6+",
+    "French": "Fr6+",
+    "German": "Gr6+",
+    "Neapolitan": "N6",
+}
 
 # The chord-symbol suffix music21 writes for each quality (the first of its
 # abbreviations, which TiLiA's letter labels start from).
@@ -1134,9 +1139,7 @@ def _figures(root: Pitch, quality: str, bass: Pitch, key: Key) -> Figures:
         raised = {
             t
             for t in tones
-            if t is not None
-            and t[0] in sixth_and_seventh
-            and t[1] - natural[t[0]] == 1
+            if t is not None and t[0] in sixth_and_seventh and t[1] - natural[t[0]] == 1
         }
     bass_degree = (bass[0] - key[0]) % 7
     figures: Figures = []
@@ -1359,7 +1362,9 @@ def _labels(
     )
     symbol = _plain(_tilia_letter(root, quality, inversion))
     roman = (
-        None if key is None else _plain(_tilia_roman(root, quality, inversion, applied, key))
+        None
+        if key is None
+        else _plain(_tilia_roman(root, quality, inversion, applied, key))
     )
     return symbol, roman, (_pitch_name(bass) if bass else None)
 

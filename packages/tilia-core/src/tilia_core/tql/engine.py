@@ -310,9 +310,8 @@ def _run_on(
         matches=matches,
         explain=explain(query),
         sql_blocks=log.blocks,
-        warnings=warn.messages() + left_out_warnings(
-            log.con, reading.available, reading.warnings
-        ),
+        warnings=warn.messages()
+        + left_out_warnings(log.con, reading.available, reading.warnings),
         stopped=stopped,
         generation=reading.generation,
         columns=_columns(grain, query, extra),
