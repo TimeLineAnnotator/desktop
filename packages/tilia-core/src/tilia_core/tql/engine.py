@@ -257,21 +257,36 @@ def _run_on(
     stopped: str | None = None
     matches: list[Match] = []
     grain = "match"
+    measures = values.Measures(log)  # the bars of every file, read once a run
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
         with regexes.within(limits):
             if pattern is None:
                 grain, matches, extra, stopped = _where_only(
-                    reading, log, catalogue, query, warn, max_matches, limits
+                    reading,
+                    log,
+                    catalogue,
+                    query,
+                    warn,
+                    max_matches,
+                    limits,
+                    measures,
                 )
             else:
                 matches, stopped = _pattern_matches(
-                    reading, log, query, pattern, max_matches, warn, limits
+                    reading,
+                    log,
+                    query,
+                    pattern,
+                    max_matches,
+                    warn,
+                    limits,
+                    measures,
                 )
                 if not matches and stopped is None and limits.stopped is None:
                     units = _lane_units(query)
                     warn.other.extend(
-                        hints.empty(con, index, query, units, limits.ensure)
+                        hints.empty(con, index, query, units, limits.ensure, measures)
                     )
                     if limits.stopped == "time_limit":
                         limits.stopped = None  # the search was whole; the hints
@@ -306,7 +321,7 @@ def _run_on(
         if fid not in titles:
             titles[fid] = _file_title(log, fid)
         if grain == "match":
-            rows.append(_row(log, m, node_names, titles[fid], ids))
+            rows.append(_row(log, m, node_names, titles[fid], ids, measures))
         elif grain == "timeline":
             rows.append(_timeline_row(log, m, titles[fid], ids))
         else:
@@ -581,6 +596,7 @@ def _pattern_matches(
     max_matches: int | None,
     warn: _Warnings,
     limits: Limits,
+    measures: values.Measures,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
     meet ``WHERE`` only, in the order found (``_run_on`` sorts them by path and
@@ -602,7 +618,12 @@ def _pattern_matches(
         for (file_id,) in files:
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, reading.time_map(file_id), labels, limits.ensure
+                log,
+                file_id,
+                reading.time_map(file_id),
+                labels,
+                limits.ensure,
+                measures,
             )
             specs = scope.lanes(pattern.lane)
             if not specs:
@@ -675,6 +696,7 @@ def _where_only(
     warn: _Warnings,
     max_matches: int | None,
     limits: Limits,
+    measures: values.Measures,
 ) -> tuple[str, list[Match], list[str], str | None]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
@@ -710,7 +732,12 @@ def _where_only(
         for (file_id,) in files:
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, reading.time_map(file_id), labels, limits.ensure
+                log,
+                file_id,
+                reading.time_map(file_id),
+                labels,
+                limits.ensure,
+                measures,
             )
             timelines = log.execute(
                 "SELECT t.id, t.name FROM timelines t JOIN files f ON "
@@ -893,17 +920,18 @@ def _extent(m: Match) -> tuple[float, float]:
     return min(x[1] for x in t), max(x[2] for x in t)
 
 
-def _position(log: Recorder, comp: Component | None) -> tuple[Any, Any]:
+def _position(
+    log: Recorder, comp: Component | None, measures: values.Measures
+) -> tuple[Any, Any]:
     if comp is None:
         return None, None
     # not logged: one lookup per target and per step would grow the shown
     # SQL by several statements per match
     if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
-        rows = log.con.execute(
-            "SELECT number FROM measures WHERE file_id = ? AND start = ?",
-            (comp.file_id, comp.start),
-        ).fetchall()
-        return (rows[0][0], 1.0) if rows else (None, None)
+        for _, number, _, start, *_ in measures.of(comp.file_id):
+            if start == comp.start:
+                return number, 1.0
+        return None, None
     rows = log.con.execute(
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
     ).fetchall()
@@ -971,11 +999,12 @@ def _row(
     names: dict[int, str],
     title: str | None,
     ids: _OwnIds,
+    measures: values.Measures,
 ) -> dict[str, Any]:
     targets = _targets(m)
     first = targets[0][0]
     start, end = _extent(m)
-    bar, beat = _position(log, first)
+    bar, beat = _position(log, first, measures)
     row: dict[str, Any] = {
         "file": ids.document(first.file_id),
         "path": _file_path(log, first.file_id),
@@ -996,6 +1025,6 @@ def _row(
         row[f"${n}.timeline"] = m.slot_lanes[n - 1] if m.slot_lanes else m.lane
         row[f"${n}.start"] = min((s for s, _ in spans), default=None)
         row[f"${n}.end"] = max((e for _, e in spans), default=None)
-        row[f"${n}.bar"] = _position(log, slot[0] if slot else None)[0]
+        row[f"${n}.bar"] = _position(log, slot[0] if slot else None, measures)[0]
         row[f"${n}.ids"] = " ".join(ids.unit(c) for c in slot)
     return row

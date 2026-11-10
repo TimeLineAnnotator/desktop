@@ -16,7 +16,7 @@ import sqlite3
 from typing import Any, Callable, Iterable
 
 from . import compile as tql_compile
-from . import names, regexes, relations, syntax
+from . import names, regexes, relations, syntax, values
 from .lanes import GAP_EPS, SLACK
 from .readonly import Stopped
 from .showsql import Recorder
@@ -32,10 +32,12 @@ def empty(
     query: syntax.Query,
     units: Iterable[tuple[syntax.Unit, syntax.Lane | None]],
     check: Callable[[], None],
+    measures: values.Measures | None = None,
 ) -> list[str]:
     """The messages for a query that matched nothing. ``units`` are the units
     of the query with the lane each is read in; ``check`` raises to stop, and
-    the messages found by then are given."""
+    the messages found by then are given. ``measures`` reads the bars, when the
+    run has read them already."""
     pattern = query.pattern
     if pattern is None:
         return []
@@ -43,13 +45,17 @@ def empty(
     log = Recorder(con)  # its blocks are dropped: these are no search statements
     scopes: list[relations.Scope] = []
     out: list[str] = []
+    if measures is None:
+        measures = values.Measures(log)  # the bars of every file, read once
     try:
         for (file_id,) in con.execute(
             "SELECT id FROM files WHERE state = 'readable' ORDER BY path, id"
         ):
             check()
             scopes.append(
-                relations.Scope(log, file_id, index.time_map(file_id), {}, check)
+                relations.Scope(
+                    log, file_id, index.time_map(file_id), {}, check, measures
+                )
             )
         gaps = _gaps(scopes, pattern)
         if gaps:

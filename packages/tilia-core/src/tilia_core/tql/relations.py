@@ -587,6 +587,7 @@ class Scope:
         time_map: Any = None,
         labels: dict[int, str] | None = None,
         check: Callable[[], None] | None = None,
+        measures: values.Measures | None = None,
     ) -> None:
         self.log = log
         self.check = check  # called now and then; raises to stop the run
@@ -612,7 +613,9 @@ class Scope:
         self._label_fits: dict[int, frozenset[Any] | None] = {}
         self._bar_fit: dict[tuple[int, str], bool] = {}
         self._keep: list[Any] = []  # units made here, kept so their ids stay theirs
-        self.facts = values.Facts(log, file_id)
+        # the bars, shared among the files of a run (default: this file's alone)
+        self.measures = values.Measures(log, file_id) if measures is None else measures
+        self.facts = values.Facts(log, file_id, self.measures)
         self.missing: set[str] = set()  # file fields a condition read and it lacks
         self.no_length = False  # a percentage needed the media length, and it lacks
         self._steps: dict[int, syntax.Unit] = {}
@@ -682,9 +685,17 @@ class Scope:
         key = ("", False) if lane is None else (lane.text, lane.quoted)
         got = self._lanes.get(key)
         if got is None:
-            got = self._lanes[key] = tql_compile.resolve_lanes(
-                self.log.con, self.file_id, lane
-            )
+            if tql_compile.on_bars(lane):
+                # the measures of every file are read once (values.Measures)
+                got = self._lanes[key] = (
+                    tql_compile.bar_lane(self.log.con, self.file_id)
+                    if self.measures.of(self.file_id)
+                    else []
+                )
+            else:
+                got = self._lanes[key] = tql_compile.resolve_lanes(
+                    self.log.con, self.file_id, lane
+                )
         return got
 
     def own_lanes(self, timeline_id: str) -> list[LaneSpec]:
@@ -717,13 +728,8 @@ class Scope:
     def _bar_items(self, spec: LaneSpec) -> list[Item]:
         """The units of the bars lane: one per measure, labelled with its printed
         number, from its downbeat to the next."""
-        rows = self.log.execute(
-            'SELECT count, label, start, "end" FROM measures WHERE file_id = ? '
-            "ORDER BY count",
-            (self.file_id,),
-        )
         items: list[Item] = []
-        for count, label, start, end in rows:
+        for count, _, label, start, end, *_ in self.measures.of(self.file_id):
             comp = Component(
                 bar_id(self.file_id, count),
                 self.file_id,
