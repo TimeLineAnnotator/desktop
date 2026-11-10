@@ -1269,7 +1269,7 @@ class TestBeatTimelinesStageOne:
 
     def test_a_next_keeps_naming_the_same_measures(self):
         # A one-beat measure is deleted: the measures after it keep their downbeats,
-        # and a `next` naming the one that is gone loses that name.
+        # and a `next` naming the one that is gone names the next, as the core does.
         opened = Opened.read(EVERY_KIND)
         timeline = next(
             tl for tl in opened.doc.timelines.values() if tl.name == "Bars of the score"
@@ -1283,7 +1283,7 @@ class TestBeatTimelinesStageOne:
         )
         opened.sync()
         following = timeline.components[rows[1].id].attrs["measure"]["next"]
-        assert following == [rows[3].id]
+        assert following == [rows[3].id, rows[3].id]
         assert tla.loads(opened.bytes())
 
     def test_a_next_with_nothing_after_it_goes(self):
@@ -2175,14 +2175,14 @@ class TestMarksFollowTheirMeasures:
         timeline = opened.timeline(timeline_id)
         timeline.delete_components([timeline.get_component(ids[6])])
         opened.sync()
-        # The deleted downbeat takes its mark with it, and TiLiA's measure there, now
-        # starting a beat later, has an empty one. The later marks follow theirs.
+        # Its measure stays, starting a beat later, so its mark goes there, and the
+        # later marks follow theirs.
         written = opened.written(timeline_id)
         assert without_the_lists(marks_by_measure(written)) == without_the_lists(
-            [before[0], {**before[1], "next": [ids[10]]}, {}, *before[3:]]
+            [before[0], {**before[1], "next": [ids[10]]}, *before[2:]]
         )
         assert downbeats(written) == [ids[0], ids[3], ids[7], ids[10], ids[13]]
-        assert len(opened.notes) == 1 and ids[6] in opened.notes[0]
+        assert opened.notes == []
         opened.sync(opened.first)
         assert opened.bytes() == opened.bytes_read
 
@@ -2364,6 +2364,215 @@ class TestMarksFollowTheirMeasures:
         assert opened.bytes() == opened.bytes_read
 
 
+def labelled(counts, pattern=None, extra=None, closing=False):
+    """Beats in measures of these counts, each mark labelled with its measure, from m1,
+    with `extra` keys by measure; a closing tap after them if asked."""
+    timeline_id = make_id(99)
+    beats, place, measure = {}, 0, 0
+    for count in counts:
+        measure += 1
+        for in_measure in range(count):
+            mark = None
+            if in_measure == 0:
+                mark = {"label": f"m{measure}", **(extra or {}).get(measure, {})}
+            beats[make_id(place + 1)] = beat(float(place), mark)
+            place += 1
+    if closing:
+        beats[make_id(place + 1)] = beat(float(place), closing=True)
+    keys = {"beat_pattern": pattern} if pattern else {}
+    doc = loads(file_with({timeline_id: beat_timeline(beats, **keys)}))
+    return timeline_id, [make_id(i + 1) for i in range(place)], doc
+
+
+def labels_by_beat(opened, timeline_id):
+    components = opened.written(timeline_id)["components"]
+    return {
+        beat_id: beat["measure"].get("label")
+        for beat_id, beat in components.items()
+        if "measure" in beat
+    }
+
+
+def labels_in_order(opened, timeline_id):
+    return [mark.get("label") for mark in marks_by_measure(opened.written(timeline_id))]
+
+
+class TestMarksInOneAction:
+    """What one action does to several measures, and its undo, which must give the
+    bytes back. A beat that stays a downbeat keeps its own mark."""
+
+    def test_set_beat_amount_on_two_measures(self, live):
+        timeline_id, ids, doc = labelled([2] * 6, pattern="2")
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.set_beat_amount_in_measure(3, 4)
+        timeline.set_beat_amount_in_measure(1, 4)
+        opened.sync()
+        by_beat = labels_by_beat(opened, timeline_id)
+        for beat_id, label in by_beat.items():
+            if label is not None:
+                assert label == f"m{ids.index(beat_id) // 2 + 1}"
+        assert tla.loads(opened.bytes())
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_two_one_beat_downbeats_deleted(self, live):
+        timeline_id, ids, doc = labelled([1] * 6, pattern="1")
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components(
+            [timeline.get_component(ids[1]), timeline.get_component(ids[4])]
+        )
+        opened.sync()
+        assert labels_in_order(opened, timeline_id) == ["m1", "m3", "m4", "m6"]
+        assert len(opened.notes) == 2
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_one_beat_downbeat_and_a_plain_beat_deleted(self, live):
+        timeline_id, ids, doc = labelled([1, 3, 1, 3, 1], pattern="3")
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components(
+            [timeline.get_component(ids[2]), timeline.get_component(ids[4])]
+        )
+        opened.sync()
+        # TiLiA takes both beats from the last measures, so it shows four measures,
+        # the later two starting on other beats: m3 and m4 by their places, and the
+        # last measure, m5, is gone, with a note.
+        assert labels_in_order(opened, timeline_id) == ["m1", "m2", "m3", "m4"]
+        assert len(opened.notes) == 1 and "m5" in opened.notes[0]
+        assert tla.loads(opened.bytes())
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_add_measure_zero_then_a_deletion(self, live):
+        timeline_id, ids, doc = labelled([3] * 5, pattern="3")
+        for component in doc.timelines[timeline_id].components.values():
+            component.attrs["time"] += 5
+        doc.timelines[timeline_id].measures = tla.measure_table(
+            doc.timelines[timeline_id]
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.add_measure_zero(0.5)
+        opened.sync()
+        zero = copy.deepcopy(opened.synced)
+        zero_bytes = opened.bytes()
+        timeline.delete_components([timeline.get_component(ids[4])])
+        opened.sync()
+        assert labels_in_order(opened, timeline_id) == [
+            None,
+            "m1",
+            "m2",
+            "m3",
+            "m4",
+            "m5",
+        ]
+        opened.sync(zero)
+        assert opened.bytes() == zero_bytes
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    @pytest.mark.parametrize("amount", [2, 6], ids=["giving", "taking"])
+    def test_set_beat_amount_giving_or_taking(self, live, amount):
+        timeline_id, ids, doc = labelled([3] * 5, pattern="3")
+        opened = live(doc)
+        opened.timeline(timeline_id).set_beat_amount_in_measure(1, amount)
+        opened.sync()
+        assert tla.loads(opened.bytes())
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_beat_added_where_the_shift_lands_on_old_downbeats(self, live):
+        timeline_id, ids, doc = labelled([2, 1, 1, 1, 1], pattern="1")
+        opened = live(doc)
+        opened.timeline(timeline_id).create_component(ComponentKind.BEAT, 0.5)
+        opened.sync()
+        by_beat = labels_by_beat(opened, timeline_id)
+        for place in (2, 3, 4, 5):
+            assert by_beat[ids[place]] == f"m{place}"
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_beat_added_among_one_beat_measures_and_its_undo(self, live):
+        # The new beat starts a new measure, and the others keep their marks.
+        extra = {3: {"restart": True, "number": 1, "source": "import"}}
+        timeline_id, ids, doc = labelled([1] * 5, pattern="1", extra=extra)
+        opened = live(doc)
+        opened.timeline(timeline_id).create_component(ComponentKind.BEAT, 1.5)
+        opened.sync()
+        assert labels_in_order(opened, timeline_id) == [
+            "m1",
+            "m2",
+            None,
+            "m3",
+            "m4",
+            "m5",
+        ]
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_with_a_restart_and_a_closing_tap(self, live):
+        extra = {4: {"restart": True, "number": 1}}
+        timeline_id, ids, doc = labelled(
+            [3, 3, 1, 3, 3], pattern="3", extra=extra, closing=True
+        )
+        tap = make_id(len(ids) + 1)
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[6])])
+        opened.sync()
+        written = opened.written(timeline_id)["components"]
+        assert written[ids[7]]["measure"]["restart"] is True
+        assert written[tap] == {"kind": "BEAT", "time": 13.0, "closing": True}
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_long_measures_deleted_downbeat_and_its_undo(self, live):
+        # Its measure stays, so its mark goes to the next beat.
+        extra = {3: {"restart": True, "number": 1, "source": "import"}}
+        timeline_id, ids, doc = labelled([3] * 4, pattern="3", extra=extra)
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[6])])
+        opened.sync()
+        mark = opened.written(timeline_id)["components"][ids[7]]["measure"]
+        assert mark["label"] == "m3" and mark["restart"] is True
+        assert mark["source"] == "import"
+        assert opened.notes == []
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_restart_on_a_measure_that_is_gone_goes_to_the_next(self, live):
+        # As the core does when a one-beat measure's downbeat is deleted: the next
+        # measure states the number it read, unless TiLiA's lists say another.
+        extra = {2: {"restart": True, "number": 1}}
+        timeline_id, ids, doc = labelled([1] * 5, pattern="1", extra=extra)
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[1])])
+        opened.sync()
+        mark = opened.written(timeline_id)["components"][ids[2]]["measure"]
+        assert mark["label"] == "m3" and mark["restart"] is True
+        assert "number" in mark
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_next_naming_a_measure_that_is_gone_names_the_next(self, live):
+        timeline_id, ids, doc = labelled(
+            [1] * 4, pattern="1", extra={1: {"next": [make_id(2)]}}
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.delete_components([timeline.get_component(ids[1])])
+        opened.sync()
+        mark = opened.written(timeline_id)["components"][ids[0]]["measure"]
+        assert mark["next"] == [ids[2]]
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+
 class TestSameEditThroughTiLiA:
     """SC-002's beat edits, made by TiLiA's own timelines, against the same edit
     through `attrs`, with what TiLiA's lists also change."""
@@ -2428,9 +2637,14 @@ class TestSameEditThroughTiLiA:
         timeline = opened.timeline(beats.id)
         timeline.delete_components([timeline.get_component(row.beats[1])])
         opened.sync()
+        # A beat that stays a downbeat keeps its own mark, so a mark between two such
+        # can be left without a measure: it goes, with a note.
         written = opened.written(beats.id)
-        after = marks_by_measure(written)
-        assert after == before[: len(after)]
+        after = without_the_lists(marks_by_measure(written))
+        kept = iter(without_the_lists(before))
+        assert all(mark == {} or mark in kept for mark in after)
+        missing = [m for m in without_the_lists(before) if m and m not in after]
+        assert len(opened.notes) == len(missing)
         live_downbeats = [b.id for b in timeline.components if b.is_first_in_measure]
         assert downbeats(written) == live_downbeats
         assert tla.loads(opened.bytes())

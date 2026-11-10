@@ -12,6 +12,7 @@ TiLiA's digest, so that the digests it gives are those TiLiA's objects give.
 from __future__ import annotations
 
 import copy
+from bisect import bisect_left
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -780,11 +781,13 @@ def _rewrite_marks(
     notes: list[str],
 ) -> None:
     """TiLiA's lists say which beats start a measure, by position. Each measure's mark,
-    with all its keys, follows its measure to that measure's downbeat, and a `next`
-    keeps naming the same measure, so that nothing is lost and the file says what TiLiA
-    shows (`_measure_sources`). A deleted downbeat keeps its mark, whole, in `removed`,
-    and one back from there keeps it. The measures before are the document's table, as
-    it was after the last change."""
+    with all its keys, follows its measure (`_match_measures`), and a `next` keeps
+    naming the same measure, so that nothing is lost and the file says what TiLiA
+    shows. A measure that is gone leaves its mark in `removed`, a deleted downbeat's
+    staying with the beat, and hands its `restart` and the `next`s naming it to the next
+    measure that stays, as the core does when a downbeat is deleted. What a mark has
+    that way is kept in `removed` with it, so that an undo gives it back. The measures
+    before are the document's table, as it was after the last change."""
     components = timeline.components
     # A beat both states hold and the document doesn't can't have a mark.
     order = [
@@ -795,111 +798,212 @@ def _rewrite_marks(
     numbers = state.get("measure_numbers") or []
     forced = set(state.get("measures_to_force_display") or ())
     starts = _measure_starts(order, counts)
-    downbeats = {index: beat_id for beat_id, index in starts.items()}
-    before = timeline.measures.rows if timeline.measures is not None else []
-    _note_deleted_downbeats(timeline, before, removed, notes)
-    marks = _take_marks(before, components)
-    # A number this wrote is flagged under the beat its mark is on, so the flags move
-    # with the marks: all are taken first, since a beat can end one measure's mark and
-    # start another's.
-    flagged = {
-        index
-        for index, (started, _) in marks.items()
-        if removed.pop(_number_key(started), None) is not None
+    indexes = sorted(starts.values())
+    after = [beat_id for beat_id, _ in sorted(starts.items(), key=lambda s: s[1])]
+    rows = timeline.measures.rows if timeline.measures is not None else []
+    before = [row.id for row in rows]
+    pairs = _match_measures(before, after)
+    sources = {place: source for source, place in pairs.items()}
+    marks = _take_marks(rows, components, removed)
+    # What `removed` keeps of a mark is under the beat it is on, so it moves with the
+    # mark: all is taken first, since a beat can end one measure's mark and start
+    # another's.
+    carried = {
+        source: _take_records(started, removed)
+        for source, (started, _) in marks.items()
     }
-    sources = _measure_sources([row.id for row in before], downbeats)
-    renamed = {before[source].id: downbeats[index] for index, source in sources.items()}
+    renamed = {before[source]: after[place] for source, place in pairs.items()}
+    restarts, gone = _hand_on(rows, pairs, marks, renamed)
     for beat_id in order:
         attrs = components[beat_id].attrs
         if beat_id not in starts and "measure" in attrs:
             _set_aside_mark(timeline, beat_id, attrs.pop("measure"), removed, notes)
     following = 1
-    for index, beat_id in sorted(downbeats.items()):
+    for place, beat_id in enumerate(after):
+        index = indexes[place]
         attrs = components[beat_id].attrs
-        source = sources.get(index)
+        source = sources.get(place)
+        taken = marks.pop(source, None) if source is not None else None
         if isinstance(attrs.get("measure"), dict):
-            pass  # a beat back from `removed`, with its own mark
-        elif source in marks:
-            attrs["measure"] = marks.pop(source)[1]
-            removed.pop(_number_key(beat_id), None)
-            if source in flagged:
-                removed[_number_key(beat_id)] = {}
+            # A beat back from `removed`, with its own mark: what its measure's
+            # downbeat held meanwhile is a copy of it.
+            if taken is not None and taken[1] != attrs["measure"]:
+                _set_aside_mark(timeline, taken[0], taken[1], removed, notes)
+        elif taken is not None:
+            attrs["measure"] = taken[1]
+            _take_records(beat_id, removed)
+            _put_records(beat_id, carried.get(source, {}), removed)
         else:
             attrs["measure"] = removed.pop(_mark_key(beat_id), {})
         mark = attrs["measure"]
+        _restart(mark, beat_id, starts, restarts, removed)
         # More numbers than measures, or fewer, as TiLiA's lists can be for a moment.
         number = numbers[index] if index < len(numbers) else following
         _set_measure_number(mark, number, following, _number_key(beat_id), removed)
         if bool(mark.get("force_display")) != (index in forced):
             mark["force_display"] = index in forced
         following = number + 1
-    # Measures that are gone: their marks wait in `removed` for an undo.
-    for index, (started, mark) in marks.items():
-        _set_aside_mark(timeline, started, mark, removed, notes)
-        if index in flagged:
-            removed[_number_key(started)] = {}
-    _rename_next(timeline, starts, renamed, {row.id for row in before}, notes)
+    # Measures that are gone: their marks wait in `removed` for an undo, and a
+    # deleted downbeat's stays with the beat.
+    for source, (started, mark) in marks.items():
+        if started in components:
+            _set_aside_mark(timeline, started, mark, removed, notes)
+        elif _carries_more_than_a_number(mark):
+            notes.append(
+                f"Beat {started} of timeline {timeline.id}, which started a measure"
+                f" that is gone, is deleted: its mark, {mark}, left the file with it."
+            )
+        _put_records(started, carried.get(source, {}), removed)
+    _rename_next(timeline, starts, renamed, set(before), gone, removed, notes)
 
 
-def _measure_sources(before: Sequence[str], after: Mapping[int, str]) -> dict[int, int]:
-    """Each measure after, by index, with the index of the measure before that it is.
+def _match_measures(before: Sequence[str], after: Sequence[str]) -> dict[int, int]:
+    """Each measure before, by its place, with the place of the measure after it is.
 
-    When whole measures come or go, as with "Add measure zero", a one-beat measure's
-    downbeat deleted, or "Set beat amount" giving a measure the beats of the next, the
-    other downbeats are the same beats as before, at other indexes: each measure is the
-    one its downbeat started. Those that come are new, and those that go leave their
-    marks in `removed`. When a beat is added or deleted inside a measure, TiLiA moves the
-    later downbeats to other beats: each measure is the one at its index before."""
-    indexes = sorted(after)
-    beats = [after[index] for index in indexes]
-    same = 0
-    while same < min(len(before), len(beats)) and before[same] == beats[same]:
-        same += 1
-    gone = len(before) - len(beats)
-    if gone > 0 and beats[same:] == list(before[same + gone :]):
-        return {
-            index: place if place < same else place + gone
-            for place, index in enumerate(indexes)
-        }
-    if gone < 0 and beats[same - gone :] == list(before[same:]):
-        return {
-            index: place if place < same else place + gone
-            for place, index in enumerate(indexes)
-            if place < same or place >= same - gone
-        }
-    return {index: index for index in indexes if index < len(before)}
+    The beats that start a measure before and after, in the longest run they keep
+    their order, are the same measures, so each keeps its own mark: so it goes when
+    "Add measure zero" adds a measure before them, or when a measure goes. Between two
+    of them, measures are matched by their places from the first: TiLiA moves later
+    downbeats to other beats when a beat is added or deleted inside a measure, and a
+    measure there is the one at its place before, as TiLiA shows it. A measure before
+    with none after is gone, and one after with none before is new."""
+    where = {beat_id: place for place, beat_id in enumerate(after)}
+    common = [(place, where[b]) for place, b in enumerate(before) if b in where]
+    pairs: dict[int, int] = {}
+    previous = (-1, -1)
+    for anchor in [*_longest_increasing(common), (len(before), len(after))]:
+        start_before, start_after = previous[0] + 1, previous[1] + 1
+        for step in range(min(anchor[0] - start_before, anchor[1] - start_after)):
+            pairs[start_before + step] = start_after + step
+        if anchor[0] < len(before):
+            pairs[anchor[0]] = anchor[1]
+        previous = anchor
+    return pairs
+
+
+def _longest_increasing(pairs: Sequence[tuple[int, int]]) -> list[tuple[int, int]]:
+    """The longest run of `pairs` whose second items increase, in order: n log n."""
+    tails: list[int] = []  # for each length, the pair that ends the best run so far
+    ends: list[int] = []  # the second item of that pair
+    back: list[int | None] = []
+    for position, (_, value) in enumerate(pairs):
+        length = bisect_left(ends, value)
+        back.append(tails[length - 1] if length else None)
+        if length == len(tails):
+            tails.append(position)
+            ends.append(value)
+        else:
+            tails[length] = position
+            ends[length] = value
+    run: list[tuple[int, int]] = []
+    position = tails[-1] if tails else None
+    while position is not None:
+        run.append(pairs[position])
+        position = back[position]
+    return run[::-1]
+
+
+def _hand_on(
+    rows: Sequence[tla.Measure],
+    pairs: Mapping[int, int],
+    marks: Mapping[int, tuple[str, dict[str, Any]]],
+    renamed: dict[str, str],
+) -> tuple[dict[str, tuple[str, int]], set[str]]:
+    """What a measure that is gone hands on to the next measure that stays, as the core
+    does when a downbeat is deleted: its `restart`, the next one then stating the number
+    it read, and the `next`s that named it, which `renamed` gets. Gives, by the downbeat
+    after, the gone measure's downbeat and that number, for each `restart`; and the
+    downbeats of the measures that are gone."""
+    restarts: dict[str, tuple[str, int]] = {}
+    gone: set[str] = set()
+    for source, row in enumerate(rows):
+        if source in pairs:
+            continue
+        gone.add(row.id)
+        stays = next(
+            (later for later in range(source + 1, len(rows)) if later in pairs), None
+        )
+        if stays is None:
+            continue
+        downbeat = renamed[rows[stays].id]
+        renamed[row.id] = downbeat
+        mark = marks.get(source, (row.id, {}))[1]
+        if mark.get("restart"):
+            restarts[downbeat] = (row.id, rows[stays].number)
+    return restarts, gone
+
+
+def _restart(
+    mark: dict[str, Any],
+    beat_id: str,
+    starts: Mapping[str, int],
+    restarts: Mapping[str, tuple[str, int]],
+    removed: Removed,
+) -> None:
+    """Hands a gone measure's `restart` on to this mark, or takes it back once that
+    measure is back."""
+    key = _record_key(beat_id, "restart")
+    record = removed.get(key)
+    if isinstance(record, dict) and record["from"] in starts:
+        del removed[key]
+        mark.pop("restart", None)
+        if record["number"] is None:
+            mark.pop("number", None)
+        else:
+            mark["number"] = record["number"]
+    if beat_id in restarts and not mark.get("restart"):
+        gone, number = restarts[beat_id]
+        removed[key] = {"from": gone, "number": mark.get("number")}
+        mark["restart"] = True
+        mark.setdefault("number", number)
 
 
 def _take_marks(
-    rows: Sequence[tla.Measure], components: Mapping[str, tla.Component]
+    rows: Sequence[tla.Measure],
+    components: Mapping[str, tla.Component],
+    removed: Removed,
 ) -> dict[int, tuple[str, dict[str, Any]]]:
-    """Each measure's mark, by the measure's index, taken off the beat that started it."""
+    """Each measure's mark, by the measure's place, with the beat that started it,
+    taken off that beat. A beat deleted since keeps its own, whole, in `removed`, so its
+    measure gets a copy."""
     marks: dict[int, tuple[str, dict[str, Any]]] = {}
-    for index, row in enumerate(rows):
+    for place, row in enumerate(rows):
         component = components.get(row.id)
-        mark = component.attrs.pop("measure", None) if component is not None else None
+        if component is not None:
+            mark = component.attrs.pop("measure", None)
+        else:
+            gone = removed.get(row.id)
+            held = (
+                gone.attrs.get("measure") if isinstance(gone, tla.Component) else None
+            )
+            mark = copy.deepcopy(held)
         if isinstance(mark, dict):
-            marks[index] = (row.id, mark)
+            marks[place] = (row.id, mark)
     return marks
 
 
-def _note_deleted_downbeats(
-    timeline: tla.Timeline,
-    rows: Sequence[tla.Measure],
-    removed: Removed,
-    notes: list[str],
-) -> None:
-    """A deleted downbeat takes its mark with it, whole, into `removed`."""
-    for row in rows:
-        if row.id in timeline.components:
-            continue
-        gone = removed.get(row.id)
-        mark = gone.attrs.get("measure") if isinstance(gone, tla.Component) else None
-        if isinstance(mark, dict) and _carries_more_than_a_number(mark):
-            notes.append(
-                f"Beat {row.id} of timeline {timeline.id}, which started a measure, is"
-                f" deleted: its mark, {mark}, left the file with it."
-            )
+# What `removed` keeps of a mark, under the beat it is on: a number the bridge wrote,
+# a `next` as it was before a name in it changed with a measure that went, and a
+# `restart` a gone measure handed on.
+_RECORDS = ("number", "next", "restart")
+
+
+def _record_key(beat_id: str, record: str) -> str:
+    return f"{beat_id}/{record}"
+
+
+def _take_records(beat_id: str, removed: Removed) -> dict[str, Any]:
+    taken = {}
+    for record in _RECORDS:
+        key = _record_key(beat_id, record)
+        if key in removed:
+            taken[record] = removed.pop(key)
+    return taken
+
+
+def _put_records(beat_id: str, records: Mapping[str, Any], removed: Removed) -> None:
+    for record, value in records.items():
+        removed[_record_key(beat_id, record)] = value
 
 
 def _set_aside_mark(
@@ -960,7 +1064,7 @@ def _mark_key(beat_id: str) -> str:
 
 
 def _number_key(beat_id: str) -> str:
-    return f"{beat_id}/number"
+    return _record_key(beat_id, "number")
 
 
 def _rename_next(
@@ -968,15 +1072,27 @@ def _rename_next(
     starts: Mapping[str, int],
     renamed: Mapping[str, str],
     started_before: set[str],
+    gone: set[str],
+    removed: Removed,
     notes: list[str],
 ) -> None:
-    """A `next` keeps naming the same measure, at its new downbeat. One that named a
-    measure that is gone, or a beat that starts none, goes, since the writer refuses a
-    `next` that names no measure. A name of a downbeat the state doesn't hold, such as
-    a beat without a time, stays while it is one."""
+    """A `next` keeps naming the same measure, at its downbeat now. One that named a
+    measure that is gone names the next measure that stays, as `renamed` has it; with
+    none, or for a beat that starts no measure, the name goes, since the writer refuses
+    a `next` that names no measure. A name of a downbeat the state doesn't hold, such
+    as a beat without a time, stays while it is one. A list changed that way is kept as
+    it was in `removed`, and comes back once all it named start measures again."""
     components = timeline.components
     for beat_id in starts:
         mark = components[beat_id].attrs["measure"]
+        key = _record_key(beat_id, "next")
+        record = removed.get(key)
+        if isinstance(record, list) and all(
+            name in starts or _is_downbeat(components.get(name)) for name in record
+        ):
+            del removed[key]
+            mark["next"] = list(record)
+            continue
         following = mark.get("next")
         if not following:
             continue
@@ -988,6 +1104,10 @@ def _rename_next(
                 followed.append(name)
         if followed == following:
             continue
+        if key not in removed and (
+            len(followed) < len(following) or any(name in gone for name in following)
+        ):
+            removed[key] = list(following)
         if len(followed) < len(following):
             notes.append(
                 f"The measure at beat {beat_id} of timeline {timeline.id} was followed"
