@@ -259,18 +259,10 @@ class Timelines:
         ]
 
     def serialize_timelines(self) -> tuple[dict, str]:
-        # The hash is computed in ordinal order, so it doesn't depend on the
-        # order timelines were created in (e.g. undoing a deletion re-adds the
-        # timeline at the end).
-        by_ordinal = {tl.id: tl.get_state() for tl in sorted(self)}
-        hash = hash_function(
-            "|".join(tl_data["hash"] for tl_data in by_ordinal.values())
-        )
-        # The saved dict is keyed in id order, which reflects creation order
-        # and doesn't change when the user reorders timelines. Otherwise,
-        # reordering moves whole timeline blocks around the file, which
-        # version control shows as every line of those blocks having changed.
-        state = {id: by_ordinal[id] for id in sorted(by_ordinal, key=int)}
+        # Sorted, so the hash doesn't depend on the order timelines were
+        # created in (e.g. undoing a deletion re-adds the timeline at the end).
+        state = {tl.id: tl.get_state() for tl in sorted(self)}
+        hash = hash_function("|".join([tl_data["hash"] for tl_data in state.values()]))
         return state, hash
 
     def deserialize_timelines(self, data: dict) -> None:
