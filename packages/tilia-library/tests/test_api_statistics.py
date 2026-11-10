@@ -9,7 +9,6 @@ from support.fixture_backend import FixtureBackend
 
 import tilia_library
 from tilia_library.api import register_all
-from tilia_library.backend import CoreBackend
 from tilia_library.corpora import Corpora
 from tilia_library.server import LibraryServer
 
@@ -162,16 +161,6 @@ def test_query_error_is_400_with_position(library, cid):
 def test_unknown_corpus(library):
     status, _ = _stats(library, "nope")
     assert status == 404
-
-
-def test_core_backend_is_501(corpora, cid):
-    server = _serve(CoreBackend(), corpora)
-    try:
-        status, body = _stats(server, cid)
-    finally:
-        server.stop()
-    assert status == 501
-    assert body["needs"] in ("the query engine", "the index")
 
 
 def test_labels_in_several_scripts_survive(library, cid):

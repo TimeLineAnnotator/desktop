@@ -16,7 +16,7 @@ from tilia_library.backend import Backend, CoreBackend, NotAvailable, QueryError
 from tilia_library.server import ApiError, LibraryServer
 
 SUPPORT = Path(__file__).resolve().parent / "support"
-CORPUS = Path("corpus")
+CORPUS = Path(__file__).resolve().parent / "fixtures" / "corpus"
 
 
 def method_names():
@@ -65,7 +65,20 @@ def test_protocol_methods_exist_on_both():
         assert callable(getattr(FixtureBackend, name)), name
 
 
-@pytest.mark.parametrize("name", method_names())
+# What CoreBackend already does on tilia-core; the rest raise NotAvailable.
+AVAILABLE = {
+    "open_corpus",
+    "generation",
+    "context",
+    "explain",
+    "run",
+    "query_sql",
+    "sql",
+    "statistics",
+}
+
+
+@pytest.mark.parametrize("name", [n for n in method_names() if n not in AVAILABLE])
 def test_core_backend_not_available(name):
     with pytest.raises(NotAvailable) as info:
         call(CoreBackend(), name)
@@ -76,7 +89,7 @@ def test_core_backend_needs_texts():
     core = CoreBackend()
     assert pytest.raises(NotAvailable, core.scan, None).value.needs == "the index"
     assert (
-        pytest.raises(NotAvailable, core.query_sql, None, "x").value.needs
+        pytest.raises(NotAvailable, core.categories, None, False).value.needs
         == "the query engine"
     )
     assert (

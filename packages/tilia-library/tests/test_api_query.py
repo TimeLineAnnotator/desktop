@@ -9,7 +9,6 @@ from conftest import send
 from support.fixture_backend import FixtureBackend
 
 from tilia_library.api import register_all
-from tilia_library.backend import CoreBackend
 from tilia_library.corpora import Corpora
 from tilia_library.server import LibraryServer
 
@@ -282,14 +281,3 @@ def test_unknown_corpus(library):
         status, answer = _call(library, method, path, body)
         assert status == 404, path
         assert answer == {"error": "unknown corpus"}
-
-
-def test_core_backend_says_not_available(corpora, cid):
-    server = _serve(CoreBackend(), corpora)
-    try:
-        status, body = _ql(server, cid)
-        assert status == 501
-        assert body["error"] == "not available yet"
-        assert body["needs"] in ("the query engine", "the index")
-    finally:
-        server.stop()

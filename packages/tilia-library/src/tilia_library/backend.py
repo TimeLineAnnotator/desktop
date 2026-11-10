@@ -74,9 +74,11 @@ from __future__ import annotations
 
 import threading
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from tilia_core import tql
+from tilia_core.corpus import Corpus
+from tilia_core.corpus import open_corpus as open_core_corpus
 
 
 class NotAvailable(Exception):
@@ -199,20 +201,56 @@ def _parse(text: str) -> tql.Query:
         raise QueryError(error.msg, error.pos, error.end) from error
 
 
+def _corpus(handle: object) -> Corpus:
+    if not isinstance(handle, Corpus):
+        raise TypeError("not a corpus handle of CoreBackend")
+    return handle
+
+
+def _key(file_id: str) -> int:
+    """The index's key of an id the page sent; KeyError when it is none."""
+    try:
+        return int(file_id)
+    except (TypeError, ValueError):
+        raise KeyError(file_id) from None
+
+
+def _json(value: Any) -> Any:
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return bytes(value).hex()
+    return value
+
+
 _INDEX = "the index"
 _ENGINE = "the query engine"
 _EDITS = "bulk edits"
 _MEDIA = "media"
 
+SHOW_SQL_TIME_LIMIT_S = 10.0
+STATISTICS_MAX_MATCHES = 20_000
+STATISTICS_TIME_LIMIT_S = 30.0
+_STATISTICS = (
+    ("counts", "Counts"),
+    ("durations", "Durations"),
+    ("positions", "Positions"),
+    ("transitions", "Transitions"),
+)
+_STRIP_KINDS = ("hierarchy", "range", "marker", "harmony")
+"""The kinds whose strips a card draws when it names no timelines."""
+
 
 class CoreBackend:
-    """Backend on tilia-core. What the core can't do yet raises NotAvailable."""
+    """Backend on tilia-core. What the core can't do yet raises NotAvailable.
+
+    The index's keys are integers and the page's ids are text, so every id goes
+    out as ``str`` and comes back through ``int``.
+    """
 
     def open_corpus(self, path: Path) -> object:
-        raise NotAvailable(_INDEX)
+        return open_core_corpus(path)
 
     def generation(self, corpus: object) -> int:
-        raise NotAvailable(_INDEX)
+        return _corpus(corpus).generation
 
     def scan(self, corpus: object) -> dict:
         raise NotAvailable(_INDEX)
@@ -227,7 +265,39 @@ class CoreBackend:
         raise NotAvailable(_INDEX)
 
     def context(self, corpus: object, file_id: str, timeline_ids: list[str]) -> dict:
-        raise NotAvailable(_INDEX)
+        c = _corpus(corpus)
+        fid = _key(file_id)
+        wanted = {_key(t) for t in timeline_ids}
+        with c.reading() as r:
+            con = r.connection
+            row = con.execute(
+                "SELECT path, media_length FROM files WHERE id = ?", (fid,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(file_id)
+            path, end = row
+            if end is None:
+                end = con.execute(
+                    'SELECT max("end") FROM components WHERE file_id = ?', (fid,)
+                ).fetchone()[0]
+            timelines = []
+            for tid, name, kind in con.execute(
+                "SELECT id, name, kind FROM timelines WHERE file_id = ? "
+                "ORDER BY ordinal, id",
+                (fid,),
+            ).fetchall():
+                if wanted:
+                    if tid not in wanted:
+                        continue
+                elif kind not in _STRIP_KINDS:
+                    continue
+                timelines.append(_context_timeline(con, tid, name, kind))
+        return {
+            "file_id": str(fid),
+            "name": Path(path).name,
+            "end": end,
+            "timelines": timelines,
+        }
 
     def explain(self, text: str) -> str:
         return tql.explain(_parse(text))
@@ -241,10 +311,19 @@ class CoreBackend:
         time_limit: float,
         cancel: threading.Event,
     ) -> dict:
-        raise NotAvailable(_ENGINE)
+        c = _corpus(corpus)
+        query = _parse(text)
+        result = _run(c, query, max_matches, time_limit, cancel)
+        return _run_json(c, query, result)
 
     def query_sql(self, corpus: object, text: str) -> dict:
-        raise NotAvailable(_ENGINE)
+        c = _corpus(corpus)
+        result = _run(c, _parse(text), 1, SHOW_SQL_TIME_LIMIT_S, None)
+        # one statement runs per lane or file: show each part once
+        blocks = list({b.comment: b for b in result.sql_blocks}.values())
+        sql = "\n\n".join(b.text for b in blocks if b.statement is not None)
+        notes = [b.comment for b in blocks if b.statement is None]
+        return {"sql": sql, "notes": notes}
 
     def sql(
         self,
@@ -255,12 +334,55 @@ class CoreBackend:
         time_limit: float,
         cancel: threading.Event,
     ) -> dict:
-        raise NotAvailable(_ENGINE)
+        c = _corpus(corpus)
+        try:
+            table = tql.sql(
+                c, text, max_rows=max_rows, time_limit=time_limit, cancel=cancel
+            )
+        except tql.TQLError as error:
+            raise SqlError(error.msg) from error
+        return {
+            "columns": list(table.columns),
+            "rows": [[_json(v) for v in row] for row in table.rows],
+            "stopped": table.stopped,
+            "generation": c.generation,
+        }
 
     def statistics(
         self, corpus: object, text: str, by: list[str], *, fold: bool = False
     ) -> dict:
-        raise NotAvailable(_ENGINE)
+        c = _corpus(corpus)
+        query = _parse(text)
+        keys = list(by)
+        if not 1 <= len(keys) <= 2:
+            raise QueryError("by must name one or two keys")
+        result = _run(c, query, STATISTICS_MAX_MATCHES, STATISTICS_TIME_LIMIT_S, None)
+        tables = []
+        try:
+            for name, title in _STATISTICS:
+                if name == "transitions":
+                    table = result.stats(name, fold_subtypes=fold)
+                elif name == "counts":
+                    table = result.stats(name, keys, fold_subtypes=fold)
+                else:
+                    table = result.stats(name, keys[0], fold_subtypes=fold)
+                tables.append(
+                    {
+                        "name": name,
+                        "title": title,
+                        "columns": list(table.columns),
+                        "rows": [[_json(v) for v in row] for row in table.rows],
+                    }
+                )
+        except ValueError as error:
+            raise QueryError(str(error)) from error
+        warnings = list(result.warnings)
+        if result.stopped is not None:
+            warnings.append(
+                f"the query stopped early ({result.stopped}): the tables count "
+                "only the matches found"
+            )
+        return {"generation": result.generation, "tables": tables, "warnings": warnings}
 
     def categories(self, corpus: object, fold: bool) -> dict:
         raise NotAvailable(_ENGINE)
@@ -281,3 +403,181 @@ class CoreBackend:
 
     def media_of(self, corpus: object, file_id: str) -> dict:
         raise NotAvailable(_MEDIA)
+
+
+# --------------------------------------------------------------------------- #
+# CoreBackend's shapes
+# --------------------------------------------------------------------------- #
+def _run(
+    c: Corpus,
+    query: tql.Query,
+    max_matches: int | None,
+    time_limit: float | None,
+    cancel: threading.Event | None,
+) -> tql.Result:
+    try:
+        return tql.run(
+            c, query, max_matches=max_matches, time_limit=time_limit, cancel=cancel
+        )
+    except tql.TQLError as error:
+        raise QueryError(error.msg, error.pos, error.end) from error
+
+
+def _context_timeline(con: Any, tid: int, name: str, kind: str) -> dict:
+    """One timeline of ``context``: its strip rows and its units."""
+    found = con.execute(
+        'SELECT c.id, c.kind, c.start, c."end", c.label, c.color, h.level, r.row, '
+        "ch.symbol, k.key "
+        "FROM components c "
+        "LEFT JOIN hierarchies h ON h.component_id = c.id "
+        "LEFT JOIN ranges r ON r.component_id = c.id "
+        "LEFT JOIN chords ch ON ch.component_id = c.id "
+        "LEFT JOIN keys k ON k.component_id = c.id "
+        'WHERE c.timeline_id = ? ORDER BY c.start, c."end", c.id',
+        (tid,),
+    ).fetchall()
+    rows: dict[str, str] = {}
+    row_levels: dict[str, int] = {}
+    if kind == "hierarchy":
+        for level in sorted({r[6] for r in found if r[6] is not None}):
+            rows[str(level)] = f"level {level}"
+    elif kind == "range":
+        for r in found:
+            if r[7] not in row_levels:
+                row_levels[r[7]] = len(row_levels) + 1
+                rows[str(row_levels[r[7]])] = r[7] or ""
+    elif kind == "harmony":
+        rows = {"1": "chords", "2": "keys"}
+    else:
+        rows = {"1": name}
+    components = []
+    for cid, ckind, start, end, label, color, level, row, symbol, key in found:
+        if kind == "hierarchy":
+            at = level if level is not None else 1
+        elif kind == "range":
+            at = row_levels[row]
+        elif kind == "harmony":
+            at = 2 if ckind == "key" else 1
+            label = label or symbol or key or ""
+        else:
+            at = 1
+        components.append(
+            {
+                "component_id": str(cid),
+                "level": at,
+                "start": start,
+                "end": end,
+                "label": label,
+                "color": color,
+                "point": start == end,
+            }
+        )
+    return {
+        "id": str(tid),
+        "name": name,
+        "kind": kind,
+        "rows": rows,
+        "components": components,
+    }
+
+
+def _run_json(c: Corpus, query: tql.Query, result: tql.Result) -> dict:
+    with c.reading() as r:
+        con = r.connection
+        names = dict(con.execute("SELECT id, name FROM timelines").fetchall())
+        paths = dict(con.execute("SELECT id, path FROM files").fetchall())
+    matches = [_match_json(m, names, paths) for m in result.matches]
+    rows = []
+    for row, match in zip(result.rows, matches, strict=True):
+        row = {k: _json(v) for k, v in row.items()}
+        # TQL's file column is the document's id; the page shows the file's name.
+        if "file" in row and match["name"]:
+            row["file"] = match["name"]
+        rows.append(row)
+    action = query.action
+    action_error = None
+    if action is not None:
+        action_error = {
+            "error": "bulk edits are not available yet",
+            "pos": action.pos,
+            "end": len(query.text),
+        }
+    return {
+        "columns": list(result.columns),
+        "rows": rows,
+        "matches": matches,
+        "files": len({m["file_id"] for m in matches}),
+        "grain": result.grain,
+        "slots": query.slot_count,
+        "target": query.has_target,
+        "explain": result.explain,
+        "warnings": list(result.warnings),
+        "action": None if action is None else action.verb.lower(),
+        "action_error": action_error,
+        "stopped": result.stopped,
+        "generation": result.generation,
+    }
+
+
+def _match_json(m: tql.Match, names: dict[int, str], paths: dict[int, str]) -> dict:
+    slots = []
+    spans: list[tuple[float, float]] = []
+    targets: list[tuple[float, float]] = []
+    timelines: list[str] = []
+    file_id = m.file_id
+    first = None
+    for n, slot in enumerate(m.slots, 1):
+        units = []
+        for k, comp in enumerate(slot):
+            segment = (
+                m.segments[n - 1][k]
+                if m.segments and len(m.segments) >= n and len(m.segments[n - 1]) > k
+                else (comp.start, comp.end)
+            )
+            target = m.is_target(n, k)
+            spans.append(segment)
+            if target:
+                targets.append(segment)
+            if first is None:
+                first = comp
+                file_id = comp.file_id
+            if str(comp.timeline_id) not in timelines:
+                timelines.append(str(comp.timeline_id))
+            units.append(
+                {
+                    "component_id": str(comp.id),
+                    "timeline_id": str(comp.timeline_id),
+                    "timeline": names.get(comp.timeline_id, ""),
+                    "label": comp.label,
+                    "start": segment[0],
+                    "end": segment[1],
+                    "level": comp.level,
+                    "kind": comp.kind,
+                    "target": target,
+                }
+            )
+        slots.append(units)
+    if m.timeline_id is not None and str(m.timeline_id) not in timelines:
+        timelines.append(str(m.timeline_id))
+    lane = None
+    if first is not None:
+        lane = {
+            "timeline_id": str(first.timeline_id),
+            "timeline": names.get(first.timeline_id, ""),
+            "kind": first.kind,
+            "level": m.lane_level,
+            "row": m.lane_row,
+        }
+    path = paths.get(file_id) if file_id is not None else None
+    return {
+        "key": m.key,
+        "file_id": None if file_id is None else str(file_id),
+        "name": Path(path).name if path else None,
+        "start": min((s for s, _ in spans), default=None),
+        "end": max((e for _, e in spans), default=None),
+        "match_start": min((s for s, _ in targets), default=None),
+        "match_end": max((e for _, e in targets), default=None),
+        "lane": lane,
+        "slots": slots,
+        "timelines": timelines,
+    }
