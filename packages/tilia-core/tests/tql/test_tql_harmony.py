@@ -609,12 +609,20 @@ def mode(name, typ):
     return {**key(name), "type": typ}
 
 
-d_dorian, g_mixo, e_phryg = mode("D", "dorian"), mode("G", "mixolydian"), mode("E", "phrygian")
+d_dorian, g_mixo, e_phryg = (
+    mode("D", "dorian"),
+    mode("G", "mixolydian"),
+    mode("E", "phrygian"),
+)
 
 
 def test_modal_key_props():
     assert key_props(d_dorian) == {"tonic": "D", "mode": "dorian", "key": "D Dorian"}
-    assert key_props(g_mixo) == {"tonic": "G", "mode": "mixolydian", "key": "G Mixolydian"}
+    assert key_props(g_mixo) == {
+        "tonic": "G",
+        "mode": "mixolydian",
+        "key": "G Mixolydian",
+    }
     assert key_props(mode("Bb", "lydian"))["key"] == "Bb Lydian"
     assert key_props({**d_dorian, "type": "ionian"})["mode"] == "major"
 
@@ -692,7 +700,17 @@ TILIA_LABELS = [
     ("A", "major", 0, 0, c, "A", "`#VI", "A", "#VI"),
     ("Ab", "minor", 0, 0, c, "A`bm", "`bvi", "Abm", "bvi"),
     ("Eb", "dominant-seventh", 0, 5, C, "E`b7", "V7/VI", "Eb7", "V7/VI"),
-    ("F#", "diminished-seventh", 3, 4, C, "F`#o7/E`b", "viio#42/V", "F#°7/Eb", "vii°#42/V"),
+    (
+        "F#",
+        "diminished-seventh",
+        3,
+        4,
+        C,
+        "F`#o7/E`b",
+        "viio#42/V",
+        "F#°7/Eb",
+        "vii°#42/V",
+    ),
     ("G", "dominant-seventh", 1, 0, C, "G7/B", "V65", "G7/B", "V65"),
     ("G", "dominant-seventh", 3, 0, C, "G7/F", "V42", "G7/F", "V42"),
     ("F", "major-seventh", 1, 0, C, "F^^7/A", "IV65", "FΔ7/A", "IV65"),
@@ -708,7 +726,17 @@ TILIA_LABELS = [
     ("G", "dominant-ninth", 3, 0, C, "G9/F", "V%sss432", "G9/F", "V432"),
     ("G", "dominant-11th", 0, 0, C, "G11   ", "V11    ", "G11", "V11"),
     ("G", "major-13th", 0, 0, C, "G^^13", "V13", "GΔ13", "V13"),
-    ("Bb", "seventh-flat-five", 0, 0, C, "B-7((b5))", "`bVII7((b5))", "B-7(b5)", "bVII7(b5)"),
+    (
+        "Bb",
+        "seventh-flat-five",
+        0,
+        0,
+        C,
+        "B-7((b5))",
+        "`bVII7((b5))",
+        "B-7(b5)",
+        "bVII7(b5)",
+    ),
     ("G", "suspended-second", 1, 0, C, "Gsus2/G", "V74", "Gsus2/G", "V74"),
     ("G", "major-sixth", 3, 0, C, "G6/G", "V7", "G6/G", "V7"),
     ("G", "suspended-fourth", 0, 0, C, "Gsus", "V54", "Gsus", "V54"),
@@ -717,9 +745,39 @@ TILIA_LABELS = [
     ("C", "Tristan", 0, 0, C, "C`t`r`i`s`t", "I`t`r`i`s`t", "Ctrist", "Itrist"),
     ("E", "German", 0, 0, C, "Gr6+", "Gr6+", "Gr6+", "Gr6+"),
     ("Db", "Neapolitan", 1, 0, C, "N6", "N6", "N6", "N6"),
-    ("C", "dominant-seventh-flat-ninth", 1, 0, C, "C7((b9))/E", "Ib65((b9))", "C7(b9)/E", "Ib65(b9)"),
-    ("G", "dominant-seventh-sharp-eleventh", 0, 0, C, "G7((#1\u200c1))", "V7((#1\u200c1))", "G7(#11)", "V7(#11)"),
-    ("F", "major-sixth-added-ninth", 0, 0, C, "F6((9))", "IV((6))((9))", "F6(9)", "IV(6)(9)"),
+    (
+        "C",
+        "dominant-seventh-flat-ninth",
+        1,
+        0,
+        C,
+        "C7((b9))/E",
+        "Ib65((b9))",
+        "C7(b9)/E",
+        "Ib65(b9)",
+    ),
+    (
+        "G",
+        "dominant-seventh-sharp-eleventh",
+        0,
+        0,
+        C,
+        "G7((#1\u200c1))",
+        "V7((#1\u200c1))",
+        "G7(#11)",
+        "V7(#11)",
+    ),
+    (
+        "F",
+        "major-sixth-added-ninth",
+        0,
+        0,
+        C,
+        "F6((9))",
+        "IV((6))((9))",
+        "F6(9)",
+        "IV(6)(9)",
+    ),
     ("C#", "major", 0, 0, mode_key(1, 0, "dorian"), "C`#", "`#VII", "C#", "#VII"),
     ("F", "major", 0, 0, mode_key(1, 0, "dorian"), "F", "III", "F", "III"),
     ("G#", "diminished", 0, 0, key("a"), "G`#dim", "viio", "G#dim", "vii°"),
@@ -743,7 +801,9 @@ def _stored(root, quality, inversion, applied):
     }
 
 
-@pytest.mark.parametrize("row", TILIA_LABELS, ids=lambda r: f"{r[0]}-{r[1]}-{r[2]}-{r[3]}")
+@pytest.mark.parametrize(
+    "row", TILIA_LABELS, ids=lambda r: f"{r[0]}-{r[1]}-{r[2]}-{r[3]}"
+)
 def test_labels_are_the_ones_tilia_shows(row):
     root, quality, inversion, applied, k, letter, roman, symbol, plain = row
     ch = _stored(root, quality, inversion, applied)
@@ -769,10 +829,26 @@ def test_plain_text_of_the_font():
 @pytest.mark.parametrize(
     "k",
     [key(t) for t in ("C", "c", "f#", "Eb", "bb", "A")]
-    + [mode("D", "dorian"), mode("E", "phrygian"), mode("Bb", "lydian"),
-       mode("G", "mixolydian"), mode("F#", "locrian")],
-    ids=["C", "c", "f#", "Eb", "bb", "A", "D-dorian", "E-phrygian",
-         "Bb-lydian", "G-mixolydian", "F#-locrian"],
+    + [
+        mode("D", "dorian"),
+        mode("E", "phrygian"),
+        mode("Bb", "lydian"),
+        mode("G", "mixolydian"),
+        mode("F#", "locrian"),
+    ],
+    ids=[
+        "C",
+        "c",
+        "f#",
+        "Eb",
+        "bb",
+        "A",
+        "D-dorian",
+        "E-phrygian",
+        "Bb-lydian",
+        "G-mixolydian",
+        "F#-locrian",
+    ],
 )
 @pytest.mark.parametrize(
     "name",
