@@ -13,10 +13,11 @@ states the fingerprint the index holds then finds the file it expects.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tilia_core import tla
+from tilia_core import timemap, tla
 from tilia_core.tla.model import Kind
 from tilia_core.tla.reader import loads_for_fingerprint
 
@@ -119,4 +120,16 @@ def default_reader() -> TlaReader:
     return TlaReader()
 
 
-__all__ = ["TlaDocument", "TlaReader", "default_reader", "document_of"]
+def time_map_of(
+    document: Document, roles: Mapping[str, str | None]
+) -> timemap.TimeMap | None:
+    """The file's time map as WP9's ``time_map_of`` chooses it, with the roles
+    the index resolved (contracts/time-map.md): the default of
+    ``open_corpus``. None for a document :class:`TlaReader` didn't give, and
+    for one without a time map."""
+    if not isinstance(document, TlaDocument) or document.source is None:
+        return None
+    return timemap.time_map_of(document.source, roles)
+
+
+__all__ = ["TlaDocument", "TlaReader", "default_reader", "document_of", "time_map_of"]

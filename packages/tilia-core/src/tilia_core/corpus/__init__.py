@@ -30,6 +30,7 @@ from .settings import CorpusSettings, NoSettings
 from .store import Reading, Store
 from .time_map import TimeMap, TimeMapOf
 from .tla_reader import default_reader
+from .tla_reader import time_map_of as wp9_time_map_of
 
 __all__ = [
     "open_corpus",
@@ -438,7 +439,8 @@ def open_corpus(
     makes it raise: a file it can't read is listed as unreadable, and a
     subfolder it can't list is skipped, and results warn. ``reader`` reads the
     files (WP3's ``tla`` by default); ``settings`` are the corpus manifest's (none
-    until WP15); ``time_map_of`` gives a file's time map (none until WP9)."""
+    until WP15); ``time_map_of`` gives a file's time map (WP9's
+    ``timemap.time_map_of`` by default, for the documents of WP3's reader)."""
     folder = Path(os.path.expanduser(os.fspath(path))).resolve()
     try:
         info = os.stat(folder)
@@ -451,6 +453,8 @@ def open_corpus(
         raise NotADirectoryError(errno.ENOTDIR, message, str(folder))
     if reader is None:
         reader = default_reader()
+    if time_map_of is None:
+        time_map_of = wp9_time_map_of
     store = Store()
     scanner = Scanner(folder, store, reader, settings or NoSettings(), time_map_of)
     try:

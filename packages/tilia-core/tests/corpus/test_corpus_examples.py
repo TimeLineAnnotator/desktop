@@ -1,26 +1,22 @@
 """TQL's printed examples on their fixtures written as real ``.tla`` files
-(SC-003; TimeLineAnnotator/project-management#154).
+(SC-003; TimeLineAnnotator/project-management#154 and #157).
 
 Each fixture of ``examples.toml`` is built as ``corpus_docs`` builds it, written
 with ``tla.write``, and opened with ``open_corpus`` and its default reader,
-WP3's. The examples that need bars get WP13's fake time map of the fixture's
-beat timeline, found in the file read by its name; every example then gives the
-rows the list gives, as ``tests/tql/test_tql_examples.py`` runs them on the
+WP3's, and its default time map, WP9's: the examples that need bars get the
+time map of the fixture's beat timeline. Every example gives the rows the list gives, as ``tests/tql/test_tql_examples.py`` runs them on the
 fixture index."""
 
 from collections import Counter
-from collections.abc import Mapping
 from pathlib import Path
 
 import corpus_docs
 import examples
 import pytest
-from fake_timemap import FakeTimeMap
 from grammars import GRAMMARS
 from tla_files import as_tla
 
 from tilia_core import labels, open_corpus, tla, tql
-from tilia_core.corpus.documents import Document
 from tilia_core.corpus.settings import NoSettings
 
 DATA = examples.load()
@@ -38,25 +34,6 @@ def _pending() -> dict[int, str]:
 
 
 PENDING = _pending()
-
-
-def time_maps(fixture: dict):
-    """A ``time_map_of`` for the file of ``fixture``: the fake time map of its
-    beat timeline whose role is ``time_map``, else of its first, by the
-    timeline's name in the fixture."""
-    grids = {tl["name"]: tl for tl in fixture["timelines"] if tl["kind"] == "beats"}
-
-    def time_map_of(document: Document, roles: Mapping[str, str | None]):
-        beats = [tl for tl in document.timelines if tl.kind == "beat"]
-        chosen = [tl for tl in beats if roles.get(tl.id) == "time_map"]
-        if not (chosen or beats):
-            return None
-        tl = (chosen or beats)[0]
-        fake = FakeTimeMap.from_fixture(grids[tl.name])
-        fake.timeline_id, fake.guessed = tl.id, not chosen
-        return fake
-
-    return time_map_of
 
 
 class Grammar(NoSettings):
@@ -88,7 +65,6 @@ def corpus_of(tmp_path_factory):
                 folder,
                 rescan_before_reads=False,
                 settings=Grammar(fixture),
-                time_map_of=time_maps(fixture),
             )
         return _corpora[name]
 
