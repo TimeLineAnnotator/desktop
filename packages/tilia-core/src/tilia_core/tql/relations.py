@@ -18,6 +18,7 @@ Two kinds of relation, and the line between them decides what runs where:
 
 from __future__ import annotations
 
+import bisect
 import logging
 import sqlite3
 from dataclasses import dataclass
@@ -498,6 +499,45 @@ def _parts(_end: float, _start: float) -> bool:
     return True
 
 
+class LaneIndex:
+    """What :meth:`Scope.inside_items` looks a lane's items up by.
+
+    ``near(lo, hi)`` gives, in order, the positions of the items that may lie
+    within ``[lo, hi]`` in time: those whose piece starts in it, by bisection,
+    and the few whose piece does not start between their unit's start and the
+    time :meth:`Metric.inside` reads as its end (none, in a lane the index
+    built), which are always given. A unit within ``[lo, hi]`` has its piece
+    start in it, because a piece of a unit starts at or after the unit's start
+    and before its end. If the starts are out of order, every position is
+    given. ``hierarchy`` holds the positions of the hierarchy units by
+    timeline and unit."""
+
+    def __init__(self, items: list[Item]) -> None:
+        self.items = items  # kept, so that the id() it is cached by stays its own
+        starts = [it[1] for it in items]
+        ordered = all(a <= b for a, b in zip(starts, starts[1:], strict=False))
+        self.starts: list[float] | None = starts if ordered else None
+        self.odd: list[int] = []
+        self.hierarchy: dict[Any, dict[Any, list[int]]] = {}
+        for k, (u, start, _) in enumerate(items):
+            last = u.start if u.kind in ("chord", "key") else u.end
+            if not u.start <= start <= last:
+                self.odd.append(k)
+            if u.kind == "hierarchy":
+                self.hierarchy.setdefault(u.timeline_id, {}).setdefault(
+                    u.id, []
+                ).append(k)
+
+    def near(self, lo: float, hi: float) -> list[int]:
+        if self.starts is None:
+            return list(range(len(self.items)))
+        first = bisect.bisect_left(self.starts, lo)
+        last = bisect.bisect_right(self.starts, hi)
+        if not self.odd:
+            return list(range(first, last))
+        return sorted({*range(first, last), *self.odd})
+
+
 class Scope:
     """One file as the relations read it: its timelines' components, the lanes
     built from them, the hierarchy's parents, and the components each unit of
@@ -528,6 +568,8 @@ class Scope:
         self._lanes: dict[tuple[str, bool], list[LaneSpec]] = {}
         self._own: dict[str, list[LaneSpec]] = {}
         self._items: dict[LaneSpec, list[Item]] = {}
+        self._indexes: dict[int, LaneIndex] = {}  # by id() of a lane's items
+        self._descendants: dict[str, list[Component]] = {}
         self._fit: dict[int, frozenset[str]] = {}
         self._bar_fit: dict[tuple[int, str], bool] = {}
         self._keep: list[Any] = []  # units made here, kept so their ids stay theirs
@@ -1115,19 +1157,57 @@ class Scope:
     def inside_items(
         self, items: list[Item], outer: Component, metric: Metric, own: bool
     ) -> list[Item]:
-        """The items of a lane that lie in ``outer``: its descendants when the
-        lane is of its own hierarchy, otherwise those within it in time."""
-        out = []
-        for it in items:
-            u = it[0]
-            if u.id == outer.id:
-                continue
-            if own and u.timeline_id == outer.timeline_id and u.kind == "hierarchy":
-                if self.is_descendant(u, outer):
-                    out.append(it)
-            elif metric.inside(u, outer):
-                out.append(it)
-        return out
+        """The items of a lane that lie in ``outer``, in the lane's order: with
+        ``own``, a unit of ``outer``'s own hierarchy when it is one of its
+        descendants, and any other unit when it lies within ``outer`` in time
+        (:meth:`Metric.inside`).
+
+        Neither test reads every item (research R20): the descendants are
+        looked up by id, and the time test reads only the items that start
+        within ``outer``'s extent widened by the tolerance, which a sorted list
+        of starts gives by bisection (:class:`LaneIndex`)."""
+        index = self._lane_index(items)
+        picked: list[int] = []
+        if own:
+            here = index.hierarchy.get(outer.timeline_id)
+            if here:
+                for d in self._descendants_of(outer):
+                    picked.extend(here.get(d.id, ()))
+        if not metric.void:
+            for k in index.near(outer.start - metric.reach, outer.end + metric.reach):
+                u = items[k][0]
+                if u.id == outer.id:
+                    continue
+                if own and u.timeline_id == outer.timeline_id and u.kind == "hierarchy":
+                    continue  # tested as a descendant above
+                if metric.inside(u, outer):
+                    picked.append(k)
+        picked.sort()
+        return [items[k] for k in picked]
+
+    def _lane_index(self, items: list[Item]) -> LaneIndex:
+        got = self._indexes.get(id(items))
+        if got is None or got.items is not items:
+            got = self._indexes[id(items)] = LaneIndex(items)
+        return got
+
+    def _descendants_of(self, outer: Component) -> list[Component]:
+        """The units below ``outer`` in its hierarchy, as :meth:`is_descendant`
+        finds them: through the parents loaded."""
+        got = self._descendants.get(outer.id)
+        if got is None:
+            got = []
+            seen = {outer.id}
+            stack = list(self.children(outer))
+            while stack:
+                c = stack.pop()
+                if c.id in seen:
+                    continue
+                seen.add(c.id)
+                got.append(c)
+                stack.extend(self.children(c))
+            self._descendants[outer.id] = got
+        return got
 
     def targets_off_map(self, a: Component, rel: syntax.Relation) -> bool:
         """Whether ``rel`` with ``a`` on the left has targets, units of its lanes
