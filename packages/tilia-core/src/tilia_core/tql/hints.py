@@ -33,30 +33,37 @@ def empty(
     units: Iterable[tuple[syntax.Unit, syntax.Lane | None]],
     check: Callable[[], None],
     measures: values.Measures | None = None,
+    scopes: list[relations.Scope] | None = None,
 ) -> list[str]:
     """The messages for a query that matched nothing. ``units`` are the units
     of the query with the lane each is read in; ``check`` raises to stop, and
     the messages found by then are given. ``measures`` reads the bars, when the
-    run has read them already."""
+    run has read them already; ``scopes`` are the search's, one per readable
+    file in the order of their paths, when it kept them: what they loaded is
+    not read again."""
     pattern = query.pattern
     if pattern is None:
         return []
     units = list(units)
     log = Recorder(con)  # its blocks are dropped: these are no search statements
-    scopes: list[relations.Scope] = []
     out: list[str] = []
     if measures is None:
         measures = values.Measures(log)  # the bars of every file, read once
     try:
-        for (file_id,) in con.execute(
-            "SELECT id FROM files WHERE state = 'readable' ORDER BY path, id"
-        ):
-            check()
-            scopes.append(
-                relations.Scope(
-                    log, file_id, index.time_map(file_id), {}, check, measures
+        if scopes is None:
+            scopes = []
+            for (file_id,) in con.execute(
+                "SELECT id FROM files WHERE state = 'readable' ORDER BY path, id"
+            ):
+                check()
+                scopes.append(
+                    relations.Scope(
+                        log, file_id, index.time_map(file_id), {}, check, measures
+                    )
                 )
-            )
+        else:
+            for scope in scopes:
+                scope.hand_to(log)
         gaps = _gaps(scopes, pattern)
         if gaps:
             out.append(gaps)

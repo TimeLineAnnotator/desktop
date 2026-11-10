@@ -258,6 +258,7 @@ def _run_on(
     matches: list[Match] = []
     grain = "match"
     measures = values.Measures(log)  # the bars of every file, read once a run
+    scopes: list[relations.Scope] = []  # the search's, for the hints if it finds none
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
         with regexes.within(limits):
@@ -282,15 +283,25 @@ def _run_on(
                     warn,
                     limits,
                     measures,
+                    scopes,
                 )
                 if not matches and stopped is None and limits.stopped is None:
                     units = _lane_units(query)
                     warn.other.extend(
-                        hints.empty(con, index, query, units, limits.ensure, measures)
+                        hints.empty(
+                            con,
+                            index,
+                            query,
+                            units,
+                            limits.ensure,
+                            measures,
+                            scopes,
+                        )
                     )
                     if limits.stopped == "time_limit":
                         limits.stopped = None  # the search was whole; the hints
                         # ran out, and are left out
+                scopes.clear()
     finally:
         con.set_progress_handler(None, 0)
     # by path, then start (timelines in their order, files alone): keys change
@@ -597,12 +608,15 @@ def _pattern_matches(
     warn: _Warnings,
     limits: Limits,
     measures: values.Measures,
+    kept: list[relations.Scope] | None = None,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
     meet ``WHERE`` only, in the order found (``_run_on`` sorts them by path and
     time), and why the search stopped
     early, if it did. When ``max_matches`` stopped it, these are some
-    ``max_matches`` matches, not the first ones of the full result."""
+    ``max_matches`` matches, not the first ones of the full result. ``kept``
+    receives the scope of every file, for the hints, as long as nothing has
+    matched; once something has, it is emptied."""
     marked = query.has_target
     single = names.is_single(query)
     needs = names.time_needs(query)
@@ -625,6 +639,8 @@ def _pattern_matches(
                 limits.ensure,
                 measures,
             )
+            if kept is not None:
+                kept.append(scope)
             specs = scope.lanes(pattern.lane)
             if not specs:
                 continue
@@ -665,6 +681,9 @@ def _pattern_matches(
                     f"{showsql.where_text(query)}: tested in Python on each match."
                 )
             warn.scope_lacks(scope, needs, file_id)
+            if kept is not None and order:
+                kept.clear()  # no hints: the result is not empty
+                kept = None
             if stopped:
                 break
         if pattern.lane is not None and not any_lane:
