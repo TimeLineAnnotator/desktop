@@ -85,6 +85,9 @@ def key_spec(text: str) -> harmony.KeySpec | str:
         return str(exc)
 
 
+# Many chords and keys of a corpus have the same columns: each answer is kept
+# (the functions are pure, and registered as deterministic).
+@lru_cache(maxsize=65536)
 def tql_chord(
     literal: str | None,
     step: int | None,
@@ -115,6 +118,7 @@ def tql_chord(
     return 1 if harmony.chord_matches(spec, chord, key or derived.C_MAJOR) else 0
 
 
+@lru_cache(maxsize=65536)
 def tql_key(
     literal: str | None, step: int | None, accidental: int | None, mode: str | None
 ) -> int:
