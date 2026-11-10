@@ -34,13 +34,15 @@ def empty(
     check: Callable[[], None],
     measures: values.Measures | None = None,
     scopes: list[relations.Scope] | None = None,
+    lane_catalog: tql_compile.Catalog | None = None,
 ) -> list[str]:
     """The messages for a query that matched nothing. ``units`` are the units
     of the query with the lane each is read in; ``check`` raises to stop, and
     the messages found by then are given. ``measures`` reads the bars, when the
     run has read them already; ``scopes`` are the search's, one per readable
     file in the order of their paths, when it kept them: what they loaded is
-    not read again."""
+    not read again; ``lane_catalog`` holds the lanes' tables, when the run
+    has read them."""
     pattern = query.pattern
     if pattern is None:
         return []
@@ -58,7 +60,13 @@ def empty(
                 check()
                 scopes.append(
                     relations.Scope(
-                        log, file_id, index.time_map(file_id), {}, check, measures
+                        log,
+                        file_id,
+                        index.time_map(file_id),
+                        {},
+                        check,
+                        measures,
+                        lane_catalog,
                     )
                 )
         else:

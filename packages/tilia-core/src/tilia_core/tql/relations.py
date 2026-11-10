@@ -588,6 +588,7 @@ class Scope:
         labels: dict[int, str] | None = None,
         check: Callable[[], None] | None = None,
         measures: values.Measures | None = None,
+        catalog: tql_compile.Catalog | None = None,
     ) -> None:
         self.log = log
         self.check = check  # called now and then; raises to stop the run
@@ -616,6 +617,10 @@ class Scope:
         # the bars, shared among the files of a run (default: this file's alone)
         self.measures = values.Measures(log, file_id) if measures is None else measures
         self.facts = values.Facts(log, file_id, self.measures)
+        # the lanes' tables, shared among the files of a run (default: this file's)
+        self.catalog = (
+            tql_compile.Catalog(log.con, file_id) if catalog is None else catalog
+        )
         self.missing: set[str] = set()  # file fields a condition read and it lacks
         self.no_length = False  # a percentage needed the media length, and it lacks
         self._steps: dict[int, syntax.Unit] = {}
@@ -635,10 +640,8 @@ class Scope:
         """The file's path, ``files.path``, which the statements shown name it
         by."""
         if self._path is None:
-            row = self.log.con.execute(
-                "SELECT path FROM files WHERE id = ?", (self.file_id,)
-            ).fetchone()
-            self._path = "" if row is None else str(row[0])
+            path = self.catalog.path(self.file_id)
+            self._path = "" if path is None else str(path)
         return self._path
 
     # -- components ---------------------------------------------------------- #
@@ -698,13 +701,13 @@ class Scope:
             if tql_compile.on_bars(lane):
                 # the measures of every file are read once (values.Measures)
                 got = self._lanes[key] = (
-                    tql_compile.bar_lane(self.log.con, self.file_id)
+                    tql_compile.bar_lane(self.catalog, self.file_id)
                     if self.measures.of(self.file_id)
                     else []
                 )
             else:
                 got = self._lanes[key] = tql_compile.resolve_lanes(
-                    self.log.con, self.file_id, lane
+                    self.catalog, self.file_id, lane
                 )
         return got
 
@@ -712,7 +715,7 @@ class Scope:
         got = self._own.get(timeline_id)
         if got is None:
             got = self._own[timeline_id] = tql_compile.timeline_lanes(
-                self.log.con, timeline_id
+                self.catalog, timeline_id
             )
         return got
 
@@ -849,8 +852,10 @@ class Scope:
         for unit in units:
             got = self._fit_timelines.get(id(unit))
             if got is None and id(unit) in self._fit:
+                fit = self._fit[id(unit)]
+                # nothing fits: no need to know where the file's units are
                 got = frozenset(
-                    map(self._timeline_map().__getitem__, self._fit[id(unit)])
+                    map(self._timeline_map().__getitem__, fit) if fit else ()
                 )
                 self._fit_timelines[id(unit)] = got
             if got is None:
