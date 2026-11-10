@@ -24,12 +24,12 @@ from typing import Any
 
 from . import schema
 from .documents import DocumentReader
-from .fingerprint import NO_READER
 from .fingerprint import of_path as fingerprint
 from .scan import RESCAN_AFTER, ScanReport, Scanner
 from .settings import CorpusSettings, NoSettings
 from .store import Reading, Store
 from .time_map import TimeMap, TimeMapOf
+from .tla_reader import default_reader
 
 __all__ = [
     "open_corpus",
@@ -437,7 +437,7 @@ def open_corpus(
     system's ``OSError`` for a folder it can't list; nothing inside the folder
     makes it raise: a file it can't read is listed as unreadable, and a
     subfolder it can't list is skipped, and results warn. ``reader`` reads the
-    files (WP3's, once it lands); ``settings`` are the corpus manifest's (none
+    files (WP3's ``tla`` by default); ``settings`` are the corpus manifest's (none
     until WP15); ``time_map_of`` gives a file's time map (none until WP9)."""
     folder = Path(os.path.expanduser(os.fspath(path))).resolve()
     try:
@@ -450,7 +450,7 @@ def open_corpus(
             message += f"; to open the corpus it belongs to, open {folder.parent}"
         raise NotADirectoryError(errno.ENOTDIR, message, str(folder))
     if reader is None:
-        raise NotImplementedError(NO_READER)
+        reader = default_reader()
     store = Store()
     scanner = Scanner(folder, store, reader, settings or NoSettings(), time_map_of)
     try:
