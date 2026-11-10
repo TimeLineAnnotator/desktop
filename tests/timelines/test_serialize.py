@@ -164,6 +164,18 @@ class TestRoundTripDesktopFileDesktop:
         ]
         assert changed == []
 
+    def test_reordered_timelines_keep_their_order_after_reopening(
+        self, tls, slider_tlui, marker_tlui, beat_tlui, tmp_path
+    ):
+        # The file lists timelines in id order, so here their ordinals come
+        # out of order.
+        commands.execute("timelines.permute_ordinal", marker_tlui, beat_tlui)
+        order = [(str(tl.id), tl.ordinal) for tl in tls.get_timelines()]
+
+        save_and_reopen(tmp_path)
+
+        assert [(str(tl.id), tl.ordinal) for tl in tls.get_timelines()] == order
+
     def test_save_open_save_preserves_components_per_timeline(
         self, slider_tlui, marker_tlui, beat_tlui, tmp_path
     ):
