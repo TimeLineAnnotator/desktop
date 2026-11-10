@@ -826,9 +826,13 @@ def _rewrite_marks(
         taken = marks.pop(source, None) if source is not None else None
         if isinstance(attrs.get("measure"), dict):
             # A beat back from `removed`, with its own mark: what its measure's
-            # downbeat held meanwhile is a copy of it.
-            if taken is not None and taken[1] != attrs["measure"]:
+            # downbeat held meanwhile is a copy of it, and what `removed` kept of
+            # that copy, such as a number this wrote, is its own again.
+            if taken is not None and taken[1] == attrs["measure"]:
+                _put_records(beat_id, carried.get(source, {}), removed)
+            elif taken is not None:
                 _set_aside_mark(timeline, taken[0], taken[1], removed, notes)
+                _put_records(taken[0], carried.get(source, {}), removed)
         elif taken is not None:
             attrs["measure"] = taken[1]
             _take_records(beat_id, removed)

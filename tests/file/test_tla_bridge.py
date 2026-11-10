@@ -2544,6 +2544,22 @@ class TestMarksInOneAction:
         opened.sync(opened.first)
         assert opened.bytes() == opened.bytes_read
 
+    def test_a_number_written_on_a_deleted_downbeat_and_two_undos(self, live):
+        # The deleted downbeat's measure stays, so a copy of its mark, with the number
+        # written on it, goes to the next beat; back, the beat's own mark is the
+        # one whose number goes with the second undo.
+        timeline_id, ids, doc = labelled([3] * 4, pattern="3")
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.set_measure_number(2, 40)
+        opened.sync()
+        numbered = copy.deepcopy(opened.synced)
+        timeline.delete_components([timeline.get_component(ids[6])])
+        opened.sync()
+        opened.sync(numbered)
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
     def test_a_restart_on_a_measure_that_is_gone_goes_to_the_next(self, live):
         # As the core does when a one-beat measure's downbeat is deleted: the next
         # measure states the number it read, unless TiLiA's lists say another.
