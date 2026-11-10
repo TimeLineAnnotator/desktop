@@ -302,6 +302,7 @@ class Facts:
         self._bars: dict[str, dict[str, Any]] | None = None
         self._bar_prefix = bar_id(self.file_id, 0).removesuffix("0")
         self._units: dict[str, dict[str, Any]] | None = None
+        self._units_of: dict[Any, dict[str, dict[str, Any]]] = {}  # by timeline
         self._timelines: dict[str, dict[str, Any]] = {}
         self._file: dict[str, list[Any]] | None = None
         self._media_length: list[float | None] | None = None
@@ -316,10 +317,17 @@ class Facts:
             self._media_length = [rows[0][0] if rows else None]
         return self._media_length[0]
 
-    def unit(self, comp_id: str) -> dict[str, Any]:
-        """The stored fields of one component (``tags`` is a list)."""
+    def unit(self, comp_id: str, timeline_id: Any = None) -> dict[str, Any]:
+        """The stored fields of one component (``tags`` is a list). Given its
+        timeline, only that timeline's units are loaded, not the whole file's
+        (a query on the keys of a file, say, reads none of its chords')."""
         if isinstance(comp_id, str) and comp_id.startswith(self._bar_prefix):
             return self._load_bars().get(comp_id, {})  # no component row holds one
+        if self._units is None and timeline_id is not None:
+            units = self._units_of.get(timeline_id)
+            if units is None:
+                units = self._units_of[timeline_id] = self._load_units(timeline_id)
+            return units.get(comp_id, {})
         if self._units is None:
             self._units = self._load_units()
         return self._units.get(comp_id, {})
@@ -340,7 +348,12 @@ class Facts:
             }
         return self._chord_labels.get(comp_id, [])
 
-    def _load_units(self) -> dict[str, dict[str, Any]]:
+    def _load_units(self, timeline_id: Any = None) -> dict[str, dict[str, Any]]:
+        """The fields of the units of the file, or of one of its timelines."""
+        where, params = "c.file_id = ?", [self.file_id]
+        if timeline_id is not None:
+            where += " AND c.timeline_id = ?"
+            params.append(timeline_id)
         rows = self.log.execute(
             "SELECT c.id, c.color, c.comments, h.depth, ch.quality, ch.inversion, "
             "ch.applied_to, ch.root, ch.roman, ch.symbol, COALESCE(ch.key, k.key), "
@@ -350,8 +363,8 @@ class Facts:
             "LEFT JOIN hierarchies h ON h.component_id = c.id "
             "LEFT JOIN chords ch ON ch.component_id = c.id "
             "LEFT JOIN keys k ON k.component_id = c.id "
-            "LEFT JOIN positions p ON p.component_id = c.id WHERE c.file_id = ?",
-            (self.file_id,),
+            f"LEFT JOIN positions p ON p.component_id = c.id WHERE {where}",
+            params,
         )
         names = (
             "color comments depth quality inversion applied_to root roman symbol "
@@ -364,9 +377,9 @@ class Facts:
         tags = self.log.execute(
             "SELECT f.owner_id, f.value FROM fields f "
             "JOIN components c ON c.id = f.owner_id "
-            "WHERE f.scope = 'component' AND f.name = 'tags' AND c.file_id = ? "
+            f"WHERE f.scope = 'component' AND f.name = 'tags' AND {where} "
             "ORDER BY f.rowid",
-            (self.file_id,),
+            params,
         )
         for owner, value in tags:
             units[owner]["tags"].append(value)
