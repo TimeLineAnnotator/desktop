@@ -327,7 +327,9 @@ class App:
             self.restore_player_state(
                 state["media_path"], state["media_metadata"].get("media length", 0)
             )
-            self.file_manager.set_media_metadata(state["media_metadata"])
+            # A copy: the file's metadata changes in place (e.g. with the
+            # length of media loaded later), which must not reach the state.
+            self.file_manager.set_media_metadata(dict(state["media_metadata"]))
             if self.player.is_media_loaded:
                 # The loaded media's length, not the snapshot's, is what the
                 # file must save.

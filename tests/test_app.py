@@ -684,6 +684,33 @@ class TestUndoAcrossYouTubeMediaChange:
         assert hierarchy_bounds(tls) == [(10, 30)]
         assert tilia_state.duration == self.REAL_DURATION
 
+    def test_media_loaded_after_undo_leaves_undone_state_length_alone(
+        self, tilia, tilia_state, qtui, hierarchy_tlui, tls, tmp_path
+    ):
+        # Undo restores a state's metadata into the file. The length of media
+        # loaded after that must not leak into the restored state, or undoing
+        # back to it would prompt to scale its components to that length.
+        load_youtube_media(YOUTUBE_URL_A)
+        tilia_state.duration = self.STORED_DURATION
+        commands.execute("timeline.hierarchy.add", start=10, end=30, level=1)
+        save_and_reopen(tmp_path)
+        commands.execute("timeline.hierarchy.add", start=40, end=50, level=1)
+        commands.execute("edit.undo")
+
+        load_youtube_media(YOUTUBE_URL_B)
+        with Serve(Get.FROM_USER_YES_OR_NO, False):
+            report_late_duration(tilia, 2 * self.STORED_DURATION)
+
+        commands.execute("edit.undo")
+        assert tilia_state.media_path == YOUTUBE_URL_A
+        assert tilia_state.duration == self.STORED_DURATION
+
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as scale_prompt:
+            report_late_duration(tilia, self.STORED_DURATION)
+
+        assert not scale_prompt.called
+        assert hierarchy_bounds(tls) == [(10, 30)]
+
 
 class TestUndoScaleOrCropFromLateDurationReport:
     # YouTube's real length arrives after the state for the load is recorded,

@@ -28,11 +28,7 @@ class UndoManager:
         for entry in self.stack:
             state = entry["state"]
             if state["media_path"] == media_path:
-                # A new dict: the file may be sharing the restored state's.
-                state["media_metadata"] = {
-                    **state["media_metadata"],
-                    "media length": length,
-                }
+                state["media_metadata"]["media length"] = length
 
     @property
     def is_cleared(self):
