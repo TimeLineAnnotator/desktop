@@ -16,6 +16,7 @@ for `write`: it stays old, and so does one that moves with a mark
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Iterator
 from typing import Any
 
@@ -29,6 +30,19 @@ from tilia_core.tla.model import (
     beat_order,
     measure_table,
 )
+
+
+class CantDeleteDownbeat(ValueError):
+    """A downbeat can't be deleted: a closing tap follows it, so its mark
+    would go, and the timeline's first beat would have no mark while a
+    later measure remains. Nothing changed. Deleting the closing tap first
+    lets the mark move on (TimeLineAnnotator/project-management#528,
+    point 1)."""
+
+    def __init__(self, message: str, beat_id: str, closing_tap_id: str):
+        super().__init__(message)
+        self.beat_id = beat_id
+        self.closing_tap_id = closing_tap_id
 
 
 def _beat_timeline(doc: Document, timeline_id: str) -> Timeline:
@@ -57,7 +71,9 @@ def delete_beat(
     doc: Document, timeline_id: str, beat_id: str, *, by_person: bool = True
 ) -> None:
     """Delete a beat from a beat timeline. Raises `KeyError` for a timeline or
-    beat that isn't there.
+    beat that isn't there, and `CantDeleteDownbeat`, changing nothing, where
+    the mark would go and leave the timeline's first beat without one while
+    a later measure remains: a closing tap inside the first measure.
 
     A downbeat's mark moves to the next beat in time order, with its beat
     unit, and every `next` that named the downbeat names that beat. When the
@@ -83,6 +99,7 @@ def delete_beat(
     table = _table(timeline)
     order = beat_order({k: c.attrs for k, c in beats.items()})
     later = order[order.index(beat_id) + 1 :]
+    _refuse_an_unmarked_first_beat(timeline, beats, beat_id, order, later)
     before = problems.states_of(
         doc, timeline_id, _may_change(timeline, table, beat_id, later[:1])
     )
@@ -96,6 +113,47 @@ def delete_beat(
             _mark_source(timeline, downbeat_id, table.source)
     _refresh(timeline)
     problems.keep_old(doc, timeline_id, before, moved)
+
+
+def _refuse_an_unmarked_first_beat(
+    timeline: Timeline,
+    beats: dict[str, Component],
+    beat_id: str,
+    order: list[str],
+    later: list[str],
+) -> None:
+    """Raise `CantDeleteDownbeat` where deleting the downbeat `beat_id` would
+    leave the timeline's first beat without a mark while another beat has
+    one, as the reader refuses: when its mark goes, since a closing tap
+    follows it. While a beat has no time, the reader reads such a file, and
+    so the deletion goes on."""
+    if not _is_downbeat(beats[beat_id]) or not later:
+        return
+    tap_id = later[0]
+    if not beats[tap_id].attrs.get("closing"):
+        return
+    firsts = [key for key in order if not beats[key].attrs.get("closing")]
+    left = firsts[1:]
+    if firsts[0] != beat_id or not left:
+        return
+    if isinstance(beats[left[0]].attrs.get("measure"), dict):
+        return
+    if any(beats[key].attrs.get("time") is None for key in left):
+        return
+    if not any(
+        isinstance(beats[key].attrs.get("measure"), dict)
+        for key in beats
+        if key != beat_id
+    ):
+        return
+    name = json.dumps(timeline.name, ensure_ascii=False)
+    raise CantDeleteDownbeat(
+        f"the first downbeat of the timeline {name} can't be deleted while a"
+        " closing tap follows it: its mark would go, and the timeline's first"
+        " beat would have no measure mark. Delete the closing tap first.",
+        beat_id,
+        tap_id,
+    )
 
 
 def _may_change(

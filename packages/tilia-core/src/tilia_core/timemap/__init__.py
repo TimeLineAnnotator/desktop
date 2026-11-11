@@ -132,8 +132,9 @@ def find_time_map(
     Every beat timeline whose last beat is at or after the end of the media
     gets a warning too, with its id, the time map's or not; so does each of its
     taps marked closing that is read as an ordinary beat, lies past the media
-    or has a beat unit. The warnings are logged here, once for each call, and
-    not when a table is built.
+    or has a beat unit, and each beat unit on a timeline with no measure mark.
+    The warnings are logged here, once for each call, and not when a table is
+    built.
     """
     beat_timelines = sorted(
         (t for t in document.timelines.values() if t.kind == "beat"),
