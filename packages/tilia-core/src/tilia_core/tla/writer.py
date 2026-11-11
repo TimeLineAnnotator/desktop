@@ -178,6 +178,8 @@ def _object(
             elif key in empty:
                 if kind is dict and not item:
                     continue
+            elif kind is list and not item and key in shape.none_when_empty_list:
+                continue  # it counts as none, as None does
         writer = writers.get(key) if writers else None
         if writer is not None:
             written[key] = writer(item, place, key)

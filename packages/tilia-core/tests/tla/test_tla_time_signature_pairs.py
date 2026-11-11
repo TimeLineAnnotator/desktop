@@ -413,15 +413,53 @@ def test_an_old_files_pairs_of_the_wrong_type_is_refused_at_its_place(path):
     assert caught.value.place.endswith("/pairs")
 
 
+def test_an_empty_list_of_pairs_counts_as_none():
+    # As null does: read as a missing key, and left out, so the file loses the
+    # line (TimeLineAnnotator/project-management#534).
+    doc, timeline, component = document(PLAIN)
+    without = tla.canonical_bytes(doc)
+    read = tla.loads(json.dumps(with_pairs(doc, [])).encode())
+    held = read.timelines[timeline].components[component]
+    assert "pairs" not in held.attrs
+    assert held.extra == {}
+    assert tla.canonical_bytes(read) == without
+
+
+def test_an_empty_list_of_pairs_given_in_memory_is_left_out():
+    doc, timeline, component = document({**PLAIN, "pairs": []})
+    written = component_in(tla.canonical_bytes(doc), timeline, component)
+    assert "pairs" not in written
+
+
+def test_an_empty_list_is_none_only_for_pairs():
+    # On another kind it is a key the core doesn't know, kept as it is.
+    doc, timeline, component = document(
+        {"time": 1.0}, kind="bar_line", extra={"pairs": []}
+    )
+    data = tla.canonical_bytes(doc)
+    assert component_in(data, timeline, component)["pairs"] == []
+    assert tla.loads(data).timelines[timeline].components[component].extra == {
+        "pairs": []
+    }
+
+
+@pytest.mark.parametrize("path", WITH_TIME_SIGNATURE, ids=lambda p: p.name)
+def test_an_old_files_empty_pairs_count_as_none(path):
+    # No line, and the document id the file without them has (#531, #534).
+    plain = tla.loads(path.read_bytes())
+    emptied = tla.loads(with_pairs_in_each_time_signature(path, []))
+    assert emptied.document_id == plain.document_id
+    assert tla.canonical_bytes(emptied) == tla.canonical_bytes(plain)
+
+
 @pytest.mark.parametrize(
     "pairs",
-    [[], [["2", 4]], [["2"]], [["2", 4, "x"]]],
-    ids=["none", "one pair", "a pair too short", "a pair too long"],
+    [[["2", 4]], [["2"]], [["2", 4, "x"]]],
+    ids=["one pair", "a pair too short", "a pair too long"],
 )
-def test_a_limit_the_schema_only_describes_is_kept_as_it_is(pairs):
-    # As a [position, x] pair of a legacy score's beat positions is, and a height
-    # of [] in an old file: TiLiA never writes one, and takes [] for no pairs. It
-    # has the right type, so an open and a save change no byte of a file with one.
+def test_pairs_of_any_length_are_kept_as_they_are(pairs):
+    # A legacy score keeps what TiLiA wrote, unchecked: the right type is all the
+    # schema and the core look at, so an open and a save change no byte.
     doc, timeline, component = document(PLAIN)
     content = with_pairs(doc, pairs)
     assert jsonschema.Draft202012Validator(tla.schema()).is_valid(content)
