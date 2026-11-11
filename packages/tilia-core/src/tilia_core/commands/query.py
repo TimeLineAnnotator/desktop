@@ -59,7 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     tolerate_unencodable(sys.stderr)
     parser = _parser()
     try:
-        arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
+        # Intermixed: Python 3.12's parse_args takes no option between FOLDER
+        # and QUERY, as their nargs="?" consumes both before the option.
+        arguments = parser.parse_intermixed_args(sys.argv[1:] if argv is None else argv)
     except SystemExit as stop:  # --help, or wrong use, which argparse printed
         return stop.code if isinstance(stop.code, int) else EXIT_WRONG_USE
     try:

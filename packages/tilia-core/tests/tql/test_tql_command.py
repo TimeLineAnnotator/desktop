@@ -414,6 +414,19 @@ def test_a_query_from_a_file(exposition):
     assert by_file.stdout == by_argument.stdout
 
 
+def test_an_option_between_folder_and_query(exposition):
+    by_order = tilia(
+        "query", ".", "PAC IN cadences", "--max-matches", "3", cwd=exposition
+    )
+
+    result = tilia(
+        "query", ".", "--max-matches", "3", "PAC IN cadences", cwd=exposition
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == by_order.stdout
+
+
 def test_a_query_file_names_the_folder_after_the_option(exposition):
     (exposition / "q.tql").write_text("PAC IN cadences", encoding="utf-8")
 
