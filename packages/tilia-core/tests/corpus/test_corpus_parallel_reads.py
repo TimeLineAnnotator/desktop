@@ -6,13 +6,18 @@ reader reads them in worker processes, and gives the index that reading them
 one by one in this process gives. The tests lower the threshold, so that a few
 files are enough."""
 
+import _thread
 import logging
 import os
 import shutil
+import signal
 import sqlite3
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -250,3 +255,44 @@ def stop(n: int) -> None:
 def test_a_worker_that_stops_early_fails_the_run():
     with pytest.raises(_workers.WorkersFailed):
         _workers.run(stop, [(n,) for n in range(10)], 2)
+
+
+def sleep_for(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def test_ctrl_c_stops_the_workers_at_once():
+    # A wait without a timeout doesn't see Ctrl-C (on Windows, nor the
+    # interrupt_main that stands for it here on every system).
+    timer = threading.Timer(1.0, _thread.interrupt_main)
+    started = time.monotonic()
+    timer.start()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            _workers.run(sleep_for, [(3,)] * 4, 2)
+    finally:
+        timer.cancel()
+    assert time.monotonic() - started < 3
+
+
+class NoThread(threading.Thread):
+    def start(self):
+        raise RuntimeError("can't start new thread")
+
+
+def test_a_thread_that_cant_start_fails_the_run(monkeypatch):
+    monkeypatch.setattr(
+        _workers, "threading", SimpleNamespace(Lock=threading.Lock, Thread=NoThread)
+    )
+    with pytest.raises(_workers.WorkersFailed):
+        _workers.run(sleep_for, [(0,)] * 2, 2)
+
+
+def ctrl_c_ignored() -> bool:
+    return signal.getsignal(signal.SIGINT) is signal.SIG_IGN
+
+
+def test_workers_leave_ctrl_c_to_this_process():
+    # Ctrl-C reaches every process of a terminal on Linux and macOS; this one
+    # stops the workers, which would each print a traceback.
+    assert _workers.run(ctrl_c_ignored, [()], 1) == [True]

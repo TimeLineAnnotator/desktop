@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import pickle
+import signal
 import subprocess
 import sys
 import threading
@@ -30,6 +31,10 @@ _BOOT = (
     "serve()\n"
 )
 """What a worker runs: this process's ``sys.path``, then :func:`serve`."""
+
+_JOIN_PAUSE = 0.2
+"""Seconds between checks that the workers are done. A wait without a timeout
+doesn't see Ctrl-C on Windows."""
 
 
 class WorkersFailed(Exception):
@@ -46,7 +51,10 @@ def available() -> bool:
 def serve() -> None:
     """A worker's loop: reads pickled ``(function, arguments)`` from standard
     input until it ends, and writes each call's result, pickled, to standard
-    output. What the function prints goes to standard error."""
+    output. What the function prints goes to standard error. Ctrl-C is left to
+    the process that started the workers, which then stops them: on Linux and
+    macOS it reaches every process of the terminal."""
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     tasks = sys.stdin.buffer
     results = sys.stdout.buffer
     sys.stdout = sys.stderr
@@ -73,6 +81,7 @@ def run(
     errors: list[BaseException] = []
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     processes: list[subprocess.Popen[bytes]] = []
+    threads: list[threading.Thread] = []
 
     def work(process: subprocess.Popen[bytes]) -> None:
         assert process.stdin is not None and process.stdout is not None
@@ -110,15 +119,20 @@ def run(
         for thread in threads:
             thread.start()
         for thread in threads:
-            thread.join()
+            while thread.is_alive():
+                thread.join(_JOIN_PAUSE)
         finished = not errors
-    except OSError as err:
+    except (OSError, RuntimeError) as err:  # RuntimeError: a thread can't start
         raise WorkersFailed(f"a worker couldn't start: {err}") from err
     finally:
         for process in processes:
             if not finished:
                 process.kill()
             process.wait()
+        for thread in threads:
+            if thread.is_alive():
+                thread.join()  # it ends with its worker
+        for process in processes:
             if process.stdout is not None:
                 process.stdout.close()
     if errors:
