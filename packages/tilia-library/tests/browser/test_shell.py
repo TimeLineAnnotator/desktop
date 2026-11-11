@@ -80,6 +80,11 @@ def test_sort_filter_expand(page):
     page.wait_for_selector("tr.detail tbody tr")
     assert page.locator("tr.detail tbody tr").count() == 3
     assert "hierarchy" in page.inner_text("tr.detail")
+    # why the file has no bars, and its warnings, above its timelines
+    assert page.inner_text("tr.detail .file-no-bars") == (
+        "No bars: fewer than two beats"
+    )
+    assert page.locator("tr.detail .file-warnings li").count() == 1
 
 
 def test_query_tab_and_remove(page):

@@ -159,6 +159,48 @@ def test_file_detail(core, cid):
     assert all(isinstance(t["id"], str) for t in body["timelines"])
 
 
+BEATS = "019b76da-a802-75fc-a8eb-94052e5f713a"  # every-kind's time map
+SCORE_BEATS = "019b76da-a803-7ce2-9d88-eeef1c5ba428"  # its second beat timeline
+
+
+def _every_kind_changed(folder, name, change):
+    data = json.loads((folder / "every-kind.tla").read_text(encoding="utf-8"))
+    change(data["timelines"])
+    (folder / name).write_text(json.dumps(data), encoding="utf-8")
+
+
+def _one_beat(timelines):
+    beats = timelines[BEATS]["components"]
+    first = next(iter(beats))
+    timelines[BEATS]["components"] = {first: beats[first]}
+
+
+def _both_claim(timelines):
+    timelines[SCORE_BEATS]["metadata"] = {"role": "time_map"}
+
+
+def test_file_detail_says_why_a_file_has_no_bars_and_what_warns(core, cid, folder):
+    # WP9's reason and warnings, as the index keeps them (FR-082)
+    _every_kind_changed(folder, "one-beat.tla", _one_beat)
+    _every_kind_changed(folder, "both-claim.tla", _both_claim)
+    rows = _files(core, cid)
+
+    def detail(name):
+        file_id = _row(rows, name)["file_id"]
+        status, body = _call(core, "GET", f"/api/{cid}/files/{file_id}")
+        assert status == 200
+        return body
+
+    one, both, fine = (
+        detail(n) for n in ("one-beat.tla", "both-claim.tla", "every-kind.tla")
+    )
+    assert one["time_map_reason"] == "fewer than two beats"
+    assert both["time_map_reason"] is None
+    (warning,) = both["warnings"]
+    assert BEATS in warning and SCORE_BEATS in warning
+    assert (fine["time_map_reason"], fine["warnings"]) == (None, [])
+
+
 @pytest.mark.parametrize("file_id", ["999999", "nope"])
 def test_unknown_file(core, cid, file_id):
     status, body = _call(core, "GET", f"/api/{cid}/files/{file_id}")

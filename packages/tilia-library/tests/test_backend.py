@@ -207,7 +207,15 @@ def test_fixture_shapes():
         }
         assert keys(f["timelines"]) == {"count", "kinds"}
     detail = b.file_detail(corpus, "f1")
-    assert keys(detail) == {"file_id", "name", "path", "fields", "timelines"}
+    assert keys(detail) == {
+        "file_id",
+        "name",
+        "path",
+        "fields",
+        "time_map_reason",
+        "warnings",
+        "timelines",
+    }
     assert keys(detail["timelines"][0]) == {"id", "name", "kind", "fields"}
     ctx = b.context(corpus, "f1", [])
     assert keys(ctx) == {"file_id", "name", "end", "timelines"}

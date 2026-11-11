@@ -1,13 +1,18 @@
 {"f1": {"file_id": "f1", "name": "Überleitung.tla", "path": "corpus/Überleitung.tla",
   "fields": {"title": "Überleitung", "composer": "μετάβαση"},
+  "time_map_reason": "fewer than two beats",
+  "warnings": ["Timeline t9: the last beat (12.0) is at or after the end of the media (12.0); the last measure ends one gap after it"],
   "timelines": [
    {"id": "t1", "name": "Form", "kind": "hierarchy", "fields": {"levels": 2}},
    {"id": "t2", "name": "Sections", "kind": "hierarchy", "fields": {"levels": 1}},
    {"id": "t3", "name": "Notes", "kind": "marker", "fields": {}}]},
  "f4": {"file_id": "f4", "name": "Переход.tla", "path": "corpus/Переход.tla",
   "fields": {"title": "Переход", "composer": "経過"},
+  "time_map_reason": null, "warnings": [],
   "timelines": [
    {"id": "t4", "name": "Form", "kind": "hierarchy", "fields": {"levels": 1}},
    {"id": "t5", "name": "Notes", "kind": "marker", "fields": {}}]},
- "f2": {"file_id": "f2", "name": "broken.tla", "path": "corpus/broken.tla", "fields": {}, "timelines": []},
- "f3": {"file_id": "f3", "name": "offline.tla", "path": "corpus/offline.tla", "fields": {}, "timelines": []}}
+ "f2": {"file_id": "f2", "name": "broken.tla", "path": "corpus/broken.tla", "fields": {},
+  "time_map_reason": null, "warnings": [], "timelines": []},
+ "f3": {"file_id": "f3", "name": "offline.tla", "path": "corpus/offline.tla", "fields": {},
+  "time_map_reason": null, "warnings": [], "timelines": []}}

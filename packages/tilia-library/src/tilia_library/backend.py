@@ -12,8 +12,11 @@ Shapes returned:
 - files: [{"file_id", "name", "path", "state": "ok" | "unreadable" |
   "unavailable", "reason": str or null, "fields": {...},
   "timelines": {"count": int, "kinds": {"hierarchy": 2, ...}}}]
-- file_detail: {"file_id", "name", "path", "fields",
-  "timelines": [{"id", "name", "kind", "fields": {...}}]}
+- file_detail: {"file_id", "name", "path", "fields", "time_map_reason": str
+  or null, "warnings": [str], "timelines": [{"id", "name", "kind", "fields":
+  {...}}]} (``time_map_reason``: why a file with a beat timeline has no bars;
+  ``warnings``: what may be wrong with its content, such as WP9's about its
+  beat timelines)
 - context: {"file_id", "name", "end": float or null, "timelines": [{"id",
   "name", "kind", "rows": {"<level>": "<row name>"}, "components":
   [{"component_id", "level", "start", "end", "label", "color", "point"}]}]}
@@ -402,6 +405,8 @@ class CoreBackend:
             "name": Path(detail.file.path).name,
             "path": detail.file.path,
             "fields": _flat(detail.file.fields),
+            "time_map_reason": detail.file.time_map_reason,
+            "warnings": list(detail.file.warnings),
             "timelines": timelines,
         }
 
