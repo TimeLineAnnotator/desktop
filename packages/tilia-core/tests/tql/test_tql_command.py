@@ -219,6 +219,17 @@ def test_a_folder_that_isnt_one_exits_2_and_names_it(exposition, folder, message
     assert result.stdout == ""
 
 
+def test_a_folder_under_home_written_with_a_tilde(exposition, monkeypatch):
+    monkeypatch.setenv("HOME", str(exposition.parent))  # POSIX
+    monkeypatch.setenv("USERPROFILE", str(exposition.parent))  # Windows
+    by_path = tilia("query", ".", "PAC IN cadences", cwd=exposition)
+
+    result = tilia("query", "~/exposition", "PAC IN cadences", cwd=exposition)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == by_path.stdout
+
+
 def test_an_unknown_option_exits_2_and_names_it(exposition):
     result = tilia("query", ".", "* IN form", "--colour", cwd=exposition)
 
@@ -267,8 +278,22 @@ def test_a_lane_the_corpus_lacks_prints_format_errors_text_and_exits_2(expositio
 
 
 def test_a_malformed_query_in_a_file_names_the_file_and_the_line(exposition):
-    text = "-- a reserved word as a label\nthen THEN coda IN form\n"
-    (exposition.parent / "q.tql").write_text(text, encoding="utf-8")
+    text = "-- a reserved word as a label\nthen THEN coda IN form"
+    (exposition.parent / "q.tql").write_text(text + "\n", encoding="utf-8")
+    with pytest.raises(tql.TQLError) as error:
+        tql.parse(text)
+
+    result = tilia("query", ".", "--file", "../q.tql", cwd=exposition)
+
+    assert result.returncode == 2
+    assert result.stderr == (
+        "../q.tql, line 2: " + tql.format_error(text, error.value) + "\n"
+    )
+
+
+def test_a_query_file_ending_too_soon_points_at_its_last_line(exposition):
+    text = "-- unfinished\nverse THEN"
+    (exposition.parent / "q.tql").write_text(text + "\n\n", encoding="utf-8")
     with pytest.raises(tql.TQLError) as error:
         tql.parse(text)
 

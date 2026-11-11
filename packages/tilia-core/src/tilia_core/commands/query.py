@@ -14,6 +14,7 @@ the query included (`tql.TQLError`).
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import sys
 import tempfile
@@ -208,7 +209,9 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         if text is not None:
             return wrong_use(parser, "give the query as QUERY or with --file, not both")
         try:
-            text = Path(source).read_text(encoding="utf-8-sig")
+            # Without its trailing blank lines: an error at the query's end
+            # would point at the empty line after it.
+            text = Path(source).read_text(encoding="utf-8-sig").rstrip()
         except FileNotFoundError:
             return wrong_use(parser, f"no such file: {shown(source)}")
         except (OSError, UnicodeDecodeError) as error:
@@ -223,8 +226,11 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         folder = None
     elif folder is None:
         return wrong_use(parser, "FOLDER is needed")
-    elif (problem := folder_problem(folder)) is not None:
-        return wrong_use(parser, problem)
+    else:
+        # "~" as a shell would expand it, for cmd.exe or a quoted "~/corpus"
+        folder = os.path.expanduser(folder)
+        if (problem := folder_problem(folder)) is not None:
+            return wrong_use(parser, problem)
     try:
         parsed = tql.parse(text)
     except tql.TQLError as error:
