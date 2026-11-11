@@ -290,18 +290,7 @@ def _run_on(
                 )
                 if not matches and stopped is None and limits.stopped is None:
                     units = _lane_units(query)
-                    warn.other.extend(
-                        hints.empty(
-                            con,
-                            index,
-                            query,
-                            units,
-                            limits.ensure,
-                            measures,
-                            scopes,
-                            lane_catalog,
-                        )
-                    )
+                    warn.other.extend(hints.empty(con, query, units, scopes))
                     if limits.stopped == "time_limit":
                         limits.stopped = None  # the search was whole; the hints
                         # ran out, and are left out
@@ -435,7 +424,7 @@ def _harmony_warnings(
     log: Recorder,
     query: syntax.Query,
     limits: Limits,
-    lane_catalog: tql_compile.Catalog | None = None,
+    lane_catalog: tql_compile.Catalog,
 ) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
     neither, in the chords and keys lanes they are looked for in, warn. Only
@@ -469,9 +458,7 @@ def _harmony_warnings(
         kinds_of: dict[int, tuple[str, ...]] = {}
         for unit, lane in pairs:
             if id(lane) not in kinds_of:
-                specs = tql_compile.resolve_lanes(
-                    lane_catalog or log.con, file_id, lane
-                )
+                specs = tql_compile.resolve_lanes(lane_catalog, file_id, lane)
                 kinds = {s.kind for s in specs}
                 kinds_of[id(lane)] = tuple(k for k in ("chord", "key") if k in kinds)
             if kinds_of[id(lane)]:
@@ -485,7 +472,7 @@ def _unknown_harmony_warnings(
     log: Recorder,
     query: syntax.Query,
     limits: Limits,
-    lane_catalog: tql_compile.Catalog | None = None,
+    lane_catalog: tql_compile.Catalog,
 ) -> list[str]:
     """One warning per file whose chords or keys lanes ``query`` looks in hold
     a chord quality or key mode the index doesn't know, naming them: those
@@ -508,7 +495,7 @@ def _unknown_harmony_warnings(
             break
         timelines: dict[str, set[str]] = {}
         for lane in lanes.values():
-            for spec in tql_compile.resolve_lanes(lane_catalog or con, file_id, lane):
+            for spec in tql_compile.resolve_lanes(lane_catalog, file_id, lane):
                 if spec.kind in ("chord", "key"):
                     timelines.setdefault(spec.timeline_id, set()).add(spec.kind)
         qualities: dict[str, None] = {}
@@ -624,8 +611,8 @@ def _pattern_matches(
     warn: _Warnings,
     limits: Limits,
     measures: values.Measures,
-    lane_catalog: tql_compile.Catalog | None = None,
-    kept: list[relations.Scope] | None = None,
+    lane_catalog: tql_compile.Catalog,
+    kept: list[relations.Scope] | None,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
     meet ``WHERE`` only, in the order found (``_run_on`` sorts them by path and
@@ -734,7 +721,7 @@ def _where_only(
     max_matches: int | None,
     limits: Limits,
     measures: values.Measures,
-    lane_catalog: tql_compile.Catalog | None = None,
+    lane_catalog: tql_compile.Catalog,
 ) -> tuple[str, list[Match], list[str], str | None]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
