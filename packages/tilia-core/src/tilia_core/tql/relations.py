@@ -496,6 +496,14 @@ def has_negated_group(seq: syntax.Seq) -> bool:
     return False
 
 
+def run_units(seq: syntax.Seq) -> list[syntax.Unit] | None:
+    """The units of ``seq`` that each item of a run of it fits, so that a lane
+    where none of them may fit (:meth:`Scope.may_fit`) holds no run and is not
+    read; None when ``seq`` has a ``NOT ( … )`` group, whose item fits none of
+    them."""
+    return None if has_negated_group(seq) else list(units_of(seq))
+
+
 def reads_the_file(conds: list[syntax.Cond]) -> bool:
     """Whether testing ``conds`` on a unit, the units of their relations and
     children included, may read a field of the file (``file.x``) or its media
@@ -1377,9 +1385,9 @@ class Scope:
             # the WITHIN after the target's IN lets its THENs cross holes, as
             # after any IN (tql.md §6.1), besides setting the tolerance (§8)
             joins = self.joiner(rel.within)
-            if not has_negated_group(rel.target):
-                # each item of a run fits a unit of the target
-                specs = self.lanes_holding(specs, list(units_of(rel.target)))
+            held = run_units(rel.target)
+            if held is not None:
+                specs = self.lanes_holding(specs, held)
             for spec in specs:
                 inner = self.inside_items(self.lane_items(spec), a, metric, own)
                 if not inner:
