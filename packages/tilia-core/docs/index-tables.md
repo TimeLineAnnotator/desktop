@@ -28,6 +28,7 @@ One row per file the corpus has seen since it was opened: readable, unreadable o
 | `time_unit` | TEXT | `seconds` or `quarters` | the file |
 | `time_map` | INTEGER | the key (`timelines.id`) of the beat timeline that gives the file's bars and beats: the one whose role is `time_map`, else the first beat timeline. Empty without one | computed |
 | `time_map_guessed` | INTEGER | 1 when the time map is the first beat timeline, because no timeline has the role `time_map`; 0 when found by its role; empty without a time map | computed |
+| `time_map_reason` | TEXT | why the file has no time map though it has a beat timeline, such as a table that can't be read; then it has no bars, and its units no positions. Empty when it has a time map, and for a file without a beat timeline, which has nothing wrong | computed by the measure table |
 
 An unavailable file keeps its `document_id`, `format_version`, `media_length` and `time_unit` as last read.
 
@@ -176,6 +177,18 @@ The fields of files, timelines and units, such as `tags`, `vocabulary`, `generat
 | `value` | TEXT | one value | the file |
 
 A timeline's `role` and `author` are columns of `timelines`, not rows here.
+
+## `file_warnings`
+
+What may be wrong with a readable file's content, though the index read it: one row per warning. The rows last as long as the file's content: they are replaced when the file is read again after a change, and go when it does.
+
+| Column | Type | What it holds | From |
+| --- | --- | --- | --- |
+| `file_id` | INTEGER | the file (`files.id`) | the index |
+| `source` | TEXT | what gives the warning: `time_map` for the file's beat timelines (several claim the role `time_map`, a last beat at or past the end of the media, a misplaced closing tap) | the index |
+| `message` | TEXT | the warning, naming the timeline and beat it is about by their ids in the file | computed by the measure table |
+
+To list the files with no bars and why: `SELECT path, time_map_reason FROM files WHERE time_map_reason IS NOT NULL`.
 
 ## Indexes
 

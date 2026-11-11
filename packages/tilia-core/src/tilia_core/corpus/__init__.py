@@ -30,6 +30,7 @@ from .settings import CorpusSettings, NoSettings
 from .store import Reading, Store
 from .time_map import TimeMap, TimeMapOf
 from .tla_reader import default_reader
+from .tla_reader import find_time_map as wp9_find_time_map
 
 __all__ = [
     "open_corpus",
@@ -48,7 +49,9 @@ class FileRow:
     """A file the corpus has seen in this run (``files``). ``fields`` are the
     file's fields, by name, and ``timeline_kinds`` how many timelines of each
     kind it has; both are empty for an unreadable or unavailable file, which
-    has no rows but this one."""
+    has no rows but this one. ``time_map_reason`` says why a file with a beat
+    timeline has no time map, and ``warnings`` what may be wrong with its
+    content (``file_warnings``' messages, in the order they were found)."""
 
     id: int
     path: str
@@ -59,6 +62,8 @@ class FileRow:
     fingerprint: str | None
     fields: dict[str, tuple[str, ...]]
     timeline_kinds: dict[str, int]
+    time_map_reason: str | None = None
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -276,7 +281,7 @@ class Corpus:
     ) -> list[FileRow]:
         found = con.execute(
             "SELECT id, path, document_id, state, reason, format_version, "
-            f"fingerprint FROM files {where} ORDER BY path",
+            f"fingerprint, time_map_reason FROM files {where} ORDER BY path",
             args,
         ).fetchall()
         if not found:
@@ -297,11 +302,20 @@ class Corpus:
             ids,
         ):
             kinds.setdefault(file_id, {})[kind] = n
+        warnings: dict[int, list[str]] = {}
+        for file_id, message in con.execute(
+            "SELECT file_id, message FROM file_warnings "
+            f"WHERE file_id IN ({_marks(len(ids))}) ORDER BY rowid",
+            ids,
+        ):
+            warnings.setdefault(file_id, []).append(message)
         return [
             FileRow(
-                *row,
+                *row[:7],
                 fields=fields.get(row[0], {}),
                 timeline_kinds=kinds.get(row[0], {}),
+                time_map_reason=row[7],
+                warnings=tuple(warnings.get(row[0], ())),
             )
             for row in found
         ]
@@ -438,7 +452,10 @@ def open_corpus(
     makes it raise: a file it can't read is listed as unreadable, and a
     subfolder it can't list is skipped, and results warn. ``reader`` reads the
     files (WP3's ``tla`` by default); ``settings`` are the corpus manifest's (none
-    until WP15); ``time_map_of`` gives a file's time map (none until WP9)."""
+    until WP15); ``time_map_of`` gives a file's time map (WP9's
+    ``timemap.find_time_map`` by default, for the documents of WP3's reader,
+    which also says why a file has none and what is wrong with its beat
+    timelines: ``files.time_map_reason`` and ``file_warnings``)."""
     folder = Path(os.path.expanduser(os.fspath(path))).resolve()
     try:
         info = os.stat(folder)
@@ -451,6 +468,8 @@ def open_corpus(
         raise NotADirectoryError(errno.ENOTDIR, message, str(folder))
     if reader is None:
         reader = default_reader()
+    if time_map_of is None:
+        time_map_of = wp9_find_time_map
     store = Store()
     scanner = Scanner(folder, store, reader, settings or NoSettings(), time_map_of)
     try:

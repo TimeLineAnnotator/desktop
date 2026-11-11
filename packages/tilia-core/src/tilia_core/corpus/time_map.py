@@ -92,7 +92,33 @@ class TimeMap(Protocol):
         ...
 
 
-TimeMapOf = Callable[[Document, Mapping[str, "str | None"]], "TimeMap | None"]
+@dataclass(frozen=True)
+class TimeMapFound:
+    """A file's time map, or why it has none, as WP9's ``find_time_map`` says
+    (its FR-082: whoever reads a file reports these with it).
+
+    ``reason`` says why the chosen beat timeline gives no time map: None when
+    there is one, and for a file without a beat timeline, which has nothing
+    wrong. ``warnings`` are WP9's about the file's beat timelines, with or
+    without a time map. The index stores them in ``files.time_map_reason`` and
+    ``file_warnings``."""
+
+    time_map: TimeMap | None
+    reason: str | None = None
+    warnings: tuple[str, ...] = ()
+
+
+TimeMapOf = Callable[
+    [Document, Mapping[str, "str | None"]], "TimeMap | TimeMapFound | None"
+]
 """The function that gives a file's time map: ``(document, roles) -> TimeMap |
-None``, with each timeline's role, by its id in the file, as the index resolved
-it."""
+TimeMapFound | None``, with each timeline's role, by its id in the file, as the
+index resolved it. A :class:`TimeMapFound` also says why there is no time map,
+and what WP9 warns about; a bare time map or None says neither."""
+
+
+def found(given: TimeMap | TimeMapFound | None) -> TimeMapFound:
+    """What a :data:`TimeMapOf` gave, as a :class:`TimeMapFound`."""
+    if isinstance(given, TimeMapFound):
+        return given
+    return TimeMapFound(time_map=given)

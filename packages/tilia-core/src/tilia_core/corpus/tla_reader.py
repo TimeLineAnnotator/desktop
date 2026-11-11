@@ -13,14 +13,16 @@ states the fingerprint the index holds then finds the file it expects.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tilia_core import tla
+from tilia_core import timemap, tla
 from tilia_core.tla.model import Kind
 from tilia_core.tla.reader import loads_for_fingerprint
 
 from .documents import ComponentDoc, Document, TimelineDoc, UnreadableFile
+from .time_map import TimeMapFound
 
 
 @dataclass(frozen=True)
@@ -119,4 +121,33 @@ def default_reader() -> TlaReader:
     return TlaReader()
 
 
-__all__ = ["TlaDocument", "TlaReader", "default_reader", "document_of"]
+def find_time_map(document: Document, roles: Mapping[str, str | None]) -> TimeMapFound:
+    """The file's time map as WP9's ``find_time_map`` chooses it, with the
+    roles the index resolved (contracts/time-map.md), and why it has none and
+    WP9's warnings (WP9's FR-082): the default of ``open_corpus``. No time map,
+    reason or warning for a document :class:`TlaReader` didn't give."""
+    if not isinstance(document, TlaDocument) or document.source is None:
+        return TimeMapFound(time_map=None)
+    chosen = timemap.find_time_map(document.source, roles)
+    return TimeMapFound(
+        time_map=chosen.time_map, reason=chosen.reason, warnings=chosen.warnings
+    )
+
+
+def time_map_of(
+    document: Document, roles: Mapping[str, str | None]
+) -> timemap.TimeMap | None:
+    """The file's time map as :func:`find_time_map` chooses it, without its
+    reason or warnings. None for a document :class:`TlaReader` didn't give,
+    and for one without a time map."""
+    return find_time_map(document, roles).time_map
+
+
+__all__ = [
+    "TlaDocument",
+    "TlaReader",
+    "default_reader",
+    "document_of",
+    "find_time_map",
+    "time_map_of",
+]
