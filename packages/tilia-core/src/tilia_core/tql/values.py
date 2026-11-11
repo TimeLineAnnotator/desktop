@@ -249,15 +249,72 @@ class Log(Protocol):
     ) -> list[Any]: ...
 
 
+class Measures:
+    """The rows of ``measures``, the bars of the files' time maps. Without
+    ``file_id``, those of every file, read with one statement the first time
+    any file's are asked for, so that a run shares one among the files it
+    reads; with it, that file's alone."""
+
+    COLUMNS = (
+        'count, number, label, start, "end", beats, pass, cadenza, movement, '
+        "time_signature"
+    )
+
+    def __init__(self, log: Log, file_id: int | None = None) -> None:
+        self.log = log
+        self.file_id = file_id
+        self._rows: dict[Any, list[tuple[Any, ...]]] | None = None
+        self._numbers: dict[Any, dict[Any, Any]] = {}  # by file
+
+    def of(self, file_id: int) -> list[tuple[Any, ...]]:
+        """The measures of ``file_id`` in playing order, each the columns
+        :attr:`COLUMNS` names."""
+        if self._rows is None:
+            if self.file_id is None:
+                rows = self.log.execute(
+                    f"SELECT file_id, {self.COLUMNS} FROM measures "
+                    "ORDER BY file_id, count"
+                )
+            else:
+                rows = self.log.execute(
+                    f"SELECT file_id, {self.COLUMNS} FROM measures "
+                    "WHERE file_id = ? ORDER BY count",
+                    (self.file_id,),
+                )
+            got: dict[Any, list[tuple[Any, ...]]] = {}
+            for r in rows:
+                got.setdefault(r[0], []).append(tuple(r[1:]))
+            self._rows = got
+        return self._rows.get(file_id, [])
+
+    def numbers(self, file_id: int) -> dict[Any, Any]:
+        """The printed number of each bar of ``file_id`` by its start: of
+        bars that start together, the first in playing order."""
+        got = self._numbers.get(file_id)
+        if got is None:
+            got = self._numbers[file_id] = {}
+            for _, number, _, start, *_ in self.of(file_id):
+                got.setdefault(start, number)
+        return got
+
+
 class Facts:
     """The stored values of one file: its units' colour, comments, tags, depth,
     positions and chord and key columns, its timelines' fields and its own
-    fields. Everything is loaded when first asked for."""
+    fields. Everything is loaded when first asked for; a bar's fields alone
+    need no other unit's. ``measures`` reads the bars (default: this file's
+    alone)."""
 
-    def __init__(self, log: Log, file_id: int) -> None:
+    def __init__(
+        self, log: Log, file_id: int, measures: Measures | None = None
+    ) -> None:
         self.log = log
         self.file_id = file_id  # the file's key, files.id
+        self.measures = Measures(log, file_id) if measures is None else measures
+        self._bars: dict[str, dict[str, Any]] | None = None
+        self._bar_prefix = bar_id(self.file_id, 0).removesuffix("0")
         self._units: dict[str, dict[str, Any]] | None = None
+        self._units_of: dict[Any, dict[str, dict[str, Any]]] = {}  # by timeline
         self._timelines: dict[str, dict[str, Any]] = {}
         self._file: dict[str, list[Any]] | None = None
         self._media_length: list[float | None] | None = None
@@ -272,8 +329,17 @@ class Facts:
             self._media_length = [rows[0][0] if rows else None]
         return self._media_length[0]
 
-    def unit(self, comp_id: str) -> dict[str, Any]:
-        """The stored fields of one component (``tags`` is a list)."""
+    def unit(self, comp_id: str, timeline_id: Any = None) -> dict[str, Any]:
+        """The stored fields of one component (``tags`` is a list). Given its
+        timeline, only that timeline's units are loaded, not the whole file's
+        (a query on the keys of a file, say, reads none of its chords')."""
+        if isinstance(comp_id, str) and comp_id.startswith(self._bar_prefix):
+            return self._load_bars().get(comp_id, {})  # no component row holds one
+        if self._units is None and timeline_id is not None:
+            units = self._units_of.get(timeline_id)
+            if units is None:
+                units = self._units_of[timeline_id] = self._load_units(timeline_id)
+            return units.get(comp_id, {})
         if self._units is None:
             self._units = self._load_units()
         return self._units.get(comp_id, {})
@@ -294,7 +360,12 @@ class Facts:
             }
         return self._chord_labels.get(comp_id, [])
 
-    def _load_units(self) -> dict[str, dict[str, Any]]:
+    def _load_units(self, timeline_id: Any = None) -> dict[str, dict[str, Any]]:
+        """The fields of the units of the file, or of one of its timelines."""
+        where, params = "c.file_id = ?", [self.file_id]
+        if timeline_id is not None:
+            where += " AND c.timeline_id = ?"
+            params.append(timeline_id)
         rows = self.log.execute(
             "SELECT c.id, c.color, c.comments, h.depth, ch.quality, ch.inversion, "
             "ch.applied_to, ch.root, ch.roman, ch.symbol, COALESCE(ch.key, k.key), "
@@ -304,8 +375,8 @@ class Facts:
             "LEFT JOIN hierarchies h ON h.component_id = c.id "
             "LEFT JOIN chords ch ON ch.component_id = c.id "
             "LEFT JOIN keys k ON k.component_id = c.id "
-            "LEFT JOIN positions p ON p.component_id = c.id WHERE c.file_id = ?",
-            (self.file_id,),
+            f"LEFT JOIN positions p ON p.component_id = c.id WHERE {where}",
+            params,
         )
         names = (
             "color comments depth quality inversion applied_to root roman symbol "
@@ -313,15 +384,14 @@ class Facts:
             "bar.beat_count downbeat bar.cadenza bar.movement"
         ).split()
         units = {r[0]: dict(zip(names, r[1:], strict=True)) for r in rows}
-        units.update(self._load_bars())
         for fields in units.values():
             fields["tags"] = []
         tags = self.log.execute(
             "SELECT f.owner_id, f.value FROM fields f "
             "JOIN components c ON c.id = f.owner_id "
-            "WHERE f.scope = 'component' AND f.name = 'tags' AND c.file_id = ? "
+            f"WHERE f.scope = 'component' AND f.name = 'tags' AND {where} "
             "ORDER BY f.rowid",
-            (self.file_id,),
+            params,
         )
         for owner, value in tags:
             units[owner]["tags"].append(value)
@@ -330,29 +400,37 @@ class Facts:
     def _load_bars(self) -> dict[str, dict[str, Any]]:
         """The position fields of the units of the bars lane, which no component
         row holds: each bar starts on its downbeat, at its first beat, and its
-        ``pass`` is the one ``measures`` records."""
-        rows = self.log.execute(
-            "SELECT count, number, label, beats, pass, cadenza, movement, "
-            "time_signature FROM measures "
-            "WHERE file_id = ? ORDER BY count",
-            (self.file_id,),
-        )
-        return {
-            bar_id(self.file_id, count): {
-                "bar": number,
-                "end_bar": number,
-                "beat": 1.0,
-                "pass": nth,
-                "bar.count": count,
-                "bar.label": label,
-                "bar.beat_count": beats,
-                "downbeat": 1,
-                "bar.cadenza": cadenza,
-                "bar.movement": movement,
-                "time_signature": signature,
+        ``pass`` is the one ``measures`` records. A bar has no tags."""
+        if self._bars is None:
+            self._bars = {
+                bar_id(self.file_id, count): {
+                    "bar": number,
+                    "end_bar": number,
+                    "beat": 1.0,
+                    "pass": nth,
+                    "bar.count": count,
+                    "bar.label": label,
+                    "bar.beat_count": beats,
+                    "downbeat": 1,
+                    "bar.cadenza": cadenza,
+                    "bar.movement": movement,
+                    "time_signature": signature,
+                    "tags": [],
+                }
+                for (
+                    count,
+                    number,
+                    label,
+                    _start,
+                    _end,
+                    beats,
+                    nth,
+                    cadenza,
+                    movement,
+                    signature,
+                ) in self.measures.of(self.file_id)
             }
-            for count, number, label, beats, nth, cadenza, movement, signature in rows
-        }
+        return self._bars
 
     def timeline(self, timeline_id: int | None) -> dict[str, Any]:
         """The fields of a timeline: name, kind, role, author, id, ordinal.

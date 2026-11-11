@@ -33,6 +33,7 @@ tilia = "tilia_core.commands:main"
 
 [project.entry-points."tilia.commands"]
 migrate = "tilia_core.commands.migrate:main"
+query = "tilia_core.commands.query:main"
 
 [project.urls]
 Homepage = "https://tilia-app.com"

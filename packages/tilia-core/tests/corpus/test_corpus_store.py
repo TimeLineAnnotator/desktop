@@ -583,7 +583,7 @@ def files_row_of(rows, err):
     reason = f"{type(err).__name__}"
     return build.Rows(
         file_id=rows.file_id,
-        files=[(row[0], row[1], None, None, "unreadable", reason, *(None,) * 5)],
+        files=[(row[0], row[1], None, None, "unreadable", reason, *(None,) * 6)],
     )
 
 

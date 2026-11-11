@@ -84,8 +84,11 @@ def _sequence_matches(
     n_steps = len(pattern.seq.steps)
     for node in relations.units_of(pattern.seq):
         scope.fit(node)
+    held = relations.run_units(pattern.seq)
     for spec in specs:
         limits.ensure()
+        if held is not None and not scope.may_fit(held, spec):
+            continue
         items = scope.lane_items(spec)
         if not items:
             continue
@@ -245,25 +248,44 @@ def _run_on(
     stopped: str | None = None
     matches: list[Match] = []
     grain = "match"
+    measures = values.Measures(log)  # the bars of every file, read once a run
+    lane_catalog = tql_compile.Catalog(con)  # the lanes' tables, read once a run
+    scopes: list[relations.Scope] = []  # the search's, for the hints if it finds none
     con.set_progress_handler(limits, CHECK_EVERY)
     try:
         with regexes.within(limits):
             if pattern is None:
                 grain, matches, extra, stopped = _where_only(
-                    reading, log, catalogue, query, warn, max_matches, limits
+                    reading,
+                    log,
+                    catalogue,
+                    query,
+                    warn,
+                    max_matches,
+                    limits,
+                    measures,
+                    lane_catalog,
                 )
             else:
                 matches, stopped = _pattern_matches(
-                    reading, log, query, pattern, max_matches, warn, limits
+                    reading,
+                    log,
+                    query,
+                    pattern,
+                    max_matches,
+                    warn,
+                    limits,
+                    measures,
+                    lane_catalog,
+                    scopes,
                 )
                 if not matches and stopped is None and limits.stopped is None:
                     units = _lane_units(query)
-                    warn.other.extend(
-                        hints.empty(con, index, query, units, limits.ensure)
-                    )
+                    warn.other.extend(hints.empty(con, query, units, scopes))
                     if limits.stopped == "time_limit":
                         limits.stopped = None  # the search was whole; the hints
                         # ran out, and are left out
+                scopes.clear()
     finally:
         con.set_progress_handler(None, 0)
     # by path, then start (timelines in their order, files alone): keys change
@@ -274,8 +296,10 @@ def _run_on(
     else:
         matches.sort(key=lambda m: paths.get(m.file_id or 0, ""))
     if pattern is not None:
-        warn.words.update(dict.fromkeys(_harmony_warnings(log, query, limits)))
-        warn.other.extend(_unknown_harmony_warnings(log, query, limits))
+        warn.words.update(
+            dict.fromkeys(_harmony_warnings(log, query, limits, lane_catalog))
+        )
+        warn.other.extend(_unknown_harmony_warnings(log, query, limits, lane_catalog))
     # A limit or a cancel that already stopped the search or the warnings pass
     # still gives a row for every match found; only a cancel that comes later
     # cuts the rows. The time limit never does.
@@ -294,7 +318,7 @@ def _run_on(
         if fid not in titles:
             titles[fid] = _file_title(log, fid)
         if grain == "match":
-            rows.append(_row(log, m, node_names, titles[fid], ids))
+            rows.append(_row(log, m, node_names, titles[fid], ids, measures))
         elif grain == "timeline":
             rows.append(_timeline_row(log, m, titles[fid], ids))
         else:
@@ -387,7 +411,12 @@ def _unit_units(
             yield from _seq_units(rel.target, rel.lane or lane)
 
 
-def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> list[str]:
+def _harmony_warnings(
+    log: Recorder,
+    query: syntax.Query,
+    limits: Limits,
+    lane_catalog: tql_compile.Catalog,
+) -> list[str]:
     """What the literals of ``query`` that are read as chords or keys and are
     neither, in the chords and keys lanes they are looked for in, warn. Only
     a unit with a literal that is no chord or no key can warn, so the lanes
@@ -420,7 +449,7 @@ def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> lis
         kinds_of: dict[int, tuple[str, ...]] = {}
         for unit, lane in pairs:
             if id(lane) not in kinds_of:
-                specs = tql_compile.resolve_lanes(log.con, file_id, lane)
+                specs = tql_compile.resolve_lanes(lane_catalog, file_id, lane)
                 kinds = {s.kind for s in specs}
                 kinds_of[id(lane)] = tuple(k for k in ("chord", "key") if k in kinds)
             if kinds_of[id(lane)]:
@@ -431,7 +460,10 @@ def _harmony_warnings(log: Recorder, query: syntax.Query, limits: Limits) -> lis
 
 
 def _unknown_harmony_warnings(
-    log: Recorder, query: syntax.Query, limits: Limits
+    log: Recorder,
+    query: syntax.Query,
+    limits: Limits,
+    lane_catalog: tql_compile.Catalog,
 ) -> list[str]:
     """One warning per file whose chords or keys lanes ``query`` looks in hold
     a chord quality or key mode the index doesn't know, naming them: those
@@ -454,7 +486,7 @@ def _unknown_harmony_warnings(
             break
         timelines: dict[str, set[str]] = {}
         for lane in lanes.values():
-            for spec in tql_compile.resolve_lanes(con, file_id, lane):
+            for spec in tql_compile.resolve_lanes(lane_catalog, file_id, lane):
                 if spec.kind in ("chord", "key"):
                     timelines.setdefault(spec.timeline_id, set()).add(spec.kind)
         qualities: dict[str, None] = {}
@@ -569,12 +601,17 @@ def _pattern_matches(
     max_matches: int | None,
     warn: _Warnings,
     limits: Limits,
+    measures: values.Measures,
+    lane_catalog: tql_compile.Catalog,
+    kept: list[relations.Scope] | None,
 ) -> tuple[list[Match], str | None]:
     """The matches of a sequence or relation pattern in every file, those that
     meet ``WHERE`` only, in the order found (``_run_on`` sorts them by path and
     time), and why the search stopped
     early, if it did. When ``max_matches`` stopped it, these are some
-    ``max_matches`` matches, not the first ones of the full result."""
+    ``max_matches`` matches, not the first ones of the full result. ``kept``
+    receives the scope of every file, for the hints, as long as nothing has
+    matched; once something has, it is emptied."""
     marked = query.has_target
     single = names.is_single(query)
     needs = names.time_needs(query)
@@ -590,8 +627,16 @@ def _pattern_matches(
         for (file_id,) in files:
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, reading.time_map(file_id), labels, limits.ensure
+                log,
+                file_id,
+                reading.time_map(file_id),
+                labels,
+                limits.ensure,
+                measures,
+                lane_catalog,
             )
+            if kept is not None:
+                kept.append(scope)
             specs = scope.lanes(pattern.lane)
             if not specs:
                 continue
@@ -632,6 +677,9 @@ def _pattern_matches(
                     f"{showsql.where_text(query)}: tested in Python on each match."
                 )
             warn.scope_lacks(scope, needs, file_id)
+            if kept is not None and order:
+                kept.clear()  # no hints: the result is not empty
+                kept = None
             if stopped:
                 break
         if pattern.lane is not None and not any_lane:
@@ -663,6 +711,8 @@ def _where_only(
     warn: _Warnings,
     max_matches: int | None,
     limits: Limits,
+    measures: values.Measures,
+    lane_catalog: tql_compile.Catalog,
 ) -> tuple[str, list[Match], list[str], str | None]:
     """``WHERE`` alone: timelines when it names timeline fields, files when it
     names only file fields, and units otherwise. Also the file fields it names,
@@ -698,7 +748,13 @@ def _where_only(
         for (file_id,) in files:
             limits.ensure()
             scope = relations.Scope(
-                log, file_id, reading.time_map(file_id), labels, limits.ensure
+                log,
+                file_id,
+                reading.time_map(file_id),
+                labels,
+                limits.ensure,
+                measures,
+                lane_catalog,
             )
             timelines = log.execute(
                 "SELECT t.id, t.name FROM timelines t JOIN files f ON "
@@ -881,17 +937,18 @@ def _extent(m: Match) -> tuple[float, float]:
     return min(x[1] for x in t), max(x[2] for x in t)
 
 
-def _position(log: Recorder, comp: Component | None) -> tuple[Any, Any]:
+def _position(
+    log: Recorder, comp: Component | None, measures: values.Measures
+) -> tuple[Any, Any]:
     if comp is None:
         return None, None
     # not logged: one lookup per target and per step would grow the shown
     # SQL by several statements per match
     if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
-        rows = log.con.execute(
-            "SELECT number FROM measures WHERE file_id = ? AND start = ?",
-            (comp.file_id, comp.start),
-        ).fetchall()
-        return (rows[0][0], 1.0) if rows else (None, None)
+        numbers = measures.numbers(comp.file_id)
+        if comp.start in numbers:
+            return numbers[comp.start], 1.0
+        return None, None
     rows = log.con.execute(
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
     ).fetchall()
@@ -959,11 +1016,12 @@ def _row(
     names: dict[int, str],
     title: str | None,
     ids: _OwnIds,
+    measures: values.Measures,
 ) -> dict[str, Any]:
     targets = _targets(m)
     first = targets[0][0]
     start, end = _extent(m)
-    bar, beat = _position(log, first)
+    bar, beat = _position(log, first, measures)
     row: dict[str, Any] = {
         "file": ids.document(first.file_id),
         "path": _file_path(log, first.file_id),
@@ -984,6 +1042,6 @@ def _row(
         row[f"${n}.timeline"] = m.slot_lanes[n - 1] if m.slot_lanes else m.lane
         row[f"${n}.start"] = min((s for s, _ in spans), default=None)
         row[f"${n}.end"] = max((e for _, e in spans), default=None)
-        row[f"${n}.bar"] = _position(log, slot[0] if slot else None)[0]
+        row[f"${n}.bar"] = _position(log, slot[0] if slot else None, measures)[0]
         row[f"${n}.ids"] = " ".join(ids.unit(c) for c in slot)
     return row

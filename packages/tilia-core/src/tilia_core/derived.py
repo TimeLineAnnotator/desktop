@@ -5,8 +5,11 @@ chord or key, the key in force at a chord, the labels and properties of
 harmony components, categories, colours and field names.
 """
 
+import math
 import re
+from bisect import bisect_right
 from collections.abc import Sequence
+from itertools import accumulate
 from typing import Any
 
 from tilia_core import harmony
@@ -26,20 +29,60 @@ def hierarchy_structure(
     ``id -> (parent id, depth)``.
 
     The parent is the unit on a higher level whose span holds this one (with
-    1e-6 s of slack), the smallest by (level, length); the file stores no
-    links. Depth is 1 for a unit without parent.
+    1e-6 s of slack), the smallest by (level, length), and the first of those
+    in ``units``; the file stores no links. Depth is 1 for a unit without
+    parent.
+
+    Each level's units are sorted by start, with the running maximum of their
+    ends. The units of a level that hold a span are found by walking back from
+    the last one that starts early enough, as long as one further back ends
+    late enough: O(n log n) in all for units that nest and don't overlap on a
+    level, as a hierarchy's do (TimeLineAnnotator/project-management#156).
+    Units that overlap on one level cost more, at worst O(n²) as before.
     """
+    # Per level: the units that can hold another (no NaN), sorted by start,
+    # their starts, and the running maximum of their ends.
+    held: dict[int, list[int]] = {}
+    for n, (_, level, start, end) in enumerate(units):
+        if not (math.isnan(start) or math.isnan(end)):  # NaN holds nothing
+            held.setdefault(level, []).append(n)
+    starts: dict[int, list[float]] = {}
+    reach: dict[int, list[float]] = {}
+    for level, order in held.items():
+        order.sort(key=lambda n: units[n][2])
+        starts[level] = [units[n][2] for n in order]
+        reach[level] = list(accumulate((units[n][3] for n in order), max))
+    levels = sorted(held)
+    place = {level: n for n, level in enumerate(levels)}
+
+    def holder(uid: str, level: int, start: float, end: float) -> int | None:
+        """The index in ``units`` of the smallest unit of ``level`` that holds
+        ``start``-``end``, the first of equals; None without one."""
+        order, ends = held[level], reach[level]
+        late_enough = end - EPS
+        found = []
+        i = bisect_right(starts[level], start + EPS)  # these start early enough
+        while i and ends[i - 1] >= late_enough:
+            i -= 1
+            n = order[i]
+            if units[n][3] >= late_enough and units[n][0] != uid:
+                found.append(n)
+        best: tuple[float, int] | None = None
+        for n in sorted(found):  # in order, as the length may be NaN (inf - inf)
+            length = units[n][3] - units[n][2]
+            if best is None or length < best[0]:
+                best = (length, n)
+        return None if best is None else best[1]
+
     parents: dict[str, str | None] = {}
     for uid, level, start, end in units:
-        best: tuple[tuple[int, float], str] | None = None
-        for pid, p_level, p_start, p_end in units:
-            if pid == uid or p_level <= level:
-                continue
-            if p_start <= start + EPS and p_end >= end - EPS:
-                key = (p_level, p_end - p_start)
-                if best is None or key < best[0]:
-                    best = (key, pid)
-        parents[uid] = best[1] if best else None
+        found = None
+        if not (math.isnan(start) or math.isnan(end)):  # nor is it held
+            for p_level in levels[place[level] + 1 :]:  # its level is in held
+                found = holder(uid, p_level, start, end)
+                if found is not None:
+                    break
+        parents[uid] = None if found is None else units[found][0]
 
     depths: dict[str, int] = {}
 
