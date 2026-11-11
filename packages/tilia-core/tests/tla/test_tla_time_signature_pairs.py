@@ -200,7 +200,8 @@ def test_the_file_keeps_the_numerator_as_tilia_0_7_2_saved_it(path):
     [
         {"numerator": "7"},
         {"numerator": "3+2"},
-        {"numerator": "03"},
+        # 0.7.0.tla's is 2: TiLiA writes it "2", and "02" is other text.
+        {"numerator": "02"},
         {"pairs": [["2", 4], ["3", 8]]},
         {"denominator": 16},
     ],
