@@ -3,11 +3,15 @@ editor, the bulk edits and `tilia migrate`
 (TimeLineAnnotator/project-management#416).
 
 - `delete_beat`: a beat is deleted. A downbeat's mark, the `next`s that name
-  it and its beat unit go where contracts/layout.md says, and the measures a
+  it and the beat units go where contracts/layout.md says, and the measures a
   person's deletion changes get the source "edited"
-  (TimeLineAnnotator/project-management#512).
+  (TimeLineAnnotator/project-management#512 and #528).
 - `mark_edited` and `mark_moved`: a measure a person edits gets the source
   "edited", unless it is "tapped"; moving a downbeat edits two measures.
+
+What they change on a beat doesn't make a problem the file was read with new
+for `write`: it stays old, and so does one that moves with a mark
+(TimeLineAnnotator/project-management#528, point 4).
 """
 
 from __future__ import annotations
@@ -15,9 +19,11 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from typing import Any
 
+from tilia_core.tla import problems
 from tilia_core.tla.model import (
     Component,
     Document,
+    Measure,
     MeasureTable,
     Timeline,
     beat_order,
@@ -60,8 +66,10 @@ def delete_beat(
     to it, and it then states the number it read, unless it states its own.
     When there is no next beat, or it is a closing tap or has no time, the
     mark goes, and every `next` that named the downbeat drops it, a list
-    left empty going with it. The beat unit is dropped when the next beat
-    states its own, or when the mark goes; no default takes its place, since
+    left empty going with it. The beat unit is dropped when the measure it
+    would move into states a unit on any of its beats, or when the mark goes.
+    An ordinary beat's unit moves to its measure's first beat, or is dropped
+    if that beat has one. No default takes the place of a unit dropped, since
     an edit adds none (contracts/layout.md).
 
     The measures the deletion changes get the source "edited", unless it is
@@ -73,15 +81,56 @@ def delete_beat(
     beats = _beats(timeline)
     deleted = beats[beat_id]
     table = _table(timeline)
+    order = beat_order({k: c.attrs for k, c in beats.items()})
+    later = order[order.index(beat_id) + 1 :]
+    before = problems.states_of(
+        doc, timeline_id, _may_change(timeline, table, beat_id, later[:1])
+    )
+    moved: dict[str, str] = {}
     if _is_downbeat(deleted):
-        changed = _delete_downbeat(timeline, beats, beat_id, table)
+        changed = _delete_downbeat(timeline, beats, beat_id, table, later, moved)
     else:
-        del timeline.components[beat_id]
-        changed = [row.id for row in table.rows if beat_id in row.beats]
+        changed = _delete_beat(timeline, beats, beat_id, table)
     if by_person:
         for downbeat_id in changed:
             _mark_source(timeline, downbeat_id, table.source)
     _refresh(timeline)
+    problems.keep_old(doc, timeline_id, before, moved)
+
+
+def _may_change(
+    timeline: Timeline, table: MeasureTable, beat_id: str, following: list[str]
+) -> list[str]:
+    """The beats deleting `beat_id` may change, itself included, so that the
+    problems they were read with can be kept old: the next beat, its measure's
+    downbeat and the one before, and every downbeat whose `next` names it."""
+    ids = {beat_id, *following, *_measure_before(table, beat_id)}
+    ids.update(row.id for row in table.rows if beat_id in row.beats)
+    for key, component in timeline.components.items():
+        mark = component.attrs.get("measure")
+        following_ids = mark.get("next") if isinstance(mark, dict) else None
+        if isinstance(following_ids, list) and beat_id in following_ids:
+            ids.add(key)
+    return sorted(ids)
+
+
+def _delete_beat(
+    timeline: Timeline,
+    beats: dict[str, Component],
+    beat_id: str,
+    table: MeasureTable,
+) -> list[str]:
+    """Delete the beat `beat_id`, which starts no measure, moving its unit to
+    its measure's first beat unless that beat has one, as desktop#621 does;
+    and give its measure's downbeat."""
+    unit = beats[beat_id].attrs.get("beat_unit")
+    del timeline.components[beat_id]
+    downbeats = [row.id for row in table.rows if beat_id in row.beats]
+    if downbeats and isinstance(unit, dict):
+        first = beats[downbeats[0]].attrs
+        if first.get("beat_unit") is None:
+            first["beat_unit"] = unit
+    return downbeats
 
 
 def _delete_downbeat(
@@ -89,15 +138,15 @@ def _delete_downbeat(
     beats: dict[str, Component],
     beat_id: str,
     table: MeasureTable,
+    later: list[str],
+    moved: dict[str, str],
 ) -> list[str]:
     """Delete the downbeat `beat_id`, as `delete_beat` says, and give the
     downbeats of the measures it changed: the one before, and the one it
-    started if that remains."""
-    order = beat_order({k: c.attrs for k, c in beats.items()})
-    later = order[order.index(beat_id) + 1 :]
+    started if that remains. `moved` gets where its mark went, if it went."""
     # A closing tap and a beat without a time are in no measure.
-    in_measures = {key for row in table.rows for key in row.beats}
-    target_id = later[0] if later and later[0] in in_measures else None
+    measures = {key: row for row in table.rows for key in row.beats}
+    target_id = later[0] if later and later[0] in measures else None
     mark = beats[beat_id].attrs["measure"]
     unit = beats[beat_id].attrs.get("beat_unit")
     del timeline.components[beat_id]
@@ -116,10 +165,22 @@ def _delete_downbeat(
     else:
         target["measure"] = mark
         changed.append(target_id)
-    if isinstance(unit, dict) and target.get("beat_unit") is None:
+        moved[beat_id] = target_id
+    if isinstance(unit, dict) and not _states_a_unit(
+        beats, measures[target_id], beat_id
+    ):
         target["beat_unit"] = unit
     _follow_next(timeline, beat_id, target_id)
     return changed
+
+
+def _states_a_unit(beats: dict[str, Component], row: Measure, deleted: str) -> bool:
+    """Whether a beat of the measure `row` other than `deleted` states a unit."""
+    return any(
+        isinstance(beats[key].attrs.get("beat_unit"), dict)
+        for key in row.beats
+        if key != deleted
+    )
 
 
 def _measure_before(table: MeasureTable, downbeat_id: str) -> list[str]:
@@ -186,9 +247,11 @@ def mark_edited(doc: Document, timeline_id: str, downbeat_ids: Iterable[str]) ->
     timeline = _beat_timeline(doc, timeline_id)
     chosen = _downbeats(timeline, downbeat_ids)
     source = _table(timeline).source
+    before = problems.states_of(doc, timeline_id, chosen)
     for downbeat_id in chosen:
         _mark_source(timeline, downbeat_id, source)
     _refresh(timeline)
+    problems.keep_old(doc, timeline_id, before)
 
 
 def mark_moved(doc: Document, timeline_id: str, downbeat_id: str) -> None:

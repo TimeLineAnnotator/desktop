@@ -45,7 +45,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
 from tilia_core import rules
@@ -182,6 +182,99 @@ def new_problems(
                 problem = dataclasses.replace(problem, others=changed)
             new.append(problem)
     return new
+
+
+# The rules a beat's `measure` mark breaks: a problem of one goes where the mark
+# goes.
+MARK_CODES = frozenset({rules.NEGATIVE_MEASURE_NUMBER})
+
+
+def states_of(
+    document: Document, timeline_id: str, component_ids: Iterable[str]
+) -> dict[str, str]:
+    """The state of each of `component_ids`, components of the timeline, by
+    id, as a problem records it; none when `document` has no problems or
+    states it was read with to compare them with, so that `keep_old` has
+    nothing to do."""
+    if not document.read_problems and not document.read_unmeasured:
+        return {}
+    timeline = document.timelines[timeline_id]
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+    return {
+        component_id: _component_state(
+            timeline.components[component_id],
+            pointer_to(held, component_id),
+            holds,
+        )
+        for component_id in component_ids
+        if component_id in timeline.components
+    }
+
+
+def keep_old(
+    document: Document,
+    timeline_id: str,
+    before: Mapping[str, str],
+    moved: Mapping[str, str] | None = None,
+) -> None:
+    """Keep old the problems `document` was read with that an edit of
+    `tla.edits` carried, rather than made
+    (TimeLineAnnotator/project-management#528, point 4). `before` gives the
+    states, by id, of the components of the timeline the edit may change, as
+    `states_of` gave them before it; `moved`, a deleted downbeat's id and the
+    beat its mark moved to.
+
+    A problem on one of them, or naming one, that was old before the edit (its
+    state then the one it was read with) is old with its state now. One of
+    `MARK_CODES` on a downbeat whose mark moved is old on the beat it moved
+    to. Any other problem is as it was: a change made since, or after, is
+    still compared."""
+    if not before:
+        return
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    moved = moved or {}
+    was = {pointer_to(held, key): state for key, state in before.items()}
+    now = {
+        pointer_to(held, key): state
+        for key, state in states_of(
+            document, timeline_id, [*before, *moved.values()]
+        ).items()
+    }
+
+    def kept(place: str, state: str) -> str:
+        if was.get(place) == state and place in now:
+            return now[place]
+        return state
+
+    targets = {
+        pointer_to(held, old): pointer_to(held, new) for old, new in moved.items()
+    }
+    problems = []
+    for problem in document.read_problems:
+        problems.append(
+            dataclasses.replace(
+                problem,
+                state=kept(problem.place, problem.state),
+                # A join is between ranges, which these edits don't change.
+                others=tuple((other, kept(other, s)) for other, s in problem.others),
+            )
+        )
+        target = targets.get(problem.place)
+        if (
+            target in now
+            and problem.code in MARK_CODES
+            and was.get(problem.place) == problem.state
+        ):
+            problems.append(
+                dataclasses.replace(
+                    problem, place=target, pointer="", state=now[target], others=()
+                )
+            )
+    document.read_problems = problems
+    unmeasured = document.read_unmeasured
+    for place, state in list(unmeasured.items()):
+        unmeasured[place] = kept(place, state)
 
 
 def warnings_of(

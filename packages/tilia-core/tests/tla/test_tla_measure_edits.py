@@ -55,13 +55,13 @@ def timeline(beats, **keys):
     }
 
 
-def document(beats, **keys):
+def document(beats, length=None, **keys):
     content = {
         "app_name": "TiLiA",
         "version": tla.FORMAT_VERSION,
         "document_id": DOCUMENT,
         "time_unit": "seconds",
-        "media": {"path": "", "length": None},
+        "media": {"path": "", "length": length},
         "metadata": {},
         "timelines": {BEATS: timeline(beats, **keys)},
         "scores": [],
@@ -111,6 +111,17 @@ def units(doc):
 
 def read_back(doc):
     return tla.loads(tla.canonical_bytes(doc))
+
+
+def written_twice(doc, path):
+    """`doc` written, read and written again: the second write's bytes are the
+    first's. Gives the document read."""
+    tla.write(path, doc)
+    first = path.read_bytes()
+    again = tla.read(path)
+    tla.write(path, again)
+    assert path.read_bytes() == first
+    return again
 
 
 def rows(doc):
@@ -456,6 +467,94 @@ def test_a_dropped_unit_leaves_no_default_and_the_bars_read_it_assumed(unit):
     assert readings(read_back(doc)) == readings(doc)
 
 
+def test_a_moved_unit_is_dropped_when_the_measure_it_moves_into_states_one():
+    beats = [
+        (B[0], beat(0.0, measure={"number": 0}, beat_unit=EIGHTHS)),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(2.0, beat_unit=QUARTERS)),
+        (B[3], beat(3.0, measure={})),
+        (B[4], beat(4.0)),
+    ]
+    doc = document(beats)
+    before = readings(doc)
+    tla.delete_beat(doc, BEATS, B[0])
+    assert units(doc) == {B[2]: QUARTERS}
+    assert readings(doc) == {B[1]: before[B[1]], B[3]: before[B[3]]}
+    assert readings(doc)[B[1]] == ("2/4", False)
+
+
+def test_a_moved_unit_is_dropped_when_the_rest_of_its_measure_states_one():
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=EIGHTHS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, beat_unit=QUARTERS)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[0])
+    assert units(doc) == {B[2]: QUARTERS}
+
+
+def test_an_ordinary_beats_unit_moves_to_its_measures_first_beat():
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={})),
+        (B[3], beat(3.0, beat_unit=EIGHTHS)),
+        (B[4], beat(4.0, measure={})),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    assert readings(doc)[B[4]] == ("6/8", False)
+    tla.delete_beat(doc, BEATS, B[3])
+    assert units(doc) == {B[0]: QUARTERS, B[2]: EIGHTHS}
+    assert readings(doc) == {
+        B[0]: ("2/4", False),
+        B[2]: ("3/8", False),
+        B[4]: ("6/8", False),
+    }
+
+
+def test_an_ordinary_beats_unit_is_dropped_when_its_measures_first_beat_has_one():
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0, beat_unit=EIGHTHS)),
+        (B[2], beat(2.0)),
+        (B[3], beat(3.0, measure={})),
+        (B[4], beat(4.0)),
+    ]
+    doc = document(beats)
+    before = readings(doc)[B[3]]
+    tla.delete_beat(doc, BEATS, B[1])
+    assert units(doc) == {B[0]: QUARTERS}
+    assert readings(doc)[B[3]] == before == ("2/4", False)
+
+
+# delete_beat: a timeline left with no mark
+
+
+def test_a_timeline_with_no_mark_at_all_is_read_and_written(tmp_path):
+    doc = document([(B[0], beat(0.0)), (B[1], beat(1.0))])
+    assert doc.timelines[BEATS].measures.rows == []
+    assert timemap.time_map_for(doc, BEATS) is None
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again) == {}
+
+
+def test_while_a_beat_has_a_mark_the_first_beat_must_have_one():
+    with pytest.raises(tla.UnreadableFile, match="has no measure mark"):
+        document([(B[0], beat(0.0)), (B[1], beat(1.0, measure={}))])
+
+
+def test_dropping_the_beat_without_a_time_that_held_the_only_mark(tmp_path):
+    # As `tilia migrate --apply` drops beats without a time.
+    beats = [(B[0], beat(0.0)), (B[1], beat(1.0)), (B[2], beat(None, measure={}))]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[2], by_person=False)
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert set(components(again)) == {B[0], B[1]}
+    assert written(again) == {}
+
+
 # delete_beat: the measures it marks "edited"
 
 
@@ -538,6 +637,173 @@ def test_the_source_a_deletion_sets_is_written_and_read_back():
     again = read_back(doc)
     assert marks(again) == marks(doc)
     assert [r[4] for r in rows(again)] == ["edited", "edited", "import"]
+
+
+# delete_beat and mark_edited: problems the file was read with stay old
+
+
+@pytest.mark.parametrize("by_person", [True, False])
+def test_a_problem_that_moves_with_a_mark_stays_old(tmp_path, by_person):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={"number": -1})),
+        (B[2], beat(2.0)),
+    ]
+    doc = document(beats, measure_source="import")
+    assert any("below 0" in w.message for w in doc.warnings)
+    tla.delete_beat(doc, BEATS, B[1], by_person=by_person)
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[2]]["number"] == -1
+
+
+def test_a_problem_of_the_beat_a_mark_moves_onto_stays_old(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(5.0)),
+    ]
+    doc = document(beats, length=1.5, measure_source="import")
+    tla.delete_beat(doc, BEATS, B[1])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again) == {B[0]: {"source": "edited"}, B[2]: {"source": "edited"}}
+
+
+def test_a_problem_between_beats_stays_old_when_a_mark_moves_onto_one(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(2.0)),
+        (B[3], beat(2.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[1])
+    written_twice(doc, tmp_path / "f.tla")
+
+
+def test_a_beat_a_mark_moves_onto_keeps_its_time_uncompared(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(150.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[1])
+    doc.media_length = 100.0
+    written_twice(doc, tmp_path / "f.tla")
+
+
+def test_a_problem_on_a_measure_marked_edited_stays_old(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0)),
+        (B[2], beat(5.0, measure={})),
+        (B[3], beat(6.0)),
+    ]
+    doc = document(beats, length=1.5, measure_source="import")
+    tla.mark_edited(doc, BEATS, [B[2]])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[2]] == {"source": "edited"}
+
+
+def test_a_problem_made_after_the_deletion_is_refused(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={"number": -1})),
+        (B[2], beat(2.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[1])
+    components(doc)[B[2]].attrs["measure"]["number"] = -2
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "f.tla", doc)
+
+
+def test_a_problem_the_file_wasnt_read_with_is_refused_where_the_mark_moves(
+    tmp_path,
+):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(2.0)),
+    ]
+    doc = document(beats)
+    components(doc)[B[1]].attrs["measure"]["number"] = -1
+    tla.delete_beat(doc, BEATS, B[1])
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "f.tla", doc)
+
+
+def test_a_problem_on_the_measure_before_a_deleted_downbeat_stays_old(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(5.0, measure={})),
+        (B[2], beat(6.0)),
+        (B[3], beat(7.0, measure={})),
+        (B[4], beat(8.0)),
+    ]
+    doc = document(beats, length=1.5, measure_source="import")
+    tla.delete_beat(doc, BEATS, B[3])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[1]] == {"source": "edited"}
+
+
+def test_a_problem_on_a_mark_whose_next_follows_stays_old(tmp_path):
+    # The mark naming the deleted downbeat isn't the measure before it.
+    beats = [
+        (B[0], beat(0.0, measure={"number": -1, "next": [B[4]]})),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={})),
+        (B[3], beat(3.0)),
+        (B[4], beat(4.0, measure={})),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[4], by_person=False)
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[0]] == {"number": -1, "next": [B[5]]}
+
+
+def test_a_problem_naming_a_beat_marked_edited_stays_old(tmp_path):
+    # B[1] and B[2] are at one time: the problem is on B[1], and names B[2],
+    # the measure before the deleted downbeat, which gets the source "edited".
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0)),
+        (B[2], beat(1.0, measure={})),
+        (B[3], beat(2.0)),
+        (B[4], beat(3.0, measure={})),
+        (B[5], beat(4.0)),
+    ]
+    doc = document(beats, measure_source="import")
+    tla.delete_beat(doc, BEATS, B[4])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[2]] == {"source": "edited"}
+
+
+def test_a_problem_changed_since_reading_is_refused_where_the_mark_moves(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={"number": -1})),
+        (B[2], beat(2.0)),
+    ]
+    doc = document(beats)
+    components(doc)[B[1]].attrs["measure"]["number"] = -3
+    tla.delete_beat(doc, BEATS, B[1])
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "f.tla", doc)
+
+
+def test_a_beat_changed_since_reading_keeps_its_problem_new(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(5.0)),
+    ]
+    doc = document(beats, length=1.5)
+    components(doc)[B[2]].attrs["time"] = 6.0
+    tla.delete_beat(doc, BEATS, B[1], by_person=False)
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "f.tla", doc)
 
 
 # mark_edited and mark_moved
