@@ -83,15 +83,12 @@ def _sequence_matches(
         return
     mode = MODES[pattern.order]
     n_steps = len(pattern.seq.steps)
-    nodes = list(relations.units_of(pattern.seq))
-    for node in nodes:
+    for node in relations.units_of(pattern.seq):
         scope.fit(node)
-    # Each item of a run fits a unit of the pattern, unless a NOT group takes it:
-    # a lane where no unit fits has no run, and is not read.
-    skip = not relations.has_negated_group(pattern.seq)
+    held = relations.run_units(pattern.seq)
     for spec in specs:
         limits.ensure()
-        if skip and not scope.may_fit(nodes, spec):
+        if held is not None and not scope.may_fit(held, spec):
             continue
         items = scope.lane_items(spec)
         if not items:
