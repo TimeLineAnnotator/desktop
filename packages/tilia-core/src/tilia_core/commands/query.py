@@ -257,9 +257,6 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
     try:
         # Read once: a rescan before the run would read every file again.
         opened = corpus.open_corpus(folder, rescan_before_reads=False)
-    except NotImplementedError as error:  # no .tla reader in this version
-        print(f"{PROG}: {error}", file=sys.stderr)
-        return EXIT_FAILED
     except OSError as error:
         why = error.strerror or str(error)
         print(f"{PROG}: can't read {shown(folder)}: {why}", file=sys.stderr)

@@ -1,13 +1,14 @@
 """`tilia query` (User Story 7, FR-045–FR-047), through the `tilia` command's own
 entry point, with PySide6 and the app blocked.
 
-Until WP3's reader is the index's default (TimeLineAnnotator/project-management#185),
-`open_corpus` reads no `.tla` file without a reader, so these tests run the
-command with the corpus tests' stand-in reader, which reads documents written as
-JSON (`tests/corpus/json_reader.py`). Each run is a fresh interpreter: it blocks
-PySide6, shiboken6 and `tilia` before anything is imported, gives `open_corpus`
-the stand-in reader, and calls `tilia_core.commands.main`, which finds `query`
-among the installed entry points."""
+Most tests run the command with the corpus tests' stand-in reader, which reads
+TQL's fixtures written as JSON (`tests/corpus/json_reader.py`), so the rows it
+prints can be checked against `tql.run`'s on the same fixtures; one reads a real
+`.tla` file with `open_corpus`'s default reader, WP3's. Each run is a fresh
+interpreter: it blocks PySide6, shiboken6 and `tilia` before anything is
+imported, gives `open_corpus` the stand-in reader unless told not to, and calls
+`tilia_core.commands.main`, which finds `query` among the installed entry
+points."""
 
 import os
 import shutil
@@ -20,8 +21,9 @@ import corpus_docs
 import examples
 import pytest
 from json_reader import JsonDocumentReader
+from tla_files import as_tla
 
-from tilia_core import open_corpus, tql
+from tilia_core import open_corpus, tla, tql
 
 TESTS = Path(__file__).resolve().parent.parent
 HELPERS = [str(TESTS / "corpus"), str(TESTS / "tql")]
@@ -59,7 +61,7 @@ from functools import partial
 
 from tilia_core import corpus, tql
 
-if mode != "no-reader":
+if mode != "default-reader":
     from json_reader import JsonDocumentReader
 
     corpus.open_corpus = partial(corpus.open_corpus, reader=JsonDocumentReader())
@@ -84,7 +86,7 @@ sys.exit(main())
 
 def tilia(*arguments, cwd, mode="reader", encoding="utf-8"):
     """Run `tilia` with `arguments`, as a user would, but with the stand-in
-    reader (`mode` "reader"), without one ("no-reader"), or with a Ctrl+C as
+    reader (`mode` "reader"), with `open_corpus`'s own ("default-reader"), or with a Ctrl+C as
     the query starts ("interrupted"). Its output is bytes with `encoding`
     None, as for CSV."""
     env = {
@@ -681,11 +683,20 @@ def test_ctrl_c_cancels_the_run_prints_what_was_found_and_exits_1(exposition):
     assert header(result.stdout)[0] == "path"
 
 
-def test_without_a_tla_reader_it_says_so_and_exits_1(exposition):
-    # Until TimeLineAnnotator/project-management#185 makes WP3's reader the
-    # index's default, open_corpus reads no .tla file without one.
-    result = tilia("query", ".", "* IN form", cwd=exposition, mode="no-reader")
+def test_a_real_tla_file_is_read_with_the_default_reader(tmp_path):
+    folder = tmp_path / "real"
+    folder.mkdir()
+    document = corpus_docs.document_from_fixture(FIXTURES["exposition"])
+    tla.write(folder / "exposition.tla", as_tla(document))
+    with open_corpus(folder) as corpus:
+        rows = tql.run(corpus, "PAC IN cadences").rows
+    assert rows
 
-    assert result.returncode == 1
-    assert result.stderr.startswith("tilia query: no .tla reader yet")
-    assert result.stdout == ""
+    result = tilia("query", ".", "PAC IN cadences", cwd=folder, mode="default-reader")
+
+    assert result.returncode == 0, result.stderr
+    columns = header(result.stdout)
+    assert columns == MATCH_COLUMNS
+    assert table(result.stdout) == [
+        {c: cell(c, row[c]) for c in columns} for row in rows
+    ]
