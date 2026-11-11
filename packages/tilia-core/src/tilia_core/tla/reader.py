@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -38,6 +39,7 @@ from tilia_core.tla.model import (
     Score,
     Timeline,
     UnknownKind,
+    _MadeWhenAsked,
     component_kind_from_file,
     measure_table,
     timeline_kind_from_current_file,
@@ -48,7 +50,8 @@ from tilia_core.tla.problems import keep_problems
 
 def read(path: str | os.PathLike[str]) -> Document:
     """Read a `.tla` file. Nothing is written, created or touched. The document's
-    `fingerprint` is that of the bytes read, for a write to state.
+    `fingerprint` is that of the bytes read, for a write to state, made from them
+    when it is first asked for.
 
     Raises `UnreadableFile` for content the reader refuses, and lets the
     system's `OSError` through for a file it can't open or read.
@@ -60,7 +63,7 @@ def read(path: str | os.PathLike[str]) -> Document:
 
 def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Document:
     """Read a `.tla` file's bytes. `path`, when given, is where the file is. The
-    document's `fingerprint` is that of `data`."""
+    document's `fingerprint` is that of `data`, made when it is first asked for."""
     return _loads(data, path)[0]
 
 
@@ -102,18 +105,40 @@ def _loads(
     document = _Reader(path).document(content)
     document.warnings = warnings
     if not for_fingerprint:
-        document.fingerprint = _fingerprint_of(document)
+        _keep_what_was_read(document, data, path)
         keep_problems(document, data)
     return document, None
 
 
-def _fingerprint_of(document: Document) -> str:
-    """The fingerprint of the file `document` was just read from, whose media and
-    PDF paths are as the file stores them (FR-043)."""
-    # Imported here: the writer reads this module.
-    from tilia_core.tla.writer import fingerprint_as_read
+# Every Python reads and writes an integer of fewer than 640 digits, whatever its
+# limit (sys.set_int_max_str_digits). Found with each digit as a 0 and anything
+# else as a space, which is far quicker than a regular expression.
+_DIGITS_AS_ZEROS = bytes(48 if 48 <= byte <= 57 else 32 for byte in range(256))
+_LONG_INTEGER = b"0" * 640
 
-    return fingerprint_as_read(document)
+
+def _keep_what_was_read(
+    document: Document, data: bytes, path: str | os.PathLike[str] | None
+) -> None:
+    """Give `document`, just read from `data`, what a write states: the
+    fingerprint of `data`, made from `data` when it is first asked for, so that
+    a read costs nothing more and the file isn't read again; and the plain
+    SHA-256 of `data`, by which a write finds the file unchanged without reading
+    it as a document again (TimeLineAnnotator/project-management#533).
+
+    From a file with an integer that a Python may not read or write, the
+    fingerprint is made now: what it raises for one is raised while reading, and
+    a limit lowered since can't stop it being made."""
+    # Imported here: the writer reads this module.
+    from tilia_core.tla.writer import _fingerprint_of_bytes
+
+    data = bytes(data)  # as they are now: a caller may change a bytearray it gave
+    make = partial(_fingerprint_of_bytes, data, path)
+    if _LONG_INTEGER in data.translate(_DIGITS_AS_ZEROS):
+        document._fingerprint = make()
+    else:
+        document._fingerprint = _MadeWhenAsked(make)
+    document._read_digest = hashlib.sha256(data).hexdigest()
 
 
 def written_document(
@@ -142,13 +167,9 @@ def _old(
     migration names its places so itself; the check names places in the
     migrated document, which the migration's `places` takes back to the old
     file, with what it says about them. A warning's ids are the document's.
-
-    It is migrated once, with its paths as it stores them, what its fingerprint
-    is taken from; only then are they made relative from where the file is. The
-    check reads only their types, which that doesn't change.
     """
     try:
-        migrated = migrate(content, path=path, paths_as_stored=True)
+        migrated = migrate(content, path=path, paths_as_stored=for_fingerprint)
         try:
             warnings = check(migrated.content, path=path)
         except UnreadableFile as error:
@@ -168,20 +189,9 @@ def _old(
         for w, place, message in named
     ]
     if not for_fingerprint:
-        document.fingerprint = _fingerprint_of(document)
-        migrated.make_paths_relative(path)
-        _take_paths(document, migrated.content)
+        _keep_what_was_read(document, data, path)
         keep_problems(document, data, where=migrated.places.old)
     return document, migrated
-
-
-def _take_paths(document: Document, content: dict[str, Any]) -> None:
-    """Give `document`, made from `content`, the media's and PDF timelines' paths
-    `content` has now, in NFC, as the reader reads them."""
-    document.media_path = nfc_value(content["media"]["path"])
-    for key, timeline in document.timelines.items():
-        if timeline.kind == "pdf" and "path" in timeline.attrs:
-            timeline.attrs["path"] = nfc_value(content["timelines"][key]["path"])
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.

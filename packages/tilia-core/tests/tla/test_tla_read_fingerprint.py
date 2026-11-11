@@ -1,14 +1,25 @@
 """A document carries the fingerprint it was read with
-(TimeLineAnnotator/project-management#415): `read` and `loads` set it from the
-bytes they read, and `write` to what it wrote, so that a write can state the
+(TimeLineAnnotator/project-management#415): `read` and `loads` give it that of the
+bytes they read, and `write` that of what it wrote, so that a write can state the
 version it read with no second read, on an old file too, whose
-`fingerprint_of(doc)` isn't the file's (FR-043). It is never written to the file."""
+`fingerprint_of(doc)` isn't the file's (FR-043). It is never written to the file.
+
+A read makes it the first time it is asked for, from the bytes read, which the
+document keeps until then; with the plain SHA-256 of those bytes, a write finds
+the file unchanged without reading it as a document again
+(TimeLineAnnotator/project-management#533)."""
 
 import builtins
+import copy
+import dataclasses
 import hashlib
 import json
 import os
+import pickle
 import shutil
+import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -282,6 +293,19 @@ def test_a_file_in_another_form_can_be_written_stating_it(tmp_path):
 # No second read
 
 
+def counted(monkeypatch, module, name):
+    """The calls to `module.name` from now on, each with its arguments."""
+    calls = []
+    real = getattr(module, name)
+
+    def counting(*args, **kwargs):
+        calls.append(args)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module, name, counting)
+    return calls
+
+
 def test_read_opens_the_file_once(piece, monkeypatch):
     opened = []
     real = builtins.open
@@ -297,27 +321,119 @@ def test_read_opens_the_file_once(piece, monkeypatch):
 
 
 @pytest.mark.parametrize("path", OLD, ids=file_id)
-def test_an_old_file_is_parsed_and_migrated_once(path, monkeypatch):
-    parsed, migrated = [], []
-    parse, migrate = reader.parse, reader.migrate
-
-    def counting_parse(*args, **kwargs):
-        parsed.append(args)
-        return parse(*args, **kwargs)
-
-    def counting_migrate(*args, **kwargs):
-        migrated.append(args)
-        return migrate(*args, **kwargs)
-
-    monkeypatch.setattr(reader, "parse", counting_parse)
-    monkeypatch.setattr(reader, "migrate", counting_migrate)
-    assert tla.read(path).fingerprint is not None
+def test_an_old_file_is_parsed_and_migrated_once_by_a_read(path, monkeypatch):
+    parsed = counted(monkeypatch, reader, "parse")
+    migrated = counted(monkeypatch, reader, "migrate")
+    doc = tla.read(path)
     assert (len(parsed), len(migrated)) == (1, 1)
+    # Once more, from the bytes read, when its fingerprint is first asked for.
+    assert doc.fingerprint == tla.fingerprint(path)
+    assert (len(parsed), len(migrated)) == (3, 3)  # with tla.fingerprint's own
+
+
+@pytest.mark.parametrize("path", EVERY_FILE, ids=file_id)
+def test_a_read_makes_no_fingerprint_until_it_is_asked_for(path, monkeypatch):
+    made = counted(monkeypatch, writer, "_fingerprint_of_bytes")
+    doc = tla.read(path)
+    assert made == []
+    first = doc.fingerprint
+    assert len(made) == 1
+    assert doc.fingerprint == first == tla.fingerprint(path)
+    assert len(made) == 2  # tla.fingerprint's: the document's is made once
+
+
+def test_its_fingerprint_is_made_from_the_bytes_read_not_from_the_file(piece):
+    doc = tla.read(piece)
+    expected = tla.fingerprint(piece)
+    piece.unlink()
+    assert doc.fingerprint == expected
+
+
+def test_its_fingerprint_is_of_the_bytes_given_to_loads(piece):
+    # Not of what a bytearray holds once the caller has changed it.
+    given = bytearray(piece.read_bytes())
+    doc = tla.loads(given)
+    given[:] = b"{}"
+    assert doc.fingerprint == tla.fingerprint(piece)
+
+
+def test_once_made_the_bytes_read_are_dropped(piece):
+    doc = tla.read(piece)
+    assert doc._fingerprint._make is not None
+    made = doc.fingerprint
+    assert doc._fingerprint._make is None
+    assert doc.fingerprint == made
+
+
+def test_two_threads_asking_at_once_make_it_once(piece, monkeypatch):
+    real = writer._fingerprint_of_bytes
+    made = []
+
+    def slow(*args, **kwargs):
+        made.append(args)
+        time.sleep(0.05)  # so that the other threads ask while it is made
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(writer, "_fingerprint_of_bytes", slow)
+    doc = tla.read(piece)
+    start = threading.Barrier(4)
+    found = []
+
+    def ask():
+        start.wait()
+        found.append(doc.fingerprint)
+
+    threads = [threading.Thread(target=ask) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert len(made) == 1
+    assert found == [tla.fingerprint(piece)] * 4
+
+
+@pytest.mark.parametrize("asked", [False, True], ids=["not asked yet", "asked"])
+@pytest.mark.parametrize(
+    "copied",
+    [
+        lambda doc: pickle.loads(pickle.dumps(doc)),
+        copy.copy,
+        copy.deepcopy,
+    ],
+    ids=["pickle", "copy", "deepcopy"],
+)
+def test_a_document_read_is_pickled_and_copied_with_its_fingerprint(
+    piece, asked, copied
+):
+    doc = tla.read(piece)
+    if asked:
+        assert doc.fingerprint is not None
+    other = copied(doc)
+    assert other.fingerprint == tla.fingerprint(piece)
+    assert other._read_digest == doc._read_digest
+    assert doc.fingerprint == other.fingerprint
+
+
+def test_a_long_integer_has_its_fingerprint_made_when_the_file_is_read(tmp_path):
+    # A limit lowered since can't stop it being made: Python's own, between 640
+    # digits and what the reader read.
+    doc = without_harmonies(tla.read(EVERY_KIND))
+    doc.extra["count"] = 10**700
+    piece = tmp_path / "piece.tla"
+    piece.write_bytes(tla.canonical_bytes(doc))
+    read = tla.read(piece)
+    expected = hashlib.sha256(piece.read_bytes()).hexdigest()
+    limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(640)
+    try:
+        assert read.fingerprint == expected
+    finally:
+        sys.set_int_max_str_digits(limit)
 
 
 @pytest.mark.parametrize("path", EVERY_FILE, ids=file_id)
 def test_a_file_is_checked_once_when_it_is_read(path, monkeypatch):
-    # The fingerprint takes no second check: a read is what SC-004 counts.
+    # Its fingerprint takes no second check either: `fingerprint_of`'s isn't run.
     expected = tla.fingerprint(path)
 
     def refuse(*args, **kwargs):
@@ -368,22 +484,115 @@ def test_migrate_states_the_fingerprint_the_document_was_read_with(
 
 
 def test_migrate_has_no_fingerprint_of_its_own(tmp_path, monkeypatch):
-    # An old file is migrated twice: when it is read, and by the write's own
-    # check of what is on disk, since an old file's bytes aren't its canonical
-    # bytes. Not a third time to compute what to state.
+    # An old file is migrated twice: when it is read, and when the fingerprint it
+    # states is made, from the bytes read. The write's own check finds the file
+    # on disk unchanged by the plain SHA-256 of those bytes, and doesn't migrate
+    # it a third time.
     piece = tmp_path / "piece.tla"
     shutil.copyfile(OLD_WITHOUT_HARMONIES, piece)
-    migrated = []
-    migrate = reader.migrate
-
-    def counting(*args, **kwargs):
-        migrated.append(args)
-        return migrate(*args, **kwargs)
-
-    monkeypatch.setattr(reader, "migrate", counting)
+    migrated = counted(monkeypatch, reader, "migrate")
     report = tla.migrate_folder(tmp_path, apply=True)
     assert [file.outcome for file in report.files] == [tla.Outcome.MIGRATED]
     assert len(migrated) == 2
+
+
+# The check before writing, on a file still as it was read
+
+
+def test_a_save_of_an_unchanged_old_file_doesnt_migrate_it_again(tmp_path, monkeypatch):
+    piece = tmp_path / "piece.tla"
+    shutil.copyfile(OLD_WITHOUT_HARMONIES, piece)
+    doc = tla.read(piece)
+    expect = doc.fingerprint
+    migrated = counted(monkeypatch, reader, "migrate")
+    tla.write(piece, doc, expect=expect)
+    assert migrated == []
+    assert json.loads(piece.read_bytes())["version"] == tla.FORMAT_VERSION
+
+
+def test_a_changed_old_file_is_still_found_changed(tmp_path):
+    piece = tmp_path / "piece.tla"
+    shutil.copyfile(OLD_WITHOUT_HARMONIES, piece)
+    doc = tla.read(piece)
+    expect = doc.fingerprint
+    changed_on_disk(piece)
+    with pytest.raises(tla.FileChanged):
+        tla.write(piece, doc, expect=expect)
+
+
+def test_an_old_file_changed_only_where_its_fingerprint_doesnt_look_is_written(
+    tmp_path,
+):
+    # Its bytes aren't those read, so it is read as a document: its `file_path`
+    # isn't in its fingerprint (FR-043).
+    piece = tmp_path / "piece.tla"
+    content = json.loads(OLD_WITHOUT_HARMONIES.read_bytes())
+    content["file_path"] = "C:/before/piece.tla"
+    piece.write_text(json.dumps(content), "utf-8")
+    doc = tla.read(piece)
+    expect = doc.fingerprint
+    content["file_path"] = "C:/after/piece.tla"
+    piece.write_text(json.dumps(content), "utf-8")
+    tla.write(piece, doc, expect=expect)
+    assert json.loads(piece.read_bytes())["version"] == tla.FORMAT_VERSION
+
+
+def test_a_file_whose_line_endings_changed_since_it_was_read_is_written(tmp_path):
+    # A git checkout's: the same canonical bytes, other bytes.
+    piece = tmp_path / "piece.tla"
+    doc = without_harmonies(tla.read(EVERY_KIND))
+    piece.write_bytes(tla.canonical_bytes(doc))
+    read = tla.read(piece)
+    piece.write_bytes(piece.read_bytes().replace(b"\n", b"\r\n"))
+    read.metadata["note"] = "edited"
+    tla.write(piece, read, expect=read.fingerprint)
+    assert tla.read(piece).metadata["note"] == "edited"
+
+
+def test_the_check_makes_no_fingerprint_to_compare_with(piece, monkeypatch):
+    # An `expect` from elsewhere, with the document's not yet made, is checked as
+    # it always was, and makes none.
+    doc = tla.read(piece)
+    expect = tla.fingerprint(piece)
+    canonical = hashlib.sha256(piece.read_bytes()).hexdigest() == expect
+    made = counted(monkeypatch, writer, "_fingerprint_of_bytes")
+    tla.write(piece, doc, expect=expect)
+    # The file's own, read to be compared when its bytes aren't canonical, as an
+    # old file's aren't; never the document's.
+    assert len(made) == (0 if canonical else 1)
+
+
+def test_a_document_read_is_compared_as_what_it_holds(piece):
+    # As `dataclasses.asdict` gives it, whether its fingerprint is made or not.
+    asked, not_asked = tla.read(piece), tla.read(piece)
+    assert asked.fingerprint is not None
+    assert dataclasses.asdict(asked) == dataclasses.asdict(not_asked)
+    assert repr(dataclasses.asdict(not_asked)) == repr(dataclasses.asdict(asked))
+
+
+def test_unchanged_bytes_are_the_file_read_only_for_its_own_fingerprint(piece):
+    # Another `expect`, with the file as it was read, is still refused.
+    doc = tla.read(piece)
+    with pytest.raises(tla.FileChanged):
+        tla.write(piece, doc, expect="0" * 64)
+
+
+def test_setting_the_fingerprint_drops_the_bytes_it_was_read_with(piece):
+    doc = tla.read(piece)
+    doc.fingerprint = "0" * 64
+    assert doc._read_digest is None
+    with pytest.raises(tla.FileChanged):
+        tla.write(piece, doc, expect=doc.fingerprint)
+
+
+def test_a_document_built_in_memory_is_written_with_no_check(tmp_path):
+    # Its fingerprint is None, which `expect` takes for no check: a file there is
+    # replaced whatever it holds. A document that is to be checked is one read.
+    piece = tmp_path / "piece.tla"
+    piece.write_bytes(b"anything at all")
+    doc = tla.new_document()
+    tla.write(piece, doc, expect=doc.fingerprint)
+    assert tla.read(piece).document_id == doc.document_id
 
 
 def test_migrate_leaves_alone_a_file_changed_after_it_was_read(tmp_path, monkeypatch):
