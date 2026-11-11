@@ -23,8 +23,10 @@ from collections.abc import Iterator
 
 from tilia_core.commands._report import (
     ESCAPES,
+    folder_problem,
     print_out,
     tolerate_unencodable,
+    wrong_use,
 )
 from tilia_core.commands._report import shown as _shown
 from tilia_core.tla.folder import migrate_folder
@@ -89,9 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     # As given: the shell has expanded any "~" that names a home folder, so
     # one left is part of a name.
     folder: str = arguments.folder
-    if not os.path.isdir(folder):
-        what = "not a folder" if os.path.exists(folder) else "no such folder"
-        return _wrong_use(parser, f"{what}: {_shown(folder)}")
+    problem = folder_problem(folder)
+    if problem is not None:
+        return wrong_use(parser, problem)
     try:
         report = migrate_folder(folder, apply=arguments.apply)
     except OSError as error:
@@ -123,13 +125,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true", help="write the migrated files")
     parser.add_argument("--help", action="help", help="show this help and exit")
     return parser
-
-
-def _wrong_use(parser: argparse.ArgumentParser, message: str) -> int:
-    """Say what is wrong as argparse does, and give the status for it."""
-    parser.print_usage(sys.stderr)
-    print(f"{PROG}: error: {message}", file=sys.stderr)
-    return 2
 
 
 # The part of the report that lists the files of each outcome. Every outcome

@@ -14,7 +14,6 @@ the query included (`tql.TQLError`).
 from __future__ import annotations
 
 import argparse
-import os
 import signal
 import sys
 import tempfile
@@ -30,11 +29,13 @@ from tilia_core.commands._report import (
     EXIT_FAILED,
     EXIT_OK,
     EXIT_WRONG_USE,
+    folder_problem,
     print_bytes,
     print_out,
     print_problem,
     shown,
     tolerate_unencodable,
+    wrong_use,
 )
 from tilia_core.tql.stats import NAMES as STATS
 
@@ -183,13 +184,6 @@ def _positive_float(text: str) -> float:
     return value
 
 
-def _wrong_use(parser: argparse.ArgumentParser, message: str) -> int:
-    """Say what is wrong as argparse does, and give the status for it."""
-    parser.print_usage(sys.stderr)
-    print(f"{PROG}: error: {message}", file=sys.stderr)
-    return EXIT_WRONG_USE
-
-
 def _misused_options(arguments: argparse.Namespace) -> str | None:
     if arguments.stats is None:
         if arguments.by is not None:
@@ -204,25 +198,23 @@ def _misused_options(arguments: argparse.Namespace) -> str | None:
 def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> int:
     misused = _misused_options(arguments)
     if misused is not None:
-        return _wrong_use(parser, misused)
+        return wrong_use(parser, misused)
     given = [a for a in (arguments.first, arguments.second) if a is not None]
     source: str | None = arguments.file
     if source is not None:
         if len(given) > 1:
-            return _wrong_use(
-                parser, "give the query as QUERY or with --file, not both"
-            )
+            return wrong_use(parser, "give the query as QUERY or with --file, not both")
         try:
             text = Path(source).read_text(encoding="utf-8-sig")
         except FileNotFoundError:
-            return _wrong_use(parser, f"no such file: {shown(source)}")
+            return wrong_use(parser, f"no such file: {shown(source)}")
         except (OSError, UnicodeDecodeError) as error:
             why = getattr(error, "strerror", None) or str(error)
-            return _wrong_use(parser, f"can't read {shown(source)}: {why}")
+            return wrong_use(parser, f"can't read {shown(source)}: {why}")
         folders = given
     else:
         if not given or (len(given) == 1 and not arguments.explain):
-            return _wrong_use(parser, "FOLDER and QUERY are needed")
+            return wrong_use(parser, "FOLDER and QUERY are needed")
         text = given[-1]
         folders = given[:-1]
 
@@ -235,11 +227,11 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         return EXIT_OK
 
     if not folders:
-        return _wrong_use(parser, "FOLDER is needed")
+        return wrong_use(parser, "FOLDER is needed")
     folder: str = folders[0]
-    if not os.path.isdir(folder):
-        what = "not a folder" if os.path.exists(folder) else "no such folder"
-        return _wrong_use(parser, f"{what}: {shown(folder)}")
+    problem = folder_problem(folder)
+    if problem is not None:
+        return wrong_use(parser, problem)
     try:
         parsed = tql.parse(text)
     except tql.TQLError as error:
@@ -267,7 +259,7 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         try:
             status = _print_result(result, arguments)
         except ValueError as error:  # a statistics name or key it doesn't know
-            return _wrong_use(parser, str(error))
+            return wrong_use(parser, str(error))
     for warning in result.warnings:
         print(f"warning: {shown(warning)}", file=sys.stderr)
     if result.stopped is not None:

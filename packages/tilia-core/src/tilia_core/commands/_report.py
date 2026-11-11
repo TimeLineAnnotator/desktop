@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Literal, TextIO
 from tilia_core.tla.errors import printable
 
 if TYPE_CHECKING:
+    import argparse
+
     from tilia_core.commands._script import ScriptLine
     from tilia_core.importers import RowProblem
 
@@ -54,6 +56,21 @@ def print_problem(file: str, message: str, *, line: int | None = None) -> None:
     else:
         text = _ON_A_LINE.format(file, line, message)
     print(printable(shown(text)), file=sys.stderr)
+
+
+def wrong_use(parser: argparse.ArgumentParser, message: str) -> int:
+    """Say what is wrong as argparse does, and give the status for it."""
+    parser.print_usage(sys.stderr)
+    print(f"{parser.prog}: error: {message}", file=sys.stderr)
+    return EXIT_WRONG_USE
+
+
+def folder_problem(path: str) -> str | None:
+    """What is wrong with `path` as the folder to read, or None if nothing is."""
+    if os.path.isdir(path):
+        return None
+    what = "not a folder" if os.path.exists(path) else "no such folder"
+    return f"{what}: {shown(path)}"
 
 
 def tolerate_unencodable(stream: TextIO) -> None:
