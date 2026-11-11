@@ -199,10 +199,11 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
     misused = _misused_options(arguments)
     if misused is not None:
         return wrong_use(parser, misused)
-    given = [a for a in (arguments.first, arguments.second) if a is not None]
+    folder: str | None = arguments.first
+    text: str | None = arguments.second
     source: str | None = arguments.file
     if source is not None:
-        if len(given) > 1:
+        if text is not None:
             return wrong_use(parser, "give the query as QUERY or with --file, not both")
         try:
             text = Path(source).read_text(encoding="utf-8-sig")
@@ -211,31 +212,24 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         except (OSError, UnicodeDecodeError) as error:
             why = getattr(error, "strerror", None) or str(error)
             return wrong_use(parser, f"can't read {shown(source)}: {why}")
-        folders = given
-    else:
-        if not given or (len(given) == 1 and not arguments.explain):
+    elif text is None:  # one argument: the query, which only --explain takes alone
+        if folder is None or not arguments.explain:
             return wrong_use(parser, "FOLDER and QUERY are needed")
-        text = given[-1]
-        folders = given[:-1]
+        folder, text = None, folder
 
     if arguments.explain:  # runs nothing, so it reads no folder
-        try:
-            parsed = tql.parse(text)
-        except tql.TQLError as error:
-            return _query_error(source, text, error)
-        print_out(tql.explain(parsed))
-        return EXIT_OK
-
-    if not folders:
+        folder = None
+    elif folder is None:
         return wrong_use(parser, "FOLDER is needed")
-    folder: str = folders[0]
-    problem = folder_problem(folder)
-    if problem is not None:
+    elif (problem := folder_problem(folder)) is not None:
         return wrong_use(parser, problem)
     try:
         parsed = tql.parse(text)
     except tql.TQLError as error:
         return _query_error(source, text, error)
+    if folder is None:  # --explain
+        print_out(tql.explain(parsed))
+        return EXIT_OK
 
     try:
         # Read once: a rescan before the run would read every file again.
@@ -335,11 +329,9 @@ def _print_result(result: tql.Result, arguments: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _keys(by: str | None) -> str | list[str] | None:
-    if by is None:
-        return None
-    keys = [key.strip() for key in by.split(",")]
-    return keys[0] if len(keys) == 1 else keys
+def _keys(by: str | None) -> list[str] | None:
+    """`--by`'s keys: `Result.stats` takes one key alone or in a list alike."""
+    return None if by is None else [key.strip() for key in by.split(",")]
 
 
 def _labelled(rows: list[dict[str, Any]], labels: str) -> list[dict[str, Any]]:
