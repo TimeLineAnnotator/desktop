@@ -7,6 +7,8 @@ The first form opens FOLDER as a corpus and prints:
 
 - the files by state, with each unreadable file's path, line and reason, and
   whether WP3's reader gives that reason on its own;
+- how many files have a beat timeline but no time map, by WP9's reason, and
+  how many have WP9's warnings (``files.time_map_reason``, ``file_warnings``);
 - the timelines and the units of each kind TQL searches, as ``tilia_core.tla``
   reads them from the files beside those in the index, and the files where they
   differ (SC-001);
@@ -64,7 +66,7 @@ UNIT_KINDS.update({(k, k): k for k in INDEXED_KINDS if k != "harmony"})
 DUMP = {
     "files": "SELECT path, document_id, format_version, state, reason, fingerprint, "
     "media_length, time_unit, (SELECT uuid FROM timelines t WHERE t.id = f.time_map), "
-    "time_map_guessed FROM files f",
+    "time_map_guessed, time_map_reason FROM files f",
     "timelines": "SELECT f.path, t.uuid, t.kind, t.name, t.name_folded, t.ordinal, "
     "t.role, t.author FROM timelines t JOIN files f ON f.id = t.file_id",
     "components": 'SELECT f.path, t.uuid, c.uuid, c.kind, c.start, c."end", c.label, '
@@ -96,6 +98,8 @@ DUMP = {
     "ELSE (SELECT f.path || ':' || c.uuid FROM components c "
     "JOIN files f ON f.id = c.file_id WHERE c.id = x.owner_id) END, "
     "x.name, x.value FROM fields x",
+    "file_warnings": "SELECT f.path, w.source, w.message FROM file_warnings w "
+    "JOIN files f ON f.id = w.file_id",
 }
 
 Counts = tuple[int, Counter[str]]
@@ -263,6 +267,17 @@ def check(folder: Path) -> bool:
         print("\n## Files sharing a document id")
         for group in shared:
             print(f"  {', '.join(group)}")
+
+    no_map = Counter(f.time_map_reason for f in files if f.time_map_reason)
+    warned = [f for f in files if f.warnings]
+    print("\n## Time maps (WP9's reasons and warnings)")
+    print(f"  files with a beat timeline but no time map: {sum(no_map.values())}")
+    for reason, n in no_map.most_common():
+        print(f"    {n}: {reason}")
+    print(
+        f"  files with warnings: {len(warned)}, "
+        f"warnings: {sum(len(f.warnings) for f in warned)}"
+    )
 
     print("\n## Timelines and units (SC-001)")
     in_files: dict[str, Counts] = {}

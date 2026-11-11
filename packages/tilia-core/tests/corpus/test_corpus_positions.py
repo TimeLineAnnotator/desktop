@@ -1,10 +1,12 @@
 """Positions and measures from WP9's time map (contracts/time-map.md;
 TimeLineAnnotator/project-management#157).
 
-``open_corpus`` gives each ``.tla`` file the time map WP9's ``time_map_of``
+``open_corpus`` gives each ``.tla`` file the time map WP9's ``find_time_map``
 chooses, with the roles the index resolved. The index stores what that time
 map gives, and nothing of its own: the rows here are compared with WP9's,
-computed from the file as ``tla`` reads it."""
+computed from the file as ``tla`` reads it. It also stores why a file has no
+time map and WP9's warnings (WP9's FR-082): ``files.time_map_reason`` and
+``file_warnings``."""
 
 import corpus_docs
 from tla_files import as_tla
@@ -176,3 +178,94 @@ def test_a_file_without_a_beat_timeline_has_no_time_map(tmp_path):
         kept = r.time_map(file_id)
 
     assert (time_map, guessed, measures, positions, kept) == (None, None, 0, 0, None)
+
+
+def one_beat(role=None, ordinal=3):
+    return beat_timeline(
+        [{"time": 1.0, "measure": {"number": 1}}], role=role, ordinal=ordinal
+    )
+
+
+def reasons_and_warnings(corpus):
+    with corpus.reading() as r:
+        con = r.connection
+        reasons = dict(con.execute("SELECT path, time_map_reason FROM files"))
+        warnings = con.execute(
+            "SELECT f.path, w.source, w.message FROM file_warnings w "
+            "JOIN files f ON f.id = w.file_id ORDER BY w.rowid"
+        ).fetchall()
+    return reasons, warnings
+
+
+def test_a_file_whose_beat_timeline_gives_no_time_map_says_why(tmp_path):
+    folder = written(tmp_path, piece(one_beat()), "one-beat.tla")
+    written(tmp_path, piece(tapped()), "tapped.tla")
+    written(tmp_path, piece(), "no-beats.tla")
+    expected = timemap.find_time_map(tla.read(folder / "one-beat.tla")).reason
+    assert expected  # WP9 gives a reason
+
+    with open_corpus(folder) as corpus:
+        reasons, _ = reasons_and_warnings(corpus)
+        with corpus.reading() as r:
+            maps = dict(r.connection.execute("SELECT path, time_map FROM files"))
+        row = corpus.file("one-beat.tla")
+
+    # no reason with a time map, nor without a beat timeline (nothing wrong)
+    assert reasons == {
+        "one-beat.tla": expected,
+        "tapped.tla": None,
+        "no-beats.tla": None,
+    }
+    assert maps["one-beat.tla"] is None
+    assert row is not None and row.time_map_reason == expected
+
+
+def test_wp9s_warnings_are_rows_of_file_warnings(tmp_path):
+    claiming = (tapped(role="time_map", ordinal=3), tapped(role="time_map", ordinal=4))
+    folder = written(tmp_path, piece(*claiming), "two.tla")
+    written(tmp_path, piece(tapped()), "fine.tla")
+    expected = timemap.find_time_map(tla.read(folder / "two.tla")).warnings
+    assert expected  # two timelines claim the role
+
+    with open_corpus(folder) as corpus:
+        reasons, warnings = reasons_and_warnings(corpus)
+        rows = {f.path: f.warnings for f in corpus.files()}
+
+    assert warnings == [("two.tla", "time_map", w) for w in expected]
+    assert rows == {"two.tla": tuple(expected), "fine.tla": ()}
+    assert reasons["two.tla"] is None  # the first claiming timeline gives a map
+
+
+def test_the_reason_and_warnings_go_with_the_files_content(tmp_path):
+    claiming = (tapped(role="time_map", ordinal=3), tapped(role="time_map", ordinal=4))
+    folder = written(tmp_path, piece(*claiming), "two.tla")
+    written(tmp_path, piece(one_beat()), "one-beat.tla")
+
+    with open_corpus(folder, rescan_before_reads=False) as corpus:
+        reasons, warnings = reasons_and_warnings(corpus)
+        assert reasons["one-beat.tla"] and warnings
+
+        # fixed: read again, and its warnings go
+        written(tmp_path, piece(tapped()), "two.tla")
+        corpus.scan()
+        reasons, warnings = reasons_and_warnings(corpus)
+        assert warnings == []
+        assert reasons["one-beat.tla"]
+
+        # removed: its reason goes with its row
+        (folder / "one-beat.tla").unlink()
+        corpus.scan()
+        with corpus.reading() as r:
+            left = r.connection.execute(
+                "SELECT path, state, time_map_reason FROM files ORDER BY path"
+            ).fetchall()
+            orphans = r.connection.execute(
+                "SELECT count(*) FROM file_warnings "
+                "WHERE file_id NOT IN (SELECT id FROM files)"
+            ).fetchone()[0]
+
+    assert left == [
+        ("one-beat.tla", "unavailable", None),
+        ("two.tla", "readable", None),
+    ]
+    assert orphans == 0

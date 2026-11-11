@@ -534,9 +534,7 @@ UNSTORABLE = {
 def assert_reads_work(s, files):
     assert s._writer.in_transaction is False
     with s.reading() as r:
-        assert (
-            r.connection.execute("SELECT count(*) FROM files").fetchone()[0] == files
-        )
+        assert r.connection.execute("SELECT count(*) FROM files").fetchone()[0] == files
 
 
 @pytest.mark.parametrize("make", UNSTORABLE.values(), ids=UNSTORABLE)
@@ -557,7 +555,9 @@ def test_ctrl_c_during_a_change_rolls_it_back_and_goes_through(filled):
     s, next_key = filled
     before = snapshot(s)
     with pytest.raises(KeyboardInterrupt):
-        s.apply([], [rows_of(next_key, "b"), hierarchy_rows(next_key, "c", Interrupts())])
+        s.apply(
+            [], [rows_of(next_key, "b"), hierarchy_rows(next_key, "c", Interrupts())]
+        )
     assert_reads_work(s, 1)
     assert snapshot(s) == before and s.generation == 1
     assert s.failure is None  # it didn't fail: it was stopped
@@ -583,7 +583,7 @@ def files_row_of(rows, err):
     reason = f"{type(err).__name__}"
     return build.Rows(
         file_id=rows.file_id,
-        files=[(row[0], row[1], None, None, "unreadable", reason, *(None,) * 5)],
+        files=[(row[0], row[1], None, None, "unreadable", reason, *(None,) * 6)],
     )
 
 
@@ -683,7 +683,9 @@ def test_reads_warn_while_the_last_change_failed(filled):
     s.apply([], [rows_of(next_key, "bad", "\ud800")])
     assert "UnicodeEncodeError" in s.failure
     (warning,) = warned(s)
-    assert "couldn't take the last change" in warning and "UnicodeEncodeError" in warning
+    assert (
+        "couldn't take the last change" in warning and "UnicodeEncodeError" in warning
+    )
     assert s.apply([], [rows_of(next_key, "b")]) is None
     assert warned(s) == () and s.failure is None
 
