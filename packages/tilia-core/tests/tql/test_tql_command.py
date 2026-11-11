@@ -9,8 +9,6 @@ PySide6, shiboken6 and `tilia` before anything is imported, gives `open_corpus`
 the stand-in reader, and calls `tilia_core.commands.main`, which finds `query`
 among the installed entry points."""
 
-import csv
-import io
 import os
 import shutil
 import subprocess
@@ -486,16 +484,25 @@ def test_labels_roman_prints_roman_numerals(harmony):
     assert "V7 → I" in result.stdout
 
 
-def test_labels_roman_in_csv(harmony):
-    query = "V7 THEN I IN harmony"
-    rows = expected(harmony, query).rows
+@pytest.mark.parametrize(
+    "arguments",
+    [("--csv",), ("--stats", "counts"), ("--sql",), ("--explain",)],
+)
+def test_labels_roman_goes_with_the_table_of_rows_only(harmony, arguments):
+    # The CSV has both names already, and a statistics table groups by symbol.
+    result = tilia(
+        "query",
+        ".",
+        "V7 THEN I IN harmony",
+        "--labels",
+        "roman",
+        *arguments,
+        cwd=harmony,
+    )
 
-    result = tilia("query", ".", query, "--labels", "roman", "--csv", cwd=harmony)
-
-    assert result.returncode == 0, result.stderr
-    read = list(csv.DictReader(io.StringIO(result.stdout)))
-    assert [r["label"] for r in read] == [r["roman"] for r in rows]
-    assert [r["symbol"] for r in read] == [r["symbol"] for r in rows]
+    assert result.returncode == 2
+    assert "--labels roman goes with the table of rows" in result.stderr
+    assert result.stdout == ""
 
 
 def test_labels_other_than_letter_or_roman_exit_2(harmony):

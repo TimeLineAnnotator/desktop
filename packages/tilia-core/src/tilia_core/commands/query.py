@@ -20,7 +20,6 @@ import sys
 import tempfile
 import threading
 from collections.abc import Callable, Sequence
-from dataclasses import replace
 from pathlib import Path
 from types import FrameType
 from typing import Any
@@ -161,7 +160,10 @@ def _parser() -> argparse.ArgumentParser:
         "--labels",
         choices=("letter", "roman"),
         default="letter",
-        help="a chord's label: its symbol (letter, the default) or its Roman numeral",
+        help=(
+            "a chord's label in the table of rows: its symbol (letter, the"
+            " default) or its Roman numeral. The CSV has both, as symbol and roman"
+        ),
     )
     parser.add_argument("--help", action="help", help="show this help and exit")
     return parser
@@ -195,6 +197,18 @@ def _misused_options(arguments: argparse.Namespace) -> str | None:
             return "--fold-subtypes goes with --stats"
     if arguments.csv is not None and (arguments.sql or arguments.explain):
         return "--csv goes with the rows or --stats, not with --sql or --explain"
+    rows_table = not (
+        arguments.csv is not None
+        or arguments.stats is not None
+        or arguments.sql
+        or arguments.explain
+    )
+    if arguments.labels == "roman" and not rows_table:
+        # The CSV has both names, and a statistics table groups by symbol.
+        return (
+            "--labels roman goes with the table of rows, not with --csv,"
+            " --stats, --sql or --explain"
+        )
     return None
 
 
@@ -327,9 +341,9 @@ def _print_result(result: tql.Result, arguments: argparse.Namespace) -> int:
             return _write_csv(stats.to_csv, arguments.csv)
         _print_table(stats.columns, stats.rows)
         return EXIT_OK
-    rows = _labelled(result.rows, arguments.labels)
     if arguments.csv is not None:
-        return _write_csv(replace(result, rows=rows).to_csv, arguments.csv)
+        return _write_csv(result.to_csv, arguments.csv)
+    rows = _labelled(result.rows, arguments.labels)
     columns = [
         c
         for c in result.columns
