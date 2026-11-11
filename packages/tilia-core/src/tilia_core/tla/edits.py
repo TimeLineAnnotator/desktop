@@ -16,11 +16,11 @@ for `write`: it stays old, and so does one that moves with a mark
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Iterator
 from typing import Any
 
 from tilia_core.tla import problems
+from tilia_core.tla.check import _which
 from tilia_core.tla.model import (
     Component,
     Document,
@@ -33,10 +33,11 @@ from tilia_core.tla.model import (
 
 
 class CantDeleteDownbeat(ValueError):
-    """A downbeat can't be deleted: a closing tap follows it, so its mark
-    would go, and the timeline's first beat would have no mark while a
-    later measure remains. Nothing changed. Deleting the closing tap first
-    lets the mark move on (TimeLineAnnotator/project-management#528,
+    """The timeline's first downbeat can't be deleted: a closing tap
+    follows it, so its mark would go, and the first beat would have no mark
+    while a later beat's mark starts a measure. A mark on a closing tap
+    starts none, so it doesn't count. Nothing changed. Deleting the closing
+    tap first lets the mark move on (TimeLineAnnotator/project-management#528,
     point 1)."""
 
     def __init__(self, message: str, beat_id: str, closing_tap_id: str):
@@ -73,13 +74,16 @@ def delete_beat(
     """Delete a beat from a beat timeline. Raises `KeyError` for a timeline or
     beat that isn't there, and `CantDeleteDownbeat`, changing nothing, where
     the mark would go and leave the timeline's first beat without one while
-    a later measure remains: a closing tap inside the first measure.
+    a later beat's mark starts a measure: a closing tap inside the first
+    measure.
 
     A downbeat's mark moves to the next beat in time order, with its beat
     unit, and every `next` that named the downbeat names that beat. When the
     next beat has a mark of its own, it keeps it: the deleted mark goes, and
     every `next` still names that beat. A `restart` on the deleted mark moves
-    to it, and it then states the number it read, unless it states its own.
+    to it, and it then states the number it read, unless it states its own;
+    a problem of that number, which comes from the measure that states it,
+    stays old as that measure's does.
     When there is no next beat, or it is a closing tap or has no time, the
     mark goes, and every `next` that named the downbeat drops it, a list
     left empty going with it. The beat unit is dropped when the measure it
@@ -123,10 +127,9 @@ def _refuse_an_unmarked_first_beat(
     later: list[str],
 ) -> None:
     """Raise `CantDeleteDownbeat` where deleting the downbeat `beat_id` would
-    leave the timeline's first beat without a mark while another beat has
-    one, as the reader refuses: when its mark goes, since a closing tap
-    follows it. While a beat has no time, the reader reads such a file, and
-    so the deletion goes on."""
+    leave the timeline's first beat without a mark while another beat's mark
+    starts a measure, as the reader refuses: when its mark goes, since a
+    closing tap follows it."""
     if not _is_downbeat(beats[beat_id]) or not later:
         return
     tap_id = later[0]
@@ -138,17 +141,11 @@ def _refuse_an_unmarked_first_beat(
         return
     if isinstance(beats[left[0]].attrs.get("measure"), dict):
         return
-    if any(beats[key].attrs.get("time") is None for key in left):
+    if not any(_is_downbeat(beats[key]) for key in beats if key != beat_id):
         return
-    if not any(
-        isinstance(beats[key].attrs.get("measure"), dict)
-        for key in beats
-        if key != beat_id
-    ):
-        return
-    name = json.dumps(timeline.name, ensure_ascii=False)
+    which = _which({"name": timeline.name})
     raise CantDeleteDownbeat(
-        f"the first downbeat of the timeline {name} can't be deleted while a"
+        f"the first downbeat of {which} can't be deleted while a"
         " closing tap follows it: its mark would go, and the timeline's first"
         " beat would have no measure mark. Delete the closing tap first.",
         beat_id,
@@ -163,6 +160,7 @@ def _may_change(
     problems they were read with can be kept old: the next beat, its measure's
     downbeat and the one before, and every downbeat whose `next` names it."""
     ids = {beat_id, *following, *_measure_before(table, beat_id)}
+    ids.update(_number_source(timeline, table, beat_id))
     ids.update(row.id for row in table.rows if beat_id in row.beats)
     for key, component in timeline.components.items():
         mark = component.attrs.get("measure")
@@ -207,6 +205,7 @@ def _delete_downbeat(
     target_id = later[0] if later and later[0] in measures else None
     mark = beats[beat_id].attrs["measure"]
     unit = beats[beat_id].attrs.get("beat_unit")
+    sources = _number_source(timeline, table, beat_id)
     del timeline.components[beat_id]
     changed = _measure_before(table, beat_id)
     if target_id is None:
@@ -220,6 +219,8 @@ def _delete_downbeat(
             numbers = {row.id: row.number for row in table.rows}
             own["restart"] = True
             own["number"] = numbers[target_id]
+            for source in sources:
+                moved[source] = target_id
     else:
         target["measure"] = mark
         changed.append(target_id)
@@ -230,6 +231,22 @@ def _delete_downbeat(
         target["beat_unit"] = unit
     _follow_next(timeline, beat_id, target_id)
     return changed
+
+
+def _number_source(timeline: Timeline, table: MeasureTable, beat_id: str) -> list[str]:
+    """The downbeat whose stated number the measure `beat_id` starts reads its
+    number from: the nearest at or before it that states one, as
+    `measure_numbers` reads them; none when no measure before it states one."""
+    ids = [row.id for row in table.rows]
+    if beat_id not in ids:
+        return []
+    for key in reversed(ids[: ids.index(beat_id) + 1]):
+        number = timeline.components[key].attrs["measure"].get("number")
+        if isinstance(number, float) and number.is_integer():
+            return [key]
+        if isinstance(number, int) and not isinstance(number, bool):
+            return [key]
+    return []
 
 
 def _states_a_unit(beats: dict[str, Component], row: Measure, deleted: str) -> bool:

@@ -727,6 +727,26 @@ def test_a_beat_unit_on_a_timeline_with_no_measure_mark_gets_a_warning(caplog):
     assert (kept["beat_unit"]["denominator"], kept["beat_unit"]["units"]) == (8, "1")
 
 
+def test_a_closing_taps_mark_is_no_measure_mark_for_the_warning():
+    # A mark on a closing tap starts no measure
+    # (TimeLineAnnotator/project-management#375).
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "beat_unit": UNIT},
+            {"time": 1.0},
+            {"time": 2.0, "closing": True, "measure": {}},
+        ]
+    )
+    unit = list(timeline.components)[0]
+
+    found = find_time_map(read_as_a_file(timeline))
+
+    assert found.warnings == (
+        f"Timeline {timeline.id}: beat {unit} (0.0) has a beat unit, which starts "
+        "nothing: the timeline has no measure marks",
+    )
+
+
 def test_a_timeline_with_no_measure_mark_and_no_beat_unit_gets_no_warning():
     timeline = beat_timeline([{"time": 0.0}, {"time": 1.0}])
 
