@@ -43,7 +43,8 @@ PROG = "tilia query"
 
 # What the table leaves out of a result's columns: the document id, the
 # units' ids, a chord's two names (`label` shows the one `--labels` picks) and
-# each numbered unit's own columns. The CSV has every column.
+# each numbered unit's own columns but some labels (`_other_labels`). The CSV
+# has every column.
 _NOT_IN_THE_TABLE = frozenset({"file", "ids", "symbol", "roman"})
 _TIME_COLUMNS = frozenset({"start", "end"})
 _WHY_STOPPED = {
@@ -344,13 +345,28 @@ def _print_result(result: tql.Result, arguments: argparse.Namespace) -> int:
     if arguments.csv is not None:
         return _write_csv(result.to_csv, arguments.csv)
     rows = _labelled(result.rows, arguments.labels)
-    columns = [
-        c
-        for c in result.columns
-        if c not in _NOT_IN_THE_TABLE and not c.startswith("$")
-    ]
+    columns: list[str] = []
+    for c in result.columns:
+        if c not in _NOT_IN_THE_TABLE and not c.startswith("$"):
+            columns.append(c)
+        if c == "label":
+            columns += _other_labels(result)
     _print_table(columns, [[row.get(c) for c in columns] for row in rows])
     return EXIT_OK
+
+
+def _other_labels(result: tql.Result) -> list[str]:
+    """The `$n.label` columns the table shows after `label`: when a match has
+    units that aren't its targets (the other side of a relation, the steps
+    around an `@` target), those of the steps whose label isn't the match's.
+    Without them, matches that differ only there would print the same row."""
+    steps = [c for c in result.columns if c.startswith("$") and c.endswith(".label")]
+    if not steps or all(
+        row.get("label") == " → ".join(str(row[c]) for c in steps)
+        for row in result.rows
+    ):
+        return []
+    return [c for c in steps if any(row[c] != row.get("label") for row in result.rows)]
 
 
 def _keys(by: str | None) -> list[str] | None:

@@ -356,7 +356,7 @@ def test_an_unknown_statistics_key_exits_2(exposition):
 
 # -- rows ---------------------------------------------------------------------- #
 def test_the_rows_printed_are_tql_runs(exposition):
-    query = "* THEN @TR THEN * IN form"
+    query = "* THEN TR IN form"
     rows = expected(exposition, query).rows
     assert len(rows) == 2
 
@@ -368,6 +368,29 @@ def test_the_rows_printed_are_tql_runs(exposition):
     columns = header(result.stdout)
     assert columns == MATCH_COLUMNS
     assert printed == [{c: cell(c, row[c]) for c in columns} for row in rows]
+
+
+@pytest.mark.parametrize(
+    "query,others",
+    [
+        ("* IN form CONTAINS PAC IN cadences", ["$2.label"]),
+        ("* THEN @TR THEN * IN form", ["$1.label", "$3.label"]),
+    ],
+)
+def test_units_that_arent_targets_show_their_labels(exposition, query, others):
+    # Else a form unit containing two cadences would print two equal rows.
+    rows = expected(exposition, query).rows
+    assert len(rows) > 1
+
+    result = tilia("query", ".", query, cwd=exposition)
+
+    assert result.returncode == 0, result.stderr
+    columns = header(result.stdout)
+    at = MATCH_COLUMNS.index("label") + 1
+    assert columns == MATCH_COLUMNS[:at] + others + MATCH_COLUMNS[at:]
+    assert table(result.stdout) == [
+        {c: cell(c, row[c]) for c in columns} for row in rows
+    ]
 
 
 def test_a_table_as_printed(exposition):
