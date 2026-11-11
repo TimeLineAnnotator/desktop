@@ -5,7 +5,9 @@ chord or key, the key in force at a chord, the labels and properties of
 harmony components, categories, colours and field names.
 """
 
+import math
 import re
+from bisect import bisect_right
 from collections.abc import Sequence
 from typing import Any
 
@@ -26,20 +28,72 @@ def hierarchy_structure(
     ``id -> (parent id, depth)``.
 
     The parent is the unit on a higher level whose span holds this one (with
-    1e-6 s of slack), the smallest by (level, length); the file stores no
-    links. Depth is 1 for a unit without parent.
+    1e-6 s of slack), the smallest by (level, length), and the first of those
+    in ``units``; the file stores no links. Depth is 1 for a unit without
+    parent.
+
+    Each level's units are sorted by start, with a tree of the largest end
+    under each range of them, so that the units of a level that hold a span
+    are found in O(log n) each: O(n log n) in all for units that nest, as a
+    hierarchy's do (TimeLineAnnotator/project-management#156). Units that
+    overlap on one level cost more, at worst O(n²) as before.
     """
+    # Per level: the units that can hold another (no NaN), sorted by start,
+    # and a segment tree of their ends' maximum.
+    held: dict[int, tuple[list[float], list[float], list[int]]] = {}
+    for n, (_, level, start, end) in enumerate(units):
+        if not (math.isnan(start) or math.isnan(end)):  # NaN holds nothing
+            held.setdefault(level, ([], [], []))[2].append(n)
+    trees: dict[int, tuple[int, list[float]]] = {}
+    for level, (starts, ends, order) in held.items():
+        order.sort(key=lambda n: units[n][2])
+        starts += [units[n][2] for n in order]
+        ends += [units[n][3] for n in order]
+        size = 1
+        while size < len(order):
+            size *= 2
+        tree = [-math.inf] * (2 * size)
+        tree[size : size + len(ends)] = ends
+        for i in range(size - 1, 0, -1):
+            tree[i] = max(tree[2 * i], tree[2 * i + 1])
+        trees[level] = (size, tree)
+    levels = sorted(held)
+    place = {level: n for n, level in enumerate(levels)}
+
+    def holder(uid: str, level: int, start: float, end: float) -> int | None:
+        """The index in ``units`` of the smallest unit of ``level`` that holds
+        ``start``-``end``, the first of equals; None without one."""
+        starts, ends, order = held[level]
+        size, tree = trees[level]
+        until = bisect_right(starts, start + EPS)  # these start early enough
+        reach = end - EPS
+        best: tuple[float, int] | None = None
+        nodes = [(1, 0, size)]
+        while nodes:
+            node, lo, hi = nodes.pop()
+            if lo >= until or tree[node] < reach:
+                continue
+            if hi - lo > 1:
+                mid = (lo + hi) // 2
+                nodes += [(2 * node, lo, mid), (2 * node + 1, mid, hi)]
+                continue
+            n = order[lo]
+            if units[n][0] == uid:
+                continue
+            key = (ends[lo] - starts[lo], n)
+            if best is None or key < best:
+                best = key
+        return None if best is None else best[1]
+
     parents: dict[str, str | None] = {}
     for uid, level, start, end in units:
-        best: tuple[tuple[int, float], str] | None = None
-        for pid, p_level, p_start, p_end in units:
-            if pid == uid or p_level <= level:
-                continue
-            if p_start <= start + EPS and p_end >= end - EPS:
-                key = (p_level, p_end - p_start)
-                if best is None or key < best[0]:
-                    best = (key, pid)
-        parents[uid] = best[1] if best else None
+        found = None
+        if not (math.isnan(start) or math.isnan(end)):  # nor is it held
+            for p_level in levels[place[level] + 1 :]:  # its level is in held
+                found = holder(uid, p_level, start, end)
+                if found is not None:
+                    break
+        parents[uid] = None if found is None else units[found][0]
 
     depths: dict[str, int] = {}
 
