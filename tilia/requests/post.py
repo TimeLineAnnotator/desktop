@@ -148,9 +148,9 @@ class Post(Enum):
 _posts_to_listeners: weakref.WeakKeyDictionary[Post, Any] = weakref.WeakKeyDictionary(
     {post: {} for post in Post}
 )
-_listeners_to_posts: weakref.WeakKeyDictionary[
-    Any, list[Post]
-] = weakref.WeakKeyDictionary()
+_listeners_to_posts: weakref.WeakKeyDictionary[Any, list[Post]] = (
+    weakref.WeakKeyDictionary()
+)
 
 
 EXCLUDED_POSTS = [

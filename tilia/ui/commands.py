@@ -28,6 +28,7 @@ Usage:
     # Execute a command
     commands.execute('example.command', arg1, arg2, kwarg1=value1)
 """
+
 import functools
 import inspect
 import os

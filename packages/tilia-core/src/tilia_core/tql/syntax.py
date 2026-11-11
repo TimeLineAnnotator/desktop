@@ -255,7 +255,7 @@ def lex(text: str) -> list[Tok]:
                 k += 1
             if k < n and text[k] == ">":
                 raise TQLError(
-                    f"{text[i:k + 1]} is no arrow - an action starts with ->, "
+                    f"{text[i : k + 1]} is no arrow - an action starts with ->, "
                     "a comment with -- and no > after it",
                     i,
                     k + 1,
@@ -809,7 +809,7 @@ class _Parser:
                 )
             if self.at_kw("IN"):
                 raise self.err(
-                    "IN goes before WITHIN: verse THEN chorus IN form " "WITHIN 2 bars",
+                    "IN goes before WITHIN: verse THEN chorus IN form WITHIN 2 bars",
                     self.peek(),
                 )
         return SeqPattern(seq, lane, order, within)
@@ -1457,7 +1457,7 @@ class _Parser:
         if self.at("SLASH") or (v.kind == "number" and self.at("WORD")):
             end = self.peek(1).end if self.at("SLASH") else self.peek().end
             raise TQLError(
-                f'quote a time signature: "{self.text[v.pos:end].replace(" ", "")}"',
+                f'quote a time signature: "{self.text[v.pos : end].replace(" ", "")}"',
                 v.pos,
                 end,
             )
@@ -1519,8 +1519,7 @@ class _Parser:
             return v
         if not all(_NUM_RE.match(x.strip()) for x in v.raw.split("..")):
             raise self.err(
-                f"a unit goes after a plain number, as in 8 bars - "
-                f"not after {v.raw}",
+                f"a unit goes after a plain number, as in 8 bars - not after {v.raw}",
                 u,
             )
         self.next()
@@ -1705,7 +1704,7 @@ class _Parser:
             index, path = unit_tok.value
             if path:
                 raise self.err(
-                    f"{verb} marks units, not a field: {verb} ${index} " '"..."',
+                    f'{verb} marks units, not a field: {verb} ${index} "..."',
                     unit_tok,
                 )
         on_at = next(
@@ -1796,7 +1795,7 @@ class _Parser:
             stop = toks[heads[0]].pos if heads else len(self.text)
             raise _EditError(
                 f"ON expects a shape name, got "
-                f"{_flat(self.text[toks[0].pos:stop])!r} - "
+                f"{_flat(self.text[toks[0].pos : stop])!r} - "
                 f"one of {', '.join(_SHAPES)}"
             )
         rules: list[OnRule] = []
@@ -1859,7 +1858,7 @@ class _Parser:
                 else v.pos + len(v.raw)
             )
             raise TQLError(
-                f"SET takes no length - {self.text[v.pos:end]} measures a "
+                f"SET takes no length - {self.text[v.pos : end]} measures a "
                 "duration, which is not writable; SET writes text, a number "
                 "or another unit's field",
                 v.pos,

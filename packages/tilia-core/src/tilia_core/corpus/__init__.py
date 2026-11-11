@@ -101,7 +101,7 @@ class ComponentRow:
 
 
 def _fields(
-    rows: Iterable[tuple[Any, str, str]]
+    rows: Iterable[tuple[Any, str, str]],
 ) -> dict[Any, dict[str, tuple[str, ...]]]:
     """``(owner, name, value)`` rows, by owner, then by name."""
     out: dict[Any, dict[str, list[str]]] = {}

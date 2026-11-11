@@ -108,7 +108,9 @@ class TimeMapFound:
 
     time_map: TimeMap | None
     timeline_id: str | None  # the chosen beat timeline, even when it gives no time map
-    guessed: bool  # no timeline had the role time_map: the first beat timeline was taken
+    guessed: (
+        bool  # no timeline had the role time_map: the first beat timeline was taken
+    )
     reason: str | None  # why the chosen timeline gives no time map
     # Several claim the role; a last beat past the media; a misplaced closing
     # tap, or one past the media or with a beat unit.

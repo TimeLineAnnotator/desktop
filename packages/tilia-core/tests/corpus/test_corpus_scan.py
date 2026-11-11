@@ -297,9 +297,7 @@ def test_the_racy_rule_finds_an_edit_that_kept_size_and_date(tmp_path):
 def test_a_racy_file_read_again_inside_the_window_stays_racy(tmp_path, monkeypatch):
     path = write(tmp_path, "a.tla")
     mtime = path.stat().st_mtime_ns
-    clock = iter(
-        [mtime + 10**9, mtime + 15 * 10**8, mtime - 10**9, mtime + 3 * 10**9]
-    )
+    clock = iter([mtime + 10**9, mtime + 15 * 10**8, mtime - 10**9, mtime + 3 * 10**9])
     monkeypatch.setattr(scan, "now_ns", lambda: next(clock))
     reader = CountingReader()
     with opened(tmp_path, reader) as corpus:
@@ -511,8 +509,10 @@ def test_concurrent_scans_share_one_scan(folder):
         second.start()
         try:
             wait_until(
-                lambda: corpus._scanner._job is not None
-                and corpus._scanner._job.waiters == 1,
+                lambda: (
+                    corpus._scanner._job is not None
+                    and corpus._scanner._job.waiters == 1
+                ),
                 "the second call never waited for the running scan",
             )
         finally:

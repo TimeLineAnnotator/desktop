@@ -49,8 +49,7 @@ def left_out_warnings(
     # a lookup, not a search statement: kept out of the SQL a result shows
     counts = dict(
         con.execute(
-            "SELECT state, count(*) FROM files WHERE state <> 'readable' "
-            "GROUP BY state"
+            "SELECT state, count(*) FROM files WHERE state <> 'readable' GROUP BY state"
         ).fetchall()
     )
     if counts:
@@ -106,11 +105,7 @@ def _sequence_matches(
             yield Match(
                 [[it[0] for it in s] for s in slot_items],
                 spec.description,
-                (
-                    None
-                    if flags is None
-                    else slots_of(flags, 0, j - i, assign, n_steps)
-                ),  # type: ignore[arg-type]
+                (None if flags is None else slots_of(flags, 0, j - i, assign, n_steps)),  # type: ignore[arg-type]
                 segments=[[(it[1], it[2]) for it in s] for s in slot_items],
                 lane_level=spec.level,
                 lane_row=spec.row,
@@ -177,8 +172,7 @@ def _by_path(matches: list[Match], files: list[tuple[int]]) -> None:
 
 def _file_title(log: Recorder, file_id: int) -> str | None:
     rows = log.execute(
-        "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? "
-        "AND name = ?",
+        "SELECT value FROM fields WHERE scope = 'file' AND owner_id = ? AND name = ?",
         (file_id, derived.field_name("title")),
     )
     return rows[0][0] if rows else None

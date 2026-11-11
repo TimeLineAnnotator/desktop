@@ -259,8 +259,10 @@ def score(musicxml: Path, out: Path) -> None:
     deadline = time.monotonic() + 120
     timer = QTimer()
     timer.timeout.connect(
-        lambda: (errors or timeline.viewer_beat_x or time.monotonic() > deadline)
-        and q_application.quit()
+        lambda: (
+            (errors or timeline.viewer_beat_x or time.monotonic() > deadline)
+            and q_application.quit()
+        )
     )
     timer.start(100)
     q_application.exec()

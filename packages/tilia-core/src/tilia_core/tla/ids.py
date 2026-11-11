@@ -54,8 +54,9 @@ class _Clock:
                 # The same millisecond, or the clock went back: count on.
                 self._counter += 1
                 if self._counter >> _RAND_A_BITS:
-                    self._ms, self._counter = self._ms + 1, secrets.randbits(
-                        _RAND_A_BITS - 1
+                    self._ms, self._counter = (
+                        self._ms + 1,
+                        secrets.randbits(_RAND_A_BITS - 1),
                     )
             return self._ms, self._counter
 

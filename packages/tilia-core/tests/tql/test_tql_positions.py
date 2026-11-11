@@ -514,12 +514,12 @@ class TestSequenceWithin:
             "P@0|v@0|c@12"
         ]
         assert units(outer, "P IN outer CONTAINS v THEN c IN form WITHIN 3 beats") == []
-        assert units(
-            outer, "P IN outer STARTS WITH v THEN c IN form WITHIN 1 bar"
-        ) == ["P@0|v@0|c@12"]
-        assert units(
-            outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 2 beats"
-        ) == ["P@0|c@12|d@22"]
+        assert units(outer, "P IN outer STARTS WITH v THEN c IN form WITHIN 1 bar") == [
+            "P@0|v@0|c@12"
+        ]
+        assert units(outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 2 beats") == [
+            "P@0|c@12|d@22"
+        ]
         assert units(outer, "P IN outer ENDS WITH c THEN d IN form WITHIN 1 beat") == []
         assert units(
             outer, "P IN outer CONSISTS OF v THEN c THEN d IN form WITHIN 1 bar"
@@ -676,15 +676,16 @@ class TestOffTheMap:
         assert units(self.OFF, query) == []
         # a@28 lies on the map, but its every target off it (sheet I3)
         assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 bars] IN form") == []
-        assert units(
-            self.OFF, "* IN form WHERE NOT SAME START g IN inner WITHIN 1 beat"
-        ) == []
+        assert (
+            units(self.OFF, "* IN form WHERE NOT SAME START g IN inner WITHIN 1 beat")
+            == []
+        )
         # the SQL path agrees
         query = "* IN notes NOT SAME START m IN notes WITHIN 1 beat"
         assert units(self.OFF, query) == []
-        assert units(
-            self.OFF, "*[NOT SAME START g IN inner WITHIN 1 beat] IN form"
-        ) == []
+        assert (
+            units(self.OFF, "*[NOT SAME START g IN inner WITHIN 1 beat] IN form") == []
+        )
         # in seconds, the map is not read
         assert units(self.OFF, "*[NOT BEFORE b WITHIN 10 s] IN form") == [
             "b@40",
@@ -748,9 +749,13 @@ class TestOffTheMap:
         assert units(
             fix, "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 1 beat"
         ) == ["a@0.75|c@1.05"]
-        assert units(
-            fix, "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 2 beats"
-        ) == []
+        assert (
+            units(
+                fix,
+                "a IN markers BEFORE c IN markers WHERE $2.time = $1.time + 2 beats",
+            )
+            == []
+        )
 
 
 # --------------------------------------------------------------------------- #

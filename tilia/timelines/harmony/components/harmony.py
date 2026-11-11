@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 
 
 class Harmony(PointLikeTimelineComponent):
-
     SERIALIZABLE = [
         "time",
         "comments",

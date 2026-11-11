@@ -47,9 +47,9 @@ def load_dotenv() -> None:
 
     else:  # setup some basic values
         os.environ["LOG_REQUESTS"] = "1"
-        os.environ[
-            "EXCLUDE_FROM_LOG"
-        ] = "TIMELINE_VIEW_LEFT_BUTTON_DRAG;PLAYER_CURRENT_TIME_CHANGED;APP_RECORD_STATE"
+        os.environ["EXCLUDE_FROM_LOG"] = (
+            "TIMELINE_VIEW_LEFT_BUTTON_DRAG;PLAYER_CURRENT_TIME_CHANGED;APP_RECORD_STATE"
+        )
     if not os.environ.get("ENVIRONMENT"):
         os.environ["ENVIRONMENT"] = "dev"
 

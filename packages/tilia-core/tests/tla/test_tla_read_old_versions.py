@@ -254,7 +254,7 @@ def test_formal_type_and_formal_function_are_gone_with_a_warning_each(old_file):
     assert [(w.place, w.message) for w in warnings] == [
         (
             place,
-            f'{place.rpartition("/")[2]} {json.dumps(value, ensure_ascii=False)} dropped',
+            f"{place.rpartition('/')[2]} {json.dumps(value, ensure_ascii=False)} dropped",
         )
         for place, value in values
     ]

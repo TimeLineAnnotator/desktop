@@ -176,8 +176,7 @@ def _ex_value(v: Value) -> str:
         if v.offset:
             amount, unit = v.offset
             s += (
-                f" {'plus' if amount >= 0 else 'minus'} "
-                f"{_ex_amount(abs(amount), unit)}"
+                f" {'plus' if amount >= 0 else 'minus'} {_ex_amount(abs(amount), unit)}"
             )
         return s
     if v.kind == "regex":

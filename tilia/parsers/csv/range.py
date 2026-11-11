@@ -260,8 +260,7 @@ def import_by_measure(
 
             if not start_times:
                 errors.append(
-                    f"start={start_measure} | No measure with number "
-                    f"{start_measure}"
+                    f"start={start_measure} | No measure with number {start_measure}"
                 )
                 continue
             if not end_times:

@@ -21,7 +21,10 @@ ADD_COMPONENT = {
 class TestImportFromCsv:
     @pytest.mark.parametrize("kind", ADD_COMPONENT)
     def test_declining_overwrite_cancels_import_into_non_empty_timeline(
-        self, kind, request, qtui  # qtui must exist before the timeline is created
+        self,
+        kind,
+        request,
+        qtui,  # qtui must exist before the timeline is created
     ):
         tlui = request.getfixturevalue(f"{kind}_tlui")
         command, kwargs = ADD_COMPONENT[kind]

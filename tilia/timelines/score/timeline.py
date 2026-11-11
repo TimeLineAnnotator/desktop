@@ -44,7 +44,12 @@ class ScoreTLComponentManager(TimelineComponentManager):
                 start = kwargs["start"] if "start" in kwargs else args[0]
                 end = kwargs["end"] if "end" in kwargs else args[1]
                 return SegmentLikeTimelineComponent.validate_times(start, end)
-            case ComponentKind.CLEF | ComponentKind.BAR_LINE | ComponentKind.TIME_SIGNATURE | ComponentKind.KEY_SIGNATURE:
+            case (
+                ComponentKind.CLEF
+                | ComponentKind.BAR_LINE
+                | ComponentKind.TIME_SIGNATURE
+                | ComponentKind.KEY_SIGNATURE
+            ):
                 time = kwargs["time"] if "time" in kwargs else args[0]
                 return PointLikeTimelineComponent.validate_time_is_inbounds(time)
             case ComponentKind.SCORE_ANNOTATION | ComponentKind.STAFF:

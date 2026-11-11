@@ -14,8 +14,7 @@ from tilia_core import tql
 FIXTURES = examples.load()["fixtures"]
 LEFT_OUT = "2 files were left out: 1 unreadable, 1 unavailable"
 OUT_OF_REACH = (
-    "the corpus folder can't be reached; these results come from the files as "
-    "last read"
+    "the corpus folder can't be reached; these results come from the files as last read"
 )
 
 

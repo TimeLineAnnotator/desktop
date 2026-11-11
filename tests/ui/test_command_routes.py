@@ -198,9 +198,9 @@ def test_no_ambiguous_shortcuts():
         if len(names) <= 1:
             continue
         kinds = [".".join(name.split(".", 2)[:2]) for name in names]
-        assert all(
-            name.startswith("timeline.") for name in names
-        ), f"{shortcut!r} is shared by a command outside a timeline: {names}"
-        assert len(set(kinds)) == len(
-            kinds
-        ), f"{shortcut!r} is shared by two commands of the same kind: {names}"
+        assert all(name.startswith("timeline.") for name in names), (
+            f"{shortcut!r} is shared by a command outside a timeline: {names}"
+        )
+        assert len(set(kinds)) == len(kinds), (
+            f"{shortcut!r} is shared by two commands of the same kind: {names}"
+        )

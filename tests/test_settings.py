@@ -99,8 +99,11 @@ class TestRestart:
         restarted = SettingsManager(store.restart(qsettings))
         assert restarted.get("general", "window_width") == 800
         assert restarted.get("general", "prioritise_performance") is True
-        assert restarted.get("hierarchy_timeline", "default_colors") == (
-            SettingsManager.DEFAULT_SETTINGS["hierarchy_timeline"]["default_colors"]
+        assert (
+            restarted.get("hierarchy_timeline", "default_colors")
+            == (
+                SettingsManager.DEFAULT_SETTINGS["hierarchy_timeline"]["default_colors"]
+            )
         )
 
 

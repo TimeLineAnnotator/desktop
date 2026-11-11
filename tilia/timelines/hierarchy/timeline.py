@@ -184,8 +184,7 @@ class HierarchyTLComponentManager(TimelineComponentManager):
                     # end inside or (2) starts outside and ends inside it is
                     # crossing group boundaries, unless (3) it comprehends
                     # the whole group
-                    start_inside_group != ends_inside_group
-                    and not comprehends_group
+                    start_inside_group != ends_inside_group and not comprehends_group
                 ) or (
                     # if (1) unit_to_check is at same or higher level and (2) starts
                     # or ends inside the group and (3) does not comprehend group it

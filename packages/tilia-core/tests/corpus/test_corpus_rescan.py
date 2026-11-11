@@ -145,8 +145,10 @@ def test_two_threads_share_one_rescan(folder, clock):
         second.start()
         try:
             wait_until(
-                lambda: corpus._scanner._job is not None
-                and corpus._scanner._job.waiters == 1,
+                lambda: (
+                    corpus._scanner._job is not None
+                    and corpus._scanner._job.waiters == 1
+                ),
                 "the second read never waited for the first one's rescan",
             )
         finally:
@@ -271,8 +273,10 @@ def test_a_reread_while_a_scan_finds_the_same_new_file_adds_it_once(folder):
         rereading.start()
         try:
             wait_until(
-                lambda: corpus._scanner.turn.waiting == 1
-                or reader.reads.count("new.tla") > 1,
+                lambda: (
+                    corpus._scanner.turn.waiting == 1
+                    or reader.reads.count("new.tla") > 1
+                ),
                 "the reread neither waited for the scan nor read the file",
             )
         finally:

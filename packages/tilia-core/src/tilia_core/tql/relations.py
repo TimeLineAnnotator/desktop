@@ -426,11 +426,9 @@ class Log(Protocol):
         sql: str,
         params: tuple[Any, ...] | list[Any] = (),
         part: str | None = None,
-    ) -> list[Any]:
-        ...
+    ) -> list[Any]: ...
 
-    def note(self, text: str) -> None:
-        ...
+    def note(self, text: str) -> None: ...
 
 
 PIECE_FIELDS = ("start", "time", "end", "duration")  # read on a unit's piece
@@ -1092,8 +1090,8 @@ class Scope:
         if within is None:
             return None
         metric = gap_metric(within, self.time_map)
-        return lambda end, start: start - end <= GAP_EPS + SLACK or metric.within_gap(
-            end, start
+        return lambda end, start: (
+            start - end <= GAP_EPS + SLACK or metric.within_gap(end, start)
         )
 
     # -- relations ------------------------------------------------------------ #

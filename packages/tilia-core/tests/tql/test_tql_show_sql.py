@@ -219,9 +219,9 @@ class TestShownStatementsRun:
         assert bool(got.warnings) == warns
         lookup = "SELECT DISTINCT role FROM timelines"
         assert lookup not in got.sql
-        assert all(
-            lookup not in (b.statement or "") for b in got.sql_blocks
-        ), got.sql_blocks
+        assert all(lookup not in (b.statement or "") for b in got.sql_blocks), (
+            got.sql_blocks
+        )
 
 
 class TestWhereOnly:

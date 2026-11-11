@@ -70,8 +70,9 @@ KIND_NAMES = "markers, ranges, hierarchies, beats, chords"
 class Log(Protocol):
     """What :func:`read` runs statements with."""
 
-    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
-        ...
+    def execute(
+        self, sql: str, params: tuple[Any, ...] | list[Any] = ()
+    ) -> list[Any]: ...
 
 
 @dataclass(frozen=True)

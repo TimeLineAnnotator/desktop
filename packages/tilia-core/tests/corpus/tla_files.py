@@ -92,7 +92,8 @@ class Doctored(TlaReader):
         for tl in document.timelines:
             if tl.kind == self.kind:
                 first = replace(
-                    tl.components[0], attrs={**tl.components[0].attrs, self.attr: self.value}
+                    tl.components[0],
+                    attrs={**tl.components[0].attrs, self.attr: self.value},
                 )
                 tl = replace(tl, components=(first, *tl.components[1:]))
             timelines.append(tl)
@@ -149,7 +150,11 @@ def song(label: str = "verse") -> dict[str, Any]:
                 "height": 35,
                 "beat_pattern": "4",
                 "components": {
-                    tla.new_id(): {"kind": "BEAT", "time": 0.0, "measure": {"number": 1}},
+                    tla.new_id(): {
+                        "kind": "BEAT",
+                        "time": 0.0,
+                        "measure": {"number": 1},
+                    },
                     tla.new_id(): {"kind": "BEAT", "time": 1.0},
                 },
             },

@@ -28,7 +28,6 @@ from .validators import (
 )
 
 if TYPE_CHECKING:
-
     # noinspection PyUnresolvedReferences
     from .component import TimelineComponent
 
