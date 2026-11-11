@@ -30,10 +30,12 @@ from tilia_core.commands._report import (
     EXIT_FAILED,
     EXIT_OK,
     EXIT_WRONG_USE,
+    print_bytes,
+    print_out,
     print_problem,
     shown,
+    tolerate_unencodable,
 )
-from tilia_core.commands.migrate import _print, _reader_gone, _tolerate_unencodable
 from tilia_core.tql.stats import NAMES as STATS
 
 PROG = "tilia query"
@@ -52,8 +54,8 @@ _STANDARD_OUTPUT = "-"
 
 
 def main(argv: list[str] | None = None) -> int:
-    _tolerate_unencodable(sys.stdout)
-    _tolerate_unencodable(sys.stderr)
+    tolerate_unencodable(sys.stdout)
+    tolerate_unencodable(sys.stderr)
     parser = _parser()
     try:
         arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
@@ -229,7 +231,7 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
             parsed = tql.parse(text)
         except tql.TQLError as error:
             return _query_error(source, text, error)
-        _print(tql.explain(parsed))
+        print_out(tql.explain(parsed))
         return EXIT_OK
 
     if not folders:
@@ -320,7 +322,7 @@ def _run(index: Any, query: tql.Query, arguments: argparse.Namespace) -> tql.Res
 def _print_result(result: tql.Result, arguments: argparse.Namespace) -> int:
     """Print the rows, a statistics table or the SQL, and give the status."""
     if arguments.sql:
-        _print(result.sql)
+        print_out(result.sql)
         return EXIT_OK
     if arguments.stats is not None:
         by = _keys(arguments.by)
@@ -367,7 +369,7 @@ def _print_table(columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
         [_cell(c, value) for c, value in zip(columns, row, strict=True)] for row in rows
     ]
     widths = [max(len(line[i]) for line in lines) for i in range(len(columns))]
-    _print(
+    print_out(
         "\n".join(
             "  ".join(
                 text.ljust(w) for text, w in zip(line, widths, strict=True)
@@ -401,21 +403,5 @@ def _write_csv(to_csv: Any, path: str) -> int:
     with tempfile.TemporaryDirectory() as folder:
         written = Path(folder, "result.csv")
         to_csv(written)
-        _print_bytes(written.read_bytes())
+        print_bytes(written.read_bytes())
     return EXIT_OK
-
-
-def _print_bytes(data: bytes) -> None:
-    """Write `data` to standard output as it is. A reader that stops reading
-    ends the output there, without an error, as `_print` does."""
-    try:
-        sys.stdout.flush()
-        sys.stdout.buffer.write(data)
-        sys.stdout.buffer.flush()
-    except OSError as error:
-        if not _reader_gone(error):
-            raise
-        try:
-            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        except (OSError, ValueError):
-            pass

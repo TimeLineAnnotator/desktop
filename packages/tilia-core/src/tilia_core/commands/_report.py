@@ -1,12 +1,15 @@
 """What every `tilia` subcommand prints alike: its problems and notes, on standard
-error, one per line, starting with the file and, where there is one, its line; and
-its exit statuses."""
+error, one per line, starting with the file and, where there is one, its line; its
+output, which ends quietly when the reader stops reading; and its exit statuses."""
 
 from __future__ import annotations
 
+import errno
+import io
+import os
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, TextIO
 
 from tilia_core.tla.errors import printable
 
@@ -51,6 +54,56 @@ def print_problem(file: str, message: str, *, line: int | None = None) -> None:
     else:
         text = _ON_A_LINE.format(file, line, message)
     print(printable(shown(text)), file=sys.stderr)
+
+
+def tolerate_unencodable(stream: TextIO) -> None:
+    """Print a character the terminal's encoding lacks as its escape, rather
+    than stop: a file name may hold any character. A lone surrogate, from a
+    file name that isn't UTF-8, is printed as its escape too, as
+    `errors.printable` writes it."""
+    if isinstance(stream, io.TextIOWrapper):
+        stream.reconfigure(errors="backslashreplace")
+
+
+def print_out(text: str) -> None:
+    """Print `text`. A reader that stops reading, as `head` does once it has
+    its lines, ends the output there, without an error."""
+    try:
+        print(text)
+        sys.stdout.flush()
+    except OSError as error:
+        if not _reader_gone(error):
+            raise
+        _end_output()
+
+
+def print_bytes(data: bytes) -> None:
+    """Write `data` to standard output as it is. A reader that stops reading
+    ends the output there, without an error, as `print_out` does."""
+    try:
+        sys.stdout.flush()
+        sys.stdout.buffer.write(data)
+        sys.stdout.buffer.flush()
+    except OSError as error:
+        if not _reader_gone(error):
+            raise
+        _end_output()
+
+
+def _reader_gone(error: OSError) -> bool:
+    """Whether writing failed because the other end of a pipe was closed:
+    EPIPE, or EINVAL, as a write to a closed pipe can fail on Windows."""
+    if isinstance(error, BrokenPipeError):
+        return True
+    return os.name == "nt" and error.errno == errno.EINVAL
+
+
+def _end_output() -> None:
+    """Point standard output at nothing: Python flushes it again as it exits."""
+    try:
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+    except (OSError, ValueError):
+        pass
 
 
 @dataclass(frozen=True, kw_only=True)
