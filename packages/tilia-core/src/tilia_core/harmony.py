@@ -140,6 +140,8 @@ __all__ = [
     "parse_key",
     "key_matches",
     "key_props",
+    "known_quality",
+    "known_mode",
 ]
 
 
@@ -892,13 +894,30 @@ def _chord_fields(chord: dict[str, Any]) -> tuple[int, int, str, int, int]:
 
 def _key_fields(mode: dict[str, Any]) -> tuple[int, int, str]:
     """(step, accidental, type) with TiLiA's defaults; the stored type is kept
-    (dorian stays dorian), an unknown one reads as major."""
-    typ = mode.get("type")
+    (dorian stays dorian), a missing one reads as major, and one TiLiA doesn't
+    know stays as stored (:func:`known_mode`)."""
     return (
         _int(mode.get("step")) % 7,
         _int(mode.get("accidental")),
-        typ if typ in _SCALES else "major",
+        mode.get("type") or "major",
     )
+
+
+def known_quality(quality: str) -> bool:
+    """Is ``quality`` a chord quality the index knows? One it doesn't (a newer
+    TiLiA's, or a hand-edited file's) is indexed with its stored fields, no
+    symbol, Roman numeral or label, and matches only by ``quality`` and ``*``
+    (TimeLineAnnotator/project-management#383)."""
+    if quality in _SPECIAL:
+        return True
+    return _ADDED_TONE.get(quality, (quality, ""))[0] in _QUAL
+
+
+def known_mode(mode: str) -> bool:
+    """Is ``mode`` a key mode the index knows? A key of one it doesn't has no
+    label and matches only by ``mode`` and ``*``, and its chords have no Roman
+    numeral (TimeLineAnnotator/project-management#383)."""
+    return mode in _SCALES
 
 
 @lru_cache(maxsize=2048)
@@ -928,7 +947,7 @@ def chord_matches(
         return False
     if spec.kind == "symbol":
         return (step, alter) == spec.root
-    if key is None:
+    if key is None or not known_mode(_key_fields(key)[2]):
         return False
     if applied != (spec.target[0] if spec.target else 0):
         return False
@@ -938,7 +957,7 @@ def chord_matches(
 def key_matches(spec: KeySpec, mode: dict[str, Any]) -> bool:
     """Does the MODE component ``mode`` match ``spec`` (tonic spelling and mode)?"""
     step, alter, typ = _key_fields(mode)
-    return (step, alter) == spec.tonic and typ == spec.mode
+    return known_mode(typ) and (step, alter) == spec.tonic and typ == spec.mode
 
 
 # --------------------------------------------------------------------------- #
@@ -969,7 +988,12 @@ _ADDED_TONE = {
 }
 
 # TiLiA's fixed labels, in both display modes.
-_FIXED_LABEL = {"Italian": "It6+", "French": "Fr6+", "German": "Gr6+", "Neapolitan": "N6"}
+_FIXED_LABEL = {
+    "Italian": "It6+",
+    "French": "Fr6+",
+    "German": "Gr6+",
+    "Neapolitan": "N6",
+}
 
 # The chord-symbol suffix music21 writes for each quality (the first of its
 # abbreviations, which TiLiA's letter labels start from).
@@ -1134,9 +1158,7 @@ def _figures(root: Pitch, quality: str, bass: Pitch, key: Key) -> Figures:
         raised = {
             t
             for t in tones
-            if t is not None
-            and t[0] in sixth_and_seventh
-            and t[1] - natural[t[0]] == 1
+            if t is not None and t[0] in sixth_and_seventh and t[1] - natural[t[0]] == 1
         }
     bass_degree = (bass[0] - key[0]) % 7
     figures: Figures = []
@@ -1345,21 +1367,26 @@ def _labels(
     inversion: int,
     applied: int,
     key: tuple[int, int, str] | None,
-) -> tuple[str, str | None, str | None]:
-    """(symbol, roman, bass) of one chord: TiLiA's labels in plain text."""
+) -> tuple[str | None, str | None, str | None]:
+    """(symbol, roman, bass) of one chord: TiLiA's labels in plain text; all
+    None for a quality the index doesn't know, and no ``roman`` in a key of a
+    mode it doesn't know."""
     root = (step, alter)
     if quality in _SPECIAL:
         return _FIXED_LABEL[quality], _FIXED_LABEL[quality], None
-    base = _ADDED_TONE.get(quality, (quality, ""))[0]
-    q = _QUAL.get(base)
-    if q is None:  # not a TiLiA quality
-        return f"{_pitch_name(root)}[{quality}]", None, None
+    if not known_quality(quality):
+        return None, None, None
+    q = _QUAL[_ADDED_TONE.get(quality, (quality, ""))[0]]
+    if key is not None and not known_mode(key[2]):
+        key = None
     bass = (
         _transpose(root, *q.tones[inversion]) if 0 <= inversion < len(q.tones) else None
     )
     symbol = _plain(_tilia_letter(root, quality, inversion))
     roman = (
-        None if key is None else _plain(_tilia_roman(root, quality, inversion, applied, key))
+        None
+        if key is None
+        else _plain(_tilia_roman(root, quality, inversion, applied, key))
     )
     return symbol, roman, (_pitch_name(bass) if bass else None)
 
@@ -1368,7 +1395,8 @@ def chord_props(chord: dict[str, Any], key: dict[str, Any] | None) -> dict[str, 
     """Derived, JSON-friendly properties of a HARMONY component under the key
     in force: ``root``, ``quality``, ``inversion``, ``applied_to`` (as stored),
     ``symbol`` and ``roman``, TiLiA's labels (``roman`` None without a key,
-    except for It6+, Fr6+, Gr6+ and N6),
+    except for It6+, Fr6+, Gr6+ and N6, or in a key of a mode the index
+    doesn't know; both None for a quality it doesn't know),
     ``key`` (the key in force, ``"C"``/``"c"``, or None) and ``bass``."""
     step, alter, quality, inversion, applied = _chord_fields(chord)
     symbol, roman, bass = _labels(
@@ -1394,10 +1422,14 @@ def chord_props(chord: dict[str, Any], key: dict[str, Any] | None) -> dict[str, 
 def key_props(mode: dict[str, Any]) -> dict[str, Any]:
     """``{"tonic": "Eb", "mode": "major", "key": "Eb"}`` for a MODE component;
     ``key`` is lower case for minor (``"eb"``) and, for a modal key, the label
-    TiLiA shows (``"D Dorian"``, ``mode`` ``"dorian"``)."""
+    TiLiA shows (``"D Dorian"``, ``mode`` ``"dorian"``); ``key`` is None for a
+    mode the index doesn't know."""
     step, alter, typ = _key_fields(mode)
     tonic = _pitch_name((step, alter))
-    if typ == "major":
+    label: str | None
+    if not known_mode(typ):
+        label = None
+    elif typ == "major":
         label = tonic
     elif typ == "minor":
         label = tonic.lower()
