@@ -109,7 +109,7 @@ class Catalog:
             return "", ()
         return f" WHERE {column} = ?", (self.file_id,)
 
-    def _file(self, file_id: Any) -> tuple[Any, Any] | None:
+    def _file(self, file_id: Any) -> tuple[Any, Any]:
         if self._files is None:
             where, params = self._where("id")
             self._files = {
@@ -118,17 +118,15 @@ class Catalog:
                     f"SELECT id, path, time_map FROM files{where}", params
                 )
             }
-        return self._files.get(file_id)
+        return self._files.get(file_id, (None, None))
 
     def path(self, file_id: Any) -> str | None:
         """The file's ``files.path``; None when there is no such file."""
-        got = self._file(file_id)
-        return None if got is None else got[0]
+        return self._file(file_id)[0]
 
     def time_map(self, file_id: Any) -> Any:
         """The timeline the file's time map reads, ``files.time_map``."""
-        got = self._file(file_id)
-        return None if got is None else got[1]
+        return self._file(file_id)[1]
 
     def timelines(self, file_id: Any) -> list[tuple[Any, ...]]:
         """The timelines of a file in their order, each ``(id, kind, name,
@@ -311,13 +309,11 @@ def _role_lanes(
 
 
 def timeline_lanes(
-    src: sqlite3.Connection | Catalog, timeline_id: str, file_id: Any = None
+    src: sqlite3.Connection | Catalog, timeline_id: str
 ) -> list[LaneSpec]:
-    """Every lane of one timeline (of the file ``file_id``, when known)."""
+    """Every lane of one timeline."""
     if isinstance(src, Catalog):
         cat = src
-    elif file_id is not None:
-        cat = Catalog(src, file_id)
     else:
         row = src.execute(
             "SELECT file_id FROM timelines WHERE id = ?", (timeline_id,)
