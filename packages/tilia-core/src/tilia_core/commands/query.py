@@ -18,7 +18,7 @@ import signal
 import sys
 import tempfile
 import threading
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
 from types import FrameType
@@ -279,7 +279,9 @@ def _query_error(source: str | None, text: str, error: tql.TQLError) -> int:
     return EXIT_WRONG_USE
 
 
-def _run(index: Any, query: tql.Query, arguments: argparse.Namespace) -> tql.Result:
+def _run(
+    index: corpus.Corpus, query: tql.Query, arguments: argparse.Namespace
+) -> tql.Result:
     """`tql.run`, with Ctrl+C setting its `cancel`: the run ends at its next
     check and gives what it found. A second Ctrl+C interrupts at once."""
     cancel = threading.Event()
@@ -373,7 +375,7 @@ def _cell(column: str, value: Any) -> str:
     return shown(str(value))
 
 
-def _write_csv(to_csv: Any, path: str) -> int:
+def _write_csv(to_csv: Callable[[str | Path], str | None], path: str) -> int:
     """Write the CSV `to_csv` writes to `path`, or its bytes to standard
     output when `path` is "-"."""
     if path != _STANDARD_OUTPUT:
