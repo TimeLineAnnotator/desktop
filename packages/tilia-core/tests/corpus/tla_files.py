@@ -3,77 +3,19 @@
 The stand-in reader (``json_reader``) never gives the documents that broke the
 index: its documents always have complete attributes, and its fingerprints refuse
 a lone surrogate before the index sees it. So these tests read small files in the
-current format through WP3's reader, with a thin :class:`TlaReader` on
-``tla.read``. T014 makes WP3's reader the default; this goes away with it.
+current format through WP3's reader, the corpus's :class:`TlaReader`.
 """
 
 import json
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from tilia_core import tla
-from tilia_core.corpus.documents import (
-    ComponentDoc,
-    Document,
-    TimelineDoc,
-    UnreadableFile,
-)
+from tilia_core.corpus.documents import Document
+from tilia_core.corpus.tla_reader import TlaReader
 
-
-@dataclass(frozen=True)
-class TlaDocument(Document):
-    source: Any = field(default=None, compare=False, repr=False)
-
-
-def _kind(kind: Any) -> str:
-    return kind.spelling if isinstance(kind, tla.UnknownKind) else str(kind)
-
-
-class TlaReader:
-    """The index's ``DocumentReader`` on ``tilia_core.tla``."""
-
-    extensions: tuple[str, ...] = (".tla",)
-
-    def read(self, path: Path) -> Document:
-        try:
-            doc = tla.read(path)
-        except tla.UnreadableFile as err:
-            raise UnreadableFile(Path(path), err.message, err.line) from err
-        return TlaDocument(
-            document_id=doc.document_id,
-            format_version=doc.format_version,
-            media_length=doc.media_length,
-            time_unit=doc.time_unit,
-            fields=dict(doc.metadata),
-            timelines=tuple(
-                TimelineDoc(
-                    id=tl.id,
-                    kind=_kind(tl.kind),
-                    name=tl.name or "",
-                    ordinal=tl.ordinal,
-                    fields=dict(tl.metadata),
-                    attrs=dict(tl.attrs),
-                    components=tuple(
-                        ComponentDoc(
-                            id=c.id,
-                            kind=_kind(c.kind),
-                            attrs=dict(c.attrs),
-                            fields=dict(c.metadata),
-                        )
-                        for c in tl.components.values()
-                    ),
-                )
-                for tl in sorted(doc.timelines.values(), key=lambda t: t.ordinal)
-            ),
-            source=doc,
-        )
-
-    def canonical_bytes(self, document: Document) -> bytes:
-        return tla.canonical_bytes(document.source)
-
-    def is_temporary(self, name: str) -> bool:
-        return tla.is_temporary(name)
+__all__ = ["Doctored", "TlaReader", "song", "spoiled", "unit", "write"]
 
 
 class Doctored(TlaReader):
@@ -92,7 +34,8 @@ class Doctored(TlaReader):
         for tl in document.timelines:
             if tl.kind == self.kind:
                 first = replace(
-                    tl.components[0], attrs={**tl.components[0].attrs, self.attr: self.value}
+                    tl.components[0],
+                    attrs={**tl.components[0].attrs, self.attr: self.value},
                 )
                 tl = replace(tl, components=(first, *tl.components[1:]))
             timelines.append(tl)
@@ -149,7 +92,11 @@ def song(label: str = "verse") -> dict[str, Any]:
                 "height": 35,
                 "beat_pattern": "4",
                 "components": {
-                    tla.new_id(): {"kind": "BEAT", "time": 0.0, "measure": {"number": 1}},
+                    tla.new_id(): {
+                        "kind": "BEAT",
+                        "time": 0.0,
+                        "measure": {"number": 1},
+                    },
                     tla.new_id(): {"kind": "BEAT", "time": 1.0},
                 },
             },
@@ -204,3 +151,53 @@ def spoiled(change) -> dict[str, Any]:
     data = song()
     change(data)
     return data
+
+
+def as_tla(document: Document) -> tla.Document:
+    """``document``, built by ``corpus_docs`` in the index's shape, as a
+    document of the core, for ``tla.write``: new ids, the kinds the core names,
+    the fields as metadata, and a beat timeline's bars as measure marks on its
+    downbeats (``beats_in_measure`` or ``beat_pattern``, and
+    ``measure_numbers``), as the current format stores them."""
+    doc = tla.new_document(time_unit=document.time_unit)
+    doc.media_length = document.media_length
+    doc.metadata = dict(document.fields)
+    for tl in document.timelines:
+        attrs = {"height": 60, **tl.attrs}
+        components = {}
+        # a row's id is six letters and digits
+        rows = {row["id"]: f"row{n:03}" for n, row in enumerate(attrs.get("rows", []))}
+        if rows:
+            attrs["rows"] = [{**row, "id": rows[row["id"]]} for row in attrs["rows"]]
+        marks: dict[int, int] = {}
+        if tl.kind == "beat":
+            per_bar = (attrs.pop("beats_in_measure", None) or attrs["beat_pattern"])[0]
+            attrs.pop("beat_pattern", None)
+            numbers = attrs.pop("measure_numbers")
+            marks = {i * per_bar: number for i, number in enumerate(numbers)}
+        beats = sorted(
+            (c for c in tl.components if c.kind == "beat"),
+            key=lambda c: float(c.attrs["time"]),
+        )
+        order = {c.id: i for i, c in enumerate(beats)}
+        for c in tl.components:
+            cattrs = {k: v for k, v in c.attrs.items() if k != "display_mode"}
+            if "row_id" in cattrs:
+                cattrs["row_id"] = rows[cattrs["row_id"]]
+            if c.kind == "beat" and order[c.id] in marks:
+                cattrs["measure"] = {"number": marks[order[c.id]]}
+            cid = tla.new_id()
+            components[cid] = tla.Component(
+                id=cid, kind=c.kind, attrs=cattrs, metadata=dict(c.fields)
+            )
+        tid = tla.new_id()
+        doc.timelines[tid] = tla.Timeline(
+            id=tid,
+            kind=tl.kind,
+            ordinal=tl.ordinal,
+            name=tl.name,
+            metadata=dict(tl.fields),
+            attrs=attrs,
+            components=components,
+        )
+    return doc

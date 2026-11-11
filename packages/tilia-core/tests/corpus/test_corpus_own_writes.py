@@ -111,12 +111,13 @@ def test_scenario_3_the_fingerprint_on_disk_is_the_one_the_scan_records(folder):
         assert corpus.file("copy crlf.tla").fingerprint == recorded
 
 
-def test_fingerprint_raises_for_a_file_it_cant_read_and_without_a_reader(folder):
+def test_fingerprint_raises_for_a_file_it_cant_read_with_any_reader(folder):
     (folder / "broken.tla").write_text("{oops", encoding="utf-8")
     with pytest.raises(UnreadableFile):
         fingerprint(folder / "broken.tla", READER)
-    with pytest.raises(NotImplementedError, match="project-management#7"):
-        fingerprint(folder / "a.tla")
+    # WP3's, the default
+    with pytest.raises(UnreadableFile, match=r"line 1"):
+        fingerprint(folder / "broken.tla")
 
 
 # --------------------------------------------------------------------------- #

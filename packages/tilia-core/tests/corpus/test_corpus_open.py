@@ -252,11 +252,6 @@ def test_the_path_is_expanded_and_resolved(tmp_path, monkeypatch):
         assert [f.path for f in corpus.files()] == ["a.tla"]
 
 
-def test_without_a_reader_it_says_none_is_there_yet(tmp_path):
-    with pytest.raises(NotImplementedError, match="project-management#7"):
-        open_corpus(tmp_path)
-
-
 # --------------------------------------------------------------------------- #
 # What it returns
 # --------------------------------------------------------------------------- #
