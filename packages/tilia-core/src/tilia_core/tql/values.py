@@ -263,6 +263,7 @@ class Measures:
         self.log = log
         self.file_id = file_id
         self._rows: dict[Any, list[tuple[Any, ...]]] | None = None
+        self._numbers: dict[Any, dict[Any, Any]] = {}  # by file
 
     def of(self, file_id: int) -> list[tuple[Any, ...]]:
         """The measures of ``file_id`` in playing order, each the columns
@@ -284,6 +285,16 @@ class Measures:
                 got.setdefault(r[0], []).append(tuple(r[1:]))
             self._rows = got
         return self._rows.get(file_id, [])
+
+    def numbers(self, file_id: int) -> dict[Any, Any]:
+        """The printed number of each bar of ``file_id`` by its start: of
+        bars that start together, the first in playing order."""
+        got = self._numbers.get(file_id)
+        if got is None:
+            got = self._numbers[file_id] = {}
+            for _, number, _, start, *_ in self.of(file_id):
+                got.setdefault(start, number)
+        return got
 
 
 class Facts:

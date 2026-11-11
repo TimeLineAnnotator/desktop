@@ -951,9 +951,9 @@ def _position(
     # not logged: one lookup per target and per step would grow the shown
     # SQL by several statements per match
     if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
-        for _, number, _, start, *_ in measures.of(comp.file_id):
-            if start == comp.start:
-                return number, 1.0
+        numbers = measures.numbers(comp.file_id)
+        if comp.start in numbers:
+            return numbers[comp.start], 1.0
         return None, None
     rows = log.con.execute(
         "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
