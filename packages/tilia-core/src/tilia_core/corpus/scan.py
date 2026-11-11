@@ -49,6 +49,7 @@ from .fingerprint import of_document
 from .settings import CorpusSettings
 from .store import Store
 from .time_map import TimeMap, TimeMapOf
+from .time_map import found as time_map_found
 
 LOG = logging.getLogger(__name__)
 
@@ -364,6 +365,7 @@ def file_row(
                 *lengths,
                 None,
                 None,
+                None,
             )
         ],
     )
@@ -576,8 +578,11 @@ class Scanner:
         assert document is not None
         counter = iter(replay[1:]) if replay else iter(())
         keys = _Keys(key, itertools.chain(counter, self._counter))
-        tmap = self.time_map_of(document, build.roles(document, self.settings))
-        rows = build.rows(document, self.settings, keys, tmap)
+        chosen = time_map_found(
+            self.time_map_of(document, build.roles(document, self.settings))
+        )
+        tmap = chosen.time_map
+        rows = build.rows(document, self.settings, keys, chosen)
         found = outcome.found
         record = FileRecord(
             key=key,

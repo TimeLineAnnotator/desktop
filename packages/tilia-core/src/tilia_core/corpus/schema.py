@@ -23,6 +23,10 @@ SQL on them, so users see them: they are lower case and name what they hold.
   reads it (``"6/8"``, ``"2+2+3/8"``). ``positions`` gives a unit the ``cadenza``
   and ``movement`` of the bar it starts in.
 - ``fields``: the fields of files, timelines and components, one row per value.
+- ``file_warnings``: what is wrong with a readable file's content, one row per
+  warning, with where it comes from (``source``): ``time_map`` for WP9's
+  warnings about its beat timelines. ``files.time_map_reason`` says why a file
+  with a beat timeline has no time map (WP9's FR-082).
 
 **Keys.** ``files.id``, ``timelines.id`` and ``components.id`` are the index's
 own integers (TimeLineAnnotator/project-management#124): unique in the corpus,
@@ -53,7 +57,8 @@ CREATE TABLE files (
     media_length REAL,
     time_unit TEXT,
     time_map INTEGER,
-    time_map_guessed INTEGER
+    time_map_guessed INTEGER,
+    time_map_reason TEXT
 );
 
 CREATE TABLE timelines (
@@ -158,6 +163,12 @@ CREATE TABLE fields (
     owner_id INTEGER,
     name TEXT,
     value TEXT
+);
+
+CREATE TABLE file_warnings (
+    file_id INTEGER,
+    source TEXT,
+    message TEXT
 );
 
 CREATE INDEX components_by_timeline ON components (file_id, timeline_id, start);
