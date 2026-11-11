@@ -3,7 +3,12 @@
 The names here are provisional until they are documented.
 """
 
-from tilia_core.tla.edits import delete_beat, mark_edited, mark_moved
+from tilia_core.tla.edits import (
+    CantDeleteDownbeat,
+    delete_beat,
+    mark_edited,
+    mark_moved,
+)
 from tilia_core.tla.errors import (
     BrokenRules,
     DraftFormat,
@@ -52,6 +57,7 @@ __all__ = [
     "TEMPORARY_PATTERN",
     "BeatUnit",
     "BrokenRules",
+    "CantDeleteDownbeat",
     "Component",
     "Document",
     "FileChanged",
