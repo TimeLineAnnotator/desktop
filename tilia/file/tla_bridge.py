@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import copy
 from bisect import bisect_left
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from tilia.timelines.hash_timelines import hash_function
@@ -987,8 +987,8 @@ def _take_marks(
 
 
 # What `removed` keeps of a mark, under the beat it is on: a number the bridge wrote,
-# a `next` as it was before a name in it changed with a measure that went, and a
-# `restart` a gone measure handed on.
+# the turns its `next` took with measures that went (`_rename_next`), and a `restart`
+# a gone measure handed on.
 _RECORDS = ("number", "next", "restart")
 
 
@@ -1084,20 +1084,32 @@ def _rename_next(
     measure that is gone names the next measure that stays, as `renamed` has it; with
     none, or for a beat that starts no measure, the name goes, since the writer refuses
     a `next` that names no measure. A name of a downbeat the state doesn't hold, such
-    as a beat without a time, stays while it is one. A list changed that way is kept as
-    it was in `removed`, and comes back once all it named start measures again."""
+    as a beat without a time, stays while it is one.
+
+    Such a change can't be undone by matching measures again, since the names it took
+    out start no measure. So `removed` keeps each one, the last one last, as a turn:
+    the list after it, the list before it, and the names it took out. While the list is
+    still as the turn left it, the turn goes back once those names start measures
+    again, as an undo makes them, and its going back is kept as a turn in its turn, for
+    the next undo or redo."""
     components = timeline.components
+
+    def starts_a_measure(name: str) -> bool:
+        return name in starts or _is_downbeat(components.get(name))
+
     for beat_id in starts:
         mark = components[beat_id].attrs["measure"]
         key = _record_key(beat_id, "next")
-        record = removed.get(key)
-        if isinstance(record, list) and all(
-            name in starts or _is_downbeat(components.get(name)) for name in record
-        ):
-            del removed[key]
-            mark["next"] = list(record)
+        turns = removed.get(key)
+        following = mark.get("next") or []
+        back = (
+            _turn_back(turns, following, starts_a_measure)
+            if isinstance(turns, list)
+            else None
+        )
+        if back is not None:
+            _set_next(mark, back)
             continue
-        following = mark.get("next")
         if not following:
             continue
         followed = []
@@ -1108,20 +1120,79 @@ def _rename_next(
                 followed.append(name)
         if followed == following:
             continue
-        if key not in removed and (
-            len(followed) < len(following) or any(name in gone for name in following)
-        ):
-            removed[key] = list(following)
+        if len(followed) < len(following) or any(name in gone for name in following):
+            taken_out = [name for name in following if name not in followed]
+            turns = removed.setdefault(key, [])
+            if isinstance(turns, list):
+                turns.append(
+                    {
+                        "now": followed,
+                        "before": list(following),
+                        "names": taken_out,
+                        "back_when_they_start": True,
+                    }
+                )
         if len(followed) < len(following):
             notes.append(
                 f"The measure at beat {beat_id} of timeline {timeline.id} was followed"
                 f" by {following}, some of which are gone: it is followed by"
                 f" {followed or 'the next measure'}."
             )
-        if followed:
-            mark["next"] = followed
-        else:
-            del mark["next"]
+        _set_next(mark, followed)
+
+
+def _turn_back(
+    turns: list[Any], following: list[str], starts_a_measure: Callable[[str], bool]
+) -> list[str] | None:
+    """The list as it was before the turns that go back, or None for none. A turn goes
+    back when it left the list as it is and its names start measures again, or no
+    longer do for one that went back; several do, last first, when an undo goes back
+    over several. A turn that went back takes its own place as its opposite, so that
+    a redo turns it again."""
+    back = None
+    for _ in range(len(turns)):
+        place = next(
+            (
+                place
+                for place in range(len(turns) - 1, -1, -1)
+                if _turns_back(turns[place], following, starts_a_measure)
+            ),
+            None,
+        )
+        if place is None:
+            break
+        turn = turns[place]
+        turns[place] = {
+            "now": turn["before"],
+            "before": following,
+            "names": turn["names"],
+            "back_when_they_start": not turn["back_when_they_start"],
+        }
+        following = back = turn["before"]
+    return back
+
+
+def _turns_back(
+    turn: Any, following: list[str], starts_a_measure: Callable[[str], bool]
+) -> bool:
+    """Whether a turn goes back: it left the list as it is, every name the list had
+    before it starts a measure, so that it can be the list again, and the turn's names
+    start measures again, or for a turn that went back, no longer all do."""
+    if not isinstance(turn, dict) or turn.get("now") != following:
+        return False
+    if not all(map(starts_a_measure, turn["before"])):
+        return False
+    starting = [starts_a_measure(name) for name in turn["names"]]
+    if turn["back_when_they_start"]:
+        return all(starting)
+    return not all(starting)
+
+
+def _set_next(mark: dict[str, Any], following: list[str]) -> None:
+    if following:
+        mark["next"] = list(following)
+    else:
+        mark.pop("next", None)
 
 
 def _is_downbeat(component: tla.Component | None) -> bool:
