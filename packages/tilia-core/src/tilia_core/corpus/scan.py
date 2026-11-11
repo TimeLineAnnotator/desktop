@@ -216,9 +216,8 @@ class Outcome:
         return self.document is not None
 
 
-_Failure = tuple[
-    str, "int | None", bool, "tuple[type, BaseException, TracebackType] | None"
-]
+_ExcInfo = tuple[type, BaseException, TracebackType]
+_Failure = tuple[str, "int | None", bool, "_ExcInfo | None"]
 
 
 def _try_read(reader: DocumentReader, found: Found) -> Outcome | _Failure:
@@ -233,9 +232,6 @@ def _try_read(reader: DocumentReader, found: Found) -> Outcome | _Failure:
     except Exception as err:  # noqa: BLE001 - a bug in the reader stops nothing
         info = sys.exc_info()
         return (f"can't read: {type(err).__name__}: {err}", None, False, info)  # type: ignore[return-value]
-
-
-_ExcInfo = tuple[type, BaseException, TracebackType]
 
 
 def _read(reader: DocumentReader, found: Found) -> tuple[Outcome, _ExcInfo | None]:

@@ -79,8 +79,10 @@ def states(corpus) -> list[tuple[str, int]]:
 @pytest.fixture
 def in_workers(monkeypatch):
     """Files read in this process, through ``scan.read_file``; with a low
-    threshold for reading in workers."""
-    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 2, raising=False)
+    threshold for reading in workers, and two of them, which start faster
+    than one per CPU."""
+    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 2)
+    monkeypatch.setattr(_workers, "cpus", lambda: 2)
     here: list[str] = []
     one_by_one = scan.read_file
 
@@ -92,48 +94,30 @@ def in_workers(monkeypatch):
     return here
 
 
-def test_a_build_of_many_files_reads_them_in_workers(folder, in_workers):
-    corpus = opened(folder)
-    try:
-        assert in_workers == []
-        assert states(corpus) == [("readable", OLD_COUNT), ("unreadable", 1)]
-    finally:
-        corpus.close()
-
-
 def test_a_rescan_of_many_changed_files_reads_them_in_workers(
     folder, in_workers, monkeypatch
 ):
-    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 10**9, raising=False)
-    corpus = opened(folder)
-    try:
+    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 10**9)
+    with opened(folder) as corpus:
         in_workers.clear()
-        monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 2, raising=False)
+        monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 2)
         for path in sorted(folder.rglob("*.tla")):
             shutil.copy(path, path.with_name("copy-" + path.name))
         report = corpus.scan()
         assert in_workers == []
         assert len(report.added) == OLD_COUNT + 1
-    finally:
-        corpus.close()
 
 
 def test_reading_in_workers_gives_the_index_reading_one_by_one_gives(
     folder, in_workers, monkeypatch
 ):
-    corpus = opened(folder)
-    try:
+    with opened(folder) as corpus:
         assert in_workers == []
         parallel = tables(corpus)
-    finally:
-        corpus.close()
-    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 10**9, raising=False)
-    corpus = opened(folder)
-    try:
+    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 10**9)
+    with opened(folder) as corpus:
         assert len(in_workers) == OLD_COUNT + 1
         assert tables(corpus) == parallel
-    finally:
-        corpus.close()
 
 
 def test_when_the_workers_fail_the_files_are_read_here(
@@ -142,24 +126,19 @@ def test_when_the_workers_fail_the_files_are_read_here(
     monkeypatch.setattr(_workers, "_BOOT", "import sys\nsys.exit(3)\n")
     with caplog.at_level(logging.WARNING, logger=scan.LOG.name):
         corpus = opened(folder)
-    try:
+    with corpus:
         assert len(in_workers) == OLD_COUNT + 1
         assert any(
             "couldn't be read in worker processes" in r.getMessage()
             for r in caplog.records
         )
         assert states(corpus) == [("readable", OLD_COUNT), ("unreadable", 1)]
-    finally:
-        corpus.close()
 
 
 def test_a_frozen_program_reads_here(folder, in_workers, monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    corpus = opened(folder)
-    try:
+    with opened(folder):
         assert len(in_workers) == OLD_COUNT + 1
-    finally:
-        corpus.close()
 
 
 def test_a_reader_failure_in_a_worker_is_logged_here_with_its_traceback(
@@ -181,7 +160,7 @@ def test_a_reader_failure_in_a_worker_is_logged_here_with_its_traceback(
     monkeypatch.setattr(TlaReader, "read", failing)
     with caplog.at_level(logging.ERROR, logger=scan.LOG.name):
         corpus = opened(folder)
-    try:
+    with corpus:
         assert in_workers == []
         (record,) = [r for r in caplog.records if r.levelno == logging.ERROR]
         message = record.getMessage()
@@ -193,8 +172,6 @@ def test_a_reader_failure_in_a_worker_is_logged_here_with_its_traceback(
                 "SELECT reason FROM files WHERE path = 'sub/0.7.0.tla'"
             ).fetchone()
         assert reason == "can't read: ZeroDivisionError: a bug in the reader"
-    finally:
-        corpus.close()
 
 
 SCRIPT = """\
