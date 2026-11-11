@@ -84,10 +84,11 @@ sys.exit(main())
 """
 
 
-def tilia(*arguments, cwd, mode="reader"):
+def tilia(*arguments, cwd, mode="reader", encoding="utf-8"):
     """Run `tilia` with `arguments`, as a user would, but with the stand-in
     reader (`mode` "reader"), without one ("no-reader"), or with a Ctrl+C as
-    the query starts ("interrupted")."""
+    the query starts ("interrupted"). Its output is bytes with `encoding`
+    None, as for CSV."""
     env = {
         **os.environ,
         "PYTHONIOENCODING": "utf-8",
@@ -98,7 +99,7 @@ def tilia(*arguments, cwd, mode="reader"):
         cwd=cwd,
         env=env,
         capture_output=True,
-        encoding="utf-8",
+        encoding=encoding,
         timeout=120,
     )
 
@@ -388,7 +389,7 @@ def test_csv_on_standard_output_is_to_csvs_bytes(exposition, tmp_path):
     query = "* THEN @TR THEN * IN form"
     expected(exposition, query).to_csv(tmp_path / "expected.csv")
 
-    result = subprocess_bytes("query", ".", query, "--csv", cwd=exposition)
+    result = tilia("query", ".", query, "--csv", cwd=exposition, encoding=None)
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == (tmp_path / "expected.csv").read_bytes()
@@ -505,7 +506,7 @@ def test_stats_in_csv_is_the_tables_to_csv(exposition, tmp_path):
     stats = expected(exposition, query).stats_tables[("counts", "category", True)]
     stats.to_csv(tmp_path / "expected.csv")
 
-    result = subprocess_bytes(
+    result = tilia(
         "query",
         ".",
         query,
@@ -516,6 +517,7 @@ def test_stats_in_csv_is_the_tables_to_csv(exposition, tmp_path):
         "--fold-subtypes",
         "--csv",
         cwd=exposition,
+        encoding=None,
     )
 
     assert result.returncode == 0, result.stderr
@@ -629,19 +631,3 @@ def test_without_a_tla_reader_it_says_so_and_exits_1(exposition):
     assert result.returncode == 1
     assert result.stderr.startswith("tilia query: no .tla reader yet")
     assert result.stdout == ""
-
-
-def subprocess_bytes(*arguments, cwd):
-    """`tilia` as `tilia` runs it, its output as bytes, for CSV."""
-    env = {
-        **os.environ,
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONPATH": os.pathsep.join(HELPERS),
-    }
-    return subprocess.run(
-        [sys.executable, "-c", RUNNER, "reader", *arguments],
-        cwd=cwd,
-        env=env,
-        capture_output=True,
-        timeout=120,
-    )
