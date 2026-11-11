@@ -2616,6 +2616,120 @@ class TestMarksInOneAction:
         assert opened.bytes() == opened.bytes_read
 
 
+class TestNextThroughChainsOfChanges:
+    """A `next` that a change made name another measure, because the one it named went,
+    comes back with each undo, one change at a time or several at once, and goes again
+    with each redo. a, b, c, d and e are one-beat measures; a is followed by c, then d,
+    unless a test says otherwise."""
+
+    A, B, C, D, E, TL = (make_id(i) for i in (1, 2, 3, 4, 5, 9))
+
+    def opened(self, following):
+        beats = {
+            self.A: beat(0.0, {"next": following}),
+            self.B: beat(1.0, {"label": "b"}),
+            self.C: beat(2.0, {"label": "c"}),
+            self.D: beat(3.0, {"label": "d"}),
+            self.E: beat(4.0, {"label": "e"}),
+        }
+        return Opened.from_content(file_with({self.TL: beat_timeline(beats)}))
+
+    def through(self, following, counts):
+        """The states as TiLiA gives these beat counts of measures in turn."""
+        opened = self.opened(following)
+        states = [copy.deepcopy(opened.current)]
+        written = [opened.bytes_read]
+        for each in counts:
+            opened.edit_timeline(
+                self.TL,
+                beats_in_measure=list(each),
+                measure_numbers=list(range(1, len(each) + 1)),
+            )
+            opened.sync()
+            states.append(copy.deepcopy(opened.current))
+            written.append(opened.bytes())
+        return opened, states, written
+
+    def states(self):
+        opened = self.opened([self.C, self.D])
+        states = [copy.deepcopy(opened.current)]
+        written = [opened.bytes_read]
+        for gone, count in ((self.C, 4), (self.D, 3)):
+            opened.delete_component(self.TL, gone)
+            opened.edit_timeline(
+                self.TL,
+                beats_in_measure=[1] * count,
+                measure_numbers=list(range(1, count + 1)),
+            )
+            opened.sync()
+            states.append(copy.deepcopy(opened.current))
+            written.append(opened.bytes())
+        return opened, states, written
+
+    def go(self, opened, state):
+        opened.current = copy.deepcopy(state)
+        opened.sync()
+
+    def following(self, opened):
+        return opened.doc.timelines[self.TL].components[self.A].attrs["measure"]["next"]
+
+    def test_each_change_names_the_next_measure(self):
+        opened, states, written = self.states()
+        assert self.following(opened) == [self.E, self.E]
+
+    def test_undone_one_at_a_time(self):
+        opened, states, written = self.states()
+        self.go(opened, states[1])
+        assert opened.bytes() == written[1]
+        self.go(opened, states[0])
+        assert opened.bytes() == written[0]
+
+    def test_undone_at_once(self):
+        opened, states, written = self.states()
+        self.go(opened, states[0])
+        assert opened.bytes() == written[0]
+
+    def test_redone(self):
+        opened, states, written = self.states()
+        for back in (1, 0):
+            self.go(opened, states[back])
+        for again in (1, 2):
+            self.go(opened, states[again])
+            assert opened.bytes() == written[again]
+
+    def test_undone_redone_and_undone_further(self):
+        # The second change's turn back lies above the first's, as its opposite.
+        opened, states, written = self.states()
+        for state in (states[1], states[2], states[1], states[0]):
+            self.go(opened, state)
+        assert opened.bytes() == written[0]
+
+    def test_undone_after_a_change_that_brought_its_measure_back(self):
+        # a is followed by d. d's measure goes into c's, so a is followed by e. Then
+        # c's goes into b's and e's into d's, which starts again: a is followed by d
+        # again. Undoing that matches d's measure with c's, by place, but a is followed
+        # by e, as it was.
+        opened, states, written = self.through([self.D], ([1, 1, 2, 1], [1, 2, 2]))
+        assert self.following(opened) == [self.D]
+        self.go(opened, states[1])
+        assert opened.bytes() == written[1]
+        self.go(opened, states[0])
+        assert opened.bytes() == written[0]
+
+    def test_a_list_comes_back_only_while_its_measures_start(self):
+        # c's measure goes into b's, so a is followed by d, d. Then c starts a measure
+        # again and d's goes into it: a's list as it was, c, d, would name a beat that
+        # starts no measure, so a stays followed by the measure d's is now, by place.
+        opened, states, written = self.through(
+            [self.C, self.D], ([1, 2, 1, 1], [1, 1, 2, 1])
+        )
+        assert self.following(opened) == [self.C, self.C]
+        tla.loads(opened.bytes())
+        for back in (1, 0):
+            self.go(opened, states[back])
+            assert opened.bytes() == written[back]
+
+
 class TestSameEditThroughTiLiA:
     """SC-002's beat edits, made by TiLiA's own timelines, against the same edit
     through `attrs`, with what TiLiA's lists also change."""
