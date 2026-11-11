@@ -157,6 +157,89 @@ def test_an_old_files_null_for_pairs_gains_no_line_when_migrated(path):
     assert b'"pairs"' not in tla.canonical_bytes(saved)
 
 
+def as_saved_by_tilia_0_7_2(path, **change):
+    """The old file at `path` as TiLiA 0.7.2 and later save it with no edit: each
+    time signature's numerator as text, and `"pairs": null`; then `change`d."""
+    content = json.loads(path.read_bytes())
+    found = 0
+    for timeline in content["timelines"].values():
+        for component in timeline["components"].values():
+            if component["kind"] == "TIME_SIGNATURE":
+                component["numerator"] = str(component["numerator"])
+                component["pairs"] = None
+                component.update(change)
+                found += 1
+    assert found
+    return json.dumps(content).encode()
+
+
+@pytest.mark.parametrize("path", WITH_TIME_SIGNATURE, ids=lambda p: p.name)
+def test_an_old_file_saved_again_by_tilia_0_7_2_keeps_its_document_id(path):
+    before = tla.loads(path.read_bytes())
+    after = tla.loads(as_saved_by_tilia_0_7_2(path))
+    assert after.document_id == before.document_id
+    # So do its timelines and components, whose ids are derived from it.
+    assert after.timelines.keys() == before.timelines.keys()
+    for key, timeline in after.timelines.items():
+        assert timeline.components.keys() == before.timelines[key].components.keys()
+
+
+@pytest.mark.parametrize("path", WITH_TIME_SIGNATURE, ids=lambda p: p.name)
+def test_the_file_keeps_the_numerator_as_tilia_0_7_2_saved_it(path):
+    # Only the id's computation counts it as a number.
+    data = tla.canonical_bytes(tla.loads(as_saved_by_tilia_0_7_2(path)))
+    for timeline in json.loads(data)["timelines"].values():
+        for component in timeline["components"].values():
+            if component["kind"] == "TIME_SIGNATURE":
+                assert isinstance(component["numerator"], str)
+                assert "pairs" not in component
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"numerator": "7"},
+        {"numerator": "3+2"},
+        {"numerator": "03"},
+        {"pairs": [["2", 4], ["3", 8]]},
+        {"denominator": 16},
+    ],
+    ids=[
+        "another numerator",
+        "a composite one",
+        "with a leading 0",
+        "pairs",
+        "denominator",
+    ],
+)
+def test_an_edit_still_changes_the_document_id(change):
+    path = OLD / "0.7.0.tla"
+    plain = tla.loads(as_saved_by_tilia_0_7_2(path))
+    edited = tla.loads(as_saved_by_tilia_0_7_2(path, **change))
+    assert edited.document_id != plain.document_id
+
+
+def test_only_a_time_signature_of_a_score_timeline_is_seen_so():
+    # Text elsewhere stays text: in a component of another kind, and in a time
+    # signature kept in a timeline that doesn't hold one.
+    from tilia_core.tla.ids import derived_document_id
+
+    def with_one(timeline_kind, kind, key, value):
+        component = {"kind": kind, "time": 1.0, key: value}
+        timeline = {"kind": timeline_kind, "components": {"2": component}}
+        return {"timelines": {"1": timeline}}
+
+    def seen_alike(*shape):
+        return derived_document_id(with_one(*shape, "3")) == derived_document_id(
+            with_one(*shape, 3)
+        )
+
+    assert seen_alike("Score", "TIME_SIGNATURE", "numerator")
+    assert not seen_alike("Score", "NOTE", "numerator")
+    assert not seen_alike("Hierarchy", "TIME_SIGNATURE", "numerator")
+    assert not seen_alike("Score", "TIME_SIGNATURE", "denominator")
+
+
 @pytest.mark.parametrize("path", WITH_TIME_SIGNATURE, ids=lambda p: p.name)
 def test_an_old_files_pairs_are_kept_in_their_place(path):
     doc = tla.loads(with_pairs_in_each_time_signature(path, PAIRS))
