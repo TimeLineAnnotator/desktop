@@ -13,10 +13,10 @@ from __future__ import annotations
 import itertools
 import logging
 import sqlite3
-from typing import Any, Callable, Iterable
+from typing import Iterable
 
 from . import compile as tql_compile
-from . import names, regexes, relations, syntax, values
+from . import names, regexes, relations, syntax
 from .lanes import GAP_EPS, SLACK
 from .readonly import Stopped
 from .showsql import Recorder
@@ -28,50 +28,24 @@ HARMONY_KINDS = ("chord", "key")
 
 def empty(
     con: sqlite3.Connection,
-    index: Any,
     query: syntax.Query,
     units: Iterable[tuple[syntax.Unit, syntax.Lane | None]],
-    check: Callable[[], None],
-    measures: values.Measures | None = None,
-    scopes: list[relations.Scope] | None = None,
-    lane_catalog: tql_compile.Catalog | None = None,
+    scopes: list[relations.Scope],
 ) -> list[str]:
     """The messages for a query that matched nothing. ``units`` are the units
-    of the query with the lane each is read in; ``check`` raises to stop, and
-    the messages found by then are given. ``measures`` reads the bars, when the
-    run has read them already; ``scopes`` are the search's, one per readable
-    file in the order of their paths, when it kept them: what they loaded is
-    not read again; ``lane_catalog`` holds the lanes' tables, when the run
-    has read them."""
+    of the query with the lane each is read in; ``scopes`` are the search's,
+    one per readable file in the order of their paths: what they loaded is not
+    read again, and the check each was made with stops the hints, which then
+    give the messages found by then."""
     pattern = query.pattern
     if pattern is None:
         return []
     units = list(units)
     log = Recorder(con)  # its blocks are dropped: these are no search statements
     out: list[str] = []
-    if measures is None:
-        measures = values.Measures(log)  # the bars of every file, read once
     try:
-        if scopes is None:
-            scopes = []
-            for (file_id,) in con.execute(
-                "SELECT id FROM files WHERE state = 'readable' ORDER BY path, id"
-            ):
-                check()
-                scopes.append(
-                    relations.Scope(
-                        log,
-                        file_id,
-                        index.time_map(file_id),
-                        {},
-                        check,
-                        measures,
-                        lane_catalog,
-                    )
-                )
-        else:
-            for scope in scopes:
-                scope.hand_to(log)
+        for scope in scopes:
+            scope.hand_to(log)
         gaps = _gaps(scopes, pattern)
         if gaps:
             out.append(gaps)
