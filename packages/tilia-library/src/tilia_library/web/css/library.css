@@ -73,6 +73,8 @@ tbody tr:hover { background: #f6f6f6; }
 tr.detail:hover { background: none; }
 tr.detail td { background: #f7f9fc; padding: 6px 8px 6px 40px; }
 tr.detail table { width: auto; }
+.file-no-bars { margin: 0 0 4px; color: #8a5300; font-size: 12px; }
+.file-warnings { margin: 0 0 6px; padding: 0 0 0 18px; list-style: "⚠ "; color: #8a5300; font-size: 12px; }
 td.expand-cell { width: 1%; white-space: nowrap; }
 button.expand { padding: 0 6px; border-color: transparent; background: none; }
 .pair { margin-right: 10px; white-space: nowrap; }

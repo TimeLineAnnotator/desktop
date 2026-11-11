@@ -11,11 +11,12 @@ import pytest
 from conftest import send
 from support.fixture_backend import FixtureBackend
 
+from tilia_core import tql
 from tilia_library.backend import Backend, CoreBackend, NotAvailable, QueryError
 from tilia_library.server import ApiError, LibraryServer
 
 SUPPORT = Path(__file__).resolve().parent / "support"
-CORPUS = Path("corpus")
+CORPUS = Path(__file__).resolve().parent / "fixtures" / "corpus"
 
 
 def method_names():
@@ -64,7 +65,24 @@ def test_protocol_methods_exist_on_both():
         assert callable(getattr(FixtureBackend, name)), name
 
 
-@pytest.mark.parametrize("name", method_names())
+# What CoreBackend already does on tilia-core; the rest raise NotAvailable.
+AVAILABLE = {
+    "open_corpus",
+    "generation",
+    "scan",
+    "reread",
+    "files",
+    "file_detail",
+    "context",
+    "explain",
+    "run",
+    "query_sql",
+    "sql",
+    "statistics",
+}
+
+
+@pytest.mark.parametrize("name", [n for n in method_names() if n not in AVAILABLE])
 def test_core_backend_not_available(name):
     with pytest.raises(NotAvailable) as info:
         call(CoreBackend(), name)
@@ -73,15 +91,41 @@ def test_core_backend_not_available(name):
 
 def test_core_backend_needs_texts():
     core = CoreBackend()
-    assert pytest.raises(NotAvailable, core.scan, None).value.needs == "the index"
     assert (
-        pytest.raises(NotAvailable, core.explain, "x").value.needs == "the query engine"
+        pytest.raises(NotAvailable, core.categories, None, False).value.needs
+        == "the query engine"
     )
     assert (
         pytest.raises(NotAvailable, core.plan, None, "x", set()).value.needs
         == "bulk edits"
     )
     assert pytest.raises(NotAvailable, core.media_of, None, "f").value.needs == "media"
+
+
+def test_core_backend_explains_with_the_query_engine():
+    text = "a THEN b"
+    assert CoreBackend().explain(text) == tql.explain(tql.parse(text))
+
+
+def test_core_backend_error_positions_are_code_points():
+    with pytest.raises(QueryError) as info:
+        CoreBackend().explain("🎵 error")
+    assert (info.value.pos, info.value.end) == (2, 7)
+    assert info.value.msg
+
+
+def test_core_backend_error_on_the_whole_query(monkeypatch):
+    def refuse(text):
+        raise tql.TQLError("not a query")
+
+    monkeypatch.setattr(tql, "parse", refuse)
+    with pytest.raises(QueryError) as info:
+        CoreBackend().explain("x")
+    assert (info.value.msg, info.value.pos, info.value.end) == (
+        "not a query",
+        None,
+        None,
+    )
 
 
 def test_route_with_core_backend_is_501():
@@ -91,12 +135,15 @@ def test_route_with_core_backend_is_501():
             "GET",
             "/api/files",
             lambda r: __import__("tilia_library.server", fromlist=["x"]).json_response(
-                r.server.backend.files(None)
+                r.server.backend.categories(None, False)
             ),
         )
         r = send(srv, "GET", "/api/files", {"Authorization": f"Bearer {srv.token}"})
     assert r.status == 501
-    assert json.loads(r.body) == {"error": "not available yet", "needs": "the index"}
+    assert json.loads(r.body) == {
+        "error": "not available yet",
+        "needs": "the query engine",
+    }
 
 
 def test_api_error_and_internal_error(server, caplog):
@@ -160,7 +207,15 @@ def test_fixture_shapes():
         }
         assert keys(f["timelines"]) == {"count", "kinds"}
     detail = b.file_detail(corpus, "f1")
-    assert keys(detail) == {"file_id", "name", "path", "fields", "timelines"}
+    assert keys(detail) == {
+        "file_id",
+        "name",
+        "path",
+        "fields",
+        "time_map_reason",
+        "warnings",
+        "timelines",
+    }
     assert keys(detail["timelines"][0]) == {"id", "name", "kind", "fields"}
     ctx = b.context(corpus, "f1", [])
     assert keys(ctx) == {"file_id", "name", "end", "timelines"}

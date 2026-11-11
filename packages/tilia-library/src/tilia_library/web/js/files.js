@@ -68,11 +68,19 @@ function rowHtml(row) {
   return open ? main + detailHtml(row.file_id) : main;
 }
 
+function notesHtml(detail) {
+  // why the file has no bars, and what may be wrong with its content
+  const reason = detail.time_map_reason
+    ? `<p class="file-no-bars">No bars: ${escapeHtml(detail.time_map_reason)}</p>` : "";
+  const warnings = (detail.warnings || []).map(w => `<li>${escapeHtml(w)}</li>`).join("");
+  return reason + (warnings ? `<ul class="file-warnings">${warnings}</ul>` : "");
+}
+
 function detailHtml(fileId) {
   const detail = files.details.get(fileId);
   const body = detail.timelines.map(t =>
     `<tr data-timeline-id="${escapeHtml(t.id)}">${text(escapeHtml(t.name))}${text(escapeHtml(t.kind))}${fieldsCell(t.fields)}</tr>`).join("");
-  return `<tr class="detail" data-file-id="${escapeHtml(fileId)}"><td colspan="6"><table>` +
+  return `<tr class="detail" data-file-id="${escapeHtml(fileId)}"><td colspan="6">${notesHtml(detail)}<table>` +
     `<thead><tr><th>Name</th><th>Kind</th><th>Fields</th></tr></thead><tbody>${body}</tbody></table></td></tr>`;
 }
 
