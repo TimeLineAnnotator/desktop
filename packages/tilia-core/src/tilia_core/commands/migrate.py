@@ -11,8 +11,6 @@ when the command was used wrongly.
 from __future__ import annotations
 
 import argparse
-import errno
-import io
 import ntpath
 import os
 import posixpath
@@ -22,9 +20,14 @@ import sys
 import unicodedata
 from collections import Counter
 from collections.abc import Iterator
-from typing import TextIO
 
-from tilia_core.commands._report import ESCAPES
+from tilia_core.commands._report import (
+    ESCAPES,
+    folder_problem,
+    print_out,
+    tolerate_unencodable,
+    wrong_use,
+)
 from tilia_core.commands._report import shown as _shown
 from tilia_core.tla.folder import migrate_folder
 from tilia_core.tla.layout import FORMAT_VERSION
@@ -79,7 +82,7 @@ _ADVICE = (
 
 
 def main(argv: list[str] | None = None) -> int:
-    _tolerate_unencodable(sys.stdout)
+    tolerate_unencodable(sys.stdout)
     parser = _parser()
     try:
         arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
@@ -88,42 +91,18 @@ def main(argv: list[str] | None = None) -> int:
     # As given: the shell has expanded any "~" that names a home folder, so
     # one left is part of a name.
     folder: str = arguments.folder
-    if not os.path.isdir(folder):
-        what = "not a folder" if os.path.exists(folder) else "no such folder"
-        return _wrong_use(parser, f"{what}: {_shown(folder)}")
+    problem = folder_problem(folder)
+    if problem is not None:
+        return wrong_use(parser, problem)
     try:
         report = migrate_folder(folder, apply=arguments.apply)
     except OSError as error:
         why = error.strerror or str(error)
         print(f"{PROG}: can't read {_shown(folder)}: {why}", file=sys.stderr)
         return 1
-    _print("\n".join(report_lines(report, folder, apply=arguments.apply)))
+    print_out("\n".join(report_lines(report, folder, apply=arguments.apply)))
     _print_errors(report)
     return report.status
-
-
-def _print(text: str) -> None:
-    """Print `text`. A reader that stops reading, as `head` does once it has
-    its lines, ends the output there, without an error."""
-    try:
-        print(text)
-        sys.stdout.flush()
-    except OSError as error:
-        if not _reader_gone(error):
-            raise
-        # Python flushes stdout again as it exits: into nothing, now.
-        try:
-            os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
-        except (OSError, ValueError):
-            pass
-
-
-def _reader_gone(error: OSError) -> bool:
-    """Whether writing failed because the other end of a pipe was closed:
-    EPIPE, or EINVAL, as a write to a closed pipe can fail on Windows."""
-    if isinstance(error, BrokenPipeError):
-        return True
-    return os.name == "nt" and error.errno == errno.EINVAL
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -146,22 +125,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--apply", action="store_true", help="write the migrated files")
     parser.add_argument("--help", action="help", help="show this help and exit")
     return parser
-
-
-def _wrong_use(parser: argparse.ArgumentParser, message: str) -> int:
-    """Say what is wrong as argparse does, and give the status for it."""
-    parser.print_usage(sys.stderr)
-    print(f"{PROG}: error: {message}", file=sys.stderr)
-    return 2
-
-
-def _tolerate_unencodable(stream: TextIO) -> None:
-    """Print a character the terminal's encoding lacks as its escape, rather
-    than stop: a file name may hold any character. A lone surrogate, from a
-    file name that isn't UTF-8, is printed as its escape too, as
-    `errors.printable` writes it."""
-    if isinstance(stream, io.TextIOWrapper):
-        stream.reconfigure(errors="backslashreplace")
 
 
 # The part of the report that lists the files of each outcome. Every outcome
