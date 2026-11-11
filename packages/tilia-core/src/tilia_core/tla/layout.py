@@ -143,8 +143,8 @@ LEGACY_SCORE_COMPONENTS = frozenset(
     }
 )
 # A composite time signature's `pairs`, such as [["2", 4], ["3", 8]] for
-# 2/4 + 3/8. Left out when it has none, so that no file gains a line
-# (TimeLineAnnotator/project-management#511).
+# 2/4 + 3/8. Left out when it has none, null or [], so that no file gains a line
+# (TimeLineAnnotator/project-management#511, #534).
 _LEGACY_LEFT_OUT = frozenset({"pairs"})
 MEASURE = (
     "number",
@@ -173,15 +173,18 @@ class Shape:
     `keys` are its known keys, in order, and `known` the same as a set. Those
     in `always` are always written. The others are left out at their
     default: a value in `defaults`, or, for those in `left_out_empty`, an
-    empty object; and without a default, when they are None. A key whose
-    default is derived from another value (the schema's `x-default-from`)
-    has none here: it is written whenever it is set.
+    empty object; and without a default, when they are None. One in
+    `none_when_empty_list` counts as none when it is an empty list: it is left
+    out, and read as a missing key. A key whose default is derived from
+    another value (the schema's `x-default-from`) has none here: it is written
+    whenever it is set.
     """
 
     keys: tuple[str, ...]
     always: frozenset[str]
     defaults: Mapping[str, Any]
     left_out_empty: frozenset[str]
+    none_when_empty_list: frozenset[str] = frozenset()
 
     @cached_property
     def known(self) -> frozenset[str]:
@@ -220,6 +223,7 @@ def _shape(
     *nodes: dict[str, Any],
     always: Iterable[str] = (),
     left_out_empty: Iterable[str] = (),
+    none_when_empty_list: Iterable[str] = (),
 ) -> Shape:
     """The shape of objects with these keys, from their schema `nodes`. The
     schema's required keys are always written, and so are those in `always`,
@@ -246,6 +250,7 @@ def _shape(
         always=(always | required) & frozenset(keys),
         defaults=defaults,
         left_out_empty=frozenset(left_out_empty),
+        none_when_empty_list=frozenset(none_when_empty_list),
     )
 
 
@@ -279,6 +284,7 @@ COMPONENT_SHAPES: dict[str, Shape] = {
             else ()
         ),
         left_out_empty=("metadata",),
+        none_when_empty_list=frozenset(COMPONENT_ATTRIBUTES[kind]) & _LEGACY_LEFT_OUT,
     )
     for kind, spelling in COMPONENT_KINDS.items()
 }
