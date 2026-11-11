@@ -22,7 +22,7 @@ import bisect
 import logging
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Iterator, Protocol
+from typing import Any, Callable, Iterable, Iterator, Protocol, Sequence
 
 from tilia_core.labels import fold, nfc
 
@@ -570,13 +570,13 @@ class LaneIndex:
                     u.id, []
                 ).append(k)
 
-    def near(self, lo: float, hi: float) -> list[int]:
+    def near(self, lo: float, hi: float) -> Sequence[int]:
         if self.starts is None:
-            return list(range(len(self.items)))
+            return range(len(self.items))
         first = bisect.bisect_left(self.starts, lo)
         last = bisect.bisect_right(self.starts, hi)
         if not self.odd:
-            return list(range(first, last))
+            return range(first, last)
         return sorted({*range(first, last), *self.odd})
 
 
@@ -1321,7 +1321,7 @@ class Scope:
 
     def _lane_index(self, items: list[Item]) -> LaneIndex:
         got = self._indexes.get(id(items))
-        if got is None or got.items is not items:
+        if got is None:
             got = self._indexes[id(items)] = LaneIndex(items)
         return got
 
