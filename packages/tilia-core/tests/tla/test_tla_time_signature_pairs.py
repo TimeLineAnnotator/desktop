@@ -452,6 +452,15 @@ def test_an_old_files_empty_pairs_count_as_none(path):
     assert tla.canonical_bytes(emptied) == tla.canonical_bytes(plain)
 
 
+def test_the_schema_describes_no_limit_on_pairs():
+    # A legacy score's kinds have no rules, and keep what TiLiA wrote: nothing on
+    # how many pairs, nor on the numerator and denominator beside them (#534).
+    pairs = dict(legacy_branches())["TIME_SIGNATURE"]["properties"]["pairs"]
+    assert "at least" not in pairs["description"]
+    assert "numerator and denominator are" not in pairs["description"]
+    assert not {"minItems", "maxItems"} & pairs.keys()
+
+
 @pytest.mark.parametrize(
     "pairs",
     [[["2", 4]], [["2"]], [["2", 4, "x"]]],
