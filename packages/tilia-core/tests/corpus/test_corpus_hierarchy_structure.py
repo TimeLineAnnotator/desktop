@@ -124,5 +124,14 @@ def test_a_unit_is_not_held_by_one_with_its_own_id():
     assert derived.hierarchy_structure(units)["a"] == ("b", 2)
 
 
+def test_holders_whose_length_is_nan_the_first_in_units_wins():
+    # A span from -inf to -inf has length NaN, which compares neither less nor
+    # more than another length: the old function keeps the first holder.
+    units = [("c", 1, 0.0, -math.inf), ("p", 2, -math.inf, -math.inf)]
+    units.append(("q", 2, -math.inf, 5.0))
+    same(units)
+    assert derived.hierarchy_structure(units)["c"] == ("p", 2)
+
+
 def test_without_units():
     assert derived.hierarchy_structure([]) == {}

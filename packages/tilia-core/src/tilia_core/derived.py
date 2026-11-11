@@ -9,6 +9,7 @@ import math
 import re
 from bisect import bisect_right
 from collections.abc import Sequence
+from itertools import accumulate
 from typing import Any
 
 from tilia_core import harmony
@@ -32,57 +33,45 @@ def hierarchy_structure(
     in ``units``; the file stores no links. Depth is 1 for a unit without
     parent.
 
-    Each level's units are sorted by start, with a tree of the largest end
-    under each range of them, so that the units of a level that hold a span
-    are found in O(log n) each: O(n log n) in all for units that nest, as a
-    hierarchy's do (TimeLineAnnotator/project-management#156). Units that
-    overlap on one level cost more, at worst O(n²) as before.
+    Each level's units are sorted by start, with the running maximum of their
+    ends. The units of a level that hold a span are found by walking back from
+    the last one that starts early enough, as long as one further back ends
+    late enough: O(n log n) in all for units that nest and don't overlap on a
+    level, as a hierarchy's do (TimeLineAnnotator/project-management#156).
+    Units that overlap on one level cost more, at worst O(n²) as before.
     """
     # Per level: the units that can hold another (no NaN), sorted by start,
-    # and a segment tree of their ends' maximum.
-    held: dict[int, tuple[list[float], list[float], list[int]]] = {}
+    # their starts, and the running maximum of their ends.
+    held: dict[int, list[int]] = {}
     for n, (_, level, start, end) in enumerate(units):
         if not (math.isnan(start) or math.isnan(end)):  # NaN holds nothing
-            held.setdefault(level, ([], [], []))[2].append(n)
-    trees: dict[int, tuple[int, list[float]]] = {}
-    for level, (starts, ends, order) in held.items():
+            held.setdefault(level, []).append(n)
+    starts: dict[int, list[float]] = {}
+    reach: dict[int, list[float]] = {}
+    for level, order in held.items():
         order.sort(key=lambda n: units[n][2])
-        starts += [units[n][2] for n in order]
-        ends += [units[n][3] for n in order]
-        size = 1
-        while size < len(order):
-            size *= 2
-        tree = [-math.inf] * (2 * size)
-        tree[size : size + len(ends)] = ends
-        for i in range(size - 1, 0, -1):
-            tree[i] = max(tree[2 * i], tree[2 * i + 1])
-        trees[level] = (size, tree)
+        starts[level] = [units[n][2] for n in order]
+        reach[level] = list(accumulate((units[n][3] for n in order), max))
     levels = sorted(held)
     place = {level: n for n, level in enumerate(levels)}
 
     def holder(uid: str, level: int, start: float, end: float) -> int | None:
         """The index in ``units`` of the smallest unit of ``level`` that holds
         ``start``-``end``, the first of equals; None without one."""
-        starts, ends, order = held[level]
-        size, tree = trees[level]
-        until = bisect_right(starts, start + EPS)  # these start early enough
-        reach = end - EPS
+        order, ends = held[level], reach[level]
+        late_enough = end - EPS
+        found = []
+        i = bisect_right(starts[level], start + EPS)  # these start early enough
+        while i and ends[i - 1] >= late_enough:
+            i -= 1
+            n = order[i]
+            if units[n][3] >= late_enough and units[n][0] != uid:
+                found.append(n)
         best: tuple[float, int] | None = None
-        nodes = [(1, 0, size)]
-        while nodes:
-            node, lo, hi = nodes.pop()
-            if lo >= until or tree[node] < reach:
-                continue
-            if hi - lo > 1:
-                mid = (lo + hi) // 2
-                nodes += [(2 * node, lo, mid), (2 * node + 1, mid, hi)]
-                continue
-            n = order[lo]
-            if units[n][0] == uid:
-                continue
-            key = (ends[lo] - starts[lo], n)
-            if best is None or key < best:
-                best = key
+        for n in sorted(found):  # in order, as the length may be NaN (inf - inf)
+            length = units[n][3] - units[n][2]
+            if best is None or length < best[0]:
+                best = (length, n)
         return None if best is None else best[1]
 
     parents: dict[str, str | None] = {}
