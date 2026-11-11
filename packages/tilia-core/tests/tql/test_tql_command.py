@@ -204,19 +204,19 @@ def test_query_help_exits_0_and_lists_the_options(tmp_path):
 
 
 # -- wrong use: status 2 ------------------------------------------------------ #
-def test_a_missing_folder_exits_2_and_names_it(tmp_path):
-    result = tilia("query", "nowhere", "* IN form", cwd=tmp_path)
+@pytest.mark.parametrize(
+    "folder,message",
+    [
+        ("nowhere", "no such folder: nowhere"),
+        ("exposition.tla", "not a folder: exposition.tla"),
+    ],
+)
+def test_a_folder_that_isnt_one_exits_2_and_names_it(exposition, folder, message):
+    result = tilia("query", folder, "* IN form", cwd=exposition)
 
     assert result.returncode == 2
-    assert "no such folder: nowhere" in result.stderr
+    assert message in result.stderr
     assert result.stdout == ""
-
-
-def test_a_file_for_a_folder_exits_2_and_names_it(exposition):
-    result = tilia("query", "exposition.tla", "* IN form", cwd=exposition)
-
-    assert result.returncode == 2
-    assert "not a folder: exposition.tla" in result.stderr
 
 
 def test_an_unknown_option_exits_2_and_names_it(exposition):
@@ -530,19 +530,13 @@ def test_sql_prints_the_results_sql(exposition):
     assert result.stdout == sql + "\n"
 
 
-def test_explain_needs_no_folder(tmp_path):
+@pytest.mark.parametrize(
+    "folder", [(), ("nowhere",)], ids=["needs-none", "reads-none-given"]
+)
+def test_explain_needs_no_folder(tmp_path, folder):
     query = "verse THEN chorus IN form"
 
-    result = tilia("query", "--explain", query, cwd=tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout == tql.explain(tql.parse(query)) + "\n"
-
-
-def test_explain_reads_no_folder_given(tmp_path):
-    query = "verse THEN chorus IN form"
-
-    result = tilia("query", "nowhere", query, "--explain", cwd=tmp_path)
+    result = tilia("query", "--explain", *folder, query, cwd=tmp_path)
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == tql.explain(tql.parse(query)) + "\n"
