@@ -501,11 +501,8 @@ def reads_the_file(conds: list[syntax.Cond]) -> bool:
     children included, may read a field of the file (``file.x``) or its media
     length (a percentage): what a file lacks of those is noted on the
     :class:`Scope` whichever unit asked, for the result's warnings."""
-    for cond in conds:
-        if isinstance(cond, syntax.AnyOf):
-            if any(reads_the_file(clause) for clause in cond.clauses):
-                return True
-        elif isinstance(cond, (syntax.Children, syntax.RelCond)):
+    for cond in syntax.leaf_conds(conds):
+        if isinstance(cond, (syntax.Children, syntax.RelCond)):
             seq = (
                 cond.seq if isinstance(cond, syntax.Children) else cond.relation.target
             )
