@@ -123,19 +123,13 @@ def harmony(tmp_path):
 def expected(folder, query, **limits):
     """What `tql.run` gives for `query` on `folder`, read as the command reads it."""
     with open_corpus(folder, reader=JsonDocumentReader()) as corpus:
-        result = tql.run(corpus, query, **limits)
-        if result.grain != "match":
-            return result
-        result.stats_tables = {
-            ("counts", "label", False): result.stats("counts"),
-            ("counts", ("label", "file"), False): result.stats(
-                "counts", by=["label", "file"]
-            ),
-            ("counts", "category", True): result.stats(
-                "counts", by="category", fold_subtypes=True
-            ),
-        }
-    return result
+        return tql.run(corpus, query, **limits)
+
+
+def expected_stats(folder, query, name, **options):
+    """The statistics table `name` of `query`'s matches on `folder`."""
+    with open_corpus(folder, reader=JsonDocumentReader()) as corpus:
+        return tql.run(corpus, query).stats(name, **options)
 
 
 def table(text):
@@ -476,7 +470,7 @@ def test_labels_other_than_letter_or_roman_exit_2(harmony):
 # -- statistics, SQL and explain ---------------------------------------------- #
 def test_stats_prints_the_statistics_table(harmony):
     query = "V7 THEN I IN harmony"
-    stats = expected(harmony, query).stats_tables[("counts", "label", False)]
+    stats = expected_stats(harmony, query, "counts")
 
     result = tilia("query", ".", query, "--stats", "counts", cwd=harmony)
 
@@ -490,7 +484,7 @@ def test_stats_prints_the_statistics_table(harmony):
 
 def test_stats_by_two_keys(harmony):
     query = "V7 THEN I IN harmony"
-    stats = expected(harmony, query).stats_tables[("counts", ("label", "file"), False)]
+    stats = expected_stats(harmony, query, "counts", by=["label", "file"])
 
     result = tilia(
         "query", ".", query, "--stats", "counts", "--by", "label,file", cwd=harmony
@@ -503,7 +497,9 @@ def test_stats_by_two_keys(harmony):
 
 def test_stats_in_csv_is_the_tables_to_csv(exposition, tmp_path):
     query = "* IN form"
-    stats = expected(exposition, query).stats_tables[("counts", "category", True)]
+    stats = expected_stats(
+        exposition, query, "counts", by="category", fold_subtypes=True
+    )
     stats.to_csv(tmp_path / "expected.csv")
 
     result = tilia(
