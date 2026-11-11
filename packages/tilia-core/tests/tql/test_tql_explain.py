@@ -89,8 +89,7 @@ def test_label_string_condition_is_a_field_comparison():
 def test_percentages_of_the_piece():
     e = explain(parse("*[start >= 33% AND end <= 67%] IN form"))
     assert (
-        "the start is at least 33% of the piece and the end is at most 67% of the "
-        "piece"
+        "the start is at least 33% of the piece and the end is at most 67% of the piece"
     ) in e, e
 
 

@@ -24,7 +24,10 @@ class TestCreate:
 
 class TestTimelines:
     def tests_scales_timelines_when_media_duration_changes(
-        self, marker_tl, tilia_state, tluis  # needed for patch_yes_or_no
+        self,
+        marker_tl,
+        tilia_state,
+        tluis,  # needed for patch_yes_or_no
     ):
         marker_tl.create_marker(10)
         with patch_yes_or_no_dialog(True):
@@ -32,7 +35,10 @@ class TestTimelines:
         assert marker_tl[0].get_data("time") == 20
 
     def tests_does_not_scale_timelines_when_media_duration_changes_if_user_refuses(
-        self, marker_tl, tilia_state, tluis  # needed for patch_yes_or_no
+        self,
+        marker_tl,
+        tilia_state,
+        tluis,  # needed for patch_yes_or_no
     ):
         marker_tl.create_marker(10)
         with patch_yes_or_no_dialog(False):
@@ -40,7 +46,10 @@ class TestTimelines:
         assert marker_tl[0].get_data("time") == 10
 
     def test_scale_timeline_when_media_duration_changes_if_user_refuses_crop(
-        self, marker_tlui, tilia_state, tluis  # needed for patch_yes_or_no
+        self,
+        marker_tlui,
+        tilia_state,
+        tluis,  # needed for patch_yes_or_no
     ):
         marker_tlui.create_marker(90)
         with ServeSequence(Get.FROM_USER_YES_OR_NO, [False, False]):

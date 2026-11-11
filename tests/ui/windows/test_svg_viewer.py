@@ -305,7 +305,9 @@ class TestAnnotations:
         # Same flow, declining the confirmation: annotation must survive.
         annotation = _add_annotation_via_toolbar(svg_viewer)
         annotation.setSelected(True)
-        with (Serve(Get.FROM_USER_YES_OR_NO, False),):
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, False),
+        ):
             commands.execute("timeline.score.edit", text="")
         assert _annotations(svg_viewer) == [annotation]
 

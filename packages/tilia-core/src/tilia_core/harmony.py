@@ -121,6 +121,7 @@ applied to VI under C is ``V7/VI``. A label need not read back as a literal
 for its chord (``V7/VI`` reads as E7 applied to A major); literals keep their
 own rules above.
 """
+
 from __future__ import annotations
 
 import re
@@ -227,7 +228,7 @@ def _accidentals(text: str, literal: str, flat: str = "b", spelled: bool = True)
         raise HarmonyError(f"{literal!r}: sharps and flats mixed in one accidental")
     if spelled and max(up, down) > 2:
         raise HarmonyError(
-            f"{literal!r}: TiLiA spells notes with at most a double " "sharp or flat"
+            f"{literal!r}: TiLiA spells notes with at most a double sharp or flat"
         )
     return up - down
 

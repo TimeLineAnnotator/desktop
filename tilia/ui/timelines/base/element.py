@@ -61,8 +61,7 @@ class TimelineUIElement(ABC):
         return self in self.timeline_ui.selected_elements
 
     @abstractmethod
-    def child_items(self) -> list[Any]:
-        ...
+    def child_items(self) -> list[Any]: ...
 
     def selection_triggers(self):
         return self.child_items()
@@ -84,16 +83,13 @@ class TimelineUIElement(ABC):
         menu.exec(QPoint(x, y))
 
     @abstractmethod
-    def on_select(self):
-        ...
+    def on_select(self): ...
 
     @abstractmethod
-    def on_deselect(self):
-        ...
+    def on_deselect(self): ...
 
     @abstractmethod
-    def update_position(self):
-        ...
+    def update_position(self): ...
 
     def delete(self):
         # If deleted mid-drag, the DragManager keeps listening and the

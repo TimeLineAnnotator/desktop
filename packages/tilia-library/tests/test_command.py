@@ -329,7 +329,11 @@ class TestHandOver:
             def do_GET(self):
                 self.reply(
                     200,
-                    {"instance": "theirs", "protocol": PROTOCOL, "library_version": "9"},
+                    {
+                        "instance": "theirs",
+                        "protocol": PROTOCOL,
+                        "library_version": "9",
+                    },
                 )
 
             def do_POST(self):

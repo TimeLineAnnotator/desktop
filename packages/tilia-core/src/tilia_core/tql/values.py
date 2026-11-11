@@ -244,8 +244,9 @@ class Subject:
 class Log(Protocol):
     """What :class:`Facts` runs statements with (the engine's statement log)."""
 
-    def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
-        ...
+    def execute(
+        self, sql: str, params: tuple[Any, ...] | list[Any] = ()
+    ) -> list[Any]: ...
 
 
 class Measures:

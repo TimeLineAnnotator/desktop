@@ -27,14 +27,13 @@ class CorpusSettings(Protocol):
 
     manifest_paths: tuple[str, ...]
 
-    def role(self, timeline: TimelineDoc, document: Document) -> str | None:
-        ...
+    def role(self, timeline: TimelineDoc, document: Document) -> str | None: ...
 
-    def grammar(self, timeline: TimelineDoc, document: Document) -> labels.LabelGrammar:
-        ...
+    def grammar(
+        self, timeline: TimelineDoc, document: Document
+    ) -> labels.LabelGrammar: ...
 
-    def includes(self, path: str) -> bool:
-        ...
+    def includes(self, path: str) -> bool: ...
 
 
 class NoSettings:

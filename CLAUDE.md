@@ -32,9 +32,9 @@ pytest tests/ui/timelines/marker/test_marker_timeline_ui.py::TestCreateDelete::t
 pytest -k marker                                        # by keyword
 coverage run -m pytest && coverage report -m            # coverage
 
-# Lint / format (black + ruff; run automatically via pre-commit)
+# Lint / format (ruff; run automatically via pre-commit)
 ruff check
-black .
+ruff format
 
 # Build a standalone executable with Nuitka
 pip install -e packages/tilia-core

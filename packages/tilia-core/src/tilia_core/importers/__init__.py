@@ -58,7 +58,7 @@ _BY_TIME: dict[
 # The kinds `import_csv` imports into, for whatever else has to name them.
 IMPORTED_KINDS: tuple[str, ...] = tuple(_BY_TIME)
 _NOT_IMPORTED_INTO = (
-    "{} is not a " f"{', '.join(IMPORTED_KINDS[:-1])} or {IMPORTED_KINDS[-1]} timeline"
+    f"{{}} is not a {', '.join(IMPORTED_KINDS[:-1])} or {IMPORTED_KINDS[-1]} timeline"
 )
 
 

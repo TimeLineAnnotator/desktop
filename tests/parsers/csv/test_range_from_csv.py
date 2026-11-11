@@ -76,11 +76,7 @@ class TestImportByTime:
         assert all(e.get_data("row_id") == existing.id for e in range_tlui)
 
     def test_propagates_color_and_comments(self, range_tlui):
-        data = (
-            "start,end,row,color,comments\n"
-            "0,1,A,#abcdef,note one\n"
-            "1,2,A,,note two"
-        )
+        data = "start,end,row,color,comments\n0,1,A,#abcdef,note one\n1,2,A,,note two"
         _trigger_import_through_command("time", data)
         assert range_tlui[0].get_data("color") == "#abcdef"
         assert range_tlui[0].get_data("comments") == "note one"
@@ -213,12 +209,7 @@ class TestJoinedWithNextByTime:
         assert range_tlui[1].get_data("joined_right") is None
 
     def test_chain_of_three(self, range_tlui):
-        data = (
-            "start,end,row,joined_with_next\n"
-            "0,1,A,true\n"
-            "1,2,A,true\n"
-            "2,3,A,false"
-        )
+        data = "start,end,row,joined_with_next\n0,1,A,true\n1,2,A,true\n2,3,A,false"
         _trigger_import_through_command("time", data)
         assert range_tlui[0].get_data("joined_right") == range_tlui[1].id
         assert range_tlui[1].get_data("joined_right") == range_tlui[2].id
@@ -227,12 +218,7 @@ class TestJoinedWithNextByTime:
     def test_join_only_within_same_row(self, range_tlui):
         # A.next is true but the next CSV entry lives on a different row;
         # the join should hop to the next A entry, not the B entry.
-        data = (
-            "start,end,row,joined_with_next\n"
-            "0,1,A,true\n"
-            "0,1,B,false\n"
-            "1,2,A,false"
-        )
+        data = "start,end,row,joined_with_next\n0,1,A,true\n0,1,B,false\n1,2,A,false"
         _trigger_import_through_command("time", data)
         rows = range_tlui.timeline.rows
         row_a = next(r for r in rows if r.name == "A")
@@ -252,7 +238,7 @@ class TestJoinedWithNextByTime:
         # CSV is *not* sorted by start. The flagged range (start=0) must
         # join to the start=1 range, not whichever happens to come next
         # in the CSV.
-        data = "start,end,row,joined_with_next\n" "1,2,A,false\n" "0,1,A,true\n"
+        data = "start,end,row,joined_with_next\n1,2,A,false\n0,1,A,true\n"
         _trigger_import_through_command("time", data)
         assert range_tlui[0].get_data("joined_right") == range_tlui[1].id
         assert range_tlui[1].get_data("joined_right") is None
@@ -302,10 +288,7 @@ class TestJoinValidation:
         # Three ranges on row A: 0→10 (true, ok), 10→20 (true, gap follows),
         # 30→40 (false). Only the second join is invalid.
         data = (
-            "start,end,row,joined_with_next\n"
-            "0,10,A,true\n"
-            "10,20,A,true\n"
-            "30,40,A,false"
+            "start,end,row,joined_with_next\n0,10,A,true\n10,20,A,true\n30,40,A,false"
         )
         success, errors = _trigger_import_through_command("time", data)
         assert success

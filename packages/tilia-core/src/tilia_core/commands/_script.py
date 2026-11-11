@@ -348,7 +348,7 @@ def _use(spellings: Sequence[str]) -> str:
     quoted = [f'"{spelling}"' for spelling in spellings]
     if len(quoted) == 1:
         return _USE.format(quoted[0])
-    return _USE.format(f'{", ".join(quoted[:-1])} or {quoted[-1]}')
+    return _USE.format(f"{', '.join(quoted[:-1])} or {quoted[-1]}")
 
 
 def _noting(parser: _Parser, read: Callable[[str], Any]) -> Callable[[str], Any]:

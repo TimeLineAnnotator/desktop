@@ -72,6 +72,7 @@ def test_the_csv_reader_names_the_valid_modes_as_a_list():
 
 
 def test_the_cadential_six_four_tone_is_the_one_the_core_gives():
-    assert constants.CADENTIAL_SIX_FOUR_TONE == (
-        rules.ADDED_TONE_QUALITIES["cadential-six-four"][1]
+    assert (
+        constants.CADENTIAL_SIX_FOUR_TONE
+        == (rules.ADDED_TONE_QUALITIES["cadential-six-four"][1])
     )

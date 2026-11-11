@@ -80,9 +80,11 @@ def page(browser, entry_url):
     page.accepting = True
     page.on(
         "console",
-        lambda m: m.type == "error"
-        and "Failed to load resource" not in m.text  # the 4xx answers under test
-        and page.problems.append(m.text),
+        lambda m: (
+            m.type == "error"
+            and "Failed to load resource" not in m.text  # the 4xx answers under test
+            and page.problems.append(m.text)
+        ),
     )
     page.on("pageerror", lambda e: page.problems.append(str(e)))
 

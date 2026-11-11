@@ -177,7 +177,9 @@ class TestFile:
 
     def test_hand_written_inline_array_survives_add(self, corpora, folder, tmp_path):
         corpora.path.parent.mkdir(parents=True)
-        path = tmp_path.as_posix()  # a backslash in a TOML basic string starts an escape
+        path = (
+            tmp_path.as_posix()
+        )  # a backslash in a TOML basic string starts an escape
         corpora.path.write_text(
             f'version = 1\ncorpora = [{{id = "haydn-1234", path = "{path}"}}]\n',
             encoding="utf-8",
@@ -299,7 +301,9 @@ class TestApi:
 
     def test_relative_path_that_exists_is_refused(self, served, folder, monkeypatch):
         monkeypatch.chdir(folder.parent)
-        status, answer = self.call(served, "POST", "/api/corpora", {"path": folder.name})
+        status, answer = self.call(
+            served, "POST", "/api/corpora", {"path": folder.name}
+        )
         assert status == 400
         assert answer["error"] == f"{folder.name} is not an absolute path"
         assert self.call(served, "GET", "/api/library")[1]["corpora"] == []

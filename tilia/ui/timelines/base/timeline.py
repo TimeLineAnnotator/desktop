@@ -295,9 +295,8 @@ class TimelineUI(ABC):  # noqa: B024
         item: QGraphicsItem,
         modifier: Qt.KeyboardModifier,
     ):
-        if (
-            modifier == Qt.KeyboardModifier.NoModifier
-            and not self.belongs_to_selection(item)
+        if modifier == Qt.KeyboardModifier.NoModifier and not self.belongs_to_selection(
+            item
         ):
             self.deselect_all_elements(excluding=elements)
         if not self.has_selected_elements and elements:

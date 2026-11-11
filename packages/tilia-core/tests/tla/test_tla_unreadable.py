@@ -459,8 +459,10 @@ def component(content, name, of):
             '"ordinal" should be an integer, not a number',
         ),
         (
-            lambda c: timeline(c, "form").update(kind="Lyrics")
-            or timeline(c, "form").pop("ordinal"),
+            lambda c: (
+                timeline(c, "form").update(kind="Lyrics")
+                or timeline(c, "form").pop("ordinal")
+            ),
             "/timelines/{form}/ordinal",
             '"ordinal" is missing',
         ),

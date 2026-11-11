@@ -17,8 +17,7 @@ IMPORT = re.compile(r"""^\s*import\s+(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]""", r
 
 
 ALLOWED_ADDRESSES = {
-    Path("js")
-    / "playback.js": (
+    Path("js") / "playback.js": (
         "https://www.youtube-nocookie.com/embed/",
         "https://www.youtube.com/watch",
     )

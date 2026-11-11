@@ -28,11 +28,13 @@ def test_tilia_metadata_not_found():
         del sys.modules["tilia.constants"]
 
     # 1. Mock Path.exists to return False so it skips the pyproject.toml logic
-    with patch("pathlib.Path.exists", return_value=False), patch(
-        "importlib.metadata.metadata",
-        side_effect=importlib.metadata.PackageNotFoundError,
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch(
+            "importlib.metadata.metadata",
+            side_effect=importlib.metadata.PackageNotFoundError,
+        ),
     ):
-
         import tilia.constants as constants
 
         assert constants.APP_NAME == ""

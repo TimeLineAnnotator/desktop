@@ -151,15 +151,14 @@ class TestRowRename:
 
     def test_by_name(self, range_cli, range_tl):
         range_cli.parse_and_run(
-            "timelines range row rename --tl-name R1 " '--row-name "Row 0" --new-name X'
+            'timelines range row rename --tl-name R1 --row-name "Row 0" --new-name X'
         )
         assert range_tl.rows[0].name == "X"
 
     def test_unknown_row_name_errors(self, range_cli, range_tl):
         with patch("tilia.ui.cli.io.error") as err:
             range_cli.parse_and_run(
-                "timelines range row rename --tl-name R1 "
-                "--row-name nope --new-name X"
+                "timelines range row rename --tl-name R1 --row-name nope --new-name X"
             )
         err.assert_called()
         assert range_tl.rows[0].name == "Row 0"
@@ -168,8 +167,7 @@ class TestRowRename:
 class TestRowSetColor:
     def test_sets_color(self, range_cli, range_tl):
         range_cli.parse_and_run(
-            "timelines range row set-color --tl-name R1 "
-            "--row-index 0 --color #abcdef"
+            "timelines range row set-color --tl-name R1 --row-index 0 --color #abcdef"
         )
         assert range_tl.rows[0].color == "#abcdef"
 
@@ -198,7 +196,7 @@ class TestRowReorder:
         commands.execute("timeline.range.add_row", name="R2")
         commands.execute("timeline.range.add_row", name="R3")
         range_cli.parse_and_run(
-            "timelines range row reorder --tl-name R1 " "--row-name R3 --new-index 0"
+            "timelines range row reorder --tl-name R1 --row-name R3 --new-index 0"
         )
         assert [r.name for r in range_tl.rows] == ["R3", "Row 0", "R2"]
 
@@ -206,8 +204,7 @@ class TestRowReorder:
         commands.execute("timeline.range.add_row", name="R2")
         with patch("tilia.ui.cli.io.warn") as warn:
             range_cli.parse_and_run(
-                "timelines range row reorder --tl-name R1 "
-                "--row-index 0 --new-index 99"
+                "timelines range row reorder --tl-name R1 --row-index 0 --new-index 99"
             )
         warn.assert_called()
         assert range_tl.rows[1].name == "Row 0"
@@ -276,8 +273,7 @@ class TestRangeCliWithoutUi:
     def test_set_and_reset_row_color(self, cli, tls):
         cli.parse_and_run("timelines add range --name R1")
         cli.parse_and_run(
-            "timelines range row set-color --tl-name R1 "
-            "--row-index 0 --color #abcdef"
+            "timelines range row set-color --tl-name R1 --row-index 0 --color #abcdef"
         )
         assert tls.get_timelines()[0].rows[0].color == "#abcdef"
         cli.parse_and_run("timelines range row reset-color --tl-name R1 --row-index 0")
@@ -287,7 +283,7 @@ class TestRangeCliWithoutUi:
         cli.parse_and_run("timelines add range --name R1")
         cli.parse_and_run("timelines range row add --tl-name R1 --name R2")
         cli.parse_and_run(
-            "timelines range row reorder --tl-name R1 " "--row-name R2 --new-index 0"
+            "timelines range row reorder --tl-name R1 --row-name R2 --new-index 0"
         )
         assert [r.name for r in tls.get_timelines()[0].rows] == ["R2", "Row 0"]
 

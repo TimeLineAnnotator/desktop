@@ -834,9 +834,9 @@ class TestApply:
             id="a unit set",
         ),
         pytest.param(
-            lambda tl: tl.components[downbeat(tl, 3)]
-            .attrs["measure"]
-            .update(source="import"),
+            lambda tl: (
+                tl.components[downbeat(tl, 3)].attrs["measure"].update(source="import")
+            ),
             3,
             id="a source set",
         ),
