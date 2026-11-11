@@ -156,7 +156,12 @@ def test_neither_has_a_default_the_reader_fills_in():
 @pytest.mark.parametrize("value", [*range(7)])
 def test_bass_step_takes_steps_values(value):
     found = rules.check_timeline(
-        60.0, [tla.Component(id="a", kind="harmony", attrs=_attrs(bass_step=value))]
+        60.0,
+        [
+            tla.Component(
+                id="a", kind="harmony", attrs=_attrs(bass_step=value, bass_accidental=0)
+            )
+        ],
     )
     assert found["a"].outcome.ok
 
@@ -165,7 +170,11 @@ def test_bass_step_takes_steps_values(value):
 def test_bass_accidental_takes_accidentals_values(value):
     found = rules.check_timeline(
         60.0,
-        [tla.Component(id="a", kind="harmony", attrs=_attrs(bass_accidental=value))],
+        [
+            tla.Component(
+                id="a", kind="harmony", attrs=_attrs(bass_step=0, bass_accidental=value)
+            )
+        ],
     )
     assert found["a"].outcome.ok
 
@@ -282,21 +291,77 @@ def test_the_schema_names_them_on_a_harmony_and_no_other_kind():
     assert naming == ["HARMONY"]
 
 
-# With one and not the other, which is open
+# With one and not the other: they go together
+# (TimeLineAnnotator/project-management#522)
+
+
+@pytest.mark.parametrize(
+    "attrs, missing",
+    [({"bass_step": 2}, "bass accidental"), ({"bass_accidental": -1}, "bass step")],
+    ids=["bass_step alone", "bass_accidental alone"],
+)
+def test_a_chord_with_one_of_the_two_is_read_with_a_warning(attrs, missing):
+    data, timeline, component = file_with(**attrs)
+    doc = tla.loads(data)
+    (warning,) = [w for w in doc.warnings if "bass" in w.message]
+    assert warning.message == f"None is not a valid {missing}."
+    assert warning.place == f"/timelines/{timeline}/components/{component}"
+    assert [p.code for p in doc.read_problems] == [rules.LONE_BASS_KEY]
+    # Kept as it is, and written back as it was read.
+    held = doc.timelines[timeline].components[component].attrs
+    assert {key: held[key] for key in attrs} == attrs
+    assert tla.canonical_bytes(doc) == data
+
+
+def test_a_chord_read_with_one_of_the_two_is_written_back(tmp_path):
+    pytest.importorskip("music21", reason="writing a harmony needs the harmony extra")
+    data, _, _ = file_with(bass_step=2)
+    path = tmp_path / "piece.tla"
+    path.write_bytes(data)
+    doc = tla.read(path)
+    tla.write(path, doc)
+    assert path.read_bytes() == data
+
+
+def test_a_write_refuses_a_new_chord_with_one_of_the_two(tmp_path):
+    pytest.importorskip("music21", reason="writing a harmony needs the harmony extra")
+    doc, timeline, component = document(C_OVER_E_FLAT)
+    del doc.timelines[timeline].components[component].attrs["bass_accidental"]
+    path = tmp_path / "piece.tla"
+    with pytest.raises(tla.BrokenRules) as refused:
+        tla.write(path, doc)
+    assert [p.message for p in refused.value.problems] == [
+        "None is not a valid bass accidental."
+    ]
+    assert not path.exists()
+
+
+def test_none_given_for_one_of_the_two_is_written_as_one_alone(tmp_path):
+    # None is a missing key: the file would hold the other alone.
+    pytest.importorskip("music21", reason="writing a harmony needs the harmony extra")
+    doc, timeline, component = document({**C_OVER_E_FLAT, "bass_step": None})
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "piece.tla", doc)
+
+
+# Both, where the inversion already gives that bass
 
 
 @pytest.mark.parametrize(
     "attrs",
-    [{"bass_step": 2}, {"bass_accidental": -1}],
-    ids=["bass_step alone", "bass_accidental alone"],
+    [
+        {"time": 1.0, "inversion": 1, "bass_step": 2, "bass_accidental": 0},
+        {"time": 1.0, "bass_step": 0, "bass_accidental": 0},
+    ],
+    ids=["C/E, which inversion 1 gives", "C/C, which inversion 0 gives"],
 )
-def test_a_chord_with_one_of_the_two_is_read_and_written_as_it_is(attrs):
-    # What the reader does until TimeLineAnnotator/project-management#522
-    # is answered: it keeps the key, says nothing, and writes it back.
-    data, timeline, component = file_with(**attrs)
-    doc = tla.loads(data)
-    assert [w for w in doc.warnings if "bass" in w.message] == []
-    assert doc.read_problems == []
-    held = doc.timelines[timeline].components[component].attrs
-    assert {key: held[key] for key in attrs} == attrs
-    assert tla.canonical_bytes(doc) == data
+def test_a_bass_the_inversion_already_gives_is_read_with_no_warning(attrs):
+    # The importer and TiLiA write them only where it doesn't; a file that holds
+    # them where it does reads the same, as it is.
+    doc, timeline, component = document(attrs)
+    data = tla.canonical_bytes(doc)
+    read = tla.loads(data)
+    # Without the `harmony` extra, the one warning says the quality wasn't checked.
+    assert [w for w in read.warnings if "checked" not in w.message] == []
+    assert read.read_problems == []
+    assert tla.canonical_bytes(read) == data
