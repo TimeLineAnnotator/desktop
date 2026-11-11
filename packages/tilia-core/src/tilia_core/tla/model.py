@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import enum
 import math
+import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -545,6 +546,42 @@ class Score:
         self.lines = score_lines(value)
 
 
+class _MadeWhenAsked:
+    """A document's fingerprint, made by `make` the first time it is asked for,
+    once, whichever thread asks first. `make` holds the bytes the document was
+    read from, and is dropped once it has made it."""
+
+    def __init__(self, make: Callable[[], str]) -> None:
+        self._make: Callable[[], str] | None = make
+        self._made: str | None = None
+        self._lock = threading.Lock()
+
+    def get(self) -> str:
+        with self._lock:
+            if self._make is not None:
+                self._made = self._make()
+                self._make = None  # it holds the file's bytes
+            assert self._made is not None
+            return self._made
+
+    def made(self) -> str | None:
+        """The fingerprint once it is made; None before, without making it."""
+        with self._lock:
+            return self._made if self._make is None else None
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> str:
+        # As `dataclasses.asdict` copies it: what it holds, the same in any
+        # process, where the object would show its address.
+        return self.get()
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # A lock doesn't pickle or copy: the fingerprint once made, else a new one.
+        with self._lock:
+            if self._make is None:
+                return (str, (self._made,))
+            return (_MadeWhenAsked, (self._make,))
+
+
 @dataclass(kw_only=True)
 class Document:
     """One `.tla` file's content, in the current format, whatever version it was read from."""
@@ -562,10 +599,15 @@ class Document:
     extra: dict[str, Any] = field(default_factory=dict)  # keys the core doesn't know
     warnings: list[ReadWarning] = field(default_factory=list)
     origin: Path | None = None  # where it was read from, or last written to
-    # The fingerprint of the file as read or last written, for a write to state.
-    # An old file's isn't `fingerprint_of` the document (FR-043). None for a
-    # document built in memory. Never written, and not what a document holds.
-    fingerprint: str | None = field(default=None, compare=False)
+    # `fingerprint`'s, which a read makes when it is first asked for.
+    _fingerprint: str | _MadeWhenAsked | None = field(
+        default=None, repr=False, compare=False
+    )
+    # The plain SHA-256 of the bytes it was read from, whose fingerprint is
+    # `fingerprint`: a file that still has them is unchanged, and a write that
+    # states that fingerprint needn't read it as a document again, which for an
+    # old file would migrate it again. None once `fingerprint` is set otherwise.
+    _read_digest: str | None = field(default=None, repr=False, compare=False)
     # What it broke when it was read, or last written: the writer writes these
     # back while what they are about hasn't changed (FR-054). A document made
     # in memory has nothing read to keep.
@@ -578,6 +620,22 @@ class Document:
     read_unmeasured: dict[str, str] = field(
         default_factory=dict, repr=False, compare=False
     )
+
+    @property
+    def fingerprint(self) -> str | None:
+        """The fingerprint of the file as read or last written, for a write to
+        state (FR-043). For a document read, it is made the first time it is
+        asked for, from the bytes read, which the document keeps until then: the
+        file isn't read again. An old file's isn't `fingerprint_of` the document.
+        None for a document built in memory, which a write then checks nothing
+        for. Never written, and not what a document holds: it isn't compared."""
+        value = self._fingerprint
+        return value.get() if isinstance(value, _MadeWhenAsked) else value
+
+    @fingerprint.setter
+    def fingerprint(self, value: str | None) -> None:
+        self._fingerprint = value
+        self._read_digest = None  # no longer the bytes of that fingerprint
 
 
 @dataclass(frozen=True)

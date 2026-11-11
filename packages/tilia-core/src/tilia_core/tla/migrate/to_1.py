@@ -115,19 +115,12 @@ class Migrated:
     with `version` the old file's version; what the migration dropped or
     changed, as warnings, at their places in the old file, without a line, and
     with the document's ids of what they concern; the counts for a migration
-    report; where each place of the content was in the old file; and the old
-    file's `file_path`, which the paths are made relative from."""
+    report; and where each place of the content was in the old file."""
 
     content: dict[str, Any]
     warnings: list[ReadWarning] = field(default_factory=list)
     changes: dict[str, int] = field(default_factory=dict)
     places: OldPlaces = field(default_factory=OldPlaces, compare=False)
-    file_path: Any = field(default=None, compare=False, repr=False)
-
-    def make_paths_relative(self, path: str | os.PathLike[str] | None) -> None:
-        """Make the media's and PDF timelines' paths in `content`, as the old file
-        stores them, what the migration stores for a file at `path` (FR-021)."""
-        media_paths.make_relative(self.content, file_path=self.file_path, path=path)
 
 
 def migrate(
@@ -168,19 +161,14 @@ def migrate(
     # the user doesn't show it where the media is.
     document_id = derived_document_id(content)
     content = _with_new_ids(content, document_id, migration.places)
-    content["document_id"] = document_id
-    migrated = Migrated(
-        content,
-        [_with_ids(warning, migration.places) for warning in migration.warnings],
-        migration.changes,
-        migration.places,
-        file_path,
-    )
     # The media's and PDF timelines' paths are made relative after the id is
     # derived, since they depend on where the file is.
     if not paths_as_stored:
-        migrated.make_paths_relative(path)
-    return migrated
+        media_paths.make_relative(content, file_path=file_path, path=path)
+    content["document_id"] = document_id
+    # Only now are the new ids known.
+    warnings = [_with_ids(warning, migration.places) for warning in migration.warnings]
+    return Migrated(content, warnings, migration.changes, migration.places)
 
 
 def _with_ids(warning: ReadWarning, places: OldPlaces) -> ReadWarning:

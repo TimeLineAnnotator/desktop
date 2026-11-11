@@ -75,6 +75,7 @@ from tilia_core.tla.model import (
     Score,
     Timeline,
     UnknownKind,
+    _MadeWhenAsked,
     component_kind_from_file,
     component_kind_to_file,
     timeline_kind_to_file,
@@ -583,16 +584,24 @@ def _fingerprint_of_bytes(data: bytes, path: str | os.PathLike[str]) -> str:
     return fingerprint_as_read(loads_for_fingerprint(data, path=path))
 
 
-def _found(path: str, expect: str | None = None) -> str | None:
+def _found(
+    path: str, expect: str | None = None, unchanged: str | None = None
+) -> str | None:
     """The fingerprint of the file at `path`, or None when it is missing or
     can't be read. A file the core wrote holds its canonical bytes: when the
     SHA-256 of its bytes is `expect`, that is its fingerprint, and it isn't
-    read as a document. Any other file is, so that a file in another form,
-    such as with CRLF line endings, is still the one expected."""
+    read as a document. Nor is it when that SHA-256 is `unchanged`, the plain
+    SHA-256 of the bytes whose fingerprint is `expect`: it still has them, which
+    for an old file saves migrating it again. Any other file is read, so that a
+    file in another form, such as with CRLF line endings, is still the one
+    expected."""
     try:
         with open(path, "rb") as file:
             data = file.read()
-        if expect is not None and hashlib.sha256(data).hexdigest() == expect:
+        if expect is not None and hashlib.sha256(data).hexdigest() in (
+            expect,
+            unchanged,
+        ):
             return expect
         return _fingerprint_of_bytes(data, path)
     except (OSError, ValueError):  # UnreadableFile is a ValueError
@@ -768,7 +777,7 @@ def write(
         if os.path.lexists(target):
             raise FileChanged(path, None, _found(target))
     elif expect is not None:
-        found = _found(target, expect)
+        found = _found(target, expect, _read_digest(doc, expect))
         if found != expect:
             raise FileChanged(path, expect, found)
     if os.path.isdir(target):
@@ -790,6 +799,18 @@ def write(
     doc.read_unmeasured = unmeasured_states
     doc.fingerprint = hashlib.sha256(data).hexdigest()
     return doc.fingerprint
+
+
+def _read_digest(doc: Document, expect: str) -> str | None:
+    """The plain SHA-256 of the bytes `doc` was read from, when `expect` is the
+    fingerprint it was read with; else None. Only a fingerprint already made is
+    compared, so that this makes none: an `expect` taken from `doc.fingerprint`
+    has made it, and any other is checked as it always was."""
+    held = doc._fingerprint
+    made = held.made() if isinstance(held, _MadeWhenAsked) else held
+    if doc._read_digest is None or made != expect:
+        return None
+    return doc._read_digest
 
 
 def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> None:
