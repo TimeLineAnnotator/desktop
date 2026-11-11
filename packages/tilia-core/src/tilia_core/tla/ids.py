@@ -195,6 +195,57 @@ def _without(data: Any, keys: tuple[str, ...]) -> Any:
     return {key: value for key, value in data.items() if key not in keys}
 
 
+# The longest numerator that counts as a number: a time signature's are short,
+# and `int` refuses text far longer than this on some Pythons.
+_LONGEST_NUMERATOR = 100
+
+
+def _time_signature_as_the_id_sees_it(component: Any) -> Any:
+    """A legacy score's time signature as the document id sees it: its numerator,
+    when it is a whole number written as text, as that number, and a `pairs` that
+    is null as absent. TiLiA 0.7.2 and later save every time signature so, and an
+    old file saved again by one with no edit keeps its id
+    (TimeLineAnnotator/project-management#531)."""
+    if not isinstance(component, dict) or component.get("kind") != "TIME_SIGNATURE":
+        return component
+    seen = component
+    if "pairs" in seen and seen["pairs"] is None:
+        seen = {key: value for key, value in seen.items() if key != "pairs"}
+    numerator = seen.get("numerator")
+    if (
+        isinstance(numerator, str)
+        and len(numerator) <= _LONGEST_NUMERATOR
+        and _DECIMAL.fullmatch(numerator)
+    ):
+        seen = {**seen, "numerator": int(numerator)}
+    return seen
+
+
+def _as_the_id_sees_it(content: dict[str, Any]) -> dict[str, Any]:
+    """`content` with each score timeline's time signatures as the document id
+    sees them (`_time_signature_as_the_id_sees_it`); the file keeps them as they
+    are. What doesn't change is shared, not copied."""
+    timelines = content.get("timelines")
+    if not isinstance(timelines, dict):
+        return content
+    changed: dict[str, Any] = {}
+    for key, timeline in timelines.items():
+        if not isinstance(timeline, dict) or timeline.get("kind") != "Score":
+            continue
+        components = timeline.get("components")
+        if not isinstance(components, dict):
+            continue
+        seen = {
+            name: _time_signature_as_the_id_sees_it(component)
+            for name, component in components.items()
+        }
+        if any(seen[name] is not components[name] for name in components):
+            changed[key] = {**timeline, "components": seen}
+    if not changed:
+        return content
+    return {**content, "timelines": {**timelines, **changed}}
+
+
 def derived_document_id(content: dict[str, Any]) -> str:
     """The document id of a file from an older TiLiA version, a version-8 UUID.
 
@@ -205,11 +256,15 @@ def derived_document_id(content: dict[str, Any]) -> str:
     made alike what TiLiA versions spell differently. The id comes from a
     SHA-256 of it, in NFC, with numbers by value (10.0 as 10), as sorted-key
     JSON, leaving out what else changes without an edit: `version`,
-    `app_name` and the media's `length`, and a `document_id` if it has one.
-    So a moved file, a file with other line endings, and a file saved again
-    without an edit by another TiLiA version keep their id.
+    `app_name` and the media's `length`, and a `document_id` if it has one;
+    and with a legacy score's time signatures as TiLiA 0.7.2 and later save
+    them made alike (`_time_signature_as_the_id_sees_it`). So a moved file, a
+    file with other line endings, and a file saved again without an edit by
+    another TiLiA version keep their id.
     """
-    content = _without(content, ("version", "app_name", "document_id"))
+    content = _as_the_id_sees_it(
+        _without(content, ("version", "app_name", "document_id"))
+    )
     if "media" in content:
         content["media"] = _without(content["media"], ("length",))
     digest = hashlib.sha256()
