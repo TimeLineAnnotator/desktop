@@ -2634,16 +2634,18 @@ class TestNextThroughChainsOfChanges:
         }
         return Opened.from_content(file_with({self.TL: beat_timeline(beats)}))
 
-    def through(self, following, counts):
-        """The states as TiLiA gives these beat counts of measures in turn."""
-        opened = self.opened(following)
+    def through(self, following, counts, opened=None):
+        """The states as TiLiA gives these beat counts of measures in turn, numbered
+        from 1 unless the counts come with their numbers."""
+        opened = opened or self.opened(following)
         states = [copy.deepcopy(opened.current)]
         written = [opened.bytes_read]
         for each in counts:
+            each, numbers = each if isinstance(each, tuple) else (each, None)
             opened.edit_timeline(
                 self.TL,
                 beats_in_measure=list(each),
-                measure_numbers=list(range(1, len(each) + 1)),
+                measure_numbers=numbers or list(range(1, len(each) + 1)),
             )
             opened.sync()
             states.append(copy.deepcopy(opened.current))
@@ -2726,6 +2728,82 @@ class TestNextThroughChainsOfChanges:
         assert self.following(opened) == [self.C, self.C]
         tla.loads(opened.bytes())
         for back in (1, 0):
+            self.go(opened, states[back])
+            assert opened.bytes() == written[back]
+
+    def test_undone_after_its_mark_moved_to_another_beat(self):
+        # a | b c | d | e | f, with d followed by f, become a | b | c d | e f: d's
+        # measure, in its place, starts at c, so its mark moves there, and f's goes
+        # with none after it, so the mark loses its `next`. The undo moves the mark
+        # back to d, followed by f.
+        F = make_id(6)
+        beats = {
+            self.A: beat(0.0, {"label": "a"}),
+            self.B: beat(1.0, {"label": "b"}),
+            self.C: beat(2.0),
+            self.D: beat(3.0, {"label": "d", "next": [F]}),
+            self.E: beat(4.0, {"label": "e"}),
+            F: beat(5.0, {"label": "f"}),
+        }
+        opened = Opened.from_content(file_with({self.TL: beat_timeline(beats)}))
+        first = copy.deepcopy(opened.current)
+        opened.edit_timeline(
+            self.TL, beats_in_measure=[1, 1, 2, 2], measure_numbers=[1, 2, 3, 4]
+        )
+        opened.sync()
+        moved = opened.doc.timelines[self.TL].components[self.C].attrs["measure"]
+        assert moved["label"] == "d" and "next" not in moved
+        self.go(opened, first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_a_list_changed_since_stays(self):
+        # a is followed by c. c's measure goes into b's, so a is followed by d, then
+        # d's goes into b's too, so by e. When c starts a measure again, the list is
+        # no longer as the first change left it, so a stays followed by e. Each undo
+        # gives the bytes back.
+        opened, states, written = self.through(
+            [self.C], ([1, 2, 1, 1], [1, 3, 1], [1, 1, 2, 1])
+        )
+        assert self.following(opened) == [self.E]
+        for back in (2, 1, 0):
+            self.go(opened, states[back])
+            assert opened.bytes() == written[back]
+
+    def test_a_turn_goes_back_only_with_the_change_that_starts_its_names(self):
+        # a | b | c d | e f, with a followed by c. c's measure goes into b's, so a is
+        # followed by e; e's measure, in its place, starts at d, so a is followed by
+        # d. c and e start measures again, and a stays followed by d, as the list
+        # changed since. Then d's measure goes: a is followed by e, the list the first
+        # change left. An edit of a measure number doesn't start c again, since it
+        # already did, so a stays followed by e, and each undo gives the bytes back.
+        F = make_id(6)
+        beats = {
+            self.A: beat(0.0, {"label": "a", "next": [self.C]}),
+            self.B: beat(1.0, {"label": "b"}),
+            self.C: beat(2.0, {"label": "c"}),
+            self.D: beat(3.0),
+            self.E: beat(4.0, {"label": "e"}),
+            F: beat(5.0),
+        }
+        opened = Opened.from_content(file_with({self.TL: beat_timeline(beats)}))
+        counts = (
+            [1, 3, 2],
+            [1, 2, 3],
+            [1, 1, 1, 1, 2],
+            [1, 1, 2, 2],
+            ([1, 1, 2, 2], [1, 2, 3, 7]),
+        )
+        followed = []
+        states = [copy.deepcopy(opened.current)]
+        written = [opened.bytes_read]
+        for each in counts:
+            _, more, also = self.through(None, [each], opened)
+            states.append(more[-1])
+            written.append(also[-1])
+            followed.append(self.following(opened))
+        E, D = self.E, self.D
+        assert followed == [[E], [D], [D], [E], [E]]
+        for back in range(len(counts) - 1, -1, -1):
             self.go(opened, states[back])
             assert opened.bytes() == written[back]
 

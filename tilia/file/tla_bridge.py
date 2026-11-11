@@ -1089,13 +1089,16 @@ def _rename_next(
     Such a change can't be undone by matching measures again, since the names it took
     out start no measure. So `removed` keeps each one, the last one last, as a turn:
     the list after it, the list before it, and the names it took out. While the list is
-    still as the turn left it, the turn goes back once those names start measures
-    again, as an undo makes them, and its going back is kept as a turn in its turn, for
+    still as the turn left it, the turn goes back with the change that starts those
+    names again, as an undo does, and its going back is kept as a turn in its turn, for
     the next undo or redo."""
     components = timeline.components
 
     def starts_a_measure(name: str) -> bool:
         return name in starts or _is_downbeat(components.get(name))
+
+    def started_a_measure(name: str) -> bool:
+        return name in started_before
 
     for beat_id in starts:
         mark = components[beat_id].attrs["measure"]
@@ -1103,7 +1106,7 @@ def _rename_next(
         turns = removed.get(key)
         following = mark.get("next") or []
         back = (
-            _turn_back(turns, following, starts_a_measure)
+            _turn_back(turns, following, starts_a_measure, started_a_measure)
             if isinstance(turns, list)
             else None
         )
@@ -1142,11 +1145,14 @@ def _rename_next(
 
 
 def _turn_back(
-    turns: list[Any], following: list[str], starts_a_measure: Callable[[str], bool]
+    turns: list[Any],
+    following: list[str],
+    starts_a_measure: Callable[[str], bool],
+    started_a_measure: Callable[[str], bool],
 ) -> list[str] | None:
     """The list as it was before the turns that go back, or None for none. A turn goes
-    back when it left the list as it is and its names start measures again, or no
-    longer do for one that went back; several do, last first, when an undo goes back
+    back when it left the list as it is and the change starts its names again, or ends
+    one of them for one that went back; several do, last first, when an undo goes back
     over several. A turn that went back takes its own place as its opposite, so that
     a redo turns it again."""
     back = None
@@ -1155,7 +1161,9 @@ def _turn_back(
             (
                 place
                 for place in range(len(turns) - 1, -1, -1)
-                if _turns_back(turns[place], following, starts_a_measure)
+                if _turns_back(
+                    turns[place], following, starts_a_measure, started_a_measure
+                )
             ),
             None,
         )
@@ -1173,19 +1181,26 @@ def _turn_back(
 
 
 def _turns_back(
-    turn: Any, following: list[str], starts_a_measure: Callable[[str], bool]
+    turn: Any,
+    following: list[str],
+    starts_a_measure: Callable[[str], bool],
+    started_a_measure: Callable[[str], bool],
 ) -> bool:
     """Whether a turn goes back: it left the list as it is, every name the list had
-    before it starts a measure, so that it can be the list again, and the turn's names
-    start measures again, or for a turn that went back, no longer all do."""
+    before it starts a measure, so that it can be the list again, and the change
+    starts all the turn's names again, or for a turn that went back, ends one of them.
+    A turn that could have gone back with an earlier change waits for its names to
+    end and start again, so that a later edit of something else doesn't turn it. A
+    turn that went back names its names, and a list names only beats that start a
+    measure, so they all did before the change."""
     if not isinstance(turn, dict) or turn.get("now") != following:
         return False
     if not all(map(starts_a_measure, turn["before"])):
         return False
-    starting = [starts_a_measure(name) for name in turn["names"]]
+    starting = all(map(starts_a_measure, turn["names"]))
     if turn["back_when_they_start"]:
-        return all(starting)
-    return not all(starting)
+        return starting and not all(map(started_a_measure, turn["names"]))
+    return not starting
 
 
 def _set_next(mark: dict[str, Any], following: list[str]) -> None:
