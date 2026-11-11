@@ -185,6 +185,9 @@ UNKNOWN_ROW = "unknown_row"
 BAD_JOIN = "bad_join"
 SAME_ROW_ID = "same_row_id"
 NEGATIVE_MEASURE_NUMBER = "negative_measure_number"
+# A chord with one of `bass_step` and `bass_accidental` and not the other: they go
+# together (TimeLineAnnotator/project-management#522).
+LONE_BASS_KEY = "lone_bass_key"
 
 
 class Outcome(tuple[bool, str]):
@@ -482,6 +485,7 @@ def _harmony(
         lambda: _quality_and_inversion(music21, attrs) if music21 else None,
         lambda: _one_of(attrs, "bass_step", _STEPS),
         lambda: _one_of(attrs, "bass_accidental", HARMONY_ACCIDENTALS),
+        lambda: _bass_together(attrs),
         lambda: _one_of(attrs, "level", _LEVELS),
         lambda: _one_of(attrs, "display_mode", HARMONY_DISPLAY_MODES),
         lambda: _one_of(attrs, "custom_text_font_type", FONT_TYPES),
@@ -856,6 +860,18 @@ def _one_of(
     if (_is_integer(value) or isinstance(value, str)) and value in allowed:
         return None
     return _not_valid(name, value)
+
+
+def _bass_together(attrs: Mapping[str, Any]) -> Outcome | None:
+    """A chord's `bass_step` and `bass_accidental` go together: one without the
+    other is the other missing, as a value that isn't one
+    (TimeLineAnnotator/project-management#522). Both, where the inversion already
+    gives that bass, are allowed: the chord reads the same."""
+    has_step, has_accidental = "bass_step" in attrs, "bass_accidental" in attrs
+    if has_step == has_accidental:
+        return None
+    missing = "bass_accidental" if has_step else "bass_step"
+    return _broken(LONE_BASS_KEY, not_valid(missing, None))
 
 
 def _music21() -> tuple[ModuleType | None, Exception | None]:

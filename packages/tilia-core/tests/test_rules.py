@@ -376,6 +376,7 @@ class TestCodes:
             ("harmony", {"applied_to": 9}, "bad_applied_to"),
             ("harmony", {"bass_step": 9}, "bad_bass_step"),
             ("harmony", {"bass_accidental": 9}, "bad_bass_accidental"),
+            ("harmony", {"bass_step": 2}, "lone_bass_key"),
             ("harmony", {"accidental": 9}, "bad_accidental"),
             ("harmony", {"quality": "x"}, "bad_quality"),
             ("harmony", {"inversion": 99}, "bad_inversion"),
@@ -922,8 +923,6 @@ class TestHarmony:
             ("applied_to", [0, 6]),
             ("accidental", [-2, -1, 0, 1, 2]),
             ("inversion", [0, 2]),
-            ("bass_step", [0, 6]),
-            ("bass_accidental", [-2, -1, 0, 1, 2]),
             ("level", [1, 2]),
             ("display_mode", ["letter", "roman", "custom"]),
             ("custom_text_font_type", ["analytic", "normal"]),
@@ -965,6 +964,36 @@ class TestHarmony:
     )
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
+
+    @pytest.mark.parametrize("step", [0, 3, 6])
+    @pytest.mark.parametrize("accidental", [-2, -1, 0, 1, 2])
+    def test_a_bass_takes_steps_and_accidentals_values(self, step, accidental):
+        # The two go together.
+        assert check("harmony", bass_step=step, bass_accidental=accidental) == OK
+
+    @pytest.mark.parametrize(
+        "attrs, reason",
+        [
+            ({"bass_step": 2}, "None is not a valid bass accidental."),
+            ({"bass_accidental": -1}, "None is not a valid bass step."),
+        ],
+        ids=["bass_step alone", "bass_accidental alone"],
+    )
+    def test_one_bass_key_without_the_other_is_the_other_missing(self, attrs, reason):
+        outcome = check("harmony", **attrs)
+        assert outcome == (False, reason)
+        assert outcome.code == rules.LONE_BASS_KEY
+
+    @pytest.mark.parametrize(
+        "attrs",
+        [
+            {"step": 0, "inversion": 1, "bass_step": 2, "bass_accidental": 0},
+            {"step": 0, "inversion": 0, "bass_step": 0, "bass_accidental": 0},
+        ],
+        ids=["C/E, which inversion 1 gives", "C/C, which inversion 0 gives"],
+    )
+    def test_a_bass_the_inversion_already_gives_is_allowed(self, attrs):
+        assert check("harmony", **attrs) == OK
 
     def test_every_quality_music21_has(self, music21):
         for quality in music21.harmony.CHORD_TYPES:
