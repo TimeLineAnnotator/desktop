@@ -426,11 +426,56 @@ def test_a_unit_left_on_a_timeline_with_no_mark_is_kept_with_a_warning(tmp_path)
     )
 
 
-def test_while_a_beat_has_no_time_the_deletion_goes_on(tmp_path):
+def test_a_beat_without_a_time_doesnt_stop_the_refusal():
     doc = document(p1_beats((B[3], beat(3.0, measure={})), (B[4], beat(None))))
+    before = copy.deepcopy(components(doc))
+    with pytest.raises(tla.CantDeleteDownbeat):
+        tla.delete_beat(doc, BEATS, B[0])
+    assert components(doc) == before
+
+
+def test_a_closing_taps_own_mark_is_no_later_measure(tmp_path):
+    # A mark on a closing tap starts no measure
+    # (TimeLineAnnotator/project-management#375).
+    doc = document(
+        [
+            (B[0], beat(0.0, measure={})),
+            (B[1], beat(1.0, measure={}, closing=True)),
+            (B[2], beat(2.0)),
+        ]
+    )
     tla.delete_beat(doc, BEATS, B[0])
     again = written_twice(doc, tmp_path / "f.tla")
-    assert written(again) == {B[3]: {}}
+    assert written(again) == {B[1]: {}}
+    assert again.timelines[BEATS].measures.rows == []
+
+
+def test_a_timeline_whose_only_mark_is_on_a_closing_tap_is_read(tmp_path):
+    doc = document(
+        [
+            (B[0], beat(0.0)),
+            (B[1], beat(1.0)),
+            (B[2], beat(2.0, measure={}, closing=True)),
+        ]
+    )
+    assert doc.timelines[BEATS].measures.rows == []
+    written_twice(doc, tmp_path / "f.tla")
+
+
+@pytest.mark.parametrize(
+    "name, named",
+    [
+        ("", "a timeline without a name"),
+        ("Beats \ud83d", 'the timeline "Beats \\ud83d"'),
+    ],
+)
+def test_the_refusal_names_the_timeline_as_the_core_does(name, named):
+    doc = document(p1_beats((B[3], beat(3.0, measure={}))), name=name)
+    with pytest.raises(tla.CantDeleteDownbeat) as error:
+        tla.delete_beat(doc, BEATS, B[0])
+    message = str(error.value)
+    assert message.startswith(f"the first downbeat of {named} can't be deleted")
+    message.encode("utf-8")
 
 
 def test_a_later_downbeat_a_closing_tap_follows_goes_with_its_mark(tmp_path):
@@ -713,6 +758,49 @@ def test_the_source_a_deletion_sets_is_written_and_read_back():
 # delete_beat and mark_edited: problems the file was read with stay old
 
 
+def test_a_restart_number_below_0_carried_to_the_next_mark_stays_old(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={"number": -2, "restart": True})),
+        (B[2], beat(2.0, measure={})),
+        (B[3], beat(3.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[1])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[2]] == {"number": -1, "restart": True}
+
+
+def test_a_restart_number_below_0_read_from_an_earlier_bar_stays_old(tmp_path):
+    # B[0] states the number, two bars before the restart: not the measure
+    # before it.
+    beats = [
+        (B[0], beat(0.0, measure={"number": -4})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(2.0, measure={"restart": True})),
+        (B[3], beat(3.0, measure={})),
+        (B[4], beat(4.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[2])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again)[B[3]] == {"number": -1, "restart": True}
+
+
+def test_a_restart_number_set_below_0_after_reading_is_refused(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={"number": 2, "restart": True})),
+        (B[2], beat(2.0, measure={})),
+        (B[3], beat(3.0)),
+    ]
+    doc = document(beats)
+    components(doc)[B[1]].attrs["measure"]["number"] = -2
+    tla.delete_beat(doc, BEATS, B[1])
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "f.tla", doc)
+
+
 @pytest.mark.parametrize("by_person", [True, False])
 def test_a_problem_that_moves_with_a_mark_stays_old(tmp_path, by_person):
     beats = [
@@ -819,11 +907,12 @@ def test_a_problem_on_the_measure_before_a_deleted_downbeat_stays_old(tmp_path):
 
 
 def test_a_problem_on_a_mark_whose_next_follows_stays_old(tmp_path):
-    # The mark naming the deleted downbeat isn't the measure before it.
+    # The mark naming the deleted downbeat isn't the measure before it, nor
+    # the one whose number it reads from.
     beats = [
         (B[0], beat(0.0, measure={"number": -1, "next": [B[4]]})),
         (B[1], beat(1.0)),
-        (B[2], beat(2.0, measure={})),
+        (B[2], beat(2.0, measure={"number": 5})),
         (B[3], beat(3.0)),
         (B[4], beat(4.0, measure={})),
         (B[5], beat(5.0)),

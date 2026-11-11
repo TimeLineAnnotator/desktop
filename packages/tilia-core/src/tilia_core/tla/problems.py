@@ -222,14 +222,15 @@ def keep_old(
     `tla.edits` carried, rather than made
     (TimeLineAnnotator/project-management#528, point 4). `before` gives the
     states, by id, of the components of the timeline the edit may change, as
-    `states_of` gave them before it; `moved`, a deleted downbeat's id and the
-    beat its mark moved to.
+    `states_of` gave them before it; `moved`, by a downbeat's id, the beat its
+    mark's problems go to: where a deleted downbeat's mark moved, or the beat
+    a `restart` made state the number it reads from that downbeat's.
 
     A problem on one of them, or naming one, that was old before the edit (its
     state then the one it was read with) is old with its state now. One of
-    `MARK_CODES` on a downbeat whose mark moved is old on the beat it moved
-    to. Any other problem is as it was: a change made since, or after, is
-    still compared."""
+    `MARK_CODES` on one of `moved` is old on the beat its mark moved to, or
+    that states the number. Any other problem is as it was: a change made
+    since, or after, is still compared."""
     if not before:
         return
     held = pointer_to(pointer_to("/timelines", timeline_id), "components")

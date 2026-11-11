@@ -1069,19 +1069,22 @@ def test_what_a_beat_breaks_is_refused_at_its_old_place_and_line(
     assert error.value.line == line_of(data, b'"11": {', text)
 
 
-def test_a_first_beat_without_a_mark_is_refused_at_its_old_place_and_line():
+def test_an_old_first_beat_marked_closing_leaves_the_timeline_no_measure():
     # Only a hand edit gives an old file a closing tap: the mark the migration
-    # puts on its first beat starts no measure.
+    # puts on its first beat starts no measure, so the timeline has no mark that
+    # starts one, and is read with none, with the warning at the tap's old place
+    # (TimeLineAnnotator/project-management#375 and #528).
     _, timeline = beat_timeline([0.0, 1.0, 2.0])
     timeline["components"]["10"]["closing"] = True
-    data = indented(old_file((BEAT_TIMELINE, timeline)))
-    with pytest.raises(tla.UnreadableFile) as error:
-        tla.loads(data)
-    assert error.value.message == (
-        'the first beat of the timeline "Beats" has no measure mark'
-    )
-    assert error.value.place == "/timelines/9/components/11"
-    assert error.value.line == line_of(data, b'"11": {')
+    doc = tla.loads(indented(old_file((BEAT_TIMELINE, timeline))))
+    assert beat_timeline_of(doc).measures.rows == []
+    assert [(w.place, w.message) for w in doc.warnings] == [
+        (
+            "/timelines/9/components/10",
+            'a closing tap in the timeline "Beats" has a measure mark, which starts'
+            " no measure",
+        )
+    ]
 
 
 # A `measure` key on an old beat, which only a hand edit makes: a key of the

@@ -16,7 +16,7 @@ line:
 - what JSON Schema can't check: an id used twice in the file, or a row's
   used twice in its timeline, a reference that names nothing, a measure's
   `next` among them, and a beat timeline whose first beat has no `measure`
-  mark while another beat has one.
+  mark while another beat's mark starts a measure.
 
 Kept, with a warning: a timeline's `vocabulary` that isn't a reference to a
 vocabulary (FR-072); a component of a kind its timeline doesn't hold, kept as
@@ -630,9 +630,10 @@ class _Checker:
 
     def measures(self, timeline: Mapping[str, Any], place: Place) -> None:
         """A beat timeline's measures, marked on its beats (FR-081). Refused:
-        a first beat without a `measure` mark while another beat has one (a
-        timeline with no mark at all has no measures, and is kept so:
-        TimeLineAnnotator/project-management#528), and a `next` that names
+        a first beat without a `measure` mark while another beat's mark starts
+        a measure (a timeline with no such mark has no measures, and is kept
+        so: TimeLineAnnotator/project-management#528; a mark on a closing tap
+        starts none), and a `next` that names
         anything but a downbeat of the timeline, a beat with a mark that isn't
         a closing tap (TimeLineAnnotator/project-management#370); a closing
         tap's own mark starts no measure, so its `next` isn't checked. Kept,
@@ -657,7 +658,10 @@ class _Checker:
         everyone = beat_order(beats)
         order = [key for key in everyone if not beats[key].get("closing")]
         timed = all(beats[key].get("time") is not None for key in order)
-        marked = any(isinstance(beat.get("measure"), dict) for beat in beats.values())
+        marked = any(
+            isinstance(beat.get("measure"), dict) and not beat.get("closing")
+            for beat in beats.values()
+        )
         if (
             order
             and timed
