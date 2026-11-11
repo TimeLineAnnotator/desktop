@@ -12,7 +12,9 @@ from them (research R6, R8; data-model.md, "The file record").
   :data:`READ_RETRY_PAUSE` seconds. A file that fails twice is unreadable, with
   its reason; whatever reading it raised, one file never stops the build
   (FR-007). The same goes for a file the reader takes but whose rows can't be
-  built, or can't be stored.
+  built, or can't be stored. A scan that reads at least
+  :data:`PARALLEL_READS_FROM` files with WP3's reader reads them in worker
+  processes (:func:`read_files`).
 - **The build** (:meth:`Scanner.build`) reads the files in sorted path order,
   so a fresh build of the same folder gives the same keys, and inserts their
   rows through :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`.
@@ -36,19 +38,21 @@ import stat
 import sys
 import threading
 import time
+import traceback
 import unicodedata
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import TracebackType
 
-from . import build
+from . import _workers, build
 from .build import Rows
 from .documents import Document, DocumentReader, UnreadableFile
 from .fingerprint import of_document
 from .settings import CorpusSettings
 from .store import Store
 from .time_map import TimeMap, TimeMapOf
+from .tla_reader import TlaReader
 
 LOG = logging.getLogger(__name__)
 
@@ -63,6 +67,11 @@ now_ns: Callable[[], int] = time.time_ns
 
 clock: Callable[[], float] = time.monotonic
 """The clock that dates scans (tests replace it)."""
+
+PARALLEL_READS_FROM = 16
+"""The fewest files a scan reads in worker processes, with WP3's reader
+(TimeLineAnnotator/project-management#156). It reads fewer in this process,
+where starting the workers would cost more than they save."""
 
 
 def _no_time_map(document: Document, roles: object) -> None:
@@ -226,6 +235,27 @@ def _try_read(reader: DocumentReader, found: Found) -> Outcome | _Failure:
         return (f"can't read: {type(err).__name__}: {err}", None, False, info)  # type: ignore[return-value]
 
 
+_ExcInfo = tuple[type, BaseException, TracebackType]
+
+
+def _read(reader: DocumentReader, found: Found) -> tuple[Outcome, _ExcInfo | None]:
+    """:func:`read_file`'s outcome, with the error to log when the reader
+    failed in a way it doesn't name."""
+    if found.reason is not None:
+        return Outcome(found, now_ns(), reason=found.reason), None
+    first = _try_read(reader, found)
+    if isinstance(first, Outcome):
+        return first, None
+    sleep(READ_RETRY_PAUSE)
+    read_at = now_ns()
+    second = _try_read(reader, found)
+    if isinstance(second, Outcome):
+        return second, None
+    reason, line, os_error, info = second
+    outcome = Outcome(found, read_at, reason=reason, line=line, os_error=os_error)
+    return outcome, info
+
+
 def read_file(reader: DocumentReader, found: Found) -> Outcome:
     """Read ``found`` through ``reader``, trying once more after
     :data:`READ_RETRY_PAUSE` seconds when the first try fails.
@@ -236,20 +266,71 @@ def read_file(reader: DocumentReader, found: Found) -> Outcome:
     other way with the error's type and message, and its traceback is logged.
     Nothing it raises goes through, but ``KeyboardInterrupt`` and
     ``SystemExit``. A file with a ``reason`` isn't read at all."""
-    if found.reason is not None:
-        return Outcome(found, now_ns(), reason=found.reason)
-    first = _try_read(reader, found)
-    if isinstance(first, Outcome):
-        return first
-    sleep(READ_RETRY_PAUSE)
-    read_at = now_ns()
-    second = _try_read(reader, found)
-    if isinstance(second, Outcome):
-        return second
-    reason, line, os_error, info = second
+    outcome, info = _read(reader, found)
     if info is not None:
-        LOG.error("the reader failed on %s: %s", found.native, reason, exc_info=info)
-    return Outcome(found, read_at, reason=reason, line=line, os_error=os_error)
+        LOG.error(
+            "the reader failed on %s: %s", found.native, outcome.reason, exc_info=info
+        )
+    return outcome
+
+
+def _read_in_worker(reader: DocumentReader, found: Found) -> tuple[Outcome, str | None]:
+    """:func:`read_file` in a worker process: the outcome, and the text of the
+    traceback to log, which the process that asked logs."""
+    outcome, info = _read(reader, found)
+    if info is None:
+        return outcome, None
+    return outcome, "".join(traceback.format_exception(*info))
+
+
+def read_files(reader: DocumentReader, found: Sequence[Found]) -> dict[str, Outcome]:
+    """:func:`read_file` for each of ``found``, by path.
+
+    With WP3's reader, the default, :data:`PARALLEL_READS_FROM` files or more
+    are read in worker processes (:mod:`._workers`), one per CPU: reading is
+    pure computation, which threads don't share out. Each worker imports the
+    core, and the documents come back pickled. Other readers, which may hold
+    what can't cross to another process, read in this one, as do programs
+    frozen into an executable. When the workers fail, the files are read here
+    instead, and the failure is logged."""
+    todo = [f for f in found if f.reason is None]
+    workers = min(_workers.cpus(), len(todo))
+    outcomes: dict[str, Outcome] = {}
+    if (
+        type(reader) is TlaReader
+        and len(todo) >= PARALLEL_READS_FROM
+        and workers > 1
+        and _workers.available()
+    ):
+        outcomes = _read_in_workers(reader, todo, workers)
+    return {f.path: outcomes.get(f.path) or read_file(reader, f) for f in found}
+
+
+def _read_in_workers(
+    reader: DocumentReader, todo: list[Found], workers: int
+) -> dict[str, Outcome]:
+    """``todo``'s outcomes, read by ``workers`` processes; none when they
+    fail."""
+    try:
+        results = _workers.run(_read_in_worker, [(reader, f) for f in todo], workers)
+    except _workers.WorkersFailed as err:
+        LOG.warning(
+            "the files couldn't be read in worker processes, so they are read "
+            "one by one: %s",
+            err,
+        )
+        return {}
+    outcomes = {}
+    for found, (outcome, failure) in zip(todo, results, strict=True):
+        if failure is not None:
+            LOG.error(
+                "the reader failed on %s: %s\n%s",
+                found.native,
+                outcome.reason,
+                failure,
+            )
+        outcomes[found.path] = outcome
+    return outcomes
 
 
 # --------------------------------------------------------------------------- #
@@ -811,11 +892,10 @@ class Scanner:
         before = self.store.generation
         old = self.records
         here = {f.path: f for f in found}
-        outcomes = {
-            f.path: read_file(self.reader, f)
-            for f in found
-            if f.path in force or needs_reading(old.get(f.path), f)
-        }
+        outcomes = read_files(
+            self.reader,
+            [f for f in found if f.path in force or needs_reading(old.get(f.path), f)],
+        )
         vanished = [
             rec
             for path, rec in sorted(old.items())
