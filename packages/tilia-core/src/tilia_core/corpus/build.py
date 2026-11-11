@@ -19,7 +19,7 @@ from tilia_core import derived, labels
 
 from .documents import ComponentDoc, Document, TimelineDoc
 from .settings import CorpusSettings
-from .time_map import TimeMap
+from .time_map import TimeMap, TimeMapFound
 
 LOG = logging.getLogger(__name__)
 
@@ -41,7 +41,8 @@ class Rows:
 
     ``files`` holds the file's one row, with ``path``, ``reason`` and
     ``fingerprint`` left None and ``state`` ``readable``: the scan knows them,
-    and :meth:`at` fills them in."""
+    and :meth:`at` fills them in. ``file_warnings`` are what the file's
+    content is warned about."""
 
     file_id: int
     files: list[Row] = field(default_factory=list)
@@ -55,6 +56,7 @@ class Rows:
     positions: list[Row] = field(default_factory=list)
     measures: list[Row] = field(default_factory=list)
     fields: list[Row] = field(default_factory=list)
+    file_warnings: list[Row] = field(default_factory=list)
 
     TABLES = (
         "files",
@@ -68,6 +70,7 @@ class Rows:
         "positions",
         "measures",
         "fields",
+        "file_warnings",
     )
 
     def tables(self) -> dict[str, list[Row]]:
@@ -94,11 +97,15 @@ def rows(
     document: Document,
     settings: CorpusSettings,
     keys: Callable[[], int],
-    time_map: TimeMap | None = None,
+    time_map: TimeMap | TimeMapFound | None = None,
 ) -> Rows:
     """Every table's rows for ``document``, with keys from ``keys`` (a callable
     that hands out the next integer key) and the file's time map, if it has
-    one."""
+    one: a :class:`TimeMapFound` also gives why it has none
+    (``files.time_map_reason``) and WP9's warnings (``file_warnings``)."""
+    chosen = time_map if isinstance(time_map, TimeMapFound) else None
+    if chosen is not None:
+        time_map = chosen.time_map
     out = Rows(file_id=keys())
     fid = out.file_id
     tl_keys: dict[str, int] = {}
@@ -147,8 +154,12 @@ def rows(
             document.time_unit,
             map_key,
             None if map_key is None else int(bool(time_map and time_map.guessed)),
+            None if chosen is None else _text(chosen.reason),
         )
     )
+    if chosen is not None:
+        for message in chosen.warnings:
+            out.file_warnings.append((fid, "time_map", labels.nfc(message)))
     return out
 
 

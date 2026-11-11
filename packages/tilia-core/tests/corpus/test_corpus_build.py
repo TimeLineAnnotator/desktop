@@ -17,6 +17,7 @@ from tilia_core import labels
 from tilia_core.corpus import build
 from tilia_core.corpus.schema import create_schema
 from tilia_core.corpus.settings import NoSettings
+from tilia_core.corpus.time_map import TimeMapFound
 
 FIXTURES = examples.load()["fixtures"]
 
@@ -86,6 +87,7 @@ class TestKinds:
             None,
             60.0,
             "seconds",
+            None,
             None,
             None,
         )
@@ -289,7 +291,7 @@ def test_time_map_guessed_by_role():
     assert (tmap.timeline_id, tmap.guessed) == ("b2", False)
     rows = build.rows(doc, settings, counter(), tmap)
     slow = [r[0] for r in rows.timelines if r[2] == "b2"][0]
-    assert rows.files[0][9:] == (slow, 0)
+    assert rows.files[0][9:] == (slow, 0, None)
 
 
 def test_time_map_guessed_by_fallback():
@@ -298,7 +300,7 @@ def test_time_map_guessed_by_fallback():
     assert (tmap.timeline_id, tmap.guessed) == ("b1", True)
     rows = build.rows(doc, NoSettings(), counter(), tmap)
     first = [r[0] for r in rows.timelines if r[2] == "b1"][0]
-    assert rows.files[0][9:] == (first, 1)
+    assert rows.files[0][9:] == (first, 1, None)
 
 
 def test_a_role_the_settings_set_makes_the_time_map():
@@ -310,7 +312,7 @@ def test_a_role_the_settings_set_makes_the_time_map():
 def test_no_time_map_leaves_both_null():
     doc = beats_document()
     rows = rows_of(doc)
-    assert rows.files[0][9:] == (None, None)
+    assert rows.files[0][9:] == (None, None, None)
     assert rows.measures == [] and rows.positions == []
     assert (
         fake_timemap.time_map_of(corpus_docs.every_kind(document_id="x"), {})
@@ -393,6 +395,8 @@ DUMP = {
     "WHEN 'timeline' THEN (SELECT uuid FROM timelines WHERE id = x.owner_id) "
     "ELSE (SELECT uuid FROM components WHERE id = x.owner_id) END, x.name, x.value "
     "FROM fields x",
+    "file_warnings": "SELECT f.document_id, w.source, w.message FROM file_warnings w "
+    "JOIN files f ON f.id = w.file_id",
 }
 
 
@@ -475,3 +479,28 @@ def test_a_subtype_has_its_supertype_under_a_grammar_with_subtypes():
         ("bridge.modern", None),
         ("verse", None),
     ]
+
+
+def test_why_there_is_no_time_map_and_wp9s_warnings_are_stored():
+    # a reason with no time map, and the warnings, in NFC like all text
+    doc = beats_document()
+    found = TimeMapFound(
+        time_map=None,
+        reason="fewer than two beats",
+        warnings=("timeline b1: Cafe\u0301", "timeline b2: second"),
+    )
+    rows = build.rows(doc, NoSettings(), counter(), found)
+    assert rows.files[0][9:] == (None, None, "fewer than two beats")
+    assert rows.file_warnings == [
+        (rows.file_id, "time_map", "timeline b1: Caf\u00e9"),
+        (rows.file_id, "time_map", "timeline b2: second"),
+    ]
+
+
+def test_a_time_map_found_gives_its_map_and_no_reason():
+    doc = beats_document()
+    tmap = fake_timemap.time_map_of(doc, {})
+    rows = build.rows(doc, NoSettings(), counter(), TimeMapFound(time_map=tmap))
+    assert rows.files[0][10:] == (1, None)
+    assert rows.measures == build.rows(doc, NoSettings(), counter(), tmap).measures
+    assert rows.file_warnings == []

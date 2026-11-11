@@ -21,6 +21,7 @@ COLUMNS = {
         ("time_unit", "TEXT"),
         ("time_map", "INTEGER"),
         ("time_map_guessed", "INTEGER"),
+        ("time_map_reason", "TEXT"),
     ],
     "timelines": [
         ("id", "INTEGER"),
@@ -115,6 +116,11 @@ COLUMNS = {
         ("owner_id", "INTEGER"),
         ("name", "TEXT"),
         ("value", "TEXT"),
+    ],
+    "file_warnings": [
+        ("file_id", "INTEGER"),
+        ("source", "TEXT"),
+        ("message", "TEXT"),
     ],
 }
 

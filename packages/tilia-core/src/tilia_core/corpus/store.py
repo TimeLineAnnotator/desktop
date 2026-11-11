@@ -369,6 +369,7 @@ class Store:
                 con.execute(_DELETE.format(table=table), (file_id,))
             con.execute(_DELETE_FIELDS, {"file_id": file_id})
             con.execute("DELETE FROM measures WHERE file_id = ?", (file_id,))
+            con.execute("DELETE FROM file_warnings WHERE file_id = ?", (file_id,))
             con.execute("DELETE FROM components WHERE file_id = ?", (file_id,))
             con.execute("DELETE FROM timelines WHERE file_id = ?", (file_id,))
             con.execute("DELETE FROM files WHERE id = ?", (file_id,))
