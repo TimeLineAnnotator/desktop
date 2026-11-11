@@ -377,6 +377,77 @@ def test_a_next_beat_without_a_time_takes_no_mark_and_the_mark_goes():
     assert "measure" not in components(doc)[B[3]].attrs
 
 
+def p1_beats(*more):
+    """A closing tap inside the first measure, then a beat without a mark."""
+    return [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, closing=True)),
+        (B[2], beat(2.0)),
+        *more,
+    ]
+
+
+def test_a_first_downbeat_a_closing_tap_follows_is_refused_and_nothing_changes():
+    doc = document(p1_beats((B[3], beat(3.0, measure={}))))
+    before = copy.deepcopy(components(doc))
+    rows_before = rows(doc)
+    with pytest.raises(
+        tla.CantDeleteDownbeat, match="Delete the closing tap first"
+    ) as error:
+        tla.delete_beat(doc, BEATS, B[0])
+    assert (error.value.beat_id, error.value.closing_tap_id) == (B[0], B[1])
+    assert components(doc) == before
+    assert rows(doc) == rows_before
+
+
+def test_once_the_closing_tap_is_deleted_the_mark_moves_on(tmp_path):
+    doc = document(p1_beats((B[3], beat(3.0, measure={}))))
+    tla.delete_beat(doc, BEATS, B[1])
+    tla.delete_beat(doc, BEATS, B[0])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again) == {B[2]: {}, B[3]: {}}
+
+
+def test_a_first_downbeat_with_no_measure_after_it_goes_with_its_mark(tmp_path):
+    doc = document(p1_beats())
+    tla.delete_beat(doc, BEATS, B[0])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again) == {}
+
+
+def test_a_unit_left_on_a_timeline_with_no_mark_is_kept_with_a_warning(tmp_path):
+    doc = document(p1_beats()[:2] + [(B[2], beat(2.0, beat_unit=QUARTERS))])
+    tla.delete_beat(doc, BEATS, B[0])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert units(again) == {B[2]: QUARTERS}
+    assert timemap.find_time_map(again).warnings == (
+        f"Timeline {BEATS}: beat {B[2]} (2.0) has a beat unit, which starts "
+        "nothing: the timeline has no measure marks",
+    )
+
+
+def test_while_a_beat_has_no_time_the_deletion_goes_on(tmp_path):
+    doc = document(p1_beats((B[3], beat(3.0, measure={})), (B[4], beat(None))))
+    tla.delete_beat(doc, BEATS, B[0])
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert written(again) == {B[3]: {}}
+
+
+def test_a_later_downbeat_a_closing_tap_follows_goes_with_its_mark(tmp_path):
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={})),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0)),
+        (B[5], beat(5.0, measure={})),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert doc.timelines[BEATS].measures.rows[0].beats == [B[0], B[1], B[4]]
+    written_twice(doc, tmp_path / "f.tla")
+
+
 # delete_beat: the downbeat's beat unit
 
 
