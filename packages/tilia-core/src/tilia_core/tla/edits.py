@@ -62,7 +62,9 @@ class CantMoveBeatUnit(CantDeleteBeat):
     """A deleted beat's unit would move onto a beat holding a unit the reader
     can't read, which is never replaced: that unit is fixed first
     (TimeLineAnnotator/project-management#544, point 2, as #373 for plans).
-    `unit_beat_id` is the beat holding it."""
+    Only a unit the reader can read would move, and only where no other beat
+    of the measure states one it can read: else the unit is dropped, as
+    #528 point 2 says. `unit_beat_id` is the beat holding it."""
 
     def __init__(self, message: str, beat_id: str, unit_beat_id: str):
         super().__init__(message, beat_id)
@@ -105,7 +107,8 @@ def delete_beat(
     `CantDeleteDownbeat` where the mark would go and leave the timeline's
     first beat without one while a later beat's mark starts a measure (closing
     taps inside the first measure), and `CantMoveBeatUnit` where the beat's
-    unit would move onto a beat holding a unit the reader can't read.
+    unit would move onto a beat holding a unit the reader can't read, rather
+    than be dropped.
 
     A downbeat's mark moves to the next beat in time order, with its beat
     unit, and every `next` that named the downbeat names that beat. When the
@@ -150,7 +153,8 @@ def delete_beat(
     measures = {key: row for row in table.rows for key in row.beats}
     target_id = later[0] if later and later[0] in measures else None
     destination = target_id if _is_downbeat(deleted) else measure_id
-    _refuse_an_unreadable_unit(timeline, beats, beat_id, destination)
+    around = measures[destination].beats if destination in measures else []
+    _refuse_an_unreadable_unit(timeline, beats, beat_id, destination, around)
     before = problems.states_of(
         doc,
         timeline_id,
@@ -220,15 +224,24 @@ def _refuse_an_unreadable_unit(
     beats: dict[str, Component],
     beat_id: str,
     destination: str | None,
+    around: list[str],
 ) -> None:
     """Raise `CantMoveBeatUnit` where the unit of `beat_id` would move onto
-    `destination`, which holds a unit the reader can't read."""
-    if destination is None or not isinstance(
-        beats[beat_id].attrs.get("beat_unit"), dict
-    ):
+    `destination`, which holds a unit the reader can't read: where the unit is
+    one it can read, and no other beat of the measure `destination` is in,
+    `around`, states one it can (then the unit is dropped, #528 point 2)."""
+    if destination is None:
         return
-    unit = beats[destination].attrs.get("beat_unit")
-    if unit is None or readable_beat_unit(unit) is not None:
+    if readable_beat_unit(beats[beat_id].attrs.get("beat_unit")) is None:
+        return
+    held = beats[destination].attrs.get("beat_unit")
+    if held is None or readable_beat_unit(held) is not None:
+        return
+    if any(
+        readable_beat_unit(beats[key].attrs.get("beat_unit")) is not None
+        for key in around
+        if key not in (beat_id, destination)
+    ):
         return
     which = _which({"name": timeline.name})
     at = _media_time(beats[beat_id].attrs.get("time"))

@@ -541,12 +541,14 @@ def test_a_later_downbeat_a_closing_tap_follows_goes_with_its_mark(tmp_path):
     ids=["a downbeat's unit", "an ordinary beat's unit"],
 )
 def test_a_unit_that_would_move_onto_one_tilia_cant_read_is_refused(deleted, onto):
+    # No other beat of the measure the unit would move into states a unit
+    # TiLiA can read.
     beats = [
         (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
         (B[1], beat(1.0)),
         (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
         (B[3], beat(3.0, measure={}, beat_unit=UNREADABLE)),
-        (B[4], beat(4.0, beat_unit=EIGHTHS)),
+        (B[4], beat(4.0, beat_unit=EIGHTHS if deleted == 4 else None)),
         (B[5], beat(5.0, measure={})),
         (B[6], beat(6.0)),
     ]
@@ -563,6 +565,55 @@ def test_a_unit_that_would_move_onto_one_tilia_cant_read_is_refused(deleted, ont
         " beat unit would move onto the beat at 00:03.0, whose beat unit TiLiA"
         " can't read. Fix that beat unit first."
     )
+
+
+@pytest.mark.parametrize(
+    "deleted, left",
+    [
+        (2, {0: QUARTERS, 3: UNREADABLE, 4: EIGHTHS}),
+        (5, {0: QUARTERS, 3: UNREADABLE, 4: EIGHTHS}),
+    ],
+    ids=["a downbeat's unit", "an ordinary beat's unit"],
+)
+def test_a_unit_dropped_anyway_isnt_refused(tmp_path, deleted, left):
+    # Another beat of the measure states a unit TiLiA can read, so the unit
+    # would be dropped, not moved (#528 point 2): nothing would replace the
+    # one it can't read.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=HALVES)),
+        (B[3], beat(3.0, measure={}, beat_unit=UNREADABLE)),
+        (B[4], beat(4.0, beat_unit=EIGHTHS)),
+        (B[5], beat(5.0, beat_unit=HALVES if deleted == 5 else None)),
+        (B[6], beat(6.0, measure={})),
+    ]
+    if deleted == 5:
+        beats[2] = (B[2], beat(2.0, measure={}))
+    doc = document(beats)
+    before = readings(doc)
+    tla.delete_beat(doc, BEATS, B[deleted])
+    assert units(doc) == {B[key]: unit for key, unit in left.items()}
+    # The measures the deletion doesn't change read as they did.
+    after = readings(doc)
+    assert after[B[6]] == before[B[6]]
+    if deleted == 2:
+        assert after[B[3]] == before[B[3]]
+    written_twice(doc, tmp_path / "f.tla")
+
+
+def test_a_unit_tilia_cant_read_moving_onto_one_isnt_refused():
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=UNREADABLE)),
+        (B[3], beat(3.0, measure={}, beat_unit=UNREADABLE)),
+        (B[4], beat(4.0)),
+        (B[5], beat(5.0, measure={})),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: QUARTERS, B[3]: UNREADABLE}
 
 
 def test_a_beat_without_a_unit_is_deleted_beside_one_tilia_cant_read(tmp_path):
