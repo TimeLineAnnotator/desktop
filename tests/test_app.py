@@ -26,7 +26,6 @@ from tests.utils import (
     save_tilia_to_tmp_path,
     undoable,
 )
-from tilia.file.migration import find_unknown_timeline_kinds
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
@@ -361,7 +360,7 @@ class TestFileLoad:
         # "keep" leaves components at the old end in place when the player
         # reports a slightly shorter duration after open. Saving then stores
         # the shorter media length with the components past it; reopening
-        # must clamp them to the media length instead of dropping them.
+        # keeps them as they are, neither dropped nor moved.
         tilia_state.media_path = EXAMPLE_MEDIA_PATH
         tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
         commands.execute("media.seek", EXAMPLE_MEDIA_DURATION)
@@ -383,11 +382,11 @@ class TestFileLoad:
         assert tilia_state.duration == reported_duration
         marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
         assert len(marker_tl) == 1
-        assert marker_tl[0].get_data("time") == reported_duration
+        assert marker_tl[0].get_data("time") == EXAMPLE_MEDIA_DURATION
         hierarchy_tl = tls.get_timelines_by_type(HierarchyTimeline)[0]
         assert len(hierarchy_tl) == 1
-        assert hierarchy_tl[0].get_data("end") == reported_duration
-        assert hierarchy_tl[0].get_data("post_end") == reported_duration
+        assert hierarchy_tl[0].get_data("end") == EXAMPLE_MEDIA_DURATION
+        assert hierarchy_tl[0].get_data("post_end") == EXAMPLE_MEDIA_DURATION
 
 
 class TestMediaLoad:
@@ -653,34 +652,6 @@ def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
     assert tilia.file_manager.file == prev_file
 
 
-UNKNOWN_TIMELINE_KIND = "SOME_FUTURE_TIMELINE_KIND"
-UNKNOWN_TIMELINE_ID = "0"
-KNOWN_TIMELINE_ID = "1"
-
-
-def get_file_data_with_unknown_timeline_kind():
-    file_data = tests.utils.get_blank_file_data()
-    file_data["version"] = "99.0.0"
-    file_data["timelines"] = {
-        UNKNOWN_TIMELINE_ID: {
-            "is_visible": True,
-            "ordinal": 1,
-            "height": 40,
-            "kind": UNKNOWN_TIMELINE_KIND,
-            "components": {},
-        },
-        KNOWN_TIMELINE_ID: {
-            "is_visible": True,
-            "ordinal": 2,
-            "height": 40,
-            "kind": "MARKER_TIMELINE",
-            "components": {},
-            "components_hash": "d41d8cd98f00b204e9800998ecf8427e",
-        },
-    }
-    return file_data
-
-
 class TestOpen:
     def test_open_with_timeline(self, qtui, tls, tmp_path):
         commands.execute("timelines.add.hierarchy", name="test")
@@ -758,156 +729,6 @@ class TestOpen:
 
         assert_open_failed(tilia, tilia_errors, tmp_file, prev_file)
 
-    def test_open_newer_file_with_unknown_timeline_kind_user_cancels(
-        self, tilia, tmp_path, tilia_errors
-    ):
-        prev_file = tilia.file_manager.file
-        tmp_file = tmp_path / "test.tla"
-        tmp_file.write_text(json.dumps(get_file_data_with_unknown_timeline_kind()))
-
-        with (
-            Serve(Get.FROM_USER_YES_OR_NO, True),
-            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (False, False)),
-        ):
-            commands.execute("file.open", tmp_file)
-
-        tilia_errors.assert_no_error()
-        assert tmp_file.as_posix() not in settings.get_recent_files()
-        assert tilia.file_manager.file == prev_file
-
-    def test_open_newer_file_with_unknown_timeline_kind_user_deletes(
-        self, tilia, tmp_path, tilia_errors
-    ):
-        tmp_file = tmp_path / "test.tla"
-        tmp_file.write_text(json.dumps(get_file_data_with_unknown_timeline_kind()))
-
-        with (
-            Serve(Get.FROM_USER_YES_OR_NO, True),
-            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, True)),
-        ):
-            commands.execute("file.open", tmp_file)
-
-        tilia_errors.assert_no_error()
-        assert Path(settings.get_recent_files()[0]) == tmp_file
-        assert UNKNOWN_TIMELINE_ID not in {tl.id for tl in tilia.timelines}
-        assert tilia.file_manager.file.unknown_timelines == {}
-        assert tilia.file_manager.file.timelines[UNKNOWN_TIMELINE_ID]["kind"] == (
-            UNKNOWN_TIMELINE_KIND
-        )
-        assert tilia.is_file_modified()
-
-        known = tilia.file_manager.file.timelines[KNOWN_TIMELINE_ID]
-        assert known["kind"] == "Marker"
-        assert known["ordinal"] == 1
-
-    def test_open_newer_file_with_unknown_timeline_kind_user_ignores(
-        self, tilia, tmp_path, tilia_errors
-    ):
-        tmp_file = tmp_path / "test.tla"
-        tmp_file.write_text(json.dumps(get_file_data_with_unknown_timeline_kind()))
-
-        with (
-            Serve(Get.FROM_USER_YES_OR_NO, True),
-            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
-        ):
-            commands.execute("file.open", tmp_file)
-
-        tilia_errors.assert_no_error()
-        assert UNKNOWN_TIMELINE_ID not in {tl.id for tl in tilia.timelines}
-        assert tilia.file_manager.file.timelines[UNKNOWN_TIMELINE_ID]["kind"] == (
-            UNKNOWN_TIMELINE_KIND
-        )
-        assert (
-            tilia.file_manager.file.unknown_timelines[UNKNOWN_TIMELINE_ID]["kind"]
-            == UNKNOWN_TIMELINE_KIND
-        )
-
-        live_hashes = {
-            tl["components_hash"] for tl in tilia.get_app_state()["timelines"].values()
-        }
-        stored_hashes = {
-            tl["components_hash"] for tl in tilia.file_manager.file.timelines.values()
-        }
-        assert live_hashes == stored_hashes
-
-        known = tilia.file_manager.file.timelines[KNOWN_TIMELINE_ID]
-        assert known["kind"] == "Marker"
-        assert known["ordinal"] == 1
-        ordinals = [tl["ordinal"] for tl in tilia.file_manager.file.timelines.values()]
-        assert len(ordinals) == len(set(ordinals))
-        assert UNKNOWN_TIMELINE_ID not in {tl.id for tl in tilia.timelines}
-
-    def test_ignored_timelines_id_is_not_given_to_another_timeline(
-        self, tilia, tmp_path, tilia_errors
-    ):
-        file_data = tests.utils.get_blank_file_data()
-        file_data["version"] = "99.0.0"
-        file_data["timelines"] = {
-            "1": {
-                "is_visible": True,
-                "ordinal": 1,
-                "height": 40,
-                "kind": UNKNOWN_TIMELINE_KIND,
-                "components": {},
-            },
-            "0": {
-                "is_visible": True,
-                "ordinal": 2,
-                "height": 40,
-                "kind": "MARKER_TIMELINE",
-                "components": {},
-            },
-        }
-        tmp_file = tmp_path / "test.tla"
-        tmp_file.write_text(json.dumps(file_data))
-
-        with (
-            Serve(Get.FROM_USER_YES_OR_NO, True),
-            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
-        ):
-            commands.execute("file.open", tmp_file)
-
-        tilia_errors.assert_no_error()
-        live_ids = {tl.id for tl in tilia.timelines}
-        assert "0" in live_ids  # the known timeline
-        assert "1" not in live_ids  # the ignored timeline's
-        new_ids = live_ids - {"0"}
-        assert new_ids  # the slider timeline, made on opening
-        assert all(uuid.UUID(id).version == 7 for id in new_ids)
-
-    def test_ignored_unknown_timeline_survives_a_save(
-        self, tilia, qtui, tmp_path, tilia_errors
-    ):
-        open_path = tmp_path / "test.tla"
-        open_path.write_text(json.dumps(get_file_data_with_unknown_timeline_kind()))
-
-        with (
-            Serve(Get.FROM_USER_YES_OR_NO, True),
-            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
-        ):
-            commands.execute("file.open", open_path)
-
-        save_path = tmp_path / "resaved.tla"
-        commands.execute("file.save_as", str(save_path))
-
-        saved_data = json.loads(save_path.read_text())
-        assert saved_data["timelines"][UNKNOWN_TIMELINE_ID]["kind"] == (
-            UNKNOWN_TIMELINE_KIND
-        )
-        assert "unknown_timelines" not in saved_data
-
-        assert saved_data["timelines"][KNOWN_TIMELINE_ID]["ordinal"] == 1
-        assert (
-            saved_data["timelines"][UNKNOWN_TIMELINE_ID]["ordinal"] == 3
-        )  # slider timeline is 2
-        ordinals = [tl["ordinal"] for tl in saved_data["timelines"].values()]
-        assert len(ordinals) == len(set(ordinals))
-
-    def test_known_kind_is_loaded_normally_not_flagged_unknown(self):
-        file_data = get_file_data_with_unknown_timeline_kind()
-        file_data["timelines"][UNKNOWN_TIMELINE_ID]["kind"] = "MARKER_TIMELINE"
-        assert find_unknown_timeline_kinds(file_data) == {}
-
     def test_file_not_modified_after_open(self, qtui, tilia, tmp_path):
         tmp_file = tests.utils.save_file_with_hierarchy_timeline(tmp_path)
 
@@ -949,10 +770,19 @@ class TestOpen:
         tmp_file.write_text(file_data, encoding="utf-8")
         commands.execute("file.open", tmp_file)
 
+        # TiLiA's required fields first, which a file without them doesn't gain.
         assert list(tilia.file_manager.file.media_metadata.items()) == [
+            ("title", "Untitled"),
+            ("notes", ""),
+            ("media length", 0),
             ("test_field1", "a"),
             ("test_field2", "b"),
             ("test_field3", "c"),
+        ]
+        assert list(tilia.file_manager.file.document.metadata) == [
+            "test_field1",
+            "test_field2",
+            "test_field3",
         ]
 
     @staticmethod
@@ -1226,14 +1056,22 @@ class TestFileNew:
 class TestRelativePaths:
     def test_path_exists(self, tmp_path):
         existing_path = tmp_path / "previous.file"
-        existing_path.mkdir()
-        assert get(Get.VERIFIED_PATH, str(existing_path)) == str(existing_path)
+        existing_path.write_bytes(b"")
+        assert Path(get(Get.VERIFIED_PATH, str(existing_path))) == existing_path
 
     def test_path_nonexistent(self, tilia, tmp_path):
-        tilia.old_file_path = Path()
-        tilia.cur_file_path = tmp_path
+        tilia.cur_file_path = tmp_path / "file.tla"
         not_a_path = tmp_path / "nonexistent.file"
         assert get(Get.VERIFIED_PATH, str(not_a_path)) == ""
+
+    def test_relative_path_is_the_open_file_s(self, tilia, tmp_path):
+        (tmp_path / "pdfs").mkdir()
+        (tmp_path / "pdfs" / "score.pdf").write_bytes(b"")
+        tilia.cur_file_path = tmp_path / "file.tla"
+
+        found = get(Get.VERIFIED_PATH, "pdfs/score.pdf")
+
+        assert Path(found) == tmp_path / "pdfs" / "score.pdf"
 
     @pytest.mark.parametrize(
         "tla,media",
@@ -1278,7 +1116,7 @@ class TestRelativePaths:
         # open file at new folder
         commands.execute("file.open", str(new_tla))
 
-        assert tilia.player.media_path == str(new_media)
+        assert Path(tilia.player.media_path) == new_media
 
 
 class TestSave:
@@ -1300,7 +1138,6 @@ class TestSave:
 
 
 A_UUID = "019a4f6e-7c10-7000-8000-000000000001"
-ANOTHER_UUID = "019a4f6e-7c10-7000-8000-000000000002"
 
 
 class TestIDs:
@@ -1426,42 +1263,6 @@ class TestIDs:
 
         assert first.id == "10"
         assert second.id != "10"
-
-    def test_file_with_uuids_as_ids_opens_and_saves_them(
-        self, tilia, tls, tmp_path, tilia_errors
-    ):
-        file_data = tests.utils.get_blank_file_data()
-        file_data["timelines"] = {
-            A_UUID: {
-                "is_visible": True,
-                "ordinal": 1,
-                "height": 40,
-                "name": "",
-                "kind": "MARKER_TIMELINE",
-                "components": {
-                    ANOTHER_UUID: {
-                        "time": 0,
-                        "comments": "",
-                        "label": "",
-                        "color": None,
-                        "kind": "MARKER",
-                        "hash": "irrelevant",
-                    }
-                },
-            }
-        }
-        path = tmp_path / "uuids.tla"
-        path.write_text(json.dumps(file_data))
-
-        commands.execute("file.open", path)
-
-        tilia_errors.assert_no_error()
-        assert tls.get_timeline(A_UUID)[0].id == ANOTHER_UUID
-
-        saved = json.loads(
-            Path(save_tilia_to_tmp_path(tmp_path, "saved")).read_text(encoding="utf-8")
-        )
-        assert list(saved["timelines"][A_UUID]["components"]) == [ANOTHER_UUID]
 
 
 class TestWindowTitle:

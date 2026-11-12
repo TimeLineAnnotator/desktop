@@ -69,10 +69,6 @@ HIERARCHY_GROUP_FAILED = Error("Group hierarchies", "Grouping failed: {}")
 HIERARCHY_MERGE_FAILED = Error("Merge hierarchies", "Merge failed: {}")
 HIERARCHY_SPLIT_FAILED = Error("Split hierarchy", "Split failed: {}")
 COMPONENTS_COPY_ERROR = Error("Copy components error", "{}")
-COMPONENTS_LOAD_ERROR = Error(
-    "Load components error",
-    "Some components were not loaded. The following errors occurred:\n{}",
-)
 COMPONENTS_PASTE_ERROR = Error("Paste components error", "{}")
 FILE_NOT_FOUND = Error(
     "File not found", "No such file or directory. '{}' could not be opened."
@@ -98,6 +94,21 @@ CLI_ADD_TIMELINE_ARG_NOT_APPLICABLE = Error(
 OPEN_FILE_NOT_FOUND = Error("File not found", "File '{}' not found.")
 OPEN_FILE_INVALID_TLA = Error(
     "Invalid file type", "File '{}' is not a valid .tla file. {}"
+)
+OPEN_FILE_NEWER_FORMAT = Error(
+    "Open file",
+    "'{}' was written by a newer version of TiLiA (format {})."
+    " Update TiLiA to open it.",
+)
+OPEN_FILE_DRAFT_FORMAT = Error(
+    "Open file",
+    "'{}' is in a draft of TiLiA's file format ({}), which this version can't"
+    " open. Convert it again from its sources.",
+)
+OPEN_FILE_IN_QUARTERS = Error(
+    "Open file",
+    "'{}' measures its times in quarter notes, which this version of TiLiA"
+    " can't show yet.",
 )
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. \n{}")
 UNDO_FAILED = Error(

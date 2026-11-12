@@ -2,10 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import tilia.constants
-import tilia.errors
-from tilia.requests import Get, get
-
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
     from tilia.timelines.base.timeline import Timeline
@@ -60,23 +56,16 @@ def serialize_component(component: Serializable) -> dict[str]:
 def deserialize_components(
     timeline: Timeline, serialized_components: dict[str, dict[str]]
 ):
-    """Creates the given serialized components in 'timeline'."""
-
-    errors = []
-
+    """Creates the given serialized components in 'timeline', as they are: none is
+    checked, so that a component that breaks a rule is kept, as the reader keeps it,
+    and its time is the one stored, even past the media's end."""
     for id, serialized_component in serialized_components.items():
-        component, error = _deserialize_component(timeline, id, serialized_component)
-        if not component:
-            errors.append(f"id={id} | {error}")
-
-    if errors:
-        errors_str = "\n".join(errors)
-        tilia.errors.display(tilia.errors.COMPONENTS_LOAD_ERROR, errors_str)
+        _deserialize_component(timeline, id, serialized_component)
 
 
 def _deserialize_component(
     timeline: Timeline, id: str, serialized_component: dict[str]
-) -> tuple[TimelineComponent, str]:
+) -> TimelineComponent:
     """Creates the serialized TimelineComponent in the given timeline."""
 
     component_kind = ComponentKind[serialized_component["kind"]]
@@ -86,41 +75,12 @@ def _deserialize_component(
     constructor_kwargs = _get_component_constructor_kwargs(
         serialized_component, component_class
     )
-    _clamp_jitter_overflow(constructor_kwargs)
 
-    # create component
-    component, fail_reason = timeline.create_component(
-        component_kind, **constructor_kwargs, id=id
+    component, _ = timeline.create_component(
+        component_kind, **constructor_kwargs, id=id, checked=False
     )
 
-    return component, fail_reason
-
-
-TIME_ATTRS = ("time", "start", "pre_start", "end", "post_end")
-
-
-def _clamp_jitter_overflow(kwargs: dict) -> None:
-    """
-    Clamps times that exceed the media duration by less than
-    DURATION_JITTER_TOLERANCE to the media duration.
-
-    When a file is opened, the player may report a duration slightly
-    shorter than the stored one (YouTube does so asynchronously). The
-    timelines are deliberately left untouched in that case (#453), so a
-    file saved afterwards can have components ending a fraction of a
-    second past its media length. Without clamping, they would fail
-    validation and be dropped on the next load.
-    """
-    media_duration = get(Get.MEDIA_DURATION)
-    for attr in TIME_ATTRS:
-        value = kwargs.get(attr)
-        if (
-            isinstance(value, (int, float))
-            and media_duration
-            < value
-            < media_duration + tilia.constants.DURATION_JITTER_TOLERANCE
-        ):
-            kwargs[attr] = media_duration
+    return component
 
 
 def _get_component_constructor_kwargs(

@@ -29,7 +29,15 @@ class PdfTLComponentManager(TimelineComponentManager):
 
 
 class PdfTimeline(Timeline):
-    SERIALIZABLE = ["height", "is_visible", "name", "ordinal", "path"]
+    SERIALIZABLE = [
+        "height",
+        "is_visible",
+        "name",
+        "ordinal",
+        "path",
+        "measure_table",
+        "fields",
+    ]
     COMPONENT_MANAGER_CLASS = PdfTLComponentManager
     FLAGS = [TimelineFlag.COMPONENTS_COPYABLE, TimelineFlag.COMPONENTS_IMPORTABLE]
 

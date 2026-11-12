@@ -12,11 +12,18 @@ from tilia.timelines.base.timeline import (
     TimelineFlag,
 )
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hash_timelines import hash_function
 
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: AudioWaveTimeline):
         super().__init__(timeline, [ComponentKind.AUDIOWAVE])
+
+    def hash_components(self):
+        # The amplitude bars are computed whenever the media loads, which can be
+        # after a file has opened, and the file doesn't store them: they are never
+        # a change to it.
+        return hash_function("")
 
 
 class AudioWaveTimeline(Timeline):

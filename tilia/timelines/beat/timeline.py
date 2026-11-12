@@ -19,6 +19,7 @@ from tilia.timelines.base.timeline import (
     TimelineComponentManager,
     TimelineFlag,
 )
+from tilia.timelines.base.validators import validate_pre_validated
 from tilia.timelines.beat.components import Beat
 from tilia.timelines.beat.validators import validate_integer_list
 from tilia.timelines.component_kinds import ComponentKind
@@ -218,6 +219,10 @@ class BeatTimeline(Timeline):
         "is_visible",
         "name",
         "ordinal",
+        "measure_table",
+        "fields",
+        # Where its measures came from, as the file has it.
+        "measure_source",
     ]
 
     COMPONENT_MANAGER_CLASS = BeatTLComponentManager
@@ -231,6 +236,7 @@ class BeatTimeline(Timeline):
         beats_in_measure: list[int] | None = None,
         measure_numbers: list[int] | None = None,
         measures_to_force_display: list[int] | None = None,
+        measure_source: str | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -244,12 +250,14 @@ class BeatTimeline(Timeline):
             "beats_in_measure": validate_integer_list,
             "measure_numbers": validate_integer_list,
             "measures_to_force_display": validate_integer_list,
+            "measure_source": validate_pre_validated,
         }
 
         self.beat_pattern = beat_pattern or [4]
         self._beats_in_measure = beats_in_measure or []
         self.measure_numbers = measure_numbers or []
         self.measures_to_force_display = measures_to_force_display or []
+        self.measure_source = measure_source
 
     @property
     def default_height(self):
