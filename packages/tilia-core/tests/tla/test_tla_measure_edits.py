@@ -602,6 +602,35 @@ def test_a_unit_dropped_anyway_isnt_refused(tmp_path, deleted, left):
     written_twice(doc, tmp_path / "f.tla")
 
 
+@pytest.mark.parametrize(
+    "deleted, onto, first",
+    [(3, 2, UNREADABLE), (2, 3, EIGHTHS)],
+    ids=["an ordinary beat's unit", "a downbeat's unit"],
+)
+def test_a_measures_first_unit_moving_onto_one_tilia_cant_read_is_refused(
+    deleted, onto, first
+):
+    # The deleted unit governs its measure; a later beat states a second one.
+    # The rules, with the unit TiLiA can't read treated as absent, would move
+    # it onto that beat (keeping the next bar in 6/8), so the deletion is
+    # refused, though another beat of the measure states a unit it can read.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=first)),
+        (B[3], beat(3.0, beat_unit=EIGHTHS if deleted == 3 else UNREADABLE)),
+        (B[4], beat(4.0, beat_unit=HALVES)),
+        (B[5], beat(5.0, measure={})),
+        (B[6], beat(6.0)),
+    ]
+    doc = document(beats)
+    before = copy.deepcopy(components(doc))
+    with pytest.raises(tla.CantMoveBeatUnit) as error:
+        tla.delete_beat(doc, BEATS, B[deleted])
+    assert (error.value.beat_id, error.value.unit_beat_id) == (B[deleted], B[onto])
+    assert components(doc) == before
+
+
 def test_a_unit_tilia_cant_read_moving_onto_one_isnt_refused():
     beats = [
         (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
