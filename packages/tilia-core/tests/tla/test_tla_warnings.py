@@ -633,6 +633,41 @@ def test_one_beat_timeline_claiming_time_map_has_no_warning():
     assert tla.loads(file_with(change)).warnings == []
 
 
+@pytest.mark.parametrize(
+    "role, claims",
+    [
+        ("time_map", True),
+        (["time_map"], True),
+        (["analysis", "time_map"], True),
+        ("analysis", False),
+        (["analysis"], False),
+        ("Time_Map", False),
+        ("", False),
+        ([], False),
+    ],
+    ids=str,
+)
+def test_the_check_and_the_time_map_agree_on_the_roles_that_claim_time_map(
+    role, claims
+):
+    # One rule, which both read (TimeLineAnnotator/project-management#376).
+    from tilia_core.timemap import find_time_map
+
+    def change(content):
+        with_role(content, "beats", "time_map")
+        second_beat_timeline(content, role=role)
+
+    doc = tla.loads(file_with(change))
+    bars = IDS["nothing"]
+    warned = f"/timelines/{bars}/metadata/role" in [w.place for w in doc.warnings]
+    several = (
+        f"timelines {BEATS} and {bars} claim the role time_map;"
+        f" {BEATS}, the first by ordinal, is used"
+    )
+    assert warned is claims
+    assert (several in find_time_map(doc).warnings) is claims
+
+
 # The document's ids of what a warning concerns
 # (TimeLineAnnotator/project-management#415)
 

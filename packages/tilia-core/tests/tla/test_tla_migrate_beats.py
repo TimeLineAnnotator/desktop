@@ -403,6 +403,18 @@ def test_a_beat_at_the_time_of_an_earlier_one_is_dropped_with_a_warning():
     assert "same time" in doc.warnings[0].message
 
 
+def test_a_beat_at_true_isnt_at_the_time_1():
+    # Python counts true as 1; the migration doesn't count it as a number
+    # (`to_1._is_number`), so the beat isn't dropped as one at the time of the
+    # beat at 1.0, and the check refuses its time
+    # (TimeLineAnnotator/project-management#376).
+    _, timeline = beat_timeline([0.0, 1.0, 2.0, 3.0])
+    timeline["components"]["12"]["time"] = True
+    with pytest.raises(tla.UnreadableFile) as error:
+        read(old_file((BEAT_TIMELINE, timeline)))
+    assert error.value.place == "/timelines/9/components/12/time"
+
+
 def test_a_beat_without_a_time_is_dropped_with_a_warning():
     # TiLiA can't make a beat without a time, so it skips it when it opens the
     # file, and so does the migration.
