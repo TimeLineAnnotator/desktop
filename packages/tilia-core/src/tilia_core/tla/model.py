@@ -11,10 +11,10 @@ import copy
 import enum
 import math
 import threading
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, TypeVar
 
 Metadata = dict[str, str | list[str]]
 
@@ -405,10 +405,10 @@ def measures_of(beats: Mapping[str, Mapping[str, Any]], source: str) -> list[Mea
     names that starts no row, one without a time, is left out of it, and
     kept in the file. Its `beat_units` are those set on its beats that
     desktop#621 can read, and `beat_unit` is the unit in force, as WP9's
-    meters take it: the first set in the measure, else the one carried from
-    the measures before; a movement whose first measure has none takes,
-    assumed, the first set in the movement, else the one in force before it,
-    else 4 / "1".
+    meters take it (`units_in_force`): the first set in the measure, else the
+    one carried from the measures before; a movement whose first measure has
+    none takes, assumed, the first set in the movement, else the one in force
+    before it, else 4 / "1".
     """
     from tilia_core.timemap import units  # here: the time map imports this package
 
@@ -462,20 +462,66 @@ def _measure(
 
 
 def _set_units_in_force(rows: list[Measure], default: BeatUnit) -> None:
-    governing: BeatUnit | None = None
+    for movement in units_in_force(rows, _beat_units, default, _assumed):
+        for row, unit in movement:
+            row.beat_unit = replace(unit)
+
+
+def _beat_units(row: Measure) -> list[BeatUnit]:
+    return row.beat_units
+
+
+def _assumed(unit: BeatUnit) -> BeatUnit:
+    return replace(unit, assumed=True)
+
+
+class _Restarts(Protocol):
+    """A measure, as `units_in_force` reads it: whether it is marked `restart`."""
+
+    @property
+    def restart(self) -> bool:
+        ...
+
+
+_Row = TypeVar("_Row", bound=_Restarts)
+_Unit = TypeVar("_Unit")
+
+
+def units_in_force(
+    rows: Iterable[_Row],
+    units_of: Callable[[_Row], Sequence[_Unit]],
+    default: _Unit,
+    assumed: Callable[[_Unit], _Unit],
+) -> Iterator[list[tuple[_Row, _Unit]]]:
+    """Each measure with the beat unit in force in it, by movement, as WP3's
+    table and WP9's meters both take it: desktop#621's
+    `BeatTimeline._compute_measure_meters`, with movements. `units_of` gives
+    the units set on a measure's beats that desktop#621 can read, in beat
+    order.
+
+    The first unit set in a measure governs it and is carried forward. A
+    movement starts at the first measure and at each restart, and always
+    starts with a unit: where its first measure has none, it takes the first
+    set in the movement, else the one in force before it, as `assumed` makes
+    it; else `default`. No unit reaches back across a restart.
+    """
+    governing: _Unit | None = None
     for movement in _movements(rows):
-        first = next((unit for row in movement for unit in row.beat_units), None)
-        carried = first or governing
-        governing = default if carried is None else replace(carried, assumed=True)
+        first = next((unit for row in movement for unit in units_of(row)), None)
+        carried = first if first is not None else governing
+        governing = default if carried is None else assumed(carried)
+        in_force: list[tuple[_Row, _Unit]] = []
         for row in movement:
-            if row.beat_units:
-                governing = row.beat_units[0]
-            row.beat_unit = replace(governing)
+            units = units_of(row)
+            if units:
+                governing = units[0]
+            in_force.append((row, governing))
+        yield in_force
 
 
-def _movements(rows: list[Measure]) -> Iterator[list[Measure]]:
+def _movements(rows: Iterable[_Row]) -> Iterator[list[_Row]]:
     """The rows by movement: one starts at the first row and at each restart."""
-    movement: list[Measure] = []
+    movement: list[_Row] = []
     for row in rows:
         if row.restart and movement:
             yield movement
@@ -509,6 +555,19 @@ def readable_beat_unit(value: Any) -> BeatUnit | None:
         units=value["units"],
         assumed=bool(value.get("assumed")),
     )
+
+
+TIME_MAP_ROLE = "time_map"
+
+
+def claims_time_map(role: object) -> bool:
+    """Whether a timeline whose role is `role` claims the role time_map: its
+    role is that, or a list that holds it. The check's warning about a
+    second beat timeline that claims it, and the time map's choice, read it
+    so."""
+    if isinstance(role, (list, tuple)):
+        return TIME_MAP_ROLE in role
+    return role == TIME_MAP_ROLE
 
 
 def score_lines(text: str) -> list[str]:

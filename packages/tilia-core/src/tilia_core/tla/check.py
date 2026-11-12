@@ -58,6 +58,7 @@ from tilia_core.tla.model import (
     UnknownKind,
     beat_order,
     beat_unit_problems,
+    claims_time_map,
     component_kind_from_file,
     measure_beats,
     measure_numbers,
@@ -736,7 +737,7 @@ class _Checker:
             (
                 (value["ordinal"], timeline_id, place, value)
                 for place, timeline_id, kind, value in self.timelines
-                if kind == "beat" and _claims_time_map(value)
+                if kind == "beat" and claims_time_map(_role(value))
             ),
             key=itemgetter(0, 1),
         )
@@ -773,13 +774,10 @@ def _which(timeline: Mapping[str, Any]) -> str:
     return f"the timeline {_quoted(name)}" if name else "a timeline without a name"
 
 
-def _claims_time_map(timeline: Mapping[str, Any]) -> bool:
-    """Whether a timeline's role is time_map, or a list that holds it."""
+def _role(timeline: Mapping[str, Any]) -> Any:
+    """A timeline's role, as the file gives it; None without one."""
     metadata = timeline.get("metadata")
-    role = metadata.get("role") if isinstance(metadata, dict) else None
-    if isinstance(role, list):
-        return "time_map" in role
-    return role == "time_map"
+    return metadata.get("role") if isinstance(metadata, dict) else None
 
 
 Entry: TypeAlias = "Callable[[_Checker, Any, Place, str | None], None]"
