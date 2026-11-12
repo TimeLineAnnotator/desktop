@@ -5,7 +5,8 @@ the file's folder, starting from where TiLiA would find the media now: the
 stored absolute path if it exists on this computer, else its place relative
 to the old `file_path`. `tla.media` resolves a document's media. The writer
 stores paths relative to the folder it writes into, wherever a relative path
-exists, so that the media is still found.
+exists, so that the media is still found; an absolute path the document was
+read with stays absolute.
 
 Whether the stored absolute path exists decides the migration's result, as
 intended (FR-023): the tests create the media they need in a temporary
@@ -728,6 +729,109 @@ def test_tilia_migrate_leaves_alone_a_file_changed_after_it_read_it(
 
     assert [f.outcome for f in report.files] == [tla.Outcome.CHANGED_SINCE_READ]
     assert piece.read_bytes() == edited
+
+
+# A path that reading keeps absolute is written absolute (FR-003;
+# TimeLineAnnotator/project-management#530): it can't be related to where the old
+# file was saved, and a path relative to wherever the file is now would work only
+# from there, and differ from what reading gives.
+
+
+def nowhere_here(tmp_path):
+    """An absolute path on the drive of the tests' folder that names no file: a
+    relative path to it exists from any folder the tests write into."""
+    return Path(tmp_path.anchor) / "someone-543" / "audio" / "piece.mp3"
+
+
+def another_drive(tmp_path):
+    """A drive on Windows other than the one of the tests' folder."""
+    return "Y:" if tmp_path.drive.upper() == "Z:" else "Z:"
+
+
+@pytest.fixture(
+    params=[
+        "another system's",
+        pytest.param("another drive's", marks=windows_only),
+        "this drive's",
+    ]
+)
+def saved(request, tmp_path):
+    """An old file's absolute media or PDF path that names no file here, as
+    stored, the old `file_path`, what reading gives for a file in
+    `tmp_path/corpus`, and what a copy in `tmp_path/elsewhere/deeper` stores.
+    Saved with another system's `file_path`, or on Windows on another drive
+    than the path's, it can't be related to it, and reading keeps it absolute;
+    saved on its drive, it is made relative from where it was saved."""
+    stored = nowhere_here(tmp_path)
+    if request.param == "this drive's":
+        file_path = (stored.parent.parent / "corpus" / "piece.tla").as_posix()
+        return str(stored), file_path, "../audio/piece.mp3", "../../audio/piece.mp3"
+    if request.param == "another drive's":
+        file_path = f"{another_drive(tmp_path)}/corpus-543/piece.tla"
+    else:
+        file_path = OTHER_SYSTEM_SAVED
+    return str(stored), file_path, stored.as_posix(), stored.as_posix()
+
+
+def written_in(path, where):
+    """The media's path (`where` "media") or the PDF timeline's, as the file at
+    `path` stores it."""
+    content = json.loads(Path(path).read_bytes())
+    if where == "media":
+        return content["media"]["path"]
+    (pdf,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Pdf"]
+    return pdf["path"]
+
+
+def test_a_write_stores_the_path_reading_gives(tmp_path, where, saved):
+    stored, file_path, expected, _ = saved
+    piece = old_file(tmp_path / "corpus", where, stored, file_path)
+    doc = tla.read(piece)
+    assert stored_in(doc, where) == expected
+
+    tla.write(piece, doc, expect=doc.fingerprint)
+
+    assert written_in(piece, where) == expected
+    # Written again, by the document that followed the file or by one read from
+    # it, the file keeps its bytes.
+    data = piece.read_bytes()
+    tla.write(piece, doc, expect=tla.fingerprint(piece))
+    assert piece.read_bytes() == data
+    tla.write(piece, tla.read(piece), expect=tla.fingerprint(piece))
+    assert piece.read_bytes() == data
+
+
+def test_a_save_as_keeps_a_path_that_reading_keeps_absolute(tmp_path, where, saved):
+    # Any write keeps it: a path relative to the new folder would name the
+    # media no better than one relative to the old. One that reading made
+    # relative is made relative from the new folder, so that it still names
+    # the same place.
+    stored, file_path, expected, elsewhere = saved
+    piece = old_file(tmp_path / "corpus", where, stored, file_path)
+    target = tmp_path / "elsewhere" / "deeper" / "piece.tla"
+    target.parent.mkdir(parents=True)
+
+    tla.write(target, tla.read(piece))
+
+    assert written_in(target, where) == elsewhere
+    # And back, from the copy.
+    tla.write(piece, tla.read(target))
+    assert written_in(piece, where) == expected
+
+
+def test_tilia_migrate_writes_the_path_reading_gives(tmp_path, capsys, where, saved):
+    stored, file_path, expected, _ = saved
+    piece = old_file(tmp_path / "corpus", where, stored, file_path)
+
+    status = migrate_command.main([str(piece.parent), "--apply"])
+
+    out = capsys.readouterr().out
+    assert status == 0, out
+    assert "Wrote 1 file." in out
+    assert written_in(piece, where) == expected
+    data = piece.read_bytes()
+    tla.write(piece, tla.read(piece), expect=tla.fingerprint(piece))
+    assert piece.read_bytes() == data
 
 
 # The rest of the file
@@ -1503,6 +1607,63 @@ def test_an_absolute_path_without_a_relative_one_is_written_with_slashes(corpus)
     set_pdf_path(doc, "Z:\\scores-176\\piece.pdf")
     tla.write(corpus, doc)
     assert written(corpus) == ("Z:/audio-176/piece.wav", "Z:/scores-176/piece.pdf")
+
+
+def store_paths(piece, media, pdf):
+    """Store `media` and `pdf` in the file at `piece`, of the current format, in
+    the layout the writer gives it, as a hand edit or an older core would."""
+    content = json.loads(piece.read_bytes())
+    content["media"]["path"] = media
+    (timeline,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Pdf"]
+    timeline["path"] = pdf
+    text = json.dumps(content, indent=2, ensure_ascii=False) + "\n"
+    piece.write_bytes(text.encode("utf-8"))
+
+
+def test_a_files_absolute_paths_are_kept_where_relative_ones_exist(corpus, tmp_path):
+    # Reading keeps them absolute, so writing does
+    # (TimeLineAnnotator/project-management#530): opening and saving changes
+    # nothing, and a Save As keeps them too.
+    media = (tmp_path / "audio" / f"{NAME}.flac").as_posix()
+    pdf = (tmp_path / "scores" / f"{NAME}.pdf").as_posix()
+    store_paths(corpus, media, pdf)
+    data = corpus.read_bytes()
+
+    tla.write(corpus, tla.read(corpus), expect=tla.fingerprint(corpus))
+
+    assert corpus.read_bytes() == data
+    target = tmp_path / "elsewhere" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, tla.read(corpus))
+    assert written(target) == (media, pdf)
+
+
+def test_an_absolute_path_set_since_reading_is_made_relative(corpus, tmp_path):
+    # Only the paths the document was read with are kept: one a script sets, as
+    # `build` and `load-media` give one, absolute, is written relative.
+    pdf = (tmp_path / "scores" / f"{NAME}.pdf").as_posix()
+    store_paths(corpus, (tmp_path / "audio" / f"{NAME}.flac").as_posix(), pdf)
+    doc = tla.read(corpus)
+    doc.media_path = media_file(tmp_path / "audio" / "other.flac").as_posix()
+
+    tla.write(corpus, doc)
+
+    assert written(corpus) == ("../audio/other.flac", pdf)
+
+
+@windows_only
+def test_a_path_written_absolute_is_then_kept_as_one_read(corpus, tmp_path):
+    # The document follows the file: it keeps the path a later write would keep
+    # in a document read from that file, though a relative path to it exists
+    # from a folder on its drive.
+    drive = another_drive(tmp_path)
+    doc = tla.read(corpus)
+    doc.media_path = f"{drive}/audio-543/piece.wav"
+    tla.write(corpus, doc)  # no relative path to it from here
+
+    for held in (doc, tla.read(corpus)):
+        rebased = writer.rebase_paths(held, f"{drive}\\elsewhere-543")
+        assert rebased.media_path == f"{drive}/audio-543/piece.wav"
 
 
 @pytest.mark.parametrize(
