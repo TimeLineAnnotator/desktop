@@ -857,10 +857,11 @@ def test_the_first_beats_assumed_default_moves_and_stays_assumed():
     assert units(read_back(doc)) == units(doc)
 
 
-@pytest.mark.parametrize("unit", [EIGHTHS, DEFAULT], ids=["stated", "assumed"])
-def test_a_dropped_unit_leaves_no_default_and_the_bars_read_it_assumed(unit):
+def test_a_dropped_unit_leaves_no_default_and_the_bars_read_it_assumed():
+    # The next movement read the default, assumed, before and after: nothing
+    # carried the unit, and no default takes its place.
     beats = [
-        (B[0], beat(0.0, measure={}, beat_unit=unit)),
+        (B[0], beat(0.0, measure={}, beat_unit=DEFAULT)),
         (B[1], beat(1.0, closing=True)),
         (B[2], beat(2.0, measure={"restart": True})),
         (B[3], beat(3.0)),
@@ -870,6 +871,83 @@ def test_a_dropped_unit_leaves_no_default_and_the_bars_read_it_assumed(unit):
     assert units(doc) == {}
     assert readings(doc) == {B[2]: ("2/4", True)}
     assert readings(read_back(doc)) == readings(doc)
+
+
+# delete_beat: a unit later measures carried, when its mark goes
+
+
+def test_a_unit_the_next_movement_carried_moves_on_when_its_mark_goes(tmp_path):
+    # Movement 1's last bar is one beat in 3/8, then its closing tap;
+    # movement 2 states no unit, and reads 6/8 (TimeLineAnnotator/
+    # project-management#547, point 4).
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0, measure={"restart": True})),
+        (B[5], beat(5.0)),
+        (B[6], beat(6.0, measure={})),
+        (B[7], beat(7.0)),
+    ]
+    doc = document(beats)
+    assert readings(doc)[B[4]] == ("6/8", True)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: QUARTERS, B[4]: EIGHTHS}
+    assert {bar: reading[0] for bar, reading in readings(doc).items()} == {
+        B[0]: "2/4",
+        B[4]: "6/8",
+        B[6]: "6/8",
+    }
+    written_twice(doc, tmp_path / "f.tla")
+
+
+def test_a_unit_nothing_later_carried_goes_with_its_mark():
+    # Movement 2 states its own unit: dropping the 3/8 changes no bar.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0, measure={"restart": True}, beat_unit=HALVES)),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: QUARTERS, B[4]: HALVES}
+
+
+def test_a_carried_unit_goes_where_moving_it_would_still_change_a_bar():
+    # Movement 1's first bars state no unit and read the 3/8, assumed:
+    # moving it to movement 2 can't keep them, so the rules hold, and it goes.
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0, measure={"restart": True})),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {}
+
+
+def test_a_carried_unit_that_would_move_onto_one_tilia_cant_read_is_refused():
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0, measure={"restart": True}, beat_unit=UNREADABLE)),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    before = copy.deepcopy(components(doc))
+    with pytest.raises(tla.CantMoveBeatUnit) as error:
+        tla.delete_beat(doc, BEATS, B[2])
+    assert (error.value.beat_id, error.value.unit_beat_id) == (B[2], B[4])
+    assert components(doc) == before
 
 
 def test_a_moved_unit_is_dropped_when_the_measure_it_moves_into_states_one():
@@ -958,6 +1036,68 @@ def test_dropping_the_beat_without_a_time_that_held_the_only_mark(tmp_path):
     again = written_twice(doc, tmp_path / "f.tla")
     assert set(components(again)) == {B[0], B[1]}
     assert written(again) == {}
+
+
+# delete_beat: three named limits (TimeLineAnnotator/project-management#547,
+# point 3). Each needs two closing taps where one is meant, and changes how a
+# closing tap is read (WP9's Q16), so a measure nobody touched reads
+# differently. The time map's warnings already flag such taps.
+
+
+def test_limit_a_closing_tap_that_closes_gives_way_to_another_in_its_measure():
+    # The tap at 2.0 is read as a beat; once the one that closes the measure
+    # is deleted, it closes it: the measure loses a beat, unmarked.
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, closing=True)),
+        (B[3], beat(3.0, closing=True)),
+    ]
+    doc = document(beats, measure_source="import")
+    assert readings(doc) == {B[0]: ("3/4", True)}
+    tla.delete_beat(doc, BEATS, B[3])
+    assert readings(doc) == {B[0]: ("2/4", True)}
+    assert sources(doc) == {B[0]: None}
+
+
+def test_limit_a_mark_going_at_a_tap_read_as_a_beat_joins_the_measure_before():
+    # The mark goes at the tap, as at any closing tap, so every beat up to the
+    # next mark joins the measure before, with its units: the 3/8 on the beat
+    # at 4.0 is now that measure's second unit, and the next measure, which
+    # read it, reads the 2/4 instead.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={})),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0, beat_unit=EIGHTHS)),
+        (B[5], beat(5.0, measure={})),
+        (B[6], beat(6.0)),
+    ]
+    doc = document(beats)
+    assert readings(doc)[B[5]] == ("6/8", False)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert doc.timelines[BEATS].measures.rows[0].beats == [B[0], B[1], B[4]]
+    assert units(doc) == {B[0]: QUARTERS, B[4]: EIGHTHS}
+    assert readings(doc)[B[5]] == ("2/4", False)
+
+
+def test_limit_a_tap_read_as_a_beat_then_closing_its_measure_stops_its_unit():
+    # The tap at 2.0 is read as a beat while a beat follows it in its measure;
+    # once that beat is deleted, it closes the measure, and its unit, which
+    # the next movement read, starts nothing.
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, closing=True, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0)),
+        (B[4], beat(4.0, measure={"restart": True})),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    assert readings(doc)[B[4]] == ("6/8", True)
+    tla.delete_beat(doc, BEATS, B[3])
+    assert readings(doc)[B[4]] == ("2/4", True)
 
 
 # delete_beat: a beat without a time that leaves the first beat unmarked
@@ -1290,6 +1430,23 @@ def test_a_restart_number_below_0_read_from_an_earlier_bar_stays_old(tmp_path):
     tla.delete_beat(doc, BEATS, B[3])
     again = written_twice(doc, tmp_path / "f.tla")
     assert written(again)[B[4]] == {"number": -1, "restart": True}
+
+
+def test_a_problem_of_the_downbeat_a_carried_unit_moves_to_stays_old(tmp_path):
+    # Movement 2 starts past the media's end, a problem the file came with:
+    # the 3/8 its bars carried moves onto its downbeat.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0, closing=True)),
+        (B[4], beat(4.0, measure={"restart": True})),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats, length=3.5)
+    tla.delete_beat(doc, BEATS, B[2], by_person=False)
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert units(again) == {B[0]: QUARTERS, B[4]: EIGHTHS}
 
 
 def test_a_problem_of_the_first_beat_given_a_mark_stays_old(tmp_path):

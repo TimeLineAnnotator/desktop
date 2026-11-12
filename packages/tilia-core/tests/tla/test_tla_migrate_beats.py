@@ -1069,22 +1069,49 @@ def test_what_a_beat_breaks_is_refused_at_its_old_place_and_line(
     assert error.value.line == line_of(data, b'"11": {', text)
 
 
-def test_an_old_first_beat_marked_closing_leaves_the_timeline_no_measure():
+CLOSING_MARK = (
+    "/timelines/9/components/10",
+    'a closing tap in the timeline "Beats" has a measure mark, which starts no'
+    " measure",
+)
+
+
+def mark_dropped(beat_id):
+    return (
+        f"/timelines/9/components/{beat_id}",
+        'a measure mark dropped, as the first beat of the beat timeline "Beats" is a'
+        " closing tap, so the timeline has no measures",
+    )
+
+
+@pytest.mark.parametrize(
+    "count, dropped",
+    [(3, []), (8, ["14"]), (13, ["14", "18", "22"])],
+    ids=["one measure", "two", "four"],
+)
+def test_an_old_first_beat_marked_closing_leaves_the_timeline_no_measure(
+    count, dropped
+):
     # Only a hand edit gives an old file a closing tap: the mark the migration
-    # puts on its first beat starts no measure, so the timeline has no mark that
-    # starts one, and is read with none, with the warning at the tap's old place
-    # (TimeLineAnnotator/project-management#375 and #528).
-    _, timeline = beat_timeline([0.0, 1.0, 2.0])
+    # puts on its first beat starts no measure, so the timeline has none,
+    # however many it had. The later measures' marks are left out, each with a
+    # warning at its beat's old place, and counted
+    # (TimeLineAnnotator/project-management#375, #544 point 6, #547 point 5).
+    _, timeline = beat_timeline([float(t) for t in range(count)])
     timeline["components"]["10"]["closing"] = True
-    doc = tla.loads(indented(old_file((BEAT_TIMELINE, timeline))))
+    content = old_file((BEAT_TIMELINE, timeline))
+    doc = tla.loads(indented(content))
     assert beat_timeline_of(doc).measures.rows == []
-    assert [(w.place, w.message) for w in doc.warnings] == [
-        (
-            "/timelines/9/components/10",
-            'a closing tap in the timeline "Beats" has a measure mark, which starts'
-            " no measure",
-        )
-    ]
+    _, components = written(doc)
+    assert [b.get("measure") for b in components][:1] == [{"number": 1}]
+    assert all("measure" not in b for b in components[1:])
+    assert sorted((w.place, w.message) for w in doc.warnings) == sorted(
+        [CLOSING_MARK, *(mark_dropped(beat_id) for beat_id in dropped)]
+    )
+    expected = {"measure_marks_dropped": len(dropped)} if dropped else {}
+    assert changes_of(content) == expected
+    again = tla.loads(tla.canonical_bytes(doc))
+    assert tla.canonical_bytes(again) == tla.canonical_bytes(doc)
 
 
 # A `measure` key on an old beat, which only a hand edit makes: a key of the

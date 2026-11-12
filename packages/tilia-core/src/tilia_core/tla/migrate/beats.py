@@ -46,11 +46,13 @@ from tilia_core.tla.model import (
 # The report's counts: measures with more than one beat unit, and each of the
 # migration's warnings about a beat timeline, since the report sums those up
 # by their counts rather than list them (contracts/command.md): desktop#621's
-# beat units that TiLiA drops when it opens the file, the beats it drops, and
-# the timelines it can't open.
+# beat units that TiLiA drops when it opens the file, the beats it drops, the
+# measure marks left out where the first beat is a closing tap, and the
+# timelines it can't open.
 TWO_BEAT_UNITS = "measures_with_two_beat_units"
 UNITS_DROPPED = "beat_units_dropped"
 BEATS_DROPPED = "beats_dropped"
+MARKS_DROPPED = "measure_marks_dropped"
 CANT_OPEN = "beat_timelines_tilia_cant_open"
 # How far past the end of the media TiLiA keeps a time when it opens a file
 # (its DURATION_JITTER_TOLERANCE), rather than dropping its component. A whole
@@ -362,6 +364,8 @@ class _Converted:
                 CANT_OPEN,
             )
         found = marks(fitted, lists["measures_to_force_display"], len(beats))
+        if beats and beats[0][1].get("closing"):
+            self.closing_first(found, beats)
         for index, mark in found.items():
             beats[index][1]["measure"] = mark
         self.beat_units(components, dict(beats))
@@ -371,6 +375,26 @@ class _Converted:
         two = sum(1 for row in rows if len(row.beat_units) > 1)
         if two:
             self.changes[TWO_BEAT_UNITS] = self.changes.get(TWO_BEAT_UNITS, 0) + two
+
+    def closing_first(
+        self, found: dict[int, dict[str, Any]], beats: list[tuple[str, dict[str, Any]]]
+    ) -> None:
+        """A first beat that is a closing tap, which only a hand edit makes:
+        its mark starts no measure, so the timeline has none, however many it
+        had. The first mark stays on the tap, where the reader warns about it
+        (TimeLineAnnotator/project-management#375); the later measures' marks
+        are left out, each with a warning, and counted
+        (TimeLineAnnotator/project-management#544, point 6, and #547, point 5)."""
+        for index in sorted(found):
+            if index == 0:
+                continue
+            del found[index]
+            self._warn(
+                self._at(beats[index][0]),
+                f"a measure mark dropped, as the first beat of {self.which()} is"
+                " a closing tap, so the timeline has no measures",
+                MARKS_DROPPED,
+            )
 
     def which(self) -> str:
         """The timeline, as a warning names it."""

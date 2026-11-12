@@ -64,6 +64,10 @@ _CHANGES: dict[str, tuple[str, str]] = {
         "dropped 1 beat unit",
         "dropped {} beat units",
     ),
+    "measure_marks_dropped": (
+        "dropped 1 measure mark",
+        "dropped {} measure marks",
+    ),
     "beat_timelines_tilia_cant_open": (
         "1 beat timeline TiLiA can't open",
         "{} beat timelines TiLiA can't open",
