@@ -1076,17 +1076,18 @@ CLOSING_MARK = (
 )
 
 
-def mark_dropped(beat_id):
+def marks_dropped(count):
+    what = "1 measure mark" if count == 1 else f"{count} measure marks"
     return (
-        f"/timelines/9/components/{beat_id}",
-        'a measure mark dropped, as the first beat of the beat timeline "Beats" is a'
+        "/timelines/9/components/10",
+        f'{what} dropped, as the first beat of the beat timeline "Beats" is a'
         " closing tap, so the timeline has no measures",
     )
 
 
 @pytest.mark.parametrize(
     "count, dropped",
-    [(3, []), (8, ["14"]), (13, ["14", "18", "22"])],
+    [(3, 0), (8, 1), (13, 3)],
     ids=["one measure", "two", "four"],
 )
 def test_an_old_first_beat_marked_closing_leaves_the_timeline_no_measure(
@@ -1094,9 +1095,10 @@ def test_an_old_first_beat_marked_closing_leaves_the_timeline_no_measure(
 ):
     # Only a hand edit gives an old file a closing tap: the mark the migration
     # puts on its first beat starts no measure, so the timeline has none,
-    # however many it had. The later measures' marks are left out, each with a
-    # warning at its beat's old place, and counted
-    # (TimeLineAnnotator/project-management#375, #544 point 6, #547 point 5).
+    # however many it had. The later measures' marks are left out, with one
+    # warning for the timeline, at the tap, that counts them
+    # (TimeLineAnnotator/project-management#375, #544 point 6, #547 point 5,
+    # #549 point 3).
     _, timeline = beat_timeline([float(t) for t in range(count)])
     timeline["components"]["10"]["closing"] = True
     content = old_file((BEAT_TIMELINE, timeline))
@@ -1105,10 +1107,11 @@ def test_an_old_first_beat_marked_closing_leaves_the_timeline_no_measure(
     _, components = written(doc)
     assert [b.get("measure") for b in components][:1] == [{"number": 1}]
     assert all("measure" not in b for b in components[1:])
+    expected_warnings = [CLOSING_MARK, *([marks_dropped(dropped)] if dropped else [])]
     assert sorted((w.place, w.message) for w in doc.warnings) == sorted(
-        [CLOSING_MARK, *(mark_dropped(beat_id) for beat_id in dropped)]
+        expected_warnings
     )
-    expected = {"measure_marks_dropped": len(dropped)} if dropped else {}
+    expected = {"measure_marks_dropped": dropped} if dropped else {}
     assert changes_of(content) == expected
     again = tla.loads(tla.canonical_bytes(doc))
     assert tla.canonical_bytes(again) == tla.canonical_bytes(doc)

@@ -383,18 +383,26 @@ class _Converted:
         its mark starts no measure, so the timeline has none, however many it
         had. The first mark stays on the tap, where the reader warns about it
         (TimeLineAnnotator/project-management#375); the later measures' marks
-        are left out, each with a warning, and counted
-        (TimeLineAnnotator/project-management#544, point 6, and #547, point 5)."""
-        for index in sorted(found):
-            if index == 0:
-                continue
+        are left out, with one warning for the timeline, at the tap, that
+        counts them, and counted (TimeLineAnnotator/project-management#544,
+        point 6, #547, point 5, and #549, point 3)."""
+        dropped = [index for index in found if index != 0]
+        if not dropped:
+            return
+        for index in dropped:
             del found[index]
-            self._warn(
-                self._at(beats[index][0]),
-                f"a measure mark dropped, as the first beat of {self.which()} is"
-                " a closing tap, so the timeline has no measures",
-                MARKS_DROPPED,
+        what = (
+            "1 measure mark" if len(dropped) == 1 else f"{len(dropped)} measure marks"
+        )
+        self.warnings.append(
+            ReadWarning(
+                place=self._at(beats[0][0]),
+                line=None,
+                message=f"{what} dropped, as the first beat of {self.which()} is a"
+                " closing tap, so the timeline has no measures",
             )
+        )
+        self.changes[MARKS_DROPPED] = self.changes.get(MARKS_DROPPED, 0) + len(dropped)
 
     def which(self) -> str:
         """The timeline, as a warning names it."""

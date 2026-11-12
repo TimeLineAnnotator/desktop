@@ -46,12 +46,15 @@ class CantDeleteBeat(ValueError):
 
 
 class CantDeleteDownbeat(CantDeleteBeat):
-    """The timeline's first downbeat can't be deleted: closing taps follow
-    it, so its mark would go, and the first beat would have no mark while a
-    later beat's mark starts a measure. A mark on a closing tap starts none,
-    so it doesn't count. Deleting the closing taps first lets the mark move
-    on (TimeLineAnnotator/project-management#528, point 1, and #544, point
-    5). `closing_tap_ids` are those taps, `closing_tap_id` the first."""
+    """A downbeat can't be deleted while closing taps follow it, so its mark
+    would go: the timeline's first downbeat, when the first beat would then
+    have no mark while a later beat's mark starts a measure (a mark on a
+    closing tap starts none, so it doesn't count;
+    TimeLineAnnotator/project-management#528, point 1, and #544, point 5);
+    and the downbeat of a movement's only measure, when its closing tap
+    would close the movement before (#549, point 5). Deleting those closing
+    taps first lets it go. `closing_tap_ids` are those taps,
+    `closing_tap_id` the first."""
 
     def __init__(self, message: str, beat_id: str, closing_tap_ids: list[str]):
         super().__init__(message, beat_id)
@@ -107,7 +110,9 @@ def delete_beat(
     beat that isn't there, and a `CantDeleteBeat`, changing nothing:
     `CantDeleteDownbeat` where the mark would go and leave the timeline's
     first beat without one while a later beat's mark starts a measure (closing
-    taps inside the first measure), and `CantMoveBeatUnit` where the beat's
+    taps inside the first measure), or where a movement's only measure would
+    go and its closing tap close the movement before, and `CantMoveBeatUnit`
+    where the beat's
     unit would move onto a beat holding a unit the reader can't read, rather
     than be dropped.
 
@@ -127,8 +132,8 @@ def delete_beat(
     The beat unit is dropped when the measure it would move into states a
     unit on any of its beats, or when the mark goes. When the mark goes and
     later measures read its unit, it moves to the next downbeat, across the
-    closing tap, where that keeps every other measure's denominator and
-    units. An ordinary beat's unit
+    closing tap, where that keeps every later measure, marked assumed where
+    they read it assumed. An ordinary beat's unit
     moves to its measure's first beat, or is dropped if that beat has one. Of
     moving and dropping, whichever keeps every other measure's reading is
     done; if neither does, these rules hold. No default takes the place of a
@@ -151,6 +156,7 @@ def delete_beat(
     order = beat_order({k: c.attrs for k, c in beats.items()})
     later = order[order.index(beat_id) + 1 :]
     _refuse_an_unmarked_first_beat(timeline, beats, beat_id, order, later)
+    _refuse_closing_the_movement_before(timeline, beats, beat_id, table, later)
     measure_id = (
         None if _is_downbeat(deleted) else _measure_of(timeline, table, beat_id)
     )
@@ -165,7 +171,11 @@ def delete_beat(
         if _is_downbeat(deleted) and target_id is None
         else None
     )
-    watched = [*later[:1], *_first_beat(beats, order), *([carried] if carried else [])]
+    watched = [
+        *later[:1],
+        *_first_beat(beats, order),
+        *(carried[:1] if carried else []),
+    ]
     before = problems.states_of(
         doc, timeline_id, _may_change(timeline, table, beat_id, watched)
     )
@@ -228,6 +238,67 @@ def _refuse_an_unmarked_first_beat(
     )
 
 
+def _refuse_closing_the_movement_before(
+    timeline: Timeline,
+    beats: dict[str, Component],
+    beat_id: str,
+    table: MeasureTable,
+    later: list[str],
+) -> None:
+    """Raise `CantDeleteDownbeat` where deleting the downbeat `beat_id`, whose
+    mark goes at the closing tap after it, would make the closing barline of
+    the movement before read as an ordinary beat (WP9's Q16), and that tap
+    close the movement before instead: the downbeat of a movement's only
+    measure, between two closing taps
+    (TimeLineAnnotator/project-management#549, point 5)."""
+    if not _is_downbeat(beats[beat_id]) or not later:
+        return
+    if not beats[later[0]].attrs.get("closing"):
+        return
+    # Imported here: the time map imports this package.
+    from tilia_core.timemap._rows import closing_taps
+
+    before = {tap.id: tap for tap in closing_taps(timeline)}
+    trial = copy.deepcopy(timeline)
+    del trial.components[beat_id]
+    trial.measures = measure_table(trial)
+    after = {tap.id: tap for tap in closing_taps(trial)}
+    for tap_id, tap in before.items():
+        if not tap.barline or tap_id not in after or after[tap_id].barline:
+            continue
+        closer = next(
+            (t for t in after.values() if t.barline and t.row == tap.row), None
+        )
+        if closer is None:
+            continue
+        movements = _movements(table)
+        which = _which({"name": timeline.name})
+        time = _media_time(beats[beat_id].attrs.get("time"))
+        raise CantDeleteDownbeat(
+            printable(
+                f"the beat at {time} in {which} can't be deleted: movement"
+                f" {movements[beat_id]}'s closing barline would close movement"
+                f" {movements[tap.row]}'s last bar. Delete that closing barline"
+                " first."
+            ),
+            beat_id,
+            [closer.id],
+        )
+
+
+def _movements(table: MeasureTable) -> dict[str, int]:
+    """Each measure's movement, by its downbeat: 1, plus one per restart at
+    or before it, but for one on the first measure, as the time map counts
+    them."""
+    numbers: dict[str, int] = {}
+    number = 1
+    for index, row in enumerate(table.rows):
+        if row.restart and index:
+            number += 1
+        numbers[row.id] = number
+    return numbers
+
+
 def _refuse_an_unreadable_unit(
     timeline: Timeline,
     beats: dict[str, Component],
@@ -287,16 +358,18 @@ def _carried_to(
     beat_id: str,
     table: MeasureTable,
     readings: dict[str, tuple[Any, ...]],
-) -> str | None:
+) -> tuple[str, dict[str, Any]] | None:
     """Where the mark of the downbeat `beat_id` goes and later measures read
-    its unit: the next downbeat, the unit moves to across the closing tap, so
-    that no other measure reads differently; None to drop the unit, as when
-    dropping it changes no other measure, or moving it would still change one
-    (TimeLineAnnotator/project-management#547, point 4). A measure reads here
-    its denominator and units, as the time map reads them: across a restart,
-    the next movement read the unit assumed, and reads it stated. The unit
-    never replaces one: raises `CantMoveBeatUnit` where it would move onto one
-    the reader can't read, and is dropped where it would move onto one it can."""
+    its unit: the next downbeat, which the unit moves to across the closing
+    tap, and the unit as it is stored there; None to drop it
+    (TimeLineAnnotator/project-management#547, point 4). It moves whenever
+    that keeps every later measure reading as it did, the time map's
+    denominator, units and "assumed" flag, and dropping it wouldn't: measures
+    before the deleted one may change, as they would anyway. It is stored as
+    those measures read it, marked assumed where they read it assumed, as
+    across a restart (#549, points 1 and 2). It never replaces a unit: raises
+    `CantMoveBeatUnit` where it would move onto one the reader can't read, and
+    is dropped where it would move onto one it can."""
     unit = beats[beat_id].attrs.get("beat_unit")
     if readable_beat_unit(unit) is None:
         return None
@@ -305,24 +378,25 @@ def _carried_to(
         return None
     index = ids.index(beat_id)
     following = ids[index + 1]
-    # The deleted measure, and the one before, which takes what is left of it.
-    changes = {beat_id, *ids[max(index - 1, 0) : index]}
-    before = {key: value[:2] for key, value in readings.items() if key not in changes}
+    if following not in readings:
+        return None  # the time map can't read it, as with two beats at one time
+    later = {key: readings[key][:3] for key in ids[index + 1 :] if key in readings}
+    stored = dict(unit, assumed=True) if readings[following][2] else unit
 
     def keeps(move: bool) -> bool:
         trial = copy.deepcopy(timeline)
         del trial.components[beat_id]
         if move:
-            trial.components[following].attrs["beat_unit"] = unit
+            trial.components[following].attrs["beat_unit"] = stored
         trial.measures = measure_table(trial)
         now = _readings(trial)
-        return all(now[key][:2] == value for key, value in before.items() if key in now)
+        return all(now[key][:3] == value for key, value in later.items() if key in now)
 
     if keeps(False) or not keeps(True):
         return None
     held = beats[following].attrs.get("beat_unit")
     if held is None:
-        return following
+        return following, stored
     if readable_beat_unit(held) is None:
         raise _unit_refusal(timeline, beats, beat_id, following)
     return None
@@ -423,7 +497,7 @@ def _delete_downbeat(
     target_id: str | None,
     moved: dict[str, str],
     readings: dict[str, tuple[Any, ...]],
-    carried: str | None,
+    carried: tuple[str, dict[str, Any]] | None,
 ) -> list[str]:
     """Delete the downbeat `beat_id`, as `delete_beat` says, and give the
     downbeats of the measures it changed: the one before, and the one it
@@ -437,7 +511,8 @@ def _delete_downbeat(
     if target_id is None:
         _drop_next(timeline, beat_id)
         if carried is not None:
-            beats[carried].attrs["beat_unit"] = unit
+            downbeat_id, stored = carried
+            beats[downbeat_id].attrs["beat_unit"] = stored
         return changed
     target = beats[target_id].attrs
     own = target.get("measure")
