@@ -38,6 +38,13 @@ aren't compared with it, as with one that is unknown (a quarters file has none
 to compare its times with, FR-080). The PDF of a PDF timeline isn't opened, so
 a page number is checked only against the rules that need no PDF
 (TimeLineAnnotator/project-management#423).
+
+TiLiA allows an edit that fixes one of a component's problems and adds none, so
+that a component with two can be fixed one at a time (WP6's FR-062), and then
+calls `keep_read_problems`: the problems the component still has, which it was
+read with, are old as it now is too, beside what it was read as, which an undo
+gives back (TimeLineAnnotator/project-management#439). A place can so have more
+than one state that is old.
 """
 
 from __future__ import annotations
@@ -154,13 +161,9 @@ def new_problems(
     One on what has changed since, or for a rule it didn't break, is new. One
     between components, on what hasn't changed, is new for the others that have
     changed or been added, and is given with those others alone. Its code and
-    its place decide: what it reads is its reason, and it may read otherwise."""
-    codes: dict[str, set[str]] = {}
-    states: dict[str, str] = {}
-    for problem in read:
-        codes.setdefault(problem.place, set()).add(problem.code)
-        states[problem.place] = problem.state
-        states.update(_between(problem))
+    its place decide: what it reads is its reason, and it may read otherwise.
+    What `keep_read_problems` kept is among `read`."""
+    was = _Read(read)
     new = []
     for problem in written:
         place = problem.place
@@ -169,12 +172,10 @@ def new_problems(
             and read_unmeasured.get(place) == problem.state
         ):
             continue  # its time wasn't compared with any
-        if problem.code not in codes.get(place, ()) or states[place] != problem.state:
+        if not was.has(problem):
             new.append(problem)
             continue
-        changed = tuple(
-            other for other in _between(problem) if states.get(other[0]) != other[1]
-        )
+        changed = was.changed(problem)
         if changed:
             # A refusal names those that are new. A join's others are what comes
             # next in its row, whichever of them it was that changed.
@@ -231,6 +232,113 @@ def cant_check(document: Document) -> rules.CantCheck | None:
             if not isinstance(component.kind, UnknownKind):
                 return rules.cant_check(component.kind)
     return None
+
+
+def keep_read_problems(document: Document, component_id: str) -> None:
+    """Keep the problems the component `component_id` of `document` still has,
+    which the document was read with, as ones it came with: a write then writes
+    them back with the component as it is now, as it would were it unchanged
+    (FR-054). TiLiA calls it after an edit that fixes one of the component's
+    problems and adds none, which it allows, so that its save isn't refused
+    (WP6's FR-062; TimeLineAnnotator/project-management#436, point 1). For any
+    other caller, such as a bulk edit or a script, FR-054 is as it was.
+
+    A problem kept is one read on the component, told by its rule's code, and,
+    in a document read with no media length, whose times weren't compared with
+    any, a time past the end. One between components is kept while the others
+    it is between are as they were read or kept: those a crossing or two at one
+    time name, and for its join, the range it joins. A join to it is the
+    problem of the range that joins, and stays new
+    (TimeLineAnnotator/project-management#496, point 2). Any other problem stays
+    new, and so does a change made after the call. What the component was read
+    as stays old too, as an undo gives it back, until a write.
+
+    A document made in memory has nothing read to keep. Raises `KeyError` for a
+    component the document doesn't have, and, as `write` does, `UnreadableFile`
+    for a document the reader would refuse and `ValueError` for a value JSON
+    can't hold."""
+    timeline_id = next(
+        (
+            key
+            for key, timeline in document.timelines.items()
+            if component_id in timeline.components
+        ),
+        None,
+    )
+    if timeline_id is None:
+        raise KeyError(component_id)
+    if not document.read_problems and not document.read_unmeasured:
+        return  # made in memory
+    # Imported here: they read this module.
+    from tilia_core.tla.reader import written_document
+    from tilia_core.tla.writer import checked_bytes
+
+    # As the writer finds them: what it checks is what it writes.
+    found = find_problems(written_document(checked_bytes(document)))
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    place = pointer_to(held, component_id)
+    was = _Read(document.read_problems)
+    codes = {(at, code) for at, code, _ in was.problems}
+    unmeasured = document.read_unmeasured
+    kept = []
+    for problem in found:
+        if problem.place == place:
+            came_with = (place, problem.code) in codes or (
+                problem.code == rules.PAST_MEDIA_END and place in unmeasured
+            )
+        elif any(at == place for at, _ in problem.others):
+            came_with = was.has(problem)
+        else:
+            continue  # not one of its problems
+        changed = was.changed(problem)
+        if not came_with or any(at != place for at, _ in changed):
+            continue  # new, or new with another
+        if was.has(problem) and not changed:
+            continue  # old as it is
+        if (
+            problem.code == rules.PAST_MEDIA_END
+            and unmeasured.get(problem.place) == problem.state
+        ):
+            continue  # old as it is: its time wasn't compared with any
+        kept.append(dataclasses.replace(problem, kept=True))
+    if kept:
+        document.read_problems = [*document.read_problems, *kept]
+
+
+class _Read:
+    """The problems a document was read with, as a write compares them: each by
+    its place, code and state, and each place by the state it was read in, its
+    own or as one of the others a problem is between. A problem
+    `keep_read_problems` kept is old too, as the component is now, and the
+    others it is between are old for it alone: a component kept for one problem
+    is still changed for every other."""
+
+    def __init__(self, read: list[ReadProblem]) -> None:
+        self.problems: set[tuple[str, str, str]] = set()
+        self.states: dict[str, str] = {}
+        self.kept: dict[tuple[str, str], set[tuple[str, str]]] = {}
+        for problem in read:
+            self.problems.add((problem.place, problem.code, problem.state))
+            if problem.kept:
+                key = (problem.place, problem.code)
+                self.kept.setdefault(key, set()).update(_between(problem))
+            else:
+                self.states[problem.place] = problem.state
+                self.states.update(_between(problem))
+
+    def has(self, problem: ReadProblem) -> bool:
+        """Whether `problem` was read, or kept, on what it is about as it is."""
+        return (problem.place, problem.code, problem.state) in self.problems
+
+    def changed(self, problem: ReadProblem) -> tuple[tuple[str, str], ...]:
+        """The others `problem` is between that aren't as read, nor as kept
+        with it."""
+        kept = self.kept.get((problem.place, problem.code), ())
+        return tuple(
+            other
+            for other in _between(problem)
+            if self.states.get(other[0]) != other[1] and other not in kept
+        )
 
 
 def _between(problem: ReadProblem) -> tuple[tuple[str, str], ...]:

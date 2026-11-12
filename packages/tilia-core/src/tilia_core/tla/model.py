@@ -201,7 +201,9 @@ class ReadProblem:
     `joined` is, for a join, the range it joins, the same way: what the problem
     is between, where `others` are what comes next in its row. `warned` says that
     the reader has a warning of the check's for it, in the check's words, so that
-    it adds none.
+    it adds none. `kept` says that `keep_read_problems` kept it, for a component
+    an edit fixed in part: its states are old for this problem alone, where those
+    of a problem read are old for every problem about the same components.
     """
 
     code: str
@@ -213,6 +215,7 @@ class ReadProblem:
     joined: tuple[str, str] | None = None
     more: int = 0
     warned: bool = False
+    kept: bool = False
 
 
 @dataclass(kw_only=True)
@@ -609,8 +612,9 @@ class Document:
     # old file would migrate it again. None once `fingerprint` is set otherwise.
     _read_digest: str | None = field(default=None, repr=False, compare=False)
     # What it broke when it was read, or last written: the writer writes these
-    # back while what they are about hasn't changed (FR-054). A document made
-    # in memory has nothing read to keep.
+    # back while what they are about hasn't changed (FR-054), and those
+    # `keep_read_problems` kept. A document made in memory has nothing read to
+    # keep.
     read_problems: list[ReadProblem] = field(
         default_factory=list, repr=False, compare=False
     )
