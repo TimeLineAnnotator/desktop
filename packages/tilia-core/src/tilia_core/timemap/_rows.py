@@ -12,7 +12,7 @@ from operator import attrgetter
 from typing import Any, TypeGuard
 
 from tilia_core import tla
-from tilia_core.timemap.units import parse_units, validate_denominator
+from tilia_core.tla.model import readable_beat_unit
 
 logger = logging.getLogger(__name__)
 
@@ -222,33 +222,17 @@ def _dict(component: tla.Component | None, key: str) -> dict[str, Any]:
 
 
 def _beat_unit(timeline: tla.Timeline, component: tla.Component) -> tla.BeatUnit | None:
-    """The unit set on a beat; None, with a warning, when it can't be read."""
+    """The unit set on a beat; None, with a warning, when desktop#621 can't
+    read it (`readable_beat_unit`, the measure table's rule too)."""
     value = component.attrs.get("beat_unit")
     if value is None:
         return None
-    try:
-        unit: tla.BeatUnit | None = tla.BeatUnit(
-            denominator=value["denominator"],
-            units=value["units"],
-            assumed=bool(value.get("assumed", False)),
-        )
-    except (KeyError, TypeError):
-        unit = None
-    if unit is None or not _readable(unit):
+    unit = readable_beat_unit(value)
+    if unit is None:
         logger.warning(
             "Timeline %s: beat %s has a beat unit that can't be read (%.60r); ignored.",
             timeline.id,
             component.id,
             value,
         )
-        return None
     return unit
-
-
-def _readable(unit: tla.BeatUnit) -> bool:
-    # What desktop#621 refuses to create, and so drops from a file it loads.
-    return (
-        isinstance(unit.units, str)
-        and parse_units(unit.units).is_valid
-        and validate_denominator(unit.denominator)
-    )

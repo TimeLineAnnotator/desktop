@@ -58,6 +58,7 @@ from tilia_core.timemap.units import (
     parse_units,
     validate_denominator,
 )
+from tilia_core.tla.model import claims_time_map
 
 __all__ = [
     "DEFAULT_DENOMINATOR",
@@ -98,8 +99,6 @@ __all__ = [
 Meter = MeasureMeter
 
 logger = logging.getLogger(__name__)
-
-TIME_MAP_ROLE = "time_map"
 
 
 @dataclass(frozen=True)
@@ -144,7 +143,7 @@ def find_time_map(
         return TimeMapFound(
             time_map=None, timeline_id=None, guessed=False, reason=None, warnings=()
         )
-    claiming = [t for t in beat_timelines if _claims_the_role(t, roles)]
+    claiming = [t for t in beat_timelines if claims_time_map(_role(t, roles))]
     warnings = [_several_claim(claiming)] if len(claiming) > 1 else []
     timeline = (claiming or beat_timelines)[0]
     guessed = not claiming
@@ -184,13 +183,11 @@ def _by_ordinal(timeline: tla.Timeline) -> tuple[int, float]:
     return 1, 0
 
 
-def _claims_the_role(
+def _role(
     timeline: tla.Timeline, roles: Mapping[str, str | list[str] | None] | None
-) -> bool:
-    role = timeline.metadata.get("role") if roles is None else roles.get(timeline.id)
-    if isinstance(role, (list, tuple)):
-        return TIME_MAP_ROLE in role
-    return role == TIME_MAP_ROLE
+) -> str | list[str] | None:
+    """The timeline's role: as `roles` gives it, when given, else its file's."""
+    return timeline.metadata.get("role") if roles is None else roles.get(timeline.id)
 
 
 def time_map_of(

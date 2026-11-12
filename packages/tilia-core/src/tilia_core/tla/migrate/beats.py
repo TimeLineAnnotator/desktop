@@ -36,6 +36,7 @@ from typing import Any
 from tilia_core.labels import nfc
 from tilia_core.tla.errors import printable
 from tilia_core.tla.layout import TIMELINE_SHAPES, pointer_to
+from tilia_core.tla.migrate import to_1
 from tilia_core.tla.migrate.places import OldPlaces
 from tilia_core.tla.model import (
     ReadWarning,
@@ -282,10 +283,6 @@ def _json(value: Any) -> str:
     return printable(json.dumps(value, ensure_ascii=False))
 
 
-def _is_number(value: Any) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
-
-
 def convert(
     old: dict[str, Any],
     content: dict[str, Any],
@@ -344,7 +341,7 @@ class _Converted:
         lists = {name: timeline.pop(name, None) for name in _LISTS}
         timeline["measure_source"] = "unknown"
         beats = self.beats(components)
-        if any(not _is_number(beat["time"]) for _, beat in beats):
+        if any(not to_1._is_number(beat["time"]) for _, beat in beats):
             return  # a time that isn't a number: the check refuses it
         beats.sort(key=lambda item: item[1]["time"])
         fitted = fit(
@@ -399,7 +396,7 @@ class _Converted:
             if component.get("kind") != "BEAT":
                 continue
             time = component.get("time")
-            outside = _is_number(time) and (
+            outside = to_1._is_number(time) and (
                 time < 0 or (length is not None and time > length + _TOLERANCE)
             )
             if time is None:
@@ -407,10 +404,10 @@ class _Converted:
             elif outside:
                 end = "" if length is None else f" to {_json(length)}"
                 message = f"a beat at {_json(time)}, outside the media (0{end}),"
-            elif _is_number(time) and time in times:
+            elif to_1._is_number(time) and time in times:
                 message = f"a beat at the same time as another ({_json(time)})"
             else:
-                if _is_number(time):
+                if to_1._is_number(time):
                     times.add(time)
                 kept.append((component_id, component))
                 continue
