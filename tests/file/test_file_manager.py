@@ -17,7 +17,7 @@ from tests.mock import (
 from tests.utils import load_local_media
 from tilia.file.file_manager import FileManager
 from tilia.file.media_metadata import MediaMetadata
-from tilia.file.tilia_file import TiliaFile
+from tilia.file.open_document import OpenDocument
 from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 
@@ -25,7 +25,7 @@ from tilia.ui import commands
 def get_empty_save_params():
     return {
         k: v
-        for k, v in TiliaFile().__dict__.items()
+        for k, v in OpenDocument().__dict__.items()
         if k in FileManager.FILE_ATTRIBUTES_TO_CHECK_FOR_MODIFICATION
     } | {"timelines_hash": ""}
 

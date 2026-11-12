@@ -75,7 +75,9 @@ class HarmonyUI(TimelineUIElement):
         note = (
             INT_TO_NOTE_NAME[self.get_data("step")]
             + Accidental.get_from_int("music21", self.get_data("accidental"))
-            + QUALITY_TO_ABBREVIATION[quality]
+            # A quality TiLiA doesn't know, which a file can hold, is drawn as its
+            # root alone, as a roman numeral is drawn without its suffix.
+            + QUALITY_TO_ABBREVIATION.get(quality, "")
         )
         try:
             symbol = music21.harmony.ChordSymbol(

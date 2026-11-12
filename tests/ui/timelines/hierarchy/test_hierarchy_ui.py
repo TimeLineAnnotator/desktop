@@ -721,7 +721,11 @@ class TestFormalAttrsAreGone:
         saved = json.loads(
             Path(save_tilia_to_tmp_path(tmp_path, "saved")).read_text(encoding="utf-8")
         )
-        component = saved["timelines"]["1"]["components"]["2"]
+        # Read through the migration, the old file's ids are new ones.
+        (timeline,) = [
+            tl for tl in saved["timelines"].values() if tl["kind"] == "Hierarchy"
+        ]
+        (component,) = timeline["components"].values()
         assert component["label"] == "kept"
         assert not set(FORMAL_ATTRS) & set(component)
 

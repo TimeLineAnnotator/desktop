@@ -5,7 +5,6 @@ from bisect import bisect
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tilia.exceptions import TimelineValidationError
-from tilia.file.migration import normalize_kind_string
 from tilia.requests import Get, Post, get, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
@@ -273,7 +272,7 @@ class Timelines:
 
         for id, tl_data in data_copy.items():
             # We need to pop so no duplicate arguments are passed
-            kind = normalize_kind_string(tl_data.pop("kind"))
+            kind = tl_data.pop("kind")
             self.create_timeline(kind, id=id, **tl_data)
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
@@ -294,11 +293,7 @@ class Timelines:
         for id in sorted(timeline_states.keys() - shared_tl_ids, key=id_order):
             params = timeline_states[id].copy()
             # We need to pop so no duplicate arguments are passed
-            kind_string = normalize_kind_string(params.pop("kind"))
-            try:
-                kind = Timeline.get_class_by_name(kind_string)
-            except ValueError:
-                continue
+            kind = params.pop("kind")
             self.create_timeline(kind, id=id, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):

@@ -5,6 +5,7 @@ from pprint import pformat
 from typing import Callable
 from unittest.mock import patch
 
+import pytest
 from PySide6.QtCore import QVariantAnimation
 from PySide6.QtGui import QAction
 from PySide6.QtTest import QTest
@@ -20,6 +21,14 @@ from tilia.ui.timelines.base.timeline import TimelineUI
 
 EXAMPLE_VIDEO_FILENAME = "example.mp4"
 EXAMPLE_YOUTUBE_URL = "https://www.youtube.com/watch?v=wBfVsucRe1w"
+
+# TiLiA saves TiLiA 0.7's format until it saves through the core. Read back, such a
+# file is migrated, and its timelines and components get new ids.
+IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE = pytest.mark.xfail(
+    strict=True,
+    reason="a file TiLiA saves gets new ids when it is read again, until TiLiA saves"
+    " through the core (TimeLineAnnotator/project-management#449)",
+)
 
 
 def load_local_media(path: str | Path):
