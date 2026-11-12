@@ -30,6 +30,7 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
+from tilia_core.tla.media_files import absolute_paths
 from tilia_core.tla.migrate.to_1 import Migrated, migrate
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -124,7 +125,9 @@ def _keep_what_was_read(
     fingerprint of `data`, made from `data` when it is first asked for, so that
     a read costs nothing more and the file isn't read again; and the plain
     SHA-256 of `data`, by which a write finds the file unchanged without reading
-    it as a document again (TimeLineAnnotator/project-management#533).
+    it as a document again (TimeLineAnnotator/project-management#533). And the
+    media and PDF paths it was read with that are absolute, which a write keeps
+    so (TimeLineAnnotator/project-management#530).
 
     From a file with an integer that a Python may not read or write, the
     fingerprint is made now: what it raises for one is raised while reading, and
@@ -139,6 +142,7 @@ def _keep_what_was_read(
     else:
         document._fingerprint = _MadeWhenAsked(make)
     document._read_digest = hashlib.sha256(data).hexdigest()
+    document._absolute_as_read = absolute_paths(document)
 
 
 def written_document(

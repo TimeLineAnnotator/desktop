@@ -2,11 +2,14 @@
 
 A file stores the media's path, and each PDF timeline's path, relative to
 its folder with "/", absolute only where no relative path exists (another
-drive on Windows), a URL as it is, or empty (FR-033). The forms of a path
-are told apart here, for the migration, the writer and the lookup alike. An
-absolute path has the form of the system that wrote it, whichever system
-reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
-one. A path of the other system's form is never looked up on this one. A
+drive on Windows) or where reading kept it absolute (an old file's path that
+can't be related to where the file was saved;
+TimeLineAnnotator/project-management#530), a URL as it is, or empty (FR-033).
+The forms of a path are told apart here, for the migration, the writer and
+the lookup alike. An absolute path has the form of the system that wrote it,
+whichever system reads it: `C:/…` or `\\\\server\\share\\…` is a Windows
+path, `/…` a POSIX one. A path of the other system's form is never looked
+up on this one. A
 backslash in a relative path, or in a POSIX one, is never converted: TiLiA
 and the core write "/" between folders, so it is a hand edit, or part of a
 name on macOS and Linux, and the lookup lets the system read it
@@ -31,7 +34,7 @@ import re
 import unicodedata
 from pathlib import Path, PureWindowsPath
 
-from tilia_core.tla.model import Document, Media
+from tilia_core.tla.model import Document, Media, Timeline
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +164,26 @@ def absolute_form(path: str) -> str | None:
     if not path or is_url(path):
         return None
     return _form(path)
+
+
+def absolute_paths(doc: Document) -> frozenset[str]:
+    """The media's path and the PDF timelines' paths of `doc` that are absolute,
+    of either system's form. Read from a file, or just written to one, these are
+    the paths a write keeps absolute (TimeLineAnnotator/project-management#530)."""
+    paths = [doc.media_path]
+    if isinstance(doc.timelines, dict):
+        paths += [
+            timeline.attrs.get("path")
+            for timeline in doc.timelines.values()
+            if isinstance(timeline, Timeline)
+            and timeline.kind == "pdf"
+            and isinstance(timeline.attrs, dict)
+        ]
+    return frozenset(
+        path
+        for path in paths
+        if isinstance(path, str) and absolute_form(path) is not None
+    )
 
 
 def _form(path: str) -> str | None:

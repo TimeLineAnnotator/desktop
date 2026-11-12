@@ -608,6 +608,13 @@ class Document:
     # states that fingerprint needn't read it as a document again, which for an
     # old file would migrate it again. None once `fingerprint` is set otherwise.
     _read_digest: str | None = field(default=None, repr=False, compare=False)
+    # Its media path and PDF timelines' paths that were absolute when it was read,
+    # or last written: a write keeps them so, where it makes one set since
+    # relative (FR-003, TimeLineAnnotator/project-management#530). A document made
+    # in memory has none.
+    _absolute_as_read: frozenset[str] = field(
+        default=frozenset(), repr=False, compare=False
+    )
     # What it broke when it was read, or last written: the writer writes these
     # back while what they are about hasn't changed (FR-054). A document made
     # in memory has nothing read to keep.
