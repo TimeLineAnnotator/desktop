@@ -34,13 +34,13 @@ class RangeTLComponentManager(TimelineComponentManager):
         self._restoring_state = False
 
     def restore_state(self, prev_state: dict) -> None:
-        # restore_state diffs current vs snapshot by component hash, then
-        # deletes and recreates any range whose hash changed (e.g. a
-        # post_end edit) to match the snapshot. Suppress delete_component's
-        # joined_right cascade during that: otherwise it clears the join
-        # on an unrelated neighbor whose own hash didn't change — and
-        # because its hash didn't change, it isn't re-deserialized either,
-        # so the cleared join is never restored.
+        # restore_state matches the ranges to the snapshot by id: it deletes
+        # those the snapshot doesn't have, and deletes and recreates those
+        # whose hash differs from the snapshot's (e.g. after a post_end edit).
+        # Suppress delete_component's joined_right cascade during that:
+        # otherwise it clears the join on an unrelated neighbor whose own hash
+        # matched the snapshot's — and because it matched, the neighbor isn't
+        # recreated either, so the cleared join is never restored.
         self._restoring_state = True
         try:
             super().restore_state(prev_state)
