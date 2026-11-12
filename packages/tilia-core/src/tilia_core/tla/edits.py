@@ -63,9 +63,9 @@ class CantMoveBeatUnit(CantDeleteBeat):
     """A deleted beat's unit would move onto a beat holding a unit the reader
     can't read, which is never replaced: that unit is fixed first
     (TimeLineAnnotator/project-management#544, point 2, as #373 for plans).
-    Only a unit the reader can read would move, and only where no other beat
-    of the measure states one it can read: else the unit is dropped, as
-    #528 point 2 says. `unit_beat_id` is the beat holding it."""
+    Only a unit the reader can read would move, and only where the rules,
+    with the unit it can't read treated as absent, would move it there:
+    else the unit is dropped. `unit_beat_id` is the beat holding it."""
 
     def __init__(self, message: str, beat_id: str, unit_beat_id: str):
         super().__init__(message, beat_id)
@@ -157,8 +157,9 @@ def delete_beat(
     measures = {key: row for row in table.rows for key in row.beats}
     target_id = later[0] if later and later[0] in measures else None
     destination = target_id if _is_downbeat(deleted) else measure_id
-    around = measures[destination].beats if destination in measures else []
-    _refuse_an_unreadable_unit(timeline, beats, beat_id, destination, around)
+    _refuse_an_unreadable_unit(
+        timeline, beats, beat_id, destination, _is_downbeat(deleted), readings
+    )
     carried = (
         _carried_to(timeline, beats, beat_id, table, readings)
         if _is_downbeat(deleted) and target_id is None
@@ -232,12 +233,14 @@ def _refuse_an_unreadable_unit(
     beats: dict[str, Component],
     beat_id: str,
     destination: str | None,
-    around: list[str],
+    downbeat: bool,
+    readings: dict[str, tuple[Any, ...]],
 ) -> None:
-    """Raise `CantMoveBeatUnit` where the unit of `beat_id` would move onto
-    `destination`, which holds a unit the reader can't read: where the unit is
-    one it can read, and no other beat of the measure `destination` is in,
-    `around`, states one it can (then the unit is dropped, #528 point 2)."""
+    """Raise `CantMoveBeatUnit` where the unit of `beat_id`, one the reader
+    can read, would move onto `destination`, which holds a unit it can't read:
+    where the rules, with that unit treated as absent, would move it there.
+    They are run on a copy of the timeline, which the deletion of `beat_id`, a
+    downbeat when `downbeat`, changes as it would change the timeline."""
     if destination is None:
         return
     if readable_beat_unit(beats[beat_id].attrs.get("beat_unit")) is None:
@@ -245,11 +248,18 @@ def _refuse_an_unreadable_unit(
     held = beats[destination].attrs.get("beat_unit")
     if held is None or readable_beat_unit(held) is not None:
         return
-    if any(
-        readable_beat_unit(beats[key].attrs.get("beat_unit")) is not None
-        for key in around
-        if key not in (beat_id, destination)
-    ):
+    trial = copy.deepcopy(timeline)
+    del trial.components[destination].attrs["beat_unit"]
+    trial_beats = _beats(trial)
+    trial_table = _table(trial)
+    trial.measures = trial_table
+    if downbeat:
+        _delete_downbeat(
+            trial, trial_beats, beat_id, trial_table, destination, {}, readings, None
+        )
+    else:
+        _delete_beat(trial, trial_beats, beat_id, trial_table, destination, readings)
+    if trial.components[destination].attrs.get("beat_unit") is None:
         return
     raise _unit_refusal(timeline, beats, beat_id, destination)
 
