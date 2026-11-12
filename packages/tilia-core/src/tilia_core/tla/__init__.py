@@ -4,7 +4,9 @@ The names here are provisional until they are documented.
 """
 
 from tilia_core.tla.edits import (
+    CantDeleteBeat,
     CantDeleteDownbeat,
+    CantMoveBeatUnit,
     delete_beat,
     mark_edited,
     mark_moved,
@@ -57,7 +59,9 @@ __all__ = [
     "TEMPORARY_PATTERN",
     "BeatUnit",
     "BrokenRules",
+    "CantDeleteBeat",
     "CantDeleteDownbeat",
+    "CantMoveBeatUnit",
     "Component",
     "Document",
     "FileChanged",
