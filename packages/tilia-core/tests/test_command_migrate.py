@@ -615,6 +615,29 @@ def test_the_words_for_one_beat_one_beat_unit_and_one_timeline(tmp_path, capsys)
     ) in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "beats_in_measure, words",
+    [([2, 2], "dropped 1 measure mark"), ([1, 1, 1, 1], "dropped 3 measure marks")],
+    ids=["one", "three"],
+)
+def test_the_measure_marks_left_out_after_a_closing_first_beat_are_counted(
+    tmp_path, capsys, beats_in_measure, words
+):
+    # The first beat is a closing tap, which only a hand edit makes: the
+    # timeline has no measures, and the later measures' marks are left out
+    # (TimeLineAnnotator/project-management#547, point 5).
+    content = old_beats(
+        ("10", {"kind": "BEAT", "time": 0.0, "closing": True}),
+        beats_in_measure=beats_in_measure,
+        measure_numbers=list(range(1, len(beats_in_measure) + 1)),
+    )
+    place(tmp_path / "piece.tla", json.dumps(content, indent=2).encode())
+
+    assert migrate_command.main([str(tmp_path)]) == 0
+
+    assert f"  piece.tla               {words}\n" in capsys.readouterr().out
+
+
 TWO_BEAT_UNITS = (
     ("20", {"kind": "BEAT_UNIT", "beat_id": 10, "units": "1"}),
     ("21", {"kind": "BEAT_UNIT", "beat_id": 12, "units": "3"}),
