@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class SliderTimeline(Timeline):
-    SERIALIZABLE = ["is_visible", "ordinal", "height"]
+    SERIALIZABLE = ["is_visible", "ordinal", "height", "measure_table", "fields"]
     FLAGS = [
         TimelineFlag.COMPONENTS_NOT_EDITABLE,
         TimelineFlag.NOT_CLEARABLE,

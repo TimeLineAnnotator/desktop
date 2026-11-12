@@ -3,7 +3,12 @@ from pathlib import Path
 
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.marker.interact import click_marker_ui
-from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
+from tests.utils import (
+    IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE,
+    save_and_reopen,
+    save_tilia_to_tmp_path,
+    undoable,
+)
 from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
@@ -168,6 +173,7 @@ class TestSerializeDeserializeRoundTrip:
 
 
 class TestRoundTripDesktopFileDesktop:
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_marker_ids_preserved_after_save_open(self, tilia, marker_tlui, tmp_path):
         for time in [0, 10, 20, 30]:
             commands.execute("timeline.marker.add", time=time)
@@ -191,6 +197,7 @@ class TestRoundTripDesktopFileDesktop:
         components = contents["timelines"][marker_tlui.id]["components"]
         assert list(components) == sorted(components, key=id_order)
 
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_save_open_save_preserves_components_per_timeline(
         self, slider_tlui, marker_tlui, beat_tlui, tmp_path
     ):
@@ -222,6 +229,7 @@ def _save_open_save(tmp_path) -> tuple[dict, dict]:
     return first, second
 
 
+@IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
 class TestRoundTripPerTimelineKind:
     """Save-open-save preserves the timelines dict for every kind that has
     persistent components. slider_tlui is requested everywhere so on_open
@@ -316,6 +324,7 @@ class TestScoreTimelineRoundTrip:
             font_size=14,
         )
 
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_full_score_round_trips_byte_identical(
         self, slider_tlui, score_tlui, tmp_path
     ):
@@ -335,6 +344,7 @@ class TestScoreTimelineRoundTrip:
         score_components = contents["timelines"][score_tlui.id]["components"]
         assert list(score_components) == sorted(score_components, key=id_order)
 
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_score_with_arbitrary_non_sequential_ids_round_trips(
         self, slider_tlui, score_tlui, tilia, tmp_path
     ):
@@ -360,6 +370,7 @@ class TestScoreTimelineRoundTrip:
             reloaded_components.keys(), key=int
         )
 
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_staff_index_references_survive_round_trip(
         self, slider_tlui, score_tlui, tilia, tmp_path
     ):

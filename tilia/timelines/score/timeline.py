@@ -74,6 +74,8 @@ class ScoreTimeline(Timeline):
         "ordinal",
         "svg_data",
         "viewer_beat_x",
+        "measure_table",
+        "fields",
     ]
     NOT_EXPORTABLE_ATTRS = ["svg_data", "viewer_beat_x"]
     COMPONENT_MANAGER_CLASS = ScoreTLComponentManager

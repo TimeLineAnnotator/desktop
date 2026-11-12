@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
-import tilia.constants
 import tilia.errors
 from tilia.exceptions import (
     MediaMetadataFieldAlreadyExists,
@@ -12,128 +12,83 @@ from tilia.exceptions import (
 )
 from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
 from tilia.file.media_metadata import MediaMetadata
-from tilia.file.migration import (
-    find_unknown_timeline_kinds,
-    is_from_newer_version,
-    migrate,
-)
-from tilia.file.tilia_file import TiliaFile, validate_tla_data
+from tilia.file.open_document import OpenDocument
+from tilia.file.tilia_file import TiliaFile
+from tilia.file.tla_bridge import TIMELINE_KINDS
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
-from tilia.timelines.hash_timelines import hash_function
 from tilia.ui import commands
-
-OPEN_FILE_NEWER_VERSION_TITLE = "Open file from a newer version?"
-OPEN_FILE_NEWER_VERSION_PROMPT = (
-    "This file was created with TiLiA {} but you are running {}.\n"
-    "Errors may occur, and saving could permanently discard data that this "
-    "version doesn't understand.\n\n"
-    "Open it anyway?"
-)
+from tilia_core import tla
 
 
-def _pop_unknown_timelines(data: dict, unknown_kinds: dict) -> dict:
-    return {id: data["timelines"].pop(id) for id in unknown_kinds}
-
-
-def _ensure_components_hash(timelines: dict) -> dict:
-    """Fills in a ``"components_hash"`` for any entry missing one, mutating
-    and returning ``timelines``.
-
-    A raw timeline entry that was popped and kept as unknown never goes
-    through ``Timeline.get_state()`` (it's never turned into a live
-    component tree), so it lacks the ``"components_hash"`` key every other
-    entry in ``file.timelines`` has. ``are_tilia_data_equal`` reads that key
-    unconditionally when checking "is the file modified", so a missing one
-    would raise ``KeyError`` the moment an ignored timeline is present.
-    """
-    for timeline in timelines.values():
-        if "components_hash" not in timeline:
-            timeline["components_hash"] = hash_function(
-                json.dumps(timeline.get("components", {}), sort_keys=True)
-            )
-    return timelines
-
-
-def _compact_ordinals(timelines: dict) -> None:
-    """Renumbers ``"ordinal"`` to a dense ``1..N`` sequence in place,
-    preserving relative order.
-
-    Needed after popping unknown-kind timelines: leaving a gap (e.g. 1, 3
-    after removing ordinal 2) means the next auto-assigned ordinal
-    (``len(timelines) + 1``) can land back on an ordinal that's still in
-    use, since that count no longer matches the highest ordinal in play.
-    """
-    ordered = sorted(timelines.items(), key=lambda item: item[1].get("ordinal", 0))
-    for new_ordinal, (_, timeline) in enumerate(ordered, start=1):
-        timeline["ordinal"] = new_ordinal
-
-
-def open_tla(file_path: str | Path) -> tuple[bool, TiliaFile | None, Path | None]:
+def read_file(path: Path) -> OpenDocument | None:
+    """The file at `path`, read through the core. None when it isn't opened: the
+    core or the system refused it, and TiLiA has said why, or the user cancelled.
+    Nothing is changed then."""
+    name = path.name
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        document = tla.read(path)
     except FileNotFoundError:
-        tilia.errors.display(tilia.errors.OPEN_FILE_NOT_FOUND, file_path)
-        return False, None, None
-    except json.decoder.JSONDecodeError:
+        tilia.errors.display(tilia.errors.OPEN_FILE_NOT_FOUND, path)
+        return None
+    except OSError as error:
         tilia.errors.display(
-            tilia.errors.OPEN_FILE_INVALID_TLA,
-            file_path,
-            "File is not valid JSON.",
+            tilia.errors.LOAD_FILE_ERROR, path, error.strerror or error
         )
-        return False, None, None
+        return None
+    except tla.NewerFormat as error:
+        tilia.errors.display(tilia.errors.OPEN_FILE_NEWER_FORMAT, name, error.version)
+        return None
+    except tla.DraftFormat as error:
+        tilia.errors.display(tilia.errors.OPEN_FILE_DRAFT_FORMAT, name, error.version)
+        return None
+    except tla.UnreadableFile as error:
+        tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, name, _reason(error))
+        return None
 
-    valid, reason = validate_tla_data(data)
-    if not valid:
-        tilia.errors.display(tilia.errors.OPEN_FILE_INVALID_TLA, file_path, reason)
-        return False, None, None
+    if document.time_unit == "quarters":
+        tilia.errors.display(tilia.errors.OPEN_FILE_IN_QUARTERS, name)
+        return None
 
-    if is_from_newer_version(data):
-        proceed = get(
-            Get.FROM_USER_YES_OR_NO,
-            OPEN_FILE_NEWER_VERSION_TITLE,
-            OPEN_FILE_NEWER_VERSION_PROMPT.format(
-                data.get("version", "?"), tilia.constants.VERSION
-            ),
-        )
-        if not proceed:
-            return False, None, None
-
-    data, _ = migrate(data)
-
-    unknown_kinds = find_unknown_timeline_kinds(data)
-    ignored_timelines = {}
-    deleted_timelines = {}
-    if unknown_kinds:
-        proceed, delete = get(
-            Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, list(unknown_kinds.values())
+    discarded = False
+    unknown = [
+        timeline
+        for timeline in document.timelines.values()
+        if timeline.kind not in TIMELINE_KINDS.values()
+    ]
+    if unknown:
+        proceed, discarded = get(
+            Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION,
+            [_kind_name(timeline.kind) for timeline in unknown],
         )
         if not proceed:
-            return False, None, None
-        popped = _ensure_components_hash(_pop_unknown_timelines(data, unknown_kinds))
-        _compact_ordinals(data["timelines"])
-        if delete:
-            deleted_timelines = popped
-        else:
-            ignored_timelines = popped
+            return None
+        if discarded:
+            for timeline in unknown:
+                del document.timelines[timeline.id]
 
-    old_path = Path(data["file_path"])
+    fields = {
+        **copy.deepcopy(document.metadata),
+        "media length": document.media_length or 0,
+    }
+    return OpenDocument(
+        document=document,
+        file_path=str(path.resolve()),
+        media_metadata=MediaMetadata.from_dict(fields),
+        unknown_discarded=discarded,
+    )
 
-    data["file_path"] = (
-        file_path if isinstance(file_path, str) else str(file_path.resolve())
-    )
-    return (
-        True,
-        (
-            TiliaFile(
-                **data,
-                unknown_timelines=ignored_timelines,
-                deleted_timelines=deleted_timelines,
-            )
-        ),
-        old_path,
-    )
+
+def _reason(error: tla.UnreadableFile) -> str:
+    """The core's reason, without the file's name, which the message gives."""
+    if error.line is None:
+        return error.message
+    return f"line {error.line}: {error.message}"
+
+
+def _kind_name(kind: tla.UnknownKind | str) -> str:
+    """As the file spells it."""
+    return kind.spelling if isinstance(kind, tla.UnknownKind) else kind
 
 
 class FileManager:
@@ -157,11 +112,11 @@ class FileManager:
         self._setup_file()
 
     @property
-    def file(self) -> TiliaFile:
+    def file(self) -> OpenDocument:
         return self._file
 
     @file.setter
-    def file(self, value: TiliaFile) -> None:
+    def file(self, value: OpenDocument) -> None:
         self._file = value
         self.resync_saved_metadata()
 
@@ -219,7 +174,7 @@ class FileManager:
         )
 
     def _setup_file(self):
-        self.file = TiliaFile()
+        self.file = OpenDocument()
 
     def on_save_request(self):
         """Saves tilia file to current file path."""
@@ -350,9 +305,17 @@ class FileManager:
 
     def save(self, data: dict, path: Path | str):
         data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
-        # Going through the setter refreshes _saved_metadata.
-        self.file = TiliaFile(**data, unknown_timelines=self.file.unknown_timelines)
-        write_tilia_file_to_disk(self.file, str(path))
+        # TiLiA's own writer, until it saves through the core
+        # (TimeLineAnnotator/project-management#449).
+        written = TiliaFile(**data)
+        write_tilia_file_to_disk(written, str(path))
+        # The file open is now the one written.
+        self.file.file_path = written.file_path
+        self.file.media_path = written.media_path
+        self.file.timelines = written.timelines
+        self.file.timelines_hash = written.timelines_hash
+        self.file.unknown_discarded = False
+        self.resync_saved_metadata()
 
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
@@ -376,6 +339,8 @@ class FileManager:
         self._saved_metadata = dict(self.file.media_metadata)
 
     def is_file_modified(self, current_data: dict) -> bool:
+        if self.file.unknown_discarded:
+            return True
         # are_tilia_data_equal can't detect media_metadata changes
         # because the live and "saved" metadata are the same mutated
         # object on self.file (#377). Use the snapshot taken on the
@@ -411,7 +376,7 @@ class FileManager:
 
     def update_file(self, data: dict):
         """Directly updates the file manager's file, bypassing opening."""
-        self.file = TiliaFile(**data)
+        self.file = OpenDocument(**data)
 
     def get_file_path(self):
         return self.file.file_path
