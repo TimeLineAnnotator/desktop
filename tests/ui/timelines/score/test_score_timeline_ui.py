@@ -474,17 +474,14 @@ class TestClear:
             assert score.svg_view is None
 
     def test_undo_redo(self, score_tlui, note, tls):
-        # `undoable()` can't be used here: TimelineComponentManager.restore_state
-        # recreates components in set-iteration order while hash_components()
-        # hashes them in list order, so a restored state's components_hash
-        # depends on PYTHONHASHSEED. That is a pre-existing defect in the base
-        # timeline, unrelated to clearing; assert the restored values directly.
         tls.set_timeline_data(score_tlui.id, "svg_data", SVG_WITH_MARKERS)
         svg_data = score_tlui.get_data("svg_data")
         post(Post.APP_STATE_RECORD, "setup")
-        with patch_yes_or_no_dialog(True):
-            commands.execute("timeline.clear", score_tlui)
+        with undoable():
+            self._clear(score_tlui)
 
+        # undoable() compares the app's state, which doesn't include the
+        # viewer: undo and redo once more to check it.
         commands.execute("edit.undo")
 
         assert len(score_tlui.timeline) == 3
