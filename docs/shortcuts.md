@@ -1,4 +1,4 @@
-# TiLiA 0.7.4 keyboard shortcuts (2026-11-06)
+# TiLiA 0.7.5 keyboard shortcuts (2026-11-12)
 
 On macOS, Ctrl is ⌘ (Command) and Alt is ⌥ (Option).
 
