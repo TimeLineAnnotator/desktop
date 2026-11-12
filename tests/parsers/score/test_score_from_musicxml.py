@@ -392,7 +392,7 @@ class TestMeasureZeroNotInTimeline:
         beat_tl.create_beat(1)
         beat_tl.create_beat(2)
         beat_tl.create_beat(3)
-        beat_tl.measure_numbers = [1, 3, 4]
+        beat_tl.set_measure_numbers([1, 3, 4])
         beat_tl.recalculate_measures()
 
         with patch_yes_or_no_dialog(True):
@@ -706,7 +706,7 @@ def test_a_measure_before_a_repeat_ends_with_a_bar_line(score_tl, beat_tl, tmp_p
     beat_tl.set_data("beat_pattern", [1])
     for i in range(4):
         beat_tl.create_beat(i)
-    beat_tl.measure_numbers = [1, 2, 1, 2]
+    beat_tl.set_measure_numbers([1, 2, 1, 2])
     beat_tl.recalculate_measures()
 
     success, errors = _import_with_patch(
@@ -1170,7 +1170,7 @@ class TestLastMeasureNeverEndsBeforeItsLastBeat:
         beat_tl.set_data("beat_pattern", [1])
         for time in range(4):
             beat_tl.create_beat(time)
-        beat_tl.measure_numbers = [1, 1, 2, 3]
+        beat_tl.set_measure_numbers([1, 1, 2, 3])
         beat_tl.recalculate_measures()
 
         success, errors = _import_with_patch(

@@ -411,7 +411,7 @@ def viewer_over_measures(score_tlui, score_tl, beat_tl):
         beat_tl.beat_pattern = [1]
         for i in range(len(measure_numbers)):
             beat_tl.create_beat(i + 1)
-        beat_tl.measure_numbers = measure_numbers
+        beat_tl.set_measure_numbers(measure_numbers)
         beat_tl.recalculate_measures()
         score_tl.set_data(
             "viewer_beat_x",
@@ -543,7 +543,7 @@ class TestPositionWithNoTime:
     ):
         # Only a hand-edited or buggy file has more numbers than measures.
         viewer = viewer_over_measures([1, 2])
-        beat_tl.measure_numbers = [1, 2, 3, 4]
+        beat_tl.set_measure_numbers([1, 2, 3, 4])
         _paint_viewport(viewer, 10.0, 100.0)
         assert viewer.visible_times == [1, 2]
 
@@ -555,7 +555,7 @@ class TestPositionWithNoTime:
         self, viewer_over_measures, beat_tl
     ):
         viewer = viewer_over_measures([2, 3])
-        beat_tl.measure_numbers = [2, 3, 1, 4]
+        beat_tl.set_measure_numbers([2, 3, 1, 4])
 
         _paint_viewport(viewer, 10.0, 100.0)
 
