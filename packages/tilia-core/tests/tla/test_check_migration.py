@@ -1141,6 +1141,14 @@ class TestWhatTheMigrationChangesOnPurpose:
                 id="the other system's paths stay absolute",
             ),
             pytest.param(
+                with_paths(
+                    f"{HERE}/sonata.ogg",
+                    f"{HERE}/sonata.pdf",
+                    f"{ELSEWHERE}/sonata.tla",
+                ),
+                id="a file_path of the other system's: the paths stay absolute",
+            ),
+            pytest.param(
                 with_paths("D:/Music/sonata.ogg", "D:/sonata.pdf", "C:/Music/a.tla"),
                 id="another drive",
             ),
@@ -1219,20 +1227,28 @@ class TestWhatTheMigrationChangesOnPurpose:
         assert "dropped, with its warning: " in out
         assert "a beat unit naming 'no beat', which isn't a beat kept" in out
 
-    def test_a_path_from_a_file_path_of_the_other_system_waits_on_a_decision(
-        self, folders_with, capsys
+    def test_a_path_from_a_file_path_of_the_other_system_is_compared_whole(
+        self, folders_with, monkeypatch, capsys
     ):
-        # Reading keeps the path absolute, and the writer writes it relative
-        # (TimeLineAnnotator/project-management#530): as before, a difference
-        # between the two, and only its file's name compared with the old file.
+        # Reading keeps it absolute, and so does the writer
+        # (TimeLineAnnotator/project-management#530): one made relative, even to
+        # a file of the same name, is a difference.
         content = old_file()
-        with_paths(f"{HERE}/sonata.ogg", None, f"{ELSEWHERE}/sonata.tla")(content)
+        with_paths(
+            f"{HERE}/sonata.ogg", f"{HERE}/sonata.pdf", f"{ELSEWHERE}/sonata.tla"
+        )(content)
+
+        def made_relative(migrated):
+            put_the_media_elsewhere(migrated)
+            put_a_pdf_elsewhere(migrated)
+
+        monkeypatch.setattr(reader, "migrate", a_migration_that_does(made_relative))
 
         assert check_migration.main(folders_with(content)) == 1
 
         out = capsys.readouterr().out
-        assert "/media_path: " in out
-        assert "/media/path: " not in out
+        assert "/media/path: " in out
+        assert f"/timelines/{PDFS}/path: " in out
 
 
 MIGRATE = reader.migrate  # the migration itself, before a test changes it

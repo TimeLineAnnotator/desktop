@@ -119,7 +119,6 @@ NUMBER = re.compile(
     r"[^\S\x1c-\x1f]*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
     r"[^\S\x1c-\x1f]*"
 )
-PATH_SEPARATORS = re.compile(r"[\\/]")
 # An absolute path of Windows' form, whichever system reads it: a drive and its
 # root, or a share's two slashes of one kind (contract, *Media paths*).
 WINDOWS_PATH = re.compile(r"[A-Za-z]:[\\/]|//|\\\\")
@@ -540,11 +539,6 @@ def legacy_score_differences(
     yield from differences(expected, held, f"{place}/score", by_value)
 
 
-def file_name(path: Any) -> Any:
-    """The last name of a stored path, which making it relative doesn't change."""
-    return PATH_SEPARATORS.split(nfc_value(path))[-1] if isinstance(path, str) else path
-
-
 def path_form(path: str) -> str | None:
     """`windows` or `posix` for an absolute path of that system's form, whichever
     system reads it; None for anything else."""
@@ -559,12 +553,9 @@ def as_migrated(stored: Any, file_path: Any, folder: str, media: bool) -> Any:
     Q4, contract, *Media paths*): relative to `folder`, starting from where TiLiA
     would find it now: where it is, if it is on this computer; else beside
     `file_path`, by that path's own system; else beside the file. Absolute where no
-    relative path exists; a URL, or a path written relative by hand, as it is; a
-    YouTube link without a scheme with one. None for a path of this system's form
-    and a `file_path` of the other's, which reading keeps absolute and the writer
-    writes relative: that waits on TimeLineAnnotator/project-management#530 (a
-    media path that reading keeps absolute), and only its file's name is
-    compared."""
+    relative path exists, which the writer keeps so wherever the file is
+    (TimeLineAnnotator/project-management#530); a URL, or a path written relative
+    by hand, as it is; a YouTube link without a scheme with one."""
     if not isinstance(stored, str) or not stored or URL.match(stored):
         return stored
     if media and YOUTUBE_URL.match(stored):
@@ -581,10 +572,8 @@ def as_migrated(stored: Any, file_path: Any, folder: str, media: bool) -> Any:
         base = folder if form == HERE else None
     elif saved_form == form:
         base = paths.dirname(saved)
-    elif form == HERE:
-        return None
     else:
-        base = None
+        base = None  # no relative path between two systems' paths
     relative = stored
     if base is not None:
         try:
@@ -598,12 +587,8 @@ def path_differences(
     stored: Any, file_path: Any, held: Any, folder: str, place: str, media: bool
 ) -> Iterator[str]:
     """How a migrated media or PDF path differs from what the old one should be."""
-    expected = as_migrated(stored, file_path, folder, media)
-    if expected is None:
-        stored, held = file_name(stored), file_name(held)
-    else:
-        stored = nfc_value(expected)
-    yield from differences(stored, held, place, by_value)
+    expected = nfc_value(as_migrated(stored, file_path, folder, media))
+    yield from differences(expected, held, place, by_value)
 
 
 def as_text(value: Any) -> str:
