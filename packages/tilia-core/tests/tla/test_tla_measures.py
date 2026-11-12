@@ -484,6 +484,124 @@ def test_the_unit_in_force_is_the_one_the_time_map_uses():
             ) == (meter.denominator, meter.units, meter.is_assumed)
 
 
+# Movements, each a list of measures, each the units set on its beats, in
+# order: (denominator, units), or None; and each measure's unit in force,
+# (denominator, units, assumed).
+MOVEMENTS = {
+    "a pickup takes its movement's first unit": (
+        [
+            [[(4, "1"), None, None], [None, None, None]],
+            [[None], [(8, "3"), None], [None, None]],
+        ],
+        [(4, "1", False)] * 2 + [(8, "3", True)] + [(8, "3", False)] * 2,
+    ),
+    "a movement without one carries the one before": (
+        [
+            [[(8, "3"), None], [None, None]],
+            [[None, None], [None, None]],
+        ],
+        [(8, "3", False)] * 2 + [(8, "3", True)] * 2,
+    ),
+    "none reaches back across a restart": (
+        [
+            [[None, None], [None, None]],
+            [[(8, "3"), None]],
+        ],
+        [(4, "1", True)] * 2 + [(8, "3", False)],
+    ),
+    "the one before a movement is the last in force": (
+        [
+            [[(4, "1"), None, None, None]],
+            [[None], [None, (8, "3")]],
+            [[None, None]],
+        ],
+        [(4, "1", False), (8, "3", True), (8, "3", False), (8, "3", True)],
+    ),
+    "two in a measure, and those TiLiA can't read": (
+        [
+            [[(4, "1"), (8, "3")], [(4, "x"), None]],
+            [[(0, "1"), None], [(8, "3"), (129, "1")]],
+        ],
+        [(4, "1", False)] * 2 + [(8, "3", True), (8, "3", False)],
+    ),
+}
+
+
+def piece(movements):
+    """A beat timeline of `movements`, shaped as `MOVEMENTS`' are, a beat a second."""
+    beats = []
+    for m, movement in enumerate(movements):
+        for k, measure in enumerate(movement):
+            for b, unit in enumerate(measure):
+                mark = None if b else ({"restart": True} if m and not k else {})
+                if unit is not None:
+                    unit = {"denominator": unit[0], "units": unit[1]}
+                time = float(len(beats))
+                beats.append((B[len(beats)], beat(time, measure=mark, beat_unit=unit)))
+    return one_timeline(beats)
+
+
+@pytest.mark.parametrize("movements, in_force", MOVEMENTS.values(), ids=MOVEMENTS)
+def test_across_movements_the_unit_in_force_is_the_one_the_time_map_uses(
+    movements, in_force
+):
+    # One rule, which both read (TimeLineAnnotator/project-management#376).
+    from tilia_core.timemap._rows import rows_of as wp9_rows
+    from tilia_core.timemap.meters import meters_of
+    from tilia_core.timemap.units import parse_units
+
+    timeline = tla.loads(piece(movements)).timelines[BEATS]
+    units = [row.beat_unit for row in timeline.measures.rows]
+    assert [(u.denominator, u.units, u.assumed) for u in units] == in_force
+    meters = meters_of(wp9_rows(timeline))
+    assert [
+        (unit.denominator, tuple(parse_units(unit.units).units), unit.assumed)
+        for unit in units
+    ] == [(meter.denominator, meter.units, meter.is_assumed) for meter in meters]
+
+
+@pytest.mark.parametrize(
+    "value, readable",
+    [
+        ({"denominator": 8, "units": "3"}, True),
+        ({"denominator": 8, "units": "3", "assumed": True}, True),
+        ({"denominator": 128, "units": "2+1/128"}, True),
+        ({"denominator": 0, "units": "1"}, False),
+        ({"denominator": 129, "units": "1"}, False),
+        ({"denominator": True, "units": "1"}, False),
+        ({"denominator": 4.0, "units": "1"}, False),
+        ({"denominator": 4, "units": "x"}, False),
+        ({"denominator": 4, "units": "1/129"}, False),
+        ({"denominator": 4, "units": ""}, False),
+        ({"denominator": 4, "units": 1}, False),
+        ({"denominator": 4}, False),
+        ({"units": "1"}, False),
+        ([4, "1"], False),
+        ("4/1", False),
+    ],
+    ids=str,
+)
+def test_the_table_and_the_time_map_read_the_same_beat_units(value, readable):
+    # As desktop#621 reads a unit, and drops one it can't when it loads a file
+    # (TimeLineAnnotator/project-management#376).
+    from tilia_core.timemap._rows import rows_of as wp9_rows
+
+    data = one_timeline([(B[0], beat(0.0, measure={})), (B[1], beat(1.0, measure={}))])
+    timeline = tla.loads(data).timelines[BEATS]
+    timeline.components[B[1]].attrs["beat_unit"] = value
+    timeline.measures = tla.measure_table(timeline)
+    table = [
+        [(unit.denominator, unit.units, unit.assumed) for unit in row.beat_units]
+        for row in timeline.measures.rows
+    ]
+    time_map = [
+        [(unit.denominator, unit.units, unit.assumed) for _, unit in row.units]
+        for row in wp9_rows(timeline)
+    ]
+    assert table == time_map
+    assert bool(table[1]) is readable
+
+
 def test_two_beat_timelines_have_a_table_each():
     doc = tla.read(GOLDEN / "every-kind.tla")
     tables = [tl.measures for tl in doc.timelines.values() if tl.kind == "beat"]
