@@ -390,7 +390,7 @@ class TestImportByMeasureThroughRepeats:
             for t in range(1, 2 * len(numbers) + 1):
                 beat_tlui.create_beat(time=t)
             beat_tl.recalculate_measures()
-            beat_tl.set_data("measure_numbers", numbers)
+            beat_tl.set_measure_numbers(numbers)
 
         return _make
 
