@@ -269,9 +269,11 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     found so without checking anything: a document made in memory has nothing
     read at all. Otherwise the component's timeline is checked as a write
     checks it, with the beat timeline it names as its measure table. Raises
-    `KeyError` for a component the document doesn't have, and, as `write` does,
-    `UnreadableFile` for a document the reader would refuse and `ValueError`
-    for a value in that timeline that JSON can't hold.
+    `KeyError` for a component the document doesn't have. For that timeline,
+    with its measure table, it raises what `write` raises, with the same place
+    and line: `UnreadableFile` when the reader would refuse it, and `ValueError`
+    for a value in it that JSON can't hold. What the reader would refuse in
+    another timeline, `write` raises.
 
     It reads the document's `read_problems` and sets them, as a write does: the
     two are not to run at once on one document, from two threads."""
@@ -305,7 +307,10 @@ def keep_read_problems(document: Document, component_id: str) -> None:
             else:
                 came_with = (place, problem.code) in was.codes or (
                     problem.code == rules.PAST_MEDIA_END
-                    and _was_past_the_end(written, timeline_id, unmeasured.get(place))
+                    and any(
+                        _was_past_the_end(written, timeline_id, state)
+                        for state in _unmeasured_states(unmeasured, place)
+                    )
                 )
         elif problem.joined is None and any(at == place for at, _ in between):
             # Named on another, which hasn't changed.
@@ -323,7 +328,7 @@ def keep_read_problems(document: Document, component_id: str) -> None:
             continue  # old as it is
         if (
             problem.code == rules.PAST_MEDIA_END
-            and unmeasured.get(problem.place) == problem.state
+            and problem.state in _unmeasured_states(unmeasured, problem.place)
         ):
             continue  # old as it is: its time wasn't compared with any
         kept.append(dataclasses.replace(problem, kept=True))
@@ -358,13 +363,22 @@ def _as_written(document: Document, timeline_id: str) -> Document:
         return written_document(checked_bytes(document))
 
 
-def _was_past_the_end(written: Document, timeline_id: str, state: str | None) -> bool:
+def _unmeasured_states(
+    unmeasured: Mapping[str, Any], place: str
+) -> tuple[str, ...] | frozenset[str]:
+    """The states the component at `place` was read in with no media length,
+    none for one read with a length: the one the reader keeps, or each of a set
+    of them."""
+    states = unmeasured.get(place)
+    if states is None:
+        return ()
+    return (states,) if isinstance(states, str) else states
+
+
+def _was_past_the_end(written: Document, timeline_id: str, state: str) -> bool:
     """Whether a component of `written`'s timeline `timeline_id`, as `state`
     holds it, as it was read with no media length, has a time past the end of
-    the one `written` has: it then came with a time past the end. False with no
-    `state`, for a component read with a length."""
-    if state is None:
-        return False
+    the one `written` has: it then came with a time past the end."""
     timeline = written.timelines[timeline_id]
     as_read = json.loads(state)
     as_read.pop("metadata", None)
@@ -393,6 +407,7 @@ class _Read:
 
     def __init__(self, read: list[ReadProblem]) -> None:
         self.problems: set[tuple[str, str, str]] = set()
+        self.read: set[tuple[str, str, str]] = set()  # not kept
         self.codes: set[tuple[str, str]] = set()
         self.places: set[str] = set()
         self.states: dict[str, str] = {}
@@ -413,6 +428,7 @@ class _Read:
             if problem.kept:
                 self.kept.setdefault(key, set()).update(between)
             else:
+                self.read.add((problem.place, problem.code, problem.state))
                 self.states[problem.place] = problem.state
                 self.states.update(between)
 
@@ -422,7 +438,16 @@ class _Read:
 
     def changed(self, problem: ReadProblem) -> tuple[tuple[str, str], ...]:
         """The others `problem` is between that aren't as read, nor as kept
-        with it."""
+        with it. A problem old only as one kept, on a component not as it was
+        read, is compared pair by pair (`at_odds`): another component read
+        with a problem of its own, but never at odds with it, is new to it, as
+        it becomes when a deletion brings it among those it names."""
+        if (problem.place, problem.code, problem.state) not in self.read:
+            return tuple(
+                (at, state)
+                for at, state in _between(problem)
+                if not self.at_odds(problem, at, state)
+            )
         kept = self.kept.get((problem.place, problem.code), ())
         return tuple(
             other

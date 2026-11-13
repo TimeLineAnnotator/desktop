@@ -2757,6 +2757,34 @@ class TestKeepReadProblems:
         written(doc, tmp_path)
 
     @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    @pytest.mark.parametrize("deleted", [0, 2], ids=["as kept", "two deleted"])
+    def test_a_crossing_of_many_it_wasnt_read_with(self, deleted, call, tmp_path):
+        # The first is over eleven, and names the first ten; the eleventh names
+        # it. The twelfth is apart, with a problem of its own. Moved to end
+        # later, the first crosses the twelfth too, on the twelfth. Once two of
+        # the ten are deleted, it names the twelfth itself.
+        doc = tla.loads(
+            a_file(
+                hierarchies(
+                    (FIRST, at_level(0.0, 76.0, 1, color="notacolor")),
+                    *(
+                        (key, at_level(7.0 * n, 7.0 * n + 5.0, 1))
+                        for n, key in enumerate(INNER[:11])
+                    ),
+                    (INNER[11], at_level(77.0, 82.0, 1, color="notacolor")),
+                )
+            )
+        )
+        changed(doc, FIRST, color=None, end=90.0)
+        if call:
+            tla.keep_read_problems(doc, FIRST)
+        for key in INNER[:deleted]:
+            del doc.timelines[FORM].components[key]
+        problems = refused(doc, tmp_path)
+        twelfth = component_place(FORM, INNER[11])
+        assert any(w.place == twelfth or twelfth in w.message for w in problems)
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
     def test_a_join_to_a_range_that_joins_it(self, call, tmp_path):
         # The first was read joined to the third, and the second joined back to
         # the first. Joined to the second instead, its join is new.
@@ -2793,6 +2821,49 @@ class TestKeepReadProblems:
         assert [w.message for w in refused(doc, tmp_path)] == [
             "End time '50.0' is bigger than media time '20.0'"
         ]
+
+    def test_it_raises_what_write_raises_for_its_timeline(self, tmp_path):
+        # A measure table that names no timeline: the reader refuses the
+        # timeline, and the place and line are those in what would be written.
+        doc = tla.loads(a_file(A_BAD_JOIN))
+        doc.timelines[TEXTURE].attrs["measure_table"] = tla.new_id()
+        changed(doc, THIRD, TEXTURE, color=None)
+        with pytest.raises(tla.UnreadableFile) as writing:
+            tla.write(tmp_path / "piece.tla", doc)
+        with pytest.raises(tla.UnreadableFile) as keeping:
+            tla.keep_read_problems(doc, THIRD)
+        assert (keeping.value.place, keeping.value.line, keeping.value.message) == (
+            writing.value.place,
+            writing.value.line,
+            writing.value.message,
+        )
+
+    def test_what_another_timeline_breaks_is_for_write(self, tmp_path):
+        doc = tla.loads(a_file(LEVEL_0_BEFORE_0))
+        doc.timelines[TEXTURE].components[MELODY_1].attrs["joined_right"] = tla.new_id()
+        fixed_in_part(doc, level=1)
+        with pytest.raises(tla.UnreadableFile):
+            tla.write(tmp_path / "piece.tla", doc)
+
+    @pytest.mark.parametrize(
+        "edit, kept", [({"level": 1}, 1), ({}, 0)], ids=["fixed in part", "unchanged"]
+    )
+    @pytest.mark.parametrize("as_sets", [False, True], ids=["one state", "a set"])
+    def test_states_read_with_no_length_one_or_a_set(self, as_sets, edit, kept):
+        # The states read with no length, by place, may be one each or a set.
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(140.0, 150.0, 0)))))
+        if as_sets:
+            doc.read_unmeasured = {
+                place: frozenset({state})
+                for place, state in doc.read_unmeasured.items()
+            }
+        doc.media_length = 100.0
+        read = len(doc.read_problems)
+        changed(doc, FIRST, **edit)
+        tla.keep_read_problems(doc, FIRST)
+        assert [
+            (problem.code, problem.kept) for problem in doc.read_problems[read:]
+        ] == [(rules.PAST_MEDIA_END, True)] * kept
 
     def test_copies_made_after_the_call_keep_it(self, tmp_path):
         doc = tla.loads(a_file(LEVEL_0_BEFORE_0))
