@@ -169,6 +169,8 @@ class BeatTLComponentManager(TimelineComponentManager):
         for component in self._components.copy():
             self.delete_component(component)
         self.compute_is_first_in_measure = True
+        # As in BeatTimeline.delete_components: the measures of deleted beats go.
+        self.timeline.recalculate_measures()
 
     def deserialize_components(self, serialized_components: dict[int, dict[str]]):
         # Storing these attributes so we can restore them below.
