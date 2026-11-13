@@ -494,3 +494,33 @@ class TestImportCommand:
         assert len(harmony_tl.modes()) == 1
         assert len(harmony_tl.harmonies()) == 1
         assert harmony_tl.harmonies()[0].get_data("comments") == "a comment"
+
+    def test_slash_chord_with_a_bass_outside_the_chord_is_labelled_as_a_numeral(
+        self, harmony_tlui, tmp_path
+    ):
+        # Its inversion is the bass's place in a stack of thirds, past the
+        # chord's last: G9/C is 5, G9/E and G11/E 6.
+        path = tmp_path / "harmonies.csv"
+        path.write_text(
+            "\n".join(
+                [
+                    "time,harmony_or_key,symbol,display_mode",
+                    "0,harmony,G9/C,roman",
+                    "10,harmony,G9/E,roman",
+                    "20,harmony,G11/E,roman",
+                ]
+            )
+        )
+
+        with (
+            patch(
+                "tilia.ui.timelines.collection.import_._get_by_time_or_by_measure_from_user",
+                return_value=(True, "time"),
+            ),
+            patch_file_dialog(True, [str(path)]),
+        ):
+            commands.execute("timelines.import.harmony")
+
+        harmonies = harmony_tlui.harmonies()
+        assert [h.get_data("inversion") for h in harmonies] == [5, 6, 6]
+        assert [h.label for h in harmonies] == ["V9", "V9", "V11    "]

@@ -361,17 +361,26 @@ def _chord_fb(
     return _figs_to_str(figures)
 
 
+# The last inversion of each chord size, which puts its highest tone in the bass.
+_LAST_INVERSION = {"triad": 2, "seventh": 3, "ninth": 4, "eleventh": 5, "thirteenth": 6}
+
+
 def _compute_quality_suffix(
     quality: str,
     note_name: str,
     inversion: int,
     key: music21.key.Key,
 ) -> str | None:
+    """
+    The figures of the quality's chord in an inversion, or None past the
+    chord's last one, which music21 can't build: the label is then the root
+    position's. A slash chord whose bass isn't one of the chord's tones gets
+    there, as music21 gives the bass's place in a stack of thirds: C9/F is 5,
+    and C9/A 6.
+    """
     size = _get_chord_size(quality)
-    if size in ("triad", "seventh"):
-        max_inv = 2 if size == "triad" else 3
-        if inversion > max_inv:
-            return None
+    if inversion > _LAST_INVERSION[size]:
+        return None
     abbrev = QUALITY_TO_ABBREVIATION[quality]
     sym = _chord_symbol(note_name + abbrev, inversion)
     return _get_inv_prefix(quality) + _chord_fb(sym, key, quality)
