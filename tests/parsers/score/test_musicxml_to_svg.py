@@ -7,7 +7,7 @@ import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent
 
 from tests.mock import Serve, patch_file_dialog
-from tests.utils import save_tilia_to_tmp_path
+from tests.utils import IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE, save_tilia_to_tmp_path
 from tilia.errors import SCORE_SVG_CREATE_ERROR
 from tilia.parsers.score import musicxml_to_svg as musicxml_to_svg_module
 from tilia.parsers.score.musicxml_to_svg import SVG_MAKER_PATH, musicxml_to_svg
@@ -288,6 +288,7 @@ def test_score_drawn_after_its_timeline_is_deleted_is_dropped(
     tilia_errors.assert_no_error()
 
 
+@IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
 def test_score_drawn_after_another_file_is_opened_is_dropped(
     converters, score_tlui, beat_tlui, tilia_errors, tmp_path
 ):
