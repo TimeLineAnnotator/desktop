@@ -104,8 +104,10 @@ class Timelines:
         kind: type[Timeline] | str,
         components: dict[str, dict[str, Any]] | None = None,
         *args,
+        from_file: bool = False,
         **kwargs,
     ) -> Timeline:
+        """With `from_file`, the timeline is one a file holds, as it holds it."""
 
         if isinstance(kind, str):
             kind = Timeline.get_class_by_name(kind)
@@ -132,7 +134,10 @@ class Timelines:
             tl.setup_blank_timeline()
 
         if kind == AudioWaveTimeline and not components:
-            tl.refresh()
+            if from_file:
+                tl.load_bars()
+            else:
+                tl.refresh()
 
         return tl
 
@@ -273,7 +278,7 @@ class Timelines:
         for id, tl_data in data_copy.items():
             # We need to pop so no duplicate arguments are passed
             kind = tl_data.pop("kind")
-            self.create_timeline(kind, id=id, **tl_data)
+            self.create_timeline(kind, id=id, from_file=True, **tl_data)
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
@@ -301,7 +306,11 @@ class Timelines:
         # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
         if timeline.get_state()["hash"] != state["hash"]:
             for attr in timeline.SERIALIZABLE:
-                self.set_timeline_data(timeline.id, attr, state[attr])
+                value = state[attr]
+                if isinstance(value, dict):
+                    # The timeline's own, not the state's, which undo keeps.
+                    value = copy.deepcopy(value)
+                self.set_timeline_data(timeline.id, attr, value)
 
         if (
             timeline.component_manager is not None

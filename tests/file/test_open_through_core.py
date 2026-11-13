@@ -19,6 +19,7 @@ from PySide6.QtGui import QImage, QPainter
 
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
+from tests.utils import get_blank_file_data
 from tilia.file import tla_bridge
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, post
@@ -49,6 +50,9 @@ FORM, CADENCES, BEATS = IDS["form"], IDS["cadences"], IDS["beats"]
 FIRST, SECOND = make_broken.make_id(100), make_broken.make_id(101)
 LYRICS = make_broken.make_id(102)
 HARMONIES = make_broken.make_id(103)
+AUDIOWAVE = make_broken.make_id(104)
+PDF = make_broken.make_id(105)
+SLIDER = make_broken.make_id(106)
 
 
 def names(paths):
@@ -96,6 +100,34 @@ def together(*changes):
             one(content)
 
     return change
+
+
+def a_harmony_timeline(*components, ordinal=6):
+    """A change: a harmony timeline holding these components, in order, each with
+    an id of its own."""
+
+    def change(content):
+        content["timelines"][HARMONIES] = {
+            "kind": "Harmony",
+            "name": "Keys",
+            "ordinal": ordinal,
+            "components": {
+                make_broken.make_id(300 + n): component
+                for n, component in enumerate(components)
+            },
+        }
+
+    return change
+
+
+def a_mode(**attrs):
+    """C major from the start, unless `attrs` say otherwise."""
+    return {"kind": "MODE", "time": 0.0, "step": 0, **attrs}
+
+
+def a_harmony(**attrs):
+    """G major at 1 s, the dominant of C major, unless `attrs` say otherwise."""
+    return {"kind": "HARMONY", "time": 1.0, "step": 4, **attrs}
 
 
 def with_lyrics_in_the_middle(content):
@@ -210,6 +242,7 @@ class TestRefused:
             "File 'not-json.tla' is not a valid .tla file."
             " line 6: not valid JSON (Expecting ',' delimiter)"
         )
+        open_before.assert_unchanged()
 
     def test_a_file_in_quarter_notes_is_refused(self, open_before, tilia_errors):
 
@@ -274,6 +307,80 @@ class TestRefused:
 
         assert tilia_errors.errors[0]["title"] == "Load file error"
         assert tilia.cur_file_path == cur_file_path
+        open_before.assert_unchanged()
+
+
+def cadence_label(tls) -> str:
+    return tls.get_timeline(CADENCES).get_component(IDS["cadence"]).get_data("label")
+
+
+def edit_and_record(tls):
+    """An edit to the file open before, recorded for undo: its cadence's label."""
+    tls.get_timeline(CADENCES).set_component_data(IDS["cadence"], "label", "HC")
+    post(Post.APP_STATE_RECORD, "test")
+
+
+def open_failing(path, side_effect=RuntimeError):
+    """Opens `path` with its load failing part-way, after the open file is cleared,
+    and without saving the changes to the file open."""
+    with (
+        Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+        patch.object(tla_bridge, "state_of", side_effect=side_effect),
+    ):
+        return open_file(path)
+
+
+class TestALoadThatFailsPartWay:
+    def test_keeps_the_undo_history(self, open_before, tilia, tls, tmp_path):
+        edit_and_record(tls)
+
+        assert not open_failing(a_file(tmp_path, name="other.tla"))
+
+        assert cadence_label(tls) == "HC"
+        assert tilia.is_file_modified()
+        commands.execute("edit.undo")
+        assert cadence_label(tls) == "PAC"
+        assert not tilia.is_file_modified()
+
+    def test_keeps_an_unsaved_metadata_edit(self, open_before, tilia, tmp_path):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Edited")
+        assert tilia.is_file_modified()
+
+        assert not open_failing(a_file(tmp_path, name="other.tla"))
+
+        assert tilia.file_manager.file.media_metadata["title"] == "Edited"
+        assert tilia.is_file_modified()
+
+    def test_an_element_that_fails_to_draw_leaves_the_file_before(
+        self, qtui, tilia, tls, tilia_errors, tmp_path
+    ):
+        # The file before and the one that fails have media of different lengths,
+        # so that restoring the one asks whether to scale the other's timelines if
+        # any of them is still there.
+        assert open_file(a_file(tmp_path, with_media_length(10.0), name="before.tla"))
+        open_before = OpenBefore(tilia)
+        failing = a_file(
+            tmp_path,
+            together(
+                with_media_length(20.0),
+                a_harmony_timeline(a_mode(), a_harmony()),
+            ),
+        )
+
+        with (
+            patch(
+                "tilia.ui.timelines.harmony.elements.harmony.HarmonyUI._setup_body",
+                side_effect=RuntimeError,
+            ),
+            ServeRecording(Get.FROM_USER_YES_OR_NO, True) as asked,
+        ):
+            assert not open_file(failing)
+
+        assert not asked.called
+        assert tilia_errors.errors[0]["title"] == "Load file error"
+        assert tls.get_timeline(HARMONIES) is None
+        open_before.assert_unchanged()
+        commands.execute("edit.undo")  # nothing to undo, and nothing raises
         open_before.assert_unchanged()
 
 
@@ -597,3 +704,275 @@ class TestAudioWave:
 
         assert len(audiowave) == 1
         assert not tilia.is_file_modified()
+
+    @staticmethod
+    def with_audiowave(is_visible: bool, media: str = ""):
+        """A change: an AudioWave timeline, shown or hidden, and the media's path."""
+
+        def change(content):
+            if media:
+                content["media"] = {"path": media, "length": 9.952}
+            timeline = {
+                "kind": "AudioWave",
+                "ordinal": 6,
+                "height": 80,
+                "components": {},
+            }
+            if not is_visible:
+                timeline["is_visible"] = False
+            content["timelines"][AUDIOWAVE] = timeline
+
+        return change
+
+    @staticmethod
+    def media_beside(tmp_path: Path) -> None:
+        (tmp_path / "example.mp3").write_bytes(Path(EXAMPLE_MEDIA_PATH).read_bytes())
+
+    @pytest.mark.parametrize("is_visible", [False, True], ids=["hidden", "shown"])
+    def test_keeps_the_file_s_visibility_and_gets_its_bars_from_the_media(
+        self, qtui, tilia, tls, tilia_errors, tmp_path, is_visible
+    ):
+        self.media_beside(tmp_path)
+        path = a_file(tmp_path, self.with_audiowave(is_visible, "example.mp3"))
+
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            assert open_file(path)
+
+        audiowave = tls.get_timeline(AUDIOWAVE)
+        assert audiowave.get_data("is_visible") is is_visible
+        assert len(audiowave) > 0  # computed from the media: the file stores none
+        tilia_errors.assert_no_error()
+        assert not tilia.is_file_modified()
+
+    @pytest.mark.parametrize("media", ["", "missing.mp3"], ids=["none", "not found"])
+    def test_without_its_media_it_stays_as_the_file_has_it_and_says_nothing(
+        self, qtui, tilia, tls, tilia_errors, tmp_path, media
+    ):
+        path = a_file(tmp_path, self.with_audiowave(True, media))
+
+        assert open_file(path)
+
+        audiowave = tls.get_timeline(AUDIOWAVE)
+        assert audiowave.get_data("is_visible") is True
+        assert len(audiowave) == 0
+        # Only the media's own message, as today, when it isn't found.
+        assert [error["title"] for error in tilia_errors.errors] == (
+            ["Media load error"] if media else []
+        )
+        assert not tilia.is_file_modified()
+
+    def test_an_old_file_s_hidden_audiowave_stays_hidden(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        self.media_beside(tmp_path)
+        data = get_blank_file_data()
+        data["version"] = "0.7.0"
+        data["file_path"] = (tmp_path / "old.tla").as_posix()
+        data["media_path"] = (tmp_path / "example.mp3").as_posix()
+        data["media_metadata"]["media length"] = 9.952
+        data["timelines"]["1"] = {
+            "kind": "AudioWave",
+            "name": "",
+            "height": 80,
+            "is_visible": False,
+            "ordinal": 2,
+            "components": {},
+        }
+        path = tmp_path / "old.tla"
+        path.write_text(json.dumps(data), encoding="utf-8")
+
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            assert open_file(path)
+
+        (audiowave,) = [tl for tl in tls if type(tl).type_name() == "AudioWave"]
+        assert audiowave.get_data("is_visible") is False
+        assert not tilia.is_file_modified()
+
+
+class TestHarmoniesTiLiACantReadWhole:
+    """Kept and drawn, the label showing what TiLiA can read of them: "?" stands
+    where TiLiA can't read a value."""
+
+    @staticmethod
+    def open_and_draw(qtui, tls, tilia, tmp_path, *components):
+        assert open_file(a_file(tmp_path, a_harmony_timeline(*components)))
+        timeline_ui = qtui.timeline_uis.get_timeline_ui(HARMONIES)
+        draw(timeline_ui)
+        assert len(tls.get_timeline(HARMONIES)) == len(components)
+        assert not tilia.is_file_modified()
+        return timeline_ui
+
+    @pytest.mark.parametrize("inversion", [0, 1, 2])
+    @pytest.mark.parametrize(
+        "display_mode, label, alternate",
+        [("letter", "G?", "V?"), ("roman", "V?", "G?")],
+        ids=["letter", "roman"],
+    )
+    def test_a_quality_tilia_doesn_t_know_is_its_root_and_a_mark(
+        self,
+        qtui,
+        tilia,
+        tls,
+        tilia_errors,
+        tmp_path,
+        display_mode,
+        label,
+        alternate,
+        inversion,
+    ):
+        # Anne, 2026-11-13, TimeLineAnnotator/project-management#553, point 1: at
+        # every inversion, since its bass can't be known.
+        unknown = a_harmony(
+            quality="some-future-quality",
+            display_mode=display_mode,
+            inversion=inversion,
+        )
+        timeline_ui = self.open_and_draw(qtui, tls, tilia, tmp_path, a_mode(), unknown)
+
+        (harmony,) = timeline_ui.harmonies()
+        assert harmony.label == label
+        assert harmony.alternate_label == alternate
+        assert harmony.get_data("quality") == "some-future-quality"
+        tilia_errors.assert_no_error()
+
+    def test_a_root_s_accidental_is_kept_before_the_mark(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        unknown = a_harmony(accidental=-1, quality="some-future-quality")
+        timeline_ui = self.open_and_draw(qtui, tls, tilia, tmp_path, a_mode(), unknown)
+
+        (harmony,) = timeline_ui.harmonies()
+        assert harmony.letter_symbol_label == "G`b?"
+        assert harmony.roman_numeral_label == "`bV?"
+
+    @pytest.mark.parametrize(
+        "attrs, letter, roman",
+        [
+            ({"step": 9}, "?", "?"),
+            ({"accidental": 5}, "?", "?"),
+            ({"applied_to": 9}, "G", "V/?"),
+            ({"display_mode": "some-future-mode"}, "G", "V"),
+        ],
+        ids=["step", "accidental", "applied to", "display mode"],
+    )
+    def test_a_value_tilia_can_t_read_is_marked(
+        self, qtui, tilia, tls, tilia_errors, tmp_path, attrs, letter, roman
+    ):
+        timeline_ui = self.open_and_draw(
+            qtui, tls, tilia, tmp_path, a_mode(), a_harmony(**attrs)
+        )
+
+        (harmony,) = timeline_ui.harmonies()
+        assert harmony.letter_symbol_label == letter
+        assert harmony.roman_numeral_label == roman
+        assert harmony.label == letter  # an unknown display mode draws letters
+        tilia_errors.assert_no_error()
+
+    def test_a_mode_whose_tonic_tilia_can_t_read(
+        self, qtui, tilia, tls, tilia_errors, tmp_path
+    ):
+        timeline_ui = self.open_and_draw(
+            qtui,
+            tls,
+            tilia,
+            tmp_path,
+            a_mode(step=9),
+            a_harmony(display_mode="roman"),
+        )
+
+        (mode,) = timeline_ui.modes()
+        (harmony,) = timeline_ui.harmonies()
+        assert mode.label == "?"
+        assert harmony.label == "V"  # read in C major, as with no mode
+        tilia_errors.assert_no_error()
+
+
+class TestTheState:
+    def test_saving_after_a_discard_reads_as_unmodified(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        path = a_file(tmp_path, with_lyrics_in_the_middle)
+        with Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, True)):
+            commands.execute("file.open", path)
+        assert tilia.is_file_modified()
+
+        commands.execute("file.save_as", str(tmp_path / "saved.tla"))
+
+        assert not tilia.is_file_modified()
+
+    def test_every_kind_holds_its_fields_and_measure_table(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        def change(content):
+            a_harmony_timeline(a_mode())(content)
+            content["timelines"][HARMONIES]["measure_table"] = BEATS
+            content["timelines"][PDF] = {
+                "kind": "Pdf",
+                "name": "Pages",
+                "ordinal": 7,
+                "path": "",
+                "height": 40,
+                "measure_table": BEATS,
+                "components": {},
+            }
+            content["timelines"][SLIDER] = {
+                "kind": "Slider",
+                "ordinal": 8,
+                "height": 25,
+                "components": {},
+            }
+            content["timelines"][AUDIOWAVE] = {
+                "kind": "AudioWave",
+                "ordinal": 9,
+                "height": 80,
+                "components": {},
+            }
+            for n, timeline in enumerate(content["timelines"].values()):
+                timeline["metadata"] = {"field": f"value {n}"}
+
+        path = a_file(tmp_path, change)
+        doc = tla.read(path)
+
+        open_file(path)
+
+        state = tilia.get_app_state()["timelines"]
+        kinds = set()
+        for timeline in doc.timelines.values():
+            kinds.add(state[timeline.id]["kind"])
+            assert state[timeline.id]["fields"] == timeline.metadata
+            assert state[timeline.id]["measure_table"] == timeline.attrs.get(
+                "measure_table"
+            )
+        assert kinds == {
+            "Beat",
+            "Hierarchy",
+            "Marker",
+            "Range",
+            "Score",
+            "Harmony",
+            "Pdf",
+            "Slider",
+            "AudioWave",
+        }
+
+    def test_a_timeline_s_fields_are_its_own(self, qtui, tilia, tls, tmp_path):
+        # Not shared with the states undo keeps, nor with the baseline of
+        # whether the file is modified.
+        def change(content):
+            content["timelines"][FORM]["metadata"] = {"vocabulary": ["form@1"]}
+
+        open_file(a_file(tmp_path, change))
+        form = tls.get_timeline(FORM)
+        state = tilia.get_app_state()["timelines"][FORM]
+        assert state["fields"] == form.get_data("fields")
+        assert state["fields"] is not form.get_data("fields")
+        assert state["fields"]["vocabulary"] is not form.fields["vocabulary"]
+
+        tls.set_timeline_data(FORM, "fields", {"vocabulary": ["form@2"]})
+        post(Post.APP_STATE_RECORD, "test")
+        commands.execute("edit.undo")
+        form.get_data("fields")["vocabulary"].append("in place")
+        commands.execute("edit.redo")
+        commands.execute("edit.undo")
+
+        assert form.get_data("fields") == {"vocabulary": ["form@1"]}

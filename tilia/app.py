@@ -180,15 +180,13 @@ class App:
         if file is None:
             return False
 
-        prev_state = self.get_app_state()
-        prev_file, prev_file_path = self.file_manager.file, self.cur_file_path
+        open_before = _OpenBefore(self)
         self.cur_file_path = Path(file.file_path)
         self.on_clear()
 
         success = self.on_file_load(file)
         if not success:
-            self.on_restore_state(prev_state)
-            self.file_manager.file, self.cur_file_path = prev_file, prev_file_path
+            open_before.give_back()
             return False
 
         file.timelines, file.timelines_hash = self.get_timelines_state()
@@ -531,3 +529,28 @@ class App:
     def setup_file(self) -> None:
         self._ensure_slider_timeline()
         self.reset_undo_manager()
+
+
+class _OpenBefore:
+    """The file open before another is opened, to give back if the other fails to
+    load part-way, once the app has been cleared: its state, its file with what
+    tells whether it is modified, and its undo history."""
+
+    def __init__(self, app: App):
+        self.app = app
+        self.state = app.get_app_state()
+        self.file = app.file_manager.keep_file()
+        self.file_path = app.cur_file_path
+        undo = app.undo_manager
+        self.undo = undo.stack, undo.current_state_index, undo.last_repeat_id
+
+    def give_back(self) -> None:
+        app = self.app
+        # What the other file left half loaded goes first, so that restoring this
+        # one finds no timelines: it then asks nothing about scaling them.
+        app.on_clear()
+        app._restore_app_state(self.state)
+        app.file_manager.give_back_file(self.file)
+        app.cur_file_path = self.file_path
+        undo = app.undo_manager
+        undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo

@@ -335,6 +335,15 @@ class FileManager:
     def new(self):
         self._setup_file()
 
+    def keep_file(self) -> tuple[OpenDocument, dict]:
+        """The file open, with what tells whether it is modified, for
+        `give_back_file`."""
+        return self._file, dict(self._saved_metadata)
+
+    def give_back_file(self, kept: tuple[OpenDocument, dict]) -> None:
+        """Makes the file `keep_file` gave the one open again, modified as it was."""
+        self._file, self._saved_metadata = kept
+
     def resync_saved_metadata(self) -> None:
         self._saved_metadata = dict(self.file.media_metadata)
 

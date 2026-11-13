@@ -64,6 +64,10 @@ class Mode(PointLikeTimelineComponent):
 
     @property
     def key(self):
+        if not (validate_step(self.step) and validate_accidental(self.accidental)):
+            # A tonic TiLiA can't read, which a file can hold: the harmonies after
+            # it are read in C major, as with no mode.
+            return music21.key.Key("C")
         tonic = (
             INT_TO_NOTE_NAME[self.step]
             + music21.pitch.Accidental(self.get_data("accidental")).modifier

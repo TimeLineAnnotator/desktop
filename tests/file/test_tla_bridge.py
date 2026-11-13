@@ -3045,6 +3045,10 @@ class TestComesBackAsTiLiAHeldIt:
             )
         )
         opened = live(doc)
+        # As TiLiA hides it when it can't read the media.
+        opened.timeline(tl).refresh()
+        opened.synced = opened.state()
+        opened.first = copy.deepcopy(opened.synced)
         assert opened.synced["timelines"][tl]["is_visible"] is False
         opened.tls.delete_timeline(opened.timeline(tl))
         opened.sync()

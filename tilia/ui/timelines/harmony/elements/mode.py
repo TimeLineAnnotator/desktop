@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME
+from tilia.timelines.harmony.validators import validate_accidental, validate_step
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -12,6 +13,7 @@ from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import Accidental
 from tilia.ui.timelines.harmony.context_menu import ModeContextMenu
 from tilia.ui.timelines.harmony.elements import mode_attrs
+from tilia.ui.timelines.harmony.utils import UNREADABLE
 
 
 class ModeUI(TimelineUIElement):
@@ -39,6 +41,11 @@ class ModeUI(TimelineUIElement):
 
     @property
     def label(self):
+        if not (
+            validate_step(self.get_data("step"))
+            and validate_accidental(self.get_data("accidental"))
+        ):
+            return UNREADABLE  # a tonic TiLiA can't read, which a file can hold
         tonic = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
             "musanalysis",
             self.get_data("accidental"),
