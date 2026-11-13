@@ -10,6 +10,7 @@ from tests.ui.timelines.harmony.interact import (
 )
 from tests.utils import get_command_action, get_command_names, undoable
 from tilia.requests import Get
+from tilia.timelines.harmony.constants import HARMONY_QUALITIES
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
@@ -23,6 +24,37 @@ MINOR = {"step": 5, "accidental": 0, "type": "minor"}  # A minor
 D_MINOR = {"step": 1, "accidental": 0, "type": "minor"}
 EB_MINOR = {"step": 2, "accidental": -1, "type": "minor"}
 FS_MINOR = {"step": 3, "accidental": 1, "type": "minor"}
+
+# The inversions a harmony can hold, whatever its quality: importing a slash
+# chord gives the bass's place in a stack of thirds, from the root (0) to the
+# thirteenth (6), so C9/F is 5 and C9/A 6.
+SLASH_CHORD_INVERSIONS = range(7)
+
+# The chords that stop short of the thirteenth. A ninth chord's last inversion
+# is the fourth, and an eleventh chord's the fifth.
+NINTH_QUALITIES = [
+    "major-ninth",
+    "dominant-ninth",
+    "dominant-ninth-sharp-eleventh",  # its added tone is no inversion's bass
+    "minor-major-ninth",
+    "minor-ninth",
+    "augmented-major-ninth",
+    "augmented-dominant-ninth",
+    "half-diminished-ninth",
+    "half-diminished-minor-ninth",
+    "diminished-ninth",
+    "diminished-minor-ninth",
+]
+ELEVENTH_QUALITIES = [
+    "dominant-11th",
+    "major-11th",
+    "minor-major-11th",
+    "minor-11th",
+    "augmented-major-11th",
+    "augmented-11th",
+    "half-diminished-11th",
+    "diminished-11th",
+]
 
 
 def add_harmony(time: float | None = None, **kwargs):
@@ -222,6 +254,55 @@ class TestRomanNumeralDisplay:
         )
         label = harmony_tlui.harmonies()[0].label
         assert label  # no crash, non-empty
+
+    @pytest.mark.parametrize("quality", HARMONY_QUALITIES)
+    def test_roman_label_at_every_inversion_a_harmony_can_hold(
+        self, quality, harmony_tlui
+    ):
+        for inversion in SLASH_CHORD_INVERSIONS:
+            add_harmony(inversion + 1, quality=quality, inversion=inversion)
+
+        labels = [harmony.label for harmony in harmony_tlui.harmonies()]
+        assert len(labels) == len(SLASH_CHORD_INVERSIONS)
+        assert all(labels)
+
+    @pytest.mark.parametrize(
+        "quality,last_inversion",
+        [(quality, 4) for quality in NINTH_QUALITIES]
+        + [(quality, 5) for quality in ELEVENTH_QUALITIES],
+    )
+    def test_roman_label_past_the_chords_last_inversion_is_root_positions(
+        self, quality, last_inversion, harmony_tlui
+    ):
+        # As a triad's or a seventh's is. The chord's own inversions keep their
+        # figures.
+        for inversion in SLASH_CHORD_INVERSIONS:
+            add_harmony(inversion + 1, step=4, quality=quality, inversion=inversion)
+
+        root_position, *inverted = [h.label for h in harmony_tlui.harmonies()]
+        assert root_position not in inverted[:last_inversion]
+        assert inverted[last_inversion:] == [root_position] * (6 - last_inversion)
+
+    @pytest.mark.parametrize(
+        "quality,inversion,expected",
+        [
+            ("dominant-ninth", 4, "V72"),  # G9/A
+            ("dominant-ninth", 5, "V9"),  # G9/C
+            ("dominant-ninth", 6, "V9"),  # G9/E
+            ("minor-ninth", 5, "v9"),  # Gm9/C
+            ("major-ninth", 6, "V9"),  # Gmaj9/E
+            ("dominant-ninth-sharp-eleventh", 6, "V9((#1\u200c1))"),  # G9(#11)/E
+            ("dominant-11th", 5, "V75    "),  # G11/C
+            ("dominant-11th", 6, "V11    "),  # G11/E
+            ("dominant-13th", 6, "V53"),  # G13/E
+        ],
+    )
+    def test_roman_label_at_and_past_the_chords_last_inversion(
+        self, quality, inversion, expected, harmony_tlui
+    ):
+        add_harmony(step=4, quality=quality, inversion=inversion)
+
+        assert harmony_tlui.harmonies()[0].label == expected
 
     @pytest.mark.parametrize(
         "mode,step,accidental,quality,expected",
