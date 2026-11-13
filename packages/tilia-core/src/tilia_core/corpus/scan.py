@@ -40,7 +40,7 @@ import threading
 import time
 import traceback
 import unicodedata
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from types import TracebackType
@@ -644,6 +644,33 @@ class Scanner:
         """When the last scan began, by :data:`clock`."""
         self._jobs = threading.Lock()
         self._job: _Job | None = None
+
+    # -- the copy on disk (cache.py) ------------------------------------------ #
+    @property
+    def next_key(self) -> int:
+        """The key the corpus hands out next."""
+        return self._counter.value
+
+    def restore(self, records: dict[str, FileRecord], next_key: int) -> None:
+        """Take the records of an index loaded from its copy on disk, and hand
+        out keys from ``next_key`` on."""
+        with self.turn:
+            self.records = dict(records)
+            self._counter.value = next_key
+
+    def forget(self, paths: Iterable[str]) -> None:
+        """Remove the files at ``paths`` from the records and the index, as
+        though they had never been read. When the change can't be applied,
+        nothing changes."""
+        with self.turn:
+            drop = set(paths)
+            keys = [self.records[p].key for p in sorted(drop)]
+            maps: dict[int, TimeMap | None] = dict.fromkeys(keys)
+            err = self.store.apply(keys, [], maps)
+            if err is None:
+                self.records = {
+                    p: rec for p, rec in self.records.items() if p not in drop
+                }
 
     def _readable(
         self, outcome: Outcome, key: int, replay: tuple[int, ...] = ()

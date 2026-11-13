@@ -59,6 +59,13 @@ def _schema_error(data):
 
 
 @pytest.fixture(autouse=True)
+def no_index_copies(monkeypatch):
+    """No test keeps a corpus's index in the user's cache folder: the tests of
+    the copies (test_corpus_cache.py) name a folder of their own."""
+    monkeypatch.setenv("TILIA_INDEX_CACHE", "off")
+
+
+@pytest.fixture(autouse=True)
 def written_files_are_valid(request, monkeypatch):
     written = []
     write = writer.canonical_bytes

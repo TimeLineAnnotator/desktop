@@ -121,7 +121,7 @@ def _sequence_matches(
 
 
 def _timeline_row(
-    log: Recorder, m: Match, title: str | None, ids: _OwnIds
+    log: Recorder, m: Match, title: str | None, ids: _OwnIds, paths: dict[int, str]
 ) -> dict[str, Any]:
     """A row of a query of only ``WHERE`` that lists timelines."""
     name, kind, role, author = log.execute(
@@ -130,7 +130,7 @@ def _timeline_row(
     )[0]
     return {
         "file": ids.document(m.file_id),
-        "path": _file_path(log, m.file_id),
+        "path": _path(paths, m.file_id),
         "title": title,
         "timeline": name,
         "kind": kind,
@@ -140,14 +140,19 @@ def _timeline_row(
 
 
 def _file_row(
-    log: Recorder, m: Match, title: str | None, file_fields: list[str], ids: _OwnIds
+    log: Recorder,
+    m: Match,
+    title: str | None,
+    file_fields: list[str],
+    ids: _OwnIds,
+    paths: dict[int, str],
 ) -> dict[str, Any]:
     """A row of a query of only ``WHERE`` that lists files: ``file``, ``path``,
     ``title`` and a column for each file field the query names (several values
     joined by ``, ``)."""
     row: dict[str, Any] = {
         "file": ids.document(m.file_id),
-        "path": _file_path(log, m.file_id),
+        "path": _path(paths, m.file_id),
         "title": title,
     }
     for name in file_fields:
@@ -165,10 +170,9 @@ def _file_row(
     return row
 
 
-def _file_path(log: Recorder, file_id: int) -> str | None:
-    # not logged, as for positions: one lookup per row
-    row = log.con.execute("SELECT path FROM files WHERE id = ?", (file_id,)).fetchone()
-    return row[0] if row else None
+def _path(paths: dict[int, str], file_id: int | None) -> str | None:
+    """The path of the file ``file_id``, from the run's :func:`_paths`."""
+    return None if file_id is None else paths.get(file_id)
 
 
 def _by_path(matches: list[Match], files: list[tuple[int]]) -> None:
@@ -315,6 +319,7 @@ def _run_on(
     rows: list[dict[str, Any]] = []
     node_names = {r[0]: r[1] for r in log.execute("SELECT id, name FROM timelines")}
     ids = _OwnIds(log, matches)
+    positions = _Positions(log, matches, measures) if grain == "match" else None
     for m in matches:
         if not spent and limits.cancelled():
             matches = matches[: len(rows)]
@@ -324,11 +329,12 @@ def _run_on(
         if fid not in titles:
             titles[fid] = _file_title(log, fid)
         if grain == "match":
-            rows.append(_row(log, m, node_names, titles[fid], ids, measures))
+            assert positions is not None
+            rows.append(_row(log, m, node_names, titles[fid], ids, positions, paths))
         elif grain == "timeline":
-            rows.append(_timeline_row(log, m, titles[fid], ids))
+            rows.append(_timeline_row(log, m, titles[fid], ids, paths))
         else:
-            rows.append(_file_row(log, m, titles[fid], extra, ids))
+            rows.append(_file_row(log, m, titles[fid], extra, ids, paths))
     return Result(
         grain=grain,
         rows=rows,
@@ -943,22 +949,43 @@ def _extent(m: Match) -> tuple[float, float]:
     return min(x[1] for x in t), max(x[2] for x in t)
 
 
-def _position(
-    log: Recorder, comp: Component | None, measures: values.Measures
-) -> tuple[Any, Any]:
-    if comp is None:
-        return None, None
-    # not logged: one lookup per target and per step would grow the shown
-    # SQL by several statements per match
-    if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
-        numbers = measures.numbers(comp.file_id)
-        if comp.start in numbers:
-            return numbers[comp.start], 1.0
-        return None, None
-    rows = log.con.execute(
-        "SELECT bar, beat FROM positions WHERE component_id = ?", (comp.id,)
-    ).fetchall()
-    return (rows[0][0], rows[0][1]) if rows else (None, None)
+class _Positions:
+    """The bar and beat of each unit the rows of a run's matches name: of a
+    component, its ``positions`` row, read for every component of the
+    matches with a lookup per :attr:`_OwnIds.CHUNK` of them; of a bar, its
+    number and its first beat."""
+
+    def __init__(
+        self, log: Recorder, matches: list[Match], measures: values.Measures
+    ) -> None:
+        self._measures = measures
+        keys = sorted(
+            {c.id for m in matches for s in m.slots for c in s if c.kind != BAR_KIND}
+        )
+        self._of: dict[Any, tuple[Any, Any]] = {}
+        # lookups, not search statements: one per target and per step would
+        # grow the SQL a result shows by several statements per match
+        for i in range(0, len(keys), _OwnIds.CHUNK):
+            chunk = keys[i : i + _OwnIds.CHUNK]
+            marks = ", ".join("?" for _ in chunk)
+            for comp_id, bar, beat in log.con.execute(
+                "SELECT component_id, bar, beat FROM positions "
+                f"WHERE component_id IN ({marks})",
+                chunk,
+            ):
+                self._of[comp_id] = (bar, beat)
+
+    def of(self, comp: Component | None) -> tuple[Any, Any]:
+        """``(bar, beat)`` of ``comp``; ``(None, None)`` for none, and for a
+        component without a position."""
+        if comp is None:
+            return None, None
+        if comp.kind == BAR_KIND:  # a bar is no component: it starts on its first beat
+            numbers = self._measures.numbers(comp.file_id)
+            if comp.start in numbers:
+                return numbers[comp.start], 1.0
+            return None, None
+        return self._of.get(comp.id, (None, None))
 
 
 RESULT_COLUMNS = ("file", "path", "title", "timeline", "lane", "ids", "label")
@@ -1022,15 +1049,16 @@ def _row(
     names: dict[int, str],
     title: str | None,
     ids: _OwnIds,
-    measures: values.Measures,
+    positions: _Positions,
+    paths: dict[int, str],
 ) -> dict[str, Any]:
     targets = _targets(m)
     first = targets[0][0]
     start, end = _extent(m)
-    bar, beat = _position(log, first, measures)
+    bar, beat = positions.of(first)
     row: dict[str, Any] = {
         "file": ids.document(first.file_id),
-        "path": _file_path(log, first.file_id),
+        "path": _path(paths, first.file_id),
         "title": title,
         "timeline": names.get(first.timeline_id),
         "lane": _lane_column(m),
@@ -1048,6 +1076,6 @@ def _row(
         row[f"${n}.timeline"] = m.slot_lanes[n - 1] if m.slot_lanes else m.lane
         row[f"${n}.start"] = min((s for s, _ in spans), default=None)
         row[f"${n}.end"] = max((e for _, e in spans), default=None)
-        row[f"${n}.bar"] = _position(log, slot[0] if slot else None, measures)[0]
+        row[f"${n}.bar"] = positions.of(slot[0] if slot else None)[0]
         row[f"${n}.ids"] = " ".join(ids.unit(c) for c in slot)
     return row

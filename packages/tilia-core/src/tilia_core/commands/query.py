@@ -256,7 +256,10 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
 
     try:
         # Read once: a rescan before the run would read every file again.
-        opened = corpus.open_corpus(folder, rescan_before_reads=False)
+        # The index is kept on disk, so the next call reads only what changed.
+        opened = corpus.open_corpus(
+            folder, rescan_before_reads=False, keep_on_disk=True
+        )
     except OSError as error:
         why = error.strerror or str(error)
         print(f"{PROG}: can't read {shown(folder)}: {why}", file=sys.stderr)
