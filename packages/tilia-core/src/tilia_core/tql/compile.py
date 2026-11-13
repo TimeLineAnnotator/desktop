@@ -103,6 +103,8 @@ class Catalog:
         self._by_id: dict[Any, tuple[Any, ...]] = {}
         self._levels: dict[tuple[Any, Any], list[Any]] | None = None
         self._rows: dict[tuple[Any, Any], list[tuple[Any, Any]]] | None = None
+        # label_timelines', by the statements' text and values
+        self._labelled: dict[tuple[Any, ...], dict[Any, frozenset[Any]]] = {}
 
     def _where(self, column: str) -> tuple[str, tuple[Any, ...]]:
         if self.file_id is None:
@@ -183,6 +185,87 @@ class Catalog:
                 got.setdefault((f, t), []).append((row_id, row))
             self._rows = got
         return self._rows.get((file_id, timeline_id), [])
+
+    def label_timelines(self, term: syntax.Term) -> dict[Any, frozenset[Any]] | None:
+        """The timelines of each file that hold a component with a label of
+        ``term``, by file: a chord or key read as one, any other unit by its
+        label, as :func:`unit_test` tests it with no lanes. Read for every file
+        the first time a run asks, with two lookups that start from an index:
+        one over the chords and keys, and one over the units with a category
+        of one of the words of ``term``. None when an alternative of ``term``
+        has no word, so that every unit of the corpus would be tested: the
+        caller then asks file by file."""
+        starts: list[Any] = []
+        start = _labelled_ids(term, starts)
+        if start is None:
+            return None
+        harmony_params: list[Any] = []
+        harmony = " OR ".join(
+            _alt_sql(alt, "c", n, harmony_params, (True, False))
+            for n, alt in enumerate(term.alts)
+        )
+        label_params: list[Any] = []
+        label = " OR ".join(
+            _alt_sql(alt, "c", n, label_params, (False, True))
+            for n, alt in enumerate(term.alts)
+        )
+        key = (harmony, *harmony_params, None, label, *label_params)
+        got = self._labelled.get(key)
+        if got is not None:
+            return got
+        where, file_params = self._where("c.file_id")
+        cond = " AND" if where else " WHERE"
+        # a chord or key without its row fits a NOT literal: without one, only
+        # those with a row can fit
+        negated = any(lit.negate for alt in term.alts for lit in alt.lits)
+        harmony_start = (
+            ""
+            if negated
+            else " c.id IN (SELECT component_id FROM chords "
+            "UNION ALL SELECT component_id FROM keys) AND"
+        )
+        found: dict[Any, set[Any]] = {}
+        for sql, params in (
+            (
+                "SELECT DISTINCT c.file_id, c.timeline_id FROM components c"
+                f"{where}{cond}{harmony_start} c.kind IN ('chord', 'key') "
+                f"AND ({harmony})",
+                [*file_params, *harmony_params],
+            ),
+            (
+                "SELECT DISTINCT c.file_id, c.timeline_id FROM components c"
+                f"{where}{cond} c.id IN ({start}) "
+                f"AND c.kind NOT IN ('chord', 'key') AND ({label})",
+                [*file_params, *starts, *label_params],
+            ),
+        ):
+            for file_id, timeline_id in self.con.execute(sql, params):
+                found.setdefault(file_id, set()).add(timeline_id)
+        got = self._labelled[key] = {f: frozenset(t) for f, t in found.items()}
+        return got
+        found: dict[Any, set[Any]] = {}
+        harmony_sql = (
+            "SELECT DISTINCT c.file_id, c.timeline_id FROM components c"
+            f"{where}{cond} c.kind IN ('chord', 'key') AND ({harmony})"
+        )
+        starts: list[Any] = []
+        start = _labelled_ids(term, starts)
+        if start is not None:
+            where_label = f"{where}{cond} c.id IN ({start}) AND"
+        else:
+            where_label = f"{where}{cond}"
+        label_sql = (
+            "SELECT DISTINCT c.file_id, c.timeline_id FROM components c"
+            f"{where_label} c.kind NOT IN ('chord', 'key') AND ({label})"
+        )
+        for sql, params in (
+            (harmony_sql, [*file_params, *harmony_params]),
+            (label_sql, [*file_params, *starts, *label_params]),
+        ):
+            for file_id, timeline_id in self.con.execute(sql, params):
+                found.setdefault(file_id, set()).add(timeline_id)
+        got = self._labelled[key] = {f: frozenset(t) for f, t in found.items()}
+        return got
 
 
 def _catalog(src: sqlite3.Connection | Catalog, file_id: Any) -> Catalog:
@@ -373,6 +456,36 @@ def _category_test(lit: syntax.Literal, alias: str, params: list[Any]) -> str:
         return f"{alias}.category = ?"
     params.extend((head, head))
     return f"({alias}.category = ? OR {alias}.supertype = ?)"
+
+
+def _labelled_ids(term: syntax.Term, params: list[Any]) -> str | None:
+    """A statement selecting the ids of the units with a category of one of the
+    words of ``term``: every unit other than a chord or a key that fits it is
+    among them, since each alternative needs a category row for its first
+    word (:func:`_label_sql`). None when an alternative has no word, so that
+    a unit may fit it without any category. Each category test is a select of
+    its own, so that SQLite looks it up by its index."""
+    selects: list[str] = []
+    for alt in term.alts:
+        first = next(
+            (
+                lit
+                for lit in alt.lits
+                if lit.kind in ("word", "chord") and not lit.negate
+            ),
+            None,
+        )
+        if first is None:
+            return None
+        head = fold(first.text)
+        if first.sub:
+            selects.append("SELECT component_id FROM categories WHERE category = ?")
+            params.append(f"{head}.{fold(first.sub)}")
+        else:
+            selects.append("SELECT component_id FROM categories WHERE category = ?")
+            selects.append("SELECT component_id FROM categories WHERE supertype = ?")
+            params.extend((head, head))
+    return " UNION ALL ".join(selects)
 
 
 def holds(specs: Iterable[LaneSpec] | None) -> tuple[bool, bool]:
