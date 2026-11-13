@@ -331,17 +331,20 @@ def _read_and_build_in_worker(
     found: Found,
     settings: CorpusSettings,
     time_map_of: TimeMapOf,
-) -> tuple[Outcome, str | None, str | None]:
+) -> tuple[Outcome, str | None]:
     """:func:`_read_in_worker`, and for a readable file its rows, built here
-    (:class:`Prebuilt`): the outcome, then the traceback's text of a failure of
-    the reader, or of building the rows, which the process that asked logs. A
-    file whose rows can't be built is unreadable, as in :meth:`Scanner._try_rows`."""
+    (:class:`Prebuilt`), which go back in place of its document. When they
+    can't be built, the document goes back as it is: the process that asked
+    builds them as it would have, and logs the failure
+    (:meth:`Scanner._try_rows`), so that the file becomes unreadable after the
+    scan has matched moved files by their document's id, as when it is read
+    there."""
     from . import cache  # it imports this module
 
     outcome, failure = _read_in_worker(reader, found)
     document = outcome.document
     if document is None:
-        return outcome, failure, None
+        return outcome, failure
     taken = itertools.count()
     try:
         rows, tmap = _rows_of(document, settings, time_map_of, taken.__next__)
@@ -352,10 +355,8 @@ def _read_and_build_in_worker(
                 pass
             else:
                 tmap = cache.LazyTimeMap(tmap.timeline_id, tmap.guessed, data)
-    except Exception as err:  # noqa: BLE001 - one file stops nothing
-        reason = f"can't read: {type(err).__name__}: {err}"
-        unread = replace(outcome, document=None, fingerprint=None, reason=reason)
-        return unread, None, traceback.format_exc()
+    except Exception:  # noqa: BLE001 - built and logged again there
+        return outcome, None
     prebuilt = Prebuilt(
         rows=rows,
         count=next(taken),
@@ -365,7 +366,7 @@ def _read_and_build_in_worker(
         media_length=document.media_length,
         time_unit=document.time_unit,
     )
-    return replace(outcome, document=None, prebuilt=prebuilt), None, None
+    return replace(outcome, document=None, prebuilt=prebuilt), None
 
 
 def read_files(
@@ -408,10 +409,7 @@ def _read_in_workers(
     try:
         if rows_for is None:
             tasks = [(reader, f) for f in todo]
-            results = [
-                (*result, None)
-                for result in _workers.run(_read_in_worker, tasks, workers)
-            ]
+            results = _workers.run(_read_in_worker, tasks, workers)
         else:
             tasks = [(reader, f, *rows_for) for f in todo]
             results = _workers.run(_read_and_build_in_worker, tasks, workers)
@@ -423,20 +421,13 @@ def _read_in_workers(
         )
         return {}
     outcomes = {}
-    for found, (outcome, failure, unbuilt) in zip(todo, results, strict=True):
+    for found, (outcome, failure) in zip(todo, results, strict=True):
         if failure is not None:
             LOG.error(
                 "the reader failed on %s: %s\n%s",
                 found.native,
                 outcome.reason,
                 failure,
-            )
-        if unbuilt is not None:
-            LOG.error(
-                "the rows of %s can't be built: %s\n%s",
-                found.native,
-                outcome.reason,
-                unbuilt,
             )
         outcomes[found.path] = outcome
     return outcomes

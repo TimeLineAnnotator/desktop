@@ -7,6 +7,7 @@ one by one in this process gives. The tests lower the threshold, so that a few
 files are enough."""
 
 import _thread
+import dataclasses
 import logging
 import os
 import pickle
@@ -247,29 +248,35 @@ def test_files_moved_keep_their_keys_when_read_in_workers(folder, in_workers):
             assert after[table] == before[table], table
 
 
-def test_a_failure_to_build_rows_in_a_worker_is_logged_here_with_its_traceback(
-    folder, in_workers, monkeypatch, caplog
-):
-    in_this_process(monkeypatch)
+def failing_rows(monkeypatch, path, message):
+    """``scan._rows_of`` fails on the document of the file at ``path``."""
     rows_of = scan._rows_of
-    bad = TlaReader().read(folder / "sub" / "0.7.0.tla").document_id
+    bad = TlaReader().read(path).document_id
 
     def failing(document, *args):
         if document.document_id == bad:
-            raise ZeroDivisionError("a bug in the rows")
+            raise ZeroDivisionError(message)
         return rows_of(document, *args)
 
     monkeypatch.setattr(scan, "_rows_of", failing)
+
+
+def test_a_failure_to_build_rows_in_a_worker_is_built_and_logged_here(
+    folder, in_workers, monkeypatch, caplog
+):
+    # The worker sends the document back, and this process builds its rows,
+    # as it does for a file it reads.
+    in_this_process(monkeypatch)
+    failing_rows(monkeypatch, folder / "sub" / "0.7.0.tla", "a bug in the rows")
     with caplog.at_level(logging.ERROR, logger=scan.LOG.name):
         corpus = opened(folder)
     with corpus:
         assert in_workers == []
         (record,) = [r for r in caplog.records if r.levelno == logging.ERROR]
-        message = record.getMessage()
-        assert "can't be built" in message
-        assert "0.7.0.tla" in message
-        assert "Traceback" in message
-        assert "ZeroDivisionError: a bug in the rows" in message
+        assert "can't be built" in record.getMessage()
+        assert "0.7.0.tla" in record.getMessage()
+        assert "Traceback" in caplog.text
+        assert "ZeroDivisionError: a bug in the rows" in caplog.text
         with corpus.reading() as r:
             (state, reason) = r.connection.execute(
                 "SELECT state, reason FROM files WHERE path = 'sub/0.7.0.tla'"
@@ -277,6 +284,90 @@ def test_a_failure_to_build_rows_in_a_worker_is_logged_here_with_its_traceback(
         assert state == "unreadable"
         assert reason == "can't read: ZeroDivisionError: a bug in the rows"
         assert states(corpus) == [("readable", OLD_COUNT - 1), ("unreadable", 2)]
+
+
+def moved_with_failing_rows(folder, monkeypatch):
+    """The report of a scan that finds every file moved, one of which has
+    rows that can't be built, and the files table it leaves."""
+    with opened(folder) as corpus, monkeypatch.context() as patched:
+        failing_rows(patched, folder / "sub" / "0.7.0.tla", "a bug in the rows")
+        moved = folder.parent / "moved"
+        folder.rename(moved)
+        folder.mkdir()
+        moved.rename(folder / "moved")
+        report = corpus.scan()
+        with corpus.reading() as r:
+            files = r.connection.execute(
+                "SELECT id, path, state, reason FROM files ORDER BY id"
+            ).fetchall()
+    return report, files
+
+
+def test_a_moved_file_whose_rows_cant_be_built_in_a_worker_is_moved(
+    folder, tmp_path, in_workers, monkeypatch
+):
+    # The file is matched as moved by its document's id before its rows are
+    # built, as when it is read here, and only then becomes unreadable.
+    in_this_process(monkeypatch)
+    copy = tmp_path / "copy"
+    shutil.copytree(folder, copy)
+    parallel = moved_with_failing_rows(folder, monkeypatch)
+    assert in_workers == []
+    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 10**9)
+    serial = moved_with_failing_rows(copy, monkeypatch)
+    assert in_workers
+    report, files = parallel
+    assert ("sub/0.7.0.tla", "moved/sub/0.7.0.tla") in report.moved
+    assert "moved/sub/0.7.0.tla" not in report.added
+    assert "sub/0.7.0.tla" not in report.unavailable
+    assert ("moved/sub/0.7.0.tla", "unreadable") in [f[1:3] for f in files]
+    assert parallel == serial
+
+
+def _fields(time_map) -> dict:
+    """A time map's fields: WP9's time maps compare by identity."""
+    return {f.name: getattr(time_map, f.name) for f in dataclasses.fields(time_map)}
+
+
+def time_maps(corpus) -> dict[str, dict | None]:
+    """The fields of each file's time map, by path; the maps are the ones a
+    copy on disk keeps."""
+    maps = {}
+    for f in corpus.files():
+        tmap = corpus.time_map(f.id)
+        if tmap is not None:
+            assert isinstance(tmap, cache.LazyTimeMap), f.path
+            tmap = _fields(tmap.built())
+        maps[f.path] = tmap
+    return maps
+
+
+def test_an_index_built_in_workers_is_the_one_opened_again_from_disk(
+    folder, tmp_path, in_workers, monkeypatch
+):
+    monkeypatch.setenv(cache.ENV, str(tmp_path / "copies"))
+    then = time.time() - 3600  # a file written just now is read again
+    for path in folder.rglob("*.tla"):
+        os.utime(path, (then, then))
+    runs = []
+    run = _workers.run
+
+    def counted(function, tasks, workers):
+        runs.append(len(tasks))
+        return run(function, tasks, workers)
+
+    monkeypatch.setattr(_workers, "run", counted)
+    with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True) as built:
+        assert runs == [OLD_COUNT + 1]
+        assert in_workers == []
+        built_tables, built_maps = tables(built), time_maps(built)
+    assert len(list((tmp_path / "copies").iterdir())) == 1
+    runs.clear()
+    with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True) as kept:
+        assert runs == []
+        assert tables(kept) == built_tables
+        assert time_maps(kept) == built_maps
+    assert any(tmap is not None for tmap in built_maps.values())
 
 
 SCRIPT = """\
