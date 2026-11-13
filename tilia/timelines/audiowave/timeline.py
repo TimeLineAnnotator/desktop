@@ -84,8 +84,8 @@ class AudioWaveTimeline(Timeline):
             )
 
     def load_bars(self) -> None:
-        """The bars of the media, for a timeline read from a file, which doesn't
-        store them. It stays shown or hidden as the file has it, and media it can't
+        """The bars of the media, for a timeline a file or an undo gives back,
+        which hold none. It stays shown or hidden as it was, and media it can't
         read leaves it without bars, with nothing said: opening the file says
         whether the media was found."""
         self.clear()
