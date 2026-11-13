@@ -582,6 +582,10 @@ class _MadeWhenAsked:
             return (_MadeWhenAsked, (self._make,))
 
 
+# The place of a document's media path, as a JSON Pointer into its file.
+MEDIA_PATH_PLACE = "/media/path"
+
+
 @dataclass(kw_only=True)
 class Document:
     """One `.tla` file's content, in the current format, whatever version it was read from."""
@@ -609,11 +613,14 @@ class Document:
     # old file would migrate it again. None once `fingerprint` is set otherwise.
     _read_digest: str | None = field(default=None, repr=False, compare=False)
     # Its media path and PDF timelines' paths that were absolute when it was read,
-    # or last written: a write keeps them so, where it makes one set since
-    # relative (FR-003, TimeLineAnnotator/project-management#530). A document made
-    # in memory has none.
-    _absolute_as_read: frozenset[str] = field(
-        default=frozenset(), repr=False, compare=False
+    # or last written, each after its place (`MEDIA_PATH_PLACE`, or
+    # "/timelines/<id>/path"), sorted, so that the document is the same in any
+    # process: a write keeps each so while that place still holds it, where it
+    # makes a path set since relative (FR-003,
+    # TimeLineAnnotator/project-management#530). Setting `media_path` drops the
+    # media's, even to the same text. A document made in memory has none.
+    _absolute_as_read: tuple[tuple[str, str], ...] = field(
+        default=(), repr=False, compare=False
     )
     # What it broke when it was read, or last written: the writer writes these
     # back while what they are about hasn't changed (FR-054). A document made
@@ -643,6 +650,19 @@ class Document:
     def fingerprint(self, value: str | None) -> None:
         self._fingerprint = value
         self._read_digest = None  # no longer the bytes of that fingerprint
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # A media path set is no longer the one read, even in the same text, as
+        # `build.load_media` stores media found again where it was: the writer
+        # makes it relative. The tuple is replaced, never changed, since a copy
+        # of the document shares it.
+        if name == "media_path" and "_absolute_as_read" in self.__dict__:
+            self.__dict__["_absolute_as_read"] = tuple(
+                entry
+                for entry in self.__dict__["_absolute_as_read"]
+                if entry[0] != MEDIA_PATH_PLACE
+            )
+        super().__setattr__(name, value)
 
 
 @dataclass(frozen=True)
