@@ -10,7 +10,7 @@ import struct
 from pathlib import Path
 from typing import BinaryIO
 
-from tilia_core import tla
+from tilia_core import rules, tla
 from tilia_core.labels import nfc
 from tilia_core.timemap import pattern
 from tilia_core.tla.errors import printable
@@ -38,9 +38,7 @@ _NO_DURATION = (
 _NOT_APPLICABLE = "'{}' is not valid for timeline kind '{}'."
 _INVALID_BEAT_PATTERN = "Invalid beat pattern '{}': {}"
 _SHARED_NAME = "There is more than one timeline with name '{}'"
-# The spec's, where TiLiA has none (FR-052, FR-056), and the one text for a
-# value that isn't one (TimeLineAnnotator/project-management#298 (texts for the
-# rules)), which rules.not_valid will give.
+# The spec's, where TiLiA has none (FR-052, FR-056).
 _HAS_COMPONENTS = (
     "The media length can't change once timelines have components:"
     " rescale the file in TiLiA."
@@ -49,7 +47,6 @@ _NO_LENGTH = (
     "{}: give its length with --duration-if-error,"
     " or set it first with metadata set-media-length"
 )
-_NOT_VALID = "{} is not a valid {}."
 
 # A millisecond, the precision of TiLiA's player: a file TiLiA saved holds its
 # media's length in whole milliseconds, and a WAV's header gives it exactly
@@ -289,7 +286,7 @@ def add_timeline(
     if height is not None and kind == "harmony":
         raise ValueError(_NOT_APPLICABLE.format("--height", kind))
     if height is not None and not _is_height(height):
-        raise ValueError(_NOT_VALID.format(height, "height"))
+        raise ValueError(rules.not_valid("height", height))
     if beat_pattern is not None:
         if not isinstance(beat_pattern, str):
             raise TypeError(
