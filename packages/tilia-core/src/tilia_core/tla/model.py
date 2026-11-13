@@ -201,7 +201,10 @@ class ReadProblem:
     `joined` is, for a join, the range it joins, the same way: what the problem
     is between, where `others` are what comes next in its row. `warned` says that
     the reader has a warning of the check's for it, in the check's words, so that
-    it adds none. `kept` says that `keep_read_problems` kept it, for a component
+    it adds none. `about` is the rule's (`rules.Outcome.about`): what of the
+    component it checks, which tells apart two problems of one code on one
+    component, such as a negative start and a negative pre_start. `kept` says
+    that `keep_read_problems` kept it, for a component
     an edit fixed in part: its states are old for this problem alone, where those
     of a problem read are old for every problem about the same components.
     """
@@ -215,6 +218,7 @@ class ReadProblem:
     joined: tuple[str, str] | None = None
     more: int = 0
     warned: bool = False
+    about: str = ""
     kept: bool = False
 
 

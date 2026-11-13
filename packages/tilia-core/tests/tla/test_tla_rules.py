@@ -2850,13 +2850,16 @@ class TestKeepReadProblems:
     )
     @pytest.mark.parametrize("as_sets", [False, True], ids=["one state", "a set"])
     def test_states_read_with_no_length_one_or_a_set(self, as_sets, edit, kept):
-        # The states read with no length, by place, may be one each or a set.
+        # The states read with no length, by place, may be one each or a set,
+        # whichever the reader keeps.
+        def as_given(states):
+            one = states if isinstance(states, str) else next(iter(states))
+            return frozenset({one}) if as_sets else one
+
         doc = tla.loads(a_file(hierarchies((FIRST, at_level(140.0, 150.0, 0)))))
-        if as_sets:
-            doc.read_unmeasured = {
-                place: frozenset({state})
-                for place, state in doc.read_unmeasured.items()
-            }
+        doc.read_unmeasured = {
+            place: as_given(states) for place, states in doc.read_unmeasured.items()
+        }
         doc.media_length = 100.0
         read = len(doc.read_problems)
         changed(doc, FIRST, **edit)
@@ -2864,6 +2867,101 @@ class TestKeepReadProblems:
         assert [
             (problem.code, problem.kept) for problem in doc.read_problems[read:]
         ] == [(rules.PAST_MEDIA_END, True)] * kept
+
+    @pytest.mark.parametrize(
+        "added", [{}, {"pre_start": -5.0}], ids=["fixed in part", "with a pre_start"]
+    )
+    def test_another_of_a_code_it_was_read_with(self, added, tmp_path):
+        # Read with a negative start and level 0. The edit fixes the level, and
+        # may add a negative pre_start, of the same code as the start's
+        # (TimeLineAnnotator/project-management#557, option b).
+        doc = tla.loads(a_file(LEVEL_0_BEFORE_0))
+        fixed_in_part(doc, level=1, **added)
+        if added:
+            assert [w.message for w in refused(doc, tmp_path)] == [
+                "pre_start is outside media bounds."
+            ]
+        else:
+            written(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "added", [{}, {"post_end": 160.0}], ids=["fixed in part", "with a post_end"]
+    )
+    def test_another_past_the_end(self, added, tmp_path):
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(10.0, 150.0, 0))),
+                )
+            )
+        )
+        fixed_in_part(doc, level=1, **added)
+        if added:
+            assert [w.message for w in refused(doc, tmp_path)] == [
+                "post_end is outside media bounds."
+            ]
+        else:
+            written(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "added", [{}, {"pre_start": -5.0}], ids=["fixed in part", "with a pre_start"]
+    )
+    def test_another_of_a_code_a_range_was_read_with(self, added, tmp_path):
+        doc = tla.loads(a_file(ranges((FIRST, a_range(-1.0, 1.0, color="notacolor")))))
+        fixed_in_part(doc, FIRST, TEXTURE, color=None, **added)
+        if added:
+            assert [w.message for w in refused(doc, tmp_path)] == [
+                "pre_start is outside media bounds."
+            ]
+        else:
+            written(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "moved", [{}, {"end": 120.0}], ids=["fixed in part", "its end moved"]
+    )
+    def test_another_past_a_length_learned_since(self, moved, tmp_path):
+        # Read with no length, past the one given since by its post_end alone.
+        doc = tla.loads(
+            a_file(hierarchies((FIRST, at_level(10.0, 90.0, 0, post_end=150.0))))
+        )
+        doc.media_length = 100.0
+        fixed_in_part(doc, level=1, **moved)
+        if moved:
+            assert [w.message for w in refused(doc, tmp_path)] == [
+                "End time '120.0' is bigger than media time '100.0'"
+            ]
+        else:
+            written(doc, tmp_path)
+
+    def test_past_the_end_by_its_end_then_its_start(self, tmp_path):
+        # One rule for both times of a hierarchy: a shorter length that puts its
+        # start past the end too adds no problem.
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(50.0, 150.0, 0))),
+                )
+            )
+        )
+        fixed_in_part(doc, level=1)
+        doc.media_length = 40.0
+        written(doc, tmp_path)
+
+    def test_unchanged_past_the_end_by_another_time_as_ever(self, tmp_path):
+        # FR-054, without the call: a component that was past the end stays old,
+        # by whichever of its times.
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(10.0, 90.0, 0, post_end=150.0))),
+                )
+            )
+        )
+        doc.media_length = 80.0
+        written(doc, tmp_path)
 
     def test_copies_made_after_the_call_keep_it(self, tmp_path):
         doc = tla.loads(a_file(LEVEL_0_BEFORE_0))

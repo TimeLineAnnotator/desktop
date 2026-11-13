@@ -251,10 +251,20 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     (WP6's FR-062; TimeLineAnnotator/project-management#436, point 1). For any
     other caller, such as a bulk edit or a script, FR-054 is as it was.
 
+    Problems are told apart by their rule's code; within one component, by
+    what of it the rule checks too (`rules.Outcome.about`, `ReadProblem.about`);
+    and between components, by the others they are between. TiLiA's check
+    before an edit (WP6, TimeLineAnnotator/project-management#459) tells them
+    apart the same way, so that it never allows an edit whose save is refused.
+
     A problem of the component alone is kept when the document was read with
-    one of its code on the component. In a document read with no media length,
-    whose times weren't compared with any, a time past the end is kept too when
-    the component as it was read is past the end of the length it now has. A
+    one of its code, about the same, on the component: another of that code
+    that the edit adds elsewhere on it, such as a negative pre_start beside the
+    negative start it was read with, is new
+    (TimeLineAnnotator/project-management#557). In a document read with no
+    media length, whose times weren't compared with any, a time past the end is
+    kept too when the component as it was read is past the end of the length it
+    now has, by the same rule. A
     problem between the component and others, such as a crossing, is kept when
     it was read between them by the same rule, whichever of them it was named
     on, with the others as they were then; its join, when it was read joining the
@@ -305,10 +315,10 @@ def keep_read_problems(document: Document, component_id: str) -> None:
                     was.at_odds(problem, at, state) for at, state in between
                 )
             else:
-                came_with = (place, problem.code) in was.codes or (
+                came_with = (place, problem.code, problem.about) in was.codes or (
                     problem.code == rules.PAST_MEDIA_END
                     and any(
-                        _was_past_the_end(written, timeline_id, state)
+                        _was_past_the_end(written, timeline_id, state, problem.about)
                         for state in _unmeasured_states(unmeasured, place)
                     )
                 )
@@ -375,10 +385,13 @@ def _unmeasured_states(
     return (states,) if isinstance(states, str) else states
 
 
-def _was_past_the_end(written: Document, timeline_id: str, state: str) -> bool:
+def _was_past_the_end(
+    written: Document, timeline_id: str, state: str, about: str
+) -> bool:
     """Whether a component of `written`'s timeline `timeline_id`, as `state`
     holds it, as it was read with no media length, has a time past the end of
-    the one `written` has: it then came with a time past the end."""
+    the one `written` has, by the rule about `about`: it then came with that
+    problem."""
     timeline = written.timelines[timeline_id]
     as_read = json.loads(state)
     as_read.pop("metadata", None)
@@ -392,7 +405,7 @@ def _was_past_the_end(written: Document, timeline_id: str, state: str) -> bool:
         every_rule=True,
     ).get("")
     return checked is not None and any(
-        outcome.code == rules.PAST_MEDIA_END
+        outcome.code == rules.PAST_MEDIA_END and outcome.about == about
         for outcome in (checked.outcome, *checked.also)
     )
 
@@ -408,7 +421,9 @@ class _Read:
     def __init__(self, read: list[ReadProblem]) -> None:
         self.problems: set[tuple[str, str, str]] = set()
         self.read: set[tuple[str, str, str]] = set()  # not kept
-        self.codes: set[tuple[str, str]] = set()
+        # Those kept, each told apart within its component by `about` too.
+        self.kept_problems: set[tuple[str, str, str, str]] = set()
+        self.codes: set[tuple[str, str, str]] = set()
         self.places: set[str] = set()
         self.states: dict[str, str] = {}
         self.kept: dict[tuple[str, str], set[tuple[str, str]]] = {}
@@ -419,7 +434,7 @@ class _Read:
             key = (problem.place, problem.code)
             between = _between(problem)
             self.problems.add((problem.place, problem.code, problem.state))
-            self.codes.add(key)
+            self.codes.add((*key, problem.about))
             self.places.add(problem.place)
             others = self.others.setdefault(key, {})
             for at, state in between:
@@ -427,14 +442,22 @@ class _Read:
                 others.setdefault(at, set()).add(state)
             if problem.kept:
                 self.kept.setdefault(key, set()).update(between)
+                self.kept_problems.add((*key, problem.about, problem.state))
             else:
                 self.read.add((problem.place, problem.code, problem.state))
                 self.states[problem.place] = problem.state
                 self.states.update(between)
 
     def has(self, problem: ReadProblem) -> bool:
-        """Whether `problem` was read, or kept, on what it is about as it is."""
-        return (problem.place, problem.code, problem.state) in self.problems
+        """Whether `problem` was read, or kept, on what it is about as it is.
+        One read is told by its code alone, as FR-054 tells it on a component
+        as it was read; one kept, on a component an edit fixed in part, by its
+        `about` too, so that another of the same code that the edit added
+        elsewhere on it is new (TimeLineAnnotator/project-management#557)."""
+        if (problem.place, problem.code, problem.state) in self.read:
+            return True
+        key = (problem.place, problem.code, problem.about, problem.state)
+        return key in self.kept_problems
 
     def changed(self, problem: ReadProblem) -> tuple[tuple[str, str], ...]:
         """The others `problem` is between that aren't as read, nor as kept
@@ -578,6 +601,7 @@ def _component_problems(
                 ),
                 more=len(others) - len(kept),
                 warned=components[component_id].kind == "beat" and reason == _NO_TIME,
+                about=outcome.about,
             )
 
 
