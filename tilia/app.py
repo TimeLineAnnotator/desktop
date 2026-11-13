@@ -12,6 +12,7 @@ import tilia.errors
 from tilia.exceptions import NoReplyToRequest
 from tilia.file import tla_bridge
 from tilia.file.file_manager import read_file
+from tilia.log import logger
 from tilia.media.loader import load_media
 from tilia.requests import Get, Post, get, listen, long_operation, post, serve
 from tilia.settings import settings
@@ -541,16 +542,38 @@ class _OpenBefore:
         self.state = app.get_app_state()
         self.file = app.file_manager.keep_file()
         self.file_path = app.cur_file_path
+        self.duration = app.duration
+        self.should_scale_timelines = app.should_scale_timelines
         undo = app.undo_manager
         self.undo = undo.stack, undo.current_state_index, undo.last_repeat_id
 
     def give_back(self) -> None:
         app = self.app
-        # What the other file left half loaded goes first, so that restoring this
-        # one finds no timelines: it then asks nothing about scaling them.
-        app.on_clear()
+        try:
+            # What the other file left half loaded goes first, so that restoring
+            # this one finds no timelines: it then asks nothing about scaling them.
+            try:
+                app.on_clear()
+            except Exception:
+                logger.exception("Clearing what a file that failed to load left.")
+            try:
+                self._restore()
+            except Exception:
+                logger.exception("Restoring the file open before, once.")
+                app.on_clear()
+                self._restore()
+        finally:
+            # The file, its path and its undo history come back whatever happens,
+            # so that the file open before is never lost for the one that failed.
+            app.file_manager.give_back_file(self.file)
+            app.cur_file_path = self.file_path
+            undo = app.undo_manager
+            undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo
+
+    def _restore(self) -> None:
+        app = self.app
+        # Its media's length first, while there are no timelines to scale: a media
+        # loaded again reports it only later, and then reports the same.
+        app.set_file_media_duration(self.duration)
         app._restore_app_state(self.state)
-        app.file_manager.give_back_file(self.file)
-        app.cur_file_path = self.file_path
-        undo = app.undo_manager
-        undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo
+        app.should_scale_timelines = self.should_scale_timelines
