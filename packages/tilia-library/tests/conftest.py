@@ -13,6 +13,12 @@ from tilia_core.library_link import ServerRecord
 from tilia_library.server import LibraryServer
 
 
+@pytest.fixture(autouse=True)
+def no_index_copies(monkeypatch):
+    """No test keeps a corpus's index in the user's cache folder."""
+    monkeypatch.setenv("TILIA_INDEX_CACHE", "off")
+
+
 @dataclass
 class Reply:
     status: int
