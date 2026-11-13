@@ -22,7 +22,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
-from . import schema
+from . import cache, schema
 from .documents import DocumentReader
 from .fingerprint import of_path as fingerprint
 from .scan import RESCAN_AFTER, ScanReport, Scanner
@@ -130,6 +130,8 @@ class Corpus:
         scanner: Scanner,
         report: ScanReport,
         rescan_before_reads: bool,
+        copy: Path | None = None,
+        copied: int | None = None,
     ) -> None:
         self.path = path
         """The resolved corpus folder."""
@@ -141,6 +143,17 @@ class Corpus:
         self.rescan_before_reads = rescan_before_reads
         self._lock = threading.Lock()
         self._reads: dict[int, int] = {}  # thread -> how deep in reads
+        self._copy = copy  # where the index is kept on disk (cache.py)
+        self._copied = copied  # the generation last kept there
+        if copy is not None and report.error is None:
+            self._keep()
+
+    def _keep(self) -> None:
+        """Keep the index on disk, unless its copy there is of this
+        generation already."""
+        if self._copy is None or self._copied == self._store.generation:
+            return
+        self._copied = cache.save(self._scanner, self._copy)
 
     # -- the index reader ------------------------------------------------------ #
     @property
@@ -413,7 +426,10 @@ class Corpus:
     def close(self) -> None:
         """Close the index and every connection to it, once running reads have
         ended. A closed corpus raises on use; a second ``close()`` does
-        nothing; ``close()`` inside a read raises ``RuntimeError``."""
+        nothing; ``close()`` inside a read raises ``RuntimeError``. An index
+        kept on disk is written there first when it changed since."""
+        if not self._store.closed:
+            self._keep()
         self._store.close()
 
     def __enter__(self) -> Corpus:
@@ -442,6 +458,7 @@ def open_corpus(
     reader: DocumentReader | None = None,
     settings: CorpusSettings | None = None,
     time_map_of: TimeMapOf | None = None,
+    keep_on_disk: bool = False,
 ) -> Corpus:
     """Open the folder ``path`` as a corpus: read every file below it and build
     its index (contracts/corpus.md).
@@ -455,7 +472,12 @@ def open_corpus(
     until WP15); ``time_map_of`` gives a file's time map (WP9's
     ``timemap.find_time_map`` by default, for the documents of WP3's reader,
     which also says why a file has none and what is wrong with its beat
-    timelines: ``files.time_map_reason`` and ``file_warnings``)."""
+    timelines: ``files.time_map_reason`` and ``file_warnings``).
+
+    With ``keep_on_disk``, the index of a corpus read with the defaults is
+    kept in the per-user cache folder between runs (:mod:`.cache`): opening
+    the corpus again reads only the files that changed since, and gives the
+    report and the index a first build would have."""
     folder = Path(os.path.expanduser(os.fspath(path))).resolve()
     try:
         info = os.stat(folder)
@@ -470,17 +492,27 @@ def open_corpus(
         reader = default_reader()
     if time_map_of is None:
         time_map_of = wp9_find_time_map
-    store = Store()
-    scanner = Scanner(folder, store, reader, settings or NoSettings(), time_map_of)
+    settings = settings or NoSettings()
+    copy = None
+    if keep_on_disk and cache.applies(reader, settings, time_map_of):
+        copy = cache.path_for(folder)
+    scanner = Scanner(folder, Store(), reader, settings, time_map_of)
     try:
-        report = scanner.build()
+        report = None if copy is None else cache.reopen(scanner, copy)
+        copied = None if report is None else 1  # what was loaded
+        if report is None:
+            if scanner.store.generation or copy is not None:
+                # a copy that couldn't be used may have left part of itself
+                scanner.store.close()
+                scanner = Scanner(folder, Store(), reader, settings, time_map_of)
+            report = scanner.build()
     except OSError as err:
-        store.close()
+        scanner.store.close()
         named = _naming(err, folder)
         if named is err:
             raise
         raise named from err
     except BaseException:
-        store.close()
+        scanner.store.close()
         raise
-    return Corpus(folder, scanner, report, rescan_before_reads)
+    return Corpus(folder, scanner, report, rescan_before_reads, copy, copied)
