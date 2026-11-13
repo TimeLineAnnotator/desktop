@@ -29,6 +29,7 @@ the scheme a link is given.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass, field
 from typing import Any
 
 from tilia_core.tla.media_files import (
@@ -41,6 +42,30 @@ from tilia_core.tla.media_files import (
     with_slashes,
 )
 from tilia_core.tla.model import timeline_kind_from_current_file
+
+
+@dataclass(frozen=True)
+class StoredPaths:
+    """An old file's media path, and each PDF timeline's path by its
+    timeline's id, as the file stores them: those its fingerprint is taken
+    from (FR-043)."""
+
+    media: Any = ""
+    pdf: dict[str, Any] = field(default_factory=dict)
+
+
+def stored_paths(content: dict[str, Any]) -> StoredPaths:
+    """The paths in `content`, an old file's content once migrated, before
+    `make_relative` makes them relative."""
+    return StoredPaths(
+        content["media"]["path"],
+        {
+            timeline_id: timeline["path"]
+            for timeline_id, timeline in content["timelines"].items()
+            if timeline_kind_from_current_file(timeline["kind"]) == "pdf"
+            and "path" in timeline
+        },
+    )
 
 
 def make_relative(

@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
+from tilia_core.tla.migrate.media import StoredPaths
 from tilia_core.tla.migrate.to_1 import Migrated, migrate
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -67,6 +69,18 @@ def loads(data: bytes, *, path: str | os.PathLike[str] | None = None) -> Documen
     return _loads(data, path)[0]
 
 
+def loads_with_fingerprint_document(
+    data: bytes, *, path: str | os.PathLike[str] | None = None
+) -> tuple[Document, Document | None]:
+    """`loads`'s document and, for an old file, `loads_for_fingerprint`'s,
+    from one parse and one migration; None for a file in the current format,
+    whose fingerprint is taken from the document read. The two share all but
+    their media and PDF paths, and the second has neither `read_problems` nor
+    a fingerprint of its own: they are for reading, not changing."""
+    document, _, for_fingerprint = _loads(data, path, fingerprint_document=True)
+    return document, for_fingerprint
+
+
 def loads_for_fingerprint(
     data: bytes, *, path: str | os.PathLike[str] | None = None
 ) -> Document:
@@ -88,7 +102,7 @@ def read_with_migration(
     current format. Internal to the core: `migrate_folder` reads with it."""
     with open(path, "rb") as file:
         data = file.read()
-    return _loads(data, path)
+    return _loads(data, path)[:2]
 
 
 def _loads(
@@ -96,18 +110,27 @@ def _loads(
     path: str | os.PathLike[str] | None,
     *,
     for_fingerprint: bool = False,
-) -> tuple[Document, Migrated | None]:
+    fingerprint_document: bool = False,
+) -> tuple[Document, Migrated | None, Document | None]:
+    """The document read, what the migration did to an old file, and with
+    `fingerprint_document`, an old file's document with its paths as stored."""
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
-        return _old(content, data, path, for_fingerprint=for_fingerprint)
+        return _old(
+            content,
+            data,
+            path,
+            for_fingerprint=for_fingerprint,
+            fingerprint_document=fingerprint_document,
+        )
     warnings = check(content, data, path=path)
     document = _Reader(path).document(content)
     document.warnings = warnings
     if not for_fingerprint:
         _keep_what_was_read(document, data, path)
         keep_problems(document, data)
-    return document, None
+    return document, None, None
 
 
 # Every Python reads and writes an integer of fewer than 640 digits, whatever its
@@ -155,7 +178,8 @@ def _old(
     path: str | os.PathLike[str] | None,
     *,
     for_fingerprint: bool,
-) -> tuple[Document, Migrated]:
+    fingerprint_document: bool,
+) -> tuple[Document, Migrated, Document | None]:
     """A file from TiLiA 0.x, migrated in memory; its document's
     format_version is the version it was read from. The migrated content is
     checked as a file of the current format is (FR-053), and its warnings
@@ -167,6 +191,11 @@ def _old(
     migration names its places so itself; the check names places in the
     migrated document, which the migration's `places` takes back to the old
     file, with what it says about them. A warning's ids are the document's.
+
+    With `fingerprint_document`, also the document with the paths as the file
+    stores them, which `for_fingerprint` reads: it is the same but for them,
+    since the check doesn't look into paths but for their type, which making
+    them relative keeps.
     """
     try:
         migrated = migrate(content, path=path, paths_as_stored=for_fingerprint)
@@ -188,10 +217,30 @@ def _old(
         ReadWarning(place, lines[place], message, w.timeline_id, w.component_id)
         for w, place, message in named
     ]
+    as_stored = None
+    if fingerprint_document:  # before what was read is kept, which it hasn't
+        as_stored = _with_paths(document, migrated.paths_as_stored)
     if not for_fingerprint:
         _keep_what_was_read(document, data, path)
         keep_problems(document, data, where=migrated.places.old)
-    return document, migrated
+    return document, migrated, as_stored
+
+
+def _with_paths(document: Document, stored: StoredPaths) -> Document:
+    """`document` with its media's and PDF timelines' paths `stored`'s, as the
+    reader reads them, sharing the rest."""
+    timelines = dict(document.timelines)
+    for timeline_id, path in stored.pdf.items():
+        timeline = timelines[timeline_id]
+        timelines[timeline_id] = replace(
+            timeline, attrs={**timeline.attrs, "path": nfc_value(path)}
+        )
+    return replace(
+        document,
+        media_path=nfc_value(stored.media),
+        timelines=timelines,
+        warnings=list(document.warnings),
+    )
 
 
 # Semantic Versioning's form, which the format's versions take from 1.0.0 on.

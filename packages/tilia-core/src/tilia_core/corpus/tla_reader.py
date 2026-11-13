@@ -19,7 +19,7 @@ from pathlib import Path
 
 from tilia_core import timemap, tla
 from tilia_core.tla.model import Kind
-from tilia_core.tla.reader import loads_for_fingerprint
+from tilia_core.tla.reader import loads_with_fingerprint_document
 
 from .documents import ComponentDoc, Document, TimelineDoc, UnreadableFile
 from .time_map import TimeMapFound
@@ -92,12 +92,9 @@ class TlaReader:
         with open(path, "rb") as file:
             data = file.read()
         try:
-            doc = tla.loads(data, path=path)
             # A file of the current format holds its fingerprint's document;
             # an old one's is its migration with its paths as stored.
-            fp = None
-            if doc.format_version != tla.FORMAT_VERSION:
-                fp = loads_for_fingerprint(data, path=path)
+            doc, fp = loads_with_fingerprint_document(data, path=path)
         except tla.UnreadableFile as err:
             raise UnreadableFile(Path(path), err.message, err.line) from err
         return document_of(doc, fp)

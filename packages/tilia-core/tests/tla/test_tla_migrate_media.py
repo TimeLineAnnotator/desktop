@@ -33,7 +33,7 @@ import pytest
 from tilia_core import tla
 from tilia_core.commands import migrate as migrate_command
 from tilia_core.tla import folder as folder_module
-from tilia_core.tla import writer
+from tilia_core.tla import reader, writer
 from tilia_core.tla.migrate import media as migrate_media
 
 
@@ -629,6 +629,43 @@ def test_an_old_files_fingerprint_is_that_of_its_paths_as_stored(tmp_path, where
         pdf.attrs["path"] = str(media)
     assert tla.fingerprint(piece) == tla.fingerprint_of(as_stored)
     assert tla.fingerprint(piece) != tla.fingerprint_of(doc)
+
+
+def test_an_old_file_is_migrated_once_for_its_two_documents(
+    tmp_path, monkeypatch, where
+):
+    # The index reads both: the document, and the one its fingerprint is
+    # taken from. They are those of `loads` and `loads_for_fingerprint`.
+    media = media_file(tmp_path / "audio" / "piece.wav")
+    piece = old_file(tmp_path / "corpus", where, str(media), SAVED_HERE)
+    data = piece.read_bytes()
+    expected = (
+        tla.loads(data, path=piece),
+        reader.loads_for_fingerprint(data, path=piece),
+    )
+    migrations = []
+
+    def counted(*args, **kwargs):
+        migrations.append(kwargs)
+        return migrate(*args, **kwargs)
+
+    migrate = reader.migrate
+    monkeypatch.setattr(reader, "migrate", counted)
+    doc, as_stored = reader.loads_with_fingerprint_document(data, path=piece)
+
+    assert len(migrations) == 1
+    assert doc == expected[0]
+    assert stored_in(doc, where) != str(media)
+    assert stored_in(as_stored, where) == str(media)
+    assert tla.canonical_bytes(as_stored) == tla.canonical_bytes(expected[1])
+    assert doc.fingerprint == tla.fingerprint(piece)
+    assert as_stored.read_problems == [] and as_stored.fingerprint is None
+
+
+def test_a_current_file_has_no_other_document_for_its_fingerprint():
+    doc, as_stored = reader.loads_with_fingerprint_document(EVERY_KIND)
+    assert doc == tla.loads(EVERY_KIND)
+    assert as_stored is None
 
 
 def test_an_old_file_whose_media_path_is_edited_changes_fingerprint(tmp_path, where):
