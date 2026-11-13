@@ -125,10 +125,7 @@ def _keep_what_was_read(
     fingerprint of `data`, made from `data` when it is first asked for, so that
     a read costs nothing more and the file isn't read again; and the plain
     SHA-256 of `data`, by which a write finds the file unchanged without reading
-    it as a document again (TimeLineAnnotator/project-management#533). And the
-    media and PDF paths it was read with that are absolute, with their places,
-    which a write keeps so while their places hold them
-    (TimeLineAnnotator/project-management#530).
+    it as a document again (TimeLineAnnotator/project-management#533).
 
     From a file with an integer that a Python may not read or write, the
     fingerprint is made now: what it raises for one is raised while reading, and
@@ -143,7 +140,6 @@ def _keep_what_was_read(
     else:
         document._fingerprint = _MadeWhenAsked(make)
     document._read_digest = hashlib.sha256(data).hexdigest()
-    document._absolute_as_read = absolute_paths(document)
 
 
 def written_document(
@@ -196,6 +192,9 @@ def _old(
     if not for_fingerprint:
         _keep_what_was_read(document, data, path)
         keep_problems(document, data, where=migrated.places.old)
+        # The paths the migration kept absolute, which the write that converts
+        # the file keeps so (TimeLineAnnotator/project-management#530, #555).
+        document._absolute_as_read = absolute_paths(document)
     return document, migrated
 
 

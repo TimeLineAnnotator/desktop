@@ -2,15 +2,15 @@
 
 A file stores the media's path, and each PDF timeline's path, relative to
 its folder with "/", a URL as it is, or empty (FR-033). It is absolute where
-no relative path exists (another drive on Windows), and where the document
-was read, or last written, with that path absolute at that place and it
-hasn't been set since: any absolute path a file holds, such as an old file's
-path that the migration can't relate to where the file was saved
-(TimeLineAnnotator/project-management#530). The forms of a path are told
-apart here, for the migration, the writer and the lookup alike. An absolute
-path has the form of the system that wrote it, whichever system reads it:
-`C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX one. A path
-of the other system's form is never looked up on this one. A
+no relative path exists (another drive on Windows), and in the write that
+converts an old file, where the migration kept it absolute, such as an old
+file's path that it can't relate to where the file was saved, while it is
+still the path read at that place (TimeLineAnnotator/project-management#530,
+#555). The next write makes it relative wherever it can. The forms of a path
+are told apart here, for the migration, the writer and the lookup alike. An
+absolute path has the form of the system that wrote it, whichever system
+reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
+one. A path of the other system's form is never looked up on this one. A
 backslash in a relative path, or in a POSIX one, is never converted: TiLiA
 and the core write "/" between folders, so it is a hand edit, or part of a
 name on macOS and Linux, and the lookup lets the system read it
@@ -178,9 +178,9 @@ def pdf_path_place(key: str) -> str:
 def absolute_paths(doc: Document) -> tuple[tuple[str, str], ...]:
     """The media's path and the PDF timelines' paths of `doc` that are absolute,
     of either system's form, each after its place (`MEDIA_PATH_PLACE`, or
-    `pdf_path_place`), sorted. Read from a file, or just written to one, these
-    are the paths a write keeps absolute while their places hold them
-    (TimeLineAnnotator/project-management#530)."""
+    `pdf_path_place`), sorted. Read from an old file, these are the paths the
+    write that converts it keeps absolute while their places hold them
+    (TimeLineAnnotator/project-management#530, #555)."""
     paths: list[tuple[str, Any]] = [(MEDIA_PATH_PLACE, doc.media_path)]
     if isinstance(doc.timelines, dict):
         paths += [

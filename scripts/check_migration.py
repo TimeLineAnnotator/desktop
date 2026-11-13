@@ -12,7 +12,10 @@ a file already migrated, then checks each file:
 - it reads back, without an error;
 - it holds what SOURCE's file holds when read through the migration;
 - an old file's copy is byte for byte what the migration gives, and a second read
-  and write leaves it byte-identical. A file already in the current format is left
+  and write leaves it byte-identical, but for a media or PDF path the migration
+  kept absolute: the copy is a current file now, and that write makes such a path
+  relative wherever it can (FR-033; TimeLineAnnotator/project-management#555). It
+  writes the copy in place. A file already in the current format is left
   alone by the migration, whatever its layout, so its bytes aren't checked, and
   the second read and write goes to a file beside it, so that it stays as it was;
 - an old file's copy is compared with the original's own JSON, per timeline and
@@ -864,6 +867,44 @@ def second_write_changes(copy: Path) -> bool:
         beside.unlink(missing_ok=True)
 
 
+def made_relative(written: bytes, document: tla.Document) -> bytes:
+    """`written`, the bytes the migration wrote, with each media or PDF path that it
+    kept absolute and `document`, the copy read and written again, now holds
+    relative, and every other byte as written: what that second write should give.
+    The write that converted the old file kept such a path absolute
+    (TimeLineAnnotator/project-management#530); the copy is a current file now, and
+    the next write makes it relative wherever it can (FR-033, #555). Any other path
+    is expected as written."""
+    content = json.loads(written)
+    holders = [(content.get("media"), document.media_path)]
+    holders += [
+        (timeline, document.timelines[key].attrs.get("path"))
+        for key, timeline in content.get("timelines", {}).items()
+        if timeline.get("kind") == "Pdf" and key in document.timelines
+    ]
+    expected = written
+    for holder, held in holders:  # in the order the file holds them
+        stored = holder.get("path") if isinstance(holder, dict) else None
+        if (
+            isinstance(stored, str)
+            and isinstance(held, str)
+            and held
+            and held != stored
+            and path_form(stored) is not None
+            and path_form(held) is None
+            and not URL.match(held)
+        ):
+            # Each as the writer writes a key and its text.
+            before, after = (
+                f'"path": {json.dumps(text, ensure_ascii=False)}'.encode(
+                    "utf-8", "surrogatepass"
+                )
+                for text in (stored, held)
+            )
+            expected = expected.replace(before, after, 1)
+    return expected
+
+
 def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[str]]:
     """The differences between a file of SOURCE and its migrated copy; what is worth
     saying about it and isn't one; and what the copy holds."""
@@ -895,7 +936,7 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
         found.extend(against_old_file(content, after, dropped))
         notes.extend(dropped.found)
         tla.write(copy, after, expect=tla.fingerprint(copy))
-        if copy.read_bytes() != written:
+        if copy.read_bytes() != made_relative(written, after):
             found.append(SECOND_WRITE_CHANGED)
     return found, notes, held_in(after)
 
