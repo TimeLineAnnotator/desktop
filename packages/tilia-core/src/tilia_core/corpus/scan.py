@@ -14,7 +14,8 @@ from them (research R6, R8; data-model.md, "The file record").
   (FR-007). The same goes for a file the reader takes but whose rows can't be
   built, or can't be stored. A scan that reads at least
   :data:`PARALLEL_READS_FROM` files with WP3's reader reads them in worker
-  processes (:func:`read_files`).
+  processes (:func:`read_files`), which with the default settings and time map
+  build their rows as well.
 - **The build** (:meth:`Scanner.build`) reads the files in sorted path order,
   so a fresh build of the same folder gives the same keys, and inserts their
   rows through :meth:`Store.apply <tilia_core.corpus.store.Store.apply>`.
@@ -199,10 +200,31 @@ def walk(
 # Reading a file
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
+class Prebuilt:
+    """A readable file's rows and time map, as a worker process built them
+    (:func:`_read_in_worker`), in place of its document, which would
+    cost more to send back than to build from. The rows have the keys ``0`` to
+    ``count - 1``, which stand for those the scan hands out, in that order
+    (:meth:`Rows.renumbered <tilia_core.corpus.build.Rows.renumbered>`). The
+    time map is as a copy on disk keeps it (:class:`~.cache.LazyTimeMap`).
+    The other fields are the document's that the file's record keeps."""
+
+    rows: Rows
+    count: int
+    time_map: TimeMap | None
+    document_id: str
+    format_version: str
+    media_length: float | None
+    time_unit: str
+
+
+@dataclass(frozen=True)
 class Outcome:
     """What reading a file gave: its document and fingerprint, or the reason
     and line it couldn't be read for. ``os_error`` is true when it couldn't be
-    opened or read at all. ``read_at_ns`` is when the read began."""
+    opened or read at all. ``read_at_ns`` is when the read began. A file read
+    in a worker process may come with its rows built (``prebuilt``) instead of
+    its document."""
 
     found: Found
     read_at_ns: int
@@ -211,10 +233,23 @@ class Outcome:
     reason: str | None = None
     line: int | None = None
     os_error: bool = False
+    prebuilt: Prebuilt | None = None
 
     @property
     def readable(self) -> bool:
-        return self.document is not None
+        return self.document is not None or self.prebuilt is not None
+
+    @property
+    def document_id(self) -> str | None:
+        """The document's id, when the file is readable."""
+        known = self.prebuilt or self.document
+        return None if known is None else known.document_id
+
+    @property
+    def format_version(self) -> str | None:
+        """The document's format version, when the file is readable."""
+        known = self.prebuilt or self.document
+        return None if known is None else known.format_version
 
 
 _ExcInfo = tuple[type, BaseException, TracebackType]
@@ -271,25 +306,81 @@ def read_file(reader: DocumentReader, found: Found) -> Outcome:
     return outcome
 
 
-def _read_in_worker(reader: DocumentReader, found: Found) -> tuple[Outcome, str | None]:
+def _rows_of(
+    document: Document,
+    settings: CorpusSettings,
+    time_map_of: TimeMapOf,
+    keys: Callable[[], int],
+) -> tuple[Rows, TimeMap | None]:
+    """A readable file's rows, with keys from ``keys``, and its time map."""
+    chosen = time_map_found(time_map_of(document, build.roles(document, settings)))
+    return build.rows(document, settings, keys, chosen), chosen.time_map
+
+
+def _read_in_worker(
+    reader: DocumentReader,
+    found: Found,
+    rows_for: tuple[CorpusSettings, TimeMapOf] | None = None,
+) -> tuple[Outcome, str | None]:
     """:func:`read_file` in a worker process: the outcome, and the text of the
-    traceback to log, which the process that asked logs."""
+    traceback to log, which the process that asked logs.
+
+    With ``rows_for``, the settings and time map function to build them with,
+    a readable file's rows are built here as well (:class:`Prebuilt`), and go
+    back in place of its document. When they can't be built, the document
+    goes back as it is: the process that asked builds them as it would have,
+    and logs the failure (:meth:`Scanner._try_rows`), so that the file becomes
+    unreadable after the scan has matched moved files by their document's id,
+    as when it is read there."""
+    from . import cache  # it imports this module
+
     outcome, info = _read(reader, found)
-    if info is None:
+    if info is not None:
+        return outcome, "".join(traceback.format_exception(*info))
+    document = outcome.document
+    if rows_for is None or document is None:
         return outcome, None
-    return outcome, "".join(traceback.format_exception(*info))
+    settings, time_map_of = rows_for
+    taken = itertools.count()
+    try:
+        rows, tmap = _rows_of(document, settings, time_map_of, taken.__next__)
+        if tmap is not None:
+            try:
+                data = cache.time_map_data(tmap)
+            except TypeError:  # not WP9's: it goes back as it is
+                pass
+            else:
+                tmap = cache.LazyTimeMap(tmap.timeline_id, tmap.guessed, data)
+    except Exception:  # noqa: BLE001 - built and logged again there
+        return outcome, None
+    prebuilt = Prebuilt(
+        rows=rows,
+        count=next(taken),
+        time_map=tmap,
+        document_id=document.document_id,
+        format_version=document.format_version,
+        media_length=document.media_length,
+        time_unit=document.time_unit,
+    )
+    return replace(outcome, document=None, prebuilt=prebuilt), None
 
 
-def read_files(reader: DocumentReader, found: Sequence[Found]) -> dict[str, Outcome]:
+def read_files(
+    reader: DocumentReader,
+    found: Sequence[Found],
+    rows_for: tuple[CorpusSettings, TimeMapOf] | None = None,
+) -> dict[str, Outcome]:
     """:func:`read_file` for each of ``found``, by path.
 
     With WP3's reader, the default, :data:`PARALLEL_READS_FROM` files or more
     are read in worker processes (:mod:`._workers`), one per CPU: reading is
     pure computation, which threads don't share out. Each worker imports the
-    core, and the documents come back pickled. Other readers, which may hold
-    what can't cross to another process, read in this one, as do programs
-    frozen into an executable. When the workers fail, the files are read here
-    instead, and the failure is logged."""
+    core, and the documents come back pickled; with ``rows_for``, the settings
+    and time map function to build them with, the workers build the readable
+    files' rows (:class:`Prebuilt`), and those come back instead. Other
+    readers, which may hold what can't cross to another process, read in this
+    one, as do programs frozen into an executable. When the workers fail, the
+    files are read here instead, and the failure is logged."""
     todo = [f for f in found if f.reason is None]
     workers = min(_workers.cpus(), len(todo))
     outcomes: dict[str, Outcome] = {}
@@ -299,17 +390,21 @@ def read_files(reader: DocumentReader, found: Sequence[Found]) -> dict[str, Outc
         and workers > 1
         and _workers.available()
     ):
-        outcomes = _read_in_workers(reader, todo, workers)
+        outcomes = _read_in_workers(reader, todo, workers, rows_for)
     return {f.path: outcomes.get(f.path) or read_file(reader, f) for f in found}
 
 
 def _read_in_workers(
-    reader: DocumentReader, todo: list[Found], workers: int
+    reader: DocumentReader,
+    todo: list[Found],
+    workers: int,
+    rows_for: tuple[CorpusSettings, TimeMapOf] | None,
 ) -> dict[str, Outcome]:
     """``todo``'s outcomes, read by ``workers`` processes; none when they
     fail."""
     try:
-        results = _workers.run(_read_in_worker, [(reader, f) for f in todo], workers)
+        tasks = [(reader, f, rows_for) for f in todo]
+        results = _workers.run(_read_in_worker, tasks, workers)
     except _workers.WorkersFailed as err:
         LOG.warning(
             "the files couldn't be read in worker processes, so they are read "
@@ -677,16 +772,18 @@ class Scanner:
     ) -> tuple[FileRecord, Rows]:
         """The record and rows of a file read without a problem, under ``key``.
         ``replay`` are keys the rows take again, in order (a file whose
-        content is the same)."""
-        document = outcome.document
-        assert document is not None
-        counter = iter(replay[1:]) if replay else iter(())
-        keys = _Keys(key, itertools.chain(counter, self._counter))
-        chosen = time_map_found(
-            self.time_map_of(document, build.roles(document, self.settings))
-        )
-        tmap = chosen.time_map
-        rows = build.rows(document, self.settings, keys, chosen)
+        content is the same). A file whose rows a worker built takes keys for
+        them, and nothing else is built."""
+        prebuilt = outcome.prebuilt
+        document: Document | Prebuilt | None = outcome.document
+        keys = _Keys(key, itertools.chain(replay[1:], self._counter))
+        if prebuilt is not None:
+            document = prebuilt
+            rows = prebuilt.rows.renumbered([keys() for _ in range(prebuilt.count)])
+            tmap = prebuilt.time_map
+        else:
+            assert document is not None
+            rows, tmap = _rows_of(document, self.settings, self.time_map_of, keys)
         found = outcome.found
         record = FileRecord(
             key=key,
@@ -723,7 +820,9 @@ class Scanner:
             LOG.exception(
                 "the rows of %s can't be built: %s", outcome.found.native, reason
             )
-            return replace(outcome, document=None, fingerprint=None, reason=reason)
+            return replace(
+                outcome, document=None, prebuilt=None, fingerprint=None, reason=reason
+            )
 
     def _unreadable(self, outcome: Outcome, key: int) -> tuple[FileRecord, Rows]:
         """The record and rows of a file that couldn't be read, under
@@ -800,6 +899,18 @@ class Scanner:
                 with self._jobs:
                     self._job = None
                 job.done.set()
+
+    def _rows_for(self) -> tuple[CorpusSettings, TimeMapOf] | None:
+        """What worker processes build the files' rows with: the settings and
+        time map function, when they are the defaults (``NoSettings``, for a
+        corpus without a manifest, and WP9's time map). Those pickle by name
+        into every task, and give rows that depend on the file alone. Else
+        None, and the rows are built here."""
+        from . import cache  # it imports this module
+
+        if cache.applies(self.reader, self.settings, self.time_map_of):
+            return (self.settings, self.time_map_of)
+        return None
 
     def _unlisted(self, path: str) -> bool:
         """Whether ``path`` lies under what the last walk couldn't look at."""
@@ -923,6 +1034,7 @@ class Scanner:
         outcomes = read_files(
             self.reader,
             [f for f in found if f.path in force or needs_reading(old.get(f.path), f)],
+            self._rows_for(),
         )
         vanished = [
             rec
@@ -962,9 +1074,7 @@ class Scanner:
                 same_id = [
                     p
                     for p in fresh
-                    if p not in claims
-                    and outcomes[p].document is not None
-                    and outcomes[p].document.document_id == rec.document_id
+                    if p not in claims and outcomes[p].document_id == rec.document_id
                 ]
                 same_content = [
                     p for p in same_id if outcomes[p].fingerprint == rec.fingerprint
@@ -1002,9 +1112,8 @@ class Scanner:
             if rec.state == "unavailable":
                 back.append(path)
             if o.readable:
-                assert o.document is not None
                 same = rec.state == "readable" and o.fingerprint == rec.fingerprint
-                newer = o.document.format_version != rec.format_version
+                newer = o.format_version != rec.format_version
                 # content the index refused before would only be refused again
                 refused_again = rec.refused == o.fingerprint
                 if refused_again or (same and not newer and not is_move):

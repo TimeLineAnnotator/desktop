@@ -504,3 +504,28 @@ def test_a_time_map_found_gives_its_map_and_no_reason():
     assert rows.files[0][10:] == (1, None)
     assert rows.measures == build.rows(doc, NoSettings(), counter(), tmap).measures
     assert rows.file_warnings == []
+
+
+# --------------------------------------------------------------------------- #
+# Rows built in a worker process
+# --------------------------------------------------------------------------- #
+def test_rows_renumbered_are_the_rows_built_with_those_keys():
+    # a worker builds a file's rows with the keys 0, 1, ...; the scan gives
+    # them its own keys, which needn't follow each other (a file whose
+    # content is the same takes its old keys again)
+    every = corpus_docs.every_kind()
+    beats = beats_document()
+    built = [
+        (every, None),
+        (beats, fake_timemap.time_map_of(beats, {})),
+        (beats, TimeMapFound(time_map=None, reason="r", warnings=("w",))),
+    ]
+    tables = set()
+    for doc, tmap in built:
+        local = build.rows(doc, NoSettings(), itertools.count().__next__, tmap)
+        keys = [7 + 3 * n for n in range(1000)]
+        want = build.rows(doc, NoSettings(), iter(keys).__next__, tmap)
+        assert local.renumbered(keys) == want
+        tables |= {name for name, rows in want.tables().items() if rows}
+    # every table with keys is covered
+    assert tables == set(build.Rows.TABLES)

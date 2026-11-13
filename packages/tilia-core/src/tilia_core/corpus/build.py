@@ -82,6 +82,49 @@ class Rows:
         (row,) = self.files
         return replace(self, files=[(row[0], path, *row[2:6], fingerprint, *row[7:])])
 
+    def renumbered(self, keys: Sequence[int]) -> Rows:
+        """These rows, built with the keys ``0``, ``1``, ... (as a worker
+        process builds them), with ``keys[n]`` in place of key ``n``."""
+        out = Rows(file_id=keys[self.file_id])
+        for table, columns in _KEY_COLUMNS.items():
+            setattr(out, table, _renumbered(getattr(self, table), columns, keys))
+        return out
+
+
+_KEY_COLUMNS: dict[str, tuple[int, ...]] = {
+    "files": (0, 9),  # id, time_map
+    "timelines": (0, 1),  # id, file_id
+    "components": (0, 1, 2),  # id, file_id, timeline_id
+    "hierarchies": (0, 2),  # component_id, parent_id
+    "ranges": (0,),  # component_id
+    "chords": (0, 7),  # component_id, key_id
+    "keys": (0,),  # component_id
+    "categories": (0,),  # component_id
+    "positions": (0,),  # component_id
+    "measures": (0,),  # file_id
+    "fields": (1,),  # owner_id
+    "file_warnings": (0,),  # file_id
+}
+"""The columns of each table that hold keys, for :meth:`Rows.renumbered`; a
+None in them stays None. Every table of :attr:`Rows.TABLES` is here."""
+
+
+def _renumbered(
+    found: list[Row], columns: tuple[int, ...], keys: Sequence[int]
+) -> list[Row]:
+    if columns == (0,):  # by shape first: a big file has many such rows
+        return [(keys[r[0]], *r[1:]) for r in found]
+    if columns == (1,):
+        return [(r[0], keys[r[1]], *r[2:]) for r in found]
+    out = []
+    for r in found:
+        row = list(r)
+        for c in columns:
+            if row[c] is not None:
+                row[c] = keys[row[c]]
+        out.append(tuple(row))
+    return out
+
 
 def roles(document: Document, settings: CorpusSettings) -> dict[str, str | None]:
     """Each timeline's role, by its id in the file: the one the settings set
