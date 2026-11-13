@@ -9,6 +9,7 @@ files are enough."""
 import _thread
 import logging
 import os
+import pickle
 import shutil
 import signal
 import sqlite3
@@ -22,7 +23,7 @@ from types import SimpleNamespace
 import pytest
 
 from tilia_core import open_corpus
-from tilia_core.corpus import _workers, scan
+from tilia_core.corpus import _workers, cache, scan, tla_reader
 from tilia_core.corpus.tla_reader import TlaReader
 
 OLD = Path(__file__).parents[1] / "tla" / "old"
@@ -172,6 +173,110 @@ def test_a_reader_failure_in_a_worker_is_logged_here_with_its_traceback(
                 "SELECT reason FROM files WHERE path = 'sub/0.7.0.tla'"
             ).fetchone()
         assert reason == "can't read: ZeroDivisionError: a bug in the reader"
+
+
+def in_this_process(monkeypatch):
+    """The workers run in this process, so that what the test patches reaches
+    them; what comes back is what a worker sends, through pickle. The
+    functions they ran, and the results they sent."""
+    ran = SimpleNamespace(functions=[], results=[])
+
+    def run(function, tasks, workers):
+        ran.functions.append(function)
+        results = [pickle.loads(pickle.dumps(function(*t))) for t in tasks]
+        ran.results.extend(results)
+        return results
+
+    monkeypatch.setattr(_workers, "run", run)
+    return ran
+
+
+def test_the_workers_send_rows_instead_of_documents(folder, in_workers, monkeypatch):
+    ran = in_this_process(monkeypatch)
+    with opened(folder) as corpus:
+        assert ran.functions == [scan._read_and_build_in_worker]
+        outcomes = [result[0] for result in ran.results]
+        assert all(o.document is None for o in outcomes)
+        sent = [o for o in outcomes if o.prebuilt is not None]
+        assert len(sent) == OLD_COUNT
+        assert states(corpus) == [("readable", OLD_COUNT), ("unreadable", 1)]
+
+
+def test_with_other_settings_the_rows_are_built_here(folder, in_workers, monkeypatch):
+    ran = in_this_process(monkeypatch)
+    with open_corpus(
+        folder, rescan_before_reads=False, time_map_of=tla_reader.time_map_of
+    ) as corpus:
+        assert ran.functions == [scan._read_in_worker]
+        assert states(corpus) == [("readable", OLD_COUNT), ("unreadable", 1)]
+
+
+def test_the_time_maps_built_in_workers_are_those_built_here(
+    folder, in_workers, monkeypatch
+):
+    with opened(folder) as corpus:
+        parallel = {f.path: corpus.time_map(f.id) for f in corpus.files()}
+    monkeypatch.setattr(scan, "PARALLEL_READS_FROM", 10**9)
+    with opened(folder) as corpus:
+        here = {f.path: corpus.time_map(f.id) for f in corpus.files()}
+    assert in_workers
+    assert any(tmap is not None for tmap in here.values())
+    assert parallel.keys() == here.keys()
+    for path, tmap in here.items():
+        if tmap is None:
+            assert parallel[path] is None, path
+            continue
+        sent = parallel[path]
+        assert isinstance(sent, cache.LazyTimeMap), path
+        assert (sent.timeline_id, sent.guessed) == (tmap.timeline_id, tmap.guessed)
+        assert sent.measure_rows() == tmap.measure_rows(), path
+
+
+def test_files_moved_keep_their_keys_when_read_in_workers(folder, in_workers):
+    with opened(folder) as corpus:
+        before = tables(corpus)
+        (folder / "moved").mkdir()
+        for path in sorted(folder.glob("*.tla")):
+            path.rename(folder / "moved" / path.name)
+        report = corpus.scan()
+        assert in_workers == []
+        assert report.moved
+        after = tables(corpus)
+    for table in before:
+        if table != "files":  # its paths changed
+            assert after[table] == before[table], table
+
+
+def test_a_failure_to_build_rows_in_a_worker_is_logged_here_with_its_traceback(
+    folder, in_workers, monkeypatch, caplog
+):
+    in_this_process(monkeypatch)
+    rows_of = scan._rows_of
+    bad = TlaReader().read(folder / "sub" / "0.7.0.tla").document_id
+
+    def failing(document, *args):
+        if document.document_id == bad:
+            raise ZeroDivisionError("a bug in the rows")
+        return rows_of(document, *args)
+
+    monkeypatch.setattr(scan, "_rows_of", failing)
+    with caplog.at_level(logging.ERROR, logger=scan.LOG.name):
+        corpus = opened(folder)
+    with corpus:
+        assert in_workers == []
+        (record,) = [r for r in caplog.records if r.levelno == logging.ERROR]
+        message = record.getMessage()
+        assert "can't be built" in message
+        assert "0.7.0.tla" in message
+        assert "Traceback" in message
+        assert "ZeroDivisionError: a bug in the rows" in message
+        with corpus.reading() as r:
+            (state, reason) = r.connection.execute(
+                "SELECT state, reason FROM files WHERE path = 'sub/0.7.0.tla'"
+            ).fetchone()
+        assert state == "unreadable"
+        assert reason == "can't read: ZeroDivisionError: a bug in the rows"
+        assert states(corpus) == [("readable", OLD_COUNT - 1), ("unreadable", 2)]
 
 
 SCRIPT = """\

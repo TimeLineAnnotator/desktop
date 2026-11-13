@@ -230,7 +230,9 @@ def time_map_from(data: bytes) -> Wp9TimeMap:
 
 class LazyTimeMap:
     """A time map read back from a copy, built from its JSON when first used:
-    a corpus opens without building the time maps no query asks for."""
+    a corpus opens without building the time maps no query asks for. A worker
+    process that builds a file's rows sends its time map back as one, too
+    (:class:`~.scan.Prebuilt`): it pickles as its JSON."""
 
     def __init__(self, timeline_id: str, guessed: bool, data: bytes) -> None:
         self.timeline_id = timeline_id
@@ -238,6 +240,9 @@ class LazyTimeMap:
         self.data = data
         self._map: Wp9TimeMap | None = None
         self._lock = threading.Lock()
+
+    def __reduce__(self) -> tuple[type[LazyTimeMap], tuple[str, bool, bytes]]:
+        return (LazyTimeMap, (self.timeline_id, self.guessed, self.data))
 
     def built(self) -> Wp9TimeMap:
         """The time map itself."""
