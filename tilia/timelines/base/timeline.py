@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import bisect
+import copy
 import functools
 import importlib
 from abc import ABC
@@ -90,7 +91,7 @@ class Timeline(ABC, Generic[TC]):
         self.is_visible = is_visible
         self.height = height or self.default_height or 1
         self.measure_table = measure_table
-        self.fields = fields if fields is not None else {}
+        self.fields = copy.deepcopy(fields) if fields is not None else {}
 
         self.ordinal = ordinal or get(Get.TIMELINE_ORDINAL_FOR_NEW)
         if self.COMPONENT_MANAGER_CLASS:
@@ -313,6 +314,10 @@ class Timeline(ABC, Generic[TC]):
         for attr in self.SERIALIZABLE:
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
+            elif isinstance(value, dict):
+                # Its own, such as the fields: not shared with the timeline, nor
+                # with the states undo keeps.
+                value = copy.deepcopy(value)
             state[attr] = value
             string_to_hash += str(value) + "|"
 

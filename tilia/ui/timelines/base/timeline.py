@@ -287,7 +287,12 @@ class TimelineUI(ABC):  # noqa: B024
         )
 
     def on_timeline_component_deleted(self, id: str):
-        self.delete_element(self.id_to_element[id])
+        element = self.id_to_element.get(id)
+        if element is None:
+            # Never made: its making failed, as when a file failed to load
+            # part-way, and the app is cleared of what it left.
+            return
+        self.delete_element(element)
 
     def update_selection_on_right_click(
         self,

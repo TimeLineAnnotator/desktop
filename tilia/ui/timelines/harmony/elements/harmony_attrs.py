@@ -9,8 +9,21 @@ from tilia_core.rules import FONT_TYPES, HARMONY_DISPLAY_MODES, get_inversion_am
 _INV_TO_STRING = {0: "", 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th"}
 
 
-def _inversion_items(quality: str) -> list[tuple[str, int]]:
+def _inversion_items(quality: str, inversion: int) -> list[tuple[str, int]]:
+    if quality not in HARMONY_QUALITIES:
+        # Its inversions can't be known: the one the file holds.
+        return [(_INV_TO_STRING.get(inversion, str(inversion)), inversion)]
     return [(_INV_TO_STRING[i], i) for i in range(get_inversion_amount(quality) + 1)]
+
+
+def _quality_items(quality: str) -> list[tuple[str, str]]:
+    """The qualities TiLiA knows, and a quality it doesn't know, which a file can
+    hold, as the file spells it, so that it stays until another is picked (Anne,
+    2026-11-13, TimeLineAnnotator/project-management#553)."""
+    items = get_quality_inspect_args()["items"]
+    if quality not in HARMONY_QUALITIES:
+        items.append((f"{quality} (unknown)", quality))
+    return items
 
 
 def get_inversion_inspect_args():
@@ -89,7 +102,12 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
 
 def get_inspector_dict(harmony):
     return {
-        "__items_update": {"Inversion": _inversion_items(harmony.get_data("quality"))},
+        "__items_update": {
+            "Quality": _quality_items(harmony.get_data("quality")),
+            "Inversion": _inversion_items(
+                harmony.get_data("quality"), harmony.get_data("inversion")
+            ),
+        },
         "Label": harmony.label,
         "Time": format_media_time(harmony.get_data("time")),
         "Comments": harmony.get_data("comments"),
