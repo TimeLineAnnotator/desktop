@@ -646,30 +646,39 @@ def test_a_unit_tilia_cant_read_moving_onto_one_isnt_refused():
     assert units(doc) == {B[0]: QUARTERS, B[3]: UNREADABLE}
 
 
-def test_a_downbeats_unit_dropped_beside_another_unit_isnt_refused():
+@pytest.mark.parametrize(
+    "second, movement_3",
+    [(HALVES, ("2/2", False)), (UNREADABLE, ("6/8", True))],
+    ids=["one TiLiA can read", "one it can't"],
+)
+def test_a_downbeats_unit_dropped_beside_another_unit_isnt_refused(second, movement_3):
     # B[3]'s mark goes, B[4] keeping its own. Its 3/8 would move onto B[4]
     # only if no other beat of B[4]'s measure stated a unit, and B[5] states
     # one: with B[4]'s unit treated as absent, the 3/8 is still dropped, so
     # the deletion isn't refused. By an ordinary beat's rules, it would move
-    # onto B[4].
+    # onto B[4]. A unit TiLiA can't read on B[5] counts as one stated too, so
+    # movement 3, which read the 3/8 carried, now reads the default
+    # (TimeLineAnnotator/project-management#556, point 2).
     beats = [
         (B[0], beat(0.0, measure={})),
         (B[1], beat(1.0)),
         (B[2], beat(2.0, measure={"restart": True})),
         (B[3], beat(3.0, measure={}, beat_unit=EIGHTHS)),
         (B[4], beat(4.0, measure={"restart": True}, beat_unit=UNREADABLE)),
-        (B[5], beat(5.0, beat_unit=HALVES)),
+        (B[5], beat(5.0, beat_unit=second)),
         (B[6], beat(6.0, measure={})),
         (B[7], beat(7.0)),
     ]
     doc = document(beats)
-    before = readings(doc)
+    assert readings(doc)[B[4]] == readings(doc)[B[6]] == movement_3
     tla.delete_beat(doc, BEATS, B[3])
     assert B[3] not in components(doc)
-    assert units(doc) == {B[4]: UNREADABLE, B[5]: HALVES}
+    assert units(doc) == {B[4]: UNREADABLE, B[5]: second}
     after = readings(doc)
-    assert after[B[4]] == before[B[4]]
-    assert after[B[6]] == before[B[6]]
+    if second is HALVES:
+        assert after[B[4]] == after[B[6]] == movement_3
+    else:
+        assert after[B[4]] == after[B[6]] == ("2/4", True)
 
 
 def test_a_beat_without_a_unit_is_deleted_beside_one_tilia_cant_read(tmp_path):
@@ -871,6 +880,57 @@ def test_the_unit_moves_to_a_next_beat_with_its_own_mark():
     assert units(doc) == {B[1]: EIGHTHS}
     assert readings(doc) == {B[1]: before[B[1]], B[3]: before[B[3]]}
     assert readings(doc)[B[1]] == ("6/8", False)
+
+
+def next_movement_carried(unit, held=None):
+    """Movement 2 is one bar of one beat, B[2], holding `unit`; movement 3,
+    from B[3], states none, or `held` on its first two beats."""
+    return [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={"restart": True}, beat_unit=unit)),
+        (B[3], beat(3.0, measure={"restart": True}, beat_unit=held)),
+        (B[4], beat(4.0, beat_unit=held)),
+        (B[5], beat(5.0, measure={})),
+        (B[6], beat(6.0)),
+    ]
+
+
+def test_a_unit_moved_onto_the_next_movements_mark_is_stored_as_it_read_it(
+    tmp_path,
+):
+    # Movement 3 read the 3/8 carried, assumed. B[3] keeps its own mark, and
+    # the 3/8 moves onto it marked assumed, so that movement 3 reads exactly
+    # as before (TimeLineAnnotator/project-management#556, point 1).
+    doc = document(next_movement_carried(EIGHTHS))
+    before = readings(doc)
+    assert before[B[3]] == before[B[5]] == ("6/8", True)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: QUARTERS, B[3]: EIGHTHS_ASSUMED}
+    assert readings(doc) == {key: before[key] for key in (B[0], B[3], B[5])}
+    again = written_twice(doc, tmp_path / "f.tla")
+    assert units(again) == units(doc)
+
+
+def test_a_unit_tilia_cant_read_moves_onto_the_next_movements_mark_as_it_is():
+    doc = document(next_movement_carried(UNREADABLE))
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: QUARTERS, B[3]: UNREADABLE}
+
+
+def test_whether_a_unit_moves_is_chosen_with_the_unit_as_it_is():
+    # Movement 3's two units TiLiA can't read count as its first measure
+    # stating one, so the 3/8 is dropped, and movement 3 reads movement 1's
+    # unit (TimeLineAnnotator/project-management#556, point 2). Stored as
+    # movement 3 read it, assumed, moving it would keep movement 3 as it was,
+    # and the deletion would be refused for B[3]'s unit.
+    doc = document(next_movement_carried(EIGHTHS, held=UNREADABLE))
+    before = readings(doc)
+    assert before[B[3]] == before[B[5]] == ("6/8", True)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: QUARTERS, B[3]: UNREADABLE, B[4]: UNREADABLE}
+    after = readings(doc)
+    assert after[B[3]] == after[B[5]] == ("2/4", True)
 
 
 @pytest.mark.parametrize("own_mark", [None, {}], ids=["no mark", "a mark"])
@@ -1264,6 +1324,28 @@ def test_once_its_closing_barline_is_deleted_the_movements_downbeat_goes():
         B[7],
         B[9],
     ]
+
+
+def test_the_refusal_names_both_closing_taps_after_the_movements_only_measure():
+    # TimeLineAnnotator/project-management#556, point 3.
+    beats = three_movements()
+    beats.insert(7, (B[11], beat(6.5, closing=True)))
+    doc = document(beats, measure_source="import")
+    before = copy.deepcopy(components(doc))
+    with pytest.raises(tla.CantDeleteDownbeat) as error:
+        tla.delete_beat(doc, BEATS, B[5])
+    assert str(error.value) == (
+        'the beat at 00:05.0 in the timeline "Beats" can\'t be deleted: movement'
+        " 2's closing barlines would close movement 1's last bar. Delete those"
+        " closing barlines first."
+    )
+    assert error.value.closing_tap_ids == (B[6], B[11])
+    assert components(doc) == before
+    for tap in error.value.closing_tap_ids:
+        tla.delete_beat(doc, BEATS, tap)
+    tla.delete_beat(doc, BEATS, B[5])
+    assert B[5] not in components(doc)
+    assert readings(doc)[B[2]] == ("2/4", False)
 
 
 # delete_beat: a beat without a time that leaves the first beat unmarked
@@ -1665,6 +1747,18 @@ def test_a_time_kept_uncompared_is_uncompared_as_read_once_the_deletion_is_undon
     doc.media_length = 2.5
     again = written_twice(doc, tmp_path / "f.tla")
     assert components(again) == saved
+
+
+def test_a_deletion_undone_and_made_again_keeps_each_problem_once(tmp_path):
+    doc = document(a_beat_past_the_end(), length=2.5)
+    saved = copy.deepcopy(components(doc))
+    tla.delete_beat(doc, BEATS, B[2])
+    kept = list(doc.read_problems)
+    for _ in range(5):
+        undone(doc, saved)
+        tla.delete_beat(doc, BEATS, B[2])
+    assert doc.read_problems == kept
+    written_twice(doc, tmp_path / "f.tla")
 
 
 def test_a_problem_between_beats_is_old_as_read_once_the_deletion_is_undone(
