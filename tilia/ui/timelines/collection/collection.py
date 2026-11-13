@@ -618,7 +618,11 @@ class TimelineUIs:
             # they're different from timeline ui updaters
             getattr(self, "update_" + attr)()
 
-    def delete_timeline_ui(self, timeline_ui: TimelineUI):
+    def delete_timeline_ui(self, timeline_ui: TimelineUI | None):
+        if timeline_ui is None:
+            # Never made: its making failed, as when a file failed to load
+            # part-way, and the app is cleared of what it left.
+            return
         # Before delete(), which schedules the scene for deletion: a selection
         # box kept past that makes the next clear_selection_boxes() raise.
         self._forget_selection_boxes_in_scene(timeline_ui.scene)

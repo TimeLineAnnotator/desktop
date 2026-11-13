@@ -192,15 +192,16 @@ class HarmonyTimeline(Timeline):
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 
-    def get_key_by_time(self, time: float) -> music21.key.Key:
+    def get_mode_by_time(self, time: float) -> Mode | None:
+        """The mode a time is in: the last one at or before it, None before the
+        first."""
         modes = sorted(self.modes())
         idx = bisect([mode.get_data("time") for mode in modes], time)
-        if not idx:
-            return music21.key.Key("CM")
-        elif idx == len(modes):
-            idx = 0
+        return modes[idx - 1] if idx else None
 
-        return modes[idx - 1].key
+    def get_key_by_time(self, time: float) -> music21.key.Key:
+        mode = self.get_mode_by_time(time)
+        return mode.key if mode is not None else music21.key.Key("CM")
 
     def deserialize_components(self, components: dict[str, dict[str]]):
         super().deserialize_components(components)

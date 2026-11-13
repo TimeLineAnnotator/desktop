@@ -104,10 +104,11 @@ class Timelines:
         kind: type[Timeline] | str,
         components: dict[str, dict[str, Any]] | None = None,
         *args,
-        from_file: bool = False,
+        restoring: bool = False,
         **kwargs,
     ) -> Timeline:
-        """With `from_file`, the timeline is one a file holds, as it holds it."""
+        """With `restoring`, the timeline is one a file or an undo gives back, as
+        it was."""
 
         if isinstance(kind, str):
             kind = Timeline.get_class_by_name(kind)
@@ -134,7 +135,7 @@ class Timelines:
             tl.setup_blank_timeline()
 
         if kind == AudioWaveTimeline and not components:
-            if from_file:
+            if restoring:
                 tl.load_bars()
             else:
                 tl.refresh()
@@ -278,7 +279,7 @@ class Timelines:
         for id, tl_data in data_copy.items():
             # We need to pop so no duplicate arguments are passed
             kind = tl_data.pop("kind")
-            self.create_timeline(kind, id=id, from_file=True, **tl_data)
+            self.create_timeline(kind, id=id, restoring=True, **tl_data)
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
@@ -299,7 +300,7 @@ class Timelines:
             params = timeline_states[id].copy()
             # We need to pop so no duplicate arguments are passed
             kind = params.pop("kind")
-            self.create_timeline(kind, id=id, **params)
+            self.create_timeline(kind, id=id, restoring=True, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         # Attributes must be restored before components, as component validation

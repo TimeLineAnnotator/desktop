@@ -3030,7 +3030,8 @@ class TestComesBackAsTiLiAHeldIt:
         assert opened.doc.timelines[tl].attrs["path"] == "score.pdf"
         assert opened.bytes() == opened.bytes_read
 
-    def test_an_audiowave_timeline_tilia_hides(self, live):
+    def test_an_audiowave_timeline_without_its_media(self, live):
+        # Opening no longer hides it: it comes back as the file has it.
         tl = make_id(1)
         doc = loads(
             file_with(
@@ -3045,11 +3046,7 @@ class TestComesBackAsTiLiAHeldIt:
             )
         )
         opened = live(doc)
-        # As TiLiA hides it when it can't read the media.
-        opened.timeline(tl).refresh()
-        opened.synced = opened.state()
-        opened.first = copy.deepcopy(opened.synced)
-        assert opened.synced["timelines"][tl]["is_visible"] is False
+        assert opened.synced["timelines"][tl]["is_visible"] is True
         opened.tls.delete_timeline(opened.timeline(tl))
         opened.sync()
         opened.sync(opened.first)
