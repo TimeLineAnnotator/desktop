@@ -2396,6 +2396,25 @@ A_BAD_JOIN = ranges(
     (SECOND, a_range(3.0, 3.5)),
     (THIRD, a_range(5.0, 6.0, color="notacolor", pre_start=5.5)),
 )
+# A range joined to the next in its row, which doesn't start at its end, and has
+# the same two problems of its own.
+A_JOIN_TO_THE_NEXT = ranges(
+    (FIRST, a_range(0.0, 1.0, joined_right=SECOND)),
+    (SECOND, a_range(3.0, 4.0, color="notacolor", pre_start=3.5)),
+)
+# The first, by id, crosses the second; the third is apart, with no problem.
+B_CROSSES_C_A_APART = hierarchies(
+    (FIRST, at_level(2.0, 4.0, 1)),
+    (SECOND, at_level(3.0, 6.0, 1)),
+    (THIRD, at_level(10.0, 11.0, 1)),
+)
+# The first crosses the second; the third, apart, has a color that isn't one.
+A_CROSSES_B_C_BAD_COLOR = hierarchies(
+    (FIRST, at_level(0.0, 2.0, 1)),
+    (SECOND, at_level(1.0, 3.0, 1)),
+    (THIRD, at_level(10.0, 12.0, 1, color="notacolor")),
+)
+LEVEL_0_AT_0 = at_level(0.0, 1.0, 0)
 
 
 def changed(doc, component, timeline=FORM, **attrs):
@@ -2639,6 +2658,188 @@ class TestKeepReadProblems:
         fixed_in_part(doc, THIRD, TEXTURE, color=None)
         problems = refused(doc, tmp_path)
         assert [w.place for w in problems] == [component_place(TEXTURE, FIRST)]
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    @pytest.mark.parametrize(
+        "color", [None, "notacolor"], ids=["read with no problem", "fixed in part"]
+    )
+    def test_a_crossing_named_on_another_it_wasnt_read_with(
+        self, color, call, tmp_path
+    ):
+        # The first, by id, was read crossing the second. The third, read apart,
+        # is moved to cross the first, which names it.
+        def change(content):
+            B_CROSSES_C_A_APART(content)
+            if color is not None:
+                content["timelines"][FORM]["components"][THIRD]["color"] = color
+
+        doc = tla.loads(a_file(change))
+        changed(doc, THIRD, start=0.0, end=3.0, color=None)
+        if call:
+            tla.keep_read_problems(doc, THIRD)
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == [component_place(FORM, FIRST)]
+        assert component_place(FORM, THIRD) in problems[0].message
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    def test_a_crossing_with_another_that_has_a_problem(self, call, tmp_path):
+        # The first was read crossing the second; the third has a problem of its
+        # own. The first is moved to cross the third instead.
+        doc = tla.loads(a_file(A_CROSSES_B_C_BAD_COLOR))
+        changed(doc, FIRST, start=9.0, end=11.0)
+        if call:
+            tla.keep_read_problems(doc, FIRST)
+        problems = refused(doc, tmp_path)
+        assert [w.place for w in problems] == [component_place(FORM, FIRST)]
+        assert component_place(FORM, THIRD) in problems[0].message
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    @pytest.mark.parametrize(
+        "edit", [{"color": None}, {"label": "A"}], ids=["fixed in part", "labelled"]
+    )
+    def test_a_join_to_it_from_the_range_before(self, edit, call, tmp_path):
+        # The range it joins is also what comes next in its row.
+        doc = tla.loads(a_file(A_JOIN_TO_THE_NEXT))
+        changed(doc, SECOND, TEXTURE, **edit)
+        if call:
+            tla.keep_read_problems(doc, SECOND)
+        places = [w.place for w in refused(doc, tmp_path)]
+        assert component_place(TEXTURE, FIRST) in places
+        if call:  # its own problems are kept
+            assert places == [component_place(TEXTURE, FIRST)]
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    def test_moved_past_a_length_learned_since(self, call, tmp_path):
+        # Read with no length, within the one given since; moved past it.
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(10.0, 20.0, 0)))))
+        doc.media_length = 100.0
+        changed(doc, FIRST, level=1, end=150.0)
+        if call:
+            tla.keep_read_problems(doc, FIRST)
+        assert [w.message for w in refused(doc, tmp_path)] == [
+            "End time '150.0' is bigger than media time '100.0'"
+        ]
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            hierarchies((FIRST, LEVEL_0_AT_0), (SECOND, at_level(10.0, 20.0, 1))),
+            hierarchies((SECOND, at_level(10.0, 20.0, 1))),
+        ],
+        ids=["read with no problem", "in a document read with none"],
+    )
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    def test_moved_past_a_length_learned_since_with_no_problem(
+        self, call, change, tmp_path
+    ):
+        doc = tla.loads(a_file(change))
+        doc.media_length = 100.0
+        changed(doc, SECOND, end=150.0)
+        if call:
+            tla.keep_read_problems(doc, SECOND)
+        assert [w.place for w in refused(doc, tmp_path)] == [
+            component_place(FORM, SECOND)
+        ]
+
+    def test_a_crossing_of_many_after_one_of_them_is_deleted(self, tmp_path):
+        # The first is over twelve, and names the first ten; the last two name
+        # it. Once one of the ten is deleted, it names the eleventh too, which
+        # the eleventh's own problem was read naming.
+        def change(content):
+            INSIDE_ONE(content)
+            content["timelines"][FORM]["components"][INNER[3]]["color"] = "notacolor"
+
+        doc = tla.loads(a_file(change))
+        del doc.timelines[FORM].components[INNER[0]]
+        changed(doc, INNER[3], color=None)
+        assert len(refused(doc, tmp_path)) == 1
+        tla.keep_read_problems(doc, INNER[3])
+        written(doc, tmp_path)
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    def test_a_join_to_a_range_that_joins_it(self, call, tmp_path):
+        # The first was read joined to the third, and the second joined back to
+        # the first. Joined to the second instead, its join is new.
+        doc = tla.loads(
+            a_file(
+                ranges(
+                    (FIRST, a_range(0.0, 1.0, joined_right=THIRD, color="notacolor")),
+                    (SECOND, a_range(2.0, 3.0, joined_right=FIRST)),
+                    (THIRD, a_range(5.0, 6.0)),
+                )
+            )
+        )
+        changed(doc, FIRST, TEXTURE, color=None, joined_right=SECOND)
+        if call:
+            tla.keep_read_problems(doc, FIRST)
+        assert component_place(TEXTURE, FIRST) in [
+            w.place for w in refused(doc, tmp_path)
+        ]
+
+    @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
+    def test_past_a_shorter_length_read_with_a_length(self, call, tmp_path):
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(10.0, 50.0, 0))),
+                )
+            )
+        )
+        doc.media_length = 20.0
+        changed(doc, FIRST, level=1)
+        if call:
+            tla.keep_read_problems(doc, FIRST)
+        assert [w.message for w in refused(doc, tmp_path)] == [
+            "End time '50.0' is bigger than media time '20.0'"
+        ]
+
+    def test_copies_made_after_the_call_keep_it(self, tmp_path):
+        doc = tla.loads(a_file(LEVEL_0_BEFORE_0))
+        fixed_in_part(doc, level=1)
+        for other in (
+            copy.copy(doc),
+            copy.deepcopy(doc),
+            pickle.loads(pickle.dumps(doc)),
+        ):
+            written(other, tmp_path)
+
+    @pytest.mark.parametrize(
+        "length", [None, 100.0], ids=["with no length", "read with a length"]
+    )
+    def test_a_component_nothing_read_is_about_checks_nothing(
+        self, length, monkeypatch
+    ):
+        doc = tla.loads(a_file(together(with_media_length(length), LEVEL_0_BEFORE_0)))
+        changed(doc, CADENCE, CADENCES, label="A")
+        monkeypatch.setattr(writer, "checked_bytes", None)  # any check fails
+        tla.keep_read_problems(doc, CADENCE)
+
+    @pytest.mark.parametrize(
+        "table", [None, BEATS], ids=["alone", "with its measure table"]
+    )
+    def test_only_its_timeline_is_checked(self, table, monkeypatch, tmp_path):
+        checked = []
+        checked_bytes = writer.checked_bytes
+
+        def checking(doc, **kwargs):
+            checked.append(set(doc.timelines))
+            return checked_bytes(doc, **kwargs)
+
+        def change(content):
+            LEVEL_0_BEFORE_0(content)
+            if table is not None:
+                content["timelines"][FORM]["measure_table"] = table
+
+        doc = tla.loads(a_file(change))
+        changed(doc, FIRST, level=1)
+        monkeypatch.setattr(writer, "checked_bytes", checking)
+        tla.keep_read_problems(doc, FIRST)
+        assert checked == [{FORM} if table is None else {FORM, table}]
+        monkeypatch.undo()
+        assert [w.message for w in tla.read(written(doc, tmp_path)).warnings] == [
+            BEFORE_0
+        ]
 
     def test_an_unchanged_component_keeps_nothing_more(self):
         doc = tla.loads(a_file(LEVEL_0_BEFORE_0))

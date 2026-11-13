@@ -56,7 +56,7 @@ from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
 from tilia_core import rules
-from tilia_core.tla.errors import printable
+from tilia_core.tla.errors import UnreadableFile, printable
 from tilia_core.tla.layout import ids_at, pointer_to
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -66,6 +66,7 @@ from tilia_core.tla.model import (
     ReadWarning,
     Timeline,
     UnknownKind,
+    component_kind_from_file,
 )
 from tilia_core.tla.parse import lines_of, text_of
 
@@ -110,7 +111,6 @@ def find_problems(document: Document) -> list[ReadProblem]:
     """Every rule `document` breaks, in the order of the file."""
     found = []
     media_length = rules.media_length(document.media_length)
-    length: float = math.inf
     if not media_length:
         found.append(
             ReadProblem(
@@ -120,8 +120,7 @@ def find_problems(document: Document) -> list[ReadProblem]:
                 state=_state(document.media_length),
             )
         )
-    elif document.time_unit == "seconds" and document.media_length is not None:
-        length = document.media_length
+    length = _length(document)
     for timeline_id, timeline in document.timelines.items():
         place = pointer_to("/timelines", timeline_id)
         if timeline.kind == "beat":
@@ -131,6 +130,15 @@ def find_problems(document: Document) -> list[ReadProblem]:
         if timeline.components:
             found.extend(_component_problems(timeline, place, length))
     return found
+
+
+def _length(document: Document) -> float:
+    """The media length `document`'s times are compared with: none, when it has
+    none, or none in seconds, or one that isn't one."""
+    length = document.media_length
+    if length is None or document.time_unit != "seconds":
+        return math.inf
+    return length if rules.media_length(length) else math.inf
 
 
 def unmeasured(document: Document) -> dict[str, str]:
@@ -243,20 +251,30 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     (WP6's FR-062; TimeLineAnnotator/project-management#436, point 1). For any
     other caller, such as a bulk edit or a script, FR-054 is as it was.
 
-    A problem kept is one read on the component, told by its rule's code, and,
-    in a document read with no media length, whose times weren't compared with
-    any, a time past the end. One between components is kept while the others
-    it is between are as they were read or kept: those a crossing or two at one
-    time name, and for its join, the range it joins. A join to it is the
-    problem of the range that joins, and stays new
-    (TimeLineAnnotator/project-management#496, point 2). Any other problem stays
-    new, and so does a change made after the call. What the component was read
-    as stays old too, as an undo gives it back, until a write.
+    A problem of the component alone is kept when the document was read with
+    one of its code on the component. In a document read with no media length,
+    whose times weren't compared with any, a time past the end is kept too when
+    the component as it was read is past the end of the length it now has. A
+    problem between the component and others, such as a crossing, is kept when
+    it was read between them by the same rule, whichever of them it was named
+    on, with the others as they were then; its join, when it was read joining the
+    same range, as that range was. A join to it is the problem of the range that
+    joins, and stays new (TimeLineAnnotator/project-management#496, point 2).
+    Any other problem stays new, and so does a change made after the call. What
+    the component was read as stays old too, as an undo gives it back, until a
+    write.
 
-    A document made in memory has nothing read to keep. Raises `KeyError` for a
-    component the document doesn't have, and, as `write` does, `UnreadableFile`
-    for a document the reader would refuse and `ValueError` for a value JSON
-    can't hold."""
+    A component that no problem read is about, and that is either in a document
+    with no media length or was read with one, has nothing to keep, and is
+    found so without checking anything: a document made in memory has nothing
+    read at all. Otherwise the component's timeline is checked as a write
+    checks it, with the beat timeline it names as its measure table. Raises
+    `KeyError` for a component the document doesn't have, and, as `write` does,
+    `UnreadableFile` for a document the reader would refuse and `ValueError`
+    for a value in that timeline that JSON can't hold.
+
+    It reads the document's `read_problems` and sets them, as a write does: the
+    two are not to run at once on one document, from two threads."""
     timeline_id = next(
         (
             key
@@ -267,33 +285,41 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     )
     if timeline_id is None:
         raise KeyError(component_id)
-    if not document.read_problems and not document.read_unmeasured:
-        return  # made in memory
-    # Imported here: they read this module.
-    from tilia_core.tla.reader import written_document
-    from tilia_core.tla.writer import checked_bytes
-
-    # As the writer finds them: what it checks is what it writes.
-    found = find_problems(written_document(checked_bytes(document)))
     held = pointer_to(pointer_to("/timelines", timeline_id), "components")
     place = pointer_to(held, component_id)
     was = _Read(document.read_problems)
-    codes = {(at, code) for at, code, _ in was.problems}
     unmeasured = document.read_unmeasured
+    if place not in was.places and (
+        document.media_length is None or place not in unmeasured
+    ):
+        return  # nothing read about it
+    written = _as_written(document, timeline_id)
     kept = []
-    for problem in found:
+    for problem in find_problems(written):
+        between = _between(problem)
         if problem.place == place:
-            came_with = (place, problem.code) in codes or (
-                problem.code == rules.PAST_MEDIA_END and place in unmeasured
+            if between:
+                came_with = all(
+                    was.at_odds(problem, at, state) for at, state in between
+                )
+            else:
+                came_with = (place, problem.code) in was.codes or (
+                    problem.code == rules.PAST_MEDIA_END
+                    and _was_past_the_end(written, timeline_id, unmeasured.get(place))
+                )
+        elif problem.joined is None and any(at == place for at, _ in between):
+            # Named on another, which hasn't changed.
+            came_with = was.has(problem) and all(
+                was.were_at_odds(problem, at)
+                if at == place
+                else was.at_odds(problem, at, state)
+                for at, state in between
             )
-        elif any(at == place for at, _ in problem.others):
-            came_with = was.has(problem)
         else:
             continue  # not one of its problems
-        changed = was.changed(problem)
-        if not came_with or any(at != place for at, _ in changed):
+        if not came_with:
             continue  # new, or new with another
-        if was.has(problem) and not changed:
+        if was.has(problem) and not was.changed(problem):
             continue  # old as it is
         if (
             problem.code == rules.PAST_MEDIA_END
@@ -303,6 +329,58 @@ def keep_read_problems(document: Document, component_id: str) -> None:
         kept.append(dataclasses.replace(problem, kept=True))
     if kept:
         document.read_problems = [*document.read_problems, *kept]
+
+
+def _as_written(document: Document, timeline_id: str) -> Document:
+    """What a write of `document` checks of the timeline `timeline_id`: the
+    bytes it would write, read back, so that a float given for an integer is
+    checked as the integer it is written as (FR-051a). Only that timeline, with
+    the beat timeline it names as its measure table, which is all the reader
+    needs of the others for it, unless the reader refuses them so: then the
+    whole document."""
+    # Imported here: they read this module.
+    from tilia_core.tla.reader import written_document
+    from tilia_core.tla.writer import checked_bytes
+
+    timeline = document.timelines[timeline_id]
+    table = timeline.attrs.get("measure_table")
+    part = dataclasses.replace(
+        document,
+        timelines={
+            key: value
+            for key, value in document.timelines.items()
+            if key in (timeline_id, table)
+        },
+    )
+    try:
+        return written_document(checked_bytes(part))
+    except UnreadableFile:
+        return written_document(checked_bytes(document))
+
+
+def _was_past_the_end(written: Document, timeline_id: str, state: str | None) -> bool:
+    """Whether a component of `written`'s timeline `timeline_id`, as `state`
+    holds it, as it was read with no media length, has a time past the end of
+    the one `written` has: it then came with a time past the end. False with no
+    `state`, for a component read with a length."""
+    if state is None:
+        return False
+    timeline = written.timelines[timeline_id]
+    as_read = json.loads(state)
+    as_read.pop("metadata", None)
+    kind = component_kind_from_file(as_read.pop("kind"))
+    component = Component(id="", kind=kind, attrs=as_read)
+    checked = rules.check_timeline(
+        _length(written),
+        [component],
+        rows=timeline.attrs.get("rows") or [],
+        page_count=math.inf,
+        every_rule=True,
+    ).get("")
+    return checked is not None and any(
+        outcome.code == rules.PAST_MEDIA_END
+        for outcome in (checked.outcome, *checked.also)
+    )
 
 
 class _Read:
@@ -315,16 +393,28 @@ class _Read:
 
     def __init__(self, read: list[ReadProblem]) -> None:
         self.problems: set[tuple[str, str, str]] = set()
+        self.codes: set[tuple[str, str]] = set()
+        self.places: set[str] = set()
         self.states: dict[str, str] = {}
         self.kept: dict[tuple[str, str], set[tuple[str, str]]] = {}
+        # By a problem's place and code, read or kept: the states of each of
+        # the others it is between.
+        self.others: dict[tuple[str, str], dict[str, set[str]]] = {}
         for problem in read:
+            key = (problem.place, problem.code)
+            between = _between(problem)
             self.problems.add((problem.place, problem.code, problem.state))
+            self.codes.add(key)
+            self.places.add(problem.place)
+            others = self.others.setdefault(key, {})
+            for at, state in between:
+                self.places.add(at)
+                others.setdefault(at, set()).add(state)
             if problem.kept:
-                key = (problem.place, problem.code)
-                self.kept.setdefault(key, set()).update(_between(problem))
+                self.kept.setdefault(key, set()).update(between)
             else:
                 self.states[problem.place] = problem.state
-                self.states.update(_between(problem))
+                self.states.update(between)
 
     def has(self, problem: ReadProblem) -> bool:
         """Whether `problem` was read, or kept, on what it is about as it is."""
@@ -339,6 +429,28 @@ class _Read:
             for other in _between(problem)
             if self.states.get(other[0]) != other[1] and other not in kept
         )
+
+    def at_odds(self, problem: ReadProblem, other: str, state: str) -> bool:
+        """Whether `problem`'s place and `other`, as `state` holds it, were read
+        or kept at odds by its rule: `other` among those a problem of its code
+        there was between, or, for a rule between two components, which names
+        the pair on either, `problem`'s place among those of `other`'s own
+        problem of that code, in that state. A join is its range's alone."""
+        if state in self.others.get((problem.place, problem.code), {}).get(other, ()):
+            return True
+        return (
+            problem.joined is None
+            and (other, problem.code, state) in self.problems
+            and problem.place in self.others.get((other, problem.code), {})
+        )
+
+    def were_at_odds(self, problem: ReadProblem, other: str) -> bool:
+        """Whether `problem`'s place and `other` were read or kept at odds by
+        its rule, a rule between two components, on either, as `other` was then,
+        whatever it is now."""
+        return other in self.others.get(
+            (problem.place, problem.code), {}
+        ) or problem.place in self.others.get((other, problem.code), {})
 
 
 def _between(problem: ReadProblem) -> tuple[tuple[str, str], ...]:
