@@ -115,12 +115,17 @@ class Migrated:
     with `version` the old file's version; what the migration dropped or
     changed, as warnings, at their places in the old file, without a line, and
     with the document's ids of what they concern; the counts for a migration
-    report; and where each place of the content was in the old file."""
+    report; where each place of the content was in the old file; and its media
+    and PDF timelines' paths as the old file stores them, for the document its
+    fingerprint is taken from."""
 
     content: dict[str, Any]
     warnings: list[ReadWarning] = field(default_factory=list)
     changes: dict[str, int] = field(default_factory=dict)
     places: OldPlaces = field(default_factory=OldPlaces, compare=False)
+    stored_paths: media_paths.StoredPaths = field(
+        default_factory=media_paths.StoredPaths, compare=False
+    )
 
 
 def migrate(
@@ -163,12 +168,13 @@ def migrate(
     content = _with_new_ids(content, document_id, migration.places)
     # The media's and PDF timelines' paths are made relative after the id is
     # derived, since they depend on where the file is.
+    stored = media_paths.stored_paths(content)
     if not paths_as_stored:
         media_paths.make_relative(content, file_path=file_path, path=path)
     content["document_id"] = document_id
     # Only now are the new ids known.
     warnings = [_with_ids(warning, migration.places) for warning in migration.warnings]
-    return Migrated(content, warnings, migration.changes, migration.places)
+    return Migrated(content, warnings, migration.changes, migration.places, stored)
 
 
 def _with_ids(warning: ReadWarning, places: OldPlaces) -> ReadWarning:

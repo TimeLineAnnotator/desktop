@@ -19,7 +19,7 @@ from pathlib import Path
 
 from tilia_core import timemap, tla
 from tilia_core.tla.model import Kind
-from tilia_core.tla.reader import loads_for_fingerprint
+from tilia_core.tla.reader import loads_with_fingerprint_document
 
 from .documents import ComponentDoc, Document, TimelineDoc, UnreadableFile
 from .time_map import TimeMapFound
@@ -30,7 +30,9 @@ class TlaDocument(Document):
     """The index's document, with the core's own: ``source`` is what ``tla``
     read, for what needs more than the index's view (WP9's time map), and
     ``for_fingerprint`` the document the file's fingerprint is taken from,
-    when it isn't ``source`` (an old file)."""
+    when it isn't ``source`` (an old file). It shares everything but its media
+    and PDF timelines' paths with ``source``, so neither is to be edited in
+    place."""
 
     source: tla.Document | None = field(default=None, compare=False, repr=False)
     for_fingerprint: tla.Document | None = field(
@@ -92,12 +94,9 @@ class TlaReader:
         with open(path, "rb") as file:
             data = file.read()
         try:
-            doc = tla.loads(data, path=path)
             # A file of the current format holds its fingerprint's document;
             # an old one's is its migration with its paths as stored.
-            fp = None
-            if doc.format_version != tla.FORMAT_VERSION:
-                fp = loads_for_fingerprint(data, path=path)
+            doc, fp = loads_with_fingerprint_document(data, path=path)
         except tla.UnreadableFile as err:
             raise UnreadableFile(Path(path), err.message, err.line) from err
         return document_of(doc, fp)
