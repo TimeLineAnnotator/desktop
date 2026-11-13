@@ -102,8 +102,9 @@ _CURRENT_ONLY_IN_TIMELINES: dict[str, tuple[str, ...]] = {
 _STORED_HASHES = ("hash", "components_hash")
 _MEDIA_LENGTH = "media length"
 # A number written as text, in ASCII. Around it, the spaces float() strips: \s
-# also matches U+001C to U+001F, which float() refuses.
-_NUMBER = re.compile(
+# also matches U+001C to U+001F, which float() refuses. The metadata importer
+# reads a media length written as text with it too.
+NUMBER_AS_TEXT = re.compile(
     r"[^\S\x1c-\x1f]*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
     r"[^\S\x1c-\x1f]*"
 )
@@ -210,7 +211,7 @@ def _media_length(value: Any) -> int | float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, str):
-        if not _NUMBER.fullmatch(value):
+        if not NUMBER_AS_TEXT.fullmatch(value):
             return None
         value = float(value)
     if not isinstance(value, (int, float)):
@@ -244,8 +245,9 @@ def _pattern(bars: list[Any]) -> str:
     return " ".join(_text(bar) for bar in bars)
 
 
-def _field(value: Any) -> str | list[str]:
-    """A field's value as text: a list of plain values as a list of texts."""
+def field_as_text(value: Any) -> str | list[str]:
+    """A field's value as text: a list of plain values as a list of texts. The
+    metadata importer makes a JSON's values text with it too."""
     if isinstance(value, list) and not any(
         isinstance(item, (dict, list)) for item in value
     ):
@@ -340,7 +342,7 @@ class _Migration:
             "version": self.version,
             "time_unit": "seconds",
             "media": {"path": old.get("media_path", ""), "length": length},
-            "metadata": {name: _field(value) for name, value in fields.items()},
+            "metadata": {name: field_as_text(value) for name, value in fields.items()},
             "timelines": {
                 key: self._timeline(key, timeline)
                 for key, timeline in old["timelines"].items()
