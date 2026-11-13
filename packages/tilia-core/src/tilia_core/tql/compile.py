@@ -104,6 +104,7 @@ class Catalog:
         self._levels: dict[tuple[Any, Any], list[Any]] | None = None
         self._rows: dict[tuple[Any, Any], list[tuple[Any, Any]]] | None = None
         # label_timelines', by the statements' text and values
+        self._lanes: dict[tuple[Any, ...], list[LaneSpec]] = {}  # resolve_lanes'
         self._labelled: dict[tuple[Any, ...], dict[Any, frozenset[Any]]] = {}
 
     def _where(self, column: str) -> tuple[str, tuple[Any, ...]]:
@@ -310,8 +311,19 @@ def resolve_lanes(
 ) -> list[LaneSpec]:
     """The lanes of file ``file_id`` that ``IN lane`` names (tql.md §4); with
     no ``IN``, every hierarchy level, range row and marker timeline. ``src``
-    is the index's connection, or the run's :class:`Catalog`."""
+    is the index's connection, or the run's :class:`Catalog`, which keeps
+    what it gives for the rest of the run. Callers don't change the list."""
     cat = _catalog(src, file_id)
+    key = (file_id,) if lane is None else (file_id, lane.text, lane.quoted)
+    got = cat._lanes.get(key)
+    if got is None:
+        got = cat._lanes[key] = _resolve_lanes(cat, file_id, lane)
+    return got
+
+
+def _resolve_lanes(
+    cat: Catalog, file_id: str, lane: syntax.Lane | None
+) -> list[LaneSpec]:
     timelines = cat.timelines(file_id)
     if lane is None:
         return [
