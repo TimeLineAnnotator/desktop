@@ -15,7 +15,7 @@ import pytest
 
 from tilia_core import tla
 from tilia_core.importers import harmony_available
-from tilia_core.tla import reader
+from tilia_core.tla import reader, writer
 from tilia_core.tla.migrate import beats as migrated_beats
 
 HERE = Path(__file__).parent
@@ -1249,6 +1249,32 @@ class TestWhatTheMigrationChangesOnPurpose:
         out = capsys.readouterr().out
         assert "/media/path: " in out
         assert f"/timelines/{PDFS}/path: " in out
+
+    @pytest.mark.parametrize(
+        "relative_path",
+        [
+            pytest.param(lambda path, folder, form: "wrong/sonata.ogg", id="wrong"),
+            pytest.param(lambda path, folder, form: None, id="kept absolute"),
+        ],
+    )
+    def test_a_second_write_that_doesnt_rebase_a_kept_path_is_a_difference(
+        self, folders_with, monkeypatch, capsys, tmp_path, relative_path
+    ):
+        # The path the converting write kept absolute is one the next write makes
+        # relative (TimeLineAnnotator/project-management#555). The script says
+        # which, on its own terms: a writer that makes it another relative path,
+        # or keeps it absolute, gives a difference. On the drive of the folders,
+        # so that a relative path to it exists.
+        here = (Path(tmp_path.anchor) / "Nowhere-543").as_posix()
+        content = old_file()
+        with_paths(
+            f"{here}/sonata.ogg", f"{here}/sonata.pdf", f"{ELSEWHERE}/sonata.tla"
+        )(content)
+        monkeypatch.setattr(writer, "relative_path", relative_path)
+
+        assert check_migration.main(folders_with(content)) == 1
+
+        assert "a second read and write changed its bytes" in capsys.readouterr().out
 
 
 MIGRATE = reader.migrate  # the migration itself, before a test changes it
