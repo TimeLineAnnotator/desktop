@@ -104,8 +104,14 @@ class Timelines:
         kind: type[Timeline] | str,
         components: dict[int, dict[str, Any]] | None = None,
         *args,
+        set_up_blank: bool = True,
         **kwargs,
     ) -> Timeline:
+        """
+        `set_up_blank=False` leaves a timeline created without components
+        empty, instead of giving it what a new one starts with (e.g. a PDF
+        timeline's marker for page 1).
+        """
 
         if isinstance(kind, str):
             kind = Timeline.get_class_by_name(kind)
@@ -125,7 +131,7 @@ class Timelines:
             # can't be done until timeline UI has been created
             tl.deserialize_components(components)
 
-        if hasattr(tl, "setup_blank_timeline") and not components:
+        if hasattr(tl, "setup_blank_timeline") and not components and set_up_blank:
             # For setup that needs to be done after
             # the corresponding timeline ui has
             # been created.
@@ -300,7 +306,8 @@ class Timelines:
                 kind = Timeline.get_class_by_name(kind_string)
             except ValueError:
                 continue
-            self.create_timeline(kind, id=id, **params)
+            # As recorded: a timeline that was empty comes back empty.
+            self.create_timeline(kind, id=id, set_up_blank=False, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         # Attributes must be restored before components, as component validation
