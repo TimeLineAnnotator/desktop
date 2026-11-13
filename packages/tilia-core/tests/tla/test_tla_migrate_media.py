@@ -653,13 +653,25 @@ def test_an_old_file_is_migrated_once_for_its_two_documents(
     monkeypatch.setattr(reader, "migrate", counted)
     doc, as_stored = reader.loads_with_fingerprint_document(data, path=piece)
 
-    assert len(migrations) == 1
+    assert migrations == [{"path": piece, "paths_as_stored": False}]
     assert doc == expected[0]
     assert stored_in(doc, where) != str(media)
     assert stored_in(as_stored, where) == str(media)
-    assert tla.canonical_bytes(as_stored) == tla.canonical_bytes(expected[1])
+    assert as_stored == expected[1]
     assert doc.fingerprint == tla.fingerprint(piece)
     assert as_stored.read_problems == [] and as_stored.fingerprint is None
+
+
+def test_an_old_youtube_link_without_a_scheme_is_kept_so_for_the_fingerprint(
+    tmp_path,
+):
+    # The document read gives it `https://`; the fingerprint's keeps it as stored.
+    piece = old_file(tmp_path / "corpus", "media", "youtu.be/_ORrftU6sGA")
+    data = piece.read_bytes()
+    doc, as_stored = reader.loads_with_fingerprint_document(data, path=piece)
+    assert doc.media_path == YOUTUBE_LINK
+    assert as_stored.media_path == "youtu.be/_ORrftU6sGA"
+    assert as_stored == reader.loads_for_fingerprint(data, path=piece)
 
 
 def test_a_current_file_has_no_other_document_for_its_fingerprint():

@@ -30,7 +30,9 @@ class TlaDocument(Document):
     """The index's document, with the core's own: ``source`` is what ``tla``
     read, for what needs more than the index's view (WP9's time map), and
     ``for_fingerprint`` the document the file's fingerprint is taken from,
-    when it isn't ``source`` (an old file)."""
+    when it isn't ``source`` (an old file). It shares everything but its media
+    and PDF timelines' paths with ``source``, so neither is to be edited in
+    place."""
 
     source: tla.Document | None = field(default=None, compare=False, repr=False)
     for_fingerprint: tla.Document | None = field(
