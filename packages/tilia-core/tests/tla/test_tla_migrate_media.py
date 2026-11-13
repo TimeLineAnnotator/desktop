@@ -14,6 +14,7 @@ folder. Paths of the other system's form (Windows paths read on macOS or
 Linux, and the reverse) are never looked up on this computer, so those
 cases run on every system."""
 
+import copy
 import dataclasses
 import errno
 import hashlib
@@ -24,17 +25,19 @@ import json
 import os
 import posixpath
 import stat
+import subprocess
 import sys
 import unicodedata
+import wave
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from tilia_core import tla
+from tilia_core import build, tla
 from tilia_core.commands import migrate as migrate_command
 from tilia_core.tla import folder as folder_module
-from tilia_core.tla import writer
+from tilia_core.tla import media_files, writer
 from tilia_core.tla.migrate import media as migrate_media
 
 
@@ -832,6 +835,133 @@ def test_tilia_migrate_writes_the_path_reading_gives(tmp_path, capsys, where, sa
     data = piece.read_bytes()
     tla.write(piece, tla.read(piece), expect=tla.fingerprint(piece))
     assert piece.read_bytes() == data
+
+
+# Only a path still at the place it was read from is kept: one set since, even
+# in the same text, is a path like any other, made relative wherever a relative
+# path exists.
+
+
+def one_second_of_wav(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as file:
+        file.setnchannels(1)
+        file.setsampwidth(1)
+        file.setframerate(8000)
+        file.writeframes(b"\x80" * 8000)
+    return path
+
+
+def relative_to_corpus(tmp_path, path):
+    """`path` as a file in `tmp_path/corpus` stores it, relative."""
+    return os.path.relpath(path, tmp_path / "corpus").replace(os.sep, "/")
+
+
+def test_media_loaded_again_where_it_was_read_is_written_relative(tmp_path):
+    # As `build.load_media` stores it, the media is the very text read: the
+    # person has loaded it there since, so it is no longer the path read.
+    media = one_second_of_wav(tmp_path / "gone" / "x.wav")
+    as_loaded = tla.new_document()
+    build.load_media(as_loaded, media)
+    media.unlink()
+    piece = old_file(
+        tmp_path / "corpus", "media", as_loaded.media_path, OTHER_SYSTEM_SAVED
+    )
+    doc = tla.read(piece)
+    assert doc.media_path == as_loaded.media_path  # kept absolute
+    one_second_of_wav(media)
+
+    build.load_media(doc, media)
+    assert doc.media_path == as_loaded.media_path  # the very text read
+    tla.write(piece, doc)
+
+    assert media_files.absolute_form(written_in(piece, "media")) is None
+    assert os.path.samefile(tla.media(piece, tla.read(piece)).path, media)
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    [
+        pytest.param(lambda path: path, id="the same text"),
+        pytest.param(
+            lambda path: path[0].lower() + path[1:],
+            marks=windows_only,
+            id="its drive in lower case",
+        ),
+    ],
+)
+def test_a_media_path_set_since_reading_is_written_relative_however_spelled(
+    tmp_path, spelling
+):
+    stored = nowhere_here(tmp_path)
+    piece = old_file(tmp_path / "corpus", "media", str(stored), OTHER_SYSTEM_SAVED)
+    doc = tla.read(piece)
+
+    doc.media_path = spelling(doc.media_path)
+    tla.write(piece, doc)
+
+    assert written_in(piece, "media") == relative_to_corpus(tmp_path, stored)
+
+
+def test_a_pdf_timeline_added_since_reading_with_a_path_read_is_written_relative(
+    tmp_path,
+):
+    # Its path is the text of another timeline's, which that one keeps.
+    stored = nowhere_here(tmp_path).with_name("score.pdf")
+    piece = old_file(tmp_path / "corpus", "pdf", str(stored), OTHER_SYSTEM_SAVED)
+    doc = tla.read(piece)
+    (read,) = [tl for tl in doc.timelines.values() if tl.kind == "pdf"]
+    added = copy.deepcopy(read)
+    added.id = tla.new_id()
+    added.ordinal = max(tl.ordinal for tl in doc.timelines.values()) + 1
+    doc.timelines[added.id] = added
+
+    tla.write(piece, doc)
+
+    content = json.loads(piece.read_bytes())
+    assert {
+        key: timeline["path"]
+        for key, timeline in content["timelines"].items()
+        if timeline["kind"] == "Pdf"
+    } == {
+        read.id: stored.as_posix(),
+        added.id: relative_to_corpus(tmp_path, stored),
+    }
+
+
+# A document read, as `dataclasses.asdict` gives it, in a process with another
+# hash seed.
+READ_IN_A_PROCESS = """
+import dataclasses, hashlib, sys
+from tilia_core import tla
+doc = tla.read(sys.argv[1])
+print(hashlib.sha256(ascii(dataclasses.asdict(doc)).encode()).hexdigest())
+"""
+
+
+def test_a_document_with_two_paths_kept_is_the_same_in_every_process(tmp_path):
+    # What it remembers of the paths read is in one order whatever the hash
+    # seed: eight seeds, so that an order that changes with it shows.
+    media = nowhere_here(tmp_path)
+    pdf = media.with_name("score.pdf")
+    content = old_content("pdf", str(pdf), OTHER_SYSTEM_SAVED)
+    content["media_path"] = str(media)
+    piece = tmp_path / "corpus" / "piece.tla"
+    piece.parent.mkdir()
+    piece.write_text(json.dumps(content), "utf-8")
+    doc = tla.read(piece)
+    assert (doc.media_path, stored_in(doc, "pdf")) == (media.as_posix(), pdf.as_posix())
+    here = hashlib.sha256(ascii(dataclasses.asdict(doc)).encode()).hexdigest()
+
+    for seed in "12345678":
+        result = subprocess.run(
+            [sys.executable, "-c", READ_IN_A_PROCESS, str(piece)],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == here, f"PYTHONHASHSEED={seed}"
 
 
 # The rest of the file

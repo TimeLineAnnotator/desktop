@@ -1,15 +1,16 @@
 """Finding a document's media: a local file, a YouTube video, or none.
 
 A file stores the media's path, and each PDF timeline's path, relative to
-its folder with "/", absolute only where no relative path exists (another
-drive on Windows) or where reading kept it absolute (an old file's path that
-can't be related to where the file was saved;
-TimeLineAnnotator/project-management#530), a URL as it is, or empty (FR-033).
-The forms of a path are told apart here, for the migration, the writer and
-the lookup alike. An absolute path has the form of the system that wrote it,
-whichever system reads it: `C:/…` or `\\\\server\\share\\…` is a Windows
-path, `/…` a POSIX one. A path of the other system's form is never looked
-up on this one. A
+its folder with "/", a URL as it is, or empty (FR-033). It is absolute where
+no relative path exists (another drive on Windows), and where the document
+was read, or last written, with that path absolute at that place and it
+hasn't been set since: any absolute path a file holds, such as an old file's
+path that the migration can't relate to where the file was saved
+(TimeLineAnnotator/project-management#530). The forms of a path are told
+apart here, for the migration, the writer and the lookup alike. An absolute
+path has the form of the system that wrote it, whichever system reads it:
+`C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX one. A path
+of the other system's form is never looked up on this one. A
 backslash in a relative path, or in a POSIX one, is never converted: TiLiA
 and the core write "/" between folders, so it is a hand edit, or part of a
 name on macOS and Linux, and the lookup lets the system read it
@@ -33,8 +34,10 @@ import posixpath
 import re
 import unicodedata
 from pathlib import Path, PureWindowsPath
+from typing import Any
 
-from tilia_core.tla.model import Document, Media, Timeline
+from tilia_core.tla.layout import pointer_to
+from tilia_core.tla.model import MEDIA_PATH_PLACE, Document, Media, Timeline
 
 logger = logging.getLogger(__name__)
 
@@ -166,23 +169,33 @@ def absolute_form(path: str) -> str | None:
     return _form(path)
 
 
-def absolute_paths(doc: Document) -> frozenset[str]:
+def pdf_path_place(key: str) -> str:
+    """The place of the path of the PDF timeline at `key` in a document's
+    timelines, as a JSON Pointer into its file."""
+    return pointer_to(pointer_to("/timelines", key), "path")
+
+
+def absolute_paths(doc: Document) -> tuple[tuple[str, str], ...]:
     """The media's path and the PDF timelines' paths of `doc` that are absolute,
-    of either system's form. Read from a file, or just written to one, these are
-    the paths a write keeps absolute (TimeLineAnnotator/project-management#530)."""
-    paths = [doc.media_path]
+    of either system's form, each after its place (`MEDIA_PATH_PLACE`, or
+    `pdf_path_place`), sorted. Read from a file, or just written to one, these
+    are the paths a write keeps absolute while their places hold them
+    (TimeLineAnnotator/project-management#530)."""
+    paths: list[tuple[str, Any]] = [(MEDIA_PATH_PLACE, doc.media_path)]
     if isinstance(doc.timelines, dict):
         paths += [
-            timeline.attrs.get("path")
-            for timeline in doc.timelines.values()
+            (pdf_path_place(key), timeline.attrs.get("path"))
+            for key, timeline in doc.timelines.items()
             if isinstance(timeline, Timeline)
             and timeline.kind == "pdf"
             and isinstance(timeline.attrs, dict)
         ]
-    return frozenset(
-        path
-        for path in paths
-        if isinstance(path, str) and absolute_form(path) is not None
+    return tuple(
+        sorted(
+            (place, path)
+            for place, path in paths
+            if isinstance(path, str) and absolute_form(path) is not None
+        )
     )
 
 

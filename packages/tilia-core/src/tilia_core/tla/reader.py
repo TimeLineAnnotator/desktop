@@ -126,8 +126,9 @@ def _keep_what_was_read(
     a read costs nothing more and the file isn't read again; and the plain
     SHA-256 of `data`, by which a write finds the file unchanged without reading
     it as a document again (TimeLineAnnotator/project-management#533). And the
-    media and PDF paths it was read with that are absolute, which a write keeps
-    so (TimeLineAnnotator/project-management#530).
+    media and PDF paths it was read with that are absolute, with their places,
+    which a write keeps so while their places hold them
+    (TimeLineAnnotator/project-management#530).
 
     From a file with an integer that a Python may not read or write, the
     fingerprint is made now: what it raises for one is raised while reading, and

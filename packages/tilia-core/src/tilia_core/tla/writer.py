@@ -63,10 +63,12 @@ from tilia_core.tla.media_files import (
     absolute_form,
     absolute_paths,
     is_relative,
+    pdf_path_place,
     relative_path,
     with_slashes,
 )
 from tilia_core.tla.model import (
+    MEDIA_PATH_PLACE,
     TIMELINE_COMPONENTS,
     Component,
     Document,
@@ -615,10 +617,12 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     An absolute path set since `doc` was read or last written becomes
     relative to `folder` wherever a relative path exists, so not on another
     drive on Windows. One that `doc` was read or last written with stays
-    absolute, wherever it is written: reading kept it so, as it does an old
-    file's path that can't be related to where the file was saved, and the
-    file keeps what it said (TimeLineAnnotator/project-management#530). When
-    `folder` isn't the one `doc` was read from or last written to (its
+    absolute, wherever it is written, while its place still holds it: the
+    media's until `media_path` is set, even to the same text, and a PDF
+    timeline's while that timeline has that path. Reading kept it so, as it
+    does an old file's path that can't be related to where the file was saved,
+    and the file keeps what it said (TimeLineAnnotator/project-management#530).
+    When `folder` isn't the one `doc` was read from or last written to (its
     `origin`'s), a relative path is resolved against that one and made
     relative to `folder`, or absolute where no relative path exists. A stored
     relative path is joined with POSIX semantics, "/" between its parts: a
@@ -636,8 +640,8 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     )
     if origin is not None and os.path.normcase(origin) == os.path.normcase(folder):
         origin = None  # its relative paths are already relative to `folder`
-    kept = doc._absolute_as_read
-    media_path = _rebased(doc.media_path, origin, folder, kept)
+    read = dict(doc._absolute_as_read)
+    media_path = _rebased(doc.media_path, origin, folder, read.get(MEDIA_PATH_PLACE))
     changed: dict[str, Timeline] = {}
     if isinstance(doc.timelines, dict):
         for key, timeline in doc.timelines.items():
@@ -648,7 +652,7 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
             ):
                 continue
             path = timeline.attrs.get("path")
-            rebased = _rebased(path, origin, folder, kept)
+            rebased = _rebased(path, origin, folder, read.get(pdf_path_place(key)))
             if rebased != path:
                 attrs = {**timeline.attrs, "path": rebased}
                 changed[key] = dataclasses.replace(timeline, attrs=attrs)
@@ -666,19 +670,20 @@ def _absolute_folder(folder: str | os.PathLike[str]) -> str:
     return absolute[1:] if SYSTEM == POSIX and absolute.startswith("//") else absolute
 
 
-def _rebased(stored: Any, origin: str | None, folder: str, kept: frozenset[str]) -> Any:
+def _rebased(stored: Any, origin: str | None, folder: str, read: str | None) -> Any:
     """`stored` as a file in `folder` stores it; `origin` is the folder its
-    relative paths are relative to when that isn't `folder`, or None; `kept`
-    the absolute paths the document was read or last written with."""
+    relative paths are relative to when that isn't `folder`, or None; `read`
+    the absolute path the document was read or last written with at its place,
+    if it still holds it, or None."""
     if not isinstance(stored, str):
         return stored  # for the check to refuse
     form = absolute_form(stored)
     if form is not None:
-        # One the document was read with stays absolute, and one of the other
-        # system's form has no relative path from here.
+        # The one the document was read with stays absolute, and one of the
+        # other system's form has no relative path from here.
         relative = (
             relative_path(stored, folder, form)
-            if form == SYSTEM and stored not in kept
+            if form == SYSTEM and stored != read
             else None
         )
         return with_slashes(stored, form) if relative is None else relative
@@ -754,15 +759,16 @@ def write(
     The media's path and PDF timelines' paths are written relative to the
     folder of `path` wherever a relative path exists, recomputed when it
     isn't the folder `doc` was read from or last written to, but for an
-    absolute path `doc` was read or last written with, which stays so
-    (`rebase_paths`, FR-033). After a successful write, `doc` follows the
-    file: its `origin` is `path`, its `fingerprint` is the one returned, and
-    its media and PDF paths are the ones written, so that `canonical_bytes(doc)`
-    and `fingerprint_of(doc)` are what is on disk, and a later write keeps
-    those that are absolute, as it would in a document read from the file. A
-    write that fails leaves `doc` as it was. The write changes `doc`'s own
-    timelines: a document the caller wants to keep as it was must be copied
-    with `copy.deepcopy` first, since a shallow copy shares its timelines.
+    absolute path `doc` was read or last written with, which stays so while
+    its place holds it (`rebase_paths`, FR-033). After a successful write,
+    `doc` follows the file: its `origin` is `path`, its `fingerprint` is the
+    one returned, and its media and PDF paths are the ones written, so that
+    `canonical_bytes(doc)` and `fingerprint_of(doc)` are what is on disk, and
+    a later write keeps those that are absolute, as it would in a document read
+    from the file. A write that fails leaves `doc` as it was. The write changes
+    `doc`'s own timelines: a document the caller wants to keep as it was must
+    be copied with `copy.deepcopy` first, since a shallow copy shares its
+    timelines.
 
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A folder is refused with `IsADirectoryError`, and a
