@@ -202,7 +202,7 @@ def walk(
 @dataclass(frozen=True)
 class Prebuilt:
     """A readable file's rows and time map, as a worker process built them
-    (:func:`_read_and_build_in_worker`), in place of its document, which would
+    (:func:`_read_in_worker`), in place of its document, which would
     cost more to send back than to build from. The rows have the keys ``0`` to
     ``count - 1``, which stand for those the scan hands out, in that order
     (:meth:`Rows.renumbered <tilia_core.corpus.build.Rows.renumbered>`). The
@@ -306,15 +306,6 @@ def read_file(reader: DocumentReader, found: Found) -> Outcome:
     return outcome
 
 
-def _read_in_worker(reader: DocumentReader, found: Found) -> tuple[Outcome, str | None]:
-    """:func:`read_file` in a worker process: the outcome, and the text of the
-    traceback to log, which the process that asked logs."""
-    outcome, info = _read(reader, found)
-    if info is None:
-        return outcome, None
-    return outcome, "".join(traceback.format_exception(*info))
-
-
 def _rows_of(
     document: Document,
     settings: CorpusSettings,
@@ -326,25 +317,30 @@ def _rows_of(
     return build.rows(document, settings, keys, chosen), chosen.time_map
 
 
-def _read_and_build_in_worker(
+def _read_in_worker(
     reader: DocumentReader,
     found: Found,
-    settings: CorpusSettings,
-    time_map_of: TimeMapOf,
+    rows_for: tuple[CorpusSettings, TimeMapOf] | None = None,
 ) -> tuple[Outcome, str | None]:
-    """:func:`_read_in_worker`, and for a readable file its rows, built here
-    (:class:`Prebuilt`), which go back in place of its document. When they
-    can't be built, the document goes back as it is: the process that asked
-    builds them as it would have, and logs the failure
-    (:meth:`Scanner._try_rows`), so that the file becomes unreadable after the
-    scan has matched moved files by their document's id, as when it is read
-    there."""
+    """:func:`read_file` in a worker process: the outcome, and the text of the
+    traceback to log, which the process that asked logs.
+
+    With ``rows_for``, the settings and time map function to build them with,
+    a readable file's rows are built here as well (:class:`Prebuilt`), and go
+    back in place of its document. When they can't be built, the document
+    goes back as it is: the process that asked builds them as it would have,
+    and logs the failure (:meth:`Scanner._try_rows`), so that the file becomes
+    unreadable after the scan has matched moved files by their document's id,
+    as when it is read there."""
     from . import cache  # it imports this module
 
-    outcome, failure = _read_in_worker(reader, found)
+    outcome, info = _read(reader, found)
+    if info is not None:
+        return outcome, "".join(traceback.format_exception(*info))
     document = outcome.document
-    if document is None:
-        return outcome, failure
+    if rows_for is None or document is None:
+        return outcome, None
+    settings, time_map_of = rows_for
     taken = itertools.count()
     try:
         rows, tmap = _rows_of(document, settings, time_map_of, taken.__next__)
@@ -407,12 +403,8 @@ def _read_in_workers(
     """``todo``'s outcomes, read by ``workers`` processes; none when they
     fail."""
     try:
-        if rows_for is None:
-            tasks = [(reader, f) for f in todo]
-            results = _workers.run(_read_in_worker, tasks, workers)
-        else:
-            tasks = [(reader, f, *rows_for) for f in todo]
-            results = _workers.run(_read_and_build_in_worker, tasks, workers)
+        tasks = [(reader, f, rows_for) for f in todo]
+        results = _workers.run(_read_in_worker, tasks, workers)
     except _workers.WorkersFailed as err:
         LOG.warning(
             "the files couldn't be read in worker processes, so they are read "
@@ -485,12 +477,6 @@ class _KeyCounter:
         key = self.value
         self.value += 1
         return key
-
-    def take(self, n: int) -> range:
-        """The next ``n`` keys."""
-        keys = range(self.value, self.value + n)
-        self.value += n
-        return keys
 
 
 class _Keys:
@@ -790,19 +776,14 @@ class Scanner:
         them, and nothing else is built."""
         prebuilt = outcome.prebuilt
         document: Document | Prebuilt | None = outcome.document
+        keys = _Keys(key, itertools.chain(replay[1:], self._counter))
         if prebuilt is not None:
-            # the keys _Keys would hand out, all at once
-            again = list(replay[1 : prebuilt.count])
-            handed = [key, *again, *self._counter.take(prebuilt.count - 1 - len(again))]
             document = prebuilt
-            rows = prebuilt.rows.renumbered(handed)
+            rows = prebuilt.rows.renumbered([keys() for _ in range(prebuilt.count)])
             tmap = prebuilt.time_map
         else:
             assert document is not None
-            counter = iter(replay[1:]) if replay else iter(())
-            keys = _Keys(key, itertools.chain(counter, self._counter))
             rows, tmap = _rows_of(document, self.settings, self.time_map_of, keys)
-            handed = keys.handed
         found = outcome.found
         record = FileRecord(
             key=key,
@@ -818,7 +799,7 @@ class Scanner:
             media_length=document.media_length,
             time_unit=document.time_unit,
             time_map=tmap,
-            keys=tuple(handed),
+            keys=tuple(keys.handed),
         )
         return record, rows.at(found.path, outcome.fingerprint)
 
@@ -921,9 +902,10 @@ class Scanner:
 
     def _rows_for(self) -> tuple[CorpusSettings, TimeMapOf] | None:
         """What worker processes build the files' rows with: the settings and
-        time map function, when they are the defaults (a corpus without a
-        manifest, WP9's time map), which every worker has as well; else None,
-        and the rows are built here."""
+        time map function, when they are the defaults (``NoSettings``, for a
+        corpus without a manifest, and WP9's time map). Those pickle by name
+        into every task, and give rows that depend on the file alone. Else
+        None, and the rows are built here."""
         from . import cache  # it imports this module
 
         if cache.applies(self.reader, self.settings, self.time_map_of):

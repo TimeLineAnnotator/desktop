@@ -195,7 +195,7 @@ def in_this_process(monkeypatch):
 def test_the_workers_send_rows_instead_of_documents(folder, in_workers, monkeypatch):
     ran = in_this_process(monkeypatch)
     with opened(folder) as corpus:
-        assert ran.functions == [scan._read_and_build_in_worker]
+        assert ran.functions == [scan._read_in_worker]
         outcomes = [result[0] for result in ran.results]
         assert all(o.document is None for o in outcomes)
         sent = [o for o in outcomes if o.prebuilt is not None]
@@ -209,6 +209,9 @@ def test_with_other_settings_the_rows_are_built_here(folder, in_workers, monkeyp
         folder, rescan_before_reads=False, time_map_of=tla_reader.time_map_of
     ) as corpus:
         assert ran.functions == [scan._read_in_worker]
+        outcomes = [result[0] for result in ran.results]
+        assert all(o.prebuilt is None for o in outcomes)
+        assert sum(o.document is not None for o in outcomes) == OLD_COUNT
         assert states(corpus) == [("readable", OLD_COUNT), ("unreadable", 1)]
 
 
