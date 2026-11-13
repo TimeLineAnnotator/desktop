@@ -306,14 +306,23 @@ class Timelines:
         # Attributes must be restored before components, as component validation
         # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
         if timeline.get_state()["hash"] != state["hash"]:
-            for attr in timeline.SERIALIZABLE:
-                self.set_timeline_data(timeline.id, attr, state[attr])
+            self._restore_timeline_attributes(timeline, state)
 
         if (
             timeline.component_manager is not None
             and timeline.component_manager.hash_components() != state["components_hash"]
         ):
             timeline.component_manager.restore_state(state["components"])
+            # Some attributes follow the components, and were just changed with
+            # them (a beat timeline's measures were fitted to the beats it had
+            # before its components were restored).
+            self._restore_timeline_attributes(timeline, state)
+
+    def _restore_timeline_attributes(self, timeline: Timeline, state: dict[str, dict]):
+        for attr in timeline.SERIALIZABLE:
+            # A copy: the timeline may change the value in place (a beat
+            # timeline's lists), and the state must stay as it was recorded.
+            self.set_timeline_data(timeline.id, attr, copy.deepcopy(state[attr]))
 
     def get_timeline_ids(self):
         return [tl.id for tl in self]
