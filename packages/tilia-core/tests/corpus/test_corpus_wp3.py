@@ -279,12 +279,10 @@ def test_a_scanned_document_has_the_fingerprint_and_states_it_was_read_with(
     assert len(no_length.read_unmeasured) == 6, "one state for each unit"
 
 
-def test_a_scan_parses_a_current_file_once_and_migrates_an_old_one_twice(
-    tmp_path, monkeypatch
-):
+def test_a_scan_parses_and_migrates_each_file_once(tmp_path, monkeypatch):
     # An old file's fingerprint is that of its migration with its paths as
-    # stored, which WP3 makes from the bytes read: a second migration. Nothing
-    # else is parsed again, not even the states of a file with no media length.
+    # stored, which the one migration of its read gives. Nothing is parsed
+    # again, not even the states of a file with no media length.
     without_media_length(tmp_path / "current.tla")
     shutil.copyfile(OLD / "0.7.0.tla", tmp_path / "old.tla")
     parsed, migrated = [], []
@@ -302,8 +300,8 @@ def test_a_scan_parses_a_current_file_once_and_migrates_an_old_one_twice(
     monkeypatch.setattr(wp3_reader, "migrate", migrate)
     with opened(tmp_path) as corpus:
         assert {row.path for row in corpus.files()} == {"current.tla", "old.tla"}
-    assert sorted(parsed) == ["current.tla", "old.tla", "old.tla"]
-    assert migrated == ["old.tla", "old.tla"]
+    assert sorted(parsed) == ["current.tla", "old.tla"]
+    assert migrated == ["old.tla"]
 
 
 def test_the_reader_reads_any_old_file_with_the_core_document_kept(tmp_path):

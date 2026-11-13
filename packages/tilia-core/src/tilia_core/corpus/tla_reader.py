@@ -23,6 +23,8 @@ from pathlib import Path
 from tilia_core import timemap, tla
 from tilia_core.tla.model import Kind
 from tilia_core.tla.problems import unmeasured
+from tilia_core.tla.reader import loads_with_fingerprint_document
+from tilia_core.tla.writer import fingerprint_as_read
 
 from .documents import ComponentDoc, Document, TimelineDoc, UnreadableFile
 from .time_map import TimeMapFound
@@ -98,13 +100,12 @@ class TlaReader:
         with open(path, "rb") as file:
             data = file.read()
         try:
-            doc = tla.loads(data, path=path)
-            if doc.format_version == tla.FORMAT_VERSION:
-                # Its fingerprint is that of the document read; asking for it
-                # would read the bytes again.
-                doc.fingerprint = tla.fingerprint_of(doc)
-            # An old file's is that of its migration with its paths as stored,
-            # which tla makes from the bytes.
+            doc, as_stored = loads_with_fingerprint_document(data, path=path)
+            # A file of the current format's fingerprint is that of the document
+            # read; an old one's, that of its migration with its paths as
+            # stored, which the same migration gave. Setting it drops the bytes
+            # tla keeps to make it when asked.
+            doc.fingerprint = fingerprint_as_read(as_stored or doc)
             fingerprint = doc.fingerprint
             # As tla would make them from the bytes, which give this document.
             doc.read_unmeasured = unmeasured(doc)
