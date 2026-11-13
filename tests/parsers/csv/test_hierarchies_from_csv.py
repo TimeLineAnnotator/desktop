@@ -285,7 +285,7 @@ def test_hierarchy_by_measure_repeated_measure_with_several_passes(
     for t in range(1, 7):
         beat_tlui.create_beat(time=t)
     beat_tl.recalculate_measures()
-    beat_tl.set_data("measure_numbers", [1, 2, 1])
+    beat_tl.set_measure_numbers([1, 2, 1])
     data = "start,end,level\n1,2,1"
 
     with patch("builtins.open", mock_open(read_data=data)):
@@ -307,7 +307,7 @@ def _measures_numbered(beat_tlui, tilia_state, numbers):
     for t in range(1, 2 * len(numbers) + 1):
         beat_tlui.create_beat(time=t)
     beat_tl.recalculate_measures()
-    beat_tl.set_data("measure_numbers", numbers)
+    beat_tl.set_measure_numbers(numbers)
     return beat_tl
 
 

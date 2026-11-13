@@ -1,4 +1,5 @@
 from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_PDF_PATH
+from tilia.settings import settings
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.timeline import Timeline
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -11,6 +12,8 @@ from tilia.ui.cli.timelines.add import (
     KIND_STR_TO_TIMELINE_CLASS,
     TIMELINE_CLASS_TO_KWARGS_NAMES,
 )
+from tilia.ui.cli.timelines.utils import assert_error
+from tilia.ui.consts import BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
 
 
 class TestTimelineAddCoverage:
@@ -88,13 +91,36 @@ class TestTimelineAdd:
         tl = tls.get_timelines()[0]
         assert isinstance(tl, BeatTimeline)
         assert tl.name == "test"
-        assert tl.beat_pattern == [1, 2, 3]
+        assert tl.beat_pattern == "1 2 3"
+
+    def test_add_beat_timeline_with_bracketed_pattern(self, cli, tls):
+        cli.parse_and_run("timeline add beat --beat-pattern 10[4] 3 15[4]")
+
+        tl = tls.get_timelines()[0]
+        assert tl.beat_pattern == "10[4] 3 15[4]"
+        assert tl.beat_pattern_bars == [4] * 10 + [3] + [4] * 15
+
+    def test_new_beat_timeline_shows_time_signatures(self, cli, tls):
+        cli.parse_and_run("timeline add beat")
+
+        tl = tls.get_timelines()[0]
+        assert tl.show_time_signatures
+        assert tl.height == (
+            settings.get("beat_timeline", "default_height")
+            + BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
+        )
+
+    def test_add_beat_timeline_with_invalid_pattern(self, cli, tls):
+        with assert_error():
+            cli.parse_and_run("timeline add beat --beat-pattern 2[")
+
+        assert len(tls) == 0
 
     def test_add_beat_timeline_no_beat_pattern_provided(self, cli, tls):
         cli.parse_and_run("timeline add beat")
 
         tl = tls.get_timelines()[0]
-        assert tl.beat_pattern == [4]
+        assert tl.beat_pattern == "4"
 
     def test_add_harmony_timeline(self, cli, tls):
         cli.parse_and_run("timeline add har --name test")
