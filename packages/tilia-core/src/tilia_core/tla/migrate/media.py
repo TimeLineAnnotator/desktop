@@ -20,9 +20,11 @@ media now (contracts/migration.md, *Media paths*):
    TiLiA writes "/" between folders.
 
 Where no relative path exists, on another drive or of the other system's
-form, the path stays absolute, and the writer writes it so, wherever the file
-is written (TimeLineAnnotator/project-management#530). The separators of a
-Windows path become "/"; a backslash in a POSIX path is part of a name, and
+form, the path stays absolute, and the write that converts the file writes it
+so, wherever it writes it (TimeLineAnnotator/project-management#530). The file
+is a current one after that, and the next write makes it relative wherever it
+can (#555). The separators of a Windows path become "/"; a backslash in a
+POSIX path is part of a name, and
 stays. The document id is derived before this step, so it depends neither on
 where the file is nor on the scheme a link is given.
 """
