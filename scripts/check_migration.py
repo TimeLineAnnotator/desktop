@@ -867,39 +867,49 @@ def second_write_changes(copy: Path) -> bool:
         beside.unlink(missing_ok=True)
 
 
-def made_relative(written: bytes, document: tla.Document) -> bytes:
-    """`written`, the bytes the migration wrote, with each media or PDF path that it
-    kept absolute and `document`, the copy read and written again, now holds
-    relative, and every other byte as written: what that second write should give.
-    The write that converted the old file kept such a path absolute
+def relative_from(stored: Any, folder: str) -> str | None:
+    """`stored`, a media or PDF path a current file holds, relative to `folder`, the
+    file's own, with "/", as a write makes an absolute path of this system's form
+    wherever a relative one exists (FR-033); None for a path it keeps: empty, a URL,
+    already relative, of the other system's form, or on another drive or share."""
+    if not isinstance(stored, str) or not stored or URL.match(stored):
+        return None
+    form = path_form(stored)
+    if form != HERE:
+        return None
+    try:
+        relative = PATHS[form].relpath(stored, folder)
+    except ValueError:  # on another drive or share
+        return None
+    return relative.replace("\\", "/") if form == "windows" else relative
+
+
+def made_relative(written: bytes, folder: str) -> bytes:
+    """`written`, the bytes the migration wrote for a file in `folder`, as a second
+    read and write should give them: each media or PDF path the migration kept
+    absolute made relative to `folder` wherever a relative one exists, by that
+    path's own system's rules, and every other byte as written. The write that
+    converted the old file kept such a path absolute
     (TimeLineAnnotator/project-management#530); the copy is a current file now, and
-    the next write makes it relative wherever it can (FR-033, #555). Any other path
-    is expected as written."""
+    the next write makes it relative wherever it can (FR-033, #555)."""
     content = json.loads(written)
-    holders = [(content.get("media"), document.media_path)]
-    holders += [
-        (timeline, document.timelines[key].attrs.get("path"))
-        for key, timeline in content.get("timelines", {}).items()
-        if timeline.get("kind") == "Pdf" and key in document.timelines
+    media = content.get("media")
+    paths = [media.get("path") if isinstance(media, dict) else None]
+    paths += [
+        timeline.get("path")
+        for timeline in content.get("timelines", {}).values()
+        if isinstance(timeline, dict) and timeline.get("kind") == "Pdf"
     ]
     expected = written
-    for holder, held in holders:  # in the order the file holds them
-        stored = holder.get("path") if isinstance(holder, dict) else None
-        if (
-            isinstance(stored, str)
-            and isinstance(held, str)
-            and held
-            and held != stored
-            and path_form(stored) is not None
-            and path_form(held) is None
-            and not URL.match(held)
-        ):
+    for stored in paths:  # in the order the file holds them
+        relative = relative_from(stored, folder)
+        if relative is not None:
             # Each as the writer writes a key and its text.
             before, after = (
                 f'"path": {json.dumps(text, ensure_ascii=False)}'.encode(
                     "utf-8", "surrogatepass"
                 )
-                for text in (stored, held)
+                for text in (stored, relative)
             )
             expected = expected.replace(before, after, 1)
     return expected
@@ -936,7 +946,7 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
         found.extend(against_old_file(content, after, dropped))
         notes.extend(dropped.found)
         tla.write(copy, after, expect=tla.fingerprint(copy))
-        if copy.read_bytes() != made_relative(written, after):
+        if copy.read_bytes() != made_relative(written, os.path.abspath(copy.parent)):
             found.append(SECOND_WRITE_CHANGED)
     return found, notes, held_in(after)
 
