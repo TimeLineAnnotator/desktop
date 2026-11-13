@@ -4,6 +4,7 @@ import functools
 from typing import Any
 
 from tilia.requests import Post, post
+from tilia.settings import settings
 from tilia.timelines.base.component import (
     PointLikeTimelineComponent,
     SegmentLikeTimelineComponent,
@@ -97,6 +98,11 @@ class ScoreTimeline(Timeline):
         }
         self._viewer_beat_x = viewer_beat_x or {}
         self.svg_data = svg_data
+
+    @property
+    def default_height(self) -> int:
+        # The view takes its height from the staves it has.
+        return settings.get("score_timeline", "default_height")
 
     @property
     def svg_data(self):

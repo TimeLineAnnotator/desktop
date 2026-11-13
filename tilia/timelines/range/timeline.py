@@ -332,6 +332,14 @@ class RangeTimeline(Timeline):
         self.default_row_height = default_row_height
 
     @property
+    def default_height(self) -> int:
+        # What a new range timeline shows: one row, and the margin below it.
+        # The view takes its height from the rows it has.
+        return settings.get("range_timeline", "default_row_height") + settings.get(
+            "range_timeline", "bottom_margin"
+        )
+
+    @property
     def default_color(self) -> str:
         return settings.get("range_timeline", "default_range_color")
 
