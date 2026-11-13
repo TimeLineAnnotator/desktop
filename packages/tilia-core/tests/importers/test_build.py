@@ -1592,6 +1592,27 @@ def test_a_height_is_an_integer_of_at_least_10(height):
     assert doc == before
 
 
+@pytest.mark.parametrize(
+    "height, reason",
+    [
+        ("", "an empty value is not a valid height."),
+        (-(10**5000), "an integer too long to show is not a valid height."),
+    ],
+    ids=["empty", "too long to show"],
+)
+def test_a_height_that_isnt_one_reads_as_the_rules_say(height, reason):
+    # The one text for a value that isn't one is rules.not_valid's
+    # (TimeLineAnnotator/project-management#298 (texts for the rules)), which
+    # names these two rather than showing them.
+    doc = script_document()
+    before = copy.deepcopy(doc)
+
+    message = refused(build.add_timeline, doc, "marker", height=height)
+
+    assert message == reason
+    assert doc == before
+
+
 def test_a_height_of_10_is_kept():
     doc = script_document()
 
