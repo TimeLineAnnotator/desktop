@@ -123,7 +123,7 @@ class Migrated:
     warnings: list[ReadWarning] = field(default_factory=list)
     changes: dict[str, int] = field(default_factory=dict)
     places: OldPlaces = field(default_factory=OldPlaces, compare=False)
-    paths_as_stored: media_paths.StoredPaths = field(
+    stored_paths: media_paths.StoredPaths = field(
         default_factory=media_paths.StoredPaths, compare=False
     )
 

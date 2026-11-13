@@ -29,6 +29,7 @@ the scheme a link is given.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -61,11 +62,20 @@ def stored_paths(content: dict[str, Any]) -> StoredPaths:
         content["media"]["path"],
         {
             timeline_id: timeline["path"]
-            for timeline_id, timeline in content["timelines"].items()
-            if timeline_kind_from_current_file(timeline["kind"]) == "pdf"
-            and "path" in timeline
+            for timeline_id, timeline in _pdf_timelines(content)
         },
     )
+
+
+def _pdf_timelines(content: dict[str, Any]) -> Iterator[tuple[str, dict[str, Any]]]:
+    """Each PDF timeline in `content`, an old file's content once migrated,
+    that has a path, with its id."""
+    for timeline_id, timeline in content["timelines"].items():
+        if (
+            timeline_kind_from_current_file(timeline["kind"]) == "pdf"
+            and "path" in timeline
+        ):
+            yield timeline_id, timeline
 
 
 def make_relative(
@@ -86,12 +96,10 @@ def make_relative(
     if isinstance(stored, str):  # anything else is left for the check to refuse
         stored = with_scheme(stored)
     media["path"] = migrated_path(stored, file_path=file_path, folder=folder)
-    for timeline in content["timelines"].values():
-        kind = timeline_kind_from_current_file(timeline["kind"])
-        if kind == "pdf" and "path" in timeline:
-            timeline["path"] = migrated_path(
-                timeline["path"], file_path=file_path, folder=folder
-            )
+    for _, timeline in _pdf_timelines(content):
+        timeline["path"] = migrated_path(
+            timeline["path"], file_path=file_path, folder=folder
+        )
 
 
 def migrated_path(stored: Any, *, file_path: Any, folder: str | None) -> Any:

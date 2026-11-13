@@ -218,8 +218,11 @@ def _old(
         for w, place, message in named
     ]
     as_stored = None
-    if fingerprint_document:  # before what was read is kept, which it hasn't
-        as_stored = _with_paths(document, migrated.paths_as_stored)
+    if fingerprint_document:
+        # Before `_keep_what_was_read` and `keep_problems`: `replace` would copy
+        # the fingerprint, read digest and read problems they give `document`,
+        # and the warnings `keep_problems` adds to its list in place.
+        as_stored = _with_paths(document, migrated.stored_paths)
     if not for_fingerprint:
         _keep_what_was_read(document, data, path)
         keep_problems(document, data, where=migrated.places.old)
@@ -239,6 +242,7 @@ def _with_paths(document: Document, stored: StoredPaths) -> Document:
         document,
         media_path=nfc_value(stored.media),
         timelines=timelines,
+        # A list of its own: `keep_problems` extends `document`'s in place.
         warnings=list(document.warnings),
     )
 
