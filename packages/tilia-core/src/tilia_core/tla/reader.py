@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -98,6 +99,9 @@ def _loads(
     *,
     for_fingerprint: bool = False,
 ) -> tuple[Document, Migrated | None]:
+    # The bytes as they are now, once: a caller may change a bytearray it gave,
+    # and the fingerprint and the states are made from them later.
+    data = bytes(data)
     # The version first: a newer format may lay out the rest otherwise.
     content = parse(data, path=path, check=partial(_check_version, path=path))
     if _is_old(content.get("version", "0.0.0")):
@@ -106,8 +110,7 @@ def _loads(
     document = _Reader(path).document(content)
     document.warnings = warnings
     if not for_fingerprint:
-        _keep_what_was_read(document, data, path)
-        keep_problems(document, data)
+        _keep_for_a_write(document, data, path)
     return document, None
 
 
@@ -118,28 +121,55 @@ _DIGITS_AS_ZEROS = bytes(48 if 48 <= byte <= 57 else 32 for byte in range(256))
 _LONG_INTEGER = b"0" * 640
 
 
+def has_long_integer(data: bytes) -> bool:
+    """Whether `data` holds an integer that a Python may not read or write: one
+    of 640 digits or more. What would be made from such bytes when first asked
+    for is made at once instead. A read looks once, for its fingerprint and its
+    components' states."""
+    return _LONG_INTEGER in data.translate(_DIGITS_AS_ZEROS)
+
+
 def _keep_what_was_read(
-    document: Document, data: bytes, path: str | os.PathLike[str] | None
+    document: Document,
+    data: bytes,
+    path: str | os.PathLike[str] | None,
+    long_integer: bool,
 ) -> None:
     """Give `document`, just read from `data`, what a write states: the
     fingerprint of `data`, made from `data` when it is first asked for, so that
     a read costs nothing more and the file isn't read again; and the plain
     SHA-256 of `data`, by which a write finds the file unchanged without reading
-    it as a document again (TimeLineAnnotator/project-management#533).
+    it as a document again (TimeLineAnnotator/project-management#533). `data`
+    is kept as it is given: bytes, which no caller can change (`_loads`).
 
-    From a file with an integer that a Python may not read or write, the
-    fingerprint is made now: what it raises for one is raised while reading, and
-    a limit lowered since can't stop it being made."""
+    From a file with an integer that a Python may not read or write
+    (`long_integer`), the fingerprint is made now: what it raises for one is
+    raised while reading, and a limit lowered since can't stop it being made."""
     # Imported here: the writer reads this module.
     from tilia_core.tla.writer import _fingerprint_of_bytes
 
-    data = bytes(data)  # as they are now: a caller may change a bytearray it gave
     make = partial(_fingerprint_of_bytes, data, path)
-    if _LONG_INTEGER in data.translate(_DIGITS_AS_ZEROS):
+    if long_integer:
         document._fingerprint = make()
     else:
         document._fingerprint = _MadeWhenAsked(make)
     document._read_digest = hashlib.sha256(data).hexdigest()
+
+
+def _keep_for_a_write(
+    document: Document,
+    data: bytes,
+    path: str | os.PathLike[str] | None,
+    where: Callable[[str], str] | None = None,
+) -> None:
+    """Give `document`, just read from `data`, what a write states and what it
+    compares: `_keep_what_was_read`'s and `keep_problems`'s, from one search of
+    `data` for a long integer. `where` is `keep_problems`'."""
+    long_integer = has_long_integer(data)
+    _keep_what_was_read(document, data, path, long_integer)
+    keep_problems(
+        document, data, partial(loads_for_fingerprint, data), long_integer, where
+    )
 
 
 def written_document(
@@ -190,8 +220,7 @@ def _old(
         for w, place, message in named
     ]
     if not for_fingerprint:
-        _keep_what_was_read(document, data, path)
-        keep_problems(document, data, where=migrated.places.old)
+        _keep_for_a_write(document, data, path, where=migrated.places.old)
         # The paths the migration kept absolute, which the write that converts
         # the file keeps so (TimeLineAnnotator/project-management#530, #555).
         document._absolute_as_read = absolute_paths(document)
