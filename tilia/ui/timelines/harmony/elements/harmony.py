@@ -9,13 +9,23 @@ from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME, INT_TO_ROMAN
+from tilia.timelines.harmony.validators import (
+    validate_accidental,
+    validate_applied_to,
+    validate_quality,
+    validate_step,
+)
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
 from tilia.ui.timelines.harmony.context_menu import HarmonyContextMenu
-from tilia.ui.timelines.harmony.utils import format_added_tone, to_roman_numeral
+from tilia.ui.timelines.harmony.utils import (
+    UNREADABLE,
+    format_added_tone,
+    to_roman_numeral,
+)
 from tilia_core.rules import split_added_tone
 
 from . import harmony_attrs
@@ -75,9 +85,7 @@ class HarmonyUI(TimelineUIElement):
         note = (
             INT_TO_NOTE_NAME[self.get_data("step")]
             + Accidental.get_from_int("music21", self.get_data("accidental"))
-            # A quality TiLiA doesn't know, which a file can hold, is drawn as its
-            # root alone, as a roman numeral is drawn without its suffix.
-            + QUALITY_TO_ABBREVIATION.get(quality, "")
+            + QUALITY_TO_ABBREVIATION[quality]
         )
         try:
             symbol = music21.harmony.ChordSymbol(
@@ -88,7 +96,7 @@ class HarmonyUI(TimelineUIElement):
             # music21 can construct; fall back to root position (#376).
             symbol = music21.harmony.ChordSymbol(note, inversion=0)
         applied_to = self.get_data("applied_to")
-        if applied_to:
+        if applied_to and validate_applied_to(applied_to):
             symbol.romanNumeral = RomanNumeral(
                 f"{symbol.romanNumeral.figure}/{INT_TO_ROMAN[applied_to]}"
             )
@@ -108,7 +116,9 @@ class HarmonyUI(TimelineUIElement):
             case "custom":
                 return self.get_data("custom_text")
             case _:
-                raise ValueError("Invalid display mode.")
+                # A display mode TiLiA doesn't know, which a file can hold: its
+                # default.
+                return self.letter_symbol_label
 
     @property
     def alternate_label(self):
@@ -119,7 +129,18 @@ class HarmonyUI(TimelineUIElement):
         )
 
     @property
+    def can_read_root(self) -> bool:
+        """Whether TiLiA can name the root: a file can hold a step or an accidental it
+        can't read, as the reader keeps a harmony that breaks a rule. Its labels
+        are then a mark alone."""
+        return validate_step(self.get_data("step")) and validate_accidental(
+            self.get_data("accidental")
+        )
+
+    @property
     def roman_numeral_label(self):
+        if not self.can_read_root:
+            return UNREADABLE
         return to_roman_numeral(
             self.get_data("step"),
             self.get_data("accidental"),
@@ -131,6 +152,17 @@ class HarmonyUI(TimelineUIElement):
 
     @property
     def letter_symbol_label(self):
+        if not self.can_read_root:
+            return UNREADABLE
+        if not validate_quality(self.get_data("quality")):
+            # A quality TiLiA doesn't know: its root and the mark, at every
+            # inversion, since the bass can't be known (Anne, 2026-11-13,
+            # TimeLineAnnotator/project-management#553).
+            return (
+                INT_TO_NOTE_NAME[self.get_data("step")]
+                + Accidental.get_from_int("musanalysis", self.get_data("accidental"))
+                + UNREADABLE
+            )
         symbol = self.letter_symbol
         figure = symbol.figure
         quality, added_tone = split_added_tone(self.get_data("quality"))

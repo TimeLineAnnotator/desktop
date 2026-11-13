@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tests.utils import (
@@ -229,13 +231,13 @@ def _save_open_save(tmp_path) -> tuple[dict, dict]:
     return first, second
 
 
-@IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
 class TestRoundTripPerTimelineKind:
     """Save-open-save preserves the timelines dict for every kind that has
     persistent components. slider_tlui is requested everywhere so on_open
     won't add a fresh slider after reload (see the test in
     TestRoundTripDesktopFileDesktop for the same workaround)."""
 
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_harmony_round_trip(self, slider_tlui, harmony_tlui, tmp_path):
         harmony_params = {
             "step": 0,
@@ -261,6 +263,7 @@ class TestRoundTripPerTimelineKind:
         first, second = _save_open_save(tmp_path)
         assert second["timelines"] == first["timelines"]
 
+    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_pdf_round_trip(self, slider_tlui, pdf_tlui, tmp_path):
         for time in [0, 10, 20]:
             commands.execute("timeline.pdf.add", time=time)
@@ -268,6 +271,14 @@ class TestRoundTripPerTimelineKind:
         first, second = _save_open_save(tmp_path)
         assert second["timelines"] == first["timelines"]
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="the file doesn't store AudioWave's bars, which TiLiA computes from"
+        " the media: TiLiA's own writer still writes those made here into the first"
+        " save, and the second, read back without media, has none; and the ids are"
+        " new when read again, until TiLiA saves through the core"
+        " (TimeLineAnnotator/project-management#449)",
+    )
     def test_audiowave_round_trip(self, slider_tlui, audiowave_tlui, tmp_path):
         # No add command for audiowave; create amplitudebars via the
         # timeline API the fixture exposes.

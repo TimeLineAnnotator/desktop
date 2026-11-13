@@ -43,11 +43,16 @@ class AudioWaveTimeline(Timeline):
         self._create_components(dt, normalised_amplitudes)
 
     def _get_audio(self):
-        path = get(Get.MEDIA_PATH)
-        try:
-            return soundfile.SoundFile(path)
-        except Exception:
+        audio = self._read_audio()
+        if audio is None:
             tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
+        return audio
+
+    @staticmethod
+    def _read_audio():
+        try:
+            return soundfile.SoundFile(get(Get.MEDIA_PATH))
+        except Exception:
             return None
 
     def _get_normalised_amplitudes(self):
@@ -77,6 +82,16 @@ class AudioWaveTimeline(Timeline):
                 end=(i + 1) * duration,
                 amplitude=amplitude,
             )
+
+    def load_bars(self) -> None:
+        """The bars of the media, for a timeline read from a file, which doesn't
+        store them. It stays shown or hidden as the file has it, and media it can't
+        read leaves it without bars, with nothing said: opening the file says
+        whether the media was found."""
+        self.clear()
+        self.audio = self._read_audio()
+        if self.audio:
+            self._create_timeline()
 
     def refresh(self):
         self.clear()

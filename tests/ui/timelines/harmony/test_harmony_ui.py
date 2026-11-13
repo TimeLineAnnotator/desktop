@@ -574,6 +574,16 @@ class TestUnknownQualityInFile:
         post(Post.APP_CLEAR)
 
         commands.execute("file.open", path=path)
+        return display_mode
+
+    @staticmethod
+    def unknown(tluis):
+        harmony_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
+        return next(
+            h
+            for h in harmony_tlui.harmonies()
+            if h.get_data("quality") == "some-future-quality"
+        )
 
     def test_every_harmony_loads_and_is_drawn(
         self, open_file_with_unknown_quality, tluis, tilia_errors
@@ -582,7 +592,13 @@ class TestUnknownQualityInFile:
         harmonies = sorted(reloaded_tlui.harmonies(), key=lambda h: h.get_data("time"))
         assert [h.get_data("time") for h in harmonies] == [1, 2, 3]
         assert harmonies[1].get_data("quality") == "some-future-quality"
-        assert harmonies[1].label and harmonies[1].alternate_label
+        # Its root and a mark, at every inversion (Anne, 2026-11-13,
+        # TimeLineAnnotator/project-management#553, point 1).
+        labels = {"letter": "G?", "roman": "V?"}
+        display_mode = open_file_with_unknown_quality
+        assert harmonies[1].label == labels[display_mode]
+        other = "roman" if display_mode == "letter" else "letter"
+        assert harmonies[1].alternate_label == labels[other]
         assert [harmonies[0].label, harmonies[2].label] == ["I", "I"]
         assert len(reloaded_tlui.modes()) == 1
         image = QImage(800, 200, QImage.Format.Format_ARGB32)
@@ -592,3 +608,31 @@ class TestUnknownQualityInFile:
         finally:
             painter.end()
         tilia_errors.assert_no_error()
+
+    def test_its_inspector_shows_the_quality_as_the_file_spells_it(
+        self, open_file_with_unknown_quality, tluis, tilia, open_inspector_for
+    ):
+        harmony = self.unknown(tluis)
+
+        inspector = open_inspector_for(harmony)
+
+        quality = inspector.field_name_to_widgets["Quality"][1]
+        assert quality.currentText() == "some-future-quality (unknown)"
+        assert quality.currentData() == "some-future-quality"
+        assert harmony.get_data("quality") == "some-future-quality"
+        assert not tilia.is_file_modified()
+
+    def test_its_quality_stays_until_another_is_picked(
+        self, open_file_with_unknown_quality, tluis, tilia, open_inspector_for
+    ):
+        harmony = self.unknown(tluis)
+        inspector = open_inspector_for(harmony)
+        quality = inspector.field_name_to_widgets["Quality"][1]
+
+        quality.setCurrentIndex(quality.findData("major"))
+
+        assert harmony.get_data("quality") == "major"
+        assert harmony.label != "G?" and harmony.label != "V?"
+        texts = [quality.itemText(i) for i in range(quality.count())]
+        assert not any("(unknown)" in text for text in texts)
+        assert tilia.is_file_modified()
