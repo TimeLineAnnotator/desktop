@@ -11,6 +11,7 @@ from import_docs import document, timeline
 from tilia_core import importers
 from tilia_core.importers import ImportFailed, hierarchy, marker, metadata, pdf
 from tilia_core.importers import range as range_
+from tilia_core.tla.migrate import to_1
 
 BAD = "bad\udcff.csv"
 ESCAPED = "bad\\udcff.csv"  # the name as written out: a backslash, "udcff"
@@ -143,7 +144,8 @@ def test_a_recursion_error_in_a_field_names_the_file_as_an_escape(
     def too_deep(value):
         raise RecursionError("maximum recursion depth exceeded")
 
-    monkeypatch.setattr(metadata, "_field", too_deep)
+    # The importer makes a field text with the migration's function.
+    monkeypatch.setattr(to_1, "field_as_text", too_deep)
 
     error = failure(metadata.import_metadata, document(), path)
 

@@ -13,6 +13,7 @@ from tilia_core import build, tla
 from tilia_core.importers._csv import UTF8_DECODE_FAILED
 from tilia_core.importers._results import ImportFailed, ImportResult
 from tilia_core.tla.errors import printable
+from tilia_core.tla.migrate import to_1
 from tilia_core.tla.parse import MAX_DEPTH
 
 # TiLiA's texts (tilia/errors.py), word for word.
@@ -30,13 +31,6 @@ _TOO_DEEP = f"nested more than {MAX_DEPTH} levels deep"
 _TOKEN = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"?|[\[\]{}]')
 
 _MEDIA_LENGTH = "media length"
-# A number written as text, in ASCII, as WP3's migration reads an old file's
-# media length (TimeLineAnnotator/project-management#326). Around it, the spaces
-# float() strips: \s also matches U+001C to U+001F, which float() refuses.
-_NUMBER = re.compile(
-    r"[^\S\x1c-\x1f]*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?"
-    r"[^\S\x1c-\x1f]*"
-)
 
 
 def import_metadata(
@@ -64,7 +58,7 @@ def import_metadata(
             if name.lower() == _MEDIA_LENGTH:
                 lengths[name] = value
             else:
-                fields[name] = _field(value)
+                fields[name] = to_1.field_as_text(value)
     except RecursionError as error:
         raise ImportFailed(
             path, _JSON_FAILED.format(printable(str(path)), repr(error))
@@ -131,24 +125,6 @@ def _too_deep(text: str) -> int | None:
     return None
 
 
-def _field(value: Any) -> str | list[str]:
-    """A value as text, as WP3's migration makes an old file's fields text
-    (`tla/migrate/to_1.py`): a list of plain values as a list of texts."""
-    if isinstance(value, list) and not any(
-        isinstance(item, (dict, list)) for item in value
-    ):
-        return [_text(item) for item in value]
-    return _text(value)
-
-
-def _text(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    if value is None:
-        return ""
-    return json.dumps(value, ensure_ascii=False)
-
-
 def _set_media_length(document: tla.Document, path: Path, values: list[Any]) -> None:
     """Set each value as the media length, in order; on a refusal, put the
     length back as it was and fail."""
@@ -163,11 +139,12 @@ def _set_media_length(document: tla.Document, path: Path, values: list[Any]) -> 
 
 
 def _length(value: Any) -> Any:
-    """A positive number written as text, as a number; other text and a finite
-    number as they are; anything else as JSON writes it. `build.set_media_length`
-    refuses what isn't a length, quoting it so."""
+    """A positive number written as text, as a number, as WP3's migration reads
+    an old file's media length (TimeLineAnnotator/project-management#326); other
+    text and a finite number as they are; anything else as JSON writes it.
+    `build.set_media_length` refuses what isn't a length, quoting it so."""
     if isinstance(value, str):
-        if _NUMBER.fullmatch(value):
+        if to_1.NUMBER_AS_TEXT.fullmatch(value):
             number = float(value)
             if math.isfinite(number) and number > 0:
                 return number
