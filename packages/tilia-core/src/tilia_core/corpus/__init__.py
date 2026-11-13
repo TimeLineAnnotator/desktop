@@ -14,6 +14,7 @@ import os
 import stat
 import sqlite3
 import threading
+import time
 import unicodedata
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
@@ -42,6 +43,10 @@ __all__ = [
     "FileDetail",
     "ComponentRow",
 ]
+
+KEEP_EVERY_S = 60.0
+"""How often, at most, scans and rereads write the copy of an index kept on
+disk (cache.py). Writing it costs about a second of CPU on a large corpus."""
 
 
 @dataclass(frozen=True)
@@ -145,6 +150,8 @@ class Corpus:
         self._reads: dict[int, int] = {}  # thread -> how deep in reads
         self._copy = copy  # where the index is kept on disk (cache.py)
         self._copied = copied  # the generation last kept there
+        self._kept_at = time.monotonic()  # when it was last kept, or opened
+        self._keeping = threading.Lock()
         if copy is not None and report.error is None:
             self._keep()
 
@@ -153,7 +160,18 @@ class Corpus:
         generation already."""
         if self._copy is None or self._copied == self._store.generation:
             return
-        self._copied = cache.save(self._scanner, self._copy)
+        with self._keeping:
+            if self._copied != self._store.generation:
+                self._copied = cache.save(self._scanner, self._copy)
+                self._kept_at = time.monotonic()
+
+    def _keep_when_due(self) -> None:
+        """Keep the index on disk after a scan or reread, at most once every
+        ``KEEP_EVERY_S``: a corpus held open for long (the library, which
+        rescans on a timer and is never closed) would otherwise keep its
+        changes only on close. A change waits for the next scan after that."""
+        if self._copy is not None and time.monotonic() - self._kept_at >= KEEP_EVERY_S:
+            self._keep()
 
     # -- the index reader ------------------------------------------------------ #
     @property
@@ -225,6 +243,7 @@ class Corpus:
         self._no_change_inside_a_read("a scan")
         report = self._scanner.scan()
         assert report is not None
+        self._keep_when_due()
         return report
 
     def _member(self, path: str | os.PathLike) -> tuple[str, Path]:
@@ -261,7 +280,9 @@ class Corpus:
         ``RuntimeError`` inside a read on the same thread."""
         self._no_change_inside_a_read("a reread")
         rel, native = self._member(path)
-        return self._scanner.reread(rel, native)
+        report = self._scanner.reread(rel, native)
+        self._keep_when_due()
+        return report
 
     @contextmanager
     def writing(self) -> Iterator[None]:

@@ -14,6 +14,7 @@ import pytest
 from json_reader import JsonDocumentReader
 from tla_files import as_tla
 
+from tilia_core import corpus as corpus_module
 from tilia_core import open_corpus, tla, tql
 from tilia_core.commands import query
 from tilia_core.corpus import cache
@@ -174,6 +175,63 @@ def test_a_change_seen_while_open_is_kept_when_the_corpus_closes(folder, copies,
     with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True) as kept:
         assert reads == []
         assert f"{name}.tla" not in [f.path for f in kept.files()]
+
+
+def _add(folder: Path, where: str) -> Path:
+    """A new file the next scan has to read: a fixture's, in a folder of its
+    own."""
+    (folder / where).mkdir()
+    return _write(folder / where, FIXTURES[0])
+
+
+def test_a_scan_keeps_a_change_while_the_corpus_stays_open(
+    folder, copies, reads, monkeypatch
+):
+    # The library holds its corpora open and rescans them on a timer.
+    monkeypatch.setattr(corpus_module, "KEEP_EVERY_S", 0.0)
+    with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True) as opened:
+        added = _add(folder, "new")
+        reads.clear()
+        assert opened.scan().added == (f"new/{added.name}",)
+        assert reads == [added.name]
+        reads.clear()
+        with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True):
+            assert reads == []  # kept by the scan, not by a close
+
+
+def test_a_reread_keeps_a_change_too(folder, copies, reads, monkeypatch):
+    monkeypatch.setattr(corpus_module, "KEEP_EVERY_S", 0.0)
+    with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True) as opened:
+        assert opened.reread(_add(folder, "new")).added
+        reads.clear()
+        with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True):
+            assert reads == []
+
+
+def test_scans_keep_the_index_at_most_once_every_while(folder, copies, monkeypatch):
+    saves = []
+    save = cache.save
+
+    def counted(scanner, path):
+        saves.append(path)
+        return save(scanner, path)
+
+    monkeypatch.setattr(cache, "save", counted)
+    with open_corpus(folder, rescan_before_reads=False, keep_on_disk=True) as opened:
+        assert len(saves) == 1  # the first build
+        _add(folder, "new")
+        assert opened.scan().added
+        assert len(saves) == 1  # not due yet
+        monkeypatch.setattr(corpus_module, "KEEP_EVERY_S", 0.0)
+        assert not opened.scan()  # nothing changed, but the copy is behind
+        assert len(saves) == 2
+        opened.scan()
+        assert len(saves) == 2  # the copy is of this generation
+        monkeypatch.setattr(corpus_module, "KEEP_EVERY_S", 3600.0)
+        _add(folder, "later")
+        assert opened.scan().added
+        assert len(saves) == 2  # not due: the close keeps it
+    assert len(saves) == 3
 
 
 def test_an_unreadable_file_is_reported_on_every_opening(folder, copies, reads):
