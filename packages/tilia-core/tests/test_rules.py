@@ -287,6 +287,17 @@ class TestOutcome:
 
         assert duplicate(outcome).code == "unknown_row"
 
+    @pytest.mark.parametrize(
+        "duplicate", [copy.copy, copy.deepcopy, lambda o: pickle.loads(pickle.dumps(o))]
+    )
+    def test_what_it_is_about_copies_and_pickles(self, duplicate):
+        outcome = rules.Outcome(
+            False, "pre_start is outside media bounds.", code="x", about="pre_start"
+        )
+
+        assert duplicate(outcome).about == "pre_start"
+        assert duplicate(rules.OK).about == ""
+
     def test_its_code_is_among_what_copy_and_pickle_give_new(self):
         # `__new__` is given the code too, whatever else rebuilds the outcome.
         outcome = rules.Outcome(False, "Invalid row ID.", ["a"], rules.UNKNOWN_ROW)
@@ -2567,6 +2578,77 @@ def fastest(run, times=3):
         result = run()
         seconds.append(time.perf_counter() - start)
     return result, min(seconds)
+
+
+class TestWhatAnOutcomeIsAbout:
+    """A code that rules about different attributes of one component give is
+    told apart by `about`."""
+
+    @pytest.mark.parametrize(
+        "kind, attrs, expected",
+        [
+            (
+                "hierarchy",
+                {
+                    "start": -1.0,
+                    "end": 70.0,
+                    "level": 1,
+                    "pre_start": -5.0,
+                    "post_end": 80.0,
+                },
+                {
+                    (rules.NEGATIVE_TIME, "start"),
+                    (rules.NEGATIVE_TIME, "pre_start"),
+                    (rules.PAST_MEDIA_END, "start end"),
+                    (rules.PAST_MEDIA_END, "post_end"),
+                },
+            ),
+            (
+                "hierarchy",
+                {"start": 65.0, "end": 70.0, "level": 1},
+                {(rules.PAST_MEDIA_END, "start end")},
+            ),
+            (
+                "range",
+                {
+                    "start": -1.0,
+                    "end": 70.0,
+                    "row_id": ROW,
+                    "pre_start": -5.0,
+                    "post_end": 80.0,
+                },
+                {
+                    (rules.NEGATIVE_TIME, "start"),
+                    (rules.NEGATIVE_TIME, "pre_start"),
+                    (rules.PAST_MEDIA_END, "post_end"),
+                },
+            ),
+            (
+                "range",
+                {"start": 1.0, "end": 70.0, "row_id": ROW},
+                {(rules.PAST_MEDIA_END, "end")},
+            ),
+            ("marker", {"time": -1.0}, {(rules.NEGATIVE_TIME, "time")}),
+            ("marker", {"time": 70.0}, {(rules.PAST_MEDIA_END, "time")}),
+        ],
+        ids=[
+            "hierarchy",
+            "hierarchy by its start",
+            "range by its start",
+            "range by its end",
+            "marker before 0",
+            "marker past the end",
+        ],
+    )
+    def test_negative_or_past_the_end(self, kind, attrs, expected):
+        broken = component(kind, **attrs)
+        checked = rules.check_timeline(MEDIA, [broken], rows=ROWS, every_rule=True)
+        outcomes = (checked[broken.id].outcome, *checked[broken.id].also)
+        assert {
+            (outcome.code, outcome.about)
+            for outcome in outcomes
+            if outcome.code in (rules.NEGATIVE_TIME, rules.PAST_MEDIA_END)
+        } == expected
 
 
 # "Well under a second", for each timeline below.
