@@ -2,6 +2,7 @@ from tilia.timelines.harmony.constants import MODE_TYPES, NOTE_NAME_TO_INT
 from tilia.ui.format import format_media_time
 from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.ui.timelines.harmony.constants import ACCIDENTAL_TO_INT
+from tilia.ui.timelines.harmony.utils import with_unknown
 from tilia.ui.windows.inspect import InspectRowKind
 
 
@@ -43,6 +44,17 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
 
 def get_inspector_dict(mode):
     return {
+        "__items_update": {
+            "Step": with_unknown(
+                get_step_inspect_args()["items"], mode.get_data("step")
+            ),
+            "Accidental": with_unknown(
+                get_accidental_inspect_args()["items"], mode.get_data("accidental")
+            ),
+            "Type": with_unknown(
+                get_mode_inspect_args()["items"], mode.get_data("type")
+            ),
+        },
         "Label": mode.label,
         "Time": format_media_time(mode.get_data("time")),
         "Comments": mode.get_data("comments"),

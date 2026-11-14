@@ -63,7 +63,18 @@ class Mode(PointLikeTimelineComponent):
         return str(dict(self.__dict__.items()))
 
     @property
+    def can_read_tonic(self) -> bool:
+        """Whether TiLiA can name its tonic: a file can hold a step or an
+        accidental it can't read, as the reader keeps a mode that breaks a rule."""
+        return validate_step(self.step) and validate_accidental(self.accidental)
+
+    @property
     def key(self):
+        if not self.can_read_tonic:
+            # C major, for what needs a key, as with no mode. The harmonies after
+            # it show "?" as roman numerals (Anne, 2026-11-13,
+            # TimeLineAnnotator/project-management#563, point 3).
+            return music21.key.Key("C")
         tonic = (
             INT_TO_NOTE_NAME[self.step]
             + music21.pitch.Accidental(self.get_data("accidental")).modifier

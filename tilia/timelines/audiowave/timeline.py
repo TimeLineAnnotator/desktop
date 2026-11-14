@@ -12,11 +12,18 @@ from tilia.timelines.base.timeline import (
     TimelineFlag,
 )
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hash_timelines import hash_function
 
 
 class AudioWaveTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: AudioWaveTimeline):
         super().__init__(timeline, [ComponentKind.AUDIOWAVE])
+
+    def hash_components(self):
+        # The amplitude bars are computed whenever the media loads, which can be
+        # after a file has opened, and the file doesn't store them: they are never
+        # a change to it.
+        return hash_function("")
 
 
 class AudioWaveTimeline(Timeline):
@@ -36,11 +43,16 @@ class AudioWaveTimeline(Timeline):
         self._create_components(dt, normalised_amplitudes)
 
     def _get_audio(self):
-        path = get(Get.MEDIA_PATH)
-        try:
-            return soundfile.SoundFile(path)
-        except Exception:
+        audio = self._read_audio()
+        if audio is None:
             tilia.errors.display(tilia.errors.AUDIOWAVE_INVALID_FILE)
+        return audio
+
+    @staticmethod
+    def _read_audio():
+        try:
+            return soundfile.SoundFile(get(Get.MEDIA_PATH))
+        except Exception:
             return None
 
     def _get_normalised_amplitudes(self):
@@ -70,6 +82,16 @@ class AudioWaveTimeline(Timeline):
                 end=(i + 1) * duration,
                 amplitude=amplitude,
             )
+
+    def load_bars(self) -> None:
+        """The bars of the media, for a timeline a file or an undo gives back,
+        which hold none. It stays shown or hidden as it was, and media it can't
+        read leaves it without bars, with nothing said: opening the file says
+        whether the media was found."""
+        self.clear()
+        self.audio = self._read_audio()
+        if self.audio:
+            self._create_timeline()
 
     def refresh(self):
         self.clear()

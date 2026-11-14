@@ -184,9 +184,9 @@ class TestRestoreById:
         commands.execute("edit.redo")
         assert [beat.id for beat in beat_tl] == second_ids
 
-    def test_component_that_cannot_be_restored_is_logged(self, marker_tl):
+    def test_a_component_creation_would_refuse_is_restored(self, marker_tl):
         # Two markers at one time, which creating a marker refuses and moving one
-        # doesn't. This goes when undo no longer checks what it restores.
+        # doesn't: undo gives back what was there, unchecked.
         marker_tl.create_marker(10)
         moved, _ = marker_tl.create_marker(20)
         id = moved.id
@@ -195,10 +195,11 @@ class TestRestoreById:
         marker_tl.set_component_data(id, "label", "edited")
         _record()
 
-        with patch("tilia.timelines.base.timeline.logger") as logger:
-            commands.execute("edit.undo")
+        commands.execute("edit.undo")
 
-        assert id in logger.error.call_args.args[0]
+        assert marker_tl.get_component(id).get_data("time") == 10
+        assert marker_tl.get_component(id).get_data("label") == ""
+        assert [marker.get_data("time") for marker in marker_tl] == [10, 10]
 
     def test_a_restore_that_raises_leaves_the_manager_as_it_was(self, marker_tl):
         # The manager would otherwise stop updating other components for good.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import bisect
+import copy
 import functools
 import importlib
 from abc import ABC
@@ -12,7 +13,6 @@ from tilia.exceptions import (
     InvalidComponentKindError,
     SetTimelineDataError,
 )
-from tilia.log import logger
 from tilia.timelines import serialize
 from tilia.timelines.component_kinds import ComponentKind, get_component_class_by_kind
 from tilia.utils import get_sibling_packages
@@ -23,6 +23,7 @@ from .validators import (
     validate_boolean,
     validate_bounded_integer,
     validate_positive_integer,
+    validate_pre_validated,
     validate_read_only,
     validate_string,
 )
@@ -49,7 +50,16 @@ class TimelineFlag(Enum):
 
 
 class Timeline(ABC, Generic[TC]):
-    SERIALIZABLE = ["name", "height", "is_visible", "ordinal"]
+    # `measure_table`, the id of the beat timeline whose measures this timeline was
+    # placed with, and `fields`, its metadata, are kept as the file has them.
+    SERIALIZABLE = [
+        "name",
+        "height",
+        "is_visible",
+        "ordinal",
+        "measure_table",
+        "fields",
+    ]
     NOT_EXPORTABLE_ATTRS = []
     FLAGS = []
     COMPONENT_MANAGER_CLASS = None
@@ -60,6 +70,8 @@ class Timeline(ABC, Generic[TC]):
         "height": functools.partial(validate_bounded_integer, lower=10),
         "ordinal": validate_positive_integer,
         "is_visible": validate_boolean,
+        "measure_table": validate_pre_validated,
+        "fields": validate_pre_validated,
     }
 
     def __init__(
@@ -69,6 +81,8 @@ class Timeline(ABC, Generic[TC]):
         is_visible: bool = True,
         ordinal: int | None = None,
         id: str | None = None,
+        measure_table: str | None = None,
+        fields: dict[str, Any] | None = None,
         **kwargs,  # ignores components_hash
     ):
         self.id = get(Get.ID, id)
@@ -76,6 +90,8 @@ class Timeline(ABC, Generic[TC]):
         self.name = name
         self.is_visible = is_visible
         self.height = height or self.default_height or 1
+        self.measure_table = measure_table
+        self.fields = copy.deepcopy(fields) if fields is not None else {}
 
         self.ordinal = ordinal or get(Get.TIMELINE_ORDINAL_FOR_NEW)
         if self.COMPONENT_MANAGER_CLASS:
@@ -203,11 +219,14 @@ class Timeline(ABC, Generic[TC]):
             return getattr(self, attr)
 
     def create_component(
-        self, kind: ComponentKind, *args, id=None, **kwargs
+        self, kind: ComponentKind, *args, id=None, checked: bool = True, **kwargs
     ) -> tuple[TC | None, str | None]:
+        """Creates a component, unless creation's checks refuse it. With
+        `checked=False`, it is created as it is: a component that exists already,
+        as a file holds it or an undo gives it back."""
         component_id = get(Get.ID, id)
         success, component, reason = self.component_manager.create_component(
-            kind, self, component_id, *args, **kwargs
+            kind, self, component_id, *args, checked=checked, **kwargs
         )
 
         if success:
@@ -295,6 +314,10 @@ class Timeline(ABC, Generic[TC]):
         for attr in self.SERIALIZABLE:
             if isinstance(value := getattr(self, attr), list):
                 value = value.copy()
+            elif isinstance(value, dict):
+                # Its own, such as the fields: not shared with the timeline, nor
+                # with the states undo keeps.
+                value = copy.deepcopy(value)
             state[attr] = value
             string_to_hash += str(value) + "|"
 
@@ -373,12 +396,13 @@ class TimelineComponentManager(Generic[T, TC]):
         return True, ""
 
     def create_component(
-        self, kind: ComponentKind, timeline, id, *args, **kwargs
+        self, kind: ComponentKind, timeline, id, *args, checked: bool = True, **kwargs
     ) -> tuple[bool, TC | None, str]:
         self._validate_component_kind(kind)
-        valid, reason = self._validate_component_creation(kind, *args, **kwargs)
-        if not valid:
-            return False, None, reason
+        if checked:
+            valid, reason = self._validate_component_creation(kind, *args, **kwargs)
+            if not valid:
+                return False, None, reason
 
         component_class = self._get_component_class_by_kind(kind)
         component = component_class(timeline, id, *args, **kwargs)
@@ -539,7 +563,12 @@ class TimelineComponentManager(Generic[T, TC]):
         return serialize.serialize_components(self._components)
 
     def deserialize_components(self, serialized_components: dict[str, dict[str, Any]]):
-        serialize.deserialize_components(self.timeline, serialized_components)
+        # Their values are final, as when restoring a state.
+        self.is_deserializing = True
+        try:
+            serialize.deserialize_components(self.timeline, serialized_components)
+        finally:
+            self.is_deserializing = False
 
     def matches_state(self, state: dict[str, dict[str, Any]]) -> bool:
         """Whether the components are those of `state`: the same ids, each with
@@ -578,11 +607,10 @@ class TimelineComponentManager(Generic[T, TC]):
                 component_data = prev_state[id].copy()
                 kind = ComponentKind[component_data.pop("kind")]
 
-                component, reason = self.timeline.create_component(
-                    kind, id=id, **component_data
+                # As it was, even if creation would refuse it now.
+                self.timeline.create_component(
+                    kind, id=id, checked=False, **component_data
                 )
-                if component is None:
-                    logger.error(f"Can't restore component {id}: {reason}")
         finally:
             self.is_deserializing = False
 

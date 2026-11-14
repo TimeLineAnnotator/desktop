@@ -2,15 +2,19 @@ from tilia.timelines.harmony.constants import HARMONY_QUALITIES, NOTE_NAME_TO_IN
 from tilia.ui.format import format_media_time
 from tilia.ui.timelines.copy_paste import CopyAttributes
 from tilia.ui.timelines.harmony.constants import ACCIDENTAL_TO_INT
-from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX
+from tilia.ui.timelines.harmony.utils import INT_TO_APPLIED_TO_SUFFIX, with_unknown
 from tilia.ui.windows.inspect import InspectRowKind
 from tilia_core.rules import FONT_TYPES, HARMONY_DISPLAY_MODES, get_inversion_amount
 
 _INV_TO_STRING = {0: "", 1: "1st", 2: "2nd", 3: "3rd", 4: "4th", 5: "5th", 6: "6th"}
 
 
-def _inversion_items(quality: str) -> list[tuple[str, int]]:
-    return [(_INV_TO_STRING[i], i) for i in range(get_inversion_amount(quality) + 1)]
+def _inversion_items(quality: str, inversion: int) -> list[tuple[str, int]]:
+    if quality not in HARMONY_QUALITIES:
+        # Its inversions can't be known: the one the file holds.
+        return [(_INV_TO_STRING.get(inversion, str(inversion)), inversion)]
+    items = [(_INV_TO_STRING[i], i) for i in range(get_inversion_amount(quality) + 1)]
+    return with_unknown(items, inversion)
 
 
 def get_inversion_inspect_args():
@@ -89,7 +93,30 @@ DEFAULT_COPY_ATTRIBUTES = CopyAttributes(
 
 def get_inspector_dict(harmony):
     return {
-        "__items_update": {"Inversion": _inversion_items(harmony.get_data("quality"))},
+        "__items_update": {
+            "Step": with_unknown(
+                get_step_inspect_args()["items"], harmony.get_data("step")
+            ),
+            "Accidental": with_unknown(
+                get_accidental_inspect_args()["items"], harmony.get_data("accidental")
+            ),
+            "Quality": with_unknown(
+                get_quality_inspect_args()["items"], harmony.get_data("quality")
+            ),
+            "Inversion": _inversion_items(
+                harmony.get_data("quality"), harmony.get_data("inversion")
+            ),
+            "Applied to": with_unknown(
+                get_applied_to_inspect_args()["items"], harmony.get_data("applied_to")
+            ),
+            "Display mode": with_unknown(
+                get_display_mode_args()["items"], harmony.get_data("display_mode")
+            ),
+            "Custom label font": with_unknown(
+                get_custom_label_font_args()["items"],
+                harmony.get_data("custom_text_font_type"),
+            ),
+        },
         "Label": harmony.label,
         "Time": format_media_time(harmony.get_data("time")),
         "Comments": harmony.get_data("comments"),

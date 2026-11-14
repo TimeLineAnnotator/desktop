@@ -5,7 +5,6 @@ from bisect import bisect
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tilia.exceptions import TimelineValidationError
-from tilia.file.migration import normalize_kind_string
 from tilia.requests import Get, Post, get, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
@@ -105,8 +104,11 @@ class Timelines:
         kind: type[Timeline] | str,
         components: dict[str, dict[str, Any]] | None = None,
         *args,
+        restoring: bool = False,
         **kwargs,
     ) -> Timeline:
+        """With `restoring`, the timeline is one a file or an undo gives back, as
+        it was."""
 
         if isinstance(kind, str):
             kind = Timeline.get_class_by_name(kind)
@@ -133,7 +135,10 @@ class Timelines:
             tl.setup_blank_timeline()
 
         if kind == AudioWaveTimeline and not components:
-            tl.refresh()
+            if restoring:
+                tl.load_bars()
+            else:
+                tl.refresh()
 
         return tl
 
@@ -273,8 +278,8 @@ class Timelines:
 
         for id, tl_data in data_copy.items():
             # We need to pop so no duplicate arguments are passed
-            kind = normalize_kind_string(tl_data.pop("kind"))
-            self.create_timeline(kind, id=id, **tl_data)
+            kind = tl_data.pop("kind")
+            self.create_timeline(kind, id=id, restoring=True, **tl_data)
 
     def restore_state(self, timeline_states: dict[str, dict]) -> None:
         id_to_timelines = {tl.id: tl for tl in self}
@@ -294,19 +299,19 @@ class Timelines:
         for id in sorted(timeline_states.keys() - shared_tl_ids, key=id_order):
             params = timeline_states[id].copy()
             # We need to pop so no duplicate arguments are passed
-            kind_string = normalize_kind_string(params.pop("kind"))
-            try:
-                kind = Timeline.get_class_by_name(kind_string)
-            except ValueError:
-                continue
-            self.create_timeline(kind, id=id, **params)
+            kind = params.pop("kind")
+            self.create_timeline(kind, id=id, restoring=True, **params)
 
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         # Attributes must be restored before components, as component validation
         # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
         if timeline.get_state()["hash"] != state["hash"]:
             for attr in timeline.SERIALIZABLE:
-                self.set_timeline_data(timeline.id, attr, state[attr])
+                value = state[attr]
+                if isinstance(value, dict):
+                    # The timeline's own, not the state's, which undo keeps.
+                    value = copy.deepcopy(value)
+                self.set_timeline_data(timeline.id, attr, value)
 
         if (
             timeline.component_manager is not None

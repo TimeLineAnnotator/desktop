@@ -25,7 +25,6 @@ from tilia.timelines.harmony.validators import validate_level_count
 class HarmonyTLComponentManager(TimelineComponentManager):
     def __init__(self, timeline: HarmonyTimeline):
         super().__init__(timeline, [ComponentKind.HARMONY, ComponentKind.MODE])
-        self.is_deserializing = False
         self.crop = functools.partial(crop_pointlike, self)
         self.scale = functools.partial(scale_pointlike, self)
 
@@ -130,14 +129,6 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             is_in_harmonic_region, ComponentKind.HARMONY
         )
 
-    def deserialize_components(self, serialized_components: dict[str, dict[str, Any]]):
-        # self.create_component and self.delete_component
-        # have to know if we are deserialing to determine
-        # if recalculating harmony.applied_to is necessary
-        self.is_deserializing = True
-        super().deserialize_components(serialized_components)
-        self.is_deserializing = False
-
 
 class HarmonyTimeline(Timeline):
     DEFAULT_LEVEL_HEIGHT = 35
@@ -148,6 +139,8 @@ class HarmonyTimeline(Timeline):
         "name",
         "ordinal",
         "visible_level_count",
+        "measure_table",
+        "fields",
     ]
     NOT_EXPORTABLE_ATTRS = ["level_count", "level_height"]
     COMPONENT_MANAGER_CLASS = HarmonyTLComponentManager
@@ -199,15 +192,16 @@ class HarmonyTimeline(Timeline):
     def _validate_delete_components(self, component: TimelineComponent) -> None:
         pass
 
-    def get_key_by_time(self, time: float) -> music21.key.Key:
+    def get_mode_by_time(self, time: float) -> Mode | None:
+        """The mode a time is in: the last one at or before it, None before the
+        first."""
         modes = sorted(self.modes())
         idx = bisect([mode.get_data("time") for mode in modes], time)
-        if not idx:
-            return music21.key.Key("CM")
-        elif idx == len(modes):
-            idx = 0
+        return modes[idx - 1] if idx else None
 
-        return modes[idx - 1].key
+    def get_key_by_time(self, time: float) -> music21.key.Key:
+        mode = self.get_mode_by_time(time)
+        return mode.key if mode is not None else music21.key.Key("CM")
 
     def deserialize_components(self, components: dict[str, dict[str]]):
         super().deserialize_components(components)

@@ -1,5 +1,5 @@
 from functools import cache, lru_cache
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 import music21
 
@@ -9,8 +9,23 @@ from tilia.timelines.harmony.constants import (
     INT_TO_ROMAN,
     NOTE_NAME_TO_INT,
 )
+from tilia.timelines.harmony.validators import validate_applied_to, validate_quality
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION, Accidental
 from tilia_core.rules import split_added_tone
+
+# Stands in a label where TiLiA can't read what the file holds: a file can hold
+# a value TiLiA doesn't know, as the reader keeps a component that breaks a rule.
+UNREADABLE = "?"
+
+
+def with_unknown(items: list[tuple[str, Any]], value: Any) -> list[tuple[str, Any]]:
+    """An inspector's choices, and `value` when it isn't one of them, a value a
+    file can hold that TiLiA can't read, as the file has it and marked
+    "(unknown)", so that it stays until another is picked (Anne, 2026-11-13,
+    TimeLineAnnotator/project-management#553 and #563)."""
+    if any(data == value for _, data in items):
+        return items
+    return [*items, (f"{value} (unknown)", value)]
 
 
 class _ScaleDegree(NamedTuple):
@@ -450,6 +465,12 @@ def _to_roman_numeral(
     are kept by those: a timeline draws the same labels again on every redraw.
     """
     key = _key(tonic, mode)
+    known_quality = validate_quality(quality)
+    if validate_applied_to(applied_to):
+        applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
+    else:
+        # Left out of the numeral, and marked where it would be.
+        applied_to, applied_to_suffix = 0, "/" + UNREADABLE
     # A quality with an added tone is written as its base quality, then the tone.
     quality, added_tone = split_added_tone(quality)
     if result := _handle_special_qualities(quality):
@@ -472,6 +493,11 @@ def _to_roman_numeral(
         if not applied_to
         else ""
     )
+
+    if not known_quality:
+        # The numeral and the mark, at every inversion, since the bass can't be
+        # known (Anne, 2026-11-13, TimeLineAnnotator/project-management#553).
+        return result_prefix + numeral + UNREADABLE + applied_to_suffix
 
     size = _get_chord_size(quality)
     if size is not None:
@@ -497,7 +523,6 @@ def _to_roman_numeral(
             quality_suffix = (suffix_table[0] if suffix_table else "") or ""
 
     quality_suffix += format_added_tone(added_tone)
-    applied_to_suffix = INT_TO_APPLIED_TO_SUFFIX[applied_to]
 
     if "11th" in quality:
         quality_suffix += "    "

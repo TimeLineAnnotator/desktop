@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from PySide6.QtGui import QImage, QPainter
 
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add_mode
@@ -542,12 +543,25 @@ class TestCadentialSixFour:
 
 class TestUnknownQualityInFile:
     # A file saved by a newer TiLiA may have a quality this one doesn't know.
-    # It is renamed in a file saved here, as this TiLiA can't make one.
-    @pytest.fixture
-    def open_file_with_unknown_quality(self, harmony_tlui, tmp_path, tilia_errors):
+    # It is renamed in a file saved here, as this TiLiA can't make one. The
+    # reader keeps such a harmony, with a warning, and so does TiLiA.
+    @pytest.fixture(
+        params=[("roman", 0), ("roman", 1), ("letter", 0), ("letter", 1)],
+        ids=["roman", "roman inverted", "letter", "letter inverted"],
+    )
+    def open_file_with_unknown_quality(
+        self, request, harmony_tlui, tmp_path, tilia_errors
+    ):
+        display_mode, inversion = request.param
         add_mode()
         add_harmony(1, step=0)
-        add_harmony(2, step=4, quality="dominant-seventh")
+        add_harmony(
+            2,
+            step=4,
+            quality="dominant-seventh",
+            display_mode=display_mode,
+            inversion=inversion,
+        )
         add_harmony(3, step=0)
         path = save_tilia_to_tmp_path(tmp_path)
 
@@ -560,18 +574,65 @@ class TestUnknownQualityInFile:
         post(Post.APP_CLEAR)
 
         commands.execute("file.open", path=path)
+        return display_mode
 
-    def test_rest_of_file_loads(self, open_file_with_unknown_quality, tluis):
-        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
-        harmonies = reloaded_tlui.harmonies()
-        assert sorted(h.get_data("time") for h in harmonies) == [1, 3]
-        assert [h.label for h in harmonies] == ["I", "I"]
-        assert len(reloaded_tlui.modes()) == 1
-
-    def test_harmony_left_out_is_reported(
-        self, open_file_with_unknown_quality, tilia_errors
-    ):
-        tilia_errors.assert_in_error_title("Load components error")
-        tilia_errors.assert_in_error_message(
-            "Harmony at '00:02.0' has an unknown chord quality"
+    @staticmethod
+    def unknown(tluis):
+        harmony_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
+        return next(
+            h
+            for h in harmony_tlui.harmonies()
+            if h.get_data("quality") == "some-future-quality"
         )
+
+    def test_every_harmony_loads_and_is_drawn(
+        self, open_file_with_unknown_quality, tluis, tilia_errors
+    ):
+        reloaded_tlui = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0]
+        harmonies = sorted(reloaded_tlui.harmonies(), key=lambda h: h.get_data("time"))
+        assert [h.get_data("time") for h in harmonies] == [1, 2, 3]
+        assert harmonies[1].get_data("quality") == "some-future-quality"
+        # Its root and a mark, at every inversion (Anne, 2026-11-13,
+        # TimeLineAnnotator/project-management#553, point 1).
+        labels = {"letter": "G?", "roman": "V?"}
+        display_mode = open_file_with_unknown_quality
+        assert harmonies[1].label == labels[display_mode]
+        other = "roman" if display_mode == "letter" else "letter"
+        assert harmonies[1].alternate_label == labels[other]
+        assert [harmonies[0].label, harmonies[2].label] == ["I", "I"]
+        assert len(reloaded_tlui.modes()) == 1
+        image = QImage(800, 200, QImage.Format.Format_ARGB32)
+        painter = QPainter(image)
+        try:
+            reloaded_tlui.scene.render(painter)
+        finally:
+            painter.end()
+        tilia_errors.assert_no_error()
+
+    def test_its_inspector_shows_the_quality_as_the_file_spells_it(
+        self, open_file_with_unknown_quality, tluis, tilia, open_inspector_for
+    ):
+        harmony = self.unknown(tluis)
+
+        inspector = open_inspector_for(harmony)
+
+        quality = inspector.field_name_to_widgets["Quality"][1]
+        assert quality.currentText() == "some-future-quality (unknown)"
+        assert quality.currentData() == "some-future-quality"
+        assert harmony.get_data("quality") == "some-future-quality"
+        assert not tilia.is_file_modified()
+
+    def test_its_quality_stays_until_another_is_picked(
+        self, open_file_with_unknown_quality, tluis, tilia, open_inspector_for
+    ):
+        harmony = self.unknown(tluis)
+        inspector = open_inspector_for(harmony)
+        quality = inspector.field_name_to_widgets["Quality"][1]
+
+        quality.setCurrentIndex(quality.findData("major"))
+
+        assert harmony.get_data("quality") == "major"
+        assert harmony.label != "G?" and harmony.label != "V?"
+        texts = [quality.itemText(i) for i in range(quality.count())]
+        assert not any("(unknown)" in text for text in texts)
+        assert tilia.is_file_modified()

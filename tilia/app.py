@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import functools
 import json
-import os
-import re
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -12,8 +10,9 @@ import tilia.constants
 import tilia.dirs
 import tilia.errors
 from tilia.exceptions import NoReplyToRequest
-from tilia.file.file_manager import open_tla
-from tilia.file.tilia_file import TiliaFile
+from tilia.file import tla_bridge
+from tilia.file.file_manager import read_file
+from tilia.log import logger
 from tilia.media.loader import load_media
 from tilia.requests import Get, Post, get, listen, long_operation, post, serve
 from tilia.settings import settings
@@ -29,6 +28,7 @@ from tilia_core import tla
 if TYPE_CHECKING:
     from tilia.clipboard import Clipboard
     from tilia.file.file_manager import FileManager
+    from tilia.file.open_document import OpenDocument
     from tilia.media.player import Player
     from tilia.undo_manager import UndoManager
 
@@ -52,8 +52,9 @@ class App:
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         self._setup_requests()
         self._setup_commands()
-        self.old_file_path = None
-        self.cur_file_path = None
+        # The file open, or being opened: a PDF timeline's relative path is the
+        # file's.
+        self.cur_file_path: Path | None = None
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -170,36 +171,28 @@ class App:
             success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
             if not success:
                 return False
-        prev_state = self.get_app_state()
-        self.on_clear()
-        self._do_open(path, prev_state)
+        return self._do_open(Path(path))
 
     @long_operation("Loading file...")
-    def _do_open(self, path: Path, prev_state: dict) -> None:
-        success, file, old_path = open_tla(path)
-        if not success:
-            self.on_restore_state(prev_state)
+    def _do_open(self, path: Path) -> bool:
+        # Read first, then clear, so that a file that isn't opened leaves the one
+        # open as it was.
+        file = read_file(path)
+        if file is None:
             return False
 
-        self.old_file_path = old_path
+        open_before = _OpenBefore(self)
         self.cur_file_path = Path(file.file_path)
+        self.on_clear()
 
         success = self.on_file_load(file)
         if not success:
-            self.on_restore_state(prev_state)
+            open_before.give_back()
             return False
 
         file.timelines, file.timelines_hash = self.get_timelines_state()
-
-        if file.unknown_timelines or file.deleted_timelines:
-            file.timelines = {
-                **self._renumber_ordinal_for_append(
-                    file.unknown_timelines, file.timelines
-                ),
-                **file.deleted_timelines,
-                **file.timelines,
-            }
-
+        # Where the media was found: the file keeps the path it stores.
+        file.media_path = get(Get.MEDIA_PATH)
         self.file_manager.file = file
         # The undo baseline must be recorded only now: until the line above,
         # file_manager holds the blank file from on_clear(), and undoing back
@@ -411,26 +404,28 @@ class App:
         )
         return get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
 
-    def _check_if_media_exists(self, path: str) -> tuple[bool, str]:
-        if path:
-            if re.match(tilia.constants.YOUTUBE_URL_REGEX, path):
-                return True, path
-            if checked_path := self._verify_path_exists(path):
-                return True, checked_path
-        return False, ""
+    @staticmethod
+    def _found_media(media: tla.Media) -> str:
+        """Where the core found the media: a YouTube link as the file stores it, or
+        a local file's path. "" when it found none."""
+        if media.kind == "youtube":
+            return media.stored
+        if media.path is not None:
+            return media.path.as_posix()
+        return ""
 
-    def _setup_file_media(self, path: str, duration: float | None):
+    def _setup_file_media(self, media: tla.Media, duration: float | None):
         if duration:
             self.set_file_media_duration(duration)
 
-        if not path:
+        if media.kind == "none":
             # if no path is provided, we don't want to display an error
             # as user has set the duration manually
             return
 
-        success, new_path = self._check_if_media_exists(path)
-        if not success:
-            tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
+        new_path = self._found_media(media)
+        if not new_path:
+            tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, media.stored)
             confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
             if confirm:
                 success, new_path = get(Get.FROM_USER_MEDIA_PATH)
@@ -449,15 +444,16 @@ class App:
         # the stored value, which would silently delete end components (#453).
         self.load_media(new_path, initial_duration=duration, scale_timelines="keep")
 
-    def on_file_load(self, file: TiliaFile) -> bool:
-        media_path = file.media_path
-        media_duration = file.media_metadata.get("media length", None)
-
+    def on_file_load(self, file: OpenDocument) -> bool:
+        document = file.document
         try:
-            if file.media_path or media_duration:
-                self._setup_file_media(media_path, media_duration)
+            if document.media_path or document.media_length:
+                self._setup_file_media(
+                    tla.media(file.file_path, document), document.media_length
+                )
 
-            self.timelines.deserialize_timelines(file.timelines)
+            # As the reader keeps them: none is checked (FR-060).
+            self.timelines.deserialize_timelines(tla_bridge.state_of(document))
             self._ensure_slider_timeline()
         except Exception:
             tilia.errors.display(
@@ -468,36 +464,14 @@ class App:
         return True
 
     def _verify_path_exists(self, path: str) -> str:
-        """
-        Checks that a path exists and attempt to find the new path based on the old file path if it doesn't.
-        For relocating a path when moving pdf/media linked to the current tla file.
-        Returns a path as str if found, else "".
-        """
-        if not path or Path(path).exists():
+        """The file a PDF timeline's path names, as the core finds it: a relative
+        path from the folder of the file open. "" when it names none."""
+        if not path:
             return path
-        if not (self.old_file_path and self.cur_file_path):
-            return ""
-
-        # check to make sure both paths exist and are different
-        if (
-            not (self.old_file_path and self.cur_file_path)
-            or self.old_file_path == self.cur_file_path
-        ):
-            return ""
-
-        try:
-            path_relative_to_old_file_path = os.path.relpath(path, self.old_file_path)
-        except ValueError:
-            # Raised on Windows when path is in a different drive
-            return ""
-        path_relative_to_new_file_path = self.cur_file_path.joinpath(
-            path_relative_to_old_file_path
-        ).resolve()
-
-        if path_relative_to_new_file_path.exists():
-            return str(path_relative_to_new_file_path)
-        else:
-            return ""
+        if self.cur_file_path is None:
+            return path if Path(path).is_absolute() and Path(path).exists() else ""
+        found = tla.stored_file(self.cur_file_path, path)
+        return found.as_posix() if found is not None else ""
 
     def on_clear(self) -> None:
         self.timelines.clear()
@@ -527,31 +501,11 @@ class App:
     def get_timelines_state(self):
         return self.timelines.serialize_timelines()
 
-    @staticmethod
-    def _renumber_ordinal_for_append(
-        unknown_timelines: dict, live_timelines: dict
-    ) -> dict:
-        if not unknown_timelines:
-            return {}
-        live_max = max(
-            (tl.get("ordinal", 0) for tl in live_timelines.values()), default=0
-        )
-        ordered_ids = sorted(
-            unknown_timelines, key=lambda id: unknown_timelines[id].get("ordinal", 0)
-        )
-        return {
-            id: {**unknown_timelines[id], "ordinal": live_max + offset}
-            for offset, id in enumerate(ordered_ids, start=1)
-        }
-
     def get_app_state(self) -> dict:
         timelines_state, timelines_hash = self.timelines.serialize_timelines()
-        unknown_timelines = self._renumber_ordinal_for_append(
-            self.file_manager.file.unknown_timelines, timelines_state
-        )
         params = {
             "media_metadata": dict(self.file_manager.file.media_metadata),
-            "timelines": {**unknown_timelines, **timelines_state},
+            "timelines": timelines_state,
             "timelines_hash": timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
             "file_path": self.file_manager.get_file_path(),
@@ -576,3 +530,50 @@ class App:
     def setup_file(self) -> None:
         self._ensure_slider_timeline()
         self.reset_undo_manager()
+
+
+class _OpenBefore:
+    """The file open before another is opened, to give back if the other fails to
+    load part-way, once the app has been cleared: its state, its file with what
+    tells whether it is modified, and its undo history."""
+
+    def __init__(self, app: App):
+        self.app = app
+        self.state = app.get_app_state()
+        self.file = app.file_manager.keep_file()
+        self.file_path = app.cur_file_path
+        self.duration = app.duration
+        self.should_scale_timelines = app.should_scale_timelines
+        undo = app.undo_manager
+        self.undo = undo.stack, undo.current_state_index, undo.last_repeat_id
+
+    def give_back(self) -> None:
+        app = self.app
+        try:
+            # What the other file left half loaded goes first, so that restoring
+            # this one finds no timelines: it then asks nothing about scaling them.
+            try:
+                app.on_clear()
+            except Exception:
+                logger.exception("Clearing what a file that failed to load left.")
+            try:
+                self._restore()
+            except Exception:
+                logger.exception("Restoring the file open before, once.")
+                app.on_clear()
+                self._restore()
+        finally:
+            # The file, its path and its undo history come back whatever happens,
+            # so that the file open before is never lost for the one that failed.
+            app.file_manager.give_back_file(self.file)
+            app.cur_file_path = self.file_path
+            undo = app.undo_manager
+            undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo
+
+    def _restore(self) -> None:
+        app = self.app
+        # Its media's length first, while there are no timelines to scale: a media
+        # loaded again reports it only later, and then reports the same.
+        app.set_file_media_duration(self.duration)
+        app._restore_app_state(self.state)
+        app.should_scale_timelines = self.should_scale_timelines
