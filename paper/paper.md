@@ -59,13 +59,12 @@ open-source data sharing that are now *de rigueur* in other fields.
 While one _can_ appropriate score and audio editors for visual analysis [@peebles:2013], they are limited in their annotating capabilities.
 Dedicated tools fall into a few groups, according to their focus.
 Audio-analysis tools such as Sonic Visualiser [@cannam:2010] and Partiels [@guillot:2025] centre on audio and plug-in features, and lack score integration.
-Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] anchor annotations to notated elements rather than to time and lack dedicated types for analytical structures such as form, while others, such as the MPM Toolbox [@berndt:2021], are tied to specific file formats.
+Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] anchor annotations to notated elements rather than to time and lack dedicated types for analytical structures such as form.
 "Timeline-based" annotators such as _Audio Timeliner_ [@yorgason:2018; @notess:2004], _iAnalyse_ [@couprie:2019], _BriFormer_ [@jarvis:2020] and _Dezrann_ [@giraud:2018] tend to focus more on providing tools for rich hand-made analysis.[^commercial] While each group excels at particular tasks, there remains space for a solution that caters to more cross-cutting needs.
 
 [^commercial]: Commercial alternatives include: _Hookpad_ and _Soundslice_ (closed-source and subscription-based). SyncPlayer [@kurth:2005; @fremerey:2007] was another timeline-based annotator that is no longer available.
 
-Platform support, for instance, is often narrow (\autoref{tab:comparison}): Dezrann and BriFormer run only in the browser, where local file access is difficult and copyright media is hard to host, while iAnalyse runs only on macOS.
-Few of the tools are scriptable, and most lock analyses in tool-specific formats, constraining interoperability and work at scale.
+Availability, for instance, is often constrained (\autoref{tab:comparison}): iAnalyse runs only on macOS, while Dezrann and BriFormer are hosted web applications. BriFormer has no open licence and depends on its author's website. Dezrann places uploaded pieces in a public sandbox; working with a private recording means requesting an account by e-mail or deploying the platform oneself. Few of the tools are scriptable, and moving analyses between tools can be cumbersome, constraining interoperability and work at scale.
 
 Most software focuses on a subset of the many forms analytical annotations can take (e.g. hierarchical groupings, metre, overlapping time spans, score elements, harmony, text).
 Audio Timeliner and BriFormer allow only nested spans, whereas Sonic Visualiser and iAnalyse allow overlaps, but only on a flat surface.
@@ -79,7 +78,7 @@ The Walküre [@balke:2017], Freischütz Digital [@muller:2013], Erkomaishvili [@
 + Tool              +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+ Licence               + Script/        +-----+-----+-----+-----+
 |                   | B   | C   | E   | H   | I   | O   | T   | A   | P   | S   | V   | Y   |                       | IO             | L   | M   | W   | w   |
 +:==================+:====+:====+:====+:====+:====+:====+:====+:====+:====+:====+:====+:====+:======================+:===============+:====+:====+:====+:====+
-| TiLiA             | `●` | `●` | `○` | `●` | `●` | `●` |     | `●` | `●` | `●` | `●` | `●` | GPL-3.0               | CLI; CSV, JSON | `●` | `●` | `●` | `○` |
+| TiLiA             | `●` | `●` | `○` | `●` | `●` | `●` | `○` | `●` | `●` | `●` | `●` | `●` | GPL-3.0               | CLI; CSV, JSON | `●` | `●` | `●` | `○` |
 +-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
 | Audio Timeliner   |     |     |     | `●` | `●` |     | `●` | `●` |     |     |     |     | –                     | CLI            |     | `●` | `●` |     |
 +-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
@@ -96,12 +95,12 @@ The Walküre [@balke:2017], Freischütz Digital [@muller:2013], Erkomaishvili [@
 
 : Comparison of music annotation tools. \label{tab:comparison}
 
-*Annotations:* **B** beat · **C** harmony · **E** score elements · **H** hierarchical · **I** instant · **O** overlapping · **T** text\
+*Annotations:* **B** beat · **C** harmony · **E** score elements · **H** hierarchical (nested, e.g. phrases within sections) · **I** instant (single timepoints, e.g. cadences) · **O** overlapping (spans that may coincide, e.g. motifs) · **T** text\
 *Media:* **A** audio · **P** PDF · **S** score · **V** video · **Y** YouTube\
 *Platforms:* **L** Linux · **M** macOS · **W** Windows · **w** web\
 Hollow circles mark partial support.
 
-In response to this challenge, we present 'TiLiA': a timeline annotator for all.
+In response to this challenge, we present 'TiLiA': a timeline annotator.
 It provides an open-source, cross-platform desktop tool that aligns annotations with audio, video, YouTube, PDFs and scores on shared timelines, offers dedicated types for musical structure, harmony and metre, and can be scripted and exchanged through CSV and JSON.
 
 # Specifications
@@ -114,7 +113,7 @@ TiLiA consists of an organisation of digital tools, primarily of its [open-sourc
 
 TiLiA is designed both for the manual creation of analyses — particularly where this requires complex alignment with audio/video sources — and for the large-scale conversion and import of external analyses.
 While the `.tla` format may still change as functionality grows, documentation is available for [importing](https://tilia-app.com/help/import) from CSV and [exporting](https://tilia-app.com/help/export#json-format) to JSON: both steps can be fully automated through the CLI.
-The [tilia-dcml](https://github.com/TimeLineAnnotator/dcml-to-tilia) repository demonstrates this by integrating an external corpus of musical analyses.
+The [dcml-to-tilia](https://github.com/TimeLineAnnotator/dcml-to-tilia) repository demonstrates this by integrating an external corpus of musical analyses.
 
 ## The desktop application
 
@@ -134,10 +133,10 @@ Currently, there are eight types of timelines:
 | Timeline type | Purpose |
 |------|------------------|
 | **Audiowave** | Displaying amplitude graphs |
-| **Beat** | Marking beats/measures, synchronising metrical and absolute time |
+| **Beat** | Marking beats/measures in metrical structure, and synchronising to absolute time |
 | **Harmony** | Chord symbols and roman numeral analysis |
 | **Hierarchy** | Representing hierarchical relations and sequences|
-| **Marker** | Annotating discrete timepoints |
+| **Marker** | Annotating discrete timepoints, with optional labels |
 | **PDF** | Synchronising external PDF documents with playback |
 | **Range** | Representing non-hierarchical relations and sequences |
 | **Score** | Synchronising digitised scores with playback |
