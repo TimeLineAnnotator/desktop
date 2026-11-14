@@ -45,7 +45,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
 from tilia_core import rules
@@ -126,7 +126,7 @@ def find_problems(document: Document) -> list[ReadProblem]:
     return found
 
 
-def unmeasured(document: Document) -> dict[str, str]:
+def unmeasured(document: Document) -> dict[str, frozenset[str]]:
     """The state of each component of `document`, by its place, when it has no
     media length for their times to be compared with; else nothing. A quarters
     file's aren't compared with one anyway."""
@@ -139,14 +139,14 @@ def unmeasured(document: Document) -> dict[str, str]:
         for component_id, component in timeline.components.items():
             if component.kind in rules.KINDS:
                 at = pointer_to(held, component_id)
-                states[at] = _component_state(component, at, holds)
+                states[at] = frozenset({_component_state(component, at, holds)})
     return states
 
 
 def new_problems(
     written: list[ReadProblem],
     read: list[ReadProblem],
-    read_unmeasured: Mapping[str, str],
+    read_unmeasured: Mapping[str, frozenset[str]],
 ) -> list[ReadProblem]:
     """Those of `written` that aren't among `read`, the problems a document was
     read with, whose `read_unmeasured` were its components with no media length.
@@ -154,27 +154,22 @@ def new_problems(
     One on what has changed since, or for a rule it didn't break, is new. One
     between components, on what hasn't changed, is new for the others that have
     changed or been added, and is given with those others alone. Its code and
-    its place decide: what it reads is its reason, and it may read otherwise."""
-    codes: dict[str, set[str]] = {}
-    states: dict[str, str] = {}
-    for problem in read:
-        codes.setdefault(problem.place, set()).add(problem.code)
-        states[problem.place] = problem.state
-        states.update(_between(problem))
+    its place decide: what it reads is its reason, and it may read otherwise.
+    What an edit kept old is among `read`, beside what was read, which an undo
+    gives back."""
+    was = _Read(read)
     new = []
     for problem in written:
         place = problem.place
         if (
             problem.code == rules.PAST_MEDIA_END
-            and read_unmeasured.get(place) == problem.state
+            and problem.state in read_unmeasured.get(place, ())
         ):
             continue  # its time wasn't compared with any
-        if problem.code not in codes.get(place, ()) or states[place] != problem.state:
+        if not was.has(problem):
             new.append(problem)
             continue
-        changed = tuple(
-            other for other in _between(problem) if states.get(other[0]) != other[1]
-        )
+        changed = was.changed(problem)
         if changed:
             # A refusal names those that are new. A join's others are what comes
             # next in its row, whichever of them it was that changed.
@@ -182,6 +177,115 @@ def new_problems(
                 problem = dataclasses.replace(problem, others=changed)
             new.append(problem)
     return new
+
+
+# The rules a beat's `measure` mark breaks: a problem of one goes where the mark
+# goes.
+MARK_CODES = frozenset({rules.NEGATIVE_MEASURE_NUMBER})
+
+
+def states_of(
+    document: Document, timeline_id: str, component_ids: Iterable[str]
+) -> dict[str, str]:
+    """The state of each of `component_ids`, components of the timeline, by
+    id, as a problem records it; none when `document` has no problems or
+    states it was read with to compare them with, so that `keep_old` has
+    nothing to do."""
+    if not document.read_problems and not document.read_unmeasured:
+        return {}
+    timeline = document.timelines[timeline_id]
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+    return {
+        component_id: _component_state(
+            timeline.components[component_id],
+            pointer_to(held, component_id),
+            holds,
+        )
+        for component_id in component_ids
+        if component_id in timeline.components
+    }
+
+
+def keep_old(
+    document: Document,
+    timeline_id: str,
+    before: Mapping[str, str],
+    moved: Mapping[str, str] | None = None,
+) -> None:
+    """Keep old the problems `document` was read with that an edit of
+    `tla.edits` carried, rather than made
+    (TimeLineAnnotator/project-management#528, point 4). `before` gives the
+    states, by id, of the components of the timeline the edit may change, as
+    `states_of` gave them before it; `moved`, by a downbeat's id, the beat its
+    mark's problems go to: where a deleted downbeat's mark moved, or the beat
+    a `restart` made state the number it reads from that downbeat's.
+
+    A problem on one of them, or naming one, that was old before the edit (its
+    state then one it was read with, or one an edit kept since) is old with its
+    state now too. One of `MARK_CODES` on one of `moved` is old on the beat its
+    mark moved to, or that states the number. Any other problem is as it was: a
+    change made since, or after, is still compared. What was old before the
+    edit stays old, as an undo gives it back, until a write."""
+    if not before:
+        return
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    moved = moved or {}
+    was = {pointer_to(held, key): state for key, state in before.items()}
+    now = {
+        pointer_to(held, key): state
+        for key, state in states_of(
+            document, timeline_id, [*before, *moved.values()]
+        ).items()
+    }
+
+    def as_now(place: str, state: str) -> str:
+        if was.get(place) == state and place in now:
+            return now[place]
+        return state
+
+    targets = {
+        pointer_to(held, old): pointer_to(held, new) for old, new in moved.items()
+    }
+    have = set(document.read_problems)
+    kept = []
+
+    def keep(problem: ReadProblem) -> None:
+        if problem not in have:
+            have.add(problem)
+            kept.append(problem)
+
+    for problem in document.read_problems:
+        again = dataclasses.replace(
+            problem,
+            state=as_now(problem.place, problem.state),
+            # A join is between ranges, which these edits don't change.
+            others=tuple((other, as_now(other, s)) for other, s in problem.others),
+            kept=True,
+        )
+        if again.state != problem.state or again.others != problem.others:
+            keep(again)
+        target = targets.get(problem.place)
+        if (
+            target in now
+            and problem.code in MARK_CODES
+            and was.get(problem.place) == problem.state
+        ):
+            keep(
+                dataclasses.replace(
+                    problem,
+                    place=target,
+                    pointer="",
+                    state=now[target],
+                    others=(),
+                    kept=True,
+                )
+            )
+    document.read_problems = [*document.read_problems, *kept]
+    unmeasured = document.read_unmeasured
+    for place, states in list(unmeasured.items()):
+        if was.get(place) in states and place in now:
+            unmeasured[place] = states | {now[place]}
 
 
 def warnings_of(
@@ -231,6 +335,42 @@ def cant_check(document: Document) -> rules.CantCheck | None:
             if not isinstance(component.kind, UnknownKind):
                 return rules.cant_check(component.kind)
     return None
+
+
+class _Read:
+    """The problems a document was read with, as a write compares them: each by
+    its place, code and state, and each place by the state it was read in, its
+    own or as one of the others a problem is between. A problem an edit kept
+    (`ReadProblem.kept`) is old too, as the edit left what it is about, and the
+    others it is between are old for it alone: a component kept for one problem
+    is still changed for every other."""
+
+    def __init__(self, read: list[ReadProblem]) -> None:
+        self.problems: set[tuple[str, str, str]] = set()
+        self.states: dict[str, str] = {}
+        self.kept: dict[tuple[str, str], set[tuple[str, str]]] = {}
+        for problem in read:
+            self.problems.add((problem.place, problem.code, problem.state))
+            if problem.kept:
+                key = (problem.place, problem.code)
+                self.kept.setdefault(key, set()).update(_between(problem))
+            else:
+                self.states[problem.place] = problem.state
+                self.states.update(_between(problem))
+
+    def has(self, problem: ReadProblem) -> bool:
+        """Whether `problem` was read, or kept, on what it is about as it is."""
+        return (problem.place, problem.code, problem.state) in self.problems
+
+    def changed(self, problem: ReadProblem) -> tuple[tuple[str, str], ...]:
+        """The others `problem` is between that aren't as read, nor as kept
+        with it."""
+        kept = self.kept.get((problem.place, problem.code), ())
+        return tuple(
+            other
+            for other in _between(problem)
+            if self.states.get(other[0]) != other[1] and other not in kept
+        )
 
 
 def _between(problem: ReadProblem) -> tuple[tuple[str, str], ...]:

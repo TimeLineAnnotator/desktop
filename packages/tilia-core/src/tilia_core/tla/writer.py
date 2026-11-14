@@ -852,7 +852,7 @@ def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> N
 
 def _checked_with_the_rules(
     doc: Document, data: bytes, path: str | os.PathLike[str]
-) -> tuple[list[ReadProblem], dict[str, str]]:
+) -> tuple[list[ReadProblem], dict[str, frozenset[str]]]:
     """The problems of the document `data` holds, as the reader finds them, so
     that a float given for an integer is checked as it is written (FR-051a), and
     its components' states when it has no media length. Raises `BrokenRules` for

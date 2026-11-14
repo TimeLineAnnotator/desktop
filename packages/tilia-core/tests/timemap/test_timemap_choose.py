@@ -699,6 +699,62 @@ def test_a_beat_unit_on_a_closing_tap_in_a_file_read_is_kept_with_a_warning():
     assert (kept["denominator"], kept["units"]) == (8, "1")
 
 
+def test_a_beat_unit_on_a_timeline_with_no_measure_mark_gets_a_warning(caplog):
+    # It is kept, and starts nothing: there is no measure for it to start
+    # (TimeLineAnnotator/project-management#528).
+    timeline = beat_timeline(
+        [
+            {"time": 0.0},
+            {"time": 1.0, "beat_unit": UNIT},
+            {"time": 2.0, "closing": True, "beat_unit": UNIT},
+        ]
+    )
+    unit, tap = list(timeline.components)[1:]
+
+    doc = read_as_a_file(timeline)
+    with caplog.at_level(logging.WARNING):
+        found = find_time_map(doc)
+
+    assert found.time_map is None
+    assert found.warnings == (
+        f"Timeline {timeline.id}: beat {unit} (1.0) has a beat unit, which starts "
+        "nothing: the timeline has no measure marks",
+        f"Timeline {timeline.id}: beat {tap} (2.0) has a beat unit, which starts "
+        "nothing: the timeline has no measure marks",
+    )
+    assert [r.getMessage() for r in caplog.records] == [f"{w}." for w in found.warnings]
+    kept = doc.timelines[timeline.id].components[unit].attrs
+    assert (kept["beat_unit"]["denominator"], kept["beat_unit"]["units"]) == (8, "1")
+
+
+def test_a_closing_taps_mark_is_no_measure_mark_for_the_warning():
+    # A mark on a closing tap starts no measure
+    # (TimeLineAnnotator/project-management#375).
+    timeline = beat_timeline(
+        [
+            {"time": 0.0, "beat_unit": UNIT},
+            {"time": 1.0},
+            {"time": 2.0, "closing": True, "measure": {}},
+        ]
+    )
+    unit = list(timeline.components)[0]
+
+    found = find_time_map(read_as_a_file(timeline))
+
+    assert found.warnings == (
+        f"Timeline {timeline.id}: beat {unit} (0.0) has a beat unit, which starts "
+        "nothing: the timeline has no measure marks",
+    )
+
+
+def test_a_timeline_with_no_measure_mark_and_no_beat_unit_gets_no_warning():
+    timeline = beat_timeline([{"time": 0.0}, {"time": 1.0}])
+
+    found = find_time_map(read_as_a_file(timeline))
+
+    assert found.time_map is None and found.warnings == ()
+
+
 def test_a_beat_unit_on_a_misplaced_tap_counts_as_an_ordinary_beats():
     # It is read as an ordinary beat, so the unit starts something.
     timeline = beat_timeline(

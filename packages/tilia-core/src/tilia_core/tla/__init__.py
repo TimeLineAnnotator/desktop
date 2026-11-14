@@ -3,6 +3,14 @@
 The names here are provisional until they are documented.
 """
 
+from tilia_core.tla.edits import (
+    CantDeleteBeat,
+    CantDeleteDownbeat,
+    CantMoveBeatUnit,
+    delete_beat,
+    mark_edited,
+    mark_moved,
+)
 from tilia_core.tla.errors import (
     BrokenRules,
     DraftFormat,
@@ -51,6 +59,9 @@ __all__ = [
     "TEMPORARY_PATTERN",
     "BeatUnit",
     "BrokenRules",
+    "CantDeleteBeat",
+    "CantDeleteDownbeat",
+    "CantMoveBeatUnit",
     "Component",
     "Document",
     "FileChanged",
@@ -70,10 +81,13 @@ __all__ = [
     "UnreadableFile",
     "as_media_path",
     "canonical_bytes",
+    "delete_beat",
     "fingerprint",
     "fingerprint_of",
     "is_temporary",
     "loads",
+    "mark_edited",
+    "mark_moved",
     "measure_table",
     "media",
     "migrate_folder",

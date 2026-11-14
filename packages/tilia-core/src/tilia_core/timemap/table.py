@@ -203,7 +203,25 @@ def closing_warnings(document: tla.Document, timeline: tla.Timeline) -> list[str
     taps, in time order: one for each read as an ordinary beat, and for each
     closing barline, one if it is past the end of the media, where it is kept,
     and one if it has a beat unit, which is kept too and starts nothing (FR-011).
-    None when the table has no rows."""
+    None when the table has no rows, but on a timeline with no measure mark
+    (or only marks on closing taps, which start none): there, one for each
+    beat with a beat unit, which is kept and starts nothing
+    (TimeLineAnnotator/project-management#528)."""
+    beats = [c for c in timeline.components.values() if c.kind == "beat"]
+    if not any(
+        isinstance(c.attrs.get("measure"), dict) and not c.attrs.get("closing")
+        for c in beats
+    ):
+        return [
+            f"Timeline {timeline.id}: beat {beat_id} ({time}) has a beat unit, "
+            "which starts nothing: the timeline has no measure marks"
+            for time, beat_id in sorted(
+                (c.attrs["time"], c.id)
+                for c in beats
+                if c.attrs.get("beat_unit") is not None
+                and _is_number(c.attrs.get("time"))
+            )
+        ]
     reason, times = _checked(timeline)
     if reason is not None or not times:
         return []
