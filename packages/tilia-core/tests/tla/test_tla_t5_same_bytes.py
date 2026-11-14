@@ -166,7 +166,11 @@ def test_the_writers_key_orders_are_the_schemas():
     assert sorted(components) == sorted(COMPONENT_KINDS.values())
     for kind, spelling in COMPONENT_KINDS.items():
         attributes = tuple(components[spelling].get("properties", ()))
-        if kind in layout.LEGACY_SCORE_COMPONENTS:
+        if kind == "time_signature":
+            # The one key the schema names of a legacy score's kinds.
+            assert attributes == ("pairs",)
+            assert layout.COMPONENT_ATTRIBUTES[kind][-1] == "pairs"
+        elif kind in layout.LEGACY_SCORE_COMPONENTS:
             assert attributes == ()
         else:
             assert attributes == layout.COMPONENT_ATTRIBUTES[kind], kind

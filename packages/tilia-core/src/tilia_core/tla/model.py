@@ -264,7 +264,8 @@ class Component:
     (`"label": null` as `""`), or leaves the key unset when it has none (a
     beat's `"measure": null` is no mark), and is never written back. None
     given for a key is likewise left out when written. A legacy score's
-    components keep their attributes as they are, nulls included."""
+    components keep their attributes as they are, nulls included, but for a
+    time signature's `pairs`, which is written only when it has any."""
 
     id: str
     kind: Kind

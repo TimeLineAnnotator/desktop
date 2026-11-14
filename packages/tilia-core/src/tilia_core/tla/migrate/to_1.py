@@ -195,12 +195,14 @@ def _same(value: Any, default: Any) -> bool:
 
 def _without_defaults(value: dict[str, Any], shape: Shape) -> dict[str, Any]:
     """An entry without the attributes that equal their default, as the
-    writer leaves them out; numbers by value."""
+    writer leaves them out; numbers by value. An empty list that counts as none
+    is left out too, so the document id doesn't see it."""
     return {
         key: item
         for key, item in value.items()
         if not (key in shape.defaults and _same(item, shape.defaults[key]))
         and not (key in shape.left_out_empty and item == {})
+        and not (type(item) is list and not item and key in shape.none_when_empty_list)
     }
 
 

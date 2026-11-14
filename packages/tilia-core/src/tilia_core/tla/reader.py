@@ -300,13 +300,15 @@ def _attrs(
     default is derived from another value (`pre_start` from `start`) stays
     unset when the file doesn't have it, and follows that value. A null is a
     missing key, except for an attribute always written, a legacy score's,
-    which is kept as it is."""
+    which is kept as it is; and so is an empty list where it counts as none."""
     attrs: dict[str, Any] = {}
     always = shape.always
     for key in shape.keys:
         if key in fields:
             continue
         item = value.get(key)
+        if type(item) is list and not item and key in shape.none_when_empty_list:
+            item = None
         if item is not None or (key in always and key in value):
             kind = type(item)
             if kind is float or kind is int or (kind is str and item.isascii()):
