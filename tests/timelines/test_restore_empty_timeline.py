@@ -41,3 +41,22 @@ def test_loading_a_pdf_timeline_with_no_markers_fills_in_page_one(pdf_tlui, tls)
     assert [(m.get_data("time"), m.get_data("page_number")) for m in markers] == [
         (0, 1)
     ]
+
+
+def test_redo_duplicating_a_pdf_timeline_with_no_markers(pdf_tlui, tls):
+    assert len(pdf_tlui.timeline) == 0
+
+    # The undo deletes the copy, and the redo re-creates it.
+    with undoable():
+        commands.execute("timeline.duplicate", pdf_tlui)
+
+    assert [len(tl) for tl in tls] == [0, 0]
+
+
+def test_redo_duplicating_a_hierarchy_timeline_with_no_units(hierarchy_tlui, tls):
+    assert len(hierarchy_tlui.timeline) == 0
+
+    with undoable():
+        commands.execute("timeline.duplicate", hierarchy_tlui)
+
+    assert [len(tl) for tl in tls] == [0, 0]
