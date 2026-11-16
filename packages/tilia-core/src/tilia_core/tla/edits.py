@@ -67,8 +67,9 @@ class CantMoveBeatUnit(CantDeleteBeat):
     can't read, which is never replaced: that unit is fixed first
     (TimeLineAnnotator/project-management#544, point 2, as #373 for plans).
     Only a unit the reader can read would move, and only where the rules,
-    with the unit it can't read treated as absent, would move it there:
-    else the unit is dropped. `unit_beat_id` is the beat holding it."""
+    with the unit it can't read treated as absent, would move it there, and
+    dropping it wouldn't leave every measure reading as moving it would
+    (#577, point 2): else the unit is dropped. `unit_beat_id` is the beat holding it."""
 
     def __init__(self, message: str, beat_id: str, unit_beat_id: str):
         super().__init__(message, beat_id)
@@ -140,8 +141,12 @@ def delete_beat(
     they read it assumed, across a restart. A unit the reader can't read on
     another beat of the measure that mark starts counts as the measure
     stating one: the unit is dropped, even where moving it would keep every
-    measure. No default takes the place of a unit dropped, since an edit adds
-    none (contracts/layout.md). A closing tap read as an ordinary beat (one
+    measure. In the downbeat's own measure, where its mark moves onto its
+    next beat, such a unit doesn't count, so that the measure keeps its time
+    signature. Where moving the unit would land on a unit the reader can't
+    read and dropping it leaves every measure, its own too, reading as moving
+    would, it is dropped, not refused. No default takes the place of a unit dropped, since an edit
+    adds none (contracts/layout.md). A closing tap read as an ordinary beat (one
     that ends no measure) is a beat of its measure.
 
     The measures the deletion changes get the source "edited", unless it is
@@ -324,9 +329,12 @@ def _refuse_an_unreadable_unit(
 ) -> None:
     """Raise `CantMoveBeatUnit` where the unit of `beat_id`, one the reader
     can read, would move onto `destination`, which holds a unit it can't read:
-    where the rules, with that unit treated as absent, would move it there.
-    They are run on a copy of the timeline, which the deletion of `beat_id`, a
-    downbeat when `downbeat`, changes as it would change the timeline."""
+    where the rules, with that unit treated as absent, would move it there,
+    unless dropping it leaves every measure reading as moving it would, the
+    one it would move into too (TimeLineAnnotator/project-management#577,
+    point 2): then the deletion drops it. They are run on a copy of the timeline, which the deletion of
+    `beat_id`, a downbeat when `downbeat`, changes as it would change the
+    timeline."""
     if destination is None:
         return
     if readable_beat_unit(beats[beat_id].attrs.get("beat_unit")) is None:
@@ -341,10 +349,20 @@ def _refuse_an_unreadable_unit(
     trial.measures = trial_table
     if downbeat:
         _delete_downbeat(
-            trial, trial_beats, beat_id, trial_table, destination, {}, readings, None
+            trial,
+            trial_beats,
+            beat_id,
+            trial_table,
+            destination,
+            {},
+            readings,
+            None,
+            trial=True,
         )
     else:
-        _delete_beat(trial, trial_beats, beat_id, trial_table, destination, readings)
+        _delete_beat(
+            trial, trial_beats, beat_id, trial_table, destination, readings, trial=True
+        )
     if trial.components[destination].attrs.get("beat_unit") is None:
         return
     raise _unit_refusal(timeline, beats, beat_id, destination)
@@ -490,17 +508,28 @@ def _delete_beat(
     table: MeasureTable,
     measure_id: str | None,
     readings: dict[str, tuple[Any, ...]],
+    *,
+    trial: bool = False,
 ) -> list[str]:
     """Delete the beat `beat_id`, which starts no measure, moving its unit to
     its measure's first beat unless that beat has one, as desktop#621 does, or
-    as `_place_unit` chooses; and give its measure's downbeat."""
+    as `_place_unit` chooses; and give its measure's downbeat. `trial` is
+    `_refuse_an_unreadable_unit`'s."""
     unit = beats[beat_id].attrs.get("beat_unit")
     del timeline.components[beat_id]
     if measure_id is None:
         return []
     if isinstance(unit, dict):
         moves = beats[measure_id].attrs.get("beat_unit") is None
-        _place_unit(timeline, readings, unit, measure_id, moves, {measure_id})
+        _place_unit(
+            timeline,
+            readings,
+            unit,
+            measure_id,
+            moves,
+            {measure_id},
+            drop_if_both_keep=trial,
+        )
     return [measure_id]
 
 
@@ -513,10 +542,13 @@ def _delete_downbeat(
     moved: dict[str, str],
     readings: dict[str, tuple[Any, ...]],
     carried: tuple[str, dict[str, Any]] | None,
+    *,
+    trial: bool = False,
 ) -> list[str]:
     """Delete the downbeat `beat_id`, as `delete_beat` says, and give the
     downbeats of the measures it changed: the one before, and the one it
-    started if that remains. `moved` gets where its mark went, if it went."""
+    started if that remains. `moved` gets where its mark went, if it went.
+    `trial` is `_refuse_an_unreadable_unit`'s."""
     mark = beats[beat_id].attrs["measure"]
     unit = beats[beat_id].attrs.get("beat_unit")
     sources = _number_source(timeline, table, beat_id)
@@ -547,16 +579,28 @@ def _delete_downbeat(
         changes = {target_id}  # what remains of the downbeat's measure
     if isinstance(unit, dict):
         row = measures[target_id]
-        moves = not _states_a_unit(beats, row, beat_id)
+        into_next = isinstance(own, dict)
+        # A unit the reader can't read elsewhere in the measure counts as the
+        # measure stating one in the next measure, and blocks the move there
+        # (#556, point 2), but not in the downbeat's own, which keeps its time
+        # signature (#577, point 1).
+        moves = not _states_a_unit(beats, row, beat_id, readable_only=not into_next)
+        blocked = into_next and _states_an_unreadable_unit(
+            beats, row, beat_id, target_id
+        )
         # Onto a downbeat, as the measure it starts reads it (none for one the
         # mark moved onto, which started none).
         stored = _as_read(unit, readings.get(target_id))
-        # Into the next measure, past a unit the reader can't read there.
-        blocked = isinstance(own, dict) and _states_an_unreadable_unit(
-            beats, row, beat_id, target_id
-        )
         _place_unit(
-            timeline, readings, unit, target_id, moves, changes, stored, blocked
+            timeline,
+            readings,
+            unit,
+            target_id,
+            moves,
+            changes,
+            stored,
+            blocked,
+            drop_if_both_keep=trial,
         )
     _follow_next(timeline, beat_id, target_id)
     return changed
@@ -586,6 +630,8 @@ def _place_unit(
     changes: set[str],
     stored: dict[str, Any] | None = None,
     blocked: bool = False,
+    *,
+    drop_if_both_keep: bool = False,
 ) -> None:
     """Put a deleted beat's `unit` on `destination` (when `moves`, the rule's
     choice) or drop it, unless only the other keeps the reading of every
@@ -596,26 +642,36 @@ def _place_unit(
     open only to a destination without a unit, so a unit is never replaced,
     and not where `blocked`: where another beat of the measure holds a unit
     the reader can't read, which counts as the measure stating one, so the
-    unit is dropped (#556, point 2)."""
+    unit is dropped (#556, point 2). Where both keep every measure, the rule
+    decides, but with `drop_if_both_keep` the unit is dropped where dropping
+    it leaves every measure, those the deletion changes too, reading as
+    moving it would: so the trial of `_refuse_an_unreadable_unit` drops it
+    there, where moving it would land on a unit the reader can't read (#577,
+    point 2)."""
     attrs = timeline.components[destination].attrs
     can_move = attrs.get("beat_unit") is None and not blocked
     moves = moves and can_move
     before = {key: value for key, value in readings.items() if key not in changes}
     moved = unit if stored is None else stored
 
-    def keeps(move: bool) -> bool:
+    def read(move: bool) -> dict[str, tuple[Any, ...]]:
         if move:
             attrs["beat_unit"] = moved
         try:
             _refresh(timeline)
-            now = _readings(timeline)
+            return _readings(timeline)
         finally:
             if move:
                 del attrs["beat_unit"]
+
+    def keeps(move: bool) -> bool:
+        now = read(move)
         return all(now[key] == value for key, value in before.items() if key in now)
 
     if not keeps(moves) and (can_move or moves) and keeps(not moves):
         moves = not moves
+    elif drop_if_both_keep and moves and read(False) == read(True):
+        moves = False
     if moves:
         attrs["beat_unit"] = moved
 
@@ -656,10 +712,18 @@ def _number_source(timeline: Timeline, table: MeasureTable, beat_id: str) -> lis
     return []
 
 
-def _states_a_unit(beats: dict[str, Component], row: Measure, deleted: str) -> bool:
-    """Whether a beat of the measure `row` other than `deleted` states a unit."""
+def _states_a_unit(
+    beats: dict[str, Component],
+    row: Measure,
+    deleted: str,
+    *,
+    readable_only: bool = False,
+) -> bool:
+    """Whether a beat of the measure `row` other than `deleted` states a unit:
+    one the reader can read, when `readable_only`."""
     return any(
-        isinstance(beats[key].attrs.get("beat_unit"), dict)
+        isinstance(unit := beats[key].attrs.get("beat_unit"), dict)
+        and (not readable_only or readable_beat_unit(unit) is not None)
         for key in row.beats
         if key != deleted
     )
