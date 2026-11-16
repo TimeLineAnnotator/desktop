@@ -1010,10 +1010,10 @@ def _refused_nulls():
     components = {
         # A beat without a time is kept, with a warning
         # (TimeLineAnnotator/project-management#285); a null mark on the
-        # first beat is refused, at the beat (FIRST_BEAT_MARK).
+        # first beat, the only one with a mark, leaves a timeline with no
+        # mark, which is read (TimeLineAnnotator/project-management#528).
         ("beats", "beat_1"): (
             "kind",
-            "measure",
             "beat_unit/denominator",
             "beat_unit/units",
         ),
@@ -1060,7 +1060,7 @@ def test_a_null_is_refused_only_where_the_key_is_required():
         try:
             doc = tla.loads(make_broken.text_of(content).encode("utf-8"))
         except tla.UnreadableFile as error:
-            assert error.place == REFUSED_AT.get(where, where), (where, error.message)
+            assert error.place == where, (where, error.message)
             found.add(where)
             continue
         assert where not in refused, where
@@ -1078,9 +1078,6 @@ def test_a_null_is_refused_only_where_the_key_is_required():
 
 # Required, and null when the length is unknown.
 NULL_IS_A_VALUE = {"/media/length"}
-# Without its mark, the first beat starts no measure: refused at the beat.
-FIRST_BEAT_MARK = place("/timelines/{beats}/components/{beat_1}/measure")
-REFUSED_AT = {FIRST_BEAT_MARK: place("/timelines/{beats}/components/{beat_1}")}
 
 
 def test_a_null_label_reads_as_its_default_and_is_left_out():
@@ -1165,8 +1162,16 @@ def test_a_beats_null_measure_is_no_mark():
     beat_2 = named(doc, "Beats").components[IDS["beat_2"]]
     assert beat_2.attrs.get("measure") is None
     assert tla.canonical_bytes(doc) == base_bytes()
-    # The first beat must have one (FR-081).
-    error = refusal(edited(lambda c: _beat_1(c).update(measure=None)))
+    # The first beat must have one while another beat has one (FR-081;
+    # TimeLineAnnotator/project-management#528).
+    error = refusal(
+        edited(
+            lambda c: (
+                _beat_1(c).update(measure=None),
+                _beat_2(c).update(measure={}),
+            )
+        )
+    )
     assert error.place == place("/timelines/{beats}/components/{beat_1}")
 
 
@@ -1356,20 +1361,26 @@ def test_a_next_that_names_a_beat_starting_no_measure_is_refused(beat_2):
 @pytest.mark.parametrize(
     "change, where",
     [
-        (lambda attrs: attrs.pop("measure"), BEAT_1),
         (
-            lambda attrs: attrs["measure"].update(next=[IDS["nothing"]]),
+            lambda doc: (
+                _beat_1_attrs(doc).pop("measure"),
+                named(doc, "Beats").components[IDS["beat_2"]].attrs.update(measure={}),
+            ),
+            BEAT_1,
+        ),
+        (
+            lambda doc: _beat_1_attrs(doc)["measure"].update(next=[IDS["nothing"]]),
             BEAT_1 + "/measure/next/0",
         ),
         (
-            lambda attrs: attrs["measure"].update(next=[IDS["beat_2"]]),
+            lambda doc: _beat_1_attrs(doc)["measure"].update(next=[IDS["beat_2"]]),
             BEAT_1 + "/measure/next/0",
         ),
     ],
 )
 def test_the_writer_refuses_marks_the_reader_would_refuse(change, where):
     doc = base_document()
-    change(_beat_1_attrs(doc))
+    change(doc)
     with pytest.raises(tla.UnreadableFile) as error:
         writer.checked_bytes(doc)
     assert error.value.place == place(where)

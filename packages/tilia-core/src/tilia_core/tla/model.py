@@ -694,6 +694,13 @@ class Document:
     read_unmeasured: Mapping[str, str] = field(
         default_factory=dict, repr=False, compare=False
     )
+    # What an edit of `tla.edits` changed on those components since: each
+    # state before and after it, by its place, so that the time of one is
+    # uncompared in each state the edits reach from the one read
+    # (`problems.keep_old`). A write clears it.
+    unmeasured_edits: dict[str, set[tuple[str, str]]] = field(
+        default_factory=dict, repr=False, compare=False
+    )
 
     @property
     def fingerprint(self) -> str | None:
