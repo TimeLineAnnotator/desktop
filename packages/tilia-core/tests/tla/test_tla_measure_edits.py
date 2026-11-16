@@ -544,11 +544,12 @@ def test_a_later_downbeat_a_closing_tap_follows_goes_with_its_mark(tmp_path):
 )
 def test_a_unit_that_would_move_onto_one_tilia_cant_read_is_refused(deleted, onto):
     # No other beat of the measure the unit would move into states a unit
-    # TiLiA can read.
+    # TiLiA can read, and dropping the 3/8 would change B[5]'s measure, which
+    # reads it carried.
     beats = [
         (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
         (B[1], beat(1.0)),
-        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS if deleted == 2 else None)),
         (B[3], beat(3.0, measure={}, beat_unit=UNREADABLE)),
         (B[4], beat(4.0, beat_unit=EIGHTHS if deleted == 4 else None)),
         (B[5], beat(5.0, measure={})),
@@ -982,25 +983,136 @@ def test_a_unit_tilia_cant_read_in_the_next_measure_drops_the_unit(held):
     assert after[B[3]] == after[B[5]] == ("2/4", True)
 
 
-def test_a_unit_tilia_cant_read_later_in_its_own_measure_lets_it_move_on():
-    # B[0]'s mark moves onto B[1], in its own measure, and so does its 3/8:
-    # only that keeps movement 2 in 6/8, assumed
-    # (TimeLineAnnotator/project-management#544, point 3). The unit TiLiA
-    # can't read on B[2] stops nothing here: the 3/8 moves into no other
-    # measure.
+@pytest.mark.parametrize(
+    "later", [True, False], ids=["read later", "read nowhere else"]
+)
+def test_577_1_in_its_own_measure_a_unit_tilia_cant_read_doesnt_stop_the_move(later):
+    # B[0]'s mark moves onto B[1], in its own measure, and so does its 3/8,
+    # so the measure keeps its time signature: the unit TiLiA can't read on
+    # B[2] doesn't count as the measure stating one there, as it would in the
+    # next measure (TimeLineAnnotator/project-management#577, point 1). So it
+    # moves where it keeps movement 2 in 6/8, and where nothing else reads it.
     beats = [
         (B[0], beat(0.0, measure={}, beat_unit=EIGHTHS)),
         (B[1], beat(1.0)),
         (B[2], beat(2.0, beat_unit=UNREADABLE)),
-        (B[3], beat(3.0, measure={"restart": True})),
-        (B[4], beat(4.0)),
+    ]
+    if later:
+        beats += [(B[3], beat(3.0, measure={"restart": True})), (B[4], beat(4.0))]
+    doc = document(beats)
+    before = readings(doc)
+    tla.delete_beat(doc, BEATS, B[0])
+    assert units(doc) == {B[1]: EIGHTHS, B[2]: UNREADABLE}
+    after = readings(doc)
+    assert after[B[1]] == ("6/8", False)
+    if later:
+        assert after[B[3]] == before[B[3]] == ("6/8", True)
+
+
+@pytest.mark.parametrize(
+    "landing", [UNREADABLE, None], ids=["it holds one", "it holds none"]
+)
+def test_577_1_in_its_own_measure_only_the_beat_it_lands_on_refuses(landing):
+    # B[2]'s mark and 3/8 move onto B[3], in its own measure. The deletion is
+    # refused where B[3] itself holds a unit TiLiA can't read, not for the one
+    # on B[4] (TimeLineAnnotator/project-management#577, point 1): dropping
+    # the 3/8 would change B[5]'s measure, which reads it.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0, beat_unit=landing)),
+        (B[4], beat(4.0, beat_unit=UNREADABLE)),
+        (B[5], beat(5.0, measure={})),
+        (B[6], beat(6.0)),
     ]
     doc = document(beats)
     before = readings(doc)
-    assert before[B[3]] == ("6/8", True)
-    tla.delete_beat(doc, BEATS, B[0])
-    assert units(doc) == {B[1]: EIGHTHS, B[2]: UNREADABLE}
-    assert readings(doc)[B[3]] == before[B[3]]
+    if landing is None:
+        tla.delete_beat(doc, BEATS, B[2])
+        assert units(doc) == {B[0]: QUARTERS, B[3]: EIGHTHS, B[4]: UNREADABLE}
+        assert readings(doc)[B[5]] == before[B[5]]
+        return
+    held = copy.deepcopy(components(doc))
+    with pytest.raises(tla.CantMoveBeatUnit) as error:
+        tla.delete_beat(doc, BEATS, B[2])
+    assert (error.value.beat_id, error.value.unit_beat_id) == (B[2], B[3])
+    assert components(doc) == held
+
+
+@pytest.mark.parametrize(
+    "deleted, beats, left",
+    [
+        (
+            2,
+            [
+                (B[0], beat(0.0, measure={}, beat_unit=EIGHTHS)),
+                (B[1], beat(1.0)),
+                (B[2], beat(2.0, measure={"restart": True}, beat_unit=EIGHTHS)),
+                (B[3], beat(3.0, measure={"restart": True}, beat_unit=UNREADABLE)),
+                (B[4], beat(4.0)),
+            ],
+            {0: EIGHTHS, 3: UNREADABLE},
+        ),
+        (
+            4,
+            [
+                (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+                (B[1], beat(1.0)),
+                (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+                (B[3], beat(3.0, measure={}, beat_unit=UNREADABLE)),
+                (B[4], beat(4.0, beat_unit=EIGHTHS)),
+                (B[5], beat(5.0, measure={})),
+                (B[6], beat(6.0)),
+            ],
+            {0: QUARTERS, 2: EIGHTHS, 3: UNREADABLE},
+        ),
+    ],
+    ids=["a downbeat's unit", "an ordinary beat's unit"],
+)
+def test_577_2_a_unit_dropping_keeps_every_measure_for_is_dropped_not_refused(
+    deleted, beats, left
+):
+    # Moving the 3/8 would land on B[3]'s unit TiLiA can't read, and dropping
+    # it leaves every measure, B[3]'s too, reading as moving it would: it is
+    # dropped, not refused (TimeLineAnnotator/project-management#577, point
+    # 2). Movement 3, or B[5]'s measure, reads it from movement 1, or B[2], as
+    # before.
+    doc = document(beats)
+    before = readings(doc)
+    tla.delete_beat(doc, BEATS, B[deleted])
+    assert units(doc) == {B[key]: unit for key, unit in left.items()}
+    after = readings(doc)
+    assert {key: after[key] for key in after if key != B[3]} == {
+        key: before[key] for key in after if key != B[3]
+    }
+
+
+@pytest.mark.parametrize(
+    "deleted, onto",
+    [(3, 2), (2, 3)],
+    ids=["an ordinary beat's unit", "a downbeat's unit"],
+)
+def test_577_2_a_unit_its_own_measure_reads_is_still_refused(deleted, onto):
+    # No later measure reads the 3/8 (B[5] states its own), so moving and
+    # dropping it keep every other measure; but dropping it would change the
+    # measure it would move into, which reads it, so the deletion is refused
+    # (TimeLineAnnotator/project-management#577, points 1 and 2).
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=UNREADABLE if onto == 2 else EIGHTHS)),
+        (B[3], beat(3.0, beat_unit=EIGHTHS if deleted == 3 else UNREADABLE)),
+        (B[4], beat(4.0)),
+        (B[5], beat(5.0, measure={}, beat_unit=HALVES)),
+        (B[6], beat(6.0)),
+    ]
+    doc = document(beats)
+    held = copy.deepcopy(components(doc))
+    with pytest.raises(tla.CantMoveBeatUnit) as error:
+        tla.delete_beat(doc, BEATS, B[deleted])
+    assert (error.value.beat_id, error.value.unit_beat_id) == (B[deleted], B[onto])
+    assert components(doc) == held
 
 
 @pytest.mark.parametrize("own_mark", [None, {}], ids=["no mark", "a mark"])
