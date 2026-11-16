@@ -625,6 +625,34 @@ def test_attributes_at_their_default_are_left_out_by_value(value):
     )
 
 
+# Python counts true as 1. The migration doesn't count it as a number
+# (`to_1._is_number`), so a true beside a 1, or where the default is 1, is kept
+# for the check, which refuses it, rather than left unset or left out and so
+# read as 1 (TimeLineAnnotator/project-management#554).
+
+
+@pytest.mark.parametrize("base, derived", [("start", "pre_start"), ("end", "post_end")])
+def test_a_pre_start_or_post_end_of_true_isnt_equal_to_1(base, derived):
+    changes = [set_key(*UNIT, base, 1), set_key(*UNIT, derived, True)]
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(edited(*changes))
+    assert error.value.place == f"/timelines/1/components/2/{derived}"
+
+
+@pytest.mark.parametrize(
+    "timeline, chord, place",
+    [
+        ({"level_count": True}, None, "/timelines/9/level_count"),
+        (None, {"level": True}, "/timelines/9/components/10/level"),
+    ],
+    ids=["level_count", "level"],
+)
+def test_true_isnt_left_out_as_a_default_of_1(timeline, chord, place):
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(edited(with_harmony(timeline, chord)))
+    assert error.value.place == place
+
+
 def test_the_amplitude_bars_dont_change_the_document_id():
     one = loads(edited(with_wave((0, 1, 0.5))))
     other = loads(edited(with_wave((0, 2, 0.25), (2, 3, 1))))
