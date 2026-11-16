@@ -34,8 +34,8 @@ def make_pre_0_1_1_timeline(kind, display_position, **extra):
     return timeline
 
 
-def make_harmony_timeline(components):
-    return make_timeline("HARMONY_TIMELINE", components=components)
+def make_harmony_timeline(components, kind="HARMONY_TIMELINE"):
+    return make_timeline(kind, components=components)
 
 
 def make_0_5_harmony(display_mode):
@@ -161,7 +161,7 @@ class TestMigrate:
         assert tl["ordinal"] == 1
         assert "display_position" not in tl
         assert tl["kind"] == "Hierarchy"
-        assert applied == ["0.1.1", "0.6.0", "0.7.0"]
+        assert applied == ["0.1.1", "0.7.0"]
         assert migrated["version"] == "0.7.0"
 
     def test_current_file_is_noop(self):
@@ -205,18 +205,21 @@ class TestMigrate:
 
 
 class TestHarmonyDisplayModeMigration:
-    # TiLiA < 0.6 called the letter display mode "chord".
-    def test_chord_becomes_letter(self):
+    # TiLiA < 0.6 called the letter display mode "chord". A later TiLiA saves
+    # it as it read it, so a file of any version may have it.
+    @pytest.mark.parametrize(
+        "version, kind", [("0.5.15", "HARMONY_TIMELINE"), ("0.7.0", "Harmony")]
+    )
+    def test_chord_becomes_letter(self, version, kind):
         data = make_tla(
-            "0.5.15",
-            {"0": make_harmony_timeline({"1": make_0_5_harmony("chord")})},
+            version,
+            {"0": make_harmony_timeline({"1": make_0_5_harmony("chord")}, kind)},
         )
 
-        migrated, applied = migrate(data, app_version="0.7.0")
+        migrated, _ = migrate(data, app_version="0.7.0")
 
         harmony = migrated["timelines"]["0"]["components"]["1"]
         assert harmony["display_mode"] == "letter"
-        assert applied == ["0.6.0", "0.7.0"]
 
     @pytest.mark.parametrize("display_mode", ["roman", "custom"])
     def test_other_display_modes_are_kept(self, display_mode):
