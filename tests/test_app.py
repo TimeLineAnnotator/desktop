@@ -1388,6 +1388,33 @@ class TestOpen:
         ordinals = [tl["ordinal"] for tl in saved_data["timelines"].values()]
         assert len(ordinals) == len(set(ordinals))
 
+    def test_ignored_unknown_timeline_is_saved_without_hashes(
+        self, tilia, qtui, tmp_path, tilia_errors
+    ):
+        # Written by a version that saved hashes, which this one drops.
+        file_data = get_file_data_with_unknown_timeline_kind()
+        unknown_tl = file_data["timelines"][UNKNOWN_TIMELINE_ID]
+        unknown_tl["hash"] = "abc"
+        unknown_tl["components_hash"] = "def"
+        unknown_tl["components"] = {"5": {"kind": "SOME_KIND", "hash": "ghi"}}
+        open_path = tmp_path / "test.tla"
+        open_path.write_text(json.dumps(file_data))
+
+        with (
+            Serve(Get.FROM_USER_YES_OR_NO, True),
+            Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
+        ):
+            commands.execute("file.open", open_path)
+
+        save_path = tmp_path / "resaved.tla"
+        commands.execute("file.save_as", str(save_path))
+
+        saved_tl = json.loads(save_path.read_text())["timelines"][UNKNOWN_TIMELINE_ID]
+        assert "hash" not in saved_tl
+        assert "components_hash" not in saved_tl
+        assert saved_tl["components"] == {"5": {"kind": "SOME_KIND"}}
+        tilia_errors.assert_no_error()
+
     def test_ignored_unknown_timeline_is_saved_in_id_order(
         self, tilia, qtui, tmp_path, tilia_errors
     ):
