@@ -63,6 +63,8 @@ from tilia_core.tla.media_files import (
     SYSTEM,
     absolute_form,
     is_relative,
+    paths_folder,
+    paths_folder_of,
     pdf_path_place,
     relative_path,
     with_slashes,
@@ -625,8 +627,9 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     its place still holds it: the media's until `media_path` is set, even to the
     same text, and a PDF timeline's while that timeline has that path
     (TimeLineAnnotator/project-management#530, #555). When `folder` isn't the
-    one `doc` was read from or last written to (its `origin`'s), a relative
-    path is resolved against that one and made
+    one `doc` was read from or last written to (`paths_folder_of`: the folder
+    of the file a link named, when it was reached through a link to a file), a
+    relative path is resolved against that one and made
     relative to `folder`, or absolute where no relative path exists. A stored
     relative path is joined with POSIX semantics, "/" between its parts: a
     backslash in it is part of a name, never converted, so that the same
@@ -636,11 +639,8 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     unknown, are kept. `doc` isn't changed: when a path changes, a copy is
     returned, sharing with `doc` what didn't change."""
     folder = _absolute_folder(folder)
-    origin = (
-        None
-        if doc.origin is None
-        else _absolute_folder(os.path.dirname(os.path.abspath(doc.origin)))
-    )
+    read_from = paths_folder_of(doc)
+    origin = None if read_from is None else _absolute_folder(read_from)
     if origin is not None and os.path.normcase(origin) == os.path.normcase(folder):
         origin = None  # its relative paths are already relative to `folder`
     read = dict(doc._absolute_as_read)
@@ -762,7 +762,11 @@ def write(
     The media's path and PDF timelines' paths are written relative to the
     folder of `path` wherever a relative path exists, recomputed when it
     isn't the folder `doc` was read from or last written to (`rebase_paths`,
-    FR-033). The first write of a document read from an old file, which
+    FR-033). When `path` is a link to a file, that is the folder of the file
+    the link names, which the reader resolves them against too, so that the
+    file has one set of paths, whichever way it is reached; a link to a folder
+    isn't followed (`paths_folder`; TimeLineAnnotator/project-management#431).
+    The first write of a document read from an old file, which
     converts the file, keeps a path the migration kept absolute
     (TimeLineAnnotator/project-management#530, #555). After a successful
     write, `doc` follows the file: its `origin` is `path`, its `fingerprint` is
@@ -791,9 +795,9 @@ def write(
     `doc` was read with are those of what was written.
     """
     target = os.path.realpath(path)
-    # Relative to the folder of `path` as given, links not followed, which is
-    # the folder the reader resolves the file's paths against.
-    rebased = rebase_paths(doc, os.path.dirname(os.path.abspath(path)))
+    # Relative to the folder the reader resolves the file's paths against.
+    folder = paths_folder(path)
+    rebased = rebase_paths(doc, folder)
     data = checked_bytes(rebased, path=path)
     problems, unmeasured_states = _checked_with_the_rules(doc, data, path)
     if expect is ABSENT:
@@ -817,7 +821,7 @@ def write(
         if _held_open(error):
             raise FileInUse(path) from error
         raise
-    _follow(doc, rebased, path)
+    _follow(doc, rebased, path, folder)
     doc.read_problems = problems
     doc.read_unmeasured = unmeasured_states
     doc.fingerprint = hashlib.sha256(data).hexdigest()
@@ -836,15 +840,19 @@ def _read_digest(doc: Document, expect: str) -> str | None:
     return doc._read_digest
 
 
-def _follow(doc: Document, rebased: Document, path: str | os.PathLike[str]) -> None:
+def _follow(
+    doc: Document, rebased: Document, path: str | os.PathLike[str], folder: str
+) -> None:
     """Make `doc` follow the file just written at `path` from `rebased`, its
-    copy with the paths as written (FR-033): its origin becomes the file, as
-    the reader sets it, and its media and PDF paths the ones written. The
+    copy with the paths as written relative to `folder` (FR-033): its origin
+    becomes the file, as the reader sets it, with that folder, and its media
+    and PDF paths the ones written. The
     file is a current one now, so the document keeps no path absolute that the
     migration kept so (TimeLineAnnotator/project-management#555). The
     timelines keep their objects; only a rebased PDF timeline's path
     changes."""
     doc.origin = Path(os.path.abspath(path))
+    doc._paths_folder = (doc.origin, folder)
     doc._absolute_as_read = ()
     if rebased is doc:
         return

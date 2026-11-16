@@ -31,7 +31,7 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
-from tilia_core.tla.media_files import absolute_paths
+from tilia_core.tla.media_files import absolute_paths, paths_folder
 from tilia_core.tla.migrate.to_1 import Migrated, migrate
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -164,7 +164,12 @@ def _keep_for_a_write(
 ) -> None:
     """Give `document`, just read from `data`, what a write states and what it
     compares: `_keep_what_was_read`'s and `keep_problems`'s, from one search of
-    `data` for a long integer. `where` is `keep_problems`'."""
+    `data` for a long integer. `where` is `keep_problems`'. And the folder its
+    relative paths are relative to, found now, which a write elsewhere rebases
+    them from (FR-033): that of the file a link names, when `path` is a link
+    to a file (TimeLineAnnotator/project-management#431)."""
+    if document.origin is not None and path is not None:
+        document._paths_folder = (document.origin, paths_folder(path))
     long_integer = has_long_integer(data)
     _keep_what_was_read(document, data, path, long_integer)
     keep_problems(

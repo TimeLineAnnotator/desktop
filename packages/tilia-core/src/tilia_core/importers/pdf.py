@@ -19,7 +19,7 @@ from tilia_core.importers._commit import commit
 from tilia_core.importers._csv import CsvRow, read_csv
 from tilia_core.importers._results import ImportFailed, ImportResult, RowProblem
 from tilia_core.tla.errors import printable
-from tilia_core.tla.media_files import is_relative, is_url, local_file
+from tilia_core.tla.media_files import is_relative, is_url, local_file, paths_folder_of
 
 logger = logging.getLogger(__name__)
 
@@ -66,15 +66,14 @@ def import_by_time(
             raise ImportFailed(path, _COLUMN_NOT_FOUND.format(column))
 
     stored = document.timelines[target].attrs.get("path", "")
-    pdf = _pdf_file(stored, document.origin)
+    folder = paths_folder_of(document)
+    pdf = _pdf_file(stored, folder)
     page_count = None if pdf is None else _page_count(pdf)
     notes = []
     if page_count is None:
         notes.append(
             _CANT_BE_READ.format(
-                printable(
-                    _looked_for(stored, document.origin) if pdf is None else str(pdf)
-                )
+                printable(_looked_for(stored, folder) if pdf is None else str(pdf))
             )
             if stored
             else _NO_PDF
@@ -140,23 +139,25 @@ def _problem(path: Path, csv_row: CsvRow, column: str, message: str) -> RowProbl
     )
 
 
-def _pdf_file(stored: str, origin: Path | None) -> Path | None:
+def _pdf_file(stored: str, folder: str | None) -> Path | None:
     """The file a PDF timeline's `path` names, found as `tla.media` finds a
-    media file: `local_file` looks a relative path up from the folder of the
-    document's file, tries the decomposed (NFD) form of the name, and never
-    looks up a path of the other system's form. Without that folder, only an
-    absolute path names one, as a stored path is never read from where the
-    process happens to run. A URL names no file here. None when it names no file."""
+    media file: `local_file` looks a relative path up from `folder`, the one
+    the document's paths are relative to, the folder of the file a link names
+    when it was read through a link to a file (`paths_folder_of`), tries the
+    decomposed (NFD) form of the name, and never looks up a path of the other
+    system's form. Without that folder, only an absolute path names one, as a
+    stored path is never read from where the process happens to run. A URL
+    names no file here. None when it names no file."""
     if not stored or is_url(stored):
         return None
-    return local_file(stored, None if origin is None else str(origin.parent))
+    return local_file(stored, folder)
 
 
-def _looked_for(stored: str, origin: Path | None) -> str:
+def _looked_for(stored: str, folder: str | None) -> str:
     """The path to show for a PDF that wasn't found: a relative one joined to
     the document's folder, as it was looked for; any other as stored."""
-    if origin is not None and is_relative(stored):
-        return str(origin.parent / stored)
+    if folder is not None and is_relative(stored):
+        return str(Path(folder) / stored)
     return stored
 
 

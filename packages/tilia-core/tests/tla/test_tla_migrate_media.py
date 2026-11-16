@@ -27,6 +27,7 @@ import posixpath
 import stat
 import subprocess
 import sys
+import threading
 import unicodedata
 import wave
 from pathlib import Path
@@ -1895,6 +1896,245 @@ def test_a_relative_path_written_onto_another_drive_becomes_absolute(corpus, tmp
     assert rebased.media_path == (tmp_path / "audio" / f"{NAME}.flac").as_posix()
     assert pdf_path(rebased) == (tmp_path / "scores" / f"{NAME}.pdf").as_posix()
     assert doc.media_path == f"../audio/{NAME}.flac"
+
+
+# A file reached through a link to a file: one set of paths, relative to the folder
+# of the file the link names, whichever way it is reached (FR-033;
+# TimeLineAnnotator/project-management#431). Windows lets a program make a symbolic
+# link only with a privilege, or in Developer Mode: where the tests can't make one,
+# they are skipped. A link to a folder is a junction there, which needs neither.
+
+
+def link_to_file(link, target, relative):
+    """A symbolic link at `link` to the file `target`, which it names relative to
+    its own folder or absolute. Skips the test where the system won't make one."""
+    link.parent.mkdir(parents=True, exist_ok=True)
+    named = Path(os.path.relpath(target, link.parent)) if relative else target
+    try:
+        link.symlink_to(named)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"this system doesn't let the tests make a link to a file: {error}")
+    return link
+
+
+@pytest.fixture(params=["absolute", "relative"], ids=lambda kind: f"{kind} link")
+def linked_file(request, tmp_path):
+    """#431's example: corpus/link.tla, a link to elsewhere/deep/real.tla, with
+    the media in corpus/audio and the PDF in corpus/scores."""
+    real = tmp_path / "elsewhere" / "deep" / "real.tla"
+    real.parent.mkdir(parents=True)
+    return SimpleNamespace(
+        real=real,
+        link=link_to_file(
+            tmp_path / "corpus" / "link.tla", real, request.param == "relative"
+        ),
+        media=media_file(tmp_path / "corpus" / "audio" / "a.wav"),
+        pdf=media_file(tmp_path / "corpus" / "scores" / "a.pdf"),
+    )
+
+
+# What the file the link names stores, from its own folder.
+FROM_THE_REAL_FILE = ("../../corpus/audio/a.wav", "../../corpus/scores/a.pdf")
+
+
+def with_paths(media, pdf):
+    """every-kind's document, from nowhere, with its media and its PDF at these
+    paths, absolute, as a script gives them."""
+    doc = tla.loads(EVERY_KIND)
+    doc.media_path = tla.as_media_path(media)
+    set_pdf_path(doc, str(pdf))
+    return doc
+
+
+def test_written_through_a_link_to_a_file_its_paths_are_relative_to_that_file(
+    linked_file,
+):
+    doc = with_paths(linked_file.media, linked_file.pdf)
+    tla.write(linked_file.link, doc)
+    assert linked_file.link.is_symlink()
+    assert written(linked_file.real) == FROM_THE_REAL_FILE
+    # The document follows the file, and a Save As rebases from its folder.
+    assert (doc.media_path, pdf_path(doc)) == FROM_THE_REAL_FILE
+    assert os.path.samefile(tla.media(linked_file.link, doc).path, linked_file.media)
+    target = linked_file.link.parent.parent / "out" / "copy.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert written(target) == ("../corpus/audio/a.wav", "../corpus/scores/a.pdf")
+
+
+@pytest.mark.parametrize("written_at", ["link", "real"])
+def test_a_file_reached_through_a_link_finds_its_media_both_ways(
+    linked_file, written_at
+):
+    tla.write(
+        getattr(linked_file, written_at),
+        with_paths(linked_file.media, linked_file.pdf),
+    )
+    for path in (linked_file.link, linked_file.real):
+        doc = tla.read(path)
+        assert os.path.samefile(tla.media(path, doc).path, linked_file.media)
+        assert os.path.samefile(tla.stored_file(path, pdf_path(doc)), linked_file.pdf)
+
+
+@pytest.mark.parametrize("read_at", ["link", "real"])
+@pytest.mark.parametrize("written_at", ["link", "real"])
+def test_read_and_written_either_way_its_paths_dont_change(
+    linked_file, read_at, written_at
+):
+    # Opening and saving changes nothing (FR-033, T5).
+    tla.write(linked_file.real, with_paths(linked_file.media, linked_file.pdf))
+    before = linked_file.real.read_bytes()
+    doc = tla.read(getattr(linked_file, read_at))
+    tla.write(getattr(linked_file, written_at), doc, expect=doc.fingerprint)
+    assert linked_file.real.read_bytes() == before
+
+
+@pytest.mark.parametrize("since", [None, "removed", "names another file"])
+def test_a_save_as_of_a_file_read_through_a_link_rebases_from_the_file_read(
+    linked_file, tmp_path, since
+):
+    # From the folder of the file the link named when it was read, even if the
+    # link has changed since (FR-033: the folder it was read from).
+    tla.write(linked_file.real, with_paths(linked_file.media, linked_file.pdf))
+    doc = tla.read(linked_file.link)
+    if since is not None:
+        linked_file.link.unlink()
+    if since == "names another file":
+        other = tmp_path / "other.tla"
+        other.write_bytes(linked_file.real.read_bytes())
+        link_to_file(linked_file.link, other, relative=False)
+    target = tmp_path / "out" / "copy.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert written(target) == ("../corpus/audio/a.wav", "../corpus/scores/a.pdf")
+    assert os.path.samefile(tla.media(target, doc).path, linked_file.media)
+
+
+def test_an_origin_set_since_reading_is_where_the_paths_are_relative_to(
+    corpus, tmp_path
+):
+    # The folder found when the document was read is the folder of that origin
+    # only: a caller who sets another says where its paths are relative to.
+    doc = tla.read(corpus)
+    doc.origin = tmp_path / "a" / "b" / "piece.tla"
+    target = tmp_path / "out" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert written(target) == (f"../a/audio/{NAME}.flac", f"../a/scores/{NAME}.pdf")
+
+
+def test_tilia_migrate_through_a_link_to_a_file_makes_paths_relative_to_that_file(
+    linked_file, capsys, where
+):
+    # #431's case: the walk of `corpus` takes the link to a file, and the write
+    # writes the file it names.
+    media = linked_file.media if where == "media" else linked_file.pdf
+    content = old_content(where, str(media), SAVED_HERE)
+    linked_file.real.write_text(json.dumps(content), "utf-8")
+    expected = FROM_THE_REAL_FILE[0 if where == "media" else 1]
+    assert stored_in(tla.read(linked_file.link), where) == expected  # as read
+
+    status = migrate_command.main([str(linked_file.link.parent), "--apply"])
+
+    out = capsys.readouterr().out
+    assert status == 0, out
+    assert "Wrote 1 file." in out
+    assert linked_file.link.is_symlink()
+    assert stored_in(tla.read(linked_file.real), where) == expected
+    for path in (linked_file.link, linked_file.real):
+        stored = stored_in(tla.read(path), where)
+        assert os.path.samefile(tla.stored_file(path, stored), media)
+
+
+def new_document_with_media(media):
+    doc = tla.new_document()
+    doc.media_path, doc.media_length = tla.as_media_path(media), 10.0
+    return doc
+
+
+def test_a_link_to_a_link_to_a_file_takes_the_folder_of_the_file(tmp_path):
+    real = tmp_path / "elsewhere" / "deep" / "real.tla"
+    real.parent.mkdir(parents=True)
+    hop = link_to_file(tmp_path / "hop" / "hop.tla", real, relative=True)
+    link = link_to_file(tmp_path / "corpus" / "link.tla", hop, relative=False)
+    media = media_file(tmp_path / "corpus" / "audio" / "a.wav")
+    tla.write(link, new_document_with_media(media))
+    assert json.loads(real.read_bytes())["media"]["path"] == FROM_THE_REAL_FILE[0]
+    assert os.path.samefile(tla.media(link, tla.read(link)).path, media)
+
+
+@pytest.fixture
+def deeper_linked_folder(tmp_path):
+    """tmp_path/linked, a link to the folder x/y/real, two folders deeper."""
+    real = tmp_path / "x" / "y" / "real"
+    real.mkdir(parents=True)
+    linked = tmp_path / "linked"
+    link_folder(linked, real)
+    yield linked, real
+    remove_link_to_folder(linked)
+
+
+def test_a_link_to_a_folder_before_a_link_to_a_file_isnt_followed(
+    deeper_linked_folder,
+):
+    # The file the link names is in a folder taken as the link names it: through
+    # the linked folder, as a media path given through it is
+    # (TimeLineAnnotator/project-management#366). Through its target, the path
+    # would go out of the linked folder and back in: ../../../../linked/audio/a.wav.
+    linked, real = deeper_linked_folder
+    (linked / "store").mkdir()
+    media = media_file(linked / "audio" / "a.wav")
+    link = link_to_file(
+        linked / "corpus" / "piece.tla", linked / "store" / "piece.tla", relative=True
+    )
+    tla.write(link, new_document_with_media(media))
+    piece = real / "store" / "piece.tla"
+    assert json.loads(piece.read_bytes())["media"]["path"] == "../audio/a.wav"
+
+
+@posix_only
+@pytest.mark.parametrize(
+    "beside_the_link", [False, True], ids=["no file by name", "another file by name"]
+)
+def test_a_parent_in_a_links_target_is_the_one_the_system_reads(
+    tmp_path, beside_the_link
+):
+    # The link is in a linked folder, and names ../store/piece.tla: the system goes
+    # up from the linked folder's target, where reading the link by name would go
+    # up from the linked folder, to no file or another one.
+    real = tmp_path / "z" / "q"
+    (real / "r").mkdir(parents=True)
+    (real / "store").mkdir()
+    linked = tmp_path / "a" / "b"
+    linked.parent.mkdir()
+    link_folder(linked, real / "r")
+    if beside_the_link:
+        (tmp_path / "a" / "store").mkdir()
+        (tmp_path / "a" / "store" / "piece.tla").write_bytes(EVERY_KIND)
+    link = linked / "link.tla"
+    link.symlink_to(Path("..", "store", "piece.tla"))
+    media = media_file(real / "audio" / "a.wav")
+    tla.write(link, new_document_with_media(media))
+    piece = real / "store" / "piece.tla"
+    assert json.loads(piece.read_bytes())["media"]["path"] == "../audio/a.wav"
+    assert os.path.samefile(tla.media(link, tla.read(link)).path, media)
+
+
+def test_a_loop_of_links_names_no_file_and_doesnt_hang(tmp_path):
+    # Each link is followed a limited number of times: a loop's paths are taken
+    # from the folder of the link as given, where nothing can be read anyway.
+    one, other = tmp_path / "one.tla", tmp_path / "loop" / "other.tla"
+    link_to_file(other, one, relative=True)
+    link_to_file(one, other, relative=True)
+    media_file(tmp_path / "a.wav")
+    found = []
+    lookup = threading.Thread(
+        target=lambda: found.append(tla.stored_file(one, "a.wav")), daemon=True
+    )
+    lookup.start()
+    lookup.join(timeout=10)
+    assert not lookup.is_alive(), "following the links didn't stop"
+    assert found == [tmp_path / "a.wav"]
 
 
 # Writing: a stored path's names, and what its form makes of a backslash

@@ -1686,6 +1686,43 @@ class TestALink:
         assert contents(source) == original
         assert tla.read(copied / S4).format_version == tla.FORMAT_VERSION
 
+    @pytest.mark.parametrize("kept_absolute", [False, True], ids=["relative", "kept"])
+    def test_to_a_file_elsewhere_isnt_a_difference(
+        self, tmp_path, capsys, kept_absolute
+    ):
+        # SOURCE and COPY each hold a link to a file two folders deeper, outside
+        # them. Its paths are relative to the folder of the file the link names
+        # (FR-033; TimeLineAnnotator/project-management#431): made so by the
+        # migration, or, for a path it kept absolute (#530), by the second write.
+        if kept_absolute:  # on the drive of the folders, so that a relative one exists
+            here = (Path(tmp_path.anchor) / "Nowhere-433").as_posix()
+            change = with_paths(
+                f"{here}/sonata.ogg", f"{here}/sonata.pdf", f"{ELSEWHERE}/sonata.tla"
+            )
+        else:
+            (tmp_path / "audio").mkdir()
+            (tmp_path / "audio" / "sonata.ogg").touch()
+            change = with_paths((tmp_path / "audio" / "sonata.ogg").as_posix())
+        content = old_file()
+        change(content)
+        folders = tmp_path / "source", tmp_path / "copy"
+        for folder in folders:
+            real = tmp_path / f"{folder.name}-elsewhere" / "deep" / EVERY_KIND
+            real.parent.mkdir(parents=True)
+            real.write_text(json.dumps(content), encoding="utf-8")
+            folder.mkdir()
+            try:
+                (folder / EVERY_KIND).symlink_to(real)
+            except (OSError, NotImplementedError) as error:
+                pytest.skip(f"can't make a link here: {error}")
+
+        status = check_migration.main([str(folder) for folder in folders])
+
+        assert status == 0, capsys.readouterr().out
+        migrated = tla.read(tmp_path / "copy-elsewhere" / "deep" / EVERY_KIND)
+        if not kept_absolute:
+            assert migrated.media_path == "../../audio/sonata.ogg"
+
 
 class TestAFolderThatIsntACopy:
     def test_a_file_only_in_the_source_is_a_difference(self, source, copied, capsys):
