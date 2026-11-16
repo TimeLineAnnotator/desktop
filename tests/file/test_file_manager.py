@@ -14,7 +14,7 @@ from tests.mock import (
     patch_yes_no_or_cancel_mb,
     patch_yes_or_no_dialog,
 )
-from tests.utils import load_local_media
+from tests.utils import load_local_media, save_tilia_to_tmp_path
 from tilia.file.file_manager import FileManager
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.tilia_file import TiliaFile
@@ -240,3 +240,55 @@ class TestFileManager:
         assert tilia.file_manager.file.media_metadata[
             "title"
         ] == MediaMetadata.REQUIRED_FIELDS.get("title")
+
+
+HASH_KEYS = {"hash", "components_hash", "timelines_hash"}
+
+
+def find_hash_keys(data, path=()):
+    """Returns the path to every hash key in `data`, at any depth."""
+    found = []
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if key in HASH_KEYS:
+                found.append((*path, key))
+            found += find_hash_keys(value, (*path, key))
+    elif isinstance(data, list):
+        for index, value in enumerate(data):
+            found += find_hash_keys(value, (*path, index))
+    return found
+
+
+class TestHashesAreNotSaved:
+    def test_saved_file_has_no_hashes(self, tilia, marker_tlui, tmp_path):
+        commands.execute("timeline.marker.add")
+        file_path = save_tilia_to_tmp_path(tmp_path)
+
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        marker_tl_data = data["timelines"][str(marker_tlui.id)]
+        assert len(marker_tl_data["components"]) == 1
+        assert find_hash_keys(data) == []
+
+    @staticmethod
+    def save_and_reopen_checking_no_hashes(tmp_path):
+        file_path = save_tilia_to_tmp_path(tmp_path)
+        with open(file_path, encoding="utf-8") as f:
+            assert find_hash_keys(json.load(f)) == []
+        post(Post.APP_CLEAR)
+        commands.execute("file.open", path=file_path)
+
+    def test_file_without_hashes_reopens_unmodified(self, tilia, marker_tlui, tmp_path):
+        commands.execute("timeline.marker.add")
+        self.save_and_reopen_checking_no_hashes(tmp_path)
+
+        assert not get(Get.IS_FILE_MODIFIED)
+
+    def test_change_after_reopening_file_without_hashes_is_detected(
+        self, tilia, tls, marker_tlui, tmp_path
+    ):
+        self.save_and_reopen_checking_no_hashes(tmp_path)
+        commands.execute("timeline.marker.add")
+
+        assert get(Get.IS_FILE_MODIFIED)

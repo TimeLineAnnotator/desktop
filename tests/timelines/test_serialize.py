@@ -143,13 +143,7 @@ class TestRoundTripDesktopFileDesktop:
         commands.execute("timelines.permute_ordinal", marker_tlui, beat_tlui)
         after = save_tilia_to_tmp_path(tmp_path, "after")
 
-        volatile = (
-            '"file_path"',
-            '"ordinal"',
-            '"hash"',
-            '"components_hash"',
-            '"timelines_hash"',
-        )
+        volatile = ('"file_path"', '"ordinal"')
         diff = difflib.unified_diff(
             Path(before).read_text("utf-8").splitlines(),
             Path(after).read_text("utf-8").splitlines(),
