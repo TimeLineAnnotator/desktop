@@ -143,18 +143,22 @@ class CLI:
             namespace = self.parser.parse_args(cmd)
             if hasattr(namespace, "func"):
                 namespace.func(namespace)
-            return False
+            failed = False
         except argparse.ArgumentError as err:
             post(Post.DISPLAY_ERROR, "Argument error", str(err))
             self.exception = err
-            return True
+            failed = True
         except SystemExit as err:
             self.exception = err
-            return True
+            failed = True
         except Exception as err:
             self.exception = err
             post(Post.DISPLAY_ERROR, "CLI error", traceback.format_exc())
-            return True
+            failed = True
+        # A command records nothing for undo: the file's document follows what it
+        # did here.
+        post(Post.APP_EDIT_DONE)
+        return failed
 
     @staticmethod
     def on_request_to_display_error(_, message: str) -> None:

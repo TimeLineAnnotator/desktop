@@ -20,7 +20,7 @@ from tilia.ui import commands
 from tilia.ui.format import format_media_time, parse_media_time
 
 if TYPE_CHECKING:
-    from tilia.file.tilia_file import TiliaFile
+    from tilia.file.open_document import OpenDocument
 
 
 class PlayerToolbar(QToolBar):
@@ -97,7 +97,7 @@ class PlayerToolbar(QToolBar):
             commands.execute("media.seek", min(self._pending_time, duration))
             self._pending_time = None
 
-    def _on_file_loaded(self, file: TiliaFile) -> None:
+    def _on_file_loaded(self, file: OpenDocument) -> None:
         self._pending_time = settings.get_file_time(file.file_path)
 
     def _on_clear(self) -> None:

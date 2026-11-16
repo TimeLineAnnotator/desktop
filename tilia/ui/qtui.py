@@ -38,7 +38,7 @@ import tilia.ui.dialogs.file
 import tilia.ui.timelines.constants
 import tilia.updates
 from tilia.file.media_metadata import MediaMetadata
-from tilia.file.tilia_file import TiliaFile
+from tilia.file.open_document import OpenDocument
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.ui import commands
@@ -473,7 +473,7 @@ class QtUI:
     def on_file_setup(self) -> None:
         self._reset_window_title()
 
-    def on_file_loaded(self, file: TiliaFile) -> None:
+    def on_file_loaded(self, file: OpenDocument) -> None:
         geometry, state = settings.get_file_geometry(file.file_path)
         if geometry and state:
             self.main_window.restoreGeometry(geometry)

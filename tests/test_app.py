@@ -70,9 +70,9 @@ class TestSaveFileOnClose:
     def _get_modified_file_state():
         return {
             "timelines": {},
+            "timelines_hash": "",
             "media_path": "modified.ogg",
             "media_metadata": {},
-            "file_path": "",
         }
 
     def test_no_changes(self):
@@ -358,9 +358,9 @@ class TestFileLoad:
         tilia_errors,
     ):
         # "keep" leaves components at the old end in place when the player
-        # reports a slightly shorter duration after open. Saving then stores
-        # the shorter media length with the components past it; reopening
-        # keeps them as they are, neither dropped nor moved.
+        # reports a slightly shorter duration after open. Saving keeps the
+        # stored media length, as the report is within the tolerance (FR-034);
+        # reopening keeps the components as they are, neither dropped nor moved.
         tilia_state.media_path = EXAMPLE_MEDIA_PATH
         tilia_state.set_duration(EXAMPLE_MEDIA_DURATION, scale_timelines="no")
         commands.execute("media.seek", EXAMPLE_MEDIA_DURATION)
@@ -379,7 +379,7 @@ class TestFileLoad:
             save_and_reopen(tmp_path)
 
         tilia_errors.assert_no_error()
-        assert tilia_state.duration == reported_duration
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
         marker_tl = tls.get_timelines_by_type(MarkerTimeline)[0]
         assert len(marker_tl) == 1
         assert marker_tl[0].get_data("time") == EXAMPLE_MEDIA_DURATION
@@ -655,6 +655,9 @@ def assert_open_failed(tilia, tilia_errors, opened_file_path, prev_file):
 class TestOpen:
     def test_open_with_timeline(self, qtui, tls, tmp_path):
         commands.execute("timelines.add.hierarchy", name="test")
+        # Without the unit it starts with, which those added would overlap: the
+        # core refuses to write that.
+        tls.get_timelines_by_type(HierarchyTimeline)[0].clear()
         for start, end, level in [(0, 1, 1), (1, 2, 1), (2, 3, 2)]:
             commands.execute(
                 "timeline.hierarchy.add", start=start, end=end, level=level
@@ -886,9 +889,11 @@ class TestUndoRedo:
         commands.execute("timelines.add.marker", name="test")
 
         # this will record an invalid state that will raise an exception when
-        # we try to restore it
-        with patch.object(tilia, "get_app_state", return_value={}):
-            commands.execute("timeline.marker.add")
+        # we try to restore it. It is put in the undo stack directly: the file's
+        # document follows the state each action records, so the action itself
+        # must record a valid one.
+        commands.execute("timeline.marker.add")
+        tilia.undo_manager.stack[-1]["state"] = {}
 
         # executing another command so the following redo
         # will try to restore the previous, faulty state
@@ -908,11 +913,11 @@ class TestUndoRedo:
         commands.execute("timelines.add.marker", name="test")
 
         # this will record an invalid state that will raise an exception when
-        # we try to restore it
+        # we try to restore it, put in the undo stack directly, as above
         # Note: this could be improved by providing a state that is actually
         # similar to a healthy state
-        with patch.object(tilia, "get_app_state", return_value={}):
-            commands.execute("timeline.marker.add")
+        commands.execute("timeline.marker.add")
+        tilia.undo_manager.stack[-1]["state"] = {}
 
         # going back to previous state
         commands.execute("edit.undo")
@@ -1129,10 +1134,10 @@ class TestSave:
         save_path = tmp_path / "test.tla"
         commands.execute("file.save_as", str(save_path.resolve()))
 
-        with open(save_path) as f:
+        with open(save_path, encoding="utf-8") as f:
             contents = json.load(f)
 
-        assert contents["media_path"] == url
+        assert contents["media"]["path"] == url
 
     # TODO: add tests for saving paths as Posix paths
 

@@ -1,6 +1,6 @@
 import json
 import sys
-from pathlib import Path, WindowsPath
+from pathlib import WindowsPath
 from random import randint
 from unittest.mock import mock_open, patch
 
@@ -209,20 +209,26 @@ class TestFileManager:
         with patch_file_dialog(True, [str(WindowsPath(file_path))]):
             commands.execute("file.save")
 
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        assert data["file_path"] == Path(file_path).as_posix()
-        assert data["media_path"] == Path(EXAMPLE_MEDIA_PATH).as_posix()
+        # The file stores no path of its own, and the core writes the media's with
+        # forward slashes.
+        assert "file_path" not in data
+        assert data["media"]["path"]
+        assert "\\" not in data["media"]["path"]
 
     def test_save_without_set_title_and_different_file_name(
         self, qtui, tilia, tmp_path
     ):
+        # The file's name doesn't become its title (FR-008).
         tla_path = tmp_path / "Some Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
             commands.execute("file.save")
 
-        assert tilia.file_manager.file.media_metadata["title"] == "Some Title"
+        assert tilia.file_manager.file.media_metadata[
+            "title"
+        ] == MediaMetadata.REQUIRED_FIELDS.get("title")
 
     def test_save_with_title_set_and_different_file_name(self, qtui, tilia, tmp_path):
         tilia.file_manager.file.media_metadata["title"] = "Title Already Set"
@@ -232,7 +238,7 @@ class TestFileManager:
 
         assert tilia.file_manager.file.media_metadata["title"] == "Title Already Set"
 
-    def test_save_fail_reverts_to_original_name(self, qtui, tilia, tmp_path):
+    def test_a_failed_save_leaves_the_title(self, qtui, tilia, tmp_path):
         tla_path = tmp_path / "Non-existent Path" / "Some Other Title.tla"
         with patch_file_dialog(True, [str(tla_path)]):
             commands.execute("file.save")
