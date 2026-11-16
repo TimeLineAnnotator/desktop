@@ -14,7 +14,7 @@ from fractions import Fraction
 from typing import Any
 
 from tilia_core import tla
-from tilia_core.timemap._rows import RowIn, _beat_unit, _dict, rows_of
+from tilia_core.timemap._rows import RowIn, _dict, rows_of
 from tilia_core.timemap.meters import meters_of
 from tilia_core.timemap.table import (
     MeasureRow,
@@ -630,10 +630,11 @@ def apply_plan(document: tla.Document, plan: Plan) -> None:
 
     A "beat_unit" change sets or removes a beat's `beat_unit`, a
     "measure.source" change the `source` in a downbeat's `measure` mark, a
-    "measure_source" change the timeline's. The rows of the timeline's
-    measure table follow: their `source`, and the `beat_units` of the
-    measures whose beats changed; their `beat_unit`, the unit in force, is
-    not updated. Opens no file: WP3's writer writes the document.
+    "measure_source" change the timeline's. Each timeline changed then gets
+    its measure table built again by WP3's builder (`tla.measure_table`),
+    the table the reader would build from the file the document is written
+    as: the units set and in force, and the sources. Opens no file: WP3's
+    writer writes the document.
     """
     pending: dict[tuple[str, str | None, str], Any] = {}
     for change in plan.changes:
@@ -661,15 +662,13 @@ def apply_plan(document: tla.Document, plan: Plan) -> None:
                 f" timeline {timeline_id} aren't those it was made from."
             )
 
-    beats: dict[str, set[str]] = {}
+    changed: dict[str, tla.Timeline] = {}
     for change in plan.changes:
         timeline = document.timelines[change.timeline_id]
         _write(timeline, change)
-        changed = beats.setdefault(timeline.id, set())
-        if change.key == "beat_unit" and change.component_id is not None:
-            changed.add(change.component_id)
-    for timeline_id, changed in beats.items():
-        _update_table(document.timelines[timeline_id], changed)
+        changed[timeline.id] = timeline
+    for timeline in changed.values():
+        timeline.measures = tla.measure_table(timeline)
 
 
 def _value(document: tla.Document, change: Change) -> Any:
@@ -709,20 +708,3 @@ def _set(values: dict[str, Any], key: str, value: Any) -> None:
         values.pop(key, None)
     else:
         values[key] = value
-
-
-def _update_table(timeline: tla.Timeline, changed: set[str]) -> None:
-    """Brings the table's rows in line with the marks and the units: their
-    sources, and the units of the measures whose beats changed, as the
-    measure table reads them."""
-    table = timeline.measures
-    if table is None:
-        return
-    table.source = _measure_source(timeline) or table.source
-    for row in table.rows:
-        own = _dict(timeline.components.get(row.id), "measure").get("source")
-        row.source = table.source if own is None else own
-        if changed.intersection(row.beats):
-            components = (timeline.components.get(b) for b in row.beats)
-            units = (_beat_unit(timeline, c) for c in components if c is not None)
-            row.beat_units = [unit for unit in units if unit is not None]

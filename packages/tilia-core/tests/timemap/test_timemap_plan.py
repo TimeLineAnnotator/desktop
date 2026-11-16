@@ -1948,9 +1948,13 @@ class TestApply:
         rows = tl.measures.rows
         assert [row.source for row in rows] == ["tapped", "score", "tapped"]
         assert rows[1].beat_units == [tla.BeatUnit(denominator=8, units="3")]
+        # The unit in force too: the table is built again, as the reader builds it.
+        assert rows[1].beat_unit == tla.BeatUnit(denominator=8, units="3")
+        assert tl.measures == tla.measure_table(tl)
 
         apply_plan(doc, plan(doc, tl, bars(1, 2, 3, text="6/8"), source="import"))
 
+        rows = tl.measures.rows
         assert tl.measures.source == tl.attrs["measure_source"] == "import"
         assert [row.source for row in rows] == ["import"] * 3
         assert rows[0].beat_units == [tla.BeatUnit(denominator=8, units="3")]
