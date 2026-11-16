@@ -316,9 +316,15 @@ class RangeTimeline(Timeline):
         *args,
         rows: list[dict] | None = None,
         default_row_height: int | None = None,
+        height: int | None = None,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        # Before range timelines had a default height, TiLiA saved them with 1,
+        # which the validator refuses. That was no one's choice, so a height the
+        # validator refuses gets the default, as if none was given.
+        if height is not None and not self.validators["height"](height):
+            height = None
+        super().__init__(*args, height=height, **kwargs)
 
         if rows is None:
             rows = []
