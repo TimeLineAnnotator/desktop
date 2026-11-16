@@ -549,26 +549,29 @@ class _OpenBefore:
 
     def give_back(self) -> None:
         app = self.app
+        # What the other file left half loaded goes first, so that restoring this
+        # one finds no timelines: it then asks nothing about scaling them.
         try:
-            # What the other file left half loaded goes first, so that restoring
-            # this one finds no timelines: it then asks nothing about scaling them.
+            app.on_clear()
+        except Exception:
+            logger.exception("Clearing what a file that failed to load left.")
+        try:
+            self._restore()
+        except Exception:
+            logger.exception("Restoring the file open before, once.")
             try:
                 app.on_clear()
-            except Exception:
-                logger.exception("Clearing what a file that failed to load left.")
-            try:
                 self._restore()
             except Exception:
-                logger.exception("Restoring the file open before, once.")
-                app.on_clear()
-                self._restore()
-        finally:
-            # The file, its path and its undo history come back whatever happens,
-            # so that the file open before is never lost for the one that failed.
-            app.file_manager.give_back_file(self.file)
-            app.cur_file_path = self.file_path
-            undo = app.undo_manager
-            undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo
+                # It can't come back. TiLiA keeps the new file the clearing gave,
+                # which a save doesn't write over the file open before, and the
+                # command's failure says so.
+                app.cur_file_path = None
+                raise
+        app.file_manager.give_back_file(self.file)
+        app.cur_file_path = self.file_path
+        undo = app.undo_manager
+        undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo
 
     def _restore(self) -> None:
         app = self.app

@@ -453,21 +453,25 @@ class TestALoadThatFailsPartWay:
         assert len(calls) == 2
         open_before.assert_unchanged()
 
-    def test_a_restore_that_keeps_failing_still_gives_back_the_file(
+    def test_a_restore_that_keeps_failing_leaves_a_new_file(
         self, open_before, tilia, tls, tmp_path
     ):
+        # The file open before can't come back, so no save may write what is
+        # left, nothing, over it: TiLiA keeps the new file the clearing gave.
+        before = Path(tilia.file_manager.get_file_path())
+        on_disk = before.read_bytes()
         edit_and_record(tls)
-        file, undo_states = tilia.file_manager.file, list(tilia.undo_manager.stack)
-        cur_file_path = tilia.cur_file_path
 
         with patch.object(App, "_restore_app_state", side_effect=RuntimeError):
             with pytest.raises(Exception, match="file.open"):
                 open_failing(a_file(tmp_path, name="other.tla"))
 
-        assert tilia.file_manager.file is file
-        assert tilia.undo_manager.stack == undo_states
-        assert tilia.cur_file_path == cur_file_path
-        assert tilia.is_file_modified()
+        assert tilia.file_manager.get_file_path() == ""
+        assert tilia.cur_file_path is None
+        with ServeRecording(Get.FROM_USER_SAVE_PATH_TILIA, (False, "")) as asked:
+            commands.execute("file.save")
+        assert asked.called  # a new file: Save asks where
+        assert before.read_bytes() == on_disk
 
 
 def expected_timelines(path: Path) -> dict:
