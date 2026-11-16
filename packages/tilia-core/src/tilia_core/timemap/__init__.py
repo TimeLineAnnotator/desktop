@@ -3,18 +3,27 @@
 Nothing here opens a file. From a `tla.Document`:
 
 - **Choosing and building:** `time_map_of` and `find_time_map` choose a
-  document's time map, `time_map_for` takes a named beat timeline's, and
+  document's time map, from the beat timeline that claims the role time_map
+  (`tla.model.claims_time_map`, the rule `tla`'s check of a file reads too),
+  else the first. `time_map_for` takes a named beat timeline's, and
   `measure_rows` gives a timeline's `MeasureRow`s, also where it has no time
   map; `table_problem` says why a table gives none.
 - **The time map:** a `TimeMap` says where a time lies (`Positions`), how long
   a span lasts in bars, beats and quarter notes, and where a bar is.
 - **Beat units and time signatures:** `meters_of`, over `rows_of`'s `RowIn`s,
-  gives each measure's `Meter`, which is `units.MeasureMeter` under a shorter
-  name. `format_time_signature` writes a time signature and `TimeSignature`
-  reads one. The other names of `units` are exported here too.
+  gives each measure's `Meter`, from the unit in force there
+  (`tla.model.units_in_force`, the rule `tla`'s measure table follows too).
+  `Meter` is `units.MeasureMeter` under a shorter name. `format_time_signature`
+  writes a time signature and `TimeSignature` reads one. The other names of
+  `units` are exported here too.
 - **Plans:** `plan_time_signatures` lists, as a `Plan` of `Change`s, the writes
-  that give the bars a source names (`BarRef`) their time signatures.
-  `apply_plan` makes them in memory, or raises `PlanOutOfDate`.
+  that give the bars a source names (`BarRef`) their time signatures. By
+  default, where a bar it doesn't name would then read another unit, it
+  writes back the one that bar read, so that only the bars it names change.
+  A run of bars it sets whose write-back would replace a unit the reader
+  can't read is left out, and the bar of that write-back listed in
+  `Plan.unreadable`. `apply_plan` makes the writes in memory, or raises
+  `PlanOutOfDate`.
 """
 
 from __future__ import annotations
