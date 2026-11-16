@@ -54,6 +54,11 @@ def _get_media_files(filenames: list[str]) -> list:
     return media_files
 
 
+# Of the kinds a script adds, only hierarchy timelines take a height, as
+# `timelines add` accepts one only where TiLiA's window offers "Set height".
+KINDS_WITH_HEIGHT = {"hierarchy", "hrc"}
+
+
 def _get_args_from_filename(filename: str, kind: str) -> tuple[str, bool, str]:
     args = ""
     by_time_or_measure_set = False
@@ -61,10 +66,11 @@ def _get_args_from_filename(filename: str, kind: str) -> tuple[str, bool, str]:
     split_name.remove(kind)
     for arg in {"height", "beat-pattern"}:
         if arg in split_name:
-            args = " ".join(
-                [args, f"--{arg} {split_name.pop(split_name.index(arg) + 1)}"]
-            )
+            value = split_name.pop(split_name.index(arg) + 1)
             split_name.remove(arg)
+            if arg == "height" and kind not in KINDS_WITH_HEIGHT:
+                continue
+            args = " ".join([args, f"--{arg} {value}"])
 
     if "by-measure" in split_name:
         is_by_time = False
@@ -210,7 +216,7 @@ def get_scripts(directory: str | Path) -> list[Path]:
         Directory path (str): The absolute path to the directory that contains relevant files.
             - The function traverses through each folder/subfolder.
             - Each folder should contain at least a media file or "set_media_length.txt" (containing a single line of the number of seconds to set media length).
-            - .csv files should contain relevant timeline kind in their title, as well as "beat-pattern", "height", "by-time" or "by-measure" if applicable. These fields should be separated by '_'.
+            - .csv files should contain relevant timeline kind in their title, as well as "beat-pattern", "height" (hierarchy timelines only; ignored for others), "by-time" or "by-measure" if applicable. These fields should be separated by '_'.
             - .json files will be imported as metadata.
             - A 'script.txt' file will be produced per folder with sufficient data to create a potential script.
     Returns:

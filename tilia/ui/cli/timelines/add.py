@@ -36,17 +36,17 @@ KIND_STR_TO_TIMELINE_CLASS: dict[str, type[Timeline]] = {
 # The creation kwargs each kind accepts. This doubles as the validation
 # table: an optional argument the user passed that isn't listed for their
 # kind is rejected rather than silently dropped.
+# Only hierarchy and AudioWave timelines take a height, as only they offer "Set
+# height" in TiLiA's window (see timeline.set_height).
 TIMELINE_CLASS_TO_KWARGS_NAMES: dict[type[Timeline], list[str]] = {
     AudioWaveTimeline: ["name", "height"],
-    BeatTimeline: ["name", "height", "beat_pattern"],
-    # HarmonyTimeline takes no height: it derives one from level_height and
-    # visible_level_count, and raises TypeError if handed one as well.
+    BeatTimeline: ["name", "beat_pattern"],
     HarmonyTimeline: ["name"],
     HierarchyTimeline: ["name", "height"],
-    MarkerTimeline: ["name", "height"],
-    PdfTimeline: ["name", "height", "path"],
-    RangeTimeline: ["name", "height", "default_row_height"],
-    ScoreTimeline: ["name", "height"],
+    MarkerTimeline: ["name"],
+    PdfTimeline: ["name", "path"],
+    RangeTimeline: ["name", "default_row_height"],
+    ScoreTimeline: ["name"],
 }
 
 # Kwargs a kind can't be constructed without.
@@ -90,8 +90,7 @@ Examples:
         "-e",
         type=int,
         default=None,
-        help="Height of the timeline. Not valid for harmony timelines, whose "
-        "height follows from their level height and visible level count.",
+        help="Height of the timeline (hierarchy and AudioWave timelines only).",
     )
     add_subp.add_argument(
         "--beat-pattern",

@@ -58,7 +58,7 @@ BEAT_DISTRIBUTION_ERROR = Error(
 )
 SET_HEIGHT_NOT_APPLICABLE = Error(
     "Cannot set height",
-    "The height of a {} timeline comes from its {}.",
+    "The height of a {} timeline {}.",
 )
 BEAT_PATTERN_ERROR = Error(
     "Insert beat pattern", "Beat pattern must be one or more numbers."
