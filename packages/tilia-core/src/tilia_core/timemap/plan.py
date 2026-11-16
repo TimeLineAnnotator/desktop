@@ -205,8 +205,9 @@ def plan_time_signatures(
     is written, so the measures after a run of set measures take its unit,
     from there on.
 
-    Writes nothing to the document. Raises ValueError for a unit too long to
-    be read back.
+    Writes nothing to the document. Raises ValueError for a `source` or an
+    `after` it doesn't know, for a timeline that isn't a beat timeline of the
+    document, and for a unit too long to be read back.
     """
     if after not in ("restore", "carry"):
         raise ValueError(f"after must be 'restore' or 'carry', not {after!r}.")

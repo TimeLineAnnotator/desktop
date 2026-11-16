@@ -215,6 +215,7 @@ class TimeMap:
         A bar counts 1 whatever its metre, and inside a bar the fraction counts
         beats. A closing barline is the end of its movement's last bar, and a
         pause counts for nothing. None elsewhere off the map, and in a pause.
+        Any other unit gives None, and logs an error that names it.
         """
         if not _is_unit(unit):
             return None
@@ -224,7 +225,8 @@ class TimeMap:
         """How long a span lasts in bars or beats (`unit` "bar" or "beat"): the
         distance between its two positions, rounded to a millionth, so that 8
         bars compares equal to 8. None when either end is off the map or in a
-        pause; an end on a closing barline is on it, a start isn't."""
+        pause; an end on a closing barline is on it, a start isn't. Any other
+        unit gives None, and logs an error that names it."""
         if not _is_unit(unit):
             return None
         a = self._position(self._snapped(start), unit, closing=False)
@@ -236,7 +238,7 @@ class TimeMap:
     def unit_seconds(self, t: float, unit: str) -> float | None:
         """How long the beat or the bar holding `t` lasts (`unit` "beat" or
         "bar"), in the file's unit despite the name. None off the map, and in a
-        pause."""
+        pause. Any other unit gives None, and logs an error that names it."""
         if not _is_unit(unit):
             return None
         located = self._locate(self._snapped(t))
@@ -392,7 +394,7 @@ class TimeMap:
         """The times of `fraction` (0 to 1, counted in beats) through each
         measure the bar names, in time order: one per pass, as an import by
         measure asks for them (`lookup.times_of`). `segment_end` is for the
-        end of a span."""
+        end of a span. A fraction outside 0 to 1 gives none, with a warning."""
         return lookup.times_of(
             self._rows,
             self._slots,
