@@ -399,6 +399,32 @@ class TestThePdfsPath:
             "The PDF 'C:/scores/score.pdf' can't be read: every page number is refused"
         ]
 
+    def test_a_document_read_through_a_link_to_its_file_finds_its_pdf(
+        self, tmp_path, csv_file
+    ):
+        # Its path is relative to the folder of the file the link names (FR-033;
+        # TimeLineAnnotator/project-management#431), as `tla.stored_file` reads it.
+        (tmp_path / "corpus" / "scores").mkdir(parents=True)
+        pdf = make_pdf(tmp_path / "corpus" / "scores" / "score.pdf", 2)
+        real = tmp_path / "elsewhere" / "deep" / "piece.tla"
+        real.parent.mkdir(parents=True)
+        target = timeline("pdf", attrs={"path": str(pdf), "height": 30})
+        tla.write(real, document(timelines=[target]))
+        link = tmp_path / "corpus" / "piece.tla"
+        try:
+            link.symlink_to(real)
+        except (OSError, NotImplementedError) as error:
+            pytest.skip(f"this system doesn't let the tests make a link: {error}")
+        doc = tla.read(link)
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 2]))
+        )
+
+        assert doc.timelines[target.id].attrs["path"] == "../../corpus/scores/score.pdf"
+        assert result.problems == []
+        assert result.notes == []
+
     def test_pdf_file_asks_tlas_local_file(self, tmp_path, csv_file, monkeypatch):
         asked = []
 

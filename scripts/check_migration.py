@@ -24,7 +24,8 @@ a file already migrated, then checks each file:
   they come from, so that each component is compared with its own original, and
   everything it holds, but for what the migration changes on purpose, which is
   named below with what says so. A media or PDF path is compared with what the
-  migration should make of it, relative to the file's folder.
+  migration should make of it, relative to the file's folder: that of the file a
+  link names, for a link to a file (FR-033).
 
 It prints a report, whose first lines say whether chords and keys were checked and
 which files were left out, and exits with 0 when there is no difference, 1 when
@@ -65,7 +66,7 @@ from tilia_core.tla.layout import (
     Shape,
     nfc_value,
 )
-from tilia_core.tla.media_files import YOUTUBE_URL
+from tilia_core.tla.media_files import YOUTUBE_URL, paths_folder, paths_folder_of
 from tilia_core.tla.migrate.old import TILIA_0_7_HEIGHTS, renames_display_position
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -688,7 +689,7 @@ def timeline_differences(
         held.pop("score", None)
     if kind == "pdf":
         path = held.pop("path", None)
-        folder = str(document.origin.parent) if document.origin else ""
+        folder = paths_folder_of(document) or ""
         yield from path_differences(
             old.get("path"), file_path, path, folder, f"{place}/path", media=False
         )
@@ -787,7 +788,7 @@ def against_old_file(
             f" original, {short(list(document.metadata))} in the copy"
         )
     file_path = content.get("file_path")
-    folder = str(document.origin.parent) if document.origin else ""
+    folder = paths_folder_of(document) or ""
     yield from path_differences(
         content.get("media_path", ""),
         file_path,
@@ -946,7 +947,7 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
         found.extend(against_old_file(content, after, dropped))
         notes.extend(dropped.found)
         tla.write(copy, after, expect=tla.fingerprint(copy))
-        if copy.read_bytes() != made_relative(written, os.path.abspath(copy.parent)):
+        if copy.read_bytes() != made_relative(written, paths_folder(copy)):
             found.append(SECOND_WRITE_CHANGED)
     return found, notes, held_in(after)
 

@@ -39,6 +39,7 @@ from tilia_core.tla.media_files import (
     absolute_form,
     folder_of,
     local_file,
+    paths_folder,
     relative_path,
     with_scheme,
     with_slashes,
@@ -57,8 +58,9 @@ def make_relative(
     path `https://` when it is a YouTube link TiLiA stored without a scheme
     (FR-033). `file_path` is the old file's, and `path` where the file is now;
     None for bytes read without their place, which then have no current
-    folder."""
-    folder = None if path is None else os.path.dirname(os.path.abspath(path))
+    folder. The current folder is that of the file a link names, when `path`
+    is a link to a file (`paths_folder`)."""
+    folder = None if path is None else paths_folder(path)
     media = content["media"]
     stored = media["path"]
     if isinstance(stored, str):  # anything else is left for the check to refuse
