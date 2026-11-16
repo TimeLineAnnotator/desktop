@@ -22,7 +22,8 @@ REFUSED = {
         "settings."
     ),
     "pdf_tlui": (
-        "The height of a PDF timeline comes from the default height in the settings."
+        "The height of a PDF timeline is the default height in the settings when "
+        "it was added."
     ),
     "range_tlui": "The height of a range timeline comes from its rows.",
     "score_tlui": "The height of a score timeline comes from its staves.",

@@ -67,7 +67,7 @@ HEIGHT_COMES_FROM = {
     BeatTimeline: ("beat", "is fixed"),
     HarmonyTimeline: ("harmony", "is its level height times the levels shown"),
     MarkerTimeline: ("marker", "comes from the default height in the settings"),
-    PdfTimeline: ("PDF", "comes from the default height in the settings"),
+    PdfTimeline: ("PDF", "is the default height in the settings when it was added"),
     RangeTimeline: ("range", "comes from its rows"),
     ScoreTimeline: ("score", "comes from its staves"),
     SliderTimeline: ("slider", "comes from the default height in the settings"),
