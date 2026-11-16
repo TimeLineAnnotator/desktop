@@ -1,6 +1,8 @@
 """The package's public surface: the names its contract gives, their
-docstrings, and the example in the package's README."""
+docstrings, the names its own docstring cites, and the example in the
+package's README."""
 
+import dataclasses
 import doctest
 import inspect
 import re
@@ -127,6 +129,43 @@ def test_timemap_the_docstring_test_sees_a_dataclass_without_one():
         value: int
 
     assert _written_docstring(Bare) is None
+
+
+def _cited(text):
+    """The names a docstring puts in backticks, such as `TimeMap`,
+    `tla.model.claims_time_map` or `Plan.unreadable`."""
+    return re.findall(r"`([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)`", text)
+
+
+def _exists(name):
+    """Whether `name` is there, from the package: a dataclass's field counts
+    too, though it has no attribute when its default is a factory."""
+    *path, last = name.split(".")
+    owner = timemap
+    for part in path:
+        owner = getattr(owner, part, None)
+        if owner is None:
+            return False
+    if dataclasses.is_dataclass(owner) and last in {
+        f.name for f in dataclasses.fields(owner)
+    }:
+        return True
+    return hasattr(owner, last)
+
+
+def test_timemap_the_package_docstring_names_what_exists():
+    cited = _cited(timemap.__doc__)
+
+    assert any("." in name for name in cited)
+    assert [name for name in cited if not _exists(name)] == []
+
+
+@pytest.mark.parametrize(
+    "name", ["no_such_name", "tla.model.no_such_rule", "Plan.no_such_field"]
+)
+def test_timemap_the_name_test_sees_a_name_that_isnt_there(name):
+    # Without this, the test above would pass whatever the docstring cites.
+    assert not _exists(name)
 
 
 def _bars_and_beats_example() -> str:
