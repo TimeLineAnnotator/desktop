@@ -17,7 +17,7 @@ import tilia.errors
 from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
 from tilia.settings import settings
 from tilia.ui import commands
-from tilia.ui.format import format_media_time, parse_media_time
+from tilia.ui.format import MEDIA_TIME_PATTERN, format_media_time, parse_media_time
 
 if TYPE_CHECKING:
     from tilia.file.tilia_file import TiliaFile
@@ -244,9 +244,7 @@ class PlayerToolbar(QToolBar):
         self.tooltipped_widgets[self.loop_toggle_action] = "Toggle Loop"
         self.addAction(self.loop_toggle_action)
 
-    _TIME_RE = QRegularExpressionValidator(
-        QRegularExpression(r"^\d*(?::\d*(?::\d*)?)?(?:\.\d*)?$")
-    )
+    _TIME_RE = QRegularExpressionValidator(QRegularExpression(MEDIA_TIME_PATTERN))
 
     def add_time_label(self):
         self.time_edit = QLineEdit(self.current_time_string)

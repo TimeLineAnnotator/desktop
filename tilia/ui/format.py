@@ -1,3 +1,8 @@
+# What an input for a time accepts while it is typed: the forms
+# parse_media_time reads, and the incomplete ones on the way to them.
+MEDIA_TIME_PATTERN = r"^\d*(?::\d*(?::\d*)?)?(?:\.\d*)?$"
+
+
 def format_media_time(audio_time: float | str) -> str:
     seconds_and_fraction = f"{audio_time % 60:.1f}".zfill(4)
     minutes = int(float(audio_time) // 60)

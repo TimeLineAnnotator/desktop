@@ -1,5 +1,7 @@
 import functools
 
+from PySide6.QtCore import QRegularExpression
+from PySide6.QtGui import QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -8,14 +10,15 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 import tilia.errors
-from tilia.requests import Get, Post, get, listen, post
+from tilia.requests import Get, Post, get, listen, post, stop_listening_to_all
 from tilia.settings import settings
-from tilia.ui.format import format_media_time
+from tilia.ui.format import MEDIA_TIME_PATTERN, format_media_time, parse_media_time
 from tilia.ui.windows import WindowKind
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
@@ -42,6 +45,10 @@ class MediaMetadataWindow(QDialog):
             Post.SETTINGS_UPDATED,
             self.on_settings_updated,
         )
+        # Loading or unloading media changes the length, and whether it can be
+        # edited.
+        listen(self, Post.PLAYER_URL_CHANGED, lambda _: self.update_read_only_fields())
+        listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
         self.setLayout(QVBoxLayout())
         self.setup_layout()
         self.show()
@@ -101,13 +108,56 @@ class MediaMetadataWindow(QDialog):
             self.metadata_original[name] = value
 
     def populate_with_read_only_fields(self):
+        self.read_only_labels = {}
+        for name in self.READ_ONLY_FIELDS:
+            value_label = QLabel()
+            value_label.setWordWrap(True)
+            self.read_only_labels[name] = value_label
+            field = value_label
+            if name == "media length":
+                field = self._setup_media_length_field(value_label)
+            self.form_layout.addRow(QLabel(name.capitalize()), field)
+        self.update_read_only_fields()
+
+    def _setup_media_length_field(self, value_label: QLabel) -> QWidget:
+        # With no media loaded, the length is the user's to set, as the dialog
+        # for adding a timeline without media and the command line let them.
+        # With media, it is the media's.
+        self.media_length_edit = QLineEdit()
+        self.media_length_edit.setValidator(
+            QRegularExpressionValidator(
+                QRegularExpression(MEDIA_TIME_PATTERN), self.media_length_edit
+            )
+        )
+        self.media_length_field = QStackedWidget()
+        self.media_length_field.addWidget(value_label)
+        self.media_length_field.addWidget(self.media_length_edit)
+        return self.media_length_field
+
+    def on_media_duration_changed(
+        self, duration: float, is_confirmation: bool = False
+    ) -> None:
+        # This is posted before Get.MEDIA_DURATION serves the new length.
+        self.update_read_only_fields(media_length=duration)
+
+    def update_read_only_fields(self, media_length: float | None = None) -> None:
         for name, getter in self.READ_ONLY_FIELDS.items():
             value = getter()
+            if name == "media length" and media_length is not None:
+                value = media_length
             if name in self.fields_to_formatters:
                 value = self.fields_to_formatters[name](value)
-            value_label = QLabel(value)
-            value_label.setWordWrap(True)
-            self.form_layout.addRow(QLabel(name.capitalize()), value_label)
+            self.read_only_labels[name].setText(value)
+
+        # A length typed but not applied is dropped: the one it was to replace
+        # has changed, and media may have been loaded.
+        self.media_length_original = self.read_only_labels["media length"].text()
+        self.media_length_edit.setText(self.media_length_original)
+        self.media_length_field.setCurrentWidget(
+            self.read_only_labels["media length"]
+            if get(Get.MEDIA_PATH)
+            else self.media_length_edit
+        )
 
     def setup_buttons(self):
         edit_notes_button = QPushButton("Edit notes...")
@@ -165,6 +215,7 @@ class MediaMetadataWindow(QDialog):
         ):
             event.ignore()
             return
+        stop_listening_to_all(self)
         post(Post.WINDOW_CLOSE_DONE, WindowKind.MEDIA_METADATA)
         super().closeEvent(event)
 
@@ -207,16 +258,37 @@ class MediaMetadataWindow(QDialog):
         self._setup_fields()
 
     def _get_edits(self) -> dict:
-        return {
+        edits = {
             name: self.metadata[name].text()
             for name in self.metadata
             if name in self.metadata_original
             and self.metadata[name].text() != self.metadata_original[name]
         }
+        if self.media_length_edit.text() != self.media_length_original:
+            edits["media length"] = self.media_length_edit.text()
+        return edits
 
     def _save_edits(self, edited_fields: dict) -> None:
+        edited_fields = dict(edited_fields)
+        media_length = edited_fields.pop("media length", None)
         for name, value in edited_fields.items():
             post(Post.MEDIA_METADATA_FIELD_SET, name, value)
+        # Last, so that the undo step it records holds the other edits too.
+        if media_length is not None:
+            self._set_media_length(media_length)
+
+    @staticmethod
+    def _set_media_length(text: str) -> None:
+        length = parse_media_time(text)
+        if length is None or length <= 0:
+            tilia.errors.display(tilia.errors.MEDIA_METADATA_SET_DATA_FAILED, text)
+            return
+        if length == get(Get.MEDIA_DURATION):
+            return
+        # As the dialog for adding a timeline without media and the command
+        # line do, so that it asks whether to scale the timelines the same way.
+        post(Post.PLAYER_DURATION_AVAILABLE, length, scale_timelines="prompt")
+        post(Post.APP_STATE_RECORD, "media length set")
 
     def on_settings_updated(self, updated_settings):
         if "media_metadata" in updated_settings:
