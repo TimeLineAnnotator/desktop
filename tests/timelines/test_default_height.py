@@ -45,12 +45,15 @@ def test_a_height_given_is_kept(kind, tls):
 
 
 @pytest.mark.parametrize("fixture", [f for _, f in KINDS], ids=IDS)
-def test_undo_a_change_of_height(fixture, tluis, request):
+def test_undo_a_change_of_height(fixture, tls, tluis, request):
     tlui = request.getfixturevalue(fixture)
     height = tlui.timeline.get_data("height")
 
+    # Not through timeline.set_height, which refuses these kinds, but as a
+    # script or another program could change it.
     with undoable():
-        commands.execute("timeline.set_height", tlui, height + 50)
+        tls.set_timeline_data(tlui.timeline.id, "height", height + 50)
+        post(Post.APP_STATE_RECORD, "height")
     commands.execute("edit.undo")
 
     assert tlui.timeline.get_data("height") == height
@@ -109,9 +112,9 @@ def test_a_score_timeline_saved_by_0_5_15_gets_the_default_height(tls, tluis):
     score = tls.get_timeline(score_id)
     assert score.get_data("height") == _default_height(ScoreTimeline)
 
-    tlui = tluis.get_timeline_ui(score_id)
     with undoable():
-        commands.execute("timeline.set_height", tlui, score.get_data("height") + 50)
+        tls.set_timeline_data(score_id, "height", score.get_data("height") + 50)
+        post(Post.APP_STATE_RECORD, "height")
     commands.execute("edit.undo")
 
     assert score.get_data("height") == _default_height(ScoreTimeline)

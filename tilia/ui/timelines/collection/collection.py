@@ -28,6 +28,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.pdf.timeline import PdfTimeline
+from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
@@ -1340,6 +1341,17 @@ class TimelineUIs:
     def on_timeline_set_height(
         self, timeline_ui: TimelineUI, height: int | None = None
     ):
+        # Their views take their height from what they hold, and their context
+        # menus don't offer to set it.
+        for kind, source in ((RangeTimeline, "rows"), (ScoreTimeline, "staves")):
+            if isinstance(timeline_ui.timeline, kind):
+                tilia.errors.display(
+                    tilia.errors.SET_HEIGHT_NOT_APPLICABLE,
+                    kind.type_name().lower(),
+                    source,
+                )
+                return False
+
         if not height:
             accepted, height = get(
                 Get.FROM_USER_INT,

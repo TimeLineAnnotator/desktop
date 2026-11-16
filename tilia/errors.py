@@ -56,6 +56,10 @@ AUDIOWAVE_INVALID_FILE = Error(
 BEAT_DISTRIBUTION_ERROR = Error(
     "Distribute measure", "Cannot distribute beats on last measure."
 )
+SET_HEIGHT_NOT_APPLICABLE = Error(
+    "Cannot set height",
+    "The height of a {} timeline comes from its {}.",
+)
 BEAT_PATTERN_ERROR = Error(
     "Insert beat pattern", "Beat pattern must be one or more numbers."
 )
