@@ -43,6 +43,22 @@ def make_tla(version, timelines=None):
     }
 
 
+def make_tla_with_hashes(version):
+    data = make_tla(
+        version,
+        {
+            "0": make_timeline(
+                "Marker",
+                hash="abc",
+                components_hash="def",
+                components={"1": {"time": 10, "kind": "MARKER", "hash": "ghi"}},
+            )
+        },
+    )
+    data["timelines_hash"] = "jkl"
+    return data
+
+
 class TestParseVersion:
     def test_simple(self):
         assert _parse_version("0.6.2") == (0, 6, 2)
@@ -132,14 +148,35 @@ class TestMigrate:
         assert migrated["timelines"]["0"]["kind"] == "MARKER_TIMELINE"
         assert migrated["version"] == "0.6.2"
 
+    def test_hashes_dropped_at_target_app_version(self):
+        data = make_tla_with_hashes("0.7.5")
+
+        migrated, applied = migrate(data, app_version="0.8.0")
+
+        assert applied == ["0.8.0"]
+        assert "timelines_hash" not in migrated
+        tl = migrated["timelines"]["0"]
+        assert "hash" not in tl
+        assert "components_hash" not in tl
+        assert tl["components"] == {"1": {"time": 10, "kind": "MARKER"}}
+
+    def test_hash_migration_dormant_below_target_app_version(self):
+        data = make_tla_with_hashes("0.7.5")
+
+        migrated, applied = migrate(data, app_version="0.7.5")
+
+        assert applied == []
+        assert migrated["timelines_hash"] == "jkl"
+        assert migrated["timelines"]["0"]["hash"] == "abc"
+
     def test_defensive_with_missing_fields(self):
         # Empty timelines and a kind already in new format must not raise.
         data = make_tla("0.1.0")
         migrate(data, app_version="0.7.0")
 
         data = make_tla("0.1.0", {"0": {"kind": "Marker"}})
-        migrated, _ = migrate(data, app_version="0.7.0")
-        assert migrated["timelines"]["0"]["kind"] == "Marker"
+        migrated, _ = migrate(data, app_version="0.8.0")
+        assert migrated["timelines"]["0"] == {"kind": "Marker"}
 
 
 class TestOpenTlaNewerVersionWarning:

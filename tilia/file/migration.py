@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Callable
 
 from tilia.constants import VERSION
+from tilia.file.common import strip_hashes
 from tilia.timelines.base.timeline import Timeline
 
 Migration = Callable[[dict], dict]
@@ -69,10 +70,23 @@ def _to_0_7_0_timeline_kind(data: dict) -> dict:
     return data
 
 
+def _to_0_8_0_drop_hashes(data: dict) -> dict:
+    """Drop the hashes older versions saved.
+
+    Files no longer store ``timelines_hash`` or the timeline and component
+    hashes; they are recomputed from the timelines whenever a file is opened.
+    """
+    data.pop("timelines_hash", None)
+    if isinstance(timelines := data.get("timelines"), dict):
+        data["timelines"] = strip_hashes(timelines)
+    return data
+
+
 # Ascending by target version. See module docstring before editing.
 MIGRATIONS: list[tuple[str, Migration]] = [
     ("0.1.1", _to_0_1_1_display_position_to_ordinal),
     ("0.7.0", _to_0_7_0_timeline_kind),
+    ("0.8.0", _to_0_8_0_drop_hashes),
 ]
 
 
