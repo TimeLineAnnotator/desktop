@@ -668,6 +668,32 @@ class TestSync:
         assert apply.call_count == 1
         assert apply.call_args.kwargs["by_person"] is True
 
+    def test_a_record_posted_while_an_undo_restores_isn_t_a_person_s_edit(
+        self, every_kind, tilia, tls
+    ):
+        # While a state is restored, the undo manager doesn't record: the undo
+        # syncs once it is restored, never part-way as a person's edit.
+        timeline_id, marker_id = self.a_marker(tilia)
+        tls.get_timeline(timeline_id).set_component_data(marker_id, "label", "edited")
+        record()
+        restore = tilia.timelines.restore_state
+
+        def restore_and_record(states):
+            restore(states)
+            record()
+
+        with (
+            patch.object(
+                tilia.timelines, "restore_state", side_effect=restore_and_record
+            ),
+            patch.object(
+                tla_bridge, "apply_changes", wraps=tla_bridge.apply_changes
+            ) as apply,
+        ):
+            commands.execute("edit.undo")
+
+        assert [call.kwargs["by_person"] for call in apply.call_args_list] == [False]
+
     def test_the_notes_it_gives_are_logged(self, every_kind, tilia, tls):
         # As #538 (the rule that keeps measure marks) asked.
         timeline_id, marker_id = self.a_marker(tilia)
@@ -749,13 +775,18 @@ class TestAHeightTiLiAShowsInsteadOfTheStoredOne:
         assert save()
         assert path.read_bytes() == before
 
+        # Another edit of the range timeline leaves its height; an edit of the
+        # score timeline's height writes it.
         score = first_of_kind(the_document(tilia), "score").id
+        ranges = first_of_kind(the_document(tilia), "range").id
+        tls.set_timeline_data(ranges, "name", "Renamed")
         tls.set_timeline_data(score, "height", SHOWN + 10)
         record()
         assert save()
         saved = json.loads(path.read_bytes())["timelines"]
         assert saved[score]["height"] == SHOWN + 10
-        assert [saved[id]["height"] for id in low if id != score] == [1]
+        assert saved[ranges]["name"] == "Renamed"
+        assert saved[ranges]["height"] == 1
 
     def test_without_an_edit_the_file_keeps_it(self, qtui, tilia, tls, tmp_path):
         # As TiLiA loads it here: before desktop#895 at 1, after it at its default.
