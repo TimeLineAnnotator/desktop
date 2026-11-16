@@ -170,7 +170,12 @@ def state_of(doc: tla.Document) -> dict[str, State]:
 
 
 def apply_changes(
-    doc: tla.Document, synced: State, current: State, *, removed: Removed
+    doc: tla.Document,
+    synced: State,
+    current: State,
+    *,
+    removed: Removed,
+    by_person: bool,
 ) -> list[str]:
     """Changes the document by what differs from `synced` to `current`, two states as
     `App.get_app_state` gives them. A timeline or component is looked at only if its
@@ -180,12 +185,25 @@ def apply_changes(
     What it takes out goes into `removed`, with the state it had in `synced`, and comes
     back from there whole if its id returns.
 
+    `by_person` says that a person's edit made the change, not an undo or a redo,
+    which the states alone can't tell. Only an undo or a redo gives back the score an
+    import replaced, when a timeline's drawing goes, and the names a `next` lost when
+    a measure went, when that measure starts again: after a person's edit, a cleared
+    score timeline holds no score, and a `next` stays as it is.
+
     Gives a note, for the caller to log, for each thing of the file it couldn't keep as
     it was: a measure mark a beat no longer holds, and a repeat that names another
     measure, or none."""
     notes: list[str] = []
     _apply_file_fields(doc, synced, current)
-    _apply_timelines(doc, synced["timelines"], current["timelines"], removed, notes)
+    _apply_timelines(
+        doc,
+        synced["timelines"],
+        current["timelines"],
+        removed,
+        notes,
+        by_person=by_person,
+    )
     return notes
 
 
@@ -364,6 +382,8 @@ def _apply_timelines(
     after: Mapping[str, State],
     removed: Removed,
     notes: list[str],
+    *,
+    by_person: bool,
 ) -> None:
     order = _display_order(after)
     order_changed = order != _display_order(before)
@@ -384,7 +404,9 @@ def _apply_timelines(
             )
         timeline = doc.timelines.get(timeline_id)
         if timeline is not None:
-            _apply_timeline(doc, timeline, was, state, removed, notes)
+            _apply_timeline(
+                doc, timeline, was, state, removed, notes, by_person=by_person
+            )
     if not order_changed:
         return
     # A timeline both states hold and the document doesn't isn't stored, and has
@@ -397,7 +419,15 @@ def _apply_timelines(
         if timeline_id in doc.timelines:
             doc.timelines[timeline_id].ordinal = ordinal
         else:
-            _add_timeline(doc, timeline_id, after[timeline_id], ordinal, removed, notes)
+            _add_timeline(
+                doc,
+                timeline_id,
+                after[timeline_id],
+                ordinal,
+                removed,
+                notes,
+                by_person=by_person,
+            )
 
 
 def _display_order(timelines: Mapping[str, State]) -> list[str]:
@@ -456,6 +486,8 @@ def _add_timeline(
     ordinal: int,
     removed: Removed,
     notes: list[str],
+    *,
+    by_person: bool,
 ) -> None:
     kind = TIMELINE_KINDS.get(state["kind"])
     if kind is None:
@@ -463,7 +495,7 @@ def _add_timeline(
     timeline = tla.Timeline(id=timeline_id, kind=kind, ordinal=ordinal)
     doc.timelines[timeline_id] = timeline
     doc.timelines = dict(sorted(doc.timelines.items()))
-    _apply_timeline(doc, timeline, {}, state, removed, notes)
+    _apply_timeline(doc, timeline, {}, state, removed, notes, by_person=by_person)
 
 
 def _apply_timeline(
@@ -473,17 +505,21 @@ def _apply_timeline(
     state: State,
     removed: Removed,
     notes: list[str],
+    *,
+    by_person: bool,
 ) -> None:
     attributes_may_differ = _digest_differs(was, state)
     if attributes_may_differ:
-        _apply_timeline_attributes(doc, timeline, was, state, removed)
+        _apply_timeline_attributes(
+            doc, timeline, was, state, removed, by_person=by_person
+        )
     components_changed = _apply_components(
         timeline, was.get("components", {}), state.get("components", {}), removed
     )
     if timeline.kind == "range" and components_changed:
         _store_rows_named(timeline, state, removed)
     if timeline.kind == "beat" and (attributes_may_differ or components_changed):
-        _apply_measures(timeline, was, state, removed, notes)
+        _apply_measures(timeline, was, state, removed, notes, by_person=by_person)
         timeline.measures = tla.measure_table(timeline)
 
 
@@ -499,6 +535,8 @@ def _apply_timeline_attributes(
     was: State,
     state: State,
     removed: Removed,
+    *,
+    by_person: bool,
 ) -> None:
     if "name" in state and state["name"] != was.get("name"):
         timeline.name = state["name"]
@@ -510,7 +548,7 @@ def _apply_timeline_attributes(
     if timeline.kind == "range" and state.get("rows") != was.get("rows"):
         _apply_rows(timeline, state.get("rows") or [], removed)
     elif timeline.kind == "score":
-        _apply_score(doc, timeline, was, state, removed)
+        _apply_score(doc, timeline, was, state, removed, by_person=by_person)
     elif timeline.kind == "beat" and state.get("beat_pattern") != was.get(
         "beat_pattern"
     ):
@@ -567,6 +605,8 @@ def _apply_score(
     was: State,
     state: State,
     removed: Removed,
+    *,
+    by_person: bool,
 ) -> None:
     svg = state.get("svg_data") or ""
     positions = state.get("viewer_beat_x") or {}
@@ -583,7 +623,7 @@ def _apply_score(
             held.pop(score.id, None)
             held[score.id] = score
             _release_score(doc, score.id, removed)
-        score = _held_score(held, svg)
+        score = _held_score(held, svg, by_person=by_person)
         if score is None:
             return
         _put_back_score(doc, timeline, score, removed)
@@ -604,14 +644,17 @@ def _held_key(timeline_id: str) -> str:
     return f"{timeline_id}/scores"
 
 
-def _held_score(held: dict[str, tla.Score], svg: str) -> tla.Score | None:
+def _held_score(
+    held: dict[str, tla.Score], svg: str, *, by_person: bool
+) -> tla.Score | None:
     """For a drawing, the last score the timeline held with it, or a new one. For no
-    drawing, the last one of another format an import replaced, or none: an undo of
-    that import gives it back."""
+    drawing, after an undo or a redo, the last one of another format an import
+    replaced, or none: an undo of that import gives it back. After a person's edit,
+    such as clearing the timeline, none: that one waits for the import's undo."""
     for score in reversed(list(held.values())):
         if svg and score.format == _LEGACY_SCORE and score.text == svg:
             return held.pop(score.id)
-        if not svg and score.format != _LEGACY_SCORE:
+        if not svg and not by_person and score.format != _LEGACY_SCORE:
             return held.pop(score.id)
     if not svg:
         return None
@@ -756,9 +799,11 @@ def _apply_measures(
     state: State,
     removed: Removed,
     notes: list[str],
+    *,
+    by_person: bool,
 ) -> None:
     if _measures_of(was) != _measures_of(state):
-        _rewrite_marks(timeline, state, removed, notes)
+        _rewrite_marks(timeline, state, removed, notes, by_person=by_person)
 
 
 def _measures_of(state: State) -> tuple[Any, ...]:
@@ -779,6 +824,8 @@ def _rewrite_marks(
     state: State,
     removed: Removed,
     notes: list[str],
+    *,
+    by_person: bool,
 ) -> None:
     """TiLiA's lists say which beats start a measure, by position. Each measure's mark,
     with all its keys, follows its measure (`_match_measures`), and a `next` keeps
@@ -858,7 +905,16 @@ def _rewrite_marks(
                 f" that is gone, is deleted: its mark, {mark}, left the file with it."
             )
         _put_records(started, carried.get(source, {}), removed)
-    _rename_next(timeline, starts, renamed, set(before), gone, removed, notes)
+    _rename_next(
+        timeline,
+        starts,
+        renamed,
+        set(before),
+        gone,
+        removed,
+        notes,
+        by_person=by_person,
+    )
 
 
 def _match_measures(before: Sequence[str], after: Sequence[str]) -> dict[int, int]:
@@ -1079,6 +1135,8 @@ def _rename_next(
     gone: set[str],
     removed: Removed,
     notes: list[str],
+    *,
+    by_person: bool,
 ) -> None:
     """A `next` keeps naming the same measure, at its downbeat now. One that named a
     measure that is gone names the next measure that stays, as `renamed` has it; with
@@ -1089,9 +1147,10 @@ def _rename_next(
     Such a change can't be undone by matching measures again, since the names it took
     out start no measure. So `removed` keeps each one, the last one last, as a turn:
     the list after it, the list before it, and the names it took out. While the list is
-    still as the turn left it, the turn goes back with the change that starts those
-    names again, as an undo does, and its going back is kept as a turn in its turn, for
-    the next undo or redo."""
+    still as the turn left it, the turn goes back with an undo or a redo that starts
+    those names again, and its going back is kept as a turn in its turn, for the next
+    undo or redo. A person's edit that starts them again, such as setting a measure's
+    beat amount, leaves the list as it is, as the core's API would."""
     components = timeline.components
 
     def starts_a_measure(name: str) -> bool:
@@ -1107,7 +1166,7 @@ def _rename_next(
         following = mark.get("next") or []
         back = (
             _turn_back(turns, following, starts_a_measure, started_a_measure)
-            if isinstance(turns, list)
+            if isinstance(turns, list) and not by_person
             else None
         )
         if back is not None:

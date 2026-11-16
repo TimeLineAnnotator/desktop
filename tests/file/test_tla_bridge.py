@@ -83,11 +83,22 @@ class Opened:
     def component(self, timeline_id, component_id):
         return self.timelines[timeline_id]["components"][component_id]
 
-    def sync(self):
+    def sync(self, *, by_person=True):
+        """Applies the edits made to `current`: a person's, unless `by_person` says
+        an undo or a redo made them."""
         tla_bridge.apply_changes(
-            self.doc, self.synced, self.current, removed=self.removed
+            self.doc,
+            self.synced,
+            self.current,
+            removed=self.removed,
+            by_person=by_person,
         )
         self.synced = copy.deepcopy(self.current)
+
+    def undo_to(self, state):
+        """Goes back to `state`, as an undo or a redo does."""
+        self.current = copy.deepcopy(state)
+        self.sync(by_person=False)
 
     def bytes(self):
         return tla.canonical_bytes(self.doc)
@@ -802,8 +813,7 @@ class TestOrdinals:
         before = copy.deepcopy(opened.current)
         opened.delete_timeline(self.B)
         opened.sync()
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.bytes() == opened.bytes_read
 
     def test_an_order_tilia_gives_them_on_loading_isnt_written(self):
@@ -1416,8 +1426,7 @@ class TestLegacyScores:
         opened.sync()
         assert score.id not in opened.doc.scores
         assert opened.removed[score.id] is score
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.doc.scores[score.id] is score
         assert opened.bytes() == opened.bytes_read
 
@@ -1440,8 +1449,7 @@ class TestLegacyScores:
         opened.delete_timeline(timeline.id)
         opened.sync()
         assert mei.id not in opened.doc.scores
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.doc.scores[mei.id] is mei
         assert opened.bytes() == opened.bytes_read
 
@@ -1509,7 +1517,32 @@ class TestLegacyScores:
         assert mei.id not in opened.doc.scores
         assert opened.doc.scores[timeline.attrs["score"]].format == "svg-osmd-legacy"
         opened.edit_timeline(timeline.id, svg_data="")
+        opened.sync(by_person=False)
+        assert opened.doc.scores[timeline.attrs["score"]] is mei
+        assert opened.bytes() == opened.bytes_read
+
+    def test_clearing_after_an_import_over_an_mei_score_leaves_no_score(self):
+        # A person's clear, which the state alone can't tell from the import's undo
+        # (R16): the MEI waits for that undo, and each undo gives its score back.
+        opened = Opened.read(EVERY_KIND)
+        timeline = first_of_kind(opened.doc, "score")
+        mei = opened.doc.scores[timeline.attrs["score"]]
+        before_import = copy.deepcopy(opened.current)
+        opened.edit_timeline(timeline.id, svg_data="<svg>new</svg>", viewer_beat_x={})
         opened.sync()
+        imported = opened.doc.scores[timeline.attrs["score"]]
+        imported_bytes = opened.bytes()
+        before_clear = copy.deepcopy(opened.current)
+        opened.edit_timeline(timeline.id, svg_data="", viewer_beat_x={}, components={})
+        opened.sync()
+        assert timeline.attrs.get("score") is None
+        assert mei.id not in opened.doc.scores
+        assert imported.id not in opened.doc.scores
+        assert tla.loads(opened.bytes())
+        opened.undo_to(before_clear)
+        assert opened.doc.scores[timeline.attrs["score"]] is imported
+        assert opened.bytes() == imported_bytes
+        opened.undo_to(before_import)
         assert opened.doc.scores[timeline.attrs["score"]] is mei
         assert opened.bytes() == opened.bytes_read
 
@@ -1609,8 +1642,7 @@ class TestRemoved:
         opened.sync()
         assert opened.removed[timeline.id] is timeline
         assert timeline.id not in opened.doc.timelines
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.doc.timelines[timeline.id] is timeline
         assert opened.bytes() == opened.bytes_read
 
@@ -1635,8 +1667,7 @@ class TestRemoved:
         opened.sync()
         opened.delete_timeline(timeline.id)
         opened.sync()
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
     def test_a_row_deleted_then_back_keeps_what_it_doesnt_show(self):
@@ -1999,9 +2030,11 @@ class TestLiveTimelines:
         fields = {"media_metadata": {}, "media_path": "", "timelines_hash": digest}
         synced = {**fields, "timelines": tla_bridge.state_of(doc)}
         current = {**fields, "timelines": given}
-        tla_bridge.apply_changes(doc, synced, current, removed={})
+        tla_bridge.apply_changes(doc, synced, current, removed={}, by_person=True)
         assert tla.canonical_bytes(doc) == before
-        tla_bridge.apply_changes(doc, current, copy.deepcopy(current), removed={})
+        tla_bridge.apply_changes(
+            doc, current, copy.deepcopy(current), removed={}, by_person=True
+        )
         assert tla.canonical_bytes(doc) == before
 
 
@@ -2028,11 +2061,18 @@ class Live:
             "timelines_hash": digest,
         }
 
-    def sync(self, current=None):
-        """Applies TiLiA's state, or `current`, as an undo to it would leave TiLiA."""
+    def sync(self, current=None, *, by_person=None):
+        """Applies TiLiA's state, as a person's edit leaves it, or `current`, as an
+        undo to it would leave TiLiA, unless `by_person` says otherwise."""
+        if by_person is None:
+            by_person = current is None
         current = copy.deepcopy(current) if current is not None else self.state()
         self.notes += tla_bridge.apply_changes(
-            self.doc, self.synced, current, removed=self.removed
+            self.doc,
+            self.synced,
+            current,
+            removed=self.removed,
+            by_person=by_person,
         )
         self.synced = copy.deepcopy(current)
 
@@ -2143,7 +2183,7 @@ class TestMarksFollowTheirMeasures:
         opened.timeline(timeline_id).create_component(ComponentKind.BEAT, 4.5)
         opened.sync()
         opened.tls.restore_state(copy.deepcopy(opened.first["timelines"]))
-        opened.sync()
+        opened.sync(by_person=False)
         assert opened.bytes() == opened.bytes_read
 
     def test_a_beat_deleted_in_the_second_measure_and_its_undo(self, live):
@@ -2359,8 +2399,7 @@ class TestMarksFollowTheirMeasures:
         first = copy.deepcopy(opened.current)
         opened.edit_timeline(tl, measure_numbers=[1, 40, 3])
         opened.sync()
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
 
@@ -2616,6 +2655,51 @@ class TestMarksInOneAction:
         assert opened.bytes() == opened.bytes_read
 
 
+class TestAnEditThatStartsAMeasureAgain:
+    """ "Set beat amount" gives the second of four one-beat measures to the first, so
+    the first's `next`, which named it, names the third. Setting it back starts the
+    second measure again, which leaves TiLiA's state as an undo would: only
+    `by_person` tells them apart (comments on TimeLineAnnotator/project-management#449,
+    save through the core)."""
+
+    @staticmethod
+    def joined(live):
+        timeline_id, ids, doc = labelled(
+            [1] * 4, pattern="1", extra={1: {"next": [make_id(2)]}}
+        )
+        opened = live(doc)
+        timeline = opened.timeline(timeline_id)
+        timeline.set_beat_amount_in_measure(0, 2)
+        opened.sync()
+        return opened, timeline, timeline_id, ids
+
+    @staticmethod
+    def following(opened, timeline_id, ids):
+        return opened.written(timeline_id)["components"][ids[0]]["measure"]["next"]
+
+    def test_a_person_s_edit_leaves_the_next(self, live):
+        opened, timeline, timeline_id, ids = self.joined(live)
+        assert self.following(opened, timeline_id, ids) == [ids[2]]
+        joined, joined_bytes = copy.deepcopy(opened.synced), opened.bytes()
+        timeline.set_beat_amount_in_measure(0, 1)
+        opened.sync()
+        assert downbeats(opened.written(timeline_id)) == ids
+        assert self.following(opened, timeline_id, ids) == [ids[2]]
+        assert tla.loads(opened.bytes())
+        # Undone one at a time, it gives back the bytes before each edit.
+        opened.sync(joined)
+        assert opened.bytes() == joined_bytes
+        opened.sync(opened.first)
+        assert opened.bytes() == opened.bytes_read
+
+    def test_an_undo_gives_the_next_back(self, live):
+        opened, timeline, timeline_id, ids = self.joined(live)
+        timeline.set_beat_amount_in_measure(0, 1)
+        opened.sync(by_person=False)
+        assert self.following(opened, timeline_id, ids) == [ids[1]]
+        assert opened.bytes() == opened.bytes_read
+
+
 class TestNextThroughChainsOfChanges:
     """A `next` that a change made name another measure, because the one it named went,
     comes back with each undo, one change at a time or several at once, and goes again
@@ -2669,8 +2753,7 @@ class TestNextThroughChainsOfChanges:
         return opened, states, written
 
     def go(self, opened, state):
-        opened.current = copy.deepcopy(state)
-        opened.sync()
+        opened.undo_to(state)
 
     def following(self, opened):
         return opened.doc.timelines[self.TL].components[self.A].attrs["measure"]["next"]
@@ -2708,11 +2791,14 @@ class TestNextThroughChainsOfChanges:
 
     def test_undone_after_a_change_that_brought_its_measure_back(self):
         # a is followed by d. d's measure goes into c's, so a is followed by e. Then
-        # c's goes into b's and e's into d's, which starts again: a is followed by d
-        # again. Undoing that matches d's measure with c's, by place, but a is followed
-        # by e, as it was.
+        # c's goes into b's and e's into d's, which starts again. That is a person's
+        # edit, which leaves a followed by e, as it was, and e's measure is gone with
+        # none after it, so a is followed by none. Undoing it matches d's measure with
+        # c's, by place, but a is followed by e, as it was.
         opened, states, written = self.through([self.D], ([1, 1, 2, 1], [1, 2, 2]))
-        assert self.following(opened) == [self.D]
+        assert "next" not in (
+            opened.doc.timelines[self.TL].components[self.A].attrs["measure"]
+        )
         self.go(opened, states[1])
         assert opened.bytes() == written[1]
         self.go(opened, states[0])
@@ -3025,8 +3111,7 @@ class TestComesBackAsTiLiAHeldIt:
         before = copy.deepcopy(opened.current)
         opened.delete_timeline(tl)
         opened.sync()
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.doc.timelines[tl].attrs["path"] == "score.pdf"
         assert opened.bytes() == opened.bytes_read
 
@@ -3062,8 +3147,7 @@ class TestComesBackAsTiLiAHeldIt:
         before = copy.deepcopy(opened.current)
         opened.delete_component(timeline_id, component.id)
         opened.sync()
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.bytes() == opened.bytes_read
 
 
@@ -3080,8 +3164,7 @@ class TestOrdinalsAfterUndo:
         edit(opened.timeline(c), ordinal=4)
         opened.add_timeline(NEW, ordinal=2)
         opened.sync()
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
     def test_no_two_timelines_get_one_ordinal(self):
@@ -3102,8 +3185,7 @@ class TestOrdinalsAfterUndo:
         ordinals = [tl.ordinal for tl in opened.doc.timelines.values()]
         assert len(set(ordinals)) == len(ordinals)
         assert opened.doc.timelines[b].ordinal != 3
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
     def test_the_free_ordinal_is_above_those_of_removed_timelines(self):
@@ -3160,8 +3242,7 @@ class TestScoresShared:
         first = copy.deepcopy(opened.current)
         opened.edit_timeline(a, svg_data="<svg>new</svg>", viewer_beat_x={5.0: 50.0})
         opened.sync()
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
     def test_new_positions_on_one_leave_the_others(self):
@@ -3206,8 +3287,7 @@ class TestScoresShared:
         opened.sync()
         opened.edit_timeline(a, svg_data="")
         opened.sync()
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
     def test_a_timeline_of_an_unknown_kind_keeps_the_score_it_names(self):
@@ -3264,8 +3344,7 @@ class TestScoresShared:
         first = copy.deepcopy(opened.current)
         opened.edit_timeline(tl, svg_data="<svg>new</svg>", viewer_beat_x={5.0: 50.0})
         opened.sync()
-        opened.current = first
-        opened.sync()
+        opened.undo_to(first)
         assert opened.bytes() == opened.bytes_read
 
 
@@ -3302,7 +3381,11 @@ class TestNotes:
         opened.edit_component(timeline_id, component.id, label="edited")
         assert (
             tla_bridge.apply_changes(
-                opened.doc, opened.synced, opened.current, removed=opened.removed
+                opened.doc,
+                opened.synced,
+                opened.current,
+                removed=opened.removed,
+                by_person=True,
             )
             == []
         )
@@ -3376,8 +3459,7 @@ class TestDefensive:
         opened.sync()
         stranger = tla.Component(id=timeline.id, kind="marker")
         opened.removed[timeline.id] = stranger
-        opened.current = before
-        opened.sync()
+        opened.undo_to(before)
         assert opened.removed[timeline.id] is stranger
         assert opened.doc.timelines[timeline.id] is not timeline
 
