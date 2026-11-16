@@ -933,8 +933,16 @@ def test_a_unit_is_compared_as_it_would_be_stored(tmp_path):
     written_twice(doc, tmp_path / "f.tla")
 
 
-def test_a_unit_stays_stated_where_the_bar_it_lands_on_read_another_assumed():
-    # Movement 2's first bar read B[4]'s 1/2, assumed, not the 3/8. Neither
+@pytest.mark.parametrize(
+    "later, read",
+    [(HALVES, "2/2"), ({"denominator": 4, "units": "3"}, "6/4")],
+    ids=["another unit", "the same units in quarters"],
+)
+def test_a_unit_stays_stated_where_the_bar_it_lands_on_read_another_assumed(
+    later, read
+):
+    # Movement 2's first bar read B[4]'s unit, assumed, not the 3/8: a 1/2, or
+    # a 3 in quarters, with the 3/8's units but not its denominator. Neither
     # moving nor dropping the 3/8 keeps B[0], which read it as movement 1's
     # first unit, so the rule moves it, and it is stored as it is
     # (TimeLineAnnotator/project-management#556, point 1: only a bar that read
@@ -944,13 +952,13 @@ def test_a_unit_stays_stated_where_the_bar_it_lands_on_read_another_assumed():
         (B[1], beat(1.0, measure={}, beat_unit=EIGHTHS)),
         (B[2], beat(2.0, measure={"restart": True})),
         (B[3], beat(3.0)),
-        (B[4], beat(4.0, measure={}, beat_unit=HALVES)),
+        (B[4], beat(4.0, measure={}, beat_unit=later)),
         (B[5], beat(5.0)),
     ]
     doc = document(beats)
-    assert readings(doc)[B[2]] == ("2/2", True)
+    assert readings(doc)[B[2]] == (read, True)
     tla.delete_beat(doc, BEATS, B[1])
-    assert units(doc) == {B[2]: EIGHTHS, B[4]: HALVES}
+    assert units(doc) == {B[2]: EIGHTHS, B[4]: later}
 
 
 @pytest.mark.parametrize(
