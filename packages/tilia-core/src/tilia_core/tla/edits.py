@@ -135,12 +135,14 @@ def delete_beat(
     they read it assumed. An ordinary beat's unit moves to its measure's
     first beat, or is dropped if that beat has one. Of moving and dropping,
     whichever keeps every other measure's reading is done; if neither does,
-    these rules hold. A unit moved onto the next beat's own mark is stored as
-    the measures it lands in read it, marked assumed where they read it
-    assumed, across a restart. No default takes the place of a
-    unit dropped, since an edit adds none (contracts/layout.md). A closing tap
-    read as an ordinary beat (one that ends no measure) is a beat of its
-    measure.
+    these rules hold. A unit moved onto the next beat's own mark is stored,
+    and compared, as the measures it lands in read it, marked assumed where
+    they read it assumed, across a restart. A unit the reader can't read on
+    another beat of the measure that mark starts counts as the measure
+    stating one: the unit is dropped, even where moving it would keep every
+    measure. No default takes the place of a unit dropped, since an edit adds
+    none (contracts/layout.md). A closing tap read as an ordinary beat (one
+    that ends no measure) is a beat of its measure.
 
     The measures the deletion changes get the source "edited", unless it is
     "tapped" or already "edited": a beat's measure, or a downbeat's measure
@@ -544,11 +546,18 @@ def _delete_downbeat(
         moved[beat_id] = target_id
         changes = {target_id}  # what remains of the downbeat's measure
     if isinstance(unit, dict):
-        moves = not _states_a_unit(beats, measures[target_id], beat_id)
+        row = measures[target_id]
+        moves = not _states_a_unit(beats, row, beat_id)
         # Onto a downbeat, as the measure it starts reads it (none for one the
         # mark moved onto, which started none).
         stored = _as_read(unit, readings.get(target_id))
-        _place_unit(timeline, readings, unit, target_id, moves, changes, stored)
+        # Into the next measure, past a unit the reader can't read there.
+        blocked = isinstance(own, dict) and _states_an_unreadable_unit(
+            beats, row, beat_id, target_id
+        )
+        _place_unit(
+            timeline, readings, unit, target_id, moves, changes, stored, blocked
+        )
     _follow_next(timeline, beat_id, target_id)
     return changed
 
@@ -576,24 +585,27 @@ def _place_unit(
     moves: bool,
     changes: set[str],
     stored: dict[str, Any] | None = None,
+    blocked: bool = False,
 ) -> None:
     """Put a deleted beat's `unit` on `destination` (when `moves`, the rule's
     choice) or drop it, unless only the other keeps the reading of every
     measure but `changes`, those the deletion changes, from `readings`, as
     they read before it: then the other
-    (TimeLineAnnotator/project-management#544, point 3). Moving is open only
-    to a destination without a unit, so a unit is never replaced. A unit
-    moved is stored as `stored`, when given: the choice is made with `unit`
-    as it is, and only how it is stored follows the measures it lands in
-    (#556, points 1 and 2)."""
+    (TimeLineAnnotator/project-management#544, point 3). A unit moved is
+    stored as `stored`, when given, and compared so (#556, point 1). Moving is
+    open only to a destination without a unit, so a unit is never replaced,
+    and not where `blocked`: where another beat of the measure holds a unit
+    the reader can't read, which counts as the measure stating one, so the
+    unit is dropped (#556, point 2)."""
     attrs = timeline.components[destination].attrs
-    can_move = attrs.get("beat_unit") is None
+    can_move = attrs.get("beat_unit") is None and not blocked
     moves = moves and can_move
     before = {key: value for key, value in readings.items() if key not in changes}
+    moved = unit if stored is None else stored
 
     def keeps(move: bool) -> bool:
         if move:
-            attrs["beat_unit"] = unit
+            attrs["beat_unit"] = moved
         try:
             _refresh(timeline)
             now = _readings(timeline)
@@ -605,16 +617,25 @@ def _place_unit(
     if not keeps(moves) and (can_move or moves) and keeps(not moves):
         moves = not moves
     if moves:
-        attrs["beat_unit"] = unit if stored is None else stored
+        attrs["beat_unit"] = moved
 
 
 def _as_read(unit: dict[str, Any], reading: tuple[Any, ...] | None) -> dict[str, Any]:
     """`unit` as the measure `reading` is of read it: marked assumed where it
-    read it assumed, carried across a restart, so that the measures it lands
-    in read exactly as before (TimeLineAnnotator/project-management#556,
-    point 1), as a carried unit is stored (#549, point 1). A unit the reader
-    can't read, which no measure reads, is as it is."""
-    if reading is None or not reading[2] or readable_beat_unit(unit) is None:
+    read this unit, its denominator and units, assumed, carried across a
+    restart, so that the measures it lands in read exactly as before
+    (TimeLineAnnotator/project-management#556, point 1), as a carried unit is
+    stored (#549, point 1). Where it read another unit, or this one stated,
+    and for a unit the reader can't read, which no measure reads, it is as it
+    is."""
+    readable = readable_beat_unit(unit)
+    if readable is None or reading is None or not reading[2]:
+        return unit
+    # Imported here: the time map imports this package.
+    from tilia_core.timemap.units import parse_units
+
+    units = tuple(parse_units(readable.units).units)
+    if (reading[0], tuple(reading[1])) != (readable.denominator, units):
         return unit
     return dict(unit, assumed=True)
 
@@ -641,6 +662,19 @@ def _states_a_unit(beats: dict[str, Component], row: Measure, deleted: str) -> b
         isinstance(beats[key].attrs.get("beat_unit"), dict)
         for key in row.beats
         if key != deleted
+    )
+
+
+def _states_an_unreadable_unit(
+    beats: dict[str, Component], row: Measure, *skipped: str
+) -> bool:
+    """Whether a beat of the measure `row` but `skipped` holds a unit the
+    reader can't read."""
+    return any(
+        isinstance(unit := beats[key].attrs.get("beat_unit"), dict)
+        and readable_beat_unit(unit) is None
+        for key in row.beats
+        if key not in skipped
     )
 
 

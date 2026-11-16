@@ -883,15 +883,16 @@ def test_the_unit_moves_to_a_next_beat_with_its_own_mark():
     assert readings(doc)[B[1]] == ("6/8", False)
 
 
-def next_movement_carried(unit, held=None):
-    """Movement 2 is one bar of one beat, B[2], holding `unit`; movement 3,
-    from B[3], states none, or `held` on its first two beats."""
+def next_movement_carried(unit, first=QUARTERS, held=(None, None)):
+    """Movement 1, one bar from B[0] holding `first`; movement 2, one bar of
+    one beat, B[2], holding `unit`; movement 3, from B[3], with `held` on its
+    first two beats."""
     return [
-        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[0], beat(0.0, measure={}, beat_unit=first)),
         (B[1], beat(1.0)),
         (B[2], beat(2.0, measure={"restart": True}, beat_unit=unit)),
-        (B[3], beat(3.0, measure={"restart": True}, beat_unit=held)),
-        (B[4], beat(4.0, beat_unit=held)),
+        (B[3], beat(3.0, measure={"restart": True}, beat_unit=held[0])),
+        (B[4], beat(4.0, beat_unit=held[1])),
         (B[5], beat(5.0, measure={})),
         (B[6], beat(6.0)),
     ]
@@ -919,19 +920,79 @@ def test_a_unit_tilia_cant_read_moves_onto_the_next_movements_mark_as_it_is():
     assert units(doc) == {B[0]: QUARTERS, B[3]: UNREADABLE}
 
 
-def test_whether_a_unit_moves_is_chosen_with_the_unit_as_it_is():
-    # Movement 3's two units TiLiA can't read count as its first measure
-    # stating one, so the 3/8 is dropped, and movement 3 reads movement 1's
-    # unit (TimeLineAnnotator/project-management#556, point 2). Stored as
-    # movement 3 read it, assumed, moving it would keep movement 3 as it was,
-    # and the deletion would be refused for B[3]'s unit.
-    doc = document(next_movement_carried(EIGHTHS, held=UNREADABLE))
+def test_a_unit_is_compared_as_it_would_be_stored(tmp_path):
+    # Movement 1 ends in 3/8 too, so dropping the 3/8 keeps movement 3 in 6/8,
+    # assumed, and so does moving it, stored assumed: both keep every measure,
+    # and the rule moves it, B[3]'s measure stating no unit
+    # (TimeLineAnnotator/project-management#544, point 3).
+    doc = document(next_movement_carried(EIGHTHS, first=EIGHTHS))
+    before = readings(doc)
+    tla.delete_beat(doc, BEATS, B[2])
+    assert units(doc) == {B[0]: EIGHTHS, B[3]: EIGHTHS_ASSUMED}
+    assert readings(doc) == {key: before[key] for key in (B[0], B[3], B[5])}
+    written_twice(doc, tmp_path / "f.tla")
+
+
+def test_a_unit_stays_stated_where_the_bar_it_lands_on_read_another_assumed():
+    # Movement 2's first bar read B[4]'s 1/2, assumed, not the 3/8. Neither
+    # moving nor dropping the 3/8 keeps B[0], which read it as movement 1's
+    # first unit, so the rule moves it, and it is stored as it is
+    # (TimeLineAnnotator/project-management#556, point 1: only a bar that read
+    # this unit assumed).
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={}, beat_unit=EIGHTHS)),
+        (B[2], beat(2.0, measure={"restart": True})),
+        (B[3], beat(3.0)),
+        (B[4], beat(4.0, measure={}, beat_unit=HALVES)),
+        (B[5], beat(5.0)),
+    ]
+    doc = document(beats)
+    assert readings(doc)[B[2]] == ("2/2", True)
+    tla.delete_beat(doc, BEATS, B[1])
+    assert units(doc) == {B[2]: EIGHTHS, B[4]: HALVES}
+
+
+@pytest.mark.parametrize(
+    "held",
+    [(UNREADABLE, UNREADABLE), (None, UNREADABLE)],
+    ids=["on its first two beats", "on its second beat"],
+)
+def test_a_unit_tilia_cant_read_in_the_next_measure_drops_the_unit(held):
+    # Movement 3 read the 3/8 carried. A unit TiLiA can't read on another beat
+    # of its first measure counts as the measure stating one, so the 3/8 is
+    # dropped, not refused, though moving it would keep movement 3 as it was,
+    # and movement 3 reads movement 1's unit
+    # (TimeLineAnnotator/project-management#556, point 2).
+    doc = document(next_movement_carried(EIGHTHS, held=held))
     before = readings(doc)
     assert before[B[3]] == before[B[5]] == ("6/8", True)
     tla.delete_beat(doc, BEATS, B[2])
-    assert units(doc) == {B[0]: QUARTERS, B[3]: UNREADABLE, B[4]: UNREADABLE}
+    left = {key: unit for key, unit in zip((B[3], B[4]), held, strict=True) if unit}
+    assert units(doc) == {B[0]: QUARTERS, **left}
     after = readings(doc)
     assert after[B[3]] == after[B[5]] == ("2/4", True)
+
+
+def test_a_unit_tilia_cant_read_later_in_its_own_measure_lets_it_move_on():
+    # B[0]'s mark moves onto B[1], in its own measure, and so does its 3/8:
+    # only that keeps movement 2 in 6/8, assumed
+    # (TimeLineAnnotator/project-management#544, point 3). The unit TiLiA
+    # can't read on B[2] stops nothing here: the 3/8 moves into no other
+    # measure.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=EIGHTHS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, beat_unit=UNREADABLE)),
+        (B[3], beat(3.0, measure={"restart": True})),
+        (B[4], beat(4.0)),
+    ]
+    doc = document(beats)
+    before = readings(doc)
+    assert before[B[3]] == ("6/8", True)
+    tla.delete_beat(doc, BEATS, B[0])
+    assert units(doc) == {B[1]: EIGHTHS, B[2]: UNREADABLE}
+    assert readings(doc)[B[3]] == before[B[3]]
 
 
 @pytest.mark.parametrize("own_mark", [None, {}], ids=["no mark", "a mark"])
