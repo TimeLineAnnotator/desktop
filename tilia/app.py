@@ -67,6 +67,7 @@ class App:
             (Post.APP_STATE_RECOVER, self.recover_to_state),
             (Post.APP_SETUP_FILE, self.setup_file),
             (Post.APP_STATE_RECORD, self.on_record_state),
+            (Post.APP_EDIT_DONE, self.on_edit_done),
             (Post.PLAYER_DURATION_AVAILABLE, self.set_file_media_duration),
         }
 
@@ -194,6 +195,9 @@ class App:
         # Where the media was found: the file keeps the path it stores.
         file.media_path = get(Get.MEDIA_PATH)
         self.file_manager.file = file
+        # What the document reflects: the state the timelines just built give, with
+        # TiLiA's own digests, so that nothing TiLiA filled in reaches the file.
+        file.synced = self.get_app_state()
         # The undo baseline must be recorded only now: until the line above,
         # file_manager holds the blank file from on_clear(), and undoing back
         # to a baseline taken from it would wipe the loaded metadata (#666).
@@ -299,6 +303,10 @@ class App:
         except Exception:
             self.recover_to_state(backup)
             tilia.errors.display(tilia.errors.UNDO_FAILED, traceback.format_exc())
+            return
+        # Once for each undo or redo step: a single sync over several isn't always
+        # exact.
+        self.sync_document(by_person=False)
 
     def recover_to_state(self, state: dict) -> None:
         """
@@ -308,17 +316,36 @@ class App:
         This is meant to be used after an exception occurred, so if the
         restoration fails, we are likely in an invalid state and
         therefore crashing is the best option.
+        The file open stays the one it was, with its document: clearing alone
+        would start a new one.
         """
+        kept = self.file_manager.keep_file()
         self.on_clear()
+        self.file_manager.give_back_file(kept)
         self._restore_app_state(state)
+        self.sync_document(by_person=False)
 
     def on_record_state(self, action, no_repeat=False, repeat_identifier=""):
+        state = self.get_app_state()
         self.undo_manager.record(
-            self.get_app_state(),
+            state,
             action,
             no_repeat=no_repeat,
             repeat_identifier=repeat_identifier,
         )
+        if self.undo_manager.is_recording:
+            # A person's action, which the document follows at once. While the undo
+            # manager doesn't record, an undo or a redo is restoring a state, and
+            # syncs once it has.
+            self.file_manager.file.sync(state)
+
+    def on_edit_done(self) -> None:
+        """The end of a command on the command line, which records nothing."""
+        self.sync_document()
+
+    def sync_document(self, *, by_person: bool = True) -> None:
+        """Makes the document of the file open follow TiLiA's state."""
+        self.file_manager.file.sync(self.get_app_state(), by_person=by_person)
 
     def get_id(self, id: str | None = None) -> str:
         """
@@ -503,16 +530,12 @@ class App:
 
     def get_app_state(self) -> dict:
         timelines_state, timelines_hash = self.timelines.serialize_timelines()
-        params = {
+        return {
             "media_metadata": dict(self.file_manager.file.media_metadata),
             "timelines": timelines_state,
             "timelines_hash": timelines_hash,
             "media_path": get(Get.MEDIA_PATH),
-            "file_path": self.file_manager.get_file_path(),
-            "version": tilia.constants.VERSION,
-            "app_name": tilia.constants.APP_NAME,
         }
-        return params
 
     def get_export_data(self):
         return {

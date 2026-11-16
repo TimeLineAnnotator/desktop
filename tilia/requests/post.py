@@ -52,6 +52,8 @@ def long_operation(label: str):
 class Post(Enum):
     UI_EXIT = auto()
     APP_CLEAR = auto()
+    # The end of a command on the command line, which records nothing for undo.
+    APP_EDIT_DONE = auto()
     APP_FILE_LOADED = auto()
     APP_MEDIA_LOAD = auto()
     APP_SETUP_FILE = auto()

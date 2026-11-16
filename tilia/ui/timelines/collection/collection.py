@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, cast
 if TYPE_CHECKING:
     from PySide6.QtGui import QColor
 
-    from tilia.file.tilia_file import TiliaFile
+    from tilia.file.open_document import OpenDocument
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import (
@@ -1502,7 +1502,7 @@ class TimelineUIs:
         self.view.setUpdatesEnabled(True)
         return True
 
-    def _on_file_loaded(self, file: TiliaFile) -> None:
+    def _on_file_loaded(self, file: OpenDocument) -> None:
         zoom = settings.get_file_zoom(file.file_path)
         if zoom is not None:
             self._zoom_level = zoom

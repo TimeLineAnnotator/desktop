@@ -10,10 +10,9 @@ from tilia.exceptions import (
     MediaMetadataFieldNotFound,
     NoReplyToRequest,
 )
-from tilia.file.common import are_tilia_data_equal, write_tilia_file_to_disk
+from tilia.file.common import are_tilia_data_equal
 from tilia.file.media_metadata import MediaMetadata
 from tilia.file.open_document import OpenDocument
-from tilia.file.tilia_file import TiliaFile
 from tilia.file.tla_bridge import TIMELINE_KINDS
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
@@ -178,20 +177,13 @@ class FileManager:
 
     def on_save_request(self):
         """Saves tilia file to current file path."""
-        app_state = get(Get.APP_STATE)
-        if not app_state.get("file_path"):
+        path = self.file.file_path
+        if not path:
             # in case file has not been saved before
             return self.on_save_as_request()
 
-        path = app_state.get("file_path")
-        if not path:
-            tilia.errors.display(
-                tilia.errors.FILE_SAVE_FAILED, "Could not get file path."
-            )
-            return False
-
         try:
-            self.save(app_state, path)
+            self.save(path)
         except Exception as exc:
             tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
             return False
@@ -200,25 +192,19 @@ class FileManager:
         return True
 
     def on_save_as_request(self, path: str | None = None):
-        """Prompts user for a path, and saves tilia file to it."""
-        old_title = get(Get.MEDIA_TITLE)
+        """Prompts user for a path, and saves tilia file to it. The file's title stays
+        as it is: one opened without a title gets none (FR-008)."""
         if path is None:
-            accepted, path = get(Get.FROM_USER_SAVE_PATH_TILIA, old_title + ".tla")
+            accepted, path = get(
+                Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla"
+            )
             if not accepted:
                 return False
 
-        save_title = Path(path).stem
         try:
-            if old_title == MediaMetadata.REQUIRED_FIELDS.get("title"):
-                self.on_set_media_metadata_field("title", save_title)
-
-            self.save(get(Get.APP_STATE), path)
-
+            self.save(path)
         except Exception as exc:
             tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
-
-            if save_title != old_title:
-                self.on_set_media_metadata_field("title", old_title)
             return False
 
         post(Post.FILE_SAVED, path)
@@ -227,7 +213,7 @@ class FileManager:
     def on_save_to_path_request(self, path: Path):
         """Saves tilia file to specified path."""
         try:
-            self.save(get(Get.APP_STATE), path)
+            self.save(path)
         except Exception as exc:
             tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
 
@@ -303,17 +289,22 @@ class FileManager:
     def get_media_metadata_required_fields():
         return list(MediaMetadata.REQUIRED_FIELDS)  # REQUIRED_FIELDS is a dict
 
-    def save(self, data: dict, path: Path | str):
-        data["file_path"] = str(path.resolve()) if isinstance(path, Path) else path
-        # TiLiA's own writer, until it saves through the core
-        # (TimeLineAnnotator/project-management#449).
-        written = TiliaFile(**data)
-        write_tilia_file_to_disk(written, str(path))
-        # The file open is now the one written.
-        self.file.file_path = written.file_path
-        self.file.media_path = written.media_path
-        self.file.timelines = written.timelines
-        self.file.timelines_hash = written.timelines_hash
+    def save(self, path: Path | str) -> None:
+        """Writes the document open to `path` through the core, once it follows
+        TiLiA's state. Raises what the core raises, having written nothing: the
+        document then still follows TiLiA's state, and the file reads as modified."""
+        state = get(Get.APP_STATE)
+        self.file.sync(state)
+        # The document read, or the new one: never one built again from the state,
+        # which would have no fingerprint for the check before saving.
+        tla.write(path, self.file.document)
+        # The file open is now the one written, and the document follows it.
+        self.file.file_path = Path(
+            path.resolve() if isinstance(path, Path) else path
+        ).as_posix()
+        self.file.media_path = state["media_path"]
+        self.file.timelines = state["timelines"]
+        self.file.timelines_hash = state["timelines_hash"]
         self.file.unknown_discarded = False
         self.resync_saved_metadata()
 
@@ -370,8 +361,10 @@ class FileManager:
             # belongs to the current file (App posts this while
             # should_scale_timelines == "keep", e.g. right after opening a
             # file — see #453) rather than reporting a user-driven change.
-            # Keep the snapshot in sync so it isn't flagged as an edit.
+            # Keep the snapshot in sync so it isn't flagged as an edit, and the
+            # document's stored length as it is (FR-034).
             self._saved_metadata["media length"] = duration
+            self.file.note_media_length(duration)
 
     def set_media_metadata(self, value: MediaMetadata):
         self.file.media_metadata = value
