@@ -653,6 +653,14 @@ def test_true_isnt_left_out_as_a_default_of_1(timeline, chord, place):
     assert error.value.place == place
 
 
+def test_1_isnt_left_out_as_a_default_of_true():
+    # And the other way round: a 1 where the default is true isn't left out,
+    # and so read as true.
+    with pytest.raises(tla.UnreadableFile) as error:
+        loads(edited(set_key(*HIERARCHY, "is_visible", 1)))
+    assert error.value.place == "/timelines/1/is_visible"
+
+
 def test_the_amplitude_bars_dont_change_the_document_id():
     one = loads(edited(with_wave((0, 1, 0.5))))
     other = loads(edited(with_wave((0, 2, 0.25), (2, 3, 1))))
