@@ -1759,6 +1759,23 @@ def test_an_edit_makes_none_of_the_states_a_write_compares_times_with(made, tmp_
     assert len(made) == 1
 
 
+def test_a_time_stays_uncompared_through_two_edits_in_a_row(tmp_path):
+    # B[1]'s mark moves onto B[2], at 150.0, and B[2]'s measure is then marked
+    # edited: each changes B[2], and its time, read with no media length, is
+    # still uncompared with one given since.
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(150.0)),
+    ]
+    doc = document(beats, measure_source="import")
+    tla.delete_beat(doc, BEATS, B[1], by_person=False)
+    tla.mark_edited(doc, BEATS, [B[2]])
+    assert written(doc)[B[2]] == {"source": "edited"}
+    doc.media_length = 100.0
+    written_twice(doc, tmp_path / "f.tla")
+
+
 def test_a_problem_on_a_measure_marked_edited_stays_old(tmp_path):
     beats = [
         (B[0], beat(0.0, measure={})),
