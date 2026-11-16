@@ -824,6 +824,7 @@ def write(
     _follow(doc, rebased, path, folder)
     doc.read_problems = problems
     doc.read_unmeasured = unmeasured_states
+    doc.unmeasured_edits = {}
     doc.fingerprint = hashlib.sha256(data).hexdigest()
     return doc.fingerprint
 
@@ -873,7 +874,9 @@ def _checked_with_the_rules(
     can't be checked."""
     written = written_document(data, path=path)
     problems = find_problems(written)
-    new = new_problems(problems, doc.read_problems, doc.read_unmeasured)
+    new = new_problems(
+        problems, doc.read_problems, doc.read_unmeasured, doc.unmeasured_edits
+    )
     refused = warnings_of(new, data)
     unable = cant_check(written)
     if unable is not None:

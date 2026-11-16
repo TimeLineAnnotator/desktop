@@ -47,7 +47,7 @@ import dataclasses
 import json
 import math
 import threading
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any
 
 from tilia_core import rules
@@ -217,9 +217,11 @@ def new_problems(
     written: list[ReadProblem],
     read: list[ReadProblem],
     read_unmeasured: Mapping[str, str],
+    unmeasured_edits: Mapping[str, Iterable[tuple[str, str]]] | None = None,
 ) -> list[ReadProblem]:
     """Those of `written` that aren't among `read`, the problems a document was
-    read with, whose `read_unmeasured` were its components with no media length.
+    read with, whose `read_unmeasured` were its components with no media length,
+    and `unmeasured_edits` the changes an edit kept them through (`keep_old`).
 
     One on what has changed since, or for a rule it didn't break, is new. One
     between components, on what hasn't changed, is new for the others that have
@@ -234,9 +236,8 @@ def new_problems(
     new = []
     for problem in written:
         place = problem.place
-        if (
-            problem.code == rules.PAST_MEDIA_END
-            and read_unmeasured.get(place) == problem.state
+        if problem.code == rules.PAST_MEDIA_END and problem.state in _uncompared(
+            place, read_unmeasured, unmeasured_edits or {}
         ):
             continue  # its time wasn't compared with any
         if problem.code not in codes.get(place, ()) or states[place] != problem.state:
@@ -252,6 +253,135 @@ def new_problems(
                 problem = dataclasses.replace(problem, others=changed)
             new.append(problem)
     return new
+
+
+# The rules a beat's `measure` mark breaks: a problem of one goes where the mark
+# goes.
+MARK_CODES = frozenset({rules.NEGATIVE_MEASURE_NUMBER})
+
+
+def states_of(
+    document: Document, timeline_id: str, component_ids: Iterable[str]
+) -> dict[str, str]:
+    """The state of each of `component_ids`, components of the timeline, by
+    id, as a problem records it; none when `document` has no problems or
+    states it was read with to compare them with, so that `keep_old` has
+    nothing to do. Those states aren't made for it."""
+    if not document.read_problems and not _has_unmeasured(document):
+        return {}
+    timeline = document.timelines[timeline_id]
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
+    return {
+        component_id: _component_state(
+            timeline.components[component_id],
+            pointer_to(held, component_id),
+            holds,
+        )
+        for component_id in component_ids
+        if component_id in timeline.components
+    }
+
+
+def keep_old(
+    document: Document,
+    timeline_id: str,
+    before: Mapping[str, str],
+    moved: Mapping[str, str] | None = None,
+) -> None:
+    """Keep old the problems `document` was read with that an edit of
+    `tla.edits` carried, rather than made
+    (TimeLineAnnotator/project-management#528, point 4). `before` gives the
+    states, by id, of the components of the timeline the edit may change, as
+    `states_of` gave them before it; `moved`, a deleted downbeat's id and the
+    beat its mark moved to.
+
+    A problem on one of them, or naming one, that was old before the edit (its
+    state then the one it was read with) is old with its state now. One of
+    `MARK_CODES` on a downbeat whose mark moved is old on the beat it moved
+    to. Any other problem is as it was: a change made since, or after, is
+    still compared. For a document read with no media length, each change of
+    a state is kept in `unmeasured_edits`, without making the states read
+    (`unmeasured_later`): a time is uncompared in a state such changes reach
+    from the one read (`_uncompared`)."""
+    if not before:
+        return
+    held = pointer_to(pointer_to("/timelines", timeline_id), "components")
+    moved = moved or {}
+    was = {pointer_to(held, key): state for key, state in before.items()}
+    now = {
+        pointer_to(held, key): state
+        for key, state in states_of(
+            document, timeline_id, [*before, *moved.values()]
+        ).items()
+    }
+
+    def kept(place: str, state: str) -> str:
+        if was.get(place) == state and place in now:
+            return now[place]
+        return state
+
+    targets = {
+        pointer_to(held, old): pointer_to(held, new) for old, new in moved.items()
+    }
+    problems = []
+    for problem in document.read_problems:
+        problems.append(
+            dataclasses.replace(
+                problem,
+                state=kept(problem.place, problem.state),
+                # A join is between ranges, which these edits don't change.
+                others=tuple((other, kept(other, s)) for other, s in problem.others),
+            )
+        )
+        target = targets.get(problem.place)
+        if (
+            target in now
+            and problem.code in MARK_CODES
+            and was.get(problem.place) == problem.state
+        ):
+            problems.append(
+                dataclasses.replace(
+                    problem, place=target, pointer="", state=now[target], others=()
+                )
+            )
+    document.read_problems = problems
+    if _has_unmeasured(document):
+        edited = document.unmeasured_edits
+        for place, state in was.items():
+            if now.get(place, state) != state:
+                edited.setdefault(place, set()).add((state, now[place]))
+
+
+def _has_unmeasured(document: Document) -> bool:
+    """Whether `document` has states it was read with no media length, made or
+    to be made, without making them."""
+    return isinstance(document.read_unmeasured, _Unmeasured) or bool(
+        document.read_unmeasured
+    )
+
+
+def _uncompared(
+    place: str,
+    read_unmeasured: Mapping[str, str],
+    unmeasured_edits: Mapping[str, Iterable[tuple[str, str]]],
+) -> set[str]:
+    """The states of the component at `place` whose times weren't compared with
+    a media length: the one it was read in, with none, and each an edit kept
+    from one of those (`keep_old`); none for one read with a length."""
+    read = read_unmeasured.get(place)
+    if read is None:
+        return set()
+    states = {read}
+    changes = list(unmeasured_edits.get(place, ()))
+    grown = True
+    while grown:
+        grown = False
+        for before, after in changes:
+            if before in states and after not in states:
+                states.add(after)
+                grown = True
+    return states
 
 
 def warnings_of(
