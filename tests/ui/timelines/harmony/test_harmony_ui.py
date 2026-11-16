@@ -582,32 +582,47 @@ class TestUnknownQualityInFile:
         )
 
 
-class TestDisplayModeInTiLiA05File:
-    # TiLiA < 0.6 called the letter display mode "chord".
-    @pytest.fixture
-    def file_from_0_5_15(self, tmp_path):
+class TestChordDisplayModeInFile:
+    # TiLiA < 0.6 called the letter display mode "chord". A later TiLiA saves
+    # it as it read it: TiLiA 0.5.15's file saved again by TiLiA 0.7.0 has
+    # version 0.7.0, 0.7's timeline kinds and still "chord". Each layout is
+    # (version, slider kind, harmony kind, the harmony timeline's hash).
+    @pytest.fixture(
+        params=[
+            (
+                "0.5.15",
+                "SLIDER_TIMELINE",
+                "HARMONY_TIMELINE",
+                "15f75ae87d5b300f7635f1fb1147aabd",
+            ),
+            ("0.7.0", "Slider", "Harmony", "9f8b71391fe157173e0c87f8eaa7ee7f"),
+        ],
+        ids=["0.5.15", "0.5.15 saved by 0.7.0"],
+    )
+    def file_with_chord_harmonies(self, request, tmp_path):
+        version, slider_kind, harmony_kind, harmony_hash = request.param
         data = get_blank_file_data()
-        data["version"] = "0.5.15"
+        data["version"] = version
         data["media_metadata"]["media length"] = 9.952
         data["timelines"] = {
             "0": {
                 "is_visible": True,
                 "ordinal": 1,
                 "height": 40,
-                "kind": "SLIDER_TIMELINE",
+                "kind": slider_kind,
                 "components": {},
                 "components_hash": "",
                 "hash": "",
             },
             "22": {
-                "kind": "HARMONY_TIMELINE",
+                "kind": harmony_kind,
                 "level_count": 1,
                 "level_height": 35,
                 "is_visible": True,
                 "name": "Harmony",
                 "ordinal": 2,
                 "visible_level_count": 2,
-                "hash": "15f75ae87d5b300f7635f1fb1147aabd",
+                "hash": harmony_hash,
                 "components": {
                     "24": {
                         "time": 0.0,
@@ -653,20 +668,22 @@ class TestDisplayModeInTiLiA05File:
                 "components_hash": "391232b7b3af5db2991163685ee254ac",
             },
         }
-        path = tmp_path / "0.5.15.tla"
+        path = tmp_path / "chord.tla"
         path.write_text(json.dumps(data), encoding="utf-8")
         return path
 
-    def test_chord_opens_as_letter(self, file_from_0_5_15, tluis, tilia_errors):
-        commands.execute("file.open", path=file_from_0_5_15)
+    def test_chord_opens_as_letter(
+        self, file_with_chord_harmonies, tluis, tilia_errors
+    ):
+        commands.execute("file.open", path=file_with_chord_harmonies)
 
         tilia_errors.assert_no_error()
         harmonies = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0].harmonies()
         assert [h.get_data("display_mode") for h in harmonies] == ["letter"] * 2
         assert [h.label for h in harmonies] == ["Am", "G/B"]
 
-    def test_saving_writes_letter(self, file_from_0_5_15, tluis, tmp_path):
-        commands.execute("file.open", path=file_from_0_5_15)
+    def test_saving_writes_letter(self, file_with_chord_harmonies, tluis, tmp_path):
+        commands.execute("file.open", path=file_with_chord_harmonies)
 
         saved = json.loads(
             Path(save_tilia_to_tmp_path(tmp_path, "resaved")).read_text(

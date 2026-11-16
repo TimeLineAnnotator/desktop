@@ -5,7 +5,8 @@ Adding a migration
 Write a function ``dict -> dict`` that performs one breaking-change upgrade and
 append ``(target_version, function)`` to ``MIGRATIONS`` in ascending version
 order. Keep each function defensive (a no-op when the field it touches is
-absent).
+absent). A change that a file of any version may need goes in
+``FOR_EVERY_VERSION`` instead.
 """
 
 from __future__ import annotations
@@ -53,25 +54,6 @@ def _to_0_1_1_display_position_to_ordinal(data: dict) -> dict:
     return data
 
 
-def _to_0_6_0_harmony_display_mode(data: dict) -> dict:
-    """Rename harmonies' ``display_mode`` ``"chord"`` to ``"letter"``.
-
-    TiLiA < 0.6 called the letter display mode ``"chord"``.
-    """
-    for timeline in data.get("timelines", {}).values():
-        components = timeline.get("components")
-        if not isinstance(components, dict):
-            continue
-        for component in components.values():
-            if (
-                isinstance(component, dict)
-                and component.get("kind") == "HARMONY"
-                and component.get("display_mode") == "chord"
-            ):
-                component["display_mode"] = "letter"
-    return data
-
-
 def normalize_kind_string(kind: str) -> str:
     """Shorten a serialized timeline ``kind``.
 
@@ -101,13 +83,36 @@ def _to_0_8_0_drop_hashes(data: dict) -> dict:
     return data
 
 
+def _harmony_display_mode_chord_to_letter(data: dict) -> dict:
+    """Rename harmonies' ``display_mode`` ``"chord"`` to ``"letter"``.
+
+    TiLiA < 0.6 called the letter display mode ``"chord"``. A later TiLiA
+    saves the value as it read it, so a 0.5 file saved again by TiLiA 0.7.0
+    has version 0.7.0 and still ``"chord"``.
+    """
+    for timeline in data.get("timelines", {}).values():
+        components = timeline.get("components")
+        if not isinstance(components, dict):
+            continue
+        for component in components.values():
+            if (
+                isinstance(component, dict)
+                and component.get("kind") == "HARMONY"
+                and component.get("display_mode") == "chord"
+            ):
+                component["display_mode"] = "letter"
+    return data
+
+
 # Ascending by target version. See module docstring before editing.
 MIGRATIONS: list[tuple[str, Migration]] = [
     ("0.1.1", _to_0_1_1_display_position_to_ordinal),
-    ("0.6.0", _to_0_6_0_harmony_display_mode),
     ("0.7.0", _to_0_7_0_timeline_kind),
     ("0.8.0", _to_0_8_0_drop_hashes),
 ]
+
+# Applied to every file, whatever its version, after MIGRATIONS.
+FOR_EVERY_VERSION: list[Migration] = [_harmony_display_mode_chord_to_letter]
 
 
 def _is_known_kind(kind: str | None) -> bool:
@@ -133,8 +138,9 @@ def migrate(data: dict, app_version: str = VERSION) -> tuple[dict, list[str]]:
     """Upgrade ``data`` from its stored version up to ``app_version``.
 
     Applies, in order, every migration whose target is newer than the file's
-    version and not newer than ``app_version``. Mutates and returns ``data``
-    along with the list of target versions that were applied.
+    version and not newer than ``app_version``, then every function in
+    ``FOR_EVERY_VERSION``. Mutates and returns ``data`` along with the list of
+    target versions that were applied.
     """
     file_version = _parse_version(data.get("version", "0.0.0"))
     app = _parse_version(app_version)
@@ -144,4 +150,6 @@ def migrate(data: dict, app_version: str = VERSION) -> tuple[dict, list[str]]:
             data = function(data)
             data["version"] = target
             applied.append(target)
+    for function in FOR_EVERY_VERSION:
+        data = function(data)
     return data, applied
