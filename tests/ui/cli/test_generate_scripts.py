@@ -10,9 +10,9 @@ from tilia.ui.cli.generate_scripts import (
     "filename, kind, expected_args, expected_is_by_time, expected_name",
     [
         (
-            "timeline_beat_count_beat-pattern_4_height_20",
+            "timeline_beat_count_beat-pattern_4",
             "beat",
-            ["--beat-pattern 4", "--height 20"],
+            ["--beat-pattern 4"],
             True,
             "timeline_count",
         ),
@@ -33,6 +33,25 @@ def test_get_args_from_filename(
     for arg in expected_args:
         assert arg in args
     assert is_by_time == expected_is_by_time
+    assert name == expected_name
+
+
+@pytest.mark.parametrize(
+    "filename, kind, expected_args, expected_name",
+    [
+        ("timeline_hrc_form_height_20", "hrc", " --height 20", "timeline_form"),
+        ("timeline_beat_count_height_20", "beat", "", "timeline_count"),
+        ("timeline_mrk_cadences_height_20", "mrk", "", "timeline_cadences"),
+    ],
+)
+def test_height_is_passed_for_hierarchy_timelines_only(
+    filename, kind, expected_args, expected_name
+):
+    # As `timelines add` takes --height only for the kinds whose height TiLiA's
+    # window sets. Others leave it out of the name all the same.
+    args, _, name = _get_args_from_filename(filename, kind)
+
+    assert args == expected_args
     assert name == expected_name
 
 

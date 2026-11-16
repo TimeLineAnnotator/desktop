@@ -23,10 +23,13 @@ from tilia.log import logger
 from tilia.media.player.base import MediaTimeChangeReason
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
+from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
+from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.timelines.hierarchy.timeline import HierarchyTimeline
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.timelines.pdf.timeline import PdfTimeline
 from tilia.timelines.range.timeline import RangeTimeline
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -56,6 +59,19 @@ from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
 from .scene import TimelineUIsScene
 from .view import TimelineUIsView
+
+# Only these kinds' context menus offer "Set height". For the others, what sets
+# their height, as `timeline.set_height` says when it refuses them.
+HEIGHT_IS_SET = (HierarchyTimeline, AudioWaveTimeline)
+HEIGHT_COMES_FROM = {
+    BeatTimeline: ("beat", "is fixed"),
+    HarmonyTimeline: ("harmony", "is its level height times the levels shown"),
+    MarkerTimeline: ("marker", "comes from the default height in the settings"),
+    PdfTimeline: ("PDF", "comes from the default height in the settings"),
+    RangeTimeline: ("range", "comes from its rows"),
+    ScoreTimeline: ("score", "comes from its staves"),
+    SliderTimeline: ("slider", "comes from the default height in the settings"),
+}
 
 
 def command_callback(func, *args, **kwargs):
@@ -1341,16 +1357,15 @@ class TimelineUIs:
     def on_timeline_set_height(
         self, timeline_ui: TimelineUI, height: int | None = None
     ):
-        # Their views take their height from what they hold, and their context
-        # menus don't offer to set it.
-        for kind, source in ((RangeTimeline, "rows"), (ScoreTimeline, "staves")):
-            if isinstance(timeline_ui.timeline, kind):
-                tilia.errors.display(
-                    tilia.errors.SET_HEIGHT_NOT_APPLICABLE,
-                    kind.type_name().lower(),
-                    source,
-                )
-                return False
+        timeline = timeline_ui.timeline
+        if not isinstance(timeline, HEIGHT_IS_SET):
+            name, comes_from = HEIGHT_COMES_FROM.get(
+                type(timeline), (timeline.type_name().lower(), "can't be set")
+            )
+            tilia.errors.display(
+                tilia.errors.SET_HEIGHT_NOT_APPLICABLE, name, comes_from
+            )
+            return False
 
         if not height:
             accepted, height = get(

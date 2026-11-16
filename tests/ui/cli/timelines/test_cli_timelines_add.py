@@ -1,3 +1,5 @@
+import pytest
+
 from tests.constants import EXAMPLE_MEDIA_PATH, EXAMPLE_PDF_PATH
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.timeline import Timeline
@@ -11,6 +13,7 @@ from tilia.ui.cli.timelines.add import (
     KIND_STR_TO_TIMELINE_CLASS,
     TIMELINE_CLASS_TO_KWARGS_NAMES,
 )
+from tilia.ui.timelines.collection.collection import HEIGHT_IS_SET
 
 
 class TestTimelineAddCoverage:
@@ -31,6 +34,17 @@ class TestTimelineAddCoverage:
     def test_slider_cannot_be_added(self):
         # It is created with the file and can't be deleted.
         assert SliderTimeline not in KIND_STR_TO_TIMELINE_CLASS.values()
+
+    def test_height_is_taken_by_the_kinds_whose_height_is_set_in_the_window(self):
+        # The command line sets nothing TiLiA's window can't: only the kinds
+        # whose context menu offers "Set height" take --height.
+        takes_height = {
+            kind
+            for kind, kwargs in TIMELINE_CLASS_TO_KWARGS_NAMES.items()
+            if "height" in kwargs
+        }
+
+        assert takes_height == set(HEIGHT_IS_SET)
 
 
 class TestTimelineAdd:
@@ -159,6 +173,31 @@ class TestTimelineAdd:
         tilia_errors.assert_error()
         tilia_errors.assert_in_error_message("--height")
         tilia_errors.assert_in_error_message("harmony")
+
+    @pytest.mark.parametrize(
+        "kind, more",
+        [
+            ("beat", ""),
+            ("marker", ""),
+            ("pdf", f" --path {EXAMPLE_PDF_PATH}"),
+            ("range", ""),
+            ("score", ""),
+        ],
+    )
+    def test_height_rejected_for_kinds_whose_height_isnt_set(
+        self, kind, more, cli, tls, tilia_errors
+    ):
+        cli.parse_and_run(f"timelines add {kind} --name T --height 50{more}")
+
+        assert len(tls) == 0
+        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message("--height")
+        tilia_errors.assert_in_error_message(kind)
+
+    def test_height_applied_to_hierarchy_kind(self, cli, tls):
+        cli.parse_and_run("timelines add hierarchy --name H --height 123")
+
+        assert tls.get_timelines()[0].height == 123
 
     def test_height_applied_to_audiowave_kind(self, cli, tls):
         cli.parse_and_run("load-media " + EXAMPLE_MEDIA_PATH)
