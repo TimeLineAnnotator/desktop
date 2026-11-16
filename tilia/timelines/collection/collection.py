@@ -316,7 +316,8 @@ class Timelines:
             # Some attributes follow the components, and were just changed with
             # them (a beat timeline's measures were fitted to the beats it had
             # before its components were restored).
-            self._restore_timeline_attributes(timeline, state)
+            if timeline._get_base_state()["hash"] != state["hash"]:
+                self._restore_timeline_attributes(timeline, state)
 
     def _restore_timeline_attributes(self, timeline: Timeline, state: dict[str, dict]):
         for attr in timeline.SERIALIZABLE:

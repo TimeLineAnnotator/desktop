@@ -248,7 +248,7 @@ class BeatTimeline(Timeline):
 
         self.beat_pattern = beat_pattern or [4]
         self._beats_in_measure = beats_in_measure or []
-        self.measure_numbers = measure_numbers or []
+        self._measure_numbers = measure_numbers or []
         self.measures_to_force_display = measures_to_force_display or []
 
     @property
@@ -268,6 +268,22 @@ class BeatTimeline(Timeline):
         self._beats_in_measure = value
         self.recalculate_measures()
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
+
+    @property
+    def measure_numbers(self):
+        return self._measure_numbers
+
+    @measure_numbers.setter
+    def measure_numbers(self, value):
+        self._measure_numbers = value
+        # The beats' metric positions, and the dicts built from them, hold the
+        # numbers. While the lists don't cover the beats yet, as while a state is
+        # restored or a file loaded, setting beats_in_measure rebuilds them.
+        self.clear_cached_metric_positions()
+        if len(value) >= len(self._beats_in_measure) and sum(
+            self._beats_in_measure
+        ) == len(self):
+            self.update_beats_that_start_measures()
 
     def should_display_measure_number(self, measure_index):
         # this is a cheap workaround to deal with pickup measures
@@ -583,7 +599,7 @@ class BeatTimeline(Timeline):
         extra_measure_count = len(self.measure_numbers) - len(self.beats_in_measure)
         if not extra_measure_count:
             return
-        self.measure_numbers = self.measure_numbers[:-extra_measure_count]
+        self._measure_numbers = self._measure_numbers[:-extra_measure_count]
         # measures_to_force_display is not sorted, so every index has to be
         # checked, not just the ones at the end of the list.
         self.measures_to_force_display = [

@@ -112,3 +112,51 @@ class TestTheUndoStackKeepsItsStates:
         tilia_errors.assert_no_error()
         assert beat_tlui.timeline.beats_in_measure == [1, 1]
         assert beat_tlui.timeline.measure_numbers == [1, 2]
+
+
+def _shown_label(tlui, index):
+    label = tlui[index].label
+    return label.toPlainText() if label.isVisible() else ""
+
+
+class TestPositionsFollowTheRestoredNumbers:
+    def test_undo_deleting_the_last_beat_gives_it_its_number(self, beat_tlui):
+        timeline = beat_tlui.timeline
+        _add_beats(range(5))
+        _set_measure_number(beat_tlui, 4, 10)
+
+        beat_tlui.select_element(beat_tlui[4])
+        commands.execute("timeline.component.delete")
+        commands.execute("edit.undo")
+
+        assert timeline[4].metric_position.measure == 10
+        assert timeline.get_metric_fraction_by_time(4) == 10
+        assert _shown_label(beat_tlui, 4) == "10"
+        assert timeline.get_export_data()["components"][4]["measure"] == 10
+
+    def test_undo_deleting_all_beats_gives_them_their_numbers(self, beat_tlui):
+        timeline = beat_tlui.timeline
+        _add_beats(range(12))
+        _set_measure_number(beat_tlui, 4, 10)  # measures 1, 10 and 11
+
+        beat_tlui.select_all_elements()
+        commands.execute("timeline.component.delete")
+        commands.execute("edit.undo")
+
+        assert [timeline[i].metric_position.measure for i in (0, 4, 8)] == [1, 10, 11]
+        assert _shown_label(beat_tlui, 4) == "10"
+
+    def test_undo_and_redo_setting_a_measure_number(self, beat_tlui):
+        timeline = beat_tlui.timeline
+        _add_beats(range(8))
+        _set_measure_number(beat_tlui, 4, 10)
+
+        commands.execute("edit.undo")
+
+        assert timeline[4].metric_position.measure == 2
+        assert timeline.get_metric_fraction_by_time(4) == 2
+
+        commands.execute("edit.redo")
+
+        assert timeline[4].metric_position.measure == 10
+        assert _shown_label(beat_tlui, 4) == "10"
