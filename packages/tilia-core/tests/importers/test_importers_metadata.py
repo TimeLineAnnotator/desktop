@@ -4,6 +4,7 @@ Story 6, scenarios 7 and 8)."""
 
 import copy
 import json
+import re
 import sys
 import time
 import wave
@@ -14,6 +15,7 @@ from import_docs import component, document, timeline
 
 from tilia_core import build, importers
 from tilia_core.importers import ImportFailed
+from tilia_core.tla.migrate import to_1
 
 # TiLiA's texts (tilia/errors.py, tilia/ui/strings.py), word for word.
 JSON_FAILED = "Error when parsing file {}:\n{}"
@@ -274,6 +276,19 @@ def test_a_media_length_written_as_text_is_read_as_a_number(tmp_path, text):
     importers.import_metadata(doc, json_file(tmp_path, {"media length": text}))
 
     assert doc.media_length == 312.5
+
+
+def test_a_media_length_written_as_text_is_read_with_the_migrations_pattern(
+    tmp_path, monkeypatch
+):
+    # The migration's pattern itself, not a copy: with it matching nothing, the
+    # importer reads the text as text too, and refuses it.
+    doc = build.new_script_document()
+    monkeypatch.setattr(to_1, "NUMBER_AS_TEXT", re.compile(r"(?!)"))
+
+    message = fails(doc, json_file(tmp_path, {"media length": "120"}))
+
+    assert message == NOT_A_MEDIA_LENGTH.format(120)
 
 
 def test_media_length_is_ignored_with_a_note_when_media_is_attached(tmp_path):
