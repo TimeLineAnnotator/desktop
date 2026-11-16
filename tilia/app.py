@@ -621,9 +621,9 @@ class App:
 
         # A loaded player reports the media's real length, which wins over
         # the snapshot's. Only a file without media (or whose media did not
-        # load) takes its duration from the snapshot -- clearing the app or
-        # unloading media above set it to 0.
-        if duration and duration != self.duration and not self.player.is_media_loaded:
+        # load) takes its duration from the snapshot, no length included: a
+        # length set without media is undone back to none.
+        if duration != self.duration and not self.player.is_media_loaded:
             self.set_file_media_duration(duration)
 
     def get_timelines_state(self):
