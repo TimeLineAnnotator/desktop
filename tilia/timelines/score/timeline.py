@@ -88,9 +88,15 @@ class ScoreTimeline(Timeline):
         self,
         svg_data: str = "",
         viewer_beat_x: dict[float, float] = None,
+        height: int | None = None,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        # Before score timelines had a default height, TiLiA saved them with 1,
+        # which the validator refuses. That was no one's choice, so a height the
+        # validator refuses gets the default, as if none was given.
+        if height is not None and not self.validators["height"](height):
+            height = None
+        super().__init__(height=height, **kwargs)
 
         self.validators = self.validators | {
             "svg_data": validate_string,
