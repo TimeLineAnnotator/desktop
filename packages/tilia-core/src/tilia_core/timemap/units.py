@@ -121,10 +121,11 @@ class MeasureMeter:
     """
     The meter a measure ends up with. `beat_unit_id` is the id of the beat
     that carries the beat unit governing the measure (a beat holds at most
-    one), or None where no unit set on a beat governs it: in tilia_core, the
-    measures before the first unit, which take its values, assumed, and every
-    measure when there is none. `is_assumed` is True when its values weren't
-    set by the user (see BeatUnit.assumed).
+    one), or None where no unit set on a beat governs it: in tilia_core, a
+    movement's measures before its first unit, which take that unit's values,
+    and those of a movement without one, which take the unit in force before
+    it, else DEFAULT_DENOMINATOR and DEFAULT_UNITS; all assumed. `is_assumed`
+    is True when its values weren't set by the user (see BeatUnit.assumed).
     """
 
     denominator: int

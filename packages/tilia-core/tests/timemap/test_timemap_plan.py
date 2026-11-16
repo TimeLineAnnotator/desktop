@@ -829,6 +829,14 @@ class TestAfter:
                 doc, "elsewhere", bars(2, text="6/8"), source="score", after="carry"
             )
 
+    def test_a_timeline_of_the_document_of_another_kind_is_refused(self):
+        _, tl = piece([2, 2, 2])
+        markers = tla.Timeline(id=tla.new_id(), kind="marker", ordinal=2)
+        doc = document(tl, markers)
+
+        with pytest.raises(ValueError):
+            plan(doc, markers, bars(2, text="6/8"))
+
 
 class TestRestore:
     def test_the_bar_after_a_run_gets_its_old_unit_back(self):

@@ -52,7 +52,9 @@ def rows_of(timeline: tla.Timeline) -> list[RowIn]:
     `Measure.beat_unit` (the unit in force) and any beat pattern are not read:
     the governing unit is computed from the units set on each row's own beats.
     A beat without a time is logged and left out; a measure whose downbeat has
-    none is left out whole, so every row's `id` is its first beat.
+    none is left out whole, so every row's `id` is its first beat. Each row's
+    `metadata` is its own copy, lists included, so changing it leaves the
+    document as it was.
 
     A closing tap is in no row's beats, and gives the row it closes its
     `closing`. WP3's table leaves out every tap marked closing, so one read as
