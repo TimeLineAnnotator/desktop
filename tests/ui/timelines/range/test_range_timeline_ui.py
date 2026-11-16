@@ -21,7 +21,6 @@ from tests.ui.timelines.range.interact import (
     click_start_handle,
 )
 from tests.utils import (
-    IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE,
     assert_timeline_ui_update,
     get_action_by_object_name,
     get_command_action,
@@ -555,7 +554,6 @@ class TestJoinRanges:
 
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_save_load_preserves_join_with_advanced_id_counter(
         self, tilia, tluis, tilia_state, tmp_path
     ):

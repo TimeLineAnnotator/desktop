@@ -10,14 +10,19 @@ from tilia import dirs
 from tilia.log import logger
 from tilia.requests import Get, get
 from tilia.settings import settings
+from tilia_core import tla
 
-from .common import are_tilia_data_equal, write_tilia_file_to_disk
-from .tilia_file import TiliaFile
+from .common import are_tilia_data_equal
 
 
 class AutoSaver:
-    def __init__(self, get_app_state: Callable[[], dict]):
+    def __init__(
+        self,
+        get_app_state: Callable[[], dict],
+        copy_document: Callable[[], tla.Document],
+    ):
         self.get_app_state = get_app_state
+        self.copy_document = copy_document
         self._last_autosave_data = None
         self._autosave_exception_list: list[Exception] = []
         self._autosave_thread = Thread(
@@ -35,7 +40,7 @@ class AutoSaver:
                 time.sleep(settings.get("auto-save", "interval_(seconds)"))
                 if self.needs_auto_save():
                     data = self.get_app_state()
-                    autosave(data)
+                    autosave(self.copy_document())
                     self._last_autosave_data = data
             except Exception as excp:
                 self._autosave_exception_list.append(excp)
@@ -52,10 +57,13 @@ def _raise_save_loop_exception(excp: Exception):
     raise excp
 
 
-def autosave(data: dict):
+def autosave(document: tla.Document) -> None:
+    """Writes `document` through the core into the autosaves folder. It must be a
+    copy of the open one (`OpenDocument.copy_for_writing`): a write makes the document
+    it is given follow the file written."""
     make_room_for_new_autosave()
     autosave_path = get_autosave_path()
-    write_tilia_file_to_disk(TiliaFile(**data), autosave_path)
+    tla.write(autosave_path, document)
     logger.debug(f"Autosave: {autosave_path}")
 
 

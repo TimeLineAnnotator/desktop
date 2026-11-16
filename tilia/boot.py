@@ -177,7 +177,7 @@ def setup_logic(autosaver=True):
     )
 
     if autosaver:
-        AutoSaver(_app.get_app_state)
+        AutoSaver(_app.get_app_state, lambda: _app.file_manager.file.copy_for_writing())
 
     return _app
 

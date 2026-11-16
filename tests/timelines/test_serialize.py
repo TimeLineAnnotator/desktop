@@ -1,12 +1,9 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tests.ui.timelines.marker.interact import click_marker_ui
 from tests.utils import (
-    IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE,
     save_and_reopen,
     save_tilia_to_tmp_path,
     undoable,
@@ -175,7 +172,6 @@ class TestSerializeDeserializeRoundTrip:
 
 
 class TestRoundTripDesktopFileDesktop:
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_marker_ids_preserved_after_save_open(self, tilia, marker_tlui, tmp_path):
         for time in [0, 10, 20, 30]:
             commands.execute("timeline.marker.add", time=time)
@@ -199,7 +195,6 @@ class TestRoundTripDesktopFileDesktop:
         components = contents["timelines"][marker_tlui.id]["components"]
         assert list(components) == sorted(components, key=id_order)
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_save_open_save_preserves_components_per_timeline(
         self, slider_tlui, marker_tlui, beat_tlui, tmp_path
     ):
@@ -237,7 +232,6 @@ class TestRoundTripPerTimelineKind:
     won't add a fresh slider after reload (see the test in
     TestRoundTripDesktopFileDesktop for the same workaround)."""
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_harmony_round_trip(self, slider_tlui, harmony_tlui, tmp_path):
         harmony_params = {
             "step": 0,
@@ -263,7 +257,6 @@ class TestRoundTripPerTimelineKind:
         first, second = _save_open_save(tmp_path)
         assert second["timelines"] == first["timelines"]
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_pdf_round_trip(self, slider_tlui, pdf_tlui, tmp_path):
         for time in [0, 10, 20]:
             commands.execute("timeline.pdf.add", time=time)
@@ -271,14 +264,6 @@ class TestRoundTripPerTimelineKind:
         first, second = _save_open_save(tmp_path)
         assert second["timelines"] == first["timelines"]
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="the file doesn't store AudioWave's bars, which TiLiA computes from"
-        " the media: TiLiA's own writer still writes those made here into the first"
-        " save, and the second, read back without media, has none; and the ids are"
-        " new when read again, until TiLiA saves through the core"
-        " (TimeLineAnnotator/project-management#449)",
-    )
     def test_audiowave_round_trip(self, slider_tlui, audiowave_tlui, tmp_path):
         # No add command for audiowave; create amplitudebars via the
         # timeline API the fixture exposes.
@@ -335,7 +320,6 @@ class TestScoreTimelineRoundTrip:
             font_size=14,
         )
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_full_score_round_trips_byte_identical(
         self, slider_tlui, score_tlui, tmp_path
     ):
@@ -355,19 +339,23 @@ class TestScoreTimelineRoundTrip:
         score_components = contents["timelines"][score_tlui.id]["components"]
         assert list(score_components) == sorted(score_components, key=id_order)
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_score_with_arbitrary_non_sequential_ids_round_trips(
         self, slider_tlui, score_tlui, tilia, tmp_path
     ):
-        # Inject explicit non-sequential ids — which could come from previous TiLiA versions
+        # Ids given out of the order they are made in, as another program could
+        # give them. The format's ids are UUIDs: a previous TiLiA's numbers are
+        # migrated to UUIDs in their order.
+        def uuid(number):
+            return f"019a4f6e-7c10-7000-8000-{number:012d}"
+
         score_tl = score_tlui.timeline
-        score_tl.create_component(ComponentKind.STAFF, 0, 5, id=100)
+        score_tl.create_component(ComponentKind.STAFF, 0, 5, id=uuid(100))
         score_tl.create_component(
-            ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE, id=5
+            ComponentKind.CLEF, 0, 0, shorthand=Clef.Shorthand.TREBLE, id=uuid(5)
         )
-        score_tl.create_component(ComponentKind.NOTE, 0.0, 5.0, 0, 0, 4, 0, id=50)
-        score_tl.create_component(ComponentKind.NOTE, 5.0, 10.0, 2, 0, 4, 0, id=3)
-        score_tl.create_component(ComponentKind.BAR_LINE, 0.0, id=200)
+        score_tl.create_component(ComponentKind.NOTE, 0.0, 5.0, 0, 0, 4, 0, id=uuid(50))
+        score_tl.create_component(ComponentKind.NOTE, 5.0, 10.0, 2, 0, 4, 0, id=uuid(3))
+        score_tl.create_component(ComponentKind.BAR_LINE, 0.0, id=uuid(200))
 
         original_tl_id = score_tlui.id
         original_components = score_tl.component_manager.serialize_components()
@@ -378,10 +366,9 @@ class TestScoreTimelineRoundTrip:
         reloaded_components = reloaded.component_manager.serialize_components()
         assert reloaded_components == original_components
         assert list(reloaded_components.keys()) == sorted(
-            reloaded_components.keys(), key=int
+            reloaded_components.keys(), key=id_order
         )
 
-    @IDS_NEW_UNTIL_SAVED_THROUGH_THE_CORE
     def test_staff_index_references_survive_round_trip(
         self, slider_tlui, score_tlui, tilia, tmp_path
     ):

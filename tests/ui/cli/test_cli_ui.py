@@ -47,3 +47,11 @@ class TestCLI:
             with pytest.raises(SystemExit):
                 cli.launch()
         assert not cli._is_running
+
+    def test_a_command_s_edit_reaches_the_document_at_once(self, cli, tilia):
+        # A command records nothing for undo, so its end is where the document
+        # follows TiLiA (TimeLineAnnotator/project-management#449).
+        cli.parse_and_run('metadata set composer "Franz Schubert"')
+
+        document = tilia.file_manager.file.document
+        assert document.metadata["composer"] == "Franz Schubert"
