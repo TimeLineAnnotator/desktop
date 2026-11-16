@@ -53,6 +53,25 @@ def _to_0_1_1_display_position_to_ordinal(data: dict) -> dict:
     return data
 
 
+def _to_0_6_0_harmony_display_mode(data: dict) -> dict:
+    """Rename harmonies' ``display_mode`` ``"chord"`` to ``"letter"``.
+
+    TiLiA < 0.6 called the letter display mode ``"chord"``.
+    """
+    for timeline in data.get("timelines", {}).values():
+        components = timeline.get("components")
+        if not isinstance(components, dict):
+            continue
+        for component in components.values():
+            if (
+                isinstance(component, dict)
+                and component.get("kind") == "HARMONY"
+                and component.get("display_mode") == "chord"
+            ):
+                component["display_mode"] = "letter"
+    return data
+
+
 def normalize_kind_string(kind: str) -> str:
     """Shorten a serialized timeline ``kind``.
 
@@ -85,6 +104,7 @@ def _to_0_8_0_drop_hashes(data: dict) -> dict:
 # Ascending by target version. See module docstring before editing.
 MIGRATIONS: list[tuple[str, Migration]] = [
     ("0.1.1", _to_0_1_1_display_position_to_ordinal),
+    ("0.6.0", _to_0_6_0_harmony_display_mode),
     ("0.7.0", _to_0_7_0_timeline_kind),
     ("0.8.0", _to_0_8_0_drop_hashes),
 ]

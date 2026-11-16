@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from tests.mock import Serve
 from tilia.file.file_manager import open_tla
 from tilia.file.migration import (
@@ -30,6 +32,29 @@ def make_pre_0_1_1_timeline(kind, display_position, **extra):
     timeline = make_timeline(kind, display_position=display_position, **extra)
     del timeline["ordinal"]
     return timeline
+
+
+def make_harmony_timeline(components):
+    return make_timeline("HARMONY_TIMELINE", components=components)
+
+
+def make_0_5_harmony(display_mode):
+    """A harmony as TiLiA 0.5.15 wrote it."""
+    return {
+        "time": 0.0,
+        "comments": "",
+        "step": 0,
+        "accidental": 0,
+        "quality": "major",
+        "inversion": 0,
+        "applied_to": 0,
+        "level": 1,
+        "display_mode": display_mode,
+        "custom_text": "",
+        "custom_text_font_type": "analytic",
+        "kind": "HARMONY",
+        "hash": "",
+    }
 
 
 def make_tla(version, timelines=None):
@@ -136,7 +161,7 @@ class TestMigrate:
         assert tl["ordinal"] == 1
         assert "display_position" not in tl
         assert tl["kind"] == "Hierarchy"
-        assert applied == ["0.1.1", "0.7.0"]
+        assert applied == ["0.1.1", "0.6.0", "0.7.0"]
         assert migrated["version"] == "0.7.0"
 
     def test_current_file_is_noop(self):
@@ -177,6 +202,58 @@ class TestMigrate:
         data = make_tla("0.1.0", {"0": {"kind": "Marker"}})
         migrated, _ = migrate(data, app_version="0.8.0")
         assert migrated["timelines"]["0"] == {"kind": "Marker"}
+
+
+class TestHarmonyDisplayModeMigration:
+    # TiLiA < 0.6 called the letter display mode "chord".
+    def test_chord_becomes_letter(self):
+        data = make_tla(
+            "0.5.15",
+            {"0": make_harmony_timeline({"1": make_0_5_harmony("chord")})},
+        )
+
+        migrated, applied = migrate(data, app_version="0.7.0")
+
+        harmony = migrated["timelines"]["0"]["components"]["1"]
+        assert harmony["display_mode"] == "letter"
+        assert applied == ["0.6.0", "0.7.0"]
+
+    @pytest.mark.parametrize("display_mode", ["roman", "custom"])
+    def test_other_display_modes_are_kept(self, display_mode):
+        data = make_tla(
+            "0.5.15",
+            {"0": make_harmony_timeline({"1": make_0_5_harmony(display_mode)})},
+        )
+
+        migrated, _ = migrate(data, app_version="0.7.0")
+
+        harmony = migrated["timelines"]["0"]["components"]["1"]
+        assert harmony["display_mode"] == display_mode
+
+    def test_only_harmonies_are_renamed(self):
+        mode = {"kind": "MODE", "display_mode": "chord"}
+        data = make_tla("0.5.15", {"0": make_harmony_timeline({"1": mode})})
+
+        migrated, _ = migrate(data, app_version="0.7.0")
+
+        assert migrated["timelines"]["0"]["components"]["1"]["display_mode"] == (
+            "chord"
+        )
+
+    def test_malformed_components_are_left_as_they_are(self):
+        # For loading to report, as it does in a current file.
+        data = make_tla(
+            "0.5.15",
+            {
+                "0": make_harmony_timeline(["not", "a", "mapping"]),
+                "1": make_harmony_timeline({"1": 404}),
+            },
+        )
+
+        migrated, _ = migrate(data, app_version="0.7.0")
+
+        assert migrated["timelines"]["0"]["components"] == ["not", "a", "mapping"]
+        assert migrated["timelines"]["1"]["components"] == {"1": 404}
 
 
 class TestOpenTlaNewerVersionWarning:

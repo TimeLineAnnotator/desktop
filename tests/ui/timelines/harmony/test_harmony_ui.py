@@ -7,7 +7,12 @@ import pytest
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add_mode
 from tests.ui.timelines.interact import click_timeline_ui
-from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
+from tests.utils import (
+    get_blank_file_data,
+    save_and_reopen,
+    save_tilia_to_tmp_path,
+    undoable,
+)
 from tilia.requests import Post, post
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui import commands
@@ -575,3 +580,114 @@ class TestUnknownQualityInFile:
         tilia_errors.assert_in_error_message(
             "Harmony at '00:02.0' has an unknown chord quality"
         )
+
+
+class TestDisplayModeInTiLiA05File:
+    # TiLiA < 0.6 called the letter display mode "chord".
+    @pytest.fixture
+    def file_from_0_5_15(self, tmp_path):
+        data = get_blank_file_data()
+        data["version"] = "0.5.15"
+        data["media_metadata"]["media length"] = 9.952
+        data["timelines"] = {
+            "0": {
+                "is_visible": True,
+                "ordinal": 1,
+                "height": 40,
+                "kind": "SLIDER_TIMELINE",
+                "components": {},
+                "components_hash": "",
+                "hash": "",
+            },
+            "22": {
+                "kind": "HARMONY_TIMELINE",
+                "level_count": 1,
+                "level_height": 35,
+                "is_visible": True,
+                "name": "Harmony",
+                "ordinal": 2,
+                "visible_level_count": 2,
+                "hash": "15f75ae87d5b300f7635f1fb1147aabd",
+                "components": {
+                    "24": {
+                        "time": 0.0,
+                        "comments": "",
+                        "step": 5,
+                        "accidental": 0,
+                        "quality": "minor",
+                        "inversion": 0,
+                        "applied_to": 0,
+                        "level": 1,
+                        "display_mode": "chord",
+                        "custom_text": "",
+                        "custom_text_font_type": "analytic",
+                        "kind": "HARMONY",
+                        "hash": "9ce53b4e28eb230d0bfaf965edad18d0",
+                    },
+                    "25": {
+                        "time": 2.0,
+                        "comments": "",
+                        "step": 4,
+                        "accidental": 0,
+                        "quality": "major",
+                        "inversion": 1,
+                        "applied_to": 0,
+                        "level": 1,
+                        "display_mode": "chord",
+                        "custom_text": "",
+                        "custom_text_font_type": "analytic",
+                        "kind": "HARMONY",
+                        "hash": "c97a688412d23f53c5273b49f110b95b",
+                    },
+                    "23": {
+                        "time": 0.0,
+                        "step": 5,
+                        "accidental": 0,
+                        "type": "minor",
+                        "comments": "",
+                        "level": 2,
+                        "kind": "MODE",
+                        "hash": "874f88f320c9aed4e3275655fa5219e4",
+                    },
+                },
+                "components_hash": "391232b7b3af5db2991163685ee254ac",
+            },
+        }
+        path = tmp_path / "0.5.15.tla"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return path
+
+    def test_chord_opens_as_letter(self, file_from_0_5_15, tluis, tilia_errors):
+        commands.execute("file.open", path=file_from_0_5_15)
+
+        tilia_errors.assert_no_error()
+        harmonies = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0].harmonies()
+        assert [h.get_data("display_mode") for h in harmonies] == ["letter"] * 2
+        assert [h.label for h in harmonies] == ["Am", "G/B"]
+
+    def test_saving_writes_letter(self, file_from_0_5_15, tluis, tmp_path):
+        commands.execute("file.open", path=file_from_0_5_15)
+
+        saved = json.loads(
+            Path(save_tilia_to_tmp_path(tmp_path, "resaved")).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        assert [
+            component["display_mode"]
+            for timeline in saved["timelines"].values()
+            for component in timeline.get("components", {}).values()
+            if component["kind"] == "HARMONY"
+        ] == ["letter"] * 2
+
+    def test_current_file_keeps_letter_and_roman(self, harmony_tlui, tluis, tmp_path):
+        add_mode(step=5, type="minor")
+        add_harmony(1, step=5, quality="minor", display_mode="letter")
+        add_harmony(2, step=4, inversion=1, display_mode="roman")
+
+        save_and_reopen(tmp_path)
+
+        harmonies = tluis.get_timeline_uis_by_type(HarmonyTimeline)[0].harmonies()
+        assert [h.get_data("display_mode") for h in harmonies] == ["letter", "roman"]
+        assert [h.label for h in harmonies] == ["Am", "VII6"]
