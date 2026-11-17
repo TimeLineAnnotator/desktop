@@ -426,14 +426,20 @@ class BeatTimelineUI(TimelineUI):
         for measure_index in self._get_outlined_label_measures(elements):
             beat_unit, error = timeline.get_time_signature_change(measure_index)
             if beat_unit is None:
-                errors.append(error)
+                errors.append((measure_index, error))
             elif beat_unit.id not in beat_unit_ids:
                 beat_unit_ids.add(beat_unit.id)
                 to_delete.append(beat_unit)
 
         if not to_delete:
             if errors:
-                tilia.errors.display(tilia.errors.TIME_SIGNATURE_NOT_REMOVED, errors[0])
+                # The first measure's reason is about that measure alone,
+                # while the others' say why a label that marks no change is
+                # there, so one of those is shown first.
+                errors.sort(key=lambda error: error[0] == 0)
+                tilia.errors.display(
+                    tilia.errors.TIME_SIGNATURE_NOT_REMOVED, errors[0][1]
+                )
             return False
         timeline.delete_components(to_delete)
         return True

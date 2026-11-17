@@ -169,6 +169,18 @@ class TestRemoveTimeSignature:
 
         assert error.call_args.args[0].endswith("1/4 because it has 1 tap.")
 
+    def test_the_first_measures_assumed_default_is_explained(self, cli, beat_tl):
+        # Removing it would only give it back.
+        beat_unit_ids = [u.id for u in beat_tl.beat_units]
+
+        with patch("tilia.ui.cli.io.error") as error:
+            cli.parse_and_run("timelines beat time-signatures remove -o 1 -m 1")
+
+        assert error.call_args.args[0] == (
+            "No time signature was set at that measure: TiLiA assumes 2/4."
+        )
+        assert [u.id for u in beat_tl.beat_units] == beat_unit_ids
+
 
 class TestListBars:
     def test_list(self, cli, beat_tl):

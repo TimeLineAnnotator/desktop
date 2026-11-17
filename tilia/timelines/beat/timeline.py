@@ -851,12 +851,19 @@ class BeatTimeline(Timeline):
         removing the change there deletes, so that the one before carries
         on; or None, and why there is none: a measure whose time signature
         differs from the one before only because it has another number of
-        taps carries that one on.
+        taps carries that one on, and the first measure's beat unit, when it
+        is the default TiLiA assumes there, would only be given back.
         """
         meter = self.get_measure_meter(measure_index)
-        if meter.starts_here:
-            return self.get_beat_unit_on_beat(meter.beat_unit_id), ""
         bar = self.get_measure_as_planned_bar(measure_index)
+        if meter.starts_here:
+            beat_unit = self.get_beat_unit_on_beat(meter.beat_unit_id)
+            if measure_index == 0 and self._is_the_default_first_beat_unit(beat_unit):
+                return None, (
+                    "No time signature was set at that measure: TiLiA assumes "
+                    f"{format_time_signature(bar)}."
+                )
+            return beat_unit, ""
         if measure_index and (
             bar.numerator
             != self.get_measure_as_planned_bar(measure_index - 1).numerator
@@ -868,6 +875,19 @@ class BeatTimeline(Timeline):
                 f"{taps}."
             )
         return None, "The time signature doesn't change at that measure."
+
+    def _is_the_default_first_beat_unit(self, beat_unit: BeatUnit) -> bool:
+        """
+        Whether a beat unit in the first measure is the default TiLiA assumes
+        there, alone, so that deleting it would give the same one back (see
+        `_ensure_first_beat_unit`).
+        """
+        return (
+            beat_unit.assumed
+            and beat_unit.denominator == DEFAULT_DENOMINATOR
+            and beat_unit.unit_values == parse_units(DEFAULT_UNITS).units
+            and len(self.get_beat_units_in_measure(0)) == 1
+        )
 
     @property
     def beat_quarter_lengths(self) -> list[Fraction]:

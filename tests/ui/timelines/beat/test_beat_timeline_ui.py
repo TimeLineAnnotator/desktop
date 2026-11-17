@@ -2489,6 +2489,53 @@ class TestTimeSignatures:
             (8, "1"),
         ]
 
+    def test_deleting_every_label_of_beats_tilia_assumes(self, tluis, tilia_errors):
+        # As when cleaning beats found by automatic beat detection: every
+        # label is the first beat's assumed beat unit's.
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(0, 32, 2))
+        tluis[0].select_element(tluis[0][4])
+        commands.execute("timeline.beat.set_amount_in_measure", amount=3)
+        timeline = tluis[0].timeline
+        before = [(u.id, u.assumed) for u in timeline.beat_units]
+        assert label_texts(all_labels(tluis[0])) == [
+            ("4", "4"),
+            ("3", "4"),
+            ("4", "4"),
+            ("1", "4"),
+        ]
+
+        # A box over the first or the last label would also go over that
+        # bar's number, which selects its first beat, so the first label is
+        # added with Shift.
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 25)
+        click_time_signature_label(tluis[0], all_labels(tluis[0])[0], modifier="shift")
+        assert tluis[0].selected_elements == [
+            tluis[0].get_element(timeline.beat_units[0].id)
+        ]
+        assert outlined_measures(tluis[0]) == [0, 1, 2]
+        commands.execute("timeline.component.delete")
+
+        assert [(u.id, u.assumed) for u in timeline.beat_units] == before
+        tilia_errors.assert_in_error_message(
+            "No time signature was set at that measure: it reads 3/4 because it "
+            "has 3 taps."
+        )
+
+    def test_deleting_the_first_label_where_tilia_assumes_it(self, tluis, tilia_errors):
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(8))
+        before = [u.id for u in tluis[0].timeline.beat_units]
+        click_time_signature_label(tluis[0], all_labels(tluis[0])[0])
+
+        commands.execute("timeline.component.delete")
+
+        assert [u.id for u in tluis[0].timeline.beat_units] == before
+        tilia_errors.assert_in_error_message(
+            "No time signature was set at that measure: TiLiA assumes 4/4."
+        )
+
     def test_beat_units_do_not_count_as_beats(self, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
@@ -3497,7 +3544,9 @@ class TestClickedLabel:
         tilia_errors.assert_no_error()
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
 
-    def test_a_label_another_beat_unit_takes_is_no_longer_selected(self, tluis):
+    def test_a_label_another_beat_unit_takes_is_no_longer_selected(
+        self, tluis, tilia_errors
+    ):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
 
@@ -3505,7 +3554,8 @@ class TestClickedLabel:
         # selected.
         set_beat_unit(tluis[0], 2, 8, "3")
 
-        # Delete acts on what is outlined: here bar 1.
+        # Delete acts on what is outlined: here bar 1, where TiLiA assumes
+        # the time signature, so nothing goes.
         assert tluis[0].selected_elements == [beat_unit_ui]
         assert outlined_measures(tluis[0]) == [0]
         commands.execute("timeline.component.delete")
@@ -3514,6 +3564,7 @@ class TestClickedLabel:
             (4, "1"),
             (8, "3"),
         ]
+        tilia_errors.assert_in_error_message("TiLiA assumes 2/4.")
 
 
 def outlined_measures(timeline_ui):
