@@ -11,6 +11,7 @@ To check a corpus too, set `TILIA_TIMEMAP_CORPUS` to its folder: its files are
 read where they are, and never written.
 """
 
+import collections
 import copy
 import math
 import os
@@ -37,28 +38,9 @@ from tilia_core.timemap import (
 )
 from tilia_core.tla.model import beat_order
 
-# The writer checks chords and keys only with the `harmony` extra, and won't
-# write them without it.
-needs_chords = pytest.mark.skipif(
-    not harmony_available(),
-    reason="writing chords and keys needs the `harmony` extra",
-)
-
-
-def files_in(folder):
-    return [
-        pytest.param(
-            path,
-            id=path.name,
-            marks=[needs_chords] if b'"HARMONY' in path.read_bytes().upper() else [],
-        )
-        for path in sorted(folder.glob("*.tla"))
-    ]
-
-
 TLA = Path(__file__).resolve().parent.parent / "tla"
-GOLDEN = files_in(TLA / "golden")
-OLD = files_in(TLA / "old")
+GOLDEN = sorted((TLA / "golden").glob("*.tla"))
+OLD = sorted((TLA / "old").glob("*.tla"))
 EVERY_KIND = TLA / "golden" / "every-kind.tla"
 S4 = TLA / "old" / "0.6.0-s4-10.tla"
 CORPUS = "TILIA_TIMEMAP_CORPUS"
@@ -66,6 +48,7 @@ CORPUS = "TILIA_TIMEMAP_CORPUS"
 # Where components lie, by the keys that hold a time.
 TIME_KEYS = ("time", "start", "end", "pre_start", "post_end")
 TIME_SIGNATURES = ("2/4", "3/4", "4/4", "6/8", "3/8", "2+3/8", "3+3+2/8")
+UNREADABLE = {"denominator": 200, "units": "x"}  # a unit the reader can't read
 
 
 def is_time(value):
@@ -102,12 +85,9 @@ def measure_everything(doc):
         for after in ("restore", "carry"):
             for text in ("6/8", "2+2+3/8"):
                 settings = [(row.id, TimeSignature.parse(text)) for row in rows]
-                try:
-                    plan_time_signatures(
-                        doc, timeline.id, settings, source="score", after=after
-                    )
-                except ValueError:  # a unit too long to be read back
-                    pass
+                plan_time_signatures(
+                    doc, timeline.id, settings, source="score", after=after
+                )
         time_map = time_map_for(doc, timeline.id)
         if time_map is None:
             continue
@@ -137,33 +117,38 @@ def place(path, folder):
     return Path(shutil.copy(path, folder / path.name))
 
 
-def write_as_read(path):
-    doc = tla.read(path)
-    tla.write(path, doc, expect=doc.fingerprint)
-    return path.read_bytes()
+def written(path, folder, *, measured):
+    """The bytes of `path` copied to `folder`, read, `measured` in every way
+    the time map measures (the document is then as it was read), and written
+    with `tla.write`. Without the `harmony` extra, the writer won't write
+    chords and keys, which it can't check: for a file that has them, the
+    bytes it would write, `canonical_bytes`."""
+    copied = place(path, folder)
+    doc = tla.read(copied)
+    if measured:
+        as_read = copy.deepcopy(doc)
+        measure_everything(doc)
+        assert doc == as_read
+    if not harmony_available() and b'"HARMONY' in path.read_bytes().upper():
+        return tla.canonical_bytes(doc)
+    tla.write(copied, doc, expect=doc.fingerprint)
+    return copied.read_bytes()
 
 
 def assert_measuring_writes_nothing(path, tmp_path):
-    """`path`, read, measured and written, gives the bytes it gives read and
-    written, and its document is as it was read."""
-    measured = place(path, tmp_path / "measured")
-    doc = tla.read(measured)
-    as_read = copy.deepcopy(doc)
-
-    measure_everything(doc)
-
-    assert doc == as_read
-    tla.write(measured, doc, expect=doc.fingerprint)
-    assert measured.read_bytes() == write_as_read(place(path, tmp_path / "read"))
+    """`path` read, measured and written gives the bytes it gives read and
+    written, and the document is as it was read; returns them."""
+    data = written(path, tmp_path / "measured", measured=True)
+    assert data == written(path, tmp_path / "read", measured=False)
+    return data
 
 
-@pytest.mark.parametrize("path", GOLDEN)
+@pytest.mark.parametrize("path", GOLDEN, ids=lambda path: path.name)
 def test_a_current_file_read_measured_and_written_keeps_its_bytes(path, tmp_path):
-    assert_measuring_writes_nothing(path, tmp_path)
-    assert write_as_read(place(path, tmp_path / "again")) == path.read_bytes()
+    assert assert_measuring_writes_nothing(path, tmp_path) == path.read_bytes()
 
 
-@pytest.mark.parametrize("path", OLD)
+@pytest.mark.parametrize("path", OLD, ids=lambda path: path.name)
 def test_an_old_file_read_measured_and_written_is_converted_as_without(path, tmp_path):
     assert_measuring_writes_nothing(path, tmp_path)
 
@@ -204,8 +189,7 @@ def test_a_file_the_core_wrote_read_measured_and_written_keeps_its_bytes(
     assert found.time_map is not None
     assert bool(found.warnings) == (name == "a closing tap read as a beat")
 
-    assert_measuring_writes_nothing(path, tmp_path)
-    assert write_as_read(place(path, tmp_path / "again")) == path.read_bytes()
+    assert assert_measuring_writes_nothing(path, tmp_path) == path.read_bytes()
 
 
 def test_a_corpus_read_and_measured_is_written_as_it_was_read():
@@ -243,7 +227,7 @@ def test_a_corpus_read_and_measured_is_written_as_it_was_read():
 def assert_as_from_scratch(doc, times):
     """Every beat timeline of `doc` gives, as it now is, what it gives read
     from the file it would be written as: its table, its rows, the time map
-    chosen, and that map's rows and positions."""
+    chosen, and that map's rows and positions. Returns the time map found."""
     fresh = tla.loads(tla.canonical_bytes(doc))
     for timeline_id, timeline in doc.timelines.items():
         if timeline.kind == "beat":
@@ -260,6 +244,7 @@ def assert_as_from_scratch(doc, times):
     if built.time_map is not None:
         assert built.time_map is not scratch.time_map
         assert values(built.time_map, times) == values(scratch.time_map, times)
+    return built
 
 
 def values(time_map, times):
@@ -365,10 +350,10 @@ def beat_unit(rng, timeline):
             {"denominator": 8, "units": "2+3"},
             {"denominator": 2, "units": "1"},
             {"denominator": 4, "units": "1/2"},
-            {"denominator": 200, "units": "x"},  # one the reader can't read
+            UNREADABLE,
         ]
     )
-    rng.choice(beats_of(timeline)).attrs["beat_unit"] = value
+    rng.choice(beats_of(timeline)).attrs["beat_unit"] = dict(value)
 
 
 def no_beat_unit(rng, timeline):
@@ -378,9 +363,32 @@ def no_beat_unit(rng, timeline):
 
 
 def closing(rng, timeline):
+    """Marks a beat closing, or a closing tap a beat again. The reader gives
+    every beat `closing`, false where it isn't one."""
     component = rng.choice(beats_of(timeline))
-    if component.attrs.pop("closing", None) is None:
+    if component.attrs.get("closing"):
+        del component.attrs["closing"]
+    else:
         component.attrs["closing"] = True
+
+
+def collide(rng, timeline):
+    """Moves a beat to another's time: the table has a problem, and the
+    timeline no time map, until `separate` moves one of them away."""
+    beats = beats_of(timeline)
+    if len(beats) > 1:
+        moved, onto = rng.sample(beats, 2)
+        moved.attrs["time"] = onto.attrs["time"]
+
+
+def separate(rng, timeline):
+    """Moves each beat that shares its time with another a little later."""
+    times = set()
+    for component in beats_of(timeline):
+        time = component.attrs["time"]
+        if time in times:
+            component.attrs["time"] = round(time + rng.uniform(0.05, 0.5), 3)
+        times.add(component.attrs["time"])
 
 
 def timeline_source(rng, timeline):
@@ -402,6 +410,7 @@ EDITS = [
     beat_unit,
     no_beat_unit,
     closing,
+    collide,
     timeline_source,
 ]
 
@@ -416,29 +425,45 @@ def keep_the_first_beat_marked(timeline):
         beats[order[0]]["measure"] = {}
 
 
+def a_time_signature(rng):
+    return TimeSignature.parse(rng.choice(TIME_SIGNATURES))
+
+
 def a_plan(rng, doc, timeline):
-    """Plans, and applies, time signatures for a few of the timeline's bars."""
+    """Plans time signatures for a few of the timeline's bars, at times for a
+    bar it doesn't have too, or over a unit the reader can't read; applies the
+    plan, and returns it."""
     rows = measure_rows(doc, timeline.id)
     if not rows:
-        return
+        return None
     settings = [
         (
             rng.choice([row.id, BarRef(row.number, pass_=row.pass_)]),
-            TimeSignature.parse(rng.choice(TIME_SIGNATURES)),
+            a_time_signature(rng),
         )
         for row in rng.sample(rows, min(len(rows), rng.randint(1, 3)))
     ]
-    try:
-        plan = plan_time_signatures(
-            doc,
-            timeline.id,
-            settings,
-            source=rng.choice(["score", "import", "edit"]),
-            after=rng.choice(["restore", "carry"]),
-        )
-    except ValueError:  # a unit too long to be read back
-        return
+    after = rng.choice(["restore", "carry"])
+    if rng.random() < 0.3:
+        settings.append((BarRef(999), a_time_signature(rng)))
+    if len(rows) > 1 and rng.random() < 0.3:
+        # A bar after one set stores a unit the reader can't read: where the
+        # bar would read otherwise, "restore" would write its old unit back
+        # there, so the run is left out of the plan.
+        index = rng.randrange(1, len(rows))
+        timeline.components[rows[index].id].attrs["beat_unit"] = dict(UNREADABLE)
+        timeline.measures = tla.measure_table(timeline)
+        settings.append((rows[index - 1].id, a_time_signature(rng)))
+        after = "restore"
+    plan = plan_time_signatures(
+        doc,
+        timeline.id,
+        settings,
+        source=rng.choice(["score", "import", "edit"]),
+        after=after,
+    )
     apply_plan(doc, plan)
+    return plan
 
 
 def probes(rng, doc, timeline):
@@ -451,40 +476,103 @@ def probes(rng, doc, timeline):
     return sorted([*beats, *near, *anywhere, -1.0])
 
 
-def edit_at_random(seed, path, steps):
+def edit_at_random(seed, path, steps, plans):
+    """Edits the time map's timeline of the file at `path` `steps` times, a
+    share `plans` of them by applying a plan, and checks each step. Returns
+    what the steps reached."""
     rng = random.Random(seed)
     doc = tla.read(path)
     timeline = doc.timelines[find_time_map(doc).timeline_id]
+    reached = collections.Counter()
     for _ in range(steps):
         times = probes(rng, doc, timeline)
         before = find_time_map(doc).time_map
         kept = None if before is None else values(before, times)
 
-        if rng.random() < 0.2:
-            a_plan(rng, doc, timeline)  # apply_plan builds the table itself
+        if rng.random() < plans:
+            plan = a_plan(rng, doc, timeline)  # apply_plan builds the table itself
+            if plan is not None:
+                reached["a plan's writes"] += bool(plan.changes)
+                reached["a bar the table doesn't have"] += bool(plan.unmatched)
+                reached["a run left out"] += bool(plan.unreadable)
         else:
+            # Beats that `collide` put at one time are moved apart half the
+            # time, so that the timeline has no time map for a step or two,
+            # not for the rest of the walk.
+            if rng.random() < 0.5:
+                separate(rng, timeline)
             rng.choice(EDITS)(rng, timeline)
             keep_the_first_beat_marked(timeline)
             timeline.measures = tla.measure_table(timeline)
 
-        assert_as_from_scratch(doc, times)
+        found = assert_as_from_scratch(doc, times)
+        reached["no time map" if found.time_map is None else "a time map"] += 1
+        reached["warnings"] += bool(found.warnings)
+        reached["a closing tap"] += any(
+            c.attrs.get("closing") for c in beats_of(timeline)
+        )
         # A map built before the edit doesn't follow it.
         if before is not None:
             assert values(before, times) == kept
+    return reached
 
 
 @pytest.mark.parametrize("seed", range(8))
 def test_after_random_edits_of_the_example_file_its_time_map_is_one_built_from_scratch(
     seed,
 ):
-    edit_at_random(seed, EVERY_KIND, steps=20)
+    edit_at_random(seed, EVERY_KIND, steps=20, plans=0.2)
 
 
 @pytest.mark.parametrize("seed", range(2))
 def test_after_random_edits_of_an_s4_file_its_time_map_is_one_built_from_scratch(
     seed,
 ):
-    edit_at_random(100 + seed, S4, steps=8)
+    edit_at_random(100 + seed, S4, steps=12, plans=0.5)
+
+
+def test_the_random_edits_reach_every_state_they_compare():
+    # Fewer seeds than the tests above, so that this stays quick: no time map,
+    # warnings, closing taps, and plans that write, leave a run out or report
+    # a bar.
+    reached = collections.Counter()
+    for seed in range(3):
+        reached += edit_at_random(seed, EVERY_KIND, steps=20, plans=0.2)
+    reached += edit_at_random(100, S4, steps=12, plans=0.5)
+
+    assert {state for state, count in reached.items() if count} == {
+        "a time map",
+        "no time map",
+        "warnings",
+        "a closing tap",
+        "a plan's writes",
+        "a bar the table doesn't have",
+        "a run left out",
+    }
+
+
+def test_the_closing_edit_marks_a_beat_closing_and_back():
+    doc = tla.read(EVERY_KIND)
+    timeline = doc.timelines[find_time_map(doc).timeline_id]
+
+    closing(random.Random(0), timeline)
+    marked = [c.id for c in beats_of(timeline) if c.attrs.get("closing")]
+    closing(random.Random(0), timeline)  # the same beat
+
+    assert len(marked) == 1
+    assert not any(c.attrs.get("closing") for c in beats_of(timeline))
+
+
+def test_the_collide_edit_leaves_the_timeline_without_a_time_map():
+    doc = tla.read(EVERY_KIND)
+    timeline = doc.timelines[find_time_map(doc).timeline_id]
+
+    collide(random.Random(0), timeline)
+    timeline.measures = tla.measure_table(timeline)
+
+    found = find_time_map(doc)
+    assert found.timeline_id == timeline.id
+    assert found.time_map is None and found.reason
 
 
 def test_a_plan_applied_leaves_the_table_the_file_it_writes_reads(tmp_path):

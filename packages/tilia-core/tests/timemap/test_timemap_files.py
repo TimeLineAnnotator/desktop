@@ -62,14 +62,14 @@ def beat(time, measure=None, beat_unit=None, closing=None):
     return value
 
 
-def file_of(beats, *, time_unit="seconds"):
+def file_of(beats, *, time_unit="seconds", media_length=None):
     """A file holding one beat timeline of `beats`, a list of (id, beat)."""
     content = {
         "app_name": "TiLiA",
         "version": tla.FORMAT_VERSION,
         "document_id": DOCUMENT,
         "time_unit": time_unit,
-        "media": {"path": "", "length": None},
+        "media": {"path": "", "length": media_length},
         "metadata": {},
         "timelines": {
             BEATS: {
@@ -252,6 +252,40 @@ def test_a_unit_set_on_the_6_8_bar_changes_the_quarters_after_it_and_the_file_by
         '+            "units": "3"',
         "+          }",
     ]
+
+
+def test_a_last_bar_that_ends_on_the_media_s_end(tmp_path):
+    # The beats of WP3's contract example: a pickup, bars 1 and 2 in 3/4, and
+    # bar 3 in 6/8, tapped in two, with a media of 9 s. Bar 3's last beat, at
+    # 8 s, lasts its own length at the tempo of the gap before it, a second:
+    # the closing barline falls on the media's end.
+    marks = {0: {"number": 0}, 1: {}, 4: {"force_display": True}, 7: {}}
+    units = {0: unit(4, "1"), 7: unit(8, "3")}
+    beats = [
+        (B[n], beat(float(n), measure=marks.get(n), beat_unit=units.get(n)))
+        for n in range(9)
+    ]
+    found = find_time_map(read(file_of(beats, media_length=9.0), tmp_path))
+    time_map = found.time_map
+
+    rows = time_map.measure_rows()
+    assert table(rows) == [
+        (1, 0, "0", 1, 1, 0.0, 1.0, "1/4"),
+        (2, 1, "1", 1, 3, 1.0, 4.0, "3/4"),
+        (3, 2, "2", 1, 3, 4.0, 7.0, "3/4"),
+        (4, 3, "3", 1, 2, 7.0, 9.0, "6/8"),
+    ]
+    assert [r.force_display for r in rows] == [False, False, True, False]
+    assert [r.qstamp for r in rows] == [0, 1, 4, 7]
+    assert found.warnings == ()
+    assert time_map.end == 9.0
+    assert where(time_map.positions(8.5, 8.5)) == (3, "3", 1, 4, 2.5, False)
+    # On the closing barline, or close enough to snap onto it: off the map.
+    assert time_map.positions(8.95, 8.95) is None
+    assert time_map.positions(9.0, 9.0) is None
+    assert time_map.positions(7.0, 9.0).end_bar == 3
+    assert time_map.quarters(7.0, 9.0) == 3
+    assert time_map.times_of(3, 1.0, segment_end=True) == [9.0]
 
 
 # The layout's folded score, a cadenza, and two songs
