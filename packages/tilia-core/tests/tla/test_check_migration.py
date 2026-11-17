@@ -1699,10 +1699,14 @@ class TestALink:
             change = with_paths(
                 f"{here}/sonata.ogg", f"{here}/sonata.pdf", f"{ELSEWHERE}/sonata.tla"
             )
-        else:
-            (tmp_path / "audio").mkdir()
-            (tmp_path / "audio" / "sonata.ogg").touch()
-            change = with_paths((tmp_path / "audio" / "sonata.ogg").as_posix())
+        else:  # on this computer, of this system's form, as the media's and the PDF's
+            for name in ("audio/sonata.ogg", "scores/sonata.pdf"):
+                (tmp_path / name).parent.mkdir()
+                (tmp_path / name).touch()
+            change = with_paths(
+                (tmp_path / "audio" / "sonata.ogg").as_posix(),
+                (tmp_path / "scores" / "sonata.pdf").as_posix(),
+            )
         content = old_file()
         change(content)
         folders = tmp_path / "source", tmp_path / "copy"
@@ -1721,7 +1725,11 @@ class TestALink:
         assert status == 0, capsys.readouterr().out
         migrated = tla.read(tmp_path / "copy-elsewhere" / "deep" / EVERY_KIND)
         if not kept_absolute:
-            assert migrated.media_path == "../../audio/sonata.ogg"
+            (pdf,) = [tl for tl in migrated.timelines.values() if tl.kind == "pdf"]
+            assert (migrated.media_path, pdf.attrs["path"]) == (
+                "../../audio/sonata.ogg",
+                "../../scores/sonata.pdf",
+            )
 
 
 class TestAFolderThatIsntACopy:

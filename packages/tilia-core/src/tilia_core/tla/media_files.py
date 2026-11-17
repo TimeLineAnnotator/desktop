@@ -342,14 +342,16 @@ def paths_folder_of(doc: Document) -> str | None:
     """The folder that `doc`'s relative paths are relative to (FR-033): that of
     the file it was read from or last written to, as `paths_folder` found it
     then, so that a link to the file changed since doesn't move it
-    (TimeLineAnnotator/project-management#431); the folder of `origin`, as it
-    is given, when a caller set `origin`; None for a document from nowhere."""
+    (TimeLineAnnotator/project-management#431). When a caller set `origin`,
+    `paths_folder` of it, found now: an origin that is a link to a file gives
+    the folder of the file the link names, as `write` and `tla.media` take
+    it. None for a document from nowhere."""
     if doc.origin is None:
         return None
     held = doc._paths_folder
     if held is not None and held[0] == doc.origin:
         return held[1]
-    return os.path.dirname(os.path.abspath(doc.origin))
+    return paths_folder(doc.origin)
 
 
 def _named_file(path: str) -> str:
