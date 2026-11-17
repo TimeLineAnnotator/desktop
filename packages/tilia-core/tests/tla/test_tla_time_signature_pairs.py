@@ -3,6 +3,7 @@ of the format, after `denominator`, for a composite time signature such as
 2/4 + 3/8, and left out when it has none, so that no file gains a line. Every
 other attribute of a legacy score's kinds is still written whatever its value."""
 
+import copy
 import json
 from pathlib import Path
 
@@ -28,6 +29,8 @@ PLAIN = {"staff_index": 0, "time": 0.0, "numerator": "3", "denominator": 4}
 WITH_TIME_SIGNATURE = sorted(
     path for path in OLD.glob("*.tla") if b'"TIME_SIGNATURE"' in path.read_bytes()
 )
+EVERY_FILE = sorted([*GOLDEN.glob("*.tla"), *OLD.glob("*.tla")])
+AS_IT_IS = object()
 
 
 def document(attrs, *, kind="time_signature", metadata=None, extra=None):
@@ -136,6 +139,25 @@ def test_old_files_with_time_signatures_are_tested():
 def test_an_old_file_without_pairs_gains_no_line(path):
     assert b'"pairs"' not in path.read_bytes()
     assert b'"pairs"' not in tla.canonical_bytes(tla.read(path))
+
+
+@pytest.mark.parametrize(
+    "pairs", [AS_IT_IS, None, [], PAIRS], ids=["as it is", "null", "[]", "composite"]
+)
+@pytest.mark.parametrize("path", EVERY_FILE, ids=lambda p: p.name)
+def test_a_second_write_of_every_golden_and_old_file_changes_no_byte(path, pairs):
+    # As each file is, and with each of its time signatures given `pairs`.
+    doc = tla.read(path)
+    if pairs is not AS_IT_IS:
+        for timeline in doc.timelines.values():
+            for component in timeline.components.values():
+                if component.kind == "time_signature":
+                    component.attrs["pairs"] = copy.deepcopy(pairs)
+    first = tla.canonical_bytes(doc)
+    assert tla.canonical_bytes(tla.loads(first)) == first
+    if pairs is not PAIRS:
+        # None and [] are none: the file gains no line.
+        assert first == tla.canonical_bytes(tla.read(path))
 
 
 def with_pairs_in_each_time_signature(path, pairs):
