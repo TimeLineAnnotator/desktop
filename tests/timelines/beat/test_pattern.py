@@ -15,6 +15,7 @@ from tilia.timelines.beat.pattern import (
     parse,
     parse_time_signature_over_taps,
 )
+from tilia.timelines.beat.units import parse_units
 
 
 class TestComplete:
@@ -337,6 +338,25 @@ class TestReviewedEdgeCases:
         result = parse("3+2")
         assert result.status == ParseStatus.INCOMPLETE
         assert result.error == "Enter '/' and a denominator."
+
+    @pytest.mark.parametrize("part", ["1/999", "1/129", "3/1000"])
+    def test_a_part_a_beat_unit_cant_hold_is_refused(self, part):
+        # The parts of an added numerator are its taps' units, so they are
+        # read as a beat unit reads its units.
+        result = parse(f"2+{part}/4 3/4")
+        assert result.status == ParseStatus.INVALID
+        assert result.error == (
+            f"'{part}' is not a whole number or fraction such as 1/2."
+        )
+        assert result.position == 0
+
+    @pytest.mark.parametrize(
+        "text, units", [("2+1/128/4", "2+1/128"), ("2+2/256/4", "2+1/128")]
+    )
+    def test_a_part_with_a_denominator_up_to_the_limit_is_read(self, text, units):
+        (bar,) = parse(text).planned_bars
+        assert bar.units_text == units
+        assert parse_units(bar.units_text).is_valid
 
     @pytest.mark.timeout(1)
     def test_a_huge_numerator_is_refused_before_its_taps_are_listed(self):

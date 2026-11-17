@@ -313,6 +313,12 @@ class _Parser:
         else:
             self.pos = taps_start
             if len(parts) > 1:
+                # The parts are the taps' units, so they are read as a beat
+                # unit reads its units, which refuses a denominator above
+                # MAX_DENOMINATOR, as taps in brackets do.
+                result = parse_units(format_units(parts))
+                if not result.is_valid:
+                    raise _Invalid(result.error, start)
                 values = parts
             elif parts[0].denominator != 1:
                 raise _Invalid("Give the taps of a fractional numerator.", start)
