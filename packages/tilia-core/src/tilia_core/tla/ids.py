@@ -19,6 +19,8 @@ from collections.abc import Iterator
 from operator import itemgetter
 from typing import Any
 
+from tilia_core.tla.model import COMPONENT_KINDS, TIMELINE_KINDS
+
 ID_KINDS = ("timeline", "component", "score")
 MIGRATED_BASE_MS = 946_684_800_000  # 2000-01-01T00:00:00Z, in Unix milliseconds
 # Old integer ids below this offset take the base plus the id; other old ids take
@@ -198,6 +200,8 @@ def _without(data: Any, keys: tuple[str, ...]) -> Any:
 # The longest numerator that counts as a number: a time signature's are short,
 # and `int` refuses text far longer than this on some Pythons.
 _LONGEST_NUMERATOR = 100
+_TIME_SIGNATURE = COMPONENT_KINDS["time_signature"]
+_SCORE = TIMELINE_KINDS["score"]
 
 
 def _time_signature_as_the_id_sees_it(component: Any) -> Any:
@@ -206,7 +210,7 @@ def _time_signature_as_the_id_sees_it(component: Any) -> Any:
     is null as absent. TiLiA 0.7.2 and later save every time signature so, and an
     old file saved again by one with no edit keeps its id
     (TimeLineAnnotator/project-management#531)."""
-    if not isinstance(component, dict) or component.get("kind") != "TIME_SIGNATURE":
+    if not isinstance(component, dict) or component.get("kind") != _TIME_SIGNATURE:
         return component
     seen = component
     if "pairs" in seen and seen["pairs"] is None:
@@ -230,17 +234,19 @@ def _as_the_id_sees_it(content: dict[str, Any]) -> dict[str, Any]:
         return content
     changed: dict[str, Any] = {}
     for key, timeline in timelines.items():
-        if not isinstance(timeline, dict) or timeline.get("kind") != "Score":
+        if not isinstance(timeline, dict) or timeline.get("kind") != _SCORE:
             continue
         components = timeline.get("components")
         if not isinstance(components, dict):
             continue
         seen = {
-            name: _time_signature_as_the_id_sees_it(component)
+            name: changed_component
             for name, component in components.items()
+            if (changed_component := _time_signature_as_the_id_sees_it(component))
+            is not component
         }
-        if any(seen[name] is not components[name] for name in components):
-            changed[key] = {**timeline, "components": seen}
+        if seen:
+            changed[key] = {**timeline, "components": {**components, **seen}}
     if not changed:
         return content
     return {**content, "timelines": {**timelines, **changed}}

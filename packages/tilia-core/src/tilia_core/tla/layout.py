@@ -142,10 +142,11 @@ LEGACY_SCORE_COMPONENTS = frozenset(
         "score_annotation",
     }
 )
-# A composite time signature's `pairs`, such as [["2", 4], ["3", 8]] for
-# 2/4 + 3/8. Left out when it has none, null or [], so that no file gains a line
+# A legacy score's attributes left out when they have none, null or [], by kind:
+# a composite time signature's `pairs`, such as [["2", 4], ["3", 8]] for
+# 2/4 + 3/8, so that no file gains a line
 # (TimeLineAnnotator/project-management#511, #534).
-_LEGACY_LEFT_OUT = frozenset({"pairs"})
+_LEGACY_LEFT_OUT: dict[str, frozenset[str]] = {"time_signature": frozenset({"pairs"})}
 MEASURE = (
     "number",
     "label",
@@ -279,12 +280,13 @@ COMPONENT_SHAPES: dict[str, Shape] = {
         _COMPONENT,
         _branch(_COMPONENT, "kind", spelling),
         always=(
-            frozenset(COMPONENT_ATTRIBUTES[kind]) - _LEGACY_LEFT_OUT
+            frozenset(COMPONENT_ATTRIBUTES[kind])
+            - _LEGACY_LEFT_OUT.get(kind, frozenset())
             if kind in LEGACY_SCORE_COMPONENTS
             else ()
         ),
         left_out_empty=("metadata",),
-        none_when_empty_list=frozenset(COMPONENT_ATTRIBUTES[kind]) & _LEGACY_LEFT_OUT,
+        none_when_empty_list=_LEGACY_LEFT_OUT.get(kind, ()),
     )
     for kind, spelling in COMPONENT_KINDS.items()
 }
