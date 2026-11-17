@@ -267,10 +267,11 @@ def add_timeline(
 ) -> str:
     """Add an empty timeline after the others, and return its id (FR-055, FR-060).
 
-    `kind` is "beat", "hierarchy", "marker" or "harmony". Without a height, the
-    timeline gets TiLiA's default; a harmony timeline takes none. A beat
-    timeline shows its time signatures, and keeps `beat_pattern` as given
-    ("4" without one).
+    `kind` is "beat", "hierarchy", "marker" or "harmony". Only a hierarchy
+    timeline takes a height: of these kinds, it is the only one whose height
+    TiLiA's window sets. Without one, a timeline gets TiLiA's default, and a
+    harmony timeline none. A beat timeline shows its time signatures, and keeps
+    `beat_pattern` as given ("4" without one).
 
     Raises ValueError while no media length is known, and for a height or a
     beat pattern the kind doesn't take or TiLiA wouldn't keep; TypeError for a
@@ -283,7 +284,10 @@ def add_timeline(
         raise ValueError(f"can't add a timeline of kind {kind!r}: give one of {kinds}")
     if beat_pattern is not None and kind != "beat":
         raise ValueError(_NOT_APPLICABLE.format("--beat-pattern", kind))
-    if height is not None and kind == "harmony":
+    # The command line sets nothing TiLiA's window can't
+    # (TimeLineAnnotator/project-management#586 (a height for hierarchy
+    # timelines only)).
+    if height is not None and kind != "hierarchy":
         raise ValueError(_NOT_APPLICABLE.format("--height", kind))
     if height is not None and not _is_height(height):
         raise ValueError(rules.not_valid("height", height))

@@ -1399,12 +1399,10 @@ def test_a_timeline_without_a_height_gets_tilias_default(kind, height):
     assert doc.timelines[timeline_id].attrs["height"] == height
 
 
-@pytest.mark.parametrize("kind", ["marker", "hierarchy", "beat"])
-def test_a_timeline_gets_the_height_given(kind):
-    # A beat timeline's band isn't added to a height given, as in TiLiA.
+def test_a_hierarchy_timeline_gets_the_height_given():
     doc = script_document()
 
-    timeline_id = build.add_timeline(doc, kind, height=50)
+    timeline_id = build.add_timeline(doc, "hierarchy", height=50)
 
     assert doc.timelines[timeline_id].attrs["height"] == 50
 
@@ -1528,13 +1526,41 @@ def test_no_timeline_while_the_length_is_one_the_format_doesnt_allow(given, leng
     assert doc == before
 
 
-def test_a_harmony_timeline_takes_no_height():
+@pytest.mark.parametrize("kind", ["beat", "marker", "harmony"])
+def test_only_a_hierarchy_timeline_takes_a_height(kind):
+    # The command line sets nothing TiLiA's window can't, and its window sets
+    # the height of hierarchy timelines only, of the kinds a script adds
+    # (TimeLineAnnotator/project-management#586 (a height for hierarchy
+    # timelines only)). TiLiA's text.
     doc = script_document()
     before = copy.deepcopy(doc)
 
-    message = refused(build.add_timeline, doc, "harmony", height=40)
+    message = refused(build.add_timeline, doc, kind, height=40)
 
-    assert message == NOT_APPLICABLE.format("--height", "harmony")
+    assert message == NOT_APPLICABLE.format("--height", kind)
+    assert doc == before
+
+
+def test_a_height_the_kind_doesnt_take_is_refused_before_its_value_is_checked():
+    # As TiLiA's command line does.
+    doc = script_document()
+    before = copy.deepcopy(doc)
+
+    message = refused(build.add_timeline, doc, "beat", height=5)
+
+    assert message == NOT_APPLICABLE.format("--height", "beat")
+    assert doc == before
+
+
+@pytest.mark.parametrize("kind", ["range", "pdf"])
+def test_a_height_on_a_kind_a_script_doesnt_add_is_refused(kind):
+    # The kind is refused first; either text names it.
+    doc = script_document()
+    before = copy.deepcopy(doc)
+
+    message = refused(build.add_timeline, doc, kind, height=40)
+
+    assert f"kind {kind!r}" in message
     assert doc == before
 
 
@@ -1586,7 +1612,7 @@ def test_a_height_is_an_integer_of_at_least_10(height):
     doc = script_document()
     before = copy.deepcopy(doc)
 
-    message = refused(build.add_timeline, doc, "marker", height=height)
+    message = refused(build.add_timeline, doc, "hierarchy", height=height)
 
     assert message == f"{height} is not a valid height."
     assert doc == before
@@ -1607,7 +1633,7 @@ def test_a_height_that_isnt_one_reads_as_the_rules_say(height, reason):
     doc = script_document()
     before = copy.deepcopy(doc)
 
-    message = refused(build.add_timeline, doc, "marker", height=height)
+    message = refused(build.add_timeline, doc, "hierarchy", height=height)
 
     assert message == reason
     assert doc == before
@@ -1616,7 +1642,7 @@ def test_a_height_that_isnt_one_reads_as_the_rules_say(height, reason):
 def test_a_height_of_10_is_kept():
     doc = script_document()
 
-    timeline_id = build.add_timeline(doc, "marker", height=10)
+    timeline_id = build.add_timeline(doc, "hierarchy", height=10)
 
     assert doc.timelines[timeline_id].attrs["height"] == 10
 
