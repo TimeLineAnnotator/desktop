@@ -95,13 +95,11 @@ class BeatUnitUI(TimelineUIElement):
         self._labels_by_measure: dict[int, TimeSignatureLabel] = {}
         self.hover_line: QGraphicsLineItem | None = None
         self._is_selected = False
-        # While selected: the selected labels, as the first beats of their
-        # measures and those measures. Kept by beat, so a selected label
-        # follows its measure when barlines move (see `_keep_selection`).
+        # While selected: its selected labels, as the first beats of their
+        # measures and those measures. The timeline UI keeps the selection of
+        # every label, and gives each beat unit its share when the labels are
+        # drawn again (see `BeatTimelineUI._keep_label_selection`).
         self._selected: dict[int | str, int] = {}
-        # The first beat of the measure whose label was clicked last, while
-        # that label is selected (see `active_measure_index`).
-        self._clicked_beat_id: int | str | None = None
         # The measures whose labels are outlined, so that a change of
         # selection redraws only the labels it changes.
         self._outlined: set[int] = set()
@@ -126,15 +124,7 @@ class BeatUnitUI(TimelineUIElement):
                 owners[item] = self
             for glyph in label.body.childItems():
                 owners[glyph] = None
-        had_labels_selected = bool(self._selected)
-        self._keep_selection()
-        if self._is_selected and had_labels_selected and not self._selected:
-            # Its last selected label went: its bar did, or another beat unit
-            # took it. Showing another label as selected would have Delete act
-            # on a label nobody chose, so nothing of it stays selected.
-            self.timeline_ui.deselect_element(self)
-            return
-        self._on_selection_changed()
+        # The timeline UI then gives it its selected labels again.
 
     def _remove_labels(self) -> None:
         self._remove_hover_line()
@@ -196,15 +186,39 @@ class BeatUnitUI(TimelineUIElement):
     def active_measure_index(self) -> int | None:
         """
         The measure of the label clicked last, which beat unit commands
-        apply to, while that label is selected. It is kept by the beat that
-        starts the measure, so it follows the measure when barlines move.
+        apply to, while that label is selected and this beat unit's. It is
+        kept by the beat that starts the measure, so it follows the measure
+        when barlines move.
         """
-        if self._clicked_beat_id is None:
+        clicked = self.timeline_ui.clicked_label_bar
+        if clicked is None:
             return None
-        measure_index = self._selected.get(self._clicked_beat_id)
+        measure_index = self._selected.get(clicked)
         if measure_index is None or not self._is_measure(measure_index):
             return None
         return measure_index
+
+    @property
+    def label_measure_indices(self) -> list[int]:
+        """The measures this beat unit's labels are on."""
+        return list(self._labels_by_measure)
+
+    @property
+    def has_selected_labels(self) -> bool:
+        return bool(self._selected)
+
+    def has_selected_label(self, beat_id: int | str | None) -> bool:
+        """Whether the label of the bar `beat_id` starts is selected here."""
+        return beat_id in self._selected
+
+    def set_selected_labels(self, selected: dict[int | str, int]) -> None:
+        """
+        Makes `selected`, first beats of bars with the bars' positions, this
+        beat unit's selected labels, as the timeline UI gives them.
+        """
+        self._selected = dict(selected)
+        if self._is_selected:
+            self._on_selection_changed()
 
     @property
     def selected_measure_indices(self) -> list[int]:
@@ -227,33 +241,6 @@ class BeatUnitUI(TimelineUIElement):
         timeline = self.timeline_ui.timeline
         return timeline[timeline.beats_that_start_measures[label.measure_index]].id
 
-    def _keep_selection(self) -> None:
-        """
-        Keeps selected the labels this beat unit still has once they are
-        drawn again. A label is kept by the beat that starts its measure, so
-        it follows the measure when barlines move. If that beat is gone, or
-        starts none any more, the measure is the one at the same position,
-        as a measure keeps its position when its first beat is deleted (see
-        `BeatTimeline._remeasure`). Labels another beat unit has now are
-        dropped.
-        """
-        timeline = self.timeline_ui.timeline
-        starts = timeline.beats_that_start_measures
-        selected = {}
-        clicked = None
-        for beat_id, old_index in self._selected.items():
-            measure_index = timeline.get_measure_started_by(beat_id)
-            new_beat_id = beat_id
-            if measure_index is None and old_index < len(starts):
-                measure_index = old_index
-                new_beat_id = timeline[starts[old_index]].id
-            if measure_index in self._labels_by_measure:
-                selected[new_beat_id] = measure_index
-                if beat_id == self._clicked_beat_id:
-                    clicked = new_beat_id
-        self._selected = selected
-        self._clicked_beat_id = clicked
-
     def select_label(self, label: TimeSignatureLabel, clicked: bool = True) -> None:
         """
         Adds a label to the selection, while the beat unit is selected. A
@@ -263,8 +250,7 @@ class BeatUnitUI(TimelineUIElement):
             return
         beat_id = self._get_first_beat_id(label)
         self._selected[beat_id] = label.measure_index
-        if clicked:
-            self._clicked_beat_id = beat_id
+        self.timeline_ui.add_selected_label_bar(beat_id, label.measure_index, clicked)
         self._on_selection_changed()
 
     def deselect_label(self, label: TimeSignatureLabel) -> bool:
@@ -274,8 +260,7 @@ class BeatUnitUI(TimelineUIElement):
         """
         beat_id = self._get_first_beat_id(label)
         self._selected.pop(beat_id, None)
-        if self._clicked_beat_id == beat_id:
-            self._clicked_beat_id = None
+        self.timeline_ui.remove_selected_label_bars([beat_id])
         self._on_selection_changed()
         return bool(self._selected)
 
@@ -338,7 +323,7 @@ class BeatUnitUI(TimelineUIElement):
         if self._is_selected and (
             self.inspected_measure_index != self._shown_measure_index
         ):
-            self._refresh_inspector()
+            self.refresh_inspector()
 
     def on_left_click(self, item: QGraphicsItem) -> None:
         # A click selects the label alone, as the timeline UI deselects the
@@ -361,8 +346,8 @@ class BeatUnitUI(TimelineUIElement):
 
     def deselect_labels(self) -> None:
         """Deselects every label, leaving the beat unit selected."""
+        self.timeline_ui.remove_selected_label_bars(list(self._selected))
         self._selected.clear()
-        self._clicked_beat_id = None
         self._redraw_outline()
 
     @property
@@ -423,7 +408,7 @@ class BeatUnitUI(TimelineUIElement):
             )
         if bar is None or error:
             tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
-            self._refresh_inspector()
+            self.refresh_inspector()
             return
 
         edit = (bar.denominator, bar.units_text)
@@ -451,7 +436,7 @@ class BeatUnitUI(TimelineUIElement):
             if stop > measure_index + 1:
                 accepted, only_this_measure = get(Get.FROM_USER_BEAT_UNIT_SCOPE)
                 if not accepted:
-                    self._refresh_inspector()
+                    self.refresh_inspector()
                     return
                 if only_this_measure:
                     stop = measure_index + 1
@@ -473,14 +458,15 @@ class BeatUnitUI(TimelineUIElement):
                 # other labels selected, so the bar stays the one inspected.
                 owner = self.timeline_ui.select_time_signature_label(measure_index)
                 if owner is not None:
-                    owner._refresh_inspector()
+                    owner.refresh_inspector()
             else:
-                self._refresh_inspector()
+                self.refresh_inspector()
         finally:
             self._pending_edit = None
 
-    def _refresh_inspector(self) -> None:
-        # The click that ended the edit may have selected something else,
+    def refresh_inspector(self) -> None:
+        """Gives the inspector this beat unit's values again, if selected."""
+        # The click that ended an edit may have selected something else,
         # whose inspector must not be replaced by this one.
         if self.is_selected():
             self.timeline_ui.post_inspectable_selected_event(self)
@@ -493,8 +479,8 @@ class BeatUnitUI(TimelineUIElement):
 
     def on_deselect(self) -> None:
         self._is_selected = False
+        self.timeline_ui.remove_selected_label_bars(list(self._selected))
         self._selected.clear()
-        self._clicked_beat_id = None
         self._shown_measure_index = None
         self._redraw_outline()
 

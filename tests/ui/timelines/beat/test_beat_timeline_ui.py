@@ -3655,6 +3655,26 @@ class TestClickedLabel:
         assert outlined_measures(tluis[0]) == [1]
         assert widgets["Measure"][1].text() == "2"
 
+    def test_a_label_clicked_to_end_an_edit_follows_its_bar(self, qtui, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+        commands.execute("timeline.element.inspect")
+
+        # The edit, of bar 3, writes the beat unit back on bar 4, whose label
+        # is the one clicked.
+        widgets = self.edit_in_open_inspector(
+            qtui,
+            "6/8",
+            lambda: click_time_signature_label(tluis[0], beat_unit_ui.get_label(3)),
+        )
+
+        timeline = tluis[0].timeline
+        assert time_signatures(timeline)[2:] == [("6", 8), ("3", 4)]
+        (selected,) = tluis[0].selected_elements
+        assert selected is not beat_unit_ui
+        assert outlined_measures(tluis[0]) == [3]
+        assert widgets["Measure"][1].text() == "4"
+
     def test_an_edit_keeps_the_other_selected_labels(self, qtui, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         press_in_label_row(tluis[0], 2)
@@ -3667,15 +3687,15 @@ class TestClickedLabel:
 
         widgets = self.edit_in_open_inspector(qtui, "6/8")
 
-        # Bar 4's label goes to the beat unit written back after bar 3, so
-        # it is no longer selected; bar 2's stays, and bar 3's is the new
-        # beat unit's.
+        # Bar 3's label is the new beat unit's, and bar 4's the beat unit's
+        # written back after it: they stay selected all the same.
         assert time_signatures(tluis[0].timeline)[2] == ("6", 8)
-        assert outlined_measures(tluis[0]) == [1, 2]
+        assert len(tluis[0].selected_elements) == 3
+        assert outlined_measures(tluis[0]) == [1, 2, 3]
         assert widgets["Measure"][1].text() == "3"
         assert widgets["Time signature"][1].text() == "6/8"
 
-    def test_a_label_another_beat_unit_takes_is_no_longer_selected(self, tluis):
+    def test_a_label_another_beat_unit_takes_stays_selected(self, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
 
@@ -3683,15 +3703,16 @@ class TestClickedLabel:
         # selected.
         set_beat_unit(tluis[0], 2, 8, "3")
 
-        # It was the beat unit's only selected label, so nothing is selected,
-        # and Delete deletes nothing.
-        assert tluis[0].selected_elements == []
-        assert outlined_measures(tluis[0]) == []
+        # The label follows its bar to the new beat unit, and the first beat
+        # unit, with no selected label left, is deselected.
+        timeline = tluis[0].timeline
+        (selected,) = tluis[0].selected_elements
+        assert timeline.get_component(selected.id).denominator == 8
+        assert outlined_measures(tluis[0]) == [2]
+        assert selected.active_measure_index == 2
+        # Delete acts on what is outlined: the change at bar 3.
         commands.execute("timeline.component.delete")
-        assert [(u.denominator, u.units) for u in tluis[0].timeline.beat_units] == [
-            (4, "1"),
-            (8, "3"),
-        ]
+        assert [(u.denominator, u.units) for u in timeline.beat_units] == [(4, "1")]
 
     def test_one_of_several_labels_another_beat_unit_takes(self, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
@@ -3701,8 +3722,9 @@ class TestClickedLabel:
         # The new beat unit carries on over bar 4, so it takes that label too.
         set_beat_unit(tluis[0], 2, 8, "3")
 
-        assert tluis[0].selected_elements == [beat_unit_ui]
-        assert outlined_measures(tluis[0]) == [1]
+        assert len(tluis[0].selected_elements) == 2
+        assert beat_unit_ui.is_selected()
+        assert outlined_measures(tluis[0]) == [1, 2, 3]
 
     def test_a_label_whose_bar_the_bars_dialog_changes(self, tluis):
         add_bars_of_two_and_three_taps_in_eighths(tluis)
@@ -3716,9 +3738,11 @@ class TestClickedLabel:
         with patch_bars_dialog(set_bar_4):
             click_time_signature_label(tluis[0], beat_unit_ui.get_label(3), double=True)
 
-        # Bar 4's label is a new beat unit's now.
-        assert tluis[0].selected_elements == []
-        assert outlined_measures(tluis[0]) == []
+        # Bar 4's label is a new beat unit's now, and stays selected: it is
+        # what Delete acts on, and nothing else is.
+        (selected,) = tluis[0].selected_elements
+        assert selected is not beat_unit_ui
+        assert outlined_measures(tluis[0]) == [3]
 
     def test_a_label_whose_first_beat_is_deleted(self, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
@@ -3732,6 +3756,36 @@ class TestClickedLabel:
         assert get_barlines(tluis[0].timeline)[2] == 12
         assert tluis[0].selected_elements == [beat_unit_ui]
         assert outlined_measures(tluis[0]) == [2]
+
+    def test_a_label_stays_selected_when_its_beat_unit_is_made_again(self, tluis):
+        add_bars_of_two_and_three_taps_in_eighths(tluis)
+        beat_unit_ui = tluis[0].get_element(tluis[0].timeline.beat_units[1].id)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+        timeline = tluis[0].timeline
+
+        # As when the beat is deleted from the command line: the beat unit is
+        # on it, and is made again on the bar's next beat.
+        timeline.delete_components([next(b for b in timeline if b.time == 4)])
+
+        (selected,) = tluis[0].selected_elements
+        assert selected is not beat_unit_ui
+        assert timeline.get_component(selected.id).denominator == 8
+        assert outlined_measures(tluis[0]) == [1]
+        assert selected.active_measure_index == 1
+
+    def test_a_label_stays_selected_when_undo_makes_its_beat_unit_again(self, tluis):
+        add_bars_of_two_and_three_taps_in_eighths(tluis)
+        set_beat_unit(tluis[0], 1, 8, "3")
+        beat_unit_ui = tluis[0].get_element(tluis[0].timeline.beat_units[1].id)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        # Undo makes the beat unit again, with its values from before.
+        commands.execute("edit.undo")
+
+        (selected,) = tluis[0].selected_elements
+        assert selected is not beat_unit_ui
+        assert tluis[0].timeline.get_component(selected.id).units == "1"
+        assert outlined_measures(tluis[0]) == [1]
 
     def test_a_label_stays_selected_when_its_first_beat_goes(self, tluis):
         # As when the beat is deleted from the command line.

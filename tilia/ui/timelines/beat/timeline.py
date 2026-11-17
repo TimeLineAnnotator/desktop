@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 from collections import defaultdict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -72,6 +72,13 @@ class BeatTimelineUI(TimelineUI):
         # finds it at once rather than by asking every element whether the
         # item is one of its (see `get_item_owner`).
         self.label_item_owners: dict[QGraphicsItem, BeatUnitUI | None] = {}
+        # The selected time signature labels, as the first beats of their
+        # bars, with the bars' positions, and the one clicked last. Kept here
+        # rather than by the beat units the labels belong to, so a selected
+        # label follows its bar to whichever beat unit has it after a change
+        # (see `_keep_label_selection`).
+        self.selected_label_bars: dict[int | str, int] = {}
+        self.clicked_label_bar: int | str | None = None
         self._time_signature_pixmaps = None
         super().__init__(*args, **kwargs)
         listen(
@@ -303,6 +310,7 @@ class BeatTimelineUI(TimelineUI):
         specs = self.get_time_signature_label_specs()
         for beat_unit_ui in self.beat_unit_uis:
             beat_unit_ui.set_labels(specs.get(beat_unit_ui.get_data("beat_id"), []))
+        self._keep_label_selection()
 
         for label in self._default_time_signature_labels:
             self.scene.removeItem(label.body)
@@ -313,6 +321,87 @@ class BeatTimelineUI(TimelineUI):
             self.scene.addItem(label.body)
             self.scene.addItem(label)
             self._default_time_signature_labels.append(label)
+
+    def add_selected_label_bar(
+        self, beat_id: int | str, measure_index: int, clicked: bool
+    ) -> None:
+        self.selected_label_bars[beat_id] = measure_index
+        if clicked:
+            self.clicked_label_bar = beat_id
+
+    def remove_selected_label_bars(self, beat_ids: Iterable[int | str]) -> None:
+        for beat_id in beat_ids:
+            self.selected_label_bars.pop(beat_id, None)
+            if beat_id == self.clicked_label_bar:
+                self.clicked_label_bar = None
+
+    def _keep_label_selection(self) -> None:
+        """
+        Once the labels are drawn again, gives each selected bar to the beat
+        unit whose label it has now, which a change can make another one: a
+        time signature set on the bar, the one written back after it, or a
+        beat unit made again on the bar's new first beat. A bar is followed
+        by the beat that starts it, so it follows the barlines; if that beat
+        is gone or starts no bar any more, by its position, which a bar keeps
+        when its first beat is deleted (see `BeatTimeline._remeasure`). A bar
+        whose label is gone is dropped, and a beat unit left with no selected
+        label is deselected, so Delete acts only on labels someone chose. The
+        beat unit that has the label clicked last is given to the inspector.
+        """
+        timeline = self.timeline
+        starts = timeline.beats_that_start_measures
+        beat_unit_uis = self.beat_unit_uis
+        owners = {
+            measure_index: beat_unit_ui
+            for beat_unit_ui in beat_unit_uis
+            for measure_index in beat_unit_ui.label_measure_indices
+        }
+        old_clicked_owner = next(
+            (u for u in beat_unit_uis if u.has_selected_label(self.clicked_label_bar)),
+            None,
+        )
+
+        selection: dict[int | str, int] = {}
+        clicked = None
+        for beat_id, old_index in self.selected_label_bars.items():
+            measure_index = timeline.get_measure_started_by(beat_id)
+            new_beat_id = beat_id
+            if measure_index is None and old_index < len(starts):
+                measure_index = old_index
+                new_beat_id = timeline[starts[old_index]].id
+            if measure_index not in owners:
+                continue
+            selection[new_beat_id] = measure_index
+            if beat_id == self.clicked_label_bar:
+                clicked = new_beat_id
+        self.selected_label_bars = selection
+        self.clicked_label_bar = clicked
+
+        shares: dict[BeatUnitUI, dict[int | str, int]] = defaultdict(dict)
+        for beat_id, measure_index in selection.items():
+            shares[owners[measure_index]][beat_id] = measure_index
+        for beat_unit_ui in beat_unit_uis:
+            share = shares.get(beat_unit_ui, {})
+            had_labels = beat_unit_ui.has_selected_labels
+            beat_unit_ui.set_selected_labels(share)
+            if share and not beat_unit_ui.is_selected():
+                self.select_element(beat_unit_ui)
+            elif beat_unit_ui.is_selected() and had_labels and not share:
+                self.deselect_element(beat_unit_ui)
+
+        clicked_owner = owners[selection[clicked]] if clicked is not None else None
+        if clicked_owner is not None and clicked_owner is not old_clicked_owner:
+            clicked_owner.refresh_inspector()
+
+    def delete_element(self, element: TimelineUIElement) -> None:
+        # A beat unit can go while labels are selected, as when it is made
+        # again on its bar's new first beat, or undo makes it again: their
+        # bars stay selected, for the beat units that have them next (see
+        # `_keep_label_selection`).
+        kept = dict(self.selected_label_bars), self.clicked_label_bar
+        super().delete_element(element)
+        if isinstance(element, BeatUnitUI):
+            self.selected_label_bars, self.clicked_label_bar = kept
 
     @property
     def default_time_signature_labels(self) -> list[TimeSignatureLabel]:
@@ -441,6 +530,11 @@ class BeatTimelineUI(TimelineUI):
                     tilia.errors.TIME_SIGNATURE_NOT_REMOVED, errors[0][1]
                 )
             return False
+        # The labels of the beat units that go are deleted, not kept
+        # selected for the beat units that have their bars next.
+        for component in to_delete:
+            if component.KIND == ComponentKind.BEAT_UNIT:
+                self.deselect_element(self.get_element(component.id))
         timeline.delete_components(to_delete)
         return True
 
