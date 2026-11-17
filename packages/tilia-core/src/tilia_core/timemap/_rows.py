@@ -46,7 +46,7 @@ class ClosingTap:
     barline: bool  # it ends that row; else it is read as an ordinary beat
 
 
-def rows_of(timeline: tla.Timeline) -> list[RowIn]:
+def rows_of(timeline: tla.Timeline, *, quiet: bool = False) -> list[RowIn]:
     """The timeline's measure rows in order; none when it has no measure table.
 
     `Measure.beat_unit` (the unit in force) and any beat pattern are not read:
@@ -63,6 +63,8 @@ def rows_of(timeline: tla.Timeline) -> list[RowIn]:
     These are the rows `meters_of` takes. They are read as they stand, and
     `table_problem` isn't applied: for a table it calls broken, such as beats
     at 1.0, 0.5 and 2.0, this still gives rows where `measure_rows` gives none.
+    `quiet` logs none of the warnings, for a reading tried again and again on
+    copies of one timeline (`tla.edits`).
     """
     if timeline.measures is None:
         return []
@@ -70,7 +72,8 @@ def rows_of(timeline: tla.Timeline) -> list[RowIn]:
     for tap in closing_taps(timeline):
         taps.setdefault(tap.row, []).append(tap)
     rows = (
-        _row_in(timeline, row, taps.get(row.id, [])) for row in timeline.measures.rows
+        _row_in(timeline, row, taps.get(row.id, []), quiet)
+        for row in timeline.measures.rows
     )
     return [row for row in rows if row is not None]
 
@@ -173,7 +176,7 @@ def _beats_with(
 
 
 def _row_in(
-    timeline: tla.Timeline, row: tla.Measure, taps: list[ClosingTap]
+    timeline: tla.Timeline, row: tla.Measure, taps: list[ClosingTap], quiet: bool
 ) -> RowIn | None:
     beat_ids: list[str] = []
     beat_times: list[float] = []
@@ -182,24 +185,27 @@ def _row_in(
         component = timeline.components.get(beat_id)
         time = component.attrs.get("time") if component is not None else None
         if time is None:
-            logger.warning(
-                "Timeline %s: beat %s of measure %s has no time; skipped.",
-                timeline.id,
-                beat_id,
-                row.id,
-            )
+            if not quiet:
+                logger.warning(
+                    "Timeline %s: beat %s of measure %s has no time; skipped.",
+                    timeline.id,
+                    beat_id,
+                    row.id,
+                )
             continue
         beat_ids.append(beat_id)
         beat_times.append(time)
-        unit = _beat_unit(timeline, component)
+        unit = _beat_unit(timeline, component, quiet)
         if unit is not None:
             units.append((beat_id, unit))
     if not beat_ids or beat_ids[0] != row.id:
-        logger.warning(
-            "Timeline %s: the downbeat of measure %s has no time; the measure is skipped.",
-            timeline.id,
-            row.id,
-        )
+        if not quiet:
+            logger.warning(
+                "Timeline %s: the downbeat of measure %s has no time; the measure is"
+                " skipped.",
+                timeline.id,
+                row.id,
+            )
         return None
     return RowIn(
         id=row.id,
@@ -223,14 +229,17 @@ def _dict(component: tla.Component | None, key: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def _beat_unit(timeline: tla.Timeline, component: tla.Component) -> tla.BeatUnit | None:
-    """The unit set on a beat; None, with a warning, when desktop#621 can't
-    read it (`readable_beat_unit`, the measure table's rule too)."""
+def _beat_unit(
+    timeline: tla.Timeline, component: tla.Component, quiet: bool = False
+) -> tla.BeatUnit | None:
+    """The unit set on a beat; None, with a warning unless `quiet`, when
+    desktop#621 can't read it (`readable_beat_unit`, the measure table's rule
+    too)."""
     value = component.attrs.get("beat_unit")
     if value is None:
         return None
     unit = readable_beat_unit(value)
-    if unit is None:
+    if unit is None and not quiet:
         logger.warning(
             "Timeline %s: beat %s has a beat unit that can't be read (%.60r); ignored.",
             timeline.id,

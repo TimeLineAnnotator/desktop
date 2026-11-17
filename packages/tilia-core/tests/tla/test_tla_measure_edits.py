@@ -4,8 +4,10 @@ to the next beat, and a measure a person edits gets the source "edited"
 TimeLineAnnotator/project-management#512 as contracts/layout.md gives them)."""
 
 import copy
+import dataclasses
 import hashlib
 import json
+import logging
 import uuid
 
 import pytest
@@ -1774,6 +1776,46 @@ def test_a_time_stays_uncompared_through_two_edits_in_a_row(tmp_path):
     assert written(doc)[B[2]] == {"source": "edited"}
     doc.media_length = 100.0
     written_twice(doc, tmp_path / "f.tla")
+
+
+def test_a_copy_made_with_replace_shares_no_edit_of_a_time_uncompared(tmp_path):
+    # The copy's deletion moves B[1]'s mark onto B[2]. The original's B[2],
+    # given the same mark by hand, changed since it was read: its time past a
+    # length given since is new, as no edit of its own kept it uncompared.
+    beats = [
+        (B[0], beat(0.0, measure={})),
+        (B[1], beat(1.0, measure={})),
+        (B[2], beat(150.0)),
+    ]
+    doc = document(beats)
+    other = dataclasses.replace(doc, timelines=copy.deepcopy(doc.timelines))
+    tla.delete_beat(other, BEATS, B[1], by_person=False)
+    components(doc)[B[2]].attrs["measure"] = copy.deepcopy(
+        components(other)[B[2]].attrs["measure"]
+    )
+    doc.media_length = 100.0
+    with pytest.raises(tla.BrokenRules):
+        tla.write(tmp_path / "f.tla", doc)
+
+
+def test_a_deletion_logs_a_unit_tilia_cant_read_once(caplog):
+    # The time map's warning for B[4]'s unit, though the deletion reads the
+    # measures again for each choice it weighs.
+    beats = [
+        (B[0], beat(0.0, measure={}, beat_unit=QUARTERS)),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={}, beat_unit=EIGHTHS)),
+        (B[3], beat(3.0)),
+        (B[4], beat(4.0, beat_unit=UNREADABLE)),
+        (B[5], beat(5.0, measure={})),
+        (B[6], beat(6.0)),
+    ]
+    doc = document(beats)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING):
+        tla.delete_beat(doc, BEATS, B[2])
+    logged = [r for r in caplog.records if "can't be read" in r.getMessage()]
+    assert len(logged) == 1
 
 
 def test_a_problem_on_a_measure_marked_edited_stays_old(tmp_path):

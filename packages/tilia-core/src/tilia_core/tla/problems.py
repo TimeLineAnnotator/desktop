@@ -301,7 +301,11 @@ def keep_old(
     read with no media length, each change of a state is kept in
     `unmeasured_edits`, without making the states read (`unmeasured_later`): a
     time is uncompared in a state such changes reach from the one read
-    (`_uncompared`), the one read among them."""
+    (`_uncompared`), the one read among them.
+
+    It reads the document's `read_problems` and `unmeasured_edits` and sets
+    them, as a write does: the two are not to run at once on one document,
+    from two threads."""
     if not before:
         return
     held = pointer_to(pointer_to("/timelines", timeline_id), "components")
@@ -358,10 +362,12 @@ def keep_old(
             )
     document.read_problems = [*document.read_problems, *kept]
     if _has_unmeasured(document):
-        edited = document.unmeasured_edits
+        # Replaced, never changed: a copy of the document may share it.
+        edited = dict(document.unmeasured_edits)
         for place, state in was.items():
             if now.get(place, state) != state:
-                edited.setdefault(place, set()).add((state, now[place]))
+                edited[place] = edited.get(place, frozenset()) | {(state, now[place])}
+        document.unmeasured_edits = edited
 
 
 def _has_unmeasured(document: Document) -> bool:
