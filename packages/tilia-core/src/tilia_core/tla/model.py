@@ -687,8 +687,8 @@ class Document:
     # last written (`media_files.paths_folder`), after the `origin` it is the
     # folder of: the folder of the file a link named, when the file was reached
     # through a link to it (FR-033; TimeLineAnnotator/project-management#431).
-    # It holds only while `origin` is that one: an origin a caller sets has its
-    # own folder (`media_files.paths_folder_of`).
+    # It holds only while `origin` is that one: the folder of an origin a caller
+    # sets is found when it is needed (`media_files.paths_folder_of`).
     _paths_folder: tuple[Path, str] | None = field(
         default=None, repr=False, compare=False
     )

@@ -142,11 +142,15 @@ def where(request):
 def servers(monkeypatch):
     """Lookups of a Windows server path (`//server/share/…`), which Windows
     would make on the network: each is recorded, with "/", and finds a file
-    only where `there`, a set of such paths, says. Other paths are looked up
-    as they are."""
+    only where `there`, a set of such paths, says, and never a link. Other
+    paths are looked up as they are."""
     looked_up = []
     there = set()
-    real = {"isfile": os.path.isfile, "exists": os.path.exists}
+    real = {
+        "isfile": os.path.isfile,
+        "exists": os.path.exists,
+        "islink": os.path.islink,
+    }
 
     def stub(name):
         def lookup(path):
@@ -154,7 +158,7 @@ def servers(monkeypatch):
             if not text.startswith("//"):
                 return real[name](path)
             looked_up.append(text)
-            return text in there
+            return name != "islink" and text in there
 
         return lookup
 
@@ -2023,6 +2027,27 @@ def test_an_origin_set_since_reading_is_where_the_paths_are_relative_to(
     assert written(target) == (f"../a/audio/{NAME}.flac", f"../a/scores/{NAME}.pdf")
 
 
+@pytest.mark.parametrize("written_to", ["the link", "elsewhere"])
+def test_an_origin_set_to_a_link_to_a_file_is_read_from_the_file_it_names(
+    linked_file, tmp_path, written_to
+):
+    # A caller who gives the link as the origin of the file's bytes gets the
+    # paths of the file the link names, as `write` and `tla.media` read them
+    # (FR-033): not relative to the link's folder.
+    tla.write(linked_file.real, with_paths(linked_file.media, linked_file.pdf))
+    doc = tla.loads(linked_file.real.read_bytes())
+    doc.origin = linked_file.link
+    assert os.path.samefile(tla.media(doc.origin, doc).path, linked_file.media)
+    if written_to == "the link":
+        tla.write(linked_file.link, doc)
+        assert written(linked_file.real) == FROM_THE_REAL_FILE
+    else:
+        target = tmp_path / "out" / "copy.tla"
+        target.parent.mkdir()
+        tla.write(target, doc)
+        assert written(target) == ("../corpus/audio/a.wav", "../corpus/scores/a.pdf")
+
+
 def test_tilia_migrate_through_a_link_to_a_file_makes_paths_relative_to_that_file(
     linked_file, capsys, where
 ):
@@ -2271,8 +2296,11 @@ def test_a_stored_name_is_compared_exactly_with_the_folders(
     ],
     ids=["a drive", "a folder", "a share"],
 )
-def test_on_windows_the_folders_are_compared_in_any_case(origin, folder, expected):
-    # The system gave them, and reads them so.
+def test_on_windows_the_folders_are_compared_in_any_case(
+    servers, origin, folder, expected
+):
+    # The system gave them, and reads them so. Whether the origin set is a link
+    # is asked of the share's server, which `servers` answers.
     assert rebased_from(origin, "x.wav", folder) == expected
 
 
