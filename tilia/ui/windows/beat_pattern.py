@@ -7,7 +7,9 @@ edited.
 The table lists the bars the tapped beats make, as they are, then the bars
 the pattern plans after them. Editing the pattern lays it over every beat
 again. Editing a row of tapped bars changes those bars; the pattern, which bars
-tapped later follow, stays as it is. Numbering more or fewer bars than the row
+tapped later follow, stays as it is. A time signature written on a row also
+covers the assumed bars right after it that read as the row did (see
+`get_assumed_run_end`). Numbering more or fewer bars than the row
 has moves the barlines after it, and the pattern goes on from the bars that
 moved, so the other rows keep their lengths. Editing a row of bars not tapped
 yet changes the pattern.
@@ -15,7 +17,7 @@ yet changes the pattern.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QKeyEvent, QValidator
@@ -248,6 +250,21 @@ def resize_row(
     ):
         tapped -= 1
     return laid[:tapped]
+
+
+def get_assumed_run_end(bars: list[PlannedBar], start: int, bar: PlannedBar) -> int:
+    """
+    The index past the assumed bars from `start` on that read as `bar` does:
+    its time signature and taps, assumed or not. A time signature written
+    on a row of tapped bars covers these too, as they only carry on what the
+    row had: writing 4/4 on the first of ten assumed bars of 4/4 sets all
+    ten.
+    """
+    reading = replace(bar, assumed=True)
+    end = start
+    while end < len(bars) and bars[end] == reading:
+        end += 1
+    return end
 
 
 def parse_taps(text: str, denominator: int) -> tuple[PlannedBar | None, str]:
@@ -510,7 +527,10 @@ class BeatPatternDialog(QDialog):
         if row.is_tapped:
             bars, tapped = self._lay_out()
             bars = bars[:tapped]
-            for index in range(row.start, row.start + row.count):
+            end = row.start + row.count
+            if item.column() == TIME_SIGNATURE_COLUMN:
+                end = get_assumed_run_end(bars, end, row.bar)
+            for index in range(row.start, end):
                 bars[index] = bar
             self._bars = bars
             self._update_table()
