@@ -143,6 +143,32 @@ def test_no_old_or_golden_file_gains_a_line(path):
     assert b'"bass_' not in tla.canonical_bytes(tla.read(path))
 
 
+def test_old_and_golden_files_with_chords_are_tested():
+    with_chords = [path for path in EVERY_FILE if b'"HARMONY"' in path.read_bytes()]
+    assert len(with_chords) >= 3
+
+
+@pytest.mark.parametrize(
+    "bass",
+    [
+        {},
+        {"bass_step": 2, "bass_accidental": -1},
+        {"bass_step": 4, "bass_accidental": 0},
+    ],
+    ids=["as it is", "an E flat bass", "a natural bass"],
+)
+@pytest.mark.parametrize("path", EVERY_FILE, ids=lambda path: path.name)
+def test_a_second_write_of_every_golden_and_old_file_changes_no_byte(path, bass):
+    # As each file is, and with each of its chords given a bass.
+    doc = tla.read(path)
+    for timeline in doc.timelines.values():
+        for component in timeline.components.values():
+            if component.kind == "harmony":
+                component.attrs.update(bass)
+    first = tla.canonical_bytes(doc)
+    assert tla.canonical_bytes(tla.loads(first)) == first
+
+
 def test_neither_has_a_default_the_reader_fills_in():
     # So a chord without them reads without them, and either is written when set.
     shape = layout.COMPONENT_SHAPES["harmony"]
