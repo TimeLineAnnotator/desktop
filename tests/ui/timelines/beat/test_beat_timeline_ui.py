@@ -1831,6 +1831,22 @@ class TestUndoRedo:
         commands.execute("edit.redo")
         assert len(beat_tlui) == 0
 
+    def test_undo_brings_back_a_beat_past_the_media_end(self, tluis, tilia_state):
+        # As when the player reports a slightly shorter duration than the
+        # file's (#453): the beats at the old end are left past it.
+        add_beat_timeline_with_pattern("4")
+        add_beats([97, 98, 99, 100])
+        tilia_state.set_duration(99.5, scale_timelines="keep")
+        post(Post.APP_STATE_RECORD, "media length reported")
+        assert [beat.time for beat in tluis[0].timeline] == [97, 98, 99, 100]
+
+        delete_beats(tluis[0], [100])
+        assert len(tluis[0].timeline) == 3
+        commands.execute("edit.undo")
+
+        assert tilia_state.duration == 99.5
+        assert [beat.time for beat in tluis[0].timeline] == [97, 98, 99, 100]
+
     def test_undo_redo_updates_displayed_measure_numbers(self, beat_tlui):
         beat_tlui.timeline.beat_pattern = [1]
         settings.set("beat_timeline", "display_measure_periodicity", 1)

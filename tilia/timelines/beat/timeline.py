@@ -16,6 +16,7 @@ from tilia.log import logger
 from tilia.requests import Get, LongOperation, Post, get, long_operation, post
 from tilia.settings import settings
 from tilia.timelines import serialize
+from tilia.timelines.base.media_bounds import restoring_components
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import (
     TC,
@@ -370,7 +371,9 @@ class BeatTLComponentManager(TimelineComponentManager):
         they are edited rather than recreated.
         """
         beats, beat_units = self._split_beat_units(prev_state)
-        with self.bulk():
+        # Rebuilt beats may lie a little past the media's end, as the base
+        # method allows (see `restoring_components`).
+        with self.bulk(), restoring_components():
             self.is_restoring = True
             try:
                 # Beat units go first, so no beat deletion below moves them.
