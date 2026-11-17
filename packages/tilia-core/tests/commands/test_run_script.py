@@ -488,9 +488,11 @@ class TestAccepted:
     @pytest.mark.parametrize(
         "text",
         [
-            "timelines add marker --height 9",
-            "timelines add marker --height 0",
-            "timelines add marker --height -5",
+            "timelines add hierarchy --height 9",
+            "timelines add hierarchy --height 0",
+            "timelines add hierarchy --height -5",
+            "timelines add beat --height 40",
+            "timelines add marker --height 40",
             "timelines add harmony --height 40",
             "timelines add marker --beat-pattern 3",
             "timelines add beat --beat-pattern x",
