@@ -8,8 +8,10 @@ The table lists the bars the tapped beats make, as they are, then the bars
 the pattern plans after them. Editing the pattern lays it over every beat
 again. Editing a row of tapped bars changes those bars; the pattern, which bars
 tapped later follow, stays as it is. A time signature written on a row also
-covers the assumed bars right after it that read as the row did (see
-`get_assumed_run_end`). Numbering more or fewer bars than the row
+covers the assumed bars right after it that read as the row did, and, on a
+row of assumed bars, those right before it too, so it covers the whole run
+(see `get_assumed_run_start` and `get_assumed_run_end`). Numbering more or
+fewer bars than the row
 has moves the barlines after it, and the pattern goes on from the bars that
 moved, so the other rows keep their lengths. Editing a row of bars not tapped
 yet changes the pattern.
@@ -282,6 +284,19 @@ def get_assumed_run_end(
     return end
 
 
+def get_assumed_run_start(bars: list[PlannedBar], start: int, bar: PlannedBar) -> int:
+    """
+    The index of the first of the assumed bars just before `start` that
+    read as `bar` does, its time signature and taps, or `start` if there are
+    none. A time signature written on a row of assumed bars covers the whole
+    run of them, from its first bar (see `get_assumed_run_end`).
+    """
+    reading = replace(bar, assumed=True)
+    while start > 0 and bars[start - 1] == reading:
+        start -= 1
+    return start
+
+
 def parse_taps(text: str, denominator: int) -> tuple[PlannedBar | None, str]:
     """Reads what each tap of a bar is worth, such as "3/2 3/2 1"."""
     result = parse_units("+".join(text.replace("+", " ").split()))
@@ -542,12 +557,14 @@ class BeatPatternDialog(QDialog):
         if row.is_tapped:
             bars, tapped = self._lay_out()
             bars = bars[:tapped]
-            end = row.start + row.count
+            start, end = row.start, row.start + row.count
             if item.column() == TIME_SIGNATURE_COLUMN:
                 end = get_assumed_run_end(
                     bars, end, row.bar, self._get_open_bar_count(bars)
                 )
-            for index in range(row.start, end):
+                if row.bar.assumed:
+                    start = get_assumed_run_start(bars, start, row.bar)
+            for index in range(start, end):
                 bars[index] = bar
             self._bars = bars
             self._update_table()

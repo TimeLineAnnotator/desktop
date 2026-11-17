@@ -3361,6 +3361,72 @@ class TestAssumedBeatUnits:
         assert label_texts(all_labels(tluis[0])) == [("4", "4")]
         assert not any(m.is_assumed for m in timeline.measure_meters)
 
+    @staticmethod
+    def write_on_a_bar_opened_at(timeline_ui, measure_index, text):
+        """
+        Opens the bars dialog at a bar, from its first beat, writes `text` on
+        that bar's row, which it has to itself, and presses OK.
+        """
+        timeline = timeline_ui.timeline
+        timeline_ui.deselect_all_elements()
+        timeline_ui.select_element(
+            timeline_ui[timeline.beats_that_start_measures[measure_index]]
+        )
+        number = str(timeline.measure_numbers[measure_index])
+
+        def edit(dialog):
+            row = [r[0] for r in dialog.get_table_rows()].index(number)
+            edit_bars_dialog_cell(dialog, row, TIME_SIGNATURE_COLUMN, text)
+
+        with patch_bars_dialog(edit):
+            commands.execute("timeline.beat.edit_bars")
+
+    @staticmethod
+    def assumed_bars(timeline):
+        return [m.is_assumed for m in timeline.measure_meters]
+
+    def test_the_cover_reaches_back_to_the_start_of_the_run(self, tluis):
+        # The pattern 4 gives 10 bars of assumed 4/4.
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(40))
+
+        with undoable():
+            self.write_on_a_bar_opened_at(tluis[0], 4, "4/4")
+
+        timeline = tluis[0].timeline
+        assert self.assumed_bars(timeline) == [False] * 10
+        assert [(u.denominator, u.units, u.assumed) for u in timeline.beat_units] == [
+            (4, "1", False)
+        ]
+        assert label_texts(all_labels(tluis[0])) == [("4", "4")]
+
+    def test_a_bar_that_reads_otherwise_starts_the_run_after_it(self, tluis):
+        # Bar 3 has three taps, and reads 3/4.
+        add_beat_timeline_with_pattern("4 4 3 4 4 4 4 4 4 4")
+        add_beats(range(39))
+
+        with undoable():
+            self.write_on_a_bar_opened_at(tluis[0], 4, "4/4")
+
+        timeline = tluis[0].timeline
+        assert self.assumed_bars(timeline) == [True] * 3 + [False] * 7
+        assert label_texts(all_labels(tluis[0])) == [
+            ("4", "4"),
+            ("3", "4"),
+            ("4", "4"),
+        ]
+
+    def test_a_bar_set_by_hand_starts_the_run_after_it(self, tluis):
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(40))
+        set_beat_unit(tluis[0], 1, 4, "1", only_this_measure=True)
+        assert self.assumed_bars(tluis[0].timeline) == [True, False] + [True] * 8
+
+        with undoable():
+            self.write_on_a_bar_opened_at(tluis[0], 4, "4/4")
+
+        assert self.assumed_bars(tluis[0].timeline) == [True] + [False] * 9
+
     def test_assumed_bars_that_read_otherwise_stop_the_cover(self, tluis):
         # Bars of 4, 4, 3 and 4 taps, all assumed.
         add_beat_timeline_with_pattern("4 4 3 4")
