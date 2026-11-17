@@ -27,9 +27,10 @@ State = dict[str, Any]
 # the bridge wrote, the scores a timeline held, and the stored ordinals of each order
 # the timelines left.
 Removed = dict[str, tla.Timeline | tla.Component | tla.Score | dict[str, Any]]
-# `history_of`'s: by timeline id, each score timeline's score and each beat
-# timeline's measure marks by beat id.
-History = dict[str, dict[str, Any]]
+# `history_of`'s: the file's fields; by timeline id, each score timeline's score,
+# each beat timeline's measure marks by beat id, and each timeline's attributes
+# (its path aside) and fields.
+History = dict[str, Any]
 
 # `Timeline.type_name()` and `ComponentKind.NAME`, and the document's names for them.
 TIMELINE_KINDS: dict[str, str] = {
@@ -195,18 +196,15 @@ def apply_changes(
     cleared score timeline holds no score, a measure started again has a bare mark,
     and a `next` stays as it is. Where TiLiA's state is the same after a person's
     edit and after an undo, only the history tells which: `history_of` and
-    `give_back_history` keep and give back what it decides.
-
-    What TiLiA filled in for a timeline's attribute or a file's field, where the file
-    stores something else or nothing, is written the first time it changes, and the
-    file's own comes back whenever the value is again the one TiLiA showed, as after
-    an undo back to the state read.
+    `give_back_history` keep and give back what it decides, and what TiLiA filled
+    in where the file stores something else or nothing, such as a default height
+    or the title of a file without one.
 
     Gives a note, for the caller to log, for each thing of the file it couldn't keep as
     it was: a measure mark a beat no longer holds, and a repeat that names another
     measure, or none."""
     notes: list[str] = []
-    _apply_file_fields(doc, synced, current, removed)
+    _apply_file_fields(doc, synced, current)
     _apply_timelines(
         doc,
         synced["timelines"],
@@ -269,11 +267,18 @@ def history_of(doc: tla.Document) -> History:
     same state with different ones: a cleared score timeline holds no score, where
     an undo gives back the score an import replaced; a measure a person starts again
     has a bare mark, where an undo gives back its old one and the names a `next`
-    lost. So the states alone can't make an undo exact. The caller keeps one of
-    these for each state its undo records, and `give_back_history` gives it back
-    when an undo or a redo returns to that state."""
+    lost. So the states alone can't make an undo exact. The same goes for what
+    TiLiA filled in where the file stores something else, or nothing, such as a
+    default height or the title of a file without one: a person's edit writes it,
+    and an undo back to the state read gives back the file's own. So the file's
+    fields, and each timeline's attributes and fields, are kept too; a PDF
+    timeline's path isn't: TiLiA's, made relative by the core when written, gives
+    the same bytes, from whichever folder. The caller keeps one of these for each
+    state its undo records, and `give_back_history` gives it back when an undo or
+    a redo returns to that state."""
     scores: dict[str, tla.Score | None] = {}
     marks: dict[str, dict[str, Any]] = {}
+    attributes: dict[str, dict[str, Any]] = {}
     for timeline in doc.timelines.values():
         if timeline.kind == "score":
             scores[timeline.id] = doc.scores.get(timeline.attrs.get("score"))
@@ -283,14 +288,32 @@ def history_of(doc: tla.Document) -> History:
                 for component in timeline.components.values()
                 if isinstance(component.attrs.get("measure"), dict)
             }
-    return {"scores": scores, "marks": marks}
+        if timeline.kind in TIMELINE_ATTRIBUTES:
+            attributes[timeline.id] = {
+                "attrs": {
+                    attr: copy.deepcopy(timeline.attrs[attr])
+                    for attr in _kept_attributes(timeline)
+                    if attr in timeline.attrs
+                },
+                "fields": copy.deepcopy(timeline.metadata),
+            }
+    return {
+        "fields": copy.deepcopy(doc.metadata),
+        "scores": scores,
+        "marks": marks,
+        "attributes": attributes,
+    }
+
+
+def _kept_attributes(timeline: tla.Timeline) -> tuple[str, ...]:
+    return tuple(attr for attr in TIMELINE_ATTRIBUTES[timeline.kind] if attr != "path")
 
 
 def give_back_history(
     doc: tla.Document, history: History, current: State, *, removed: Removed
 ) -> None:
-    """Gives the document back the scores and measure marks it held in `history`,
-    for `current`, the state it held them in, which an undo or a redo has brought
+    """Gives the document back the scores, measure marks, fields and timeline
+    attributes it held in `history`, for `current`, the state it held them in, which an undo or a redo has brought
     TiLiA back to after `apply_changes`. Only what differs changes; a score taken
     out waits in `removed`, for the undo or redo that gives it back."""
     states = current["timelines"]
@@ -331,6 +354,19 @@ def give_back_history(
             changed = True
         if changed:
             timeline.measures = tla.measure_table(timeline)
+    if list(doc.metadata.items()) != list(history["fields"].items()):
+        doc.metadata = copy.deepcopy(history["fields"])
+    for timeline_id, kept in history["attributes"].items():
+        timeline = doc.timelines.get(timeline_id)
+        if timeline is None or timeline.kind not in TIMELINE_ATTRIBUTES:
+            continue
+        for attr in _kept_attributes(timeline):
+            if attr not in kept["attrs"]:
+                timeline.attrs.pop(attr, None)
+            elif timeline.attrs.get(attr) != kept["attrs"][attr]:
+                timeline.attrs[attr] = copy.deepcopy(kept["attrs"][attr])
+        if list(timeline.metadata.items()) != list(kept["fields"].items()):
+            timeline.metadata = copy.deepcopy(kept["fields"])
 
 
 # From the document to the state
@@ -430,70 +466,29 @@ def _beat_positions(score: tla.Score) -> dict[float, float]:
 # From the state to the document: the file's fields
 
 
-def _apply_file_fields(
-    doc: tla.Document, synced: State, current: State, removed: Removed
-) -> None:
+def _apply_file_fields(doc: tla.Document, synced: State, current: State) -> None:
     before = dict(synced["media_metadata"])
     after = dict(current["media_metadata"])
     length_before = before.pop(_MEDIA_LENGTH, None)
     length_after = after.pop(_MEDIA_LENGTH, None)
     if length_after != length_before:
         doc.media_length = length_after or None  # TiLiA's 0 is unknown
-    _apply_fields(doc.metadata, before, after, removed, "/metadata")
+    _apply_fields(doc.metadata, before, after)
     if current["media_path"] != synced["media_path"]:
         doc.media_path = tla.as_media_path(current["media_path"])
 
 
 def _apply_fields(
-    fields: dict[str, Any],
-    before: Mapping[str, Any],
-    after: Mapping[str, Any],
-    removed: Removed,
-    place: str,
+    fields: dict[str, Any], before: Mapping[str, Any], after: Mapping[str, Any]
 ) -> None:
     """An added field goes last, a removed one goes, a changed value stays in its
     place, and the others aren't touched, whatever the order or the fields that
-    TiLiA adds on loading, which are the same on both sides. A field TiLiA filled
-    in, such as the title of a file that has none, goes again when its value is the
-    one TiLiA showed (`_set_or_give_back`)."""
+    TiLiA adds on loading, which are the same on both sides."""
     for name in before.keys() - after.keys():
         fields.pop(name, None)
     for name, value in after.items():
-        if name not in before:
+        if name not in before or value != before[name]:
             fields[name] = copy.deepcopy(value)
-        elif value != before[name]:
-            _set_or_give_back(
-                fields, name, value, before[name], f"{place}/as read/{name}", removed
-            )
-
-
-def _set_or_give_back(
-    holder: dict[str, Any],
-    name: str,
-    value: Any,
-    shown: Any,
-    key: str,
-    removed: Removed,
-) -> None:
-    """Sets `value` at `name` in `holder`, a timeline's attributes or a file's
-    fields, where TiLiA showed `shown` until now. The first time, when the file
-    stores something else there, or nothing, TiLiA filled it in: `removed` keeps
-    what the file stored, under `key`, and it comes back whenever the value is
-    again the one TiLiA showed, so that an undo back to the state read gives the
-    file's bytes (TimeLineAnnotator/project-management#551, point 1, b)."""
-    record = removed.get(key)
-    if not isinstance(record, dict) and (name not in holder or holder[name] != shown):
-        record = {"shown": copy.deepcopy(shown)}
-        if name in holder:
-            record["stored"] = copy.deepcopy(holder[name])
-        removed[key] = record
-    if isinstance(record, dict) and value == record["shown"]:
-        if "stored" in record:
-            holder[name] = copy.deepcopy(record["stored"])
-        else:
-            holder.pop(name, None)
-    else:
-        holder[name] = copy.deepcopy(value)
 
 
 # Timelines
@@ -664,28 +659,10 @@ def _apply_timeline_attributes(
     if "name" in state and state["name"] != was.get("name"):
         timeline.name = state["name"]
     for attr in TIMELINE_ATTRIBUTES[timeline.kind]:
-        if attr not in state or state[attr] == was.get(attr):
-            continue
-        if not was:  # a new timeline: nothing TiLiA filled in
+        if attr in state and state[attr] != was.get(attr):
             timeline.attrs[attr] = state[attr]
-        else:
-            # Such as the default height TiLiA shows for a height below 10.
-            _set_or_give_back(
-                timeline.attrs,
-                attr,
-                state[attr],
-                was.get(attr),
-                f"{timeline.id}/as read/{attr}",
-                removed,
-            )
     if "fields" in state:
-        _apply_fields(
-            timeline.metadata,
-            was.get("fields", {}),
-            state["fields"],
-            removed,
-            f"{timeline.id}/fields",
-        )
+        _apply_fields(timeline.metadata, was.get("fields", {}), state["fields"])
     if timeline.kind == "range" and state.get("rows") != was.get("rows"):
         _apply_rows(timeline, state.get("rows") or [], removed)
     elif timeline.kind == "score":

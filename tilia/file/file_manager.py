@@ -19,6 +19,8 @@ from tilia.settings import settings
 from tilia.ui import commands
 from tilia_core import tla
 
+_MEDIA_LENGTH = "media length"
+
 
 def read_file(path: Path) -> OpenDocument | None:
     """The file at `path`, read through the core. None when it isn't opened: the
@@ -286,7 +288,11 @@ class FileManager:
             tilia.errors.display(tilia.errors.MEDIA_METADATA_IMPORT_FILE_FAILED, path)
             return
 
-        self.set_media_metadata(MediaMetadata.from_dict(data))
+        fields = MediaMetadata.from_dict(data)
+        if _MEDIA_LENGTH not in data:
+            # The media length isn't a field (FR-035): an import never resets it.
+            fields[_MEDIA_LENGTH] = self.file.media_metadata.get(_MEDIA_LENGTH, 0)
+        self.set_media_metadata(fields)
         self.sync_document()
 
     def sync_document(self) -> None:
