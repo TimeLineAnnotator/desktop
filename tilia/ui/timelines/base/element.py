@@ -98,12 +98,14 @@ class TimelineUIElement(ABC):
         which of their triggers are selected override it.
         """
 
-    def on_selection_box_deselect(self, item: QGraphicsItem) -> None:  # noqa: B027
+    def on_selection_box_deselect(self, item: QGraphicsItem) -> bool:
         """
         Called when a selection box leaves `item`, one of the element's
-        selection triggers, before the element is deselected if it was the
-        last one under the box.
+        selection triggers. Returns whether the element stays selected if
+        that was the last of them under the box: elements whose triggers are
+        selected one by one stay selected while any other trigger is.
         """
+        return False
 
     @abstractmethod
     def update_position(self):

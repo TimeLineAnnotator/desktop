@@ -990,13 +990,14 @@ class TimelineUIs:
             return
 
         self.sb_items_to_selected_items[element].remove(item)
-        element.on_selection_box_deselect(item)
+        stays_selected = element.on_selection_box_deselect(item)
 
         # stop tracking element if there are no more selection triggers under
         # selection box
         if not self.sb_items_to_selected_items[element]:
             self.sb_items_to_selected_items.pop(element)
-            timeline_ui.deselect_element(element)
+            if not stays_selected:
+                timeline_ui.deselect_element(element)
 
     def on_arrow_press(self, arrow: str):
         direction = "horizontal" if arrow in ["right", "left"] else "vertical"

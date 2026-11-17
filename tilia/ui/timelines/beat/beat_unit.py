@@ -290,9 +290,12 @@ class BeatUnitUI(TimelineUIElement):
         if isinstance(item, TimeSignatureLabel):
             self.select_label(item, clicked=False)
 
-    def on_selection_box_deselect(self, item: QGraphicsItem) -> None:
+    def on_selection_box_deselect(self, item: QGraphicsItem) -> bool:
+        # A box with Ctrl or Shift adds to labels selected before it, which
+        # stay selected when it leaves the ones it went over.
         if isinstance(item, TimeSignatureLabel):
-            self.deselect_label(item)
+            return self.deselect_label(item)
+        return bool(self._selected)
 
     def _get_outlined(self) -> set[int]:
         if not self._is_selected or not self.labels:

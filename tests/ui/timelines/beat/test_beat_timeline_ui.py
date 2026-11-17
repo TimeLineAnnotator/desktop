@@ -2157,10 +2157,10 @@ def all_labels(timeline_ui):
     return sorted(labels, key=lambda lb: lb.measure_index)
 
 
-def press_in_label_row(timeline_ui, time):
+def press_in_label_row(timeline_ui, time, modifier=None):
     """Presses the mouse in the row of time signature labels, at `time`."""
     y = all_labels(timeline_ui)[0].rect().center().y()
-    click_timeline_ui(timeline_ui, time, y)
+    click_timeline_ui(timeline_ui, time, y, modifier=modifier)
 
 
 def drag_in_label_row(timeline_ui, time, release=True):
@@ -3752,6 +3752,22 @@ class TestCtrlClickOnLabels:
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(2), modifier="ctrl")
 
         assert outlined_measures(tluis[0]) == [0, 2]
+
+    @pytest.mark.parametrize("modifier", ["ctrl", "shift"])
+    def test_a_box_with_a_modifier_keeps_the_labels_it_doesnt_touch(
+        self, tluis, modifier
+    ):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        press_in_label_row(tluis[0], 12, modifier=modifier)
+        drag_in_label_row(tluis[0], 18, release=False)
+        assert outlined_measures(tluis[0]) == [1, 3]
+        # Off bar 4's label again: only that one goes.
+        drag_in_label_row(tluis[0], 12.5)
+
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [1]
 
 
 class TestRightClickOnLabels:
