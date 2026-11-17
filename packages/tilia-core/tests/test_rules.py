@@ -950,6 +950,7 @@ class TestHarmony:
             ("bass_step", -1, "-1 is not a valid bass step."),
             ("bass_step", 1.0, "1.0 is not a valid bass step."),
             ("bass_step", True, "True is not a valid bass step."),
+            ("bass_step", "E", "E is not a valid bass step."),
             ("bass_accidental", 3, "3 is not a valid bass accidental."),
             ("bass_accidental", -3, "-3 is not a valid bass accidental."),
             ("level", 0, "0 is not a valid level."),
@@ -965,8 +966,8 @@ class TestHarmony:
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
 
-    @pytest.mark.parametrize("step", [0, 3, 6])
-    @pytest.mark.parametrize("accidental", [-2, -1, 0, 1, 2])
+    @pytest.mark.parametrize("step", range(7))
+    @pytest.mark.parametrize("accidental", rules.HARMONY_ACCIDENTALS)
     def test_a_bass_takes_steps_and_accidentals_values(self, step, accidental):
         # The two go together.
         assert check("harmony", bass_step=step, bass_accidental=accidental) == OK
@@ -1955,6 +1956,12 @@ class TestNotValid:
 # function gives, with the others as an import or a reading sees them.
 
 MISSING = object()  # a key the component doesn't have
+
+
+class Together(dict):
+    """Attributes drawn as one value of a pool: a chord's bass."""
+
+
 NAN = float("nan")
 ODD_NUMBERS = [NAN, float("inf"), "1.0", None, True, 10**400, -(10**400), [1.0]]
 TEXTS = ([MISSING, MISSING, "", "Exposição"], [3])
@@ -1976,8 +1983,24 @@ HARMONY_POOLS = {
         ["dominant-seventh-flat-ninth", "maj", None],
     ),
     "inversion": ([MISSING, 0, 1, 2], [3, -1, 1.0]),
-    "bass_step": ([MISSING, 0, 3, 6], [7, -1, 1.0]),
-    "bass_accidental": ([MISSING, 0, 1, -2], [3, True]),
+    # Drawn as one, as they are written: one alone is an odd value.
+    "bass": (
+        [
+            MISSING,
+            MISSING,
+            MISSING,
+            Together(bass_step=0, bass_accidental=0),
+            Together(bass_step=3, bass_accidental=1),
+            Together(bass_step=6, bass_accidental=-2),
+        ],
+        [
+            Together(bass_step=7, bass_accidental=0),
+            Together(bass_step=1.0, bass_accidental=0),
+            Together(bass_step=2, bass_accidental=True),
+            Together(bass_step=2),
+            Together(bass_accidental=-1),
+        ],
+    ),
     "level": ([MISSING, 1, 2], [0, 3]),
     "display_mode": ([MISSING, "roman", "letter", "custom"], ["roman2"]),
     "custom_text": TEXTS,
@@ -2006,11 +2029,14 @@ USES = pytest.mark.parametrize(
 
 
 def draw(rng, pools, odds=0.06):
-    """Attributes from `pools`: each a usual value or, now and then, an odd one."""
+    """Attributes from `pools`: each a usual value or, now and then, an odd one. A
+    `Together` gives several at once."""
     attrs = {}
     for name, (usual, odd) in pools.items():
         value = rng.choice(odd if rng.random() < odds else usual)
-        if value is not MISSING:
+        if isinstance(value, Together):
+            attrs.update(value)
+        elif value is not MISSING:
             attrs[name] = value
     return attrs
 

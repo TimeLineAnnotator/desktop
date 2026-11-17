@@ -150,67 +150,9 @@ def test_neither_has_a_default_the_reader_fills_in():
     assert not {"bass_step", "bass_accidental"} & shape.always
 
 
-# The rules
-
-
-@pytest.mark.parametrize("value", [*range(7)])
-def test_bass_step_takes_steps_values(value):
-    found = rules.check_timeline(
-        60.0,
-        [
-            tla.Component(
-                id="a", kind="harmony", attrs=_attrs(bass_step=value, bass_accidental=0)
-            )
-        ],
-    )
-    assert found["a"].outcome.ok
-
-
-@pytest.mark.parametrize("value", rules.HARMONY_ACCIDENTALS)
-def test_bass_accidental_takes_accidentals_values(value):
-    found = rules.check_timeline(
-        60.0,
-        [
-            tla.Component(
-                id="a", kind="harmony", attrs=_attrs(bass_step=0, bass_accidental=value)
-            )
-        ],
-    )
-    assert found["a"].outcome.ok
-
-
-def _attrs(**given):
-    return {"time": 1.0, **given}
-
-
-@pytest.mark.parametrize(
-    "name, value, reason, code",
-    [
-        ("bass_step", 7, "7 is not a valid bass step.", "bad_bass_step"),
-        ("bass_step", -1, "-1 is not a valid bass step.", "bad_bass_step"),
-        ("bass_step", True, "True is not a valid bass step.", "bad_bass_step"),
-        ("bass_step", "E", "E is not a valid bass step.", "bad_bass_step"),
-        (
-            "bass_accidental",
-            3,
-            "3 is not a valid bass accidental.",
-            "bad_bass_accidental",
-        ),
-        (
-            "bass_accidental",
-            -3,
-            "-3 is not a valid bass accidental.",
-            "bad_bass_accidental",
-        ),
-    ],
-)
-def test_another_value_breaks_the_rule(name, value, reason, code):
-    found = rules.check_timeline(
-        60.0, [tla.Component(id="a", kind="harmony", attrs=_attrs(**{name: value}))]
-    )
-    outcome = found["a"].outcome
-    assert (outcome.ok, outcome.reason, outcome.code) == (False, reason, code)
-    assert reason == rules.not_valid(name, value)
+# The rules: which values each takes, and the reasons, are tested with the others
+# in `TestHarmony`, tests/test_rules.py. Here, what the reader and the writer do
+# with them.
 
 
 def file_with(**attrs):
@@ -337,11 +279,17 @@ def test_a_write_refuses_a_new_chord_with_one_of_the_two(tmp_path):
 
 
 def test_none_given_for_one_of_the_two_is_written_as_one_alone(tmp_path):
-    # None is a missing key: the file would hold the other alone.
+    # None is a missing key: the file would hold the other alone, so the rule that
+    # refuses it is the lone key's, which names the key given None.
     pytest.importorskip("music21", reason="writing a harmony needs the harmony extra")
     doc, timeline, component = document({**C_OVER_E_FLAT, "bass_step": None})
-    with pytest.raises(tla.BrokenRules):
+    with pytest.raises(tla.BrokenRules) as refused:
         tla.write(tmp_path / "piece.tla", doc)
+    assert [p.message for p in refused.value.problems] == [
+        "None is not a valid bass step."
+    ]
+    as_written = tla.loads(tla.canonical_bytes(doc))
+    assert [p.code for p in as_written.read_problems] == [rules.LONE_BASS_KEY]
 
 
 # Both, where the inversion already gives that bass
