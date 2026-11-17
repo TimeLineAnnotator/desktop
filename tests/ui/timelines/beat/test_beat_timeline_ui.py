@@ -3944,6 +3944,62 @@ class TestRightClickOnLabels:
         assert beat_unit_ui.active_measure_index == 2
 
 
+class TestBeatCommandsWithLabelsSelected:
+    """
+    A box over the beats and their labels selects both. The beat commands
+    act on the selected beats' bars, as when every beat is selected to set
+    how many each bar has.
+    """
+
+    @staticmethod
+    def box_over_beats_and_labels(timeline_ui):
+        """Bars 2 and 3, from above their beats down to their labels."""
+        click_timeline_ui(timeline_ui, 3, 1)
+        drag_in_label_row(timeline_ui, 13)
+        selected = timeline_ui.selected_elements
+        assert any(isinstance(e, BeatUI) for e in selected)
+        assert any(not isinstance(e, BeatUI) for e in selected)
+
+    def test_set_amount_in_measure(self, tluis, tilia_errors):
+        add_labels_of_one_beat_unit(tluis)
+        self.box_over_beats_and_labels(tluis[0])
+
+        commands.execute("timeline.beat.set_amount_in_measure", amount=4)
+
+        tilia_errors.assert_no_error()
+        assert tluis[0].timeline.beats_in_measure == [2, 4, 4]
+
+    def test_set_measure_number(self, tluis, tilia_errors):
+        add_labels_of_one_beat_unit(tluis)
+        self.box_over_beats_and_labels(tluis[0])
+
+        with patch_ask_for_int_dialog(True, 5):
+            commands.execute("timeline.beat.set_measure_number")
+
+        tilia_errors.assert_no_error()
+        assert tluis[0].timeline.measure_numbers == [1, 5, 5, 6]
+
+    def test_reset_measure_number(self, tluis, tilia_errors):
+        add_labels_of_one_beat_unit(tluis)
+        tluis[0].timeline.set_measure_number(1, 5)
+        self.box_over_beats_and_labels(tluis[0])
+
+        commands.execute("timeline.beat.reset_measure_number")
+
+        tilia_errors.assert_no_error()
+        assert tluis[0].timeline.measure_numbers == [1, 2, 3, 4]
+
+    def test_distribute(self, tluis, tilia_errors):
+        add_labels_of_one_beat_unit(tluis)
+        tluis[0].timeline.set_component_data(tluis[0].timeline[3].id, "time", 7)
+        self.box_over_beats_and_labels(tluis[0])
+
+        commands.execute("timeline.beat.distribute")
+
+        tilia_errors.assert_no_error()
+        assert [beat.time for beat in tluis[0].timeline][2:5] == [4, 6, 8]
+
+
 class TestFileFromBeforeBeatUnits:
     """tests/resources/tla/many_beats.tla was saved by TiLiA 0.5.15: its beat
     pattern is a list, it has no show_time_signatures and no beat units."""

@@ -537,9 +537,16 @@ class BeatTimelineUI(TimelineUI):
             return [] if owner is None else [owner]
         return super().get_item_owner(item)
 
-    def _get_measure_indices(self, elements: list[BeatUI]):
+    def _get_measure_indices(self, elements: list[TimelineUIElement]) -> list[int]:
+        """
+        The measures of the beats among `elements`, in order. A selection can
+        also hold time signature labels, as a box over the beats and their
+        labels selects both, and those are left out.
+        """
         measure_indices = set()
         for e in elements:
+            if not isinstance(e, BeatUI):
+                continue
             beat_index = self.timeline.get_beat_index(self.timeline.get_component(e.id))
             measure_index, _ = self.timeline.get_measure_index(beat_index)
             measure_indices.add(measure_index)
@@ -548,6 +555,9 @@ class BeatTimelineUI(TimelineUI):
 
     @with_elements
     def on_set_measure_number(self, elements: list[BeatUI] | None = None):
+        measure_indices = self._get_measure_indices(elements)
+        if not measure_indices:
+            return False
         accepted, number = get(
             Get.FROM_USER_INT,
             "Change measure number",
@@ -557,26 +567,31 @@ class BeatTimelineUI(TimelineUI):
         if not accepted:
             return False
 
-        for i in reversed(self._get_measure_indices(elements)):
+        for i in reversed(measure_indices):
             self.timeline.set_measure_number(i, number)
         return True
 
     @with_elements
     def on_reset_measure_number(self, elements: list[BeatUI] | None = None):
-        for i in reversed(self._get_measure_indices(elements)):
+        measure_indices = self._get_measure_indices(elements)
+        for i in reversed(measure_indices):
             self.timeline.reset_measure_number(i)
-        return True
+        return bool(measure_indices)
 
     @with_elements
     def on_distribute(self, elements: list[BeatUI] | None = None):
-        for i in self._get_measure_indices(elements):
+        measure_indices = self._get_measure_indices(elements)
+        for i in measure_indices:
             self.timeline.distribute_beats(i)
-        return True
+        return bool(measure_indices)
 
     @with_elements
     def on_set_amount_in_measure(
         self, elements: list[BeatUI] | None = None, amount: int | None = None
     ) -> bool:
+        measure_indices = self._get_measure_indices(elements)
+        if not measure_indices:
+            return False
         if amount is None:
             accepted, amount = get(
                 Get.FROM_USER_INT,
@@ -588,7 +603,7 @@ class BeatTimelineUI(TimelineUI):
                 return False
         elif amount < 1:
             return False
-        for i in reversed(self._get_measure_indices(elements)):
+        for i in reversed(measure_indices):
             self.timeline.set_beat_amount_in_measure(i, amount)
         return True
 
