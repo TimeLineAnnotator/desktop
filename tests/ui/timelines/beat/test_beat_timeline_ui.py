@@ -3255,6 +3255,23 @@ class TestAssumedBeatUnits:
         assert label_texts(all_labels(tluis[0])) == [("4", "4")]
         assert not is_drawn_assumed(all_labels(tluis[0])[0])
 
+    def test_the_cover_reaches_a_bar_still_being_tapped(self, tluis):
+        # Ten bars of 4 and two taps of the eleventh.
+        add_beat_timeline_with_pattern("4")
+        add_beats(range(42))
+
+        with undoable():
+            before, after = self.write_on_bar_1_from_its_label(tluis[0], "4/4")
+
+        # The eleventh bar reads 2/4 so far, as it will read 4/4 once tapped.
+        assert before[-1] == ("11", "2/4 (assumed)", "1 1")
+        assert after == [("1", "4/4", "1 1 1 1"), ("2–11", "4/4", "1 1 1 1")]
+        add_beats([42, 43])
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [4] * 11
+        assert label_texts(all_labels(tluis[0])) == [("4", "4")]
+        assert not any(m.is_assumed for m in timeline.measure_meters)
+
     def test_assumed_bars_that_read_otherwise_stop_the_cover(self, tluis):
         # Bars of 4, 4, 3 and 4 taps, all assumed.
         add_beat_timeline_with_pattern("4 4 3 4")

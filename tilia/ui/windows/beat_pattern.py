@@ -252,17 +252,32 @@ def resize_row(
     return laid[:tapped]
 
 
-def get_assumed_run_end(bars: list[PlannedBar], start: int, bar: PlannedBar) -> int:
+def get_assumed_run_end(
+    bars: list[PlannedBar],
+    start: int,
+    bar: PlannedBar,
+    open_bar_count: int | None = None,
+) -> int:
     """
     The index past the assumed bars from `start` on that read as `bar` does:
     its time signature and taps, assumed or not. A time signature written
     on a row of tapped bars covers these too, as they only carry on what the
     row had: writing 4/4 on the first of ten assumed bars of 4/4 sets all
-    ten.
+    ten. `open_bar_count` is the beats the last bar will have once tapped,
+    if tapping still adds to it: it is read as it will be then, so its
+    first taps under 4/4 count as 4/4, not as the 2/4 they make so far.
     """
     reading = replace(bar, assumed=True)
     end = start
     while end < len(bars) and bars[end] == reading:
+        end += 1
+    if (
+        end == len(bars) - 1
+        and open_bar_count == reading.beat_count
+        and bars[end].assumed
+        and bars[end].denominator == reading.denominator
+        and bars[end].values == reading.values[: bars[end].beat_count]
+    ):
         end += 1
     return end
 
@@ -529,7 +544,9 @@ class BeatPatternDialog(QDialog):
             bars = bars[:tapped]
             end = row.start + row.count
             if item.column() == TIME_SIGNATURE_COLUMN:
-                end = get_assumed_run_end(bars, end, row.bar)
+                end = get_assumed_run_end(
+                    bars, end, row.bar, self._get_open_bar_count(bars)
+                )
             for index in range(row.start, end):
                 bars[index] = bar
             self._bars = bars
@@ -541,6 +558,17 @@ class BeatPatternDialog(QDialog):
         for index in range(row.start, row.start + row.count):
             plan[self._get_plan_index(index)] = bar
         self._write_plan(plan)
+
+    def _get_open_bar_count(self, bars: list[PlannedBar]) -> int | None:
+        """
+        The beats the last of `bars`, the tapped ones, will have once tapped,
+        if tapping still adds to it, else None (see `is_being_filled`).
+        """
+        if not bars or not is_being_filled(
+            bars, self._plan, self._beat_count, self._shift
+        ):
+            return None
+        return self._plan[self._get_plan_index(len(bars) - 1)].beat_count
 
     def _get_plan_index(self, bar_index: int) -> int:
         """Where a bar not tapped yet is in the pattern."""
