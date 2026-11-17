@@ -352,13 +352,18 @@ class BeatUnitUI(TimelineUIElement):
         commands.execute("timeline.beat.edit_bars")
 
     def on_right_click(self, x: int, y: int, item: QGraphicsItem) -> None:
-        # The menu acts on the selection if the label is in it, and on the
-        # label alone if it is not.
+        # The timeline UI has made the label the only one selected if it
+        # wasn't selected and no Shift or Ctrl was held (see
+        # `BeatTimelineUI.on_right_click`): the menu acts on the selection.
         if isinstance(item, TimeSignatureLabel):
-            if not self.is_outlined(item):
-                self._selected.clear()
             self.select_label(item)
         super().on_right_click(x, y, item)
+
+    def deselect_labels(self) -> None:
+        """Deselects every label, leaving the beat unit selected."""
+        self._selected.clear()
+        self._clicked_beat_id = None
+        self._redraw_outline()
 
     @property
     def start_measure_index(self) -> int:

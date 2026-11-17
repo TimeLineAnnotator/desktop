@@ -499,6 +499,25 @@ class BeatTimelineUI(TimelineUI):
         elif not beat_unit_ui.toggle_label(item):
             self.deselect_element(beat_unit_ui)
 
+    def on_right_click(
+        self,
+        x: int,
+        y: int,
+        item: QGraphicsItem,
+        modifier: Qt.KeyboardModifier,
+    ) -> None:
+        # Right-clicking a label that isn't selected selects it alone, as it
+        # does an element; with Shift or Ctrl, it adds it.
+        beat_unit_ui = self._get_label_owner(item)
+        if (
+            beat_unit_ui is not None
+            and modifier == Qt.KeyboardModifier.NoModifier
+            and beat_unit_ui.is_selected()
+            and not beat_unit_ui.is_outlined(item)
+        ):
+            beat_unit_ui.deselect_labels()
+        super().on_right_click(x, y, item, modifier)
+
     def belongs_to_selection(self, item: QGraphicsItem) -> bool:
         # A label of a selected beat unit belongs to the selection only if it
         # is outlined, so right-clicking another selects that one alone.

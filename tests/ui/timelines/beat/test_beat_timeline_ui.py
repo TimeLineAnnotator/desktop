@@ -3856,6 +3856,19 @@ class TestRightClickOnLabels:
         assert tluis[0].selected_elements == [beat_unit_ui]
         assert outlined_measures(tluis[0]) == [2]
 
+    @pytest.mark.parametrize("modifier", ["shift", "ctrl"])
+    def test_right_clicking_with_a_modifier_adds_the_label(self, tluis, modifier):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        with patch.object(BeatUnitContextMenu, "exec"):
+            click_time_signature_label(
+                tluis[0], beat_unit_ui.get_label(3), button="right", modifier=modifier
+            )
+
+        assert outlined_measures(tluis[0]) == [1, 3]
+        assert beat_unit_ui.active_measure_index == 3
+
     def test_right_clicking_a_selected_label_keeps_the_selection(self, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         press_in_label_row(tluis[0], 2)
