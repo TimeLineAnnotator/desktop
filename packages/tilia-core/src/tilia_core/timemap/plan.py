@@ -627,6 +627,8 @@ def apply_plan(document: tla.Document, plan: Plan) -> None:
     document as the changes before it leave it, then what the plan was made
     from (`Plan.basis`) against the document as it is. If either differs,
     raises `PlanOutOfDate`, naming the change if it is one, and changes nothing.
+    A change of a key other than the three below raises ValueError in that
+    check, and changes nothing either.
 
     A "beat_unit" change sets or removes a beat's `beat_unit`, a
     "measure.source" change the `source` in a downbeat's `measure` mark, a
