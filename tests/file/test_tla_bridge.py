@@ -623,17 +623,31 @@ class TestKeepsWhatItDoesntShow:
 class TestFileFields:
     """`data-model.md`, *The file's fields*."""
 
-    def test_what_tilia_fills_in_goes_again_with_an_undo_back_to_it(self):
-        # A file without a title or notes: TiLiA shows "Untitled" and "" (#551,
-        # point 1, b).
+    def test_what_tilia_fills_in_a_person_s_edit_writes(self):
+        # A file without a title or notes: TiLiA shows "Untitled" and "".
         opened = Opened.read(EMPTY)
-        first = copy.deepcopy(opened.current)
         assert opened.current["media_metadata"]["title"] == "Untitled"
+        opened.current["media_metadata"]["title"] = "Ständchen"
+        opened.sync()
+        opened.current["media_metadata"]["title"] = "Untitled"
+        opened.sync()
+        assert opened.doc.metadata == {"title": "Untitled"}
+
+    def test_the_history_gives_back_the_file_s_own_with_an_undo(self):
+        # #551, point 1, b: back at the state read, what TiLiA filled in goes. The
+        # states alone can't tell it from a person's edit; the history can.
+        opened = Opened.read(EMPTY)
+        history = tla_bridge.history_of(opened.doc)
+        first = copy.deepcopy(opened.current)
         opened.current["media_metadata"]["title"] = "Ständchen"
         opened.current["media_metadata"]["notes"] = "notes"
         opened.sync()
         assert opened.doc.metadata == {"title": "Ständchen", "notes": "notes"}
         opened.undo_to(first)
+        assert opened.doc.metadata == {"title": "Untitled", "notes": ""}
+        tla_bridge.give_back_history(
+            opened.doc, history, opened.current, removed=opened.removed
+        )
         assert opened.bytes() == opened.bytes_read
 
     @staticmethod

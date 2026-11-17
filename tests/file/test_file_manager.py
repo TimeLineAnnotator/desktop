@@ -179,10 +179,15 @@ class TestFileManager:
             "year": "1999",
         }
 
+        length = tilia.file_manager.file.media_metadata["media length"]
+
         with patch("builtins.open", mock_open(read_data=json.dumps(data))):
             post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, "")
 
-        assert tilia.file_manager.file.media_metadata == MediaMetadata.from_dict(data)
+        # The media length isn't a field: the import keeps it (FR-035).
+        assert tilia.file_manager.file.media_metadata == MediaMetadata.from_dict(
+            {**data, "media length": length}
+        )
 
     def test_import_metadata_invalid_json(self, tilia):
         data = "nonsense"
