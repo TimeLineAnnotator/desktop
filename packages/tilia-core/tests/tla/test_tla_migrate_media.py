@@ -1966,6 +1966,25 @@ def test_written_through_a_link_to_a_file_its_paths_are_relative_to_that_file(
     assert written(target) == ("../corpus/audio/a.wav", "../corpus/scores/a.pdf")
 
 
+@pytest.mark.parametrize("since", ["removed", "names another file"])
+def test_a_save_as_after_a_write_through_a_link_rebases_from_the_file_written(
+    linked_file, tmp_path, since
+):
+    # From the folder of the file the link named when it was written, even if the
+    # link has changed since, as for one read (FR-033).
+    doc = with_paths(linked_file.media, linked_file.pdf)
+    tla.write(linked_file.link, doc)
+    linked_file.link.unlink()
+    if since == "names another file":
+        other = tmp_path / "other.tla"
+        other.write_bytes(linked_file.real.read_bytes())
+        link_to_file(linked_file.link, other, relative=False)
+    target = tmp_path / "out" / "copy.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    assert written(target) == ("../corpus/audio/a.wav", "../corpus/scores/a.pdf")
+
+
 @pytest.mark.parametrize("written_at", ["link", "real"])
 def test_a_file_reached_through_a_link_finds_its_media_both_ways(
     linked_file, written_at
