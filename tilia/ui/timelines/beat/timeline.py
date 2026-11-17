@@ -877,9 +877,15 @@ class BeatTimelineUI(TimelineUI):
                 )
                 if beat and beat_unit_data:
                     pasted_beat_units.append((beat, beat_unit_data))
-        # Once the pasted beats are in their measures. A pasted first beat
-        # already has a beat unit of its own.
+        # Once the pasted beats are in their measures, a beat brings the beat
+        # unit a person set on it, and only where it starts a measure: pasted
+        # inside one, it would change the time signature of that measure and
+        # of every one after it. An assumed beat unit, which TiLiA gave, is
+        # never pasted. A pasted first beat already has a beat unit of its
+        # own, which the pasted one replaces.
         for beat, beat_unit_data in pasted_beat_units:
+            if beat_unit_data.get("assumed") or not beat.is_first_in_measure:
+                continue
             self.timeline.put_beat_unit_on_beat(beat.id, **beat_unit_data)
 
     def update_beat_pattern(self):

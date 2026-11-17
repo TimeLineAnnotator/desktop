@@ -3147,6 +3147,95 @@ class TestCopyPasteBeatUnits:
         assert (pasted_unit.denominator, pasted_unit.units) == (8, "3")
         assert len(timeline.beat_units) == 3
 
+    @staticmethod
+    def copy_beats(timeline_ui, times):
+        timeline_ui.deselect_all_elements()
+        for beat_ui in timeline_ui:
+            if beat_ui.time in times:
+                timeline_ui.select_element(beat_ui)
+        commands.execute("timeline.component.copy")
+        timeline_ui.deselect_all_elements()
+
+    @staticmethod
+    def add_bar_2_of_six_eight_alone(tluis):
+        """
+        Bars of two taps from 0 s, the second set to 6/8 on its own: the
+        third gets the 2/4 TiLiA assumed back, which the fourth carries on.
+        """
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(8))
+        set_beat_unit(tluis[0], 1, 8, "3", only_this_measure=True)
+        assert time_signatures(tluis[0].timeline) == [
+            ("2", 4),
+            ("6", 8),
+            ("2", 4),
+            ("2", 4),
+        ]
+        assert assumed_flags(tluis[0].timeline) == [True, False, True]
+
+    def test_an_assumed_beat_unit_pasted_mid_bar_changes_nothing(self, tluis):
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(8))
+        set_beat_unit(tluis[0], 1, 8, "3")
+        # The first beat carries the 2/4 TiLiA assumes.
+        self.copy_beats(tluis[0], [0])
+        commands.execute("media.seek", 4.5)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+
+        timeline = tluis[0].timeline
+        assert time_signatures(timeline)[1:4] == [("6", 8)] * 3
+        assert not any(m.is_assumed for m in timeline.measure_meters[1:])
+        assert len(timeline.beat_units) == 2
+
+    def test_a_bar_pasted_after_the_last_brings_its_time_signature(self, tluis):
+        self.add_bar_2_of_six_eight_alone(tluis)
+        self.copy_beats(tluis[0], [2, 3])
+        commands.execute("media.seek", 10)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+
+        assert time_signatures(tluis[0].timeline) == [
+            ("2", 4),
+            ("6", 8),
+            ("2", 4),
+            ("2", 4),
+            ("6", 8),
+        ]
+
+    def test_a_beat_pasted_mid_bar_brings_no_time_signature(self, tluis):
+        self.add_bar_2_of_six_eight_alone(tluis)
+        # Bar 2's first beat, which carries its 6/8.
+        self.copy_beats(tluis[0], [2])
+        commands.execute("media.seek", 6.5)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+
+        timeline = tluis[0].timeline
+        pasted_beat = timeline.get_component_by_attr("time", 6.5)
+        assert not pasted_beat.is_first_in_measure
+        assert timeline.get_beat_unit_on_beat(pasted_beat.id) is None
+        assert time_signatures(timeline)[3] == ("2", 4)
+        assert len(timeline.beat_units) == 3
+
+    def test_an_assumed_beat_unit_is_not_pasted(self, tluis):
+        self.add_bar_2_of_six_eight_alone(tluis)
+        # Bar 3's first beat, which carries the 2/4 TiLiA assumed back.
+        self.copy_beats(tluis[0], [4])
+        commands.execute("media.seek", 10)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+
+        timeline = tluis[0].timeline
+        pasted_beat = timeline.get_component_by_attr("time", 10)
+        assert pasted_beat.is_first_in_measure
+        assert timeline.get_beat_unit_on_beat(pasted_beat.id) is None
+        assert len(timeline.beat_units) == 3
+
     def test_copying_a_label_copies_nothing(self, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
