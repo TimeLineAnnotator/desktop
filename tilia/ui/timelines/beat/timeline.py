@@ -343,11 +343,11 @@ class BeatTimelineUI(TimelineUI):
         was clicked, or else the measure of the first selected beat.
         """
         for element in self.selected_elements:
-            if (
-                isinstance(element, BeatUnitUI)
-                and element.active_measure_index is not None
-            ):
-                return element.active_measure_index
+            if not isinstance(element, BeatUnitUI):
+                continue
+            measure_index = element.active_measure_index
+            if measure_index is not None:
+                return measure_index
         beat_uis = [e for e in self.selected_elements if isinstance(e, BeatUI)]
         if beat_uis:
             return self._get_measure_indices(beat_uis)[0]
@@ -390,7 +390,9 @@ class BeatTimelineUI(TimelineUI):
         """
         if measure_index is None:
             measure_index = self._get_beat_unit_target_measure()
-        if measure_index is None:
+        if measure_index is None or not (
+            0 <= measure_index < self.timeline.measure_count
+        ):
             return False
 
         others = self.timeline.get_beat_units_in_measure(measure_index)[1:]

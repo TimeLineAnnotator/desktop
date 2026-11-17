@@ -3235,6 +3235,67 @@ class TestConflictingBeatUnits:
         assert all_labels(tluis[0])[0].spec.state == LabelState.NORMAL
 
 
+class TestClickedLabel:
+    """
+    The label last clicked says which measure the inspector and the time
+    signature commands are about, while that measure is still there.
+    """
+
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    @staticmethod
+    def click_label_of_the_last_measure(tluis):
+        """
+        Clicks the label of a third measure, which the last two taps made,
+        and undoes them.
+        """
+        add_beat_timeline_with_pattern("2 3")
+        add_beats(range(7))
+        beat_unit_ui = tluis[0].get_element(tluis[0].timeline.beat_units[0].id)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+        assert beat_unit_ui.active_measure_index == 2
+
+        commands.execute("edit.undo")
+        commands.execute("edit.undo")
+        assert tluis[0].timeline.measure_count == 2
+        return beat_unit_ui
+
+    def test_inspecting_once_the_clicked_measure_is_gone(self, qtui, tluis):
+        beat_unit_ui = self.click_label_of_the_last_measure(tluis)
+        tluis[0].select_element(beat_unit_ui)
+
+        commands.execute("timeline.element.inspect")
+
+        inspector = qtui._windows[WindowKind.INSPECT]
+        assert inspector.field_name_to_widgets["Measure"][1].text() == "1"
+
+    def test_removing_others_once_the_clicked_measure_is_gone(
+        self, tluis, tilia_errors
+    ):
+        beat_unit_ui = self.click_label_of_the_last_measure(tluis)
+        tluis[0].select_element(beat_unit_ui)
+
+        commands.execute("timeline.beat.remove_other_beat_units")
+
+        tilia_errors.assert_no_error()
+        assert len(tluis[0].timeline.beat_units) == 1
+
+    def test_a_label_clicked_before_is_forgotten_once_deselected(self, tluis):
+        add_beat_timeline_with_pattern("2 3")
+        add_beats(range(10))
+        beat_unit_ui = tluis[0].get_element(tluis[0].timeline.beat_units[0].id)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+
+        tluis[0].deselect_all_elements()
+        tluis[0].select_element(beat_unit_ui)
+
+        assert beat_unit_ui.active_measure_index is None
+        assert beat_unit_ui.inspected_measure_index == 0
+
+
 class TestFileFromBeforeBeatUnits:
     """tests/resources/tla/many_beats.tla was saved by TiLiA 0.5.15: its beat
     pattern is a list, it has no show_time_signatures and no beat units."""

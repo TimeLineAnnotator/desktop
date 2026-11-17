@@ -1392,11 +1392,25 @@ class BeatTimeline(Timeline):
         measure_index = measures.measure_of_beat[beat_index]
         return measure_index, beat_index - measures.starts[measure_index]
 
-    def get_beat_index(self, beat: Beat) -> int:
-        indices = self._cached(
+    def _get_beat_indices(self) -> dict[int | str, int]:
+        return self._cached(
             "beat_indices", lambda: {b.id: i for i, b in enumerate(self.components)}
         )
-        return indices[beat.id]
+
+    def get_beat_index(self, beat: Beat) -> int:
+        return self._get_beat_indices()[beat.id]
+
+    def get_measure_started_by(self, beat_id: int | str) -> int | None:
+        """
+        The index of the measure a beat starts, or None if the beat starts
+        none or is gone.
+        """
+        beat_index = self._get_beat_indices().get(beat_id)
+        if beat_index is None:
+            return None
+        measures = self.measures
+        measure_index = measures.measure_of_beat[beat_index]
+        return measure_index if measures.starts[measure_index] == beat_index else None
 
     def _get_first_beat_of_measure(self, measure_index: int) -> Beat:
         return self[self.measures.starts[measure_index]]
