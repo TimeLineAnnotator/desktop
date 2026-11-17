@@ -180,6 +180,13 @@ class Timelines:
         if type(timeline) not in self.timeline_types:
             post(Post.TIMELINE_TYPE_NOT_INSTANCED, type(timeline))
 
+        # A timeline placed with the measures of one that goes names it no more: a
+        # file can't name a measure table it doesn't have (FR-052). Undo gives the
+        # name back. TimeLineAnnotator/project-management#472 asks first.
+        for other in self:
+            if other.get_data("measure_table") == timeline.id:
+                self.set_timeline_data(other.id, "measure_table", None)
+
     def duplicate_timeline(self, timeline: Timeline, name: str) -> Timeline:
         """
         Creates a copy of `timeline` with the given name and places it
