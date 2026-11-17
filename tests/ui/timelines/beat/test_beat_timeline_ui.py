@@ -3649,9 +3649,22 @@ class TestClickedLabel:
 
         commands.execute("timeline.component.delete")
 
+        # Bar 3 starts at the next beat now, and its label stays selected.
         assert len(tluis[0].timeline) == 9
-        assert tluis[0].selected_elements == []
-        assert outlined_measures(tluis[0]) == []
+        assert get_barlines(tluis[0].timeline)[2] == 12
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [2]
+
+    def test_a_label_stays_selected_when_its_first_beat_goes(self, tluis):
+        # As when the beat is deleted from the command line.
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+        timeline = tluis[0].timeline
+
+        timeline.delete_components([next(b for b in timeline if b.time == 10)])
+
+        assert outlined_measures(tluis[0]) == [2]
+        assert beat_unit_ui.active_measure_index == 2
 
 
 def outlined_measures(timeline_ui):

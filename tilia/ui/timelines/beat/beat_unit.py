@@ -230,17 +230,29 @@ class BeatUnitUI(TimelineUIElement):
     def _keep_selection(self) -> None:
         """
         Keeps selected the labels this beat unit still has once they are
-        drawn again: those of the measures their first beats still start.
+        drawn again. A label is kept by the beat that starts its measure, so
+        it follows the measure when barlines move. If that beat is gone, or
+        starts none any more, the measure is the one at the same position,
+        as a measure keeps its position when its first beat is deleted (see
+        `BeatTimeline._remeasure`). Labels another beat unit has now are
+        dropped.
         """
         timeline = self.timeline_ui.timeline
+        starts = timeline.beats_that_start_measures
         selected = {}
-        for beat_id in self._selected:
+        clicked = None
+        for beat_id, old_index in self._selected.items():
             measure_index = timeline.get_measure_started_by(beat_id)
+            new_beat_id = beat_id
+            if measure_index is None and old_index < len(starts):
+                measure_index = old_index
+                new_beat_id = timeline[starts[old_index]].id
             if measure_index in self._labels_by_measure:
-                selected[beat_id] = measure_index
+                selected[new_beat_id] = measure_index
+                if beat_id == self._clicked_beat_id:
+                    clicked = new_beat_id
         self._selected = selected
-        if self._clicked_beat_id not in selected:
-            self._clicked_beat_id = None
+        self._clicked_beat_id = clicked
 
     def select_label(self, label: TimeSignatureLabel, clicked: bool = True) -> None:
         """
