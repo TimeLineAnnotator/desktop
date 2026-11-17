@@ -305,8 +305,9 @@ class App:
             tilia.errors.display(tilia.errors.UNDO_FAILED, traceback.format_exc())
             return
         # Once for each undo or redo step: a single sync over several isn't always
-        # exact.
-        self.sync_document(by_person=False)
+        # exact. The document gets back what it held in `state`, which undo
+        # recorded and the state alone can't tell.
+        self.sync_document(by_person=False, back_to=state)
 
     def recover_to_state(self, state: dict) -> None:
         """
@@ -338,14 +339,26 @@ class App:
             # manager doesn't record, an undo or a redo is restoring a state, and
             # syncs once it has.
             self.file_manager.file.sync(state)
+            self._remember(state)
 
     def on_edit_done(self) -> None:
         """The end of a command on the command line, which records nothing."""
         self.sync_document()
 
-    def sync_document(self, *, by_person: bool = True) -> None:
+    def sync_document(
+        self, *, by_person: bool = True, back_to: dict | None = None
+    ) -> None:
         """Makes the document of the file open follow TiLiA's state."""
-        self.file_manager.file.sync(self.get_app_state(), by_person=by_person)
+        self.file_manager.file.sync(
+            self.get_app_state(), by_person=by_person, back_to=back_to
+        )
+
+    def _remember(self, state: dict) -> None:
+        """Keeps, for `state`, which undo has just recorded, what the document holds
+        that the state can't tell, for as long as undo keeps the state."""
+        file = self.file_manager.file
+        file.remember(state)
+        file.forget_all_but(entry["state"] for entry in self.undo_manager.stack)
 
     def get_id(self, id: str | None = None) -> str:
         """
@@ -512,7 +525,9 @@ class App:
 
     def reset_undo_manager(self):
         self.undo_manager.clear()
-        self.undo_manager.record(self.get_app_state(), "file start")
+        state = self.get_app_state()
+        self.undo_manager.record(state, "file start")
+        self._remember(state)
 
     def restore_player_state(self, media_path: str, duration: float) -> None:
         if self.player.media_path == media_path:

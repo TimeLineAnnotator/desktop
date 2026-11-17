@@ -24,37 +24,36 @@ class AutoSaver:
         self.get_app_state = get_app_state
         self.copy_document = copy_document
         self._last_autosave_data = None
-        self._autosave_exception_list: list[Exception] = []
-        self._autosave_thread = Thread(
-            target=self._auto_save_loop,
-            args=(self._autosave_exception_list,),
-            daemon=True,
-        )
+        self._autosave_thread = Thread(target=self._auto_save_loop, daemon=True)
 
         if settings.get("auto-save", "interval_(seconds)"):
             self._autosave_thread.start()
 
-    def _auto_save_loop(self, *_) -> None:
+    def _auto_save_loop(self) -> None:
         while True:
-            try:
-                time.sleep(settings.get("auto-save", "interval_(seconds)"))
-                if self.needs_auto_save():
-                    data = self.get_app_state()
-                    autosave(self.copy_document())
-                    self._last_autosave_data = data
-            except Exception as excp:
-                self._autosave_exception_list.append(excp)
-                _raise_save_loop_exception(excp)
+            time.sleep(settings.get("auto-save", "interval_(seconds)"))
+            self.auto_save_once()
+
+    def auto_save_once(self) -> None:
+        """Autosaves, if anything changed since the last autosave. A failure is
+        logged, once, and the next change tries again: the loop goes on, for the
+        rest of the session."""
+        try:
+            if not self.needs_auto_save():
+                return
+            data = self.get_app_state()
+            # Tried once for this state: a failure isn't tried again until the
+            # state changes, so that it is logged once.
+            self._last_autosave_data = data
+            autosave(self.copy_document())
+        except Exception:
+            logger.exception("Autosave failed; the next change tries again.")
 
     def needs_auto_save(self):
         if not self._last_autosave_data:
             return True
 
         return not are_tilia_data_equal(self._last_autosave_data, self.get_app_state())
-
-
-def _raise_save_loop_exception(excp: Exception):
-    raise excp
 
 
 def autosave(document: tla.Document) -> None:

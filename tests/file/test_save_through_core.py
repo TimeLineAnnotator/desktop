@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -616,20 +618,49 @@ class TestSync:
 
         assert self.label(tilia, timeline_id, marker_id) == "edited"
 
-    def test_at_the_end_of_a_command_line_command(self, every_kind, tilia):
-        post(Post.MEDIA_METADATA_FIELD_SET, "composer", "F. Schubert")
-        assert the_document(tilia).metadata["composer"] == "Franz Schubert"
+    @staticmethod
+    def rename_without_recording(tilia, tls) -> str:
+        """An edit that records nothing for undo, as a command line command's."""
+        timeline_id, _ = TestSync.a_marker(tilia)
+        tls.set_timeline_data(timeline_id, "name", "Renamed")
+        assert the_document(tilia).timelines[timeline_id].name != "Renamed"
+        return timeline_id
+
+    def test_at_the_end_of_a_command_line_command(self, every_kind, tilia, tls):
+        timeline_id = self.rename_without_recording(tilia, tls)
 
         post(Post.APP_EDIT_DONE)
 
-        assert the_document(tilia).metadata["composer"] == "F. Schubert"
+        assert the_document(tilia).timelines[timeline_id].name == "Renamed"
 
-    def test_before_a_write(self, every_kind, tilia):
-        post(Post.MEDIA_METADATA_FIELD_SET, "composer", "F. Schubert")
+    def test_the_end_of_a_command_is_a_person_s_edit(self, every_kind, tilia, tls):
+        self.rename_without_recording(tilia, tls)
+        with patch.object(
+            tla_bridge, "apply_changes", wraps=tla_bridge.apply_changes
+        ) as apply:
+            post(Post.APP_EDIT_DONE)
+
+        assert apply.call_args.kwargs["by_person"] is True
+
+    def test_before_a_write(self, every_kind, tilia, tls):
+        timeline_id = self.rename_without_recording(tilia, tls)
 
         assert save()
 
-        assert tla.read(every_kind).metadata["composer"] == "F. Schubert"
+        assert tla.read(every_kind).timelines[timeline_id].name == "Renamed"
+
+    def test_at_each_edit_of_the_file_s_fields(self, every_kind, tilia):
+        # They record nothing for undo: an autosave before the next action writes
+        # them.
+        post(Post.MEDIA_METADATA_FIELD_SET, "composer", "F. Schubert")
+        assert the_document(tilia).metadata["composer"] == "F. Schubert"
+        post(Post.MEDIA_METADATA_FIELD_ADD, "lyricist")
+        assert the_document(tilia).metadata["lyricist"] == ""
+        fields = [name for name in tilia.file_manager.file.media_metadata]
+        post(Post.METADATA_UPDATE_FIELDS, [n for n in fields if n != "lyricist"])
+        assert "lyricist" not in the_document(tilia).metadata
+        copy_written = tilia.file_manager.file.copy_for_writing()
+        assert copy_written.metadata["composer"] == "F. Schubert"
 
     def test_after_each_undo_and_redo_once_as_neither_is_a_person_s_edit(
         self, every_kind, tilia, tls
@@ -922,3 +953,326 @@ class TestTheOldWriterIsGone:
             "timelines",
             "timelines_hash",
         }
+
+
+class TestScaling:
+    """TiLiA's "Scale timelines": the file holds what TiLiA then shows."""
+
+    @pytest.mark.parametrize("length", [35.0, 9.0], ids=["longer", "shorter"])
+    def test_every_component_follows(self, every_kind, tilia, tls, length):
+        tilia.set_file_media_duration(length, scale_timelines="yes")
+        record()
+        shown = tilia.get_app_state()["timelines"]
+
+        assert save()
+
+        saved = tla.read(every_kind)
+        assert saved.media_length == length
+        scaled = 0
+        for timeline in saved.timelines.values():
+            if timeline.id not in shown or timeline.kind == "audiowave":
+                continue
+            for component_id, attrs in shown[timeline.id]["components"].items():
+                stored = timeline.components[component_id].attrs
+                for attr in ("time", "start", "end"):
+                    if attr in attrs:
+                        assert stored[attr] == attrs[attr], (timeline.kind, attr)
+                        scaled += 1
+                for attr, follows in (("pre_start", "start"), ("post_end", "end")):
+                    if attr in attrs:
+                        assert stored.get(attr, stored[follows]) == attrs[attr]
+        assert scaled > 40
+
+
+class TestAMeasureTableThatGoes:
+    def test_its_name_goes_and_an_undo_gives_it_back(self, every_kind, tilia, tls):
+        # A file can't name a measure table it doesn't have (FR-052).
+        doc = the_document(tilia)
+        beats = first_of_kind(doc, "beat").id
+        naming = [
+            timeline.id
+            for timeline in doc.timelines.values()
+            if timeline.attrs.get("measure_table") == beats
+        ]
+        assert naming
+        before = every_kind.read_bytes()
+        tls.delete_timeline(tls.get_timeline(beats))
+        record()
+
+        assert save()
+
+        deleted = every_kind.read_bytes()
+        saved = tla.read(every_kind)
+        assert beats not in saved.timelines
+        for timeline_id in naming:
+            assert saved.timelines[timeline_id].attrs.get("measure_table") is None
+        commands.execute("edit.undo")
+        assert save()
+        assert every_kind.read_bytes() == before
+        commands.execute("edit.redo")
+        assert save()
+        assert every_kind.read_bytes() == deleted
+
+
+def make_id(number: int) -> str:
+    return f"019b76da-f000-7000-8000-{number:012d}"
+
+
+def one_beat_measures(tmp_path) -> tuple[Path, str, list[str]]:
+    """Four one-beat measures, m1 to m4, each with a label, m1 followed by m2."""
+    ids = [make_id(n) for n in range(1, 5)]
+    beats = {
+        beat_id: {
+            "kind": "BEAT",
+            "time": float(place),
+            "measure": {"label": f"m{place + 1}"},
+        }
+        for place, beat_id in enumerate(ids)
+    }
+    beats[ids[0]]["measure"]["next"] = [ids[1]]
+    timeline_id = make_id(9)
+    content = {
+        "app_name": "TiLiA",
+        "version": tla.FORMAT_VERSION,
+        "document_id": make_id(0),
+        "time_unit": "seconds",
+        "media": {"path": "", "length": 100.0},
+        "metadata": {},
+        "timelines": {
+            timeline_id: {
+                "kind": "Beat",
+                "name": "Beats",
+                "ordinal": 1,
+                "height": 35,
+                "beat_pattern": "1",
+                "components": beats,
+            }
+        },
+        "scores": [],
+    }
+    path = tmp_path / "file.tla"
+    tla.write(path, tla.loads(json.dumps(content).encode()))
+    return path, timeline_id, ids
+
+
+class TestUndoAndRedoAreExact:
+    """A person's edit and an undo can leave TiLiA in the same state with different
+    files: each undo and redo gives back the bytes of the step it goes back to."""
+
+    @staticmethod
+    def walk_back_and_forth(path: Path, steps: list[bytes]) -> None:
+        for back in range(len(steps) - 2, -1, -1):
+            commands.execute("edit.undo")
+            assert save()
+            assert path.read_bytes() == steps[back], f"undo to step {back}"
+        for again in range(1, len(steps)):
+            commands.execute("edit.redo")
+            assert save()
+            assert path.read_bytes() == steps[again], f"redo to step {again}"
+
+    def test_a_clear_after_an_import_over_an_mei_score(self, every_kind, tilia, tls):
+        score = first_of_kind(the_document(tilia), "score").id
+        steps = [every_kind.read_bytes()]
+
+        def step(action):
+            action()
+            record()
+            assert save()
+            steps.append(every_kind.read_bytes())
+
+        step(lambda: tls.set_timeline_data(score, "svg_data", "<svg>one</svg>"))
+        # A person's clear: no score, not the MEI the import replaced.
+        step(lambda: tls.get_timeline(score).clear())
+        assert "score" not in json.loads(steps[2])["timelines"][score]
+        assert json.loads(steps[2])["scores"] == []
+        step(lambda: tls.set_timeline_data(score, "svg_data", "<svg>two</svg>"))
+
+        self.walk_back_and_forth(every_kind, steps)
+
+    def test_a_person_s_edit_that_starts_a_measure_again(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        path, timeline_id, ids = one_beat_measures(tmp_path)
+        assert open_file(path)
+        beats = tls.get_timeline(timeline_id)
+        steps = [path.read_bytes()]
+
+        def step(count):
+            beats.set_beat_amount_in_measure(0, count)
+            record()
+            assert save()
+            steps.append(path.read_bytes())
+
+        step(2)  # m2's beat joins m1's measure: m1 is followed by m3
+        step(1)  # a person starts that measure again
+        written = json.loads(steps[2])["timelines"][timeline_id]["components"]
+        # A bare mark, as the core's API gives (#583), and m1 still followed by m3.
+        assert written[ids[1]]["measure"] == {}
+        assert written[ids[0]]["measure"]["next"] == [ids[2]]
+        step(2)
+
+        self.walk_back_and_forth(path, steps)
+
+
+RESOURCES = Path(__file__).parents[1] / "resources"
+
+
+class TestAPdfTimelineAnUndoGivesBack:
+    def test_after_a_save_as_names_its_pdf_from_the_new_folder(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        first = tmp_path / "a"
+        first.mkdir()
+        shutil.copyfile(RESOURCES / "example.pdf", first / "score.pdf")
+
+        def pdf_here(doc):
+            first_of_kind(doc, "pdf").attrs["path"] = str(first / "score.pdf")
+
+        path = written_by_the_core(EVERY_KIND, first, pdf_here)
+        pdf = first_of_kind(tla.read(path), "pdf").id
+        assert json.loads(path.read_bytes())["timelines"][pdf]["path"] == "score.pdf"
+        assert open_file(path)
+        tls.delete_timeline(tls.get_timeline(pdf))
+        record()
+        (tmp_path / "b").mkdir()
+        copy_path = tmp_path / "b" / "copy.tla"
+        assert save_as(copy_path)
+
+        with Serve(Get.FROM_USER_RETRY_PDF_PATH, False):
+            commands.execute("edit.undo")
+        assert save()
+
+        saved = json.loads(copy_path.read_bytes())["timelines"][pdf]
+        assert saved["path"] == "../a/score.pdf"
+
+
+class TestBackToTheStateRead:
+    """An undo back to the state read gives the file's bytes, also where TiLiA
+    filled something in (#551, point 1, b)."""
+
+    def test_a_height_tilia_shows_instead_of_the_stored_one(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        def stored_at_1(doc):
+            for timeline in doc.timelines.values():
+                if timeline.kind in ("range", "score"):
+                    timeline.attrs["height"] = 1
+
+        path = written_by_the_core(EVERY_KIND, tmp_path, stored_at_1)
+        before = path.read_bytes()
+        with patch.object(tla_bridge, "state_of", side_effect=as_desktop_895_loads):
+            assert open_file(path)
+        score = first_of_kind(the_document(tilia), "score").id
+        tls.set_timeline_data(score, "height", SHOWN + 30)
+        record()
+        assert save()
+        assert json.loads(path.read_bytes())["timelines"][score]["height"] == 150
+
+        commands.execute("edit.undo")
+        assert save()
+
+        assert path.read_bytes() == before
+
+    def test_the_title_and_notes_tilia_shows_for_a_file_without_them(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        path = tmp_path / "file.tla"
+        tla.write(path, tla.read(EMPTY))
+        before = path.read_bytes()
+        assert open_file(path)
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Ständchen")
+        post(Post.MEDIA_METADATA_FIELD_SET, "notes", "some notes")
+        tls.create_timeline(MarkerTimeline, name="New")
+        record()
+        assert save()
+        assert json.loads(path.read_bytes())["metadata"] == {
+            "title": "Ständchen",
+            "notes": "some notes",
+        }
+
+        commands.execute("edit.undo")
+        assert save()
+
+        assert path.read_bytes() == before
+
+
+class TestTheLock:
+    def test_a_copy_for_writing_waits_for_a_write(self, every_kind, tilia):
+        # An autosave copies from its thread: never a document half way through
+        # following the file it was written to.
+        file = tilia.file_manager.file
+        write = tla.write
+        copied = threading.Event()
+        waited = []
+
+        def copy_during_the_write():
+            file.copy_for_writing()
+            copied.set()
+
+        def slow_write(path, document, **kwargs):
+            thread = threading.Thread(target=copy_during_the_write, daemon=True)
+            thread.start()
+            waited.append(not copied.wait(0.3))
+            return write(path, document, **kwargs)
+
+        with patch.object(tla, "write", side_effect=slow_write):
+            assert save()
+
+        assert waited == [True]
+        assert copied.wait(5)
+
+
+class _Stop(Exception):
+    pass
+
+
+def an_autosaver(states):
+    """An autosaver that doesn't start its thread, with states from `states`."""
+    with patch.object(autosave.settings, "get", return_value=0):
+        return autosave.AutoSaver(lambda: states[-1], tla.new_document)
+
+
+def a_state(digest: str) -> dict:
+    return {
+        "media_metadata": {},
+        "media_path": "",
+        "timelines_hash": digest,
+        "timelines": {},
+    }
+
+
+class TestAutosaveFailures:
+    def test_a_failure_is_logged_once_and_the_next_change_tries_again(self):
+        states = [a_state("one")]
+        saver = an_autosaver(states)
+        with (
+            patch.object(autosave, "autosave", side_effect=OSError("full")) as write,
+            patch.object(autosave.logger, "exception") as logged,
+        ):
+            saver.auto_save_once()
+            saver.auto_save_once()
+            assert write.call_count == 1
+            assert logged.call_count == 1
+            states.append(a_state("two"))
+            saver.auto_save_once()
+        assert write.call_count == 2
+
+    def test_the_loop_goes_on_after_a_failure(self):
+        states = [a_state("0")]
+        saver = an_autosaver(states)
+
+        def next_interval(_):
+            if len(states) == 4:
+                raise _Stop
+            states.append(a_state(str(len(states))))
+
+        with (
+            patch.object(autosave.time, "sleep", side_effect=next_interval),
+            patch.object(autosave.settings, "get", return_value=1),
+            patch.object(autosave, "autosave", side_effect=OSError("full")) as write,
+            patch.object(autosave.logger, "exception"),
+            pytest.raises(_Stop),
+        ):
+            saver._auto_save_loop()
+
+        assert write.call_count == 3
