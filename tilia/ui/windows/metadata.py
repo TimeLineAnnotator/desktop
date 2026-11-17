@@ -7,10 +7,10 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -49,6 +49,9 @@ class MediaMetadataWindow(QDialog):
         # edited.
         listen(self, Post.PLAYER_URL_CHANGED, lambda _: self.update_read_only_fields())
         listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
+        # Undo and redo can change any field. Like a length set elsewhere, they
+        # drop edits not applied, so that the window shows what is set.
+        listen(self, Post.APP_STATE_UNDO_OR_REDO_DONE, self.refresh_fields)
         self.setLayout(QVBoxLayout())
         self.setup_layout()
         self.show()
@@ -129,9 +132,12 @@ class MediaMetadataWindow(QDialog):
                 QRegularExpression(MEDIA_TIME_PATTERN), self.media_length_edit
             )
         )
-        self.media_length_field = QStackedWidget()
-        self.media_length_field.addWidget(value_label)
-        self.media_length_field.addWidget(self.media_length_edit)
+        # One of the two is hidden, and takes no room.
+        self.media_length_field = QWidget()
+        layout = QHBoxLayout(self.media_length_field)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(value_label)
+        layout.addWidget(self.media_length_edit)
         return self.media_length_field
 
     def on_media_duration_changed(
@@ -153,11 +159,9 @@ class MediaMetadataWindow(QDialog):
         # has changed, and media may have been loaded.
         self.media_length_original = self.read_only_labels["media length"].text()
         self.media_length_edit.setText(self.media_length_original)
-        self.media_length_field.setCurrentWidget(
-            self.read_only_labels["media length"]
-            if get(Get.MEDIA_PATH)
-            else self.media_length_edit
-        )
+        is_media_loaded = bool(get(Get.MEDIA_PATH))
+        self.read_only_labels["media length"].setVisible(is_media_loaded)
+        self.media_length_edit.setVisible(not is_media_loaded)
 
     def setup_buttons(self):
         edit_notes_button = QPushButton("Edit notes...")
@@ -264,8 +268,13 @@ class MediaMetadataWindow(QDialog):
             if name in self.metadata_original
             and self.metadata[name].text() != self.metadata_original[name]
         }
-        if self.media_length_edit.text() != self.media_length_original:
-            edits["media length"] = self.media_length_edit.text()
+        # Compared as times: the length shown is rounded to a tenth of a
+        # second, and typing it back changes nothing.
+        length_text = self.media_length_edit.text()
+        if parse_media_time(length_text) != parse_media_time(
+            self.media_length_original
+        ):
+            edits["media length"] = length_text
         return edits
 
     def _save_edits(self, edited_fields: dict) -> None:
@@ -279,6 +288,9 @@ class MediaMetadataWindow(QDialog):
 
     @staticmethod
     def _set_media_length(text: str) -> None:
+        if not text:
+            tilia.errors.display(tilia.errors.MEDIA_LENGTH_EMPTY)
+            return
         length = parse_media_time(text)
         if length is None or length <= 0:
             tilia.errors.display(tilia.errors.MEDIA_METADATA_SET_DATA_FAILED, text)

@@ -15,7 +15,11 @@ MEDIA_METADATA_IMPORT_JSON_FAILED = Error(
 MEDIA_METADATA_IMPORT_FILE_FAILED = Error("Import media metadata", "File {} not found.")
 MEDIA_METADATA_SET_DATA_FAILED = Error(
     "Set media metadata",
-    "Cannot set media metadata to {}. Media length must be a positive number.",
+    "Cannot set media length to '{}'. It must be a positive number.",
+)
+MEDIA_LENGTH_EMPTY = Error(
+    "Set media metadata",
+    "Media length is empty. It must be a positive number.",
 )
 METADATA_FIELD_INVALID = Error(
     "Invalid metadata field",
