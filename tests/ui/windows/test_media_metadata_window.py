@@ -1,13 +1,16 @@
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtTest import QTest
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
-from tests.mock import patch_yes_or_no_dialog
+from tests.mock import Serve, patch_yes_or_no_dialog
 from tilia.media.player import QtAudioPlayer
-from tilia.requests import Post, post
+from tilia.requests import Get, Post, post
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
+from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
 from tilia.ui.format import format_media_time
 from tilia.ui.windows import WindowKind
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
@@ -226,6 +229,30 @@ def load_media():
         post(Post.APP_MEDIA_LOAD, EXAMPLE_MEDIA_PATH)
 
 
+def is_shown(widget):
+    # Widgets added to an open window are shown once the event loop runs.
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.MetaCall)
+    return widget.isVisible()
+
+
+def add_timeline_setting_length(length):
+    # With no length, adding a timeline asks how to go on; this sets one.
+    with (
+        Serve(
+            Get.FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA,
+            (True, AddTimelineWithoutMedia.Result.SET_DURATION),
+        ),
+        Serve(Get.FROM_USER_FLOAT, (True, length)),
+    ):
+        commands.execute("timelines.add.marker", name="marker")
+
+
+@pytest.fixture
+def new_file(tilia, tilia_state):
+    tilia_state.duration = 0
+    tilia.reset_undo_manager()
+
+
 class TestMediaLength:
     @staticmethod
     def type_length(window, text):
@@ -241,7 +268,7 @@ class TestMediaLength:
         return [m.get_data("time") for m in marker_tlui.timeline]
 
     def test_can_be_edited_without_media(self, media_metadata_window):
-        assert media_metadata_window.media_length_edit.isVisible()
+        assert is_shown(media_metadata_window.media_length_edit)
         assert media_metadata_window.media_length_edit.text() == "01:40.0"
 
     def test_set_without_media(self, media_metadata_window, tilia_state):
@@ -279,25 +306,90 @@ class TestMediaLength:
         assert tilia_state.metadata["media length"] == 0
         assert media_metadata_window.media_length_edit.text() == "00:00.0"
 
-    @pytest.mark.parametrize("text", ["0", "00:00.0", "", ":"])
+    @pytest.mark.parametrize(
+        "text, message",
+        [
+            ("0", "Cannot set media length to '0'."),
+            ("00:00.0", "Cannot set media length to '00:00.0'."),
+            ("", "Media length is empty."),
+            (":", "Cannot set media length to ':'."),
+        ],
+    )
     def test_refuses_a_length_that_is_not_positive(
-        self, media_metadata_window, tilia_state, tilia_errors, text
+        self, media_metadata_window, tilia_state, tilia_errors, text, message
     ):
         recorded = len(tilia_state.undo_manager.stack)
 
         self.set_length(media_metadata_window, text)
 
-        tilia_errors.assert_error()
+        tilia_errors.assert_in_error_message(message)
         assert tilia_state.duration == 100
         assert len(tilia_state.undo_manager.stack) == recorded
 
-    def test_the_same_length_records_nothing(self, media_metadata_window, tilia_state):
+    def test_the_shown_length_changes_nothing(
+        self, media_metadata_window, marker_tlui, tilia_state
+    ):
+        # Shown rounded, as 01:40.0.
+        tilia_state.set_duration(100.04, scale_timelines="no")
+        marker_tlui.create_marker(50)
+        post(Post.APP_STATE_RECORD, "marker")
         recorded = len(tilia_state.undo_manager.stack)
 
-        self.set_length(media_metadata_window, "100")
+        with patch_yes_or_no_dialog(True) as prompt:
+            self.set_length(media_metadata_window, "1:40")
 
-        assert tilia_state.duration == 100
+        prompt.assert_not_called()
+        assert tilia_state.duration == 100.04
         assert len(tilia_state.undo_manager.stack) == recorded
+
+    def test_the_exact_length_records_nothing(self, media_metadata_window, tilia_state):
+        tilia_state.duration = 100.04
+        recorded = len(tilia_state.undo_manager.stack)
+
+        self.set_length(media_metadata_window, "100.04")
+
+        assert tilia_state.duration == 100.04
+        assert len(tilia_state.undo_manager.stack) == recorded
+
+    def test_undo_shows_the_fields_as_set(self, media_metadata_window, tilia_state):
+        old_title = tilia_state.metadata["title"]
+        media_metadata_window.metadata["title"].setText("New Title")
+        self.set_length(media_metadata_window, "2:30")
+        media_metadata_window.metadata["composer"].setText("Not applied")
+
+        commands.execute("edit.undo")
+
+        assert tilia_state.metadata["title"] == old_title
+        assert media_metadata_window.metadata["title"].text() == old_title
+        assert media_metadata_window.metadata["composer"].text() == ""
+        with patch_yes_or_no_dialog(True) as prompt:
+            media_metadata_window.close()
+        prompt.assert_not_called()
+
+    def test_follows_a_length_set_elsewhere(self, media_metadata_window, new_file):
+        self.type_length(media_metadata_window, "2:30")
+
+        add_timeline_setting_length(60)
+
+        assert media_metadata_window.media_length_edit.text() == "01:00.0"
+        # The length typed was dropped: nothing is left to apply.
+        with patch_yes_or_no_dialog(True) as prompt:
+            media_metadata_window.close()
+        prompt.assert_not_called()
+
+    def test_edit_fields_asks_about_a_length_not_applied(
+        self, media_metadata_window, tilia_state
+    ):
+        self.type_length(media_metadata_window, "2:30")
+
+        with (
+            patch.object(EditMetadataFieldsDialog, "exec", return_value=False),
+            patch_yes_or_no_dialog(False) as prompt,
+        ):
+            media_metadata_window.on_edit_metadata_fields_button()
+
+        prompt.assert_called_once()
+        assert tilia_state.duration == 100
 
     def test_redo_keeps_other_fields_applied_with_the_length(
         self, media_metadata_window, tilia_state
@@ -356,19 +448,21 @@ class TestMediaLength:
         post(Post.WINDOW_OPEN, WindowKind.MEDIA_METADATA)
         window = qtui._windows[WindowKind.MEDIA_METADATA]
 
-        assert not window.media_length_edit.isVisible()
+        assert not is_shown(window.media_length_edit)
         label = window.read_only_labels["media length"]
-        assert label.isVisible()
+        assert is_shown(label)
         assert label.text() == format_media_time(EXAMPLE_MEDIA_DURATION)
         window.close()
 
     def test_loading_media_makes_it_read_only(self, media_metadata_window):
         load_media()
 
-        assert not media_metadata_window.media_length_edit.isVisible()
+        assert not is_shown(media_metadata_window.media_length_edit)
         label = media_metadata_window.read_only_labels["media length"]
-        assert label.isVisible()
+        assert is_shown(label)
         assert label.text() == format_media_time(EXAMPLE_MEDIA_DURATION)
+        path_label = media_metadata_window.read_only_labels["media path"]
+        assert path_label.text() == EXAMPLE_MEDIA_PATH
 
     def test_loading_media_drops_a_length_not_applied(
         self, media_metadata_window, tilia_state
@@ -385,8 +479,9 @@ class TestMediaLength:
 
         commands.execute("edit.undo")
 
-        assert media_metadata_window.media_length_edit.isVisible()
+        assert is_shown(media_metadata_window.media_length_edit)
         assert media_metadata_window.media_length_edit.text() == "01:40.0"
+        assert media_metadata_window.read_only_labels["media path"].text() == ""
 
     def test_closed_window_stops_following_the_length(
         self, media_metadata_window, tilia_state
@@ -396,3 +491,18 @@ class TestMediaLength:
         tilia_state.duration = 150
 
         assert media_metadata_window.media_length_edit.text() == "01:40.0"
+
+
+def test_undoing_a_timeline_added_with_a_length_gives_back_no_length(
+    qtui, tls, tilia_state, new_file
+):
+    add_timeline_setting_length(60)
+    assert tilia_state.duration == 60
+
+    commands.execute("edit.undo")
+    assert tilia_state.duration == 0
+    assert not tls.get_timelines_by_type(MarkerTimeline)
+
+    commands.execute("edit.redo")
+    assert tilia_state.duration == 60
+    assert tls.get_timelines_by_type(MarkerTimeline)
