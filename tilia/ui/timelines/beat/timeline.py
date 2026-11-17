@@ -253,8 +253,9 @@ class BeatTimelineUI(TimelineUI):
     ) -> dict[int | str | None, list[TimeSignatureLabelSpec]]:
         """
         Labels to show, by the id of the beat that carries the beat unit
-        governing them (None where no unit set on a beat does). A label is shown where the time signature changes,
-        where a beat unit starts, and where a measure needs attention.
+        governing them (None where no unit set on a beat does). A label is
+        shown where the time signature changes, where a beat unit starts, and
+        where a measure needs attention.
         """
         specs = defaultdict(list)
         if not self.get_data("show_time_signatures"):
@@ -262,11 +263,9 @@ class BeatTimelineUI(TimelineUI):
 
         timeline = self.timeline
         beats = timeline.components
-        starts = getattr(timeline, "beats_that_start_measures", [])
+        starts = timeline.beats_that_start_measures
         previous = None
         for measure_index, meter in enumerate(timeline.measure_meters):
-            if measure_index >= len(starts) or starts[measure_index] >= len(beats):
-                break
             state = self._get_label_state(meter)
             if (
                 meter.time_signature != previous

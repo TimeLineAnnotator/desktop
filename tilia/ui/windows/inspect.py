@@ -39,7 +39,6 @@ class InspectRowKind(Enum):
     # every keystroke, for values that aren't valid while half-typed or whose
     # change needs confirming.
     SINGLE_LINE_EDIT_ON_FINISH = auto()
-    SPIN_BOX_ON_FINISH = auto()
     MULTI_LINE_EDIT = auto()
     LABEL = auto()
     SEPARATOR = auto()
@@ -273,7 +272,6 @@ class Inspect(QDockWidget):
                 widget.setCurrentIndex(widget.findData(value))
             elif isinstance(widget, QSpinBox):
                 widget.setValue(value)
-                widget.last_reported_value = value
         finally:
             widget.blockSignals(False)
 
@@ -316,14 +314,6 @@ class Inspect(QDockWidget):
             return
         widget.setModified(False)
         self.on_line_edit_changed(field_name, widget.text())
-
-    def on_spin_box_finished(self, field_name: str, widget: QSpinBox) -> None:
-        # As above; spin boxes have no "modified" flag, so compare with the
-        # value last shown or reported.
-        if widget.value() == getattr(widget, "last_reported_value", None):
-            return
-        widget.last_reported_value = widget.value()
-        self.on_spin_box_changed(field_name, widget.value())
 
     def on_text_edit_changed(self, field_name, text_edit):
         post(
@@ -384,13 +374,6 @@ class Inspect(QDockWidget):
                 widget.setMaximum(kwargs["max"])
                 widget.valueChanged.connect(
                     functools.partial(self.on_spin_box_changed, name)
-                )
-            case InspectRowKind.SPIN_BOX_ON_FINISH:
-                widget = QSpinBox()
-                widget.setMinimum(kwargs["min"])
-                widget.setMaximum(kwargs["max"])
-                widget.editingFinished.connect(
-                    functools.partial(self.on_spin_box_finished, name, widget)
                 )
             case InspectRowKind.COMBO_BOX:
                 widget = QComboBox()
