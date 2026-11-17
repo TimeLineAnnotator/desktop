@@ -351,17 +351,31 @@ class TestMediaLength:
         assert tilia_state.duration == 100.04
         assert len(tilia_state.undo_manager.stack) == recorded
 
-    def test_undo_shows_the_fields_as_set(self, media_metadata_window, tilia_state):
-        old_title = tilia_state.metadata["title"]
-        media_metadata_window.metadata["title"].setText("New Title")
-        self.set_length(media_metadata_window, "2:30")
-        media_metadata_window.metadata["composer"].setText("Not applied")
+    def test_undo_that_keeps_the_length_keeps_a_length_typed(
+        self, qtui, media_metadata_window, marker_tlui
+    ):
+        commands.execute("timeline.marker.add", time=10)
+        self.type_length(media_metadata_window, "2:30")
 
         commands.execute("edit.undo")
 
-        assert tilia_state.metadata["title"] == old_title
-        assert media_metadata_window.metadata["title"].text() == old_title
-        assert media_metadata_window.metadata["composer"].text() == ""
+        assert self.marker_times(marker_tlui) == []
+        assert media_metadata_window.media_length_edit.text() == "2:30"
+        with patch_yes_or_no_dialog(False) as prompt:
+            media_metadata_window.close()
+        prompt.assert_called_once()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+
+    def test_undo_that_changes_the_length_drops_a_length_typed(
+        self, media_metadata_window, tilia_state
+    ):
+        self.set_length(media_metadata_window, "3:00")
+        self.type_length(media_metadata_window, "2:30")
+
+        commands.execute("edit.undo")
+
+        assert tilia_state.duration == 100
+        assert media_metadata_window.media_length_edit.text() == "01:40.0"
         with patch_yes_or_no_dialog(True) as prompt:
             media_metadata_window.close()
         prompt.assert_not_called()
@@ -506,3 +520,78 @@ def test_undoing_a_timeline_added_with_a_length_gives_back_no_length(
     commands.execute("edit.redo")
     assert tilia_state.duration == 60
     assert tls.get_timelines_by_type(MarkerTimeline)
+
+
+class TestUndoWithTextTyped:
+    def test_keeps_text_typed_in_a_field_undo_did_not_change(
+        self, qtui, media_metadata_window, marker_tlui
+    ):
+        commands.execute("timeline.marker.add", time=10)
+        media_metadata_window.metadata["title"].setText("Typed title")
+
+        commands.execute("edit.undo")
+
+        assert len(marker_tlui) == 0
+        assert media_metadata_window.metadata["title"].text() == "Typed title"
+        with patch_yes_or_no_dialog(False) as prompt:
+            media_metadata_window.close()
+        prompt.assert_called_once()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+
+    def test_refreshes_a_field_undo_changed(self, media_metadata_window, tilia_state):
+        old_title = tilia_state.metadata["title"]
+        media_metadata_window.metadata["title"].setText("New Title")
+        # Applied with a length, so that the step it records holds the title.
+        media_metadata_window.media_length_edit.setText("2:30")
+        media_metadata_window.apply_fields()
+        media_metadata_window.metadata["title"].setText("Typed title")
+
+        commands.execute("edit.undo")
+
+        assert tilia_state.metadata["title"] == old_title
+        assert media_metadata_window.metadata["title"].text() == old_title
+        with patch_yes_or_no_dialog(True) as prompt:
+            media_metadata_window.close()
+        prompt.assert_not_called()
+
+    def test_undo_that_removes_a_field_keeps_text_typed_in_the_others(
+        self, media_metadata_window, marker_tlui
+    ):
+        _set_custom_fields(media_metadata_window, ["custom_field"])
+        commands.execute("timeline.marker.add", time=10)
+        media_metadata_window.metadata["title"].setText("Typed title")
+        media_metadata_window.media_length_edit.setText("2:30")
+
+        commands.execute("edit.undo")
+
+        assert "custom_field" not in media_metadata_window.metadata
+        assert "composer" in media_metadata_window.metadata
+        assert media_metadata_window.metadata["title"].text() == "Typed title"
+        assert media_metadata_window.media_length_edit.text() == "2:30"
+
+    def test_undo_that_removes_a_field_refreshes_a_field_it_changed(
+        self, media_metadata_window, tilia_state
+    ):
+        old_title = tilia_state.metadata["title"]
+        _set_custom_fields(media_metadata_window, ["custom_field"])
+        media_metadata_window.metadata["title"].setText("New Title")
+        # Applied with a length, so that the step it records holds the title.
+        media_metadata_window.media_length_edit.setText("2:30")
+        media_metadata_window.apply_fields()
+        media_metadata_window.metadata["title"].setText("Typed title")
+
+        commands.execute("edit.undo")
+
+        assert "custom_field" not in media_metadata_window.metadata
+        assert media_metadata_window.metadata["title"].text() == old_title
+
+    def test_undo_keeps_the_window_size(self, media_metadata_window, marker_tlui):
+        commands.execute("timeline.marker.add", time=10)
+        media_metadata_window.resize(
+            media_metadata_window.width() + 100, media_metadata_window.height() + 100
+        )
+        size = media_metadata_window.size()
+
+        commands.execute("edit.undo")
+
+        assert media_metadata_window.size() == size

@@ -49,9 +49,8 @@ class MediaMetadataWindow(QDialog):
         # edited.
         listen(self, Post.PLAYER_URL_CHANGED, lambda _: self.update_read_only_fields())
         listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
-        # Undo and redo can change any field. Like a length set elsewhere, they
-        # drop edits not applied, so that the window shows what is set.
-        listen(self, Post.APP_STATE_UNDO_OR_REDO_DONE, self.refresh_fields)
+        # Undo and redo can change any field.
+        listen(self, Post.APP_STATE_UNDO_OR_REDO_DONE, self.on_undo_or_redo_done)
         self.setLayout(QVBoxLayout())
         self.setup_layout()
         self.show()
@@ -98,13 +97,19 @@ class MediaMetadataWindow(QDialog):
         while self.form_layout.rowCount():
             self.form_layout.removeRow(0)
 
+    def _editable_fields(self, metadata: dict) -> list[str]:
+        return [
+            name
+            for name in metadata
+            if name not in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS
+        ]
+
     def populate_with_editable_fields(self):
         metadata = get(Get.MEDIA_METADATA)
         self.metadata.clear()
         self.metadata_original.clear()
-        for name, value in metadata.items():
-            if name in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS:
-                continue
+        for name in self._editable_fields(metadata):
+            value = metadata[name]
             line_edit = QLineEdit(str(value))
             self.form_layout.addRow(QLabel(name.capitalize()), line_edit)
             self.metadata[name] = line_edit
@@ -206,6 +211,32 @@ class MediaMetadataWindow(QDialog):
     def refresh_fields(self) -> None:
         self.clear_layout()
         self._setup_fields()
+
+    def on_undo_or_redo_done(self) -> None:
+        # A field whose stored value undo or redo changed shows the new value,
+        # dropping text typed but not applied; the others keep what was typed.
+        # The length follows the same rule through on_media_duration_changed,
+        # which is called only when the length changes.
+        metadata = get(Get.MEDIA_METADATA)
+        if self._editable_fields(metadata) == list(self.metadata):
+            # In place, so that the window keeps its size.
+            for name, line_edit in self.metadata.items():
+                if metadata[name] != self.metadata_original[name]:
+                    line_edit.setText(str(metadata[name]))
+                    self.metadata_original[name] = metadata[name]
+            return
+
+        # Fields were added or removed: rebuild them.
+        typed = {
+            name: line_edit.text()
+            for name, line_edit in self.metadata.items()
+            if name in metadata and metadata[name] == self.metadata_original[name]
+        }
+        typed_length = self.media_length_edit.text()
+        self.refresh_fields()
+        for name, text in typed.items():
+            self.metadata[name].setText(text)
+        self.media_length_edit.setText(typed_length)
 
     def focus(self):
         pass  # TODO: set focus on self
