@@ -439,18 +439,24 @@ class BeatUnitUI(TimelineUIElement):
                 if only_this_measure:
                     stop = measure_index + 1
 
-            # The edit may take the label from this beat unit, which then
-            # stops being selected (see `set_labels`).
-            was_selected = self.is_selected()
+            # The click that ended the edit may have selected another label,
+            # or something else, which the edit leaves as it is.
+            still_inspected = (
+                self.is_selected() and self.inspected_measure_index == measure_index
+            )
             error = timeline.set_time_signature(value, measure_index, stop)
             if error:
                 tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
             else:
                 post(Post.APP_STATE_RECORD, "time signature edit via inspect")
-            if was_selected and self.get_label(measure_index) is None:
-                # The measure has a beat unit of its own now, whose label it
-                # is: select that, so the measure stays the one inspected.
-                self.timeline_ui.select_time_signature_label(measure_index)
+            if not error and still_inspected:
+                # The bar may have a beat unit of its own now, whose label it
+                # is, and the edit may have taken it from this one, which is
+                # then deselected (see `set_labels`): select it again, with the
+                # other labels selected, so the bar stays the one inspected.
+                owner = self.timeline_ui.select_time_signature_label(measure_index)
+                if owner is not None:
+                    owner._refresh_inspector()
             else:
                 self._refresh_inspector()
         finally:

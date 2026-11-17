@@ -459,15 +459,19 @@ class BeatTimelineUI(TimelineUI):
                 )
         return sorted(measure_indices)
 
-    def select_time_signature_label(self, measure_index: int) -> None:
-        """Selects a measure's time signature label alone, as clicking it does."""
+    def select_time_signature_label(self, measure_index: int) -> BeatUnitUI | None:
+        """
+        Adds a measure's time signature label to the selection, as the label
+        clicked last of its beat unit, which it returns.
+        """
         for beat_unit_ui in self.beat_unit_uis:
             label = beat_unit_ui.get_label(measure_index)
             if label is not None:
-                self.deselect_all_elements()
-                self.select_element(beat_unit_ui)
+                if not beat_unit_ui.is_selected():
+                    self.select_element(beat_unit_ui)
                 beat_unit_ui.select_label(label)
-                return
+                return beat_unit_ui
+        return None
 
     def on_left_click(
         self,

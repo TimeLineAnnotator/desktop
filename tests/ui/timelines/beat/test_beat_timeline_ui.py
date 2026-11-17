@@ -3541,6 +3541,62 @@ class TestClickedLabel:
         tilia_errors.assert_no_error()
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
 
+    @staticmethod
+    def edit_in_open_inspector(qtui, text, click=None):
+        """
+        Types `text` in the open inspector's time signature, and ends the
+        edit as clicking away does: by `click()`, if given, before the edit
+        is applied once the mouse is released.
+        """
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+        line_edit = widgets["Time signature"][1]
+        with patch_beat_unit_scope_prompt("measure"):
+            line_edit.selectAll()
+            QTest.keyClicks(line_edit, text)
+            line_edit.editingFinished.emit()
+            if click is not None:
+                click()
+            QApplication.processEvents()
+        return widgets
+
+    def test_an_edit_ended_by_clicking_another_label_keeps_that_click(
+        self, qtui, tluis
+    ):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+        commands.execute("timeline.element.inspect")
+
+        widgets = self.edit_in_open_inspector(
+            qtui,
+            "6/8",
+            lambda: click_time_signature_label(tluis[0], beat_unit_ui.get_label(1)),
+        )
+
+        assert time_signatures(tluis[0].timeline)[2] == ("6", 8)
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [1]
+        assert widgets["Measure"][1].text() == "2"
+
+    def test_an_edit_keeps_the_other_selected_labels(self, qtui, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+        # Bar 3's label is the one inspected and edited.
+        click_time_signature_label(
+            tluis[0], beat_unit_ui.get_label(2), modifier="shift"
+        )
+        commands.execute("timeline.element.inspect")
+
+        widgets = self.edit_in_open_inspector(qtui, "6/8")
+
+        # Bar 4's label goes to the beat unit written back after bar 3, so
+        # it is no longer selected; bar 2's stays, and bar 3's is the new
+        # beat unit's.
+        assert time_signatures(tluis[0].timeline)[2] == ("6", 8)
+        assert outlined_measures(tluis[0]) == [1, 2]
+        assert widgets["Measure"][1].text() == "3"
+        assert widgets["Time signature"][1].text() == "6/8"
+
     def test_a_label_another_beat_unit_takes_is_no_longer_selected(self, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
