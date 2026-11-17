@@ -172,8 +172,13 @@ class Inspect(QDockWidget):
         self.raise_()
 
     def update_inspected_object_stack(self, cls, field, values, id):
-        if (cls, field, values, id) not in self.inspected_objects_stack:
-            self.inspected_objects_stack.append((cls, field, values, id))
+        # One entry per element: an element given again, with new values,
+        # replaces its entry, which deselecting it then removes, rather than
+        # leaving the old one to be shown once it is deselected.
+        self.inspected_objects_stack = [
+            obj for obj in self.inspected_objects_stack if obj[-1] != id
+        ]
+        self.inspected_objects_stack.append((cls, field, values, id))
 
     def update_rows(
         self,

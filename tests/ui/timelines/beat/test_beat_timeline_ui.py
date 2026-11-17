@@ -2793,6 +2793,33 @@ class TestTimeSignatureInspector:
         assert len(tluis[0].timeline.beat_units) == 2
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("2", "8")]
 
+    def test_the_inspector_empties_once_an_edited_label_is_deselected(
+        self, qtui, tluis
+    ):
+        # The edit gives the inspector the beat unit's new values, which
+        # must not be left behind once it is deselected.
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(8))
+        set_beat_unit(tluis[0], 1, 8, "3")
+        beat_unit_ui = newest_beat_unit_ui(tluis[0])
+        inspector = self.open_inspector_for_label(
+            tluis[0], beat_unit_ui.labels[0], qtui
+        )
+        line_edit = inspector.field_name_to_widgets["Time signature"][1]
+        # Ended by clicking away rather than Enter, which closes the
+        # inspector.
+        with patch_beat_unit_scope_prompt("onward"):
+            line_edit.selectAll()
+            QTest.keyClicks(line_edit, "2/8")
+            line_edit.editingFinished.emit()
+            QApplication.processEvents()
+
+        press_in_label_row(tluis[0], 7)
+        drag_in_label_row(tluis[0], 7)
+
+        assert tluis[0].selected_elements == []
+        assert inspector.stack_widget.currentWidget() is inspector.empty_label
+
     def test_the_measure_keeps_its_taps(self, qtui, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
