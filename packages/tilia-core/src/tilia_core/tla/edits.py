@@ -145,9 +145,10 @@ def delete_beat(
     next beat, such a unit doesn't count, so that the measure keeps its time
     signature. Where moving the unit would land on a unit the reader can't
     read and dropping it leaves every measure, its own too, reading as moving
-    would, it is dropped, not refused. No default takes the place of a unit dropped, since an edit
-    adds none (contracts/layout.md). A closing tap read as an ordinary beat (one
-    that ends no measure) is a beat of its measure.
+    would, it is dropped, not refused. No default takes the place of a unit
+    dropped, since an edit adds none (contracts/layout.md). A closing tap read
+    as an ordinary beat (one that ends no measure) is a beat of its measure.
+    The time map's warning for a unit the reader can't read is logged once.
 
     The measures the deletion changes get the source "edited", unless it is
     "tapped" or already "edited": a beat's measure, or a downbeat's measure
@@ -160,7 +161,7 @@ def delete_beat(
     deleted = beats[beat_id]
     table = _table(timeline)
     timeline.measures = table  # as it stands, for the closing taps
-    readings = _readings(timeline)
+    readings = _readings(timeline, quiet=False)  # its warnings, once
     order = beat_order({k: c.attrs for k, c in beats.items()})
     later = order[order.index(beat_id) + 1 :]
     _refuse_an_unmarked_first_beat(timeline, beats, beat_id, order, later)
@@ -332,9 +333,9 @@ def _refuse_an_unreadable_unit(
     where the rules, with that unit treated as absent, would move it there,
     unless dropping it leaves every measure reading as moving it would, the
     one it would move into too (TimeLineAnnotator/project-management#577,
-    point 2): then the deletion drops it. They are run on a copy of the timeline, which the deletion of
-    `beat_id`, a downbeat when `downbeat`, changes as it would change the
-    timeline."""
+    point 2): then the deletion drops it. They are run on a copy of the
+    timeline, which the deletion of `beat_id`, a downbeat when `downbeat`,
+    changes as it would change the timeline."""
     if destination is None:
         return
     if readable_beat_unit(beats[beat_id].attrs.get("beat_unit")) is None:
@@ -606,7 +607,7 @@ def _delete_downbeat(
     return changed
 
 
-def _readings(timeline: Timeline) -> dict[str, tuple[Any, ...]]:
+def _readings(timeline: Timeline, *, quiet: bool = True) -> dict[str, tuple[Any, ...]]:
     """What each measure reads, by its downbeat, as the time map reads it, a
     closing tap read as an ordinary beat included (WP9's Q16): its
     denominator and units, and whether they are assumed or conflict."""
@@ -614,7 +615,7 @@ def _readings(timeline: Timeline) -> dict[str, tuple[Any, ...]]:
     from tilia_core.timemap._rows import rows_of
     from tilia_core.timemap.meters import meters_of
 
-    rows = rows_of(timeline)
+    rows = rows_of(timeline, quiet=quiet)
     return {
         row.id: (meter.denominator, meter.units, meter.is_assumed, meter.is_conflicting)
         for row, meter in zip(rows, meters_of(rows), strict=True)
