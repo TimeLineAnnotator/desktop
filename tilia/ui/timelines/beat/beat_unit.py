@@ -219,19 +219,23 @@ class BeatUnitUI(TimelineUIElement):
         """
         if not self.labels:
             return []
+        # A selection box calls this for each label it goes over, so labels
+        # are found by measure at once rather than one search each.
+        labels = {label.measure_index: label for label in self.labels}
         selected = [
-            label
+            labels[measure_index]
             for measure_index in self.selected_measure_indices
-            if (label := self.get_label(measure_index)) is not None
+            if measure_index in labels
         ]
         if selected:
             return selected
-        return [self.get_label(self.start_measure_index) or self.labels[0]]
+        return [labels.get(self.start_measure_index) or self.labels[0]]
 
     def _update_highlight(self) -> None:
         highlighted = self._get_highlighted_labels() if self._is_selected else []
+        highlighted_ids = {id(label) for label in highlighted}
         for label in self.labels:
-            label.set_selected(any(label is other for other in highlighted))
+            label.set_selected(id(label) in highlighted_ids)
 
     def on_left_click(self, item: QGraphicsItem) -> None:
         self._set_active_label(item)

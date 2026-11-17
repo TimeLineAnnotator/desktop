@@ -75,6 +75,7 @@ class TimeSignatureLabel(QGraphicsRectItem):
         if spec.assumed:
             self.body.setOpacity(ASSUMED_OPACITY)
         self.setBrush(Qt.BrushStyle.NoBrush)
+        self.is_selected: bool | None = None
         self.set_selected(False)
         if spec.tooltip:
             self.setToolTip(spec.tooltip)
@@ -111,6 +112,11 @@ class TimeSignatureLabel(QGraphicsRectItem):
         )
 
     def set_selected(self, selected: bool) -> None:
+        # A selection box sets every label of a beat unit each time it goes
+        # over one, so only labels that change are redrawn.
+        if selected == self.is_selected:
+            return
+        self.is_selected = selected
         if selected:
             self.setPen(QPen(SELECTED_COLOR, 1))
         else:
