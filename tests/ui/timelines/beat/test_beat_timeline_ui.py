@@ -3236,6 +3236,24 @@ class TestCopyPasteBeatUnits:
         assert timeline.get_beat_unit_on_beat(pasted_beat.id) is None
         assert len(timeline.beat_units) == 3
 
+    def test_a_pasted_time_signature_holds_until_the_next_one(self, tluis):
+        # Bar 2 is 6/8 on its own: bar 3 has the 2/4 TiLiA assumes back.
+        add_beat_timeline_with_pattern("2")
+        add_beats(range(14))
+        set_beat_unit(tluis[0], 1, 8, "3", only_this_measure=True)
+        self.copy_beats(tluis[0], [2, 3])
+        # Pasted after bar 4, whose two taps end at 7 s, its first beat
+        # starts bar 5.
+        commands.execute("media.seek", 7.5)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+
+        timeline = tluis[0].timeline
+        assert get_barlines(timeline)[4] == 7.5
+        # The 2/4 after bar 2, assumed, isn't pasted, so the 6/8 holds on.
+        assert time_signatures(timeline)[4:7] == [("6", 8)] * 3
+
     def test_copying_a_label_copies_nothing(self, tluis):
         add_beat_timeline_with_pattern("2")
         add_beats(range(4))
