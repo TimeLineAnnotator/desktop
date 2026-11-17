@@ -126,7 +126,14 @@ class BeatUnitUI(TimelineUIElement):
                 owners[item] = self
             for glyph in label.body.childItems():
                 owners[glyph] = None
+        had_labels_selected = bool(self._selected)
         self._keep_selection()
+        if self._is_selected and had_labels_selected and not self._selected:
+            # Its last selected label went: its bar did, or another beat unit
+            # took it. Showing another label as selected would have Delete act
+            # on a label nobody chose, so nothing of it stays selected.
+            self.timeline_ui.deselect_element(self)
+            return
         self._on_selection_changed()
 
     def _remove_labels(self) -> None:
@@ -429,12 +436,15 @@ class BeatUnitUI(TimelineUIElement):
                 if only_this_measure:
                     stop = measure_index + 1
 
+            # The edit may take the label from this beat unit, which then
+            # stops being selected (see `set_labels`).
+            was_selected = self.is_selected()
             error = timeline.set_time_signature(value, measure_index, stop)
             if error:
                 tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
             else:
                 post(Post.APP_STATE_RECORD, "time signature edit via inspect")
-            if self.is_selected() and self.get_label(measure_index) is None:
+            if was_selected and self.get_label(measure_index) is None:
                 # The measure has a beat unit of its own now, whose label it
                 # is: select that, so the measure stays the one inspected.
                 self.timeline_ui.select_time_signature_label(measure_index)

@@ -3541,9 +3541,7 @@ class TestClickedLabel:
         tilia_errors.assert_no_error()
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
 
-    def test_a_label_another_beat_unit_takes_is_no_longer_selected(
-        self, tluis, tilia_errors
-    ):
+    def test_a_label_another_beat_unit_takes_is_no_longer_selected(self, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
 
@@ -3551,17 +3549,53 @@ class TestClickedLabel:
         # selected.
         set_beat_unit(tluis[0], 2, 8, "3")
 
-        # Delete acts on what is outlined: here bar 1, where TiLiA assumes
-        # the time signature, so nothing goes.
-        assert tluis[0].selected_elements == [beat_unit_ui]
-        assert outlined_measures(tluis[0]) == [0]
+        # It was the beat unit's only selected label, so nothing is selected,
+        # and Delete deletes nothing.
+        assert tluis[0].selected_elements == []
+        assert outlined_measures(tluis[0]) == []
         commands.execute("timeline.component.delete")
-
         assert [(u.denominator, u.units) for u in tluis[0].timeline.beat_units] == [
             (4, "1"),
             (8, "3"),
         ]
-        tilia_errors.assert_in_error_message("TiLiA assumes 2/4.")
+
+    def test_one_of_several_labels_another_beat_unit_takes(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+
+        # The new beat unit carries on over bar 4, so it takes that label too.
+        set_beat_unit(tluis[0], 2, 8, "3")
+
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [1]
+
+    def test_a_label_whose_bar_the_bars_dialog_changes(self, tluis):
+        add_bars_of_two_and_three_taps_in_eighths(tluis)
+        beat_unit_ui = tluis[0].get_element(tluis[0].timeline.beat_units[1].id)
+
+        def set_bar_4(dialog):
+            row = [r[0] for r in dialog.get_table_rows()].index("4")
+            edit_bars_dialog_cell(dialog, row, TIME_SIGNATURE_COLUMN, "3/4")
+
+        # Double-clicking the label opens the dialog at its bar.
+        with patch_bars_dialog(set_bar_4):
+            click_time_signature_label(tluis[0], beat_unit_ui.get_label(3), double=True)
+
+        # Bar 4's label is a new beat unit's now.
+        assert tluis[0].selected_elements == []
+        assert outlined_measures(tluis[0]) == []
+
+    def test_a_label_whose_first_beat_is_deleted(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+        click_beat_ui(next(b for b in tluis[0] if b.time == 10), modifier="shift")
+
+        commands.execute("timeline.component.delete")
+
+        assert len(tluis[0].timeline) == 9
+        assert tluis[0].selected_elements == []
+        assert outlined_measures(tluis[0]) == []
 
 
 def outlined_measures(timeline_ui):
