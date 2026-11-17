@@ -2110,6 +2110,20 @@ class TestApply:
         assert raised.value.change == second
         assert doc == before
 
+    def test_a_change_of_a_key_it_doesnt_know_is_refused_and_nothing_written(self):
+        # WP9's contract: a ValueError, while the old values are checked, so the
+        # change before it isn't written either. A plan never moves a beat.
+        doc, tl = piece([2, 2])
+        d = downbeat(tl, 1)
+        before = copy.deepcopy(doc)
+        known = Change(tl.id, d, "beat_unit", None, unit(8, "3"))
+        unknown = Change(tl.id, d, "time", 2.0, 2.5)
+
+        with pytest.raises(ValueError, match="'time'"):
+            apply_plan(doc, Plan([known, unknown]))
+
+        assert doc == before
+
     def test_the_table_lists_the_units_the_measure_table_reads(self):
         unreadable = {"denominator": 200, "units": "x"}
         doc, tl = piece([3, 3], units={(1, 2): unreadable})
