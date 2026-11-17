@@ -358,6 +358,16 @@ class TestReviewedEdgeCases:
         assert bar.units_text == units
         assert parse_units(bar.units_text).is_valid
 
+    def test_only_the_last_part_of_a_numerator_can_be_a_fraction(self):
+        # A "/" after a part is that part's denominator only when another
+        # "/" follows, so only the part before the denominator can be one.
+        (bar,) = parse("2+3/2/4").planned_bars
+        assert (bar.values, bar.denominator) == ([F(2), F(3, 2)], 4)
+
+        result = parse("3/2+3/2+1/4")
+        assert result.status == ParseStatus.INVALID
+        assert (result.error, result.position) == ("Unexpected '+'.", 3)
+
     @pytest.mark.timeout(1)
     def test_a_huge_numerator_is_refused_before_its_taps_are_listed(self):
         result = parse("999999999/4")

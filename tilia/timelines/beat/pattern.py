@@ -7,8 +7,7 @@ repeated group of items::
     items     := item (whitespace item)*
     item      := bar | INT? "[" items "]"
     bar       := INT | numerator "/" INT taps?
-    numerator := part ("+" part)*
-    part      := INT ("/" INT)?
+    numerator := INT ("+" INT)* ("/" INT)?
     taps      := "(" value (whitespace value)* ")"
     value     := INT ("/" INT)?
 
@@ -19,9 +18,11 @@ quarter notes). A time signature is tapped once per unit of its denominator
 numerator (``2+3/8`` is two taps, of a quarter and of a dotted quarter).
 ``taps`` says what each tap is worth instead, in units of the denominator:
 ``6/8(3 3)`` is 6/8 tapped in two, ``4/4(3/2 3/2 1)`` is 4/4 tapped as
-3+3+2 eighths. The taps must add up to the numerator. A numerator can hold a
-fraction, written before the denominator, for bars like ``11/2/4(3/2 3/2 1
-3/2)``.
+3+3+2 eighths. The taps must add up to the numerator. The last part of a
+numerator can be a fraction, written before the denominator, for bars like
+``11/2/4(3/2 3/2 1 3/2)`` or ``2+3/2/4``: a ``/`` after a part is the
+part's denominator only when another ``/`` follows, so a fraction can't come
+before a ``+``.
 
 So ``4/4 4/4 3/4`` is three bars, ``10[4/4] 3/4 15[4/4]`` is ten bars of 4/4,
 one of 3/4 and fifteen of 4/4, and ``2[4/4 3[3/4]]`` expands to ``4/4 3/4 3/4
