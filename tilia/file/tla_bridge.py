@@ -151,11 +151,11 @@ COMPONENT_ATTRIBUTES: dict[str, tuple[str, ...]] = {
     "bar_line": ("time",),
     "score_annotation": ("x", "y", "viewer_id", "text", "font_size"),
 }
-# TiLiA's, and not in the format's layout: to the core, a key it doesn't know
-# (TimeLineAnnotator/project-management#511, a time signature's pairs).
-_UNKNOWN_TO_THE_CORE = frozenset({"pairs"})
 # TiLiA fills these from another attribute when they are unset.
 _FOLLOWS = {"pre_start": "start", "post_end": "end"}
+# In TiLiA's state as None when the file has none, which the core leaves out: a
+# time signature's pairs (TimeLineAnnotator/project-management#511, #515).
+_NONE_WHEN_LEFT_OUT = frozenset({"pairs"})
 _ROW_KEYS = ("id", "name", "color", "height")
 _MEDIA_LENGTH = "media length"
 _DEFAULT_BEAT_PATTERN = [4]
@@ -420,11 +420,11 @@ def _component_state(component: tla.Component) -> State:
     state: State = {}
     digest = ""
     for attr in COMPONENT_ATTRIBUTES[component.kind]:
-        value = component.attrs.get(attr, component.extra.get(attr))
+        value = component.attrs.get(attr)
         if value is None and attr in _FOLLOWS:
             value = component.attrs.get(_FOLLOWS[attr])
         digest += f"|{value}"
-        if attr in component.attrs or attr in _FOLLOWS or attr in _UNKNOWN_TO_THE_CORE:
+        if attr in component.attrs or attr in _FOLLOWS or attr in _NONE_WHEN_LEFT_OUT:
             state[attr] = copy.deepcopy(value)
     state["kind"] = _COMPONENT_NAMES[component.kind]
     state["hash"] = hash_function(digest)
@@ -871,7 +871,7 @@ def _new_component(component_id: str, kind: str, state: State) -> tla.Component:
         if attr in state and not (
             attr in _FOLLOWS and state[attr] == state.get(_FOLLOWS[attr])
         ):
-            _set_attribute(component, attr, state[attr])
+            component.attrs[attr] = copy.deepcopy(state[attr])
     return component
 
 
@@ -885,7 +885,7 @@ def _apply_component(component: tla.Component, was: State, state: State) -> bool
         if attr in state and state[attr] != was.get(attr):
             edited = True
             if attr not in _FOLLOWS:
-                _set_attribute(component, attr, state[attr])
+                component.attrs[attr] = copy.deepcopy(state[attr])
     if edited:
         for attr, followed in _FOLLOWS.items():
             if attr not in state:
@@ -895,15 +895,6 @@ def _apply_component(component: tla.Component, was: State, state: State) -> bool
             elif component.attrs.get(attr) != state[attr]:
                 component.attrs[attr] = state[attr]
     return edited
-
-
-def _set_attribute(component: tla.Component, attr: str, value: Any) -> None:
-    if attr not in _UNKNOWN_TO_THE_CORE:
-        component.attrs[attr] = copy.deepcopy(value)
-    elif value is None:
-        component.extra.pop(attr, None)
-    else:
-        component.extra[attr] = copy.deepcopy(value)
 
 
 # A beat timeline's measures, until it is on the marks: TiLiA's lists from the marks
