@@ -51,10 +51,13 @@ class BeatUnitUI(TimelineUIElement):
     """
     A beat unit, which gives the taps of the measures it governs their
     values, has no mark of its own: it is shown, and selected, through the
-    time signature labels of those measures. Clicking a label selects it,
-    and a selection box selects every label it goes over. The inspector
-    edits the time signature of the measure whose label was clicked, or of
-    the first selected one.
+    time signature labels of those measures, and each label is selected on
+    its own: clicking a label selects it, Ctrl-clicking adds or removes it,
+    and a selection box selects every label it goes over. The beat unit is
+    selected while any of its labels is, and outlines the selected ones, or,
+    when it is selected without any, the one where it starts. The inspector
+    edits the time signature of the label last clicked, or else of the first
+    selected one.
     """
 
     UPDATE_TRIGGERS = ["denominator", "units", "beat_id", "assumed"]
@@ -89,14 +92,21 @@ class BeatUnitUI(TimelineUIElement):
             set_data=set_data,
         )
         self.labels: list[TimeSignatureLabel] = []
+        self._labels_by_measure: dict[int, TimeSignatureLabel] = {}
         self.hover_line: QGraphicsLineItem | None = None
         self._is_selected = False
-        # The first beat of the measure whose label was last clicked while
-        # selected (see `active_measure_index`).
+        # While selected: the selected labels, as the first beats of their
+        # measures and those measures. Kept by beat, so a selected label
+        # follows its measure when barlines move (see `_keep_selection`).
+        self._selected: dict[int | str, int] = {}
+        # The first beat of the measure whose label was clicked last, while
+        # that label is selected (see `active_measure_index`).
         self._clicked_beat_id: int | str | None = None
-        # The first beats of the measures whose labels a selection box went
-        # over while selected (see `selected_measure_indices`).
-        self._boxed_beat_ids: set[int | str] = set()
+        # The measures whose labels are outlined, so that a change of
+        # selection redraws only the labels it changes.
+        self._outlined: set[int] = set()
+        # The measure the inspector was last given (see `get_inspector_dict`).
+        self._shown_measure_index: int | None = None
         # An inspector edit waiting for the mouse to be released, so the same
         # edit reported twice asks once.
         self._pending_edit: tuple[str, Any] | None = None
@@ -110,7 +120,9 @@ class BeatUnitUI(TimelineUIElement):
             self.scene.addItem(label.body)
             self.scene.addItem(label)
             self.labels.append(label)
-        self._update_highlight()
+            self._labels_by_measure[label.measure_index] = label
+        self._keep_selection()
+        self._on_selection_changed()
 
     def _remove_labels(self) -> None:
         self._remove_hover_line()
@@ -118,11 +130,11 @@ class BeatUnitUI(TimelineUIElement):
             self.scene.removeItem(label.body)
             self.scene.removeItem(label)
         self.labels = []
+        self._labels_by_measure = {}
+        self._outlined = set()
 
     def get_label(self, measure_index: int) -> TimeSignatureLabel | None:
-        return next(
-            (lb for lb in self.labels if lb.measure_index == measure_index), None
-        )
+        return self._labels_by_measure.get(measure_index)
 
     @property
     def beat_x(self) -> float | None:
@@ -168,84 +180,154 @@ class BeatUnitUI(TimelineUIElement):
     @property
     def active_measure_index(self) -> int | None:
         """
-        The measure of the label last clicked, which beat unit commands
-        apply to. It is kept by the beat that started the measure, so it
-        follows the measure when barlines move, and is forgotten once that
-        beat starts none, or the beat unit is deselected.
+        The measure of the label clicked last, which beat unit commands
+        apply to, while that label is selected. It is kept by the beat that
+        starts the measure, so it follows the measure when barlines move.
         """
         if self._clicked_beat_id is None:
             return None
-        timeline = self.timeline_ui.timeline
-        return timeline.get_measure_started_by(self._clicked_beat_id)
+        measure_index = self._selected.get(self._clicked_beat_id)
+        if measure_index is None or not self._is_measure(measure_index):
+            return None
+        return measure_index
 
     @property
     def selected_measure_indices(self) -> list[int]:
+        """The measures whose labels are selected, in order."""
+        return sorted(self._selected.values())
+
+    @property
+    def outlined_measure_indices(self) -> list[int]:
         """
-        The measures whose labels are selected, in order: the one last
-        clicked and those a selection box went over, kept as the clicked one
-        is (see `active_measure_index`).
+        The measures whose labels are outlined, in order: the selected ones,
+        or, while the beat unit is selected without any, the one where it
+        starts. Deleting the selection acts on these.
         """
-        timeline = self.timeline_ui.timeline
-        beat_ids = set(self._boxed_beat_ids)
-        if self._clicked_beat_id is not None:
-            beat_ids.add(self._clicked_beat_id)
-        indices = {timeline.get_measure_started_by(beat_id) for beat_id in beat_ids}
-        return sorted(index for index in indices if index is not None)
+        return sorted(self._outlined)
+
+    def _is_measure(self, measure_index: int) -> bool:
+        return measure_index < self.timeline_ui.timeline.measure_count
 
     def _get_first_beat_id(self, label: TimeSignatureLabel) -> int | str:
         timeline = self.timeline_ui.timeline
         return timeline[timeline.beats_that_start_measures[label.measure_index]].id
 
-    def _set_active_label(self, item: QGraphicsItem) -> None:
-        if isinstance(item, TimeSignatureLabel):
-            self._clicked_beat_id = self._get_first_beat_id(item)
-            self._update_highlight()
+    def _keep_selection(self) -> None:
+        """
+        Keeps selected the labels this beat unit still has once they are
+        drawn again: those of the measures their first beats still start.
+        """
+        timeline = self.timeline_ui.timeline
+        selected = {}
+        for beat_id in self._selected:
+            measure_index = timeline.get_measure_started_by(beat_id)
+            if measure_index in self._labels_by_measure:
+                selected[beat_id] = measure_index
+        self._selected = selected
+        if self._clicked_beat_id not in selected:
+            self._clicked_beat_id = None
+
+    def select_label(self, label: TimeSignatureLabel, clicked: bool = True) -> None:
+        """
+        Adds a label to the selection, while the beat unit is selected. A
+        clicked label becomes the one the inspector and commands act on.
+        """
+        if not self._is_selected:
+            return
+        beat_id = self._get_first_beat_id(label)
+        self._selected[beat_id] = label.measure_index
+        if clicked:
+            self._clicked_beat_id = beat_id
+        self._on_selection_changed()
+
+    def deselect_label(self, label: TimeSignatureLabel) -> bool:
+        """
+        Removes a label from the selection. Returns whether any label is
+        still selected.
+        """
+        beat_id = self._get_first_beat_id(label)
+        self._selected.pop(beat_id, None)
+        if self._clicked_beat_id == beat_id:
+            self._clicked_beat_id = None
+        self._on_selection_changed()
+        return bool(self._selected)
+
+    def toggle_label(self, label: TimeSignatureLabel) -> bool:
+        """
+        Deselects a label if it is outlined, else selects it, as Ctrl-clicking
+        it does. Returns whether any label is still selected.
+        """
+        if not self._selected:
+            # Selected without any label: the outlined one counts as selected.
+            for measure_index in list(self._outlined):
+                self.select_label(self._labels_by_measure[measure_index], False)
+        if self.is_outlined(label):
+            return self.deselect_label(label)
+        self.select_label(label)
+        return True
+
+    def is_outlined(self, label: TimeSignatureLabel) -> bool:
+        return self._labels_by_measure.get(label.measure_index) is label and (
+            label.measure_index in self._outlined
+        )
 
     def on_selection_box_select(self, item: QGraphicsItem) -> None:
         if isinstance(item, TimeSignatureLabel):
-            self._boxed_beat_ids.add(self._get_first_beat_id(item))
-            self._update_highlight()
+            self.select_label(item, clicked=False)
 
     def on_selection_box_deselect(self, item: QGraphicsItem) -> None:
         if isinstance(item, TimeSignatureLabel):
-            self._boxed_beat_ids.discard(self._get_first_beat_id(item))
-            self._update_highlight()
+            self.deselect_label(item)
 
-    def _get_highlighted_labels(self) -> list[TimeSignatureLabel]:
-        """
-        The labels the selection is shown on: the selected ones, or, if none
-        of them is shown or none was selected, the one where the beat unit
-        starts.
-        """
-        if not self.labels:
-            return []
-        # A selection box calls this for each label it goes over, so labels
-        # are found by measure at once rather than one search each.
-        labels = {label.measure_index: label for label in self.labels}
-        selected = [
-            labels[measure_index]
-            for measure_index in self.selected_measure_indices
-            if measure_index in labels
-        ]
-        if selected:
-            return selected
-        return [labels.get(self.start_measure_index) or self.labels[0]]
+    def _get_outlined(self) -> set[int]:
+        if not self._is_selected or not self.labels:
+            return set()
+        if self._selected:
+            return set(self._selected.values())
+        start = self.start_measure_index
+        if start in self._labels_by_measure:
+            return {start}
+        return {self.labels[0].measure_index}
 
-    def _update_highlight(self) -> None:
-        highlighted = self._get_highlighted_labels() if self._is_selected else []
-        highlighted_ids = {id(label) for label in highlighted}
-        for label in self.labels:
-            label.set_selected(id(label) in highlighted_ids)
+    def _redraw_outline(self) -> None:
+        """
+        Outlines the selected labels, redrawing only those whose outline
+        changes, as a selection box changes the selection once for each label
+        it goes over.
+        """
+        outlined = self._get_outlined()
+        for measure_index in outlined ^ self._outlined:
+            label = self._labels_by_measure.get(measure_index)
+            if label is not None:
+                label.set_outlined(measure_index in outlined)
+        self._outlined = outlined
+
+    def _on_selection_changed(self) -> None:
+        """Redraws the outline, and refreshes the inspector if its measure moved."""
+        self._redraw_outline()
+        if self._is_selected and (
+            self.inspected_measure_index != self._shown_measure_index
+        ):
+            self._refresh_inspector()
 
     def on_left_click(self, item: QGraphicsItem) -> None:
-        self._set_active_label(item)
+        # A click selects the label alone, as the timeline UI deselects the
+        # others first, and Shift-click adds it. Ctrl-click is the timeline
+        # UI's (see `BeatTimelineUI.on_left_click`).
+        if isinstance(item, TimeSignatureLabel):
+            self.select_label(item)
 
     def on_double_left_click(self, item: QGraphicsItem) -> None:
-        self._set_active_label(item)
+        self.on_left_click(item)
         commands.execute("timeline.beat.edit_bars")
 
     def on_right_click(self, x: int, y: int, item: QGraphicsItem) -> None:
-        self._set_active_label(item)
+        # The menu acts on the selection if the label is in it, and on the
+        # label alone if it is not.
+        if isinstance(item, TimeSignatureLabel):
+            if not self.is_outlined(item):
+                self._selected.clear()
+            self.select_label(item)
         super().on_right_click(x, y, item)
 
     @property
@@ -257,14 +339,17 @@ class BeatUnitUI(TimelineUIElement):
     @property
     def inspected_measure_index(self) -> int:
         """
-        The measure whose label was clicked, or else the first selected one,
-        or else where the beat unit starts.
+        The measure of the label clicked last, or else of the first selected
+        one, or else where the beat unit starts.
         """
         active = self.active_measure_index
         if active is not None:
             return active
-        selected = self.selected_measure_indices
-        return selected[0] if selected else self.start_measure_index
+        if self._selected:
+            first = min(self._selected.values())
+            if self._is_measure(first):
+                return first
+        return self.start_measure_index
 
     def _get_inspected_bar(self, beat_count: int | None = None) -> PlannedBar:
         """The inspected measure, over `beat_count` beats or the ones it has."""
@@ -274,11 +359,13 @@ class BeatUnitUI(TimelineUIElement):
 
     def get_inspector_dict(self) -> dict:
         timeline = self.timeline_ui.timeline
-        bar = self._get_inspected_bar()
+        measure_index = self.inspected_measure_index
+        self._shown_measure_index = measure_index
+        bar = timeline.get_measure_as_planned_bar(measure_index)
         return {
             "Time signature": format_time_signature(bar),
             "Taps": format_taps(bar),
-            "Measure": str(timeline.measure_numbers[self.inspected_measure_index]),
+            "Measure": str(timeline.measure_numbers[measure_index]),
             "Assumed": "Yes" if self.get_data("assumed") else "No",
         }
 
@@ -339,7 +426,12 @@ class BeatUnitUI(TimelineUIElement):
                 tilia.errors.display(tilia.errors.INVALID_TIME_SIGNATURE, error)
             else:
                 post(Post.APP_STATE_RECORD, "time signature edit via inspect")
-            self._refresh_inspector()
+            if self.is_selected() and self.get_label(measure_index) is None:
+                # The measure has a beat unit of its own now, whose label it
+                # is: select that, so the measure stays the one inspected.
+                self.timeline_ui.select_time_signature_label(measure_index)
+            else:
+                self._refresh_inspector()
         finally:
             self._pending_edit = None
 
@@ -350,14 +442,17 @@ class BeatUnitUI(TimelineUIElement):
             self.timeline_ui.post_inspectable_selected_event(self)
 
     def on_select(self) -> None:
+        # Selecting the beat unit gives the inspector its values, so only the
+        # outline is drawn here.
         self._is_selected = True
-        self._update_highlight()
+        self._redraw_outline()
 
     def on_deselect(self) -> None:
         self._is_selected = False
+        self._selected.clear()
         self._clicked_beat_id = None
-        self._boxed_beat_ids.clear()
-        self._update_highlight()
+        self._shown_measure_index = None
+        self._redraw_outline()
 
     def update_position(self) -> None:
         # Labels are positioned by BeatTimelineUI.update_time_signatures,

@@ -5,6 +5,9 @@ from collections import defaultdict
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QGraphicsItem
+
 import tilia.errors
 from tilia.requests import Get, Post, get, listen, post
 from tilia.timelines.beat.pattern import parse
@@ -413,12 +416,14 @@ class BeatTimelineUI(TimelineUI):
         """
         timeline = self.timeline
         to_delete = [e.tl_component for e in elements if isinstance(e, BeatUI)]
+        beat_unit_ids = set()
         errors = []
-        for measure_index in self._get_selected_label_measures(elements):
+        for measure_index in self._get_outlined_label_measures(elements):
             beat_unit, error = timeline.get_time_signature_change(measure_index)
             if beat_unit is None:
                 errors.append(error)
-            elif all(beat_unit is not other for other in to_delete):
+            elif beat_unit.id not in beat_unit_ids:
+                beat_unit_ids.add(beat_unit.id)
                 to_delete.append(beat_unit)
 
         if not to_delete:
@@ -429,19 +434,70 @@ class BeatTimelineUI(TimelineUI):
         return True
 
     @staticmethod
-    def _get_selected_label_measures(elements: list[TimelineUIElement]) -> list[int]:
+    def _get_outlined_label_measures(elements: list[TimelineUIElement]) -> list[int]:
         """
-        The measures of the selected labels of the beat units in `elements`,
-        in order. A beat unit selected without a label shows its selection
-        where it starts.
+        The measures of the outlined labels of the beat units in `elements`,
+        in order. A beat unit with no label, as when time signatures are
+        hidden, counts as its first measure's.
         """
         measure_indices = set()
         for element in elements:
             if isinstance(element, BeatUnitUI):
                 measure_indices.update(
-                    element.selected_measure_indices or [element.start_measure_index]
+                    element.outlined_measure_indices or [element.start_measure_index]
                 )
         return sorted(measure_indices)
+
+    def select_time_signature_label(self, measure_index: int) -> None:
+        """Selects a measure's time signature label alone, as clicking it does."""
+        for beat_unit_ui in self.beat_unit_uis:
+            label = beat_unit_ui.get_label(measure_index)
+            if label is not None:
+                self.deselect_all_elements()
+                self.select_element(beat_unit_ui)
+                beat_unit_ui.select_label(label)
+                return
+
+    def on_left_click(
+        self,
+        item: QGraphicsItem,
+        modifier: Qt.KeyboardModifier,
+        double: bool,
+        x: int,
+        y: int,
+    ) -> None:
+        # A time signature label is selected through its beat unit, but on
+        # its own: Ctrl-click adds or removes that label, and the beat unit
+        # is deselected once none of its labels is selected.
+        beat_unit_ui = self._get_label_owner(item)
+        if (
+            beat_unit_ui is None
+            or double
+            or Qt.KeyboardModifier.ControlModifier not in modifier
+        ):
+            super().on_left_click(item, modifier, double, x, y)
+            return
+
+        if not beat_unit_ui.is_selected():
+            self.select_element(beat_unit_ui)
+            beat_unit_ui.select_label(item)
+        elif not beat_unit_ui.toggle_label(item):
+            self.deselect_element(beat_unit_ui)
+
+    def belongs_to_selection(self, item: QGraphicsItem) -> bool:
+        # A label of a selected beat unit belongs to the selection only if it
+        # is outlined, so right-clicking another selects that one alone.
+        beat_unit_ui = self._get_label_owner(item)
+        if beat_unit_ui is not None:
+            return beat_unit_ui.is_selected() and beat_unit_ui.is_outlined(item)
+        return super().belongs_to_selection(item)
+
+    def _get_label_owner(self, item: QGraphicsItem | None) -> BeatUnitUI | None:
+        if not isinstance(item, TimeSignatureLabel):
+            return None
+        return next(
+            (e for e in self.get_item_owner(item) if isinstance(e, BeatUnitUI)), None
+        )
 
     def _get_measure_indices(self, elements: list[BeatUI]):
         measure_indices = set()

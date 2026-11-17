@@ -50,8 +50,7 @@ class TimeSignatureLabelSpec:
 class TimeSignatureLabel(QGraphicsRectItem):
     """
     A clickable box around a time signature. The box sits above the glyphs
-    so clicks land on it, and outlines the label when its beat unit is
-    selected.
+    so clicks land on it, and outlines the label while it is selected.
     """
 
     def __init__(
@@ -75,8 +74,7 @@ class TimeSignatureLabel(QGraphicsRectItem):
         if spec.assumed:
             self.body.setOpacity(ASSUMED_OPACITY)
         self.setBrush(Qt.BrushStyle.NoBrush)
-        self.is_selected: bool | None = None
-        self.set_selected(False)
+        self.set_outlined(False)
         if spec.tooltip:
             self.setToolTip(spec.tooltip)
         self.setAcceptHoverEvents(True)
@@ -111,13 +109,8 @@ class TimeSignatureLabel(QGraphicsRectItem):
             )
         )
 
-    def set_selected(self, selected: bool) -> None:
-        # A selection box sets every label of a beat unit each time it goes
-        # over one, so only labels that change are redrawn.
-        if selected == self.is_selected:
-            return
-        self.is_selected = selected
-        if selected:
+    def set_outlined(self, outlined: bool) -> None:
+        if outlined:
             self.setPen(QPen(SELECTED_COLOR, 1))
         else:
             self.setPen(Qt.PenStyle.NoPen)

@@ -3448,6 +3448,73 @@ class TestClickedLabel:
         assert beat_unit_ui.active_measure_index == 1
         assert outlined_measures(tluis[0]) == [1]
 
+    def test_an_open_inspector_shows_the_label_clicked(self, qtui, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(0))
+        commands.execute("timeline.element.inspect")
+
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+        assert widgets["Measure"][1].text() == "2"
+        assert widgets["Time signature"][1].text() == "3/4"
+
+    def test_the_inspector_empties_once_the_label_is_deselected(self, qtui, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(0))
+        commands.execute("timeline.element.inspect")
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        press_in_label_row(tluis[0], 7)
+        drag_in_label_row(tluis[0], 7)
+
+        inspector = qtui._windows[WindowKind.INSPECT]
+        assert tluis[0].selected_elements == []
+        assert inspector.stack_widget.currentWidget() is inspector.empty_label
+
+    def test_an_edit_that_gives_the_bar_a_beat_unit_selects_its_label(
+        self, qtui, tluis, tilia_errors
+    ):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+        commands.execute("timeline.element.inspect")
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+
+        with patch_beat_unit_scope_prompt("onward"):
+            TestTimeSignatureInspector.type_into(widgets["Time signature"][1], "6/8")
+
+        # Bar 3's label is the new beat unit's now: that one is selected, and
+        # it is what Delete removes.
+        timeline = tluis[0].timeline
+        (selected,) = tluis[0].selected_elements
+        assert timeline.get_component(selected.id).denominator == 8
+        assert outlined_measures(tluis[0]) == [2]
+        assert widgets["Measure"][1].text() == "3"
+        assert widgets["Time signature"][1].text() == "6/8"
+
+        commands.execute("timeline.component.delete")
+
+        tilia_errors.assert_no_error()
+        assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
+
+    def test_a_label_another_beat_unit_takes_is_no_longer_selected(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
+
+        # Set from elsewhere, e.g. the command line, while the label is
+        # selected.
+        set_beat_unit(tluis[0], 2, 8, "3")
+
+        # Delete acts on what is outlined: here bar 1.
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [0]
+        commands.execute("timeline.component.delete")
+
+        assert [(u.denominator, u.units) for u in tluis[0].timeline.beat_units] == [
+            (4, "1"),
+            (8, "3"),
+        ]
+
 
 def outlined_measures(timeline_ui):
     return [
@@ -3498,6 +3565,126 @@ class TestSelectionBoxOverLabels:
         widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
         assert widgets["Measure"][1].text() == "3"
         assert widgets["Time signature"][1].text() == "2/4"
+
+    def test_an_open_inspector_shows_the_first_label_under_the_box(self, qtui, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(0))
+        commands.execute("timeline.element.inspect")
+
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+        assert widgets["Measure"][1].text() == "2"
+        assert widgets["Time signature"][1].text() == "3/4"
+
+    def test_an_edit_in_an_open_inspector_goes_to_the_bar_it_shows(self, qtui, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(0))
+        commands.execute("timeline.element.inspect")
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+        shown = widgets["Measure"][1].text()
+        # 6/8 fits two taps (3 3) and three (2 2 2) alike.
+        with patch_beat_unit_scope_prompt("measure"):
+            TestTimeSignatureInspector.type_into(widgets["Time signature"][1], "6/8")
+
+        timeline = tluis[0].timeline
+        changed = [
+            str(timeline.measure_numbers[measure_index])
+            for measure_index, (_, denominator) in enumerate(time_signatures(timeline))
+            if denominator == 8
+        ]
+        assert changed == [shown] == ["2"]
+
+    def test_a_box_over_labels_of_two_beat_units_selects_both(self, tluis):
+        add_bars_of_two_and_three_taps_in_eighths(tluis)
+        set_beat_unit(tluis[0], 3, 8, "2")
+        timeline = tluis[0].timeline
+
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+
+        assert [e.id for e in tluis[0].selected_elements] == [
+            u.id for u in timeline.beat_units[1:]
+        ]
+        assert outlined_measures(tluis[0]) == [1, 2, 3]
+
+
+class TestCtrlClickOnLabels:
+    """Ctrl-click adds or removes one label, as it does one element."""
+
+    def test_ctrl_click_adds_a_label_of_the_same_beat_unit(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(3), modifier="ctrl")
+
+        assert outlined_measures(tluis[0]) == [1, 3]
+
+    def test_ctrl_click_removes_one_label_under_a_box(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2), modifier="ctrl")
+
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [1, 3]
+
+    def test_ctrl_click_on_the_last_selected_label_deselects_it(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1))
+
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(1), modifier="ctrl")
+        assert tluis[0].selected_elements == []
+
+        # It isn't kept as clicked either: a box elsewhere selects only what
+        # it goes over.
+        press_in_label_row(tluis[0], 12)
+        drag_in_label_row(tluis[0], 18)
+        assert outlined_measures(tluis[0]) == [3]
+
+    def test_ctrl_click_on_a_beat_unit_selected_without_labels(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        tluis[0].select_element(beat_unit_ui)
+
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(2), modifier="ctrl")
+
+        assert outlined_measures(tluis[0]) == [0, 2]
+
+
+class TestRightClickOnLabels:
+    def test_right_clicking_a_label_not_selected_selects_it_alone(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_beat_ui(tluis[0][0])
+        click_time_signature_label(
+            tluis[0], beat_unit_ui.get_label(1), modifier="shift"
+        )
+        assert len(tluis[0].selected_elements) == 2
+
+        with patch.object(BeatUnitContextMenu, "exec"):
+            click_time_signature_label(
+                tluis[0], beat_unit_ui.get_label(2), button="right"
+            )
+
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [2]
+
+    def test_right_clicking_a_selected_label_keeps_the_selection(self, tluis):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+
+        with patch.object(BeatUnitContextMenu, "exec"):
+            click_time_signature_label(
+                tluis[0], beat_unit_ui.get_label(2), button="right"
+            )
+
+        assert outlined_measures(tluis[0]) == [1, 2, 3]
+        assert beat_unit_ui.active_measure_index == 2
 
 
 class TestFileFromBeforeBeatUnits:
