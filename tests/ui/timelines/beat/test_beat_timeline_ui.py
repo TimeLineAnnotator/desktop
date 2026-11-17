@@ -855,6 +855,33 @@ class TestEditBarsDialog:
 
         assert all(m.is_assumed for m in tluis[0].timeline.measure_meters)
 
+    def test_ok_without_changes_leaves_the_bar_being_tapped_open(self, tluis):
+        add_beat_timeline_with_pattern("4/4(3/2 3/2 1)")
+        # The second bar has two of its three taps, so far 3/2 and 3/2.
+        add_beats(range(5))
+
+        self.edit_bars(tluis[0], lambda dialog: None)
+        add_beats([5])
+
+        timeline = tluis[0].timeline
+        assert timeline.beats_in_measure == [3, 3]
+        assert time_signatures(timeline) == [("4", 4), ("4", 4)]
+        assert len(timeline.beat_units) == 1
+
+    def test_a_time_signature_changed_on_the_bar_being_tapped_is_kept(self, tluis):
+        add_beat_timeline_with_pattern("4/4(3/2 3/2 1)")
+        add_beats(range(5))
+
+        self.edit_bars(
+            tluis[0],
+            lambda dialog: edit_bars_dialog_cell(
+                dialog, 1, TIME_SIGNATURE_COLUMN, "2/4"
+            ),
+        )
+
+        timeline = tluis[0].timeline
+        assert time_signatures(timeline) == [("4", 4), ("2", 4)]
+
 
 class TestPatternWithTimeSignatures:
     def test_tapping_follows_the_time_signatures(self, tluis):

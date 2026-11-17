@@ -1615,7 +1615,8 @@ class BeatTimeline(Timeline):
         each bar takes its beats and its time signature. Beats left over make
         measures from the pattern, going on from the measure after the last
         bar; bars past the last beat go. Then numbers the measures, if
-        `numbers` are given.
+        `numbers` are given. A last measure still being tapped, given as it
+        is, stays open (see `_with_open_last_bar`).
         """
         _, success = self.set_data("beat_pattern", pattern)
         if not success:
@@ -1623,12 +1624,31 @@ class BeatTimeline(Timeline):
         self.set_data("beat_pattern_shift", pattern_shift)
 
         if len(self):
+            bars = self._with_open_last_bar(bars)
             self._remeasure([bar.beat_count for bar in bars], 0)
             self.lay_planned_beat_units(0, bars)
             if numbers is not None:
                 self.set_measure_numbers(numbers)
             self.refresh_measures()
         return True
+
+    def _with_open_last_bar(self, bars: list[PlannedBar]) -> list[PlannedBar]:
+        """
+        `bars`, with the last measure as it will be once tapped (see
+        `get_full_beat_count`) where they give it as it is now, with only
+        the taps it has so far. So it keeps the beat unit that governs it,
+        rather than getting one of its own for those taps: the first two
+        taps of a 4/4(3/2 3/2 1) bar would otherwise make a bar of 3/2s.
+        """
+        last = self.measure_count - 1
+        if len(bars) != self.measure_count or bars[last] != (
+            self.get_measure_as_planned_bar(last)
+        ):
+            return bars
+        full_count = self.get_full_beat_count(last)
+        if full_count == self.beats_in_measure[last]:
+            return bars
+        return bars[:last] + [self.get_measure_as_planned_bar(last, full_count)]
 
     def set_beat_pattern(self, pattern: str) -> bool:
         """
