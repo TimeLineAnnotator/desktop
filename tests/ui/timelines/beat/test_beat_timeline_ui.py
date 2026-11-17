@@ -2505,18 +2505,15 @@ class TestTimeSignatures:
             ("1", "4"),
         ]
 
-        # A box over the first or the last label would also go over that
-        # bar's number, which selects its first beat, so the first label is
-        # added with Shift.
-        press_in_label_row(tluis[0], 2)
-        drag_in_label_row(tluis[0], 25)
-        click_time_signature_label(tluis[0], all_labels(tluis[0])[0], modifier="shift")
+        press_in_label_row(tluis[0], -1)
+        drag_in_label_row(tluis[0], 31)
         assert tluis[0].selected_elements == [
             tluis[0].get_element(timeline.beat_units[0].id)
         ]
-        assert outlined_measures(tluis[0]) == [0, 1, 2]
+        assert outlined_measures(tluis[0]) == [0, 1, 2, 4]
         commands.execute("timeline.component.delete")
 
+        assert len(timeline) == 16
         assert [(u.id, u.assumed) for u in timeline.beat_units] == before
         tilia_errors.assert_in_error_message(
             "No time signature was set at that measure: it reads 3/4 because it "
@@ -3649,6 +3646,22 @@ class TestSelectionBoxOverLabels:
             if denominator == 8
         ]
         assert changed == [shown] == ["2"]
+
+    def test_a_box_over_the_labels_selects_no_beat(self, tluis):
+        # The bar numbers are just above the labels.
+        settings.set("beat_timeline", "display_measure_periodicity", 1)
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        assert [get_displayed_measure_number(b) for b in tluis[0]][:3] == [
+            "1",
+            "",
+            "2",
+        ]
+
+        press_in_label_row(tluis[0], -1)
+        drag_in_label_row(tluis[0], 19)
+
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [0, 1, 2, 3]
 
     def test_a_box_over_labels_of_two_beat_units_selects_both(self, tluis):
         add_bars_of_two_and_three_taps_in_eighths(tluis)
