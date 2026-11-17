@@ -1276,3 +1276,101 @@ class TestAutosaveFailures:
             saver._auto_save_loop()
 
         assert write.call_count == 3
+
+
+def a_pdf_in(folder: Path) -> tuple[Path, str]:
+    """WP3's file of every kind, written by the core into `folder`, with its PDF
+    timeline naming `score.pdf` there, and `other.pdf` beside it."""
+    shutil.copyfile(RESOURCES / "example.pdf", folder / "score.pdf")
+    shutil.copyfile(RESOURCES / "example.pdf", folder / "other.pdf")
+
+    def pdf_here(doc):
+        first_of_kind(doc, "pdf").attrs["path"] = str(folder / "score.pdf")
+
+    path = written_by_the_core(EVERY_KIND, folder, pdf_here)
+    pdf = first_of_kind(tla.read(path), "pdf").id
+    assert json.loads(path.read_bytes())["timelines"][pdf]["path"] == "score.pdf"
+    return path, pdf
+
+
+class TestAPdfPathAfterASaveAs:
+    """The path the file stores is the core's, relative to the file's folder
+    wherever it is saved (FR-033): never one kept from another folder."""
+
+    @pytest.mark.parametrize("back", ["undone", "set back by hand"])
+    def test_set_back_it_names_the_pdf_from_the_new_folder(
+        self, qtui, tilia, tls, tmp_path, back
+    ):
+        (tmp_path / "a").mkdir()
+        path, pdf = a_pdf_in(tmp_path / "a")
+        assert open_file(path)
+        shown = tls.get_timeline(pdf).get_data("path")
+        tls.set_timeline_data(pdf, "path", str(tmp_path / "a" / "other.pdf"))
+        record()
+        (tmp_path / "b").mkdir()
+        copy_path = tmp_path / "b" / "copy.tla"
+        assert save_as(copy_path)
+
+        if back == "undone":
+            with Serve(Get.FROM_USER_RETRY_PDF_PATH, False):
+                commands.execute("edit.undo")
+        else:
+            tls.set_timeline_data(pdf, "path", shown)
+            record()
+        assert save()
+
+        saved = json.loads(copy_path.read_bytes())["timelines"][pdf]
+        assert saved["path"] == "../a/score.pdf"
+
+
+class TestAPersonsEditOfWhatTiLiAFilledIn:
+    """Written, even back to the value TiLiA showed: the file keeps its own only
+    until it is edited (FR-003, FR-008)."""
+
+    def test_a_height_set_back_to_the_one_shown(self, qtui, tilia, tls, tmp_path):
+        def stored_at_1(doc):
+            for timeline in doc.timelines.values():
+                if timeline.kind in ("range", "score"):
+                    timeline.attrs["height"] = 1
+
+        path = written_by_the_core(EVERY_KIND, tmp_path, stored_at_1)
+        with patch.object(tla_bridge, "state_of", side_effect=as_desktop_895_loads):
+            assert open_file(path)
+        score = first_of_kind(the_document(tilia), "score").id
+        tls.set_timeline_data(score, "height", 50)
+        record()
+        tls.set_timeline_data(score, "height", SHOWN)
+        record()
+
+        assert save()
+
+        assert json.loads(path.read_bytes())["timelines"][score]["height"] == SHOWN
+
+    def test_a_title_set_back_to_untitled(self, qtui, tilia, tmp_path):
+        path = tmp_path / "file.tla"
+        tla.write(path, tla.read(EMPTY))
+        assert open_file(path)
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "X")
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Untitled")
+
+        assert save()
+
+        assert json.loads(path.read_bytes())["metadata"] == {"title": "Untitled"}
+
+
+class TestImportingFields:
+    def test_keeps_the_media_length(self, every_kind, tilia, tmp_path):
+        # The length isn't a field (FR-035), and an import never resets it.
+        assert tla.read(every_kind).media_length == 17.5
+        fields = tmp_path / "fields.json"
+        fields.write_text(
+            json.dumps({"title": "Ständchen", "composer": "Schubert"}),
+            encoding="utf-8",
+        )
+
+        post(Post.REQUEST_IMPORT_MEDIA_METADATA_FROM_PATH, str(fields))
+        assert save()
+
+        saved = tla.read(every_kind)
+        assert saved.media_length == 17.5
+        assert saved.metadata["composer"] == "Schubert"
