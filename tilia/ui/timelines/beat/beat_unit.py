@@ -121,12 +121,20 @@ class BeatUnitUI(TimelineUIElement):
             self.scene.addItem(label)
             self.labels.append(label)
             self._labels_by_measure[label.measure_index] = label
+            owners = self.timeline_ui.label_item_owners
+            for item in label.items():
+                owners[item] = self
+            for glyph in label.body.childItems():
+                owners[glyph] = None
         self._keep_selection()
         self._on_selection_changed()
 
     def _remove_labels(self) -> None:
         self._remove_hover_line()
+        owners = self.timeline_ui.label_item_owners
         for label in self.labels:
+            for item in label.items() + label.body.childItems():
+                owners.pop(item, None)
             self.scene.removeItem(label.body)
             self.scene.removeItem(label)
         self.labels = []

@@ -67,6 +67,11 @@ class BeatTimelineUI(TimelineUI):
         # Time signatures governed by no beat unit (the default) belong to
         # no element, so they are kept here.
         self._default_time_signature_labels: list[TimeSignatureLabel] = []
+        # The beat unit each item of a time signature label belongs to, or
+        # None for the glyphs, which belong to no element, so a selection box
+        # finds it at once rather than by asking every element whether the
+        # item is one of its (see `get_item_owner`).
+        self.label_item_owners: dict[QGraphicsItem, BeatUnitUI | None] = {}
         self._time_signature_pixmaps = None
         super().__init__(*args, **kwargs)
         listen(
@@ -495,9 +500,13 @@ class BeatTimelineUI(TimelineUI):
     def _get_label_owner(self, item: QGraphicsItem | None) -> BeatUnitUI | None:
         if not isinstance(item, TimeSignatureLabel):
             return None
-        return next(
-            (e for e in self.get_item_owner(item) if isinstance(e, BeatUnitUI)), None
-        )
+        return self.label_item_owners.get(item)
+
+    def get_item_owner(self, item: QGraphicsItem) -> list[TimelineUIElement]:
+        if item in self.label_item_owners:
+            owner = self.label_item_owners[item]
+            return [] if owner is None else [owner]
+        return super().get_item_owner(item)
 
     def _get_measure_indices(self, elements: list[BeatUI]):
         measure_indices = set()
