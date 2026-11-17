@@ -211,14 +211,14 @@ class BeatUnitUI(TimelineUIElement):
         """Whether the label of the bar `beat_id` starts is selected here."""
         return beat_id in self._selected
 
-    def set_selected_labels(self, selected: dict[int | str, int]) -> None:
+    def set_selected_labels(self, selected: dict[int | str, int]) -> bool:
         """
         Makes `selected`, first beats of bars with the bars' positions, this
-        beat unit's selected labels, as the timeline UI gives them.
+        beat unit's selected labels, as the timeline UI gives them. Returns
+        whether the inspector was given this beat unit again.
         """
         self._selected = dict(selected)
-        if self._is_selected:
-            self._on_selection_changed()
+        return self._is_selected and self._on_selection_changed()
 
     @property
     def selected_measure_indices(self) -> list[int]:
@@ -317,13 +317,18 @@ class BeatUnitUI(TimelineUIElement):
                 label.set_outlined(measure_index in outlined)
         self._outlined = outlined
 
-    def _on_selection_changed(self) -> None:
-        """Redraws the outline, and refreshes the inspector if its measure moved."""
+    def _on_selection_changed(self) -> bool:
+        """
+        Redraws the outline, and refreshes the inspector if its measure
+        moved. Returns whether it did.
+        """
         self._redraw_outline()
         if self._is_selected and (
             self.inspected_measure_index != self._shown_measure_index
         ):
             self.refresh_inspector()
+            return True
+        return False
 
     def on_left_click(self, item: QGraphicsItem) -> None:
         # A click selects the label alone, as the timeline UI deselects the

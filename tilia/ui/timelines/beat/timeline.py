@@ -380,17 +380,26 @@ class BeatTimelineUI(TimelineUI):
         shares: dict[BeatUnitUI, dict[int | str, int]] = defaultdict(dict)
         for beat_id, measure_index in selection.items():
             shares[owners[measure_index]][beat_id] = measure_index
+        # Whether the inspector was given another beat unit, or lost one.
+        inspector_changed = False
         for beat_unit_ui in beat_unit_uis:
             share = shares.get(beat_unit_ui, {})
             had_labels = beat_unit_ui.has_selected_labels
-            beat_unit_ui.set_selected_labels(share)
+            if beat_unit_ui.set_selected_labels(share):
+                inspector_changed = True
             if share and not beat_unit_ui.is_selected():
                 self.select_element(beat_unit_ui)
+                inspector_changed = True
             elif beat_unit_ui.is_selected() and had_labels and not share:
                 self.deselect_element(beat_unit_ui)
+                inspector_changed = True
 
+        # The inspector shows the beat unit given to it last, which is to be
+        # the one with the label clicked last.
         clicked_owner = owners[selection[clicked]] if clicked is not None else None
-        if clicked_owner is not None and clicked_owner is not old_clicked_owner:
+        if clicked_owner is not None and (
+            inspector_changed or clicked_owner is not old_clicked_owner
+        ):
             clicked_owner.refresh_inspector()
 
     def delete_element(self, element: TimelineUIElement) -> None:

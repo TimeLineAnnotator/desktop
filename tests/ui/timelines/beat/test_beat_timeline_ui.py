@@ -3744,6 +3744,26 @@ class TestClickedLabel:
         assert outlined_measures(tluis[0]) == [1]
         assert widgets["Measure"][1].text() == "2"
 
+    def test_the_inspector_stays_on_the_label_clicked_when_another_moves(
+        self, qtui, tluis
+    ):
+        beat_unit_ui = add_labels_of_one_beat_unit(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(3))
+        click_time_signature_label(
+            tluis[0], beat_unit_ui.get_label(1), modifier="shift"
+        )
+        commands.execute("timeline.element.inspect")
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+        assert widgets["Measure"][1].text() == "2"
+
+        # Another beat unit takes bar 4's label, which is selected, but not
+        # the one clicked last.
+        set_beat_unit(tluis[0], 3, 8, "3")
+
+        assert outlined_measures(tluis[0]) == [1, 3]
+        assert widgets["Measure"][1].text() == "2"
+        assert widgets["Time signature"][1].text() == "3/4"
+
     def test_a_label_clicked_to_end_an_edit_follows_its_bar(self, qtui, tluis):
         beat_unit_ui = add_labels_of_one_beat_unit(tluis)
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(2))
