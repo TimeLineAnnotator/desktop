@@ -1725,9 +1725,7 @@ class BeatTimeline(Timeline):
         # From the last beat back, so each deletion leaves the measures of
         # the beats still to be deleted as they were.
         beats = sorted(
-            (c for c in components if c.KIND == ComponentKind.BEAT),
-            key=self.get_beat_index,
-            reverse=True,
+            (c for c in components if c.KIND == ComponentKind.BEAT), reverse=True
         )
         for beat_unit in beat_units:
             manager.delete_component(beat_unit)
