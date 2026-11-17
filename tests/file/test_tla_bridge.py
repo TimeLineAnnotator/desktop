@@ -623,6 +623,19 @@ class TestKeepsWhatItDoesntShow:
 class TestFileFields:
     """`data-model.md`, *The file's fields*."""
 
+    def test_what_tilia_fills_in_goes_again_with_an_undo_back_to_it(self):
+        # A file without a title or notes: TiLiA shows "Untitled" and "" (#551,
+        # point 1, b).
+        opened = Opened.read(EMPTY)
+        first = copy.deepcopy(opened.current)
+        assert opened.current["media_metadata"]["title"] == "Untitled"
+        opened.current["media_metadata"]["title"] = "Ständchen"
+        opened.current["media_metadata"]["notes"] = "notes"
+        opened.sync()
+        assert opened.doc.metadata == {"title": "Ständchen", "notes": "notes"}
+        opened.undo_to(first)
+        assert opened.bytes() == opened.bytes_read
+
     @staticmethod
     def opened(metadata):
         return Opened.from_content(file_with({}, metadata=metadata))
@@ -1191,7 +1204,7 @@ class TestBeatTimelinesStageOne:
         assert timeline.components[rows[3].id].attrs["measure"]["source"] == "edited"
         assert len(opened.removed[f"{rows[2].id}/measure"]) > 0
         opened.current["timelines"][timeline.id] = before
-        opened.sync()
+        opened.sync(by_person=False)
         assert opened.bytes() == opened.bytes_read, changed_lines(
             opened.bytes_read, opened.bytes()
         )
@@ -2685,6 +2698,8 @@ class TestAnEditThatStartsAMeasureAgain:
         opened.sync()
         assert downbeats(opened.written(timeline_id)) == ids
         assert self.following(opened, timeline_id, ids) == [ids[2]]
+        # A bare mark, as the core's API gives one (#583): not m2's, with its label.
+        assert opened.written(timeline_id)["components"][ids[1]]["measure"] == {}
         assert tla.loads(opened.bytes())
         # Undone one at a time, it gives back the bytes before each edit.
         opened.sync(joined)
