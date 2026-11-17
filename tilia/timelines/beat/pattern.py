@@ -5,7 +5,7 @@ A pattern is a whitespace-separated list of items. An item is a bar or a
 repeated group of items::
 
     items     := item (whitespace item)*
-    item      := bar | INT? "[" items "]"
+    item      := bar | (INT whitespace?)? "[" items "]"
     bar       := INT | numerator "/" INT taps?
     numerator := INT ("+" INT)* ("/" INT)?
     taps      := "(" value (whitespace value)* ")"
@@ -27,7 +27,11 @@ before a ``+``.
 So ``4/4 4/4 3/4`` is three bars, ``10[4/4] 3/4 15[4/4]`` is ten bars of 4/4,
 one of 3/4 and fifteen of 4/4, and ``2[4/4 3[3/4]]`` expands to ``4/4 3/4 3/4
 3/4 4/4 3/4 3/4 3/4``. A group with no count (``[4/4 3/4]``) is played once.
-Spaces are allowed around ``/`` and ``+``, and before ``(``.
+
+The square brackets mark what is repeated, and the number before them how
+often, even with spaces between them: ``4 [4/4 3/4]`` is four times the
+group, eight bars alternating 4/4 and 3/4, not a bar of 4 followed by the
+group. Spaces are also allowed around ``/`` and ``+``, and before ``(``.
 """
 
 from __future__ import annotations
@@ -231,6 +235,7 @@ class _Parser:
     def parse_item(self) -> list[PlannedBar]:
         start = self.pos
         count = self.parse_int() if self.at_digit() else None
+        # A number followed by "[", spaces or not, is the group's count.
         self.skip_whitespace()
 
         if self.at("["):

@@ -358,6 +358,12 @@ class TestReviewedEdgeCases:
         assert bar.units_text == units
         assert parse_units(bar.units_text).is_valid
 
+    def test_a_count_before_a_group_repeats_it_with_spaces_between(self):
+        # The brackets mark what is repeated: four times the group, not a
+        # bar of 4 followed by it.
+        result = parse("4 [4/4 3/4]")
+        assert [bar.numerator for bar in result.planned_bars] == [4, 3] * 4
+
     def test_only_the_last_part_of_a_numerator_can_be_a_fraction(self):
         # A "/" after a part is that part's denominator only when another
         # "/" follows, so only the part before the denominator can be one.
