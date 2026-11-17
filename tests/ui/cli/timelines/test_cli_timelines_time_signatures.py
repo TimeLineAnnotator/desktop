@@ -161,6 +161,14 @@ class TestRemoveTimeSignature:
 
         assert "3/4 because it has 3 taps" in error.call_args.args[0]
 
+    def test_a_measure_of_one_tap_says_one_tap(self, cli, beat_tl):
+        beat_tl.set_beat_amount_in_measure(1, 1)
+
+        with patch("tilia.ui.cli.io.error") as error:
+            cli.parse_and_run("timelines beat time-signatures remove -o 1 -m 2")
+
+        assert error.call_args.args[0].endswith("1/4 because it has 1 tap.")
+
 
 class TestListBars:
     def test_list(self, cli, beat_tl):

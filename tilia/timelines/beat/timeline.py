@@ -843,6 +843,32 @@ class BeatTimeline(Timeline):
             if (beat_unit := self.get_beat_unit_on_beat(beat.id)) is not None
         ]
 
+    def get_time_signature_change(
+        self, measure_index: int
+    ) -> tuple[BeatUnit | None, str]:
+        """
+        The beat unit that changes the time signature at a measure, which
+        removing the change there deletes, so that the one before carries
+        on; or None, and why there is none: a measure whose time signature
+        differs from the one before only because it has another number of
+        taps carries that one on.
+        """
+        meter = self.get_measure_meter(measure_index)
+        if meter.starts_here:
+            return self.get_beat_unit_on_beat(meter.beat_unit_id), ""
+        bar = self.get_measure_as_planned_bar(measure_index)
+        if measure_index and (
+            bar.numerator
+            != self.get_measure_as_planned_bar(measure_index - 1).numerator
+        ):
+            taps = "tap" if bar.beat_count == 1 else "taps"
+            return None, (
+                f"No time signature was set at that measure: it reads "
+                f"{format_time_signature(bar)} because it has {bar.beat_count} "
+                f"{taps}."
+            )
+        return None, "The time signature doesn't change at that measure."
+
     @property
     def beat_quarter_lengths(self) -> list[Fraction]:
         """How long each beat is, in quarter notes."""

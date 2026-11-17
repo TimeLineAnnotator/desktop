@@ -2126,6 +2126,18 @@ def newest_beat_unit_ui(timeline_ui):
     return timeline_ui.get_element(timeline.beat_units[-1].id)
 
 
+def add_bars_of_two_and_three_taps_in_eighths(tluis):
+    """
+    Bars of 2, 3, 2 and 3 taps, starting at 0, 4, 10 and 14 s, the last
+    three in eighths: their labels are the beat unit on bar 2's.
+    """
+    add_beat_timeline_with_pattern("2 3")
+    add_beats(range(0, 20, 2))
+    set_beat_unit(tluis[0], 1, 8, "1")
+    beat_unit_ui = newest_beat_unit_ui(tluis[0])
+    assert [lb.measure_index for lb in beat_unit_ui.labels] == [1, 2, 3]
+
+
 def assert_only_the_default_beat_unit(timeline):
     """Every timeline with beats keeps a beat unit on its first beat."""
     assert [
@@ -2143,6 +2155,20 @@ def all_labels(timeline_ui):
         lb for u in timeline_ui.beat_unit_uis for lb in u.labels
     ]
     return sorted(labels, key=lambda lb: lb.measure_index)
+
+
+def press_in_label_row(timeline_ui, time):
+    """Presses the mouse in the row of time signature labels, at `time`."""
+    y = all_labels(timeline_ui)[0].rect().center().y()
+    click_timeline_ui(timeline_ui, time, y)
+
+
+def drag_in_label_row(timeline_ui, time, release=True):
+    """Drags the selection box from the press to `time`, a little lower."""
+    y = all_labels(timeline_ui)[0].rect().center().y()
+    drag_mouse_in_timeline_view(
+        time_x_converter.get_x_by_time(time), y + 2, release=release
+    )
 
 
 class TestTimeSignatures:
@@ -2389,6 +2415,55 @@ class TestTimeSignatures:
 
         assert_only_the_default_beat_unit(tluis[0].timeline)
         assert label_texts(all_labels(tluis[0])) == [("2", "4")]
+
+    def test_deleting_a_label_where_no_time_signature_was_set(
+        self, tluis, tilia_errors
+    ):
+        # The 3/4 bar has three taps under the 4/4 bar's beat unit, so its
+        # label is that beat unit's.
+        add_beat_timeline_with_pattern("4/4 3/4")
+        add_beats(range(7))
+        assert label_texts(all_labels(tluis[0])) == [("4", "4"), ("3", "4")]
+        click_time_signature_label(tluis[0], all_labels(tluis[0])[1])
+
+        commands.execute("timeline.component.delete")
+
+        timeline = tluis[0].timeline
+        assert [(u.units, u.denominator, u.assumed) for u in timeline.beat_units] == [
+            ("1", 4, False)
+        ]
+        assert [is_drawn_assumed(lb) for lb in all_labels(tluis[0])] == [False] * 2
+        tilia_errors.assert_in_error_message(
+            "No time signature was set at that measure: it reads 3/4 because it "
+            "has 3 taps."
+        )
+
+    def test_deleting_labels_removes_the_changes_set_where_they_are(
+        self, tluis, tilia_errors
+    ):
+        add_bars_of_two_and_three_taps_in_eighths(tluis)
+
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
+        with undoable():
+            commands.execute("timeline.component.delete")
+
+        tilia_errors.assert_no_error()
+        assert_only_the_default_beat_unit(tluis[0].timeline)
+        assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
+
+    def test_deleting_labels_where_no_time_signature_was_set(self, tluis, tilia_errors):
+        add_bars_of_two_and_three_taps_in_eighths(tluis)
+
+        press_in_label_row(tluis[0], 7)
+        drag_in_label_row(tluis[0], 18)
+        commands.execute("timeline.component.delete")
+
+        assert len(tluis[0].timeline.beat_units) == 2
+        tilia_errors.assert_in_error_message(
+            "No time signature was set at that measure: it reads 2/8 because it "
+            "has 2 taps."
+        )
 
     def test_beat_units_do_not_count_as_beats(self, tluis):
         add_beat_timeline_with_pattern("2")
@@ -3328,24 +3403,12 @@ class TestSelectionBoxOverLabels:
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
         return tluis[0].get_element(tluis[0].timeline.beat_units[0].id)
 
-    @staticmethod
-    def press_in_label_row(timeline_ui, time):
-        y = all_labels(timeline_ui)[0].rect().center().y()
-        click_timeline_ui(timeline_ui, time, y)
-
-    @staticmethod
-    def drag_in_label_row(timeline_ui, time, release=True):
-        y = all_labels(timeline_ui)[0].rect().center().y()
-        drag_mouse_in_timeline_view(
-            time_x_converter.get_x_by_time(time), y + 2, release=release
-        )
-
     def test_every_label_under_the_box_is_selected(self, tluis):
         beat_unit_ui = self.add_labels(tluis)
         click_time_signature_label(tluis[0], beat_unit_ui.get_label(0))
 
-        self.press_in_label_row(tluis[0], 2)
-        self.drag_in_label_row(tluis[0], 18)
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18)
 
         assert tluis[0].selected_elements == [beat_unit_ui]
         assert outlined_measures(tluis[0]) == [1, 2, 3]
@@ -3353,17 +3416,17 @@ class TestSelectionBoxOverLabels:
     def test_a_label_the_box_leaves_is_no_longer_selected(self, tluis):
         self.add_labels(tluis)
 
-        self.press_in_label_row(tluis[0], 2)
-        self.drag_in_label_row(tluis[0], 18, release=False)
-        self.drag_in_label_row(tluis[0], 7)
+        press_in_label_row(tluis[0], 2)
+        drag_in_label_row(tluis[0], 18, release=False)
+        drag_in_label_row(tluis[0], 7)
 
         assert outlined_measures(tluis[0]) == [1]
 
     def test_the_inspector_shows_the_first_label_under_the_box(self, qtui, tluis):
         self.add_labels(tluis)
 
-        self.press_in_label_row(tluis[0], 7)
-        self.drag_in_label_row(tluis[0], 18)
+        press_in_label_row(tluis[0], 7)
+        drag_in_label_row(tluis[0], 18)
         commands.execute("timeline.element.inspect")
 
         widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets

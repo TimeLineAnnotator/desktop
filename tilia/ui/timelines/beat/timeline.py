@@ -401,6 +401,49 @@ class BeatTimelineUI(TimelineUI):
         self.timeline.delete_components(others)
         return True
 
+    @with_elements
+    def on_delete_component(self, elements: list[TimelineUIElement]) -> bool:
+        """
+        Deletes the selected beats, and removes the time signature changes
+        at the measures of the selected labels, as the command line's
+        `time-signatures remove` does (see
+        `BeatTimeline.get_time_signature_change`): a label that differs from
+        the one before only because its measure has other taps marks none,
+        so the beat unit it shows stays. If nothing is left to delete, says
+        why.
+        """
+        timeline = self.timeline
+        to_delete = [e.tl_component for e in elements if isinstance(e, BeatUI)]
+        errors = []
+        for measure_index in self._get_selected_label_measures(elements):
+            beat_unit, error = timeline.get_time_signature_change(measure_index)
+            if beat_unit is None:
+                errors.append(error)
+            elif all(beat_unit is not other for other in to_delete):
+                to_delete.append(beat_unit)
+
+        if not to_delete:
+            if errors:
+                tilia.errors.display(tilia.errors.TIME_SIGNATURE_NOT_REMOVED, errors[0])
+            return False
+        timeline.delete_components(to_delete)
+        return True
+
+    @staticmethod
+    def _get_selected_label_measures(elements: list[TimelineUIElement]) -> list[int]:
+        """
+        The measures of the selected labels of the beat units in `elements`,
+        in order. A beat unit selected without a label shows its selection
+        where it starts.
+        """
+        measure_indices = set()
+        for element in elements:
+            if isinstance(element, BeatUnitUI):
+                measure_indices.update(
+                    element.selected_measure_indices or [element.start_measure_index]
+                )
+        return sorted(measure_indices)
+
     def _get_measure_indices(self, elements: list[BeatUI]):
         measure_indices = set()
         for e in elements:

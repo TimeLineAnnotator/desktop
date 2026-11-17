@@ -4,7 +4,7 @@ import argparse
 from collections.abc import Callable
 from functools import wraps
 
-from tilia.timelines.beat.pattern import format_time_signature, parse
+from tilia.timelines.beat.pattern import parse
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.ui.cli import io
 from tilia.ui.cli.timelines.utils import (
@@ -249,20 +249,11 @@ def remove_time_signature(
     measure_index = _resolve_measure(timeline, namespace)
     if measure_index is None:
         return
-    meter = timeline.get_measure_meter(measure_index)
-    if not meter.starts_here:
-        bars = timeline.get_measures_as_planned_bars()
-        bar = bars[measure_index]
-        if measure_index and bar.numerator != bars[measure_index - 1].numerator:
-            io.error(
-                f"No time signature was set at that measure: it reads "
-                f"{format_time_signature(bar)} because it has {bar.beat_count} "
-                "taps."
-            )
-        else:
-            io.error("The time signature doesn't change at that measure.")
+    beat_unit, error = timeline.get_time_signature_change(measure_index)
+    if beat_unit is None:
+        io.error(error)
         return
-    timeline.delete_components([timeline.get_beat_unit_on_beat(meter.beat_unit_id)])
+    timeline.delete_components([beat_unit])
 
 
 @with_timeline
