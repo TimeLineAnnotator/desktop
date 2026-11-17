@@ -51,8 +51,10 @@ class BeatUnitUI(TimelineUIElement):
     """
     A beat unit, which gives the taps of the measures it governs their
     values, has no mark of its own: it is shown, and selected, through the
-    time signature labels of those measures. The inspector edits the time
-    signature of the measure whose label was clicked.
+    time signature labels of those measures. Clicking a label selects it,
+    and a selection box selects every label it goes over. The inspector
+    edits the time signature of the measure whose label was clicked, or of
+    the first selected one.
     """
 
     UPDATE_TRIGGERS = ["denominator", "units", "beat_id", "assumed"]
@@ -92,6 +94,9 @@ class BeatUnitUI(TimelineUIElement):
         # The first beat of the measure whose label was last clicked while
         # selected (see `active_measure_index`).
         self._clicked_beat_id: int | str | None = None
+        # The first beats of the measures whose labels a selection box went
+        # over while selected (see `selected_measure_indices`).
+        self._boxed_beat_ids: set[int | str] = set()
         # An inspector edit waiting for the mouse to be released, so the same
         # edit reported twice asks once.
         self._pending_edit: tuple[str, Any] | None = None
@@ -173,31 +178,60 @@ class BeatUnitUI(TimelineUIElement):
         timeline = self.timeline_ui.timeline
         return timeline.get_measure_started_by(self._clicked_beat_id)
 
+    @property
+    def selected_measure_indices(self) -> list[int]:
+        """
+        The measures whose labels are selected, in order: the one last
+        clicked and those a selection box went over, kept as the clicked one
+        is (see `active_measure_index`).
+        """
+        timeline = self.timeline_ui.timeline
+        beat_ids = set(self._boxed_beat_ids)
+        if self._clicked_beat_id is not None:
+            beat_ids.add(self._clicked_beat_id)
+        indices = {timeline.get_measure_started_by(beat_id) for beat_id in beat_ids}
+        return sorted(index for index in indices if index is not None)
+
+    def _get_first_beat_id(self, label: TimeSignatureLabel) -> int | str:
+        timeline = self.timeline_ui.timeline
+        return timeline[timeline.beats_that_start_measures[label.measure_index]].id
+
     def _set_active_label(self, item: QGraphicsItem) -> None:
         if isinstance(item, TimeSignatureLabel):
-            timeline = self.timeline_ui.timeline
-            first_beat_index = timeline.beats_that_start_measures[item.measure_index]
-            self._clicked_beat_id = timeline[first_beat_index].id
+            self._clicked_beat_id = self._get_first_beat_id(item)
             self._update_highlight()
 
-    def _get_highlighted_label(self) -> TimeSignatureLabel | None:
+    def on_selection_box_select(self, item: QGraphicsItem) -> None:
+        if isinstance(item, TimeSignatureLabel):
+            self._boxed_beat_ids.add(self._get_first_beat_id(item))
+            self._update_highlight()
+
+    def on_selection_box_deselect(self, item: QGraphicsItem) -> None:
+        if isinstance(item, TimeSignatureLabel):
+            self._boxed_beat_ids.discard(self._get_first_beat_id(item))
+            self._update_highlight()
+
+    def _get_highlighted_labels(self) -> list[TimeSignatureLabel]:
         """
-        The label the selection is shown on: the one last clicked, or, if it
-        is gone or none was clicked, the one where the beat unit starts.
+        The labels the selection is shown on: the selected ones, or, if none
+        of them is shown or none was selected, the one where the beat unit
+        starts.
         """
         if not self.labels:
-            return None
-        active = self.active_measure_index
-        if active is not None:
-            label = self.get_label(active)
-            if label is not None:
-                return label
-        return self.get_label(self.start_measure_index) or self.labels[0]
+            return []
+        selected = [
+            label
+            for measure_index in self.selected_measure_indices
+            if (label := self.get_label(measure_index)) is not None
+        ]
+        if selected:
+            return selected
+        return [self.get_label(self.start_measure_index) or self.labels[0]]
 
     def _update_highlight(self) -> None:
-        highlighted = self._get_highlighted_label() if self._is_selected else None
+        highlighted = self._get_highlighted_labels() if self._is_selected else []
         for label in self.labels:
-            label.set_selected(label is highlighted)
+            label.set_selected(any(label is other for other in highlighted))
 
     def on_left_click(self, item: QGraphicsItem) -> None:
         self._set_active_label(item)
@@ -218,9 +252,15 @@ class BeatUnitUI(TimelineUIElement):
 
     @property
     def inspected_measure_index(self) -> int:
-        """The measure whose label was clicked, or where the beat unit starts."""
+        """
+        The measure whose label was clicked, or else the first selected one,
+        or else where the beat unit starts.
+        """
         active = self.active_measure_index
-        return self.start_measure_index if active is None else active
+        if active is not None:
+            return active
+        selected = self.selected_measure_indices
+        return selected[0] if selected else self.start_measure_index
 
     def _get_inspected_bar(self, beat_count: int | None = None) -> PlannedBar:
         """The inspected measure, over `beat_count` beats or the ones it has."""
@@ -312,6 +352,7 @@ class BeatUnitUI(TimelineUIElement):
     def on_deselect(self) -> None:
         self._is_selected = False
         self._clicked_beat_id = None
+        self._boxed_beat_ids.clear()
         self._update_highlight()
 
     def update_position(self) -> None:

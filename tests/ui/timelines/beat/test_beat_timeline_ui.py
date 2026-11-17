@@ -19,7 +19,11 @@ from tests.ui.timelines.beat.interact import (
     patch_beat_unit_scope_prompt,
     patch_fill_beat_timeline_dialog,
 )
-from tests.ui.timelines.interact import drag_mouse_in_timeline_view, press_key
+from tests.ui.timelines.interact import (
+    click_timeline_ui,
+    drag_mouse_in_timeline_view,
+    press_key,
+)
 from tests.utils import (
     get_command_action,
     get_command_names,
@@ -3294,6 +3298,77 @@ class TestClickedLabel:
 
         assert beat_unit_ui.active_measure_index is None
         assert beat_unit_ui.inspected_measure_index == 0
+
+
+def outlined_measures(timeline_ui):
+    return [
+        lb.measure_index
+        for lb in all_labels(timeline_ui)
+        if lb.pen().style() != Qt.PenStyle.NoPen
+    ]
+
+
+class TestSelectionBoxOverLabels:
+    """
+    A selection box selects every time signature label it goes over, as
+    when cleaning the bars of beats found by automatic beat detection, where
+    one beat unit, on the first beat, governs every label.
+    """
+
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    @staticmethod
+    def add_labels(tluis):
+        """Bars of 2, 3, 2 and 3 taps, starting at 0, 4, 10 and 14 s."""
+        add_beat_timeline_with_pattern("2 3")
+        add_beats(range(0, 20, 2))
+        assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("3", "4")] * 2
+        return tluis[0].get_element(tluis[0].timeline.beat_units[0].id)
+
+    @staticmethod
+    def press_in_label_row(timeline_ui, time):
+        y = all_labels(timeline_ui)[0].rect().center().y()
+        click_timeline_ui(timeline_ui, time, y)
+
+    @staticmethod
+    def drag_in_label_row(timeline_ui, time, release=True):
+        y = all_labels(timeline_ui)[0].rect().center().y()
+        drag_mouse_in_timeline_view(
+            time_x_converter.get_x_by_time(time), y + 2, release=release
+        )
+
+    def test_every_label_under_the_box_is_selected(self, tluis):
+        beat_unit_ui = self.add_labels(tluis)
+        click_time_signature_label(tluis[0], beat_unit_ui.get_label(0))
+
+        self.press_in_label_row(tluis[0], 2)
+        self.drag_in_label_row(tluis[0], 18)
+
+        assert tluis[0].selected_elements == [beat_unit_ui]
+        assert outlined_measures(tluis[0]) == [1, 2, 3]
+
+    def test_a_label_the_box_leaves_is_no_longer_selected(self, tluis):
+        self.add_labels(tluis)
+
+        self.press_in_label_row(tluis[0], 2)
+        self.drag_in_label_row(tluis[0], 18, release=False)
+        self.drag_in_label_row(tluis[0], 7)
+
+        assert outlined_measures(tluis[0]) == [1]
+
+    def test_the_inspector_shows_the_first_label_under_the_box(self, qtui, tluis):
+        self.add_labels(tluis)
+
+        self.press_in_label_row(tluis[0], 7)
+        self.drag_in_label_row(tluis[0], 18)
+        commands.execute("timeline.element.inspect")
+
+        widgets = qtui._windows[WindowKind.INSPECT].field_name_to_widgets
+        assert widgets["Measure"][1].text() == "3"
+        assert widgets["Time signature"][1].text() == "2/4"
 
 
 class TestFileFromBeforeBeatUnits:

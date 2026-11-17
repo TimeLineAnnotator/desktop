@@ -968,6 +968,7 @@ class TimelineUIs:
             return
 
         timeline_ui.select_element(element)
+        element.on_selection_box_select(item)
         # keep track of selection triggers under selection box
         if element in self.sb_items_to_selected_items:
             self.sb_items_to_selected_items[element].add(item)
@@ -989,6 +990,7 @@ class TimelineUIs:
             return
 
         self.sb_items_to_selected_items[element].remove(item)
+        element.on_selection_box_deselect(item)
 
         # stop tracking element if there are no more selection triggers under
         # selection box
