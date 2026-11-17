@@ -140,6 +140,9 @@ def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
             component.pre_start = pre_start * factor
         if post_end is not None:
             component.post_end = post_end * factor
+        # Set directly, its digest must follow, as `set_data` makes it: the file
+        # follows TiLiA only where a digest changes.
+        component.update_hash()
 
 
 def crop_segmentlike(cm: TimelineComponentManager, length: float) -> None:

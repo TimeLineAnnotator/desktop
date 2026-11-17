@@ -245,12 +245,14 @@ class FileManager:
         self.file.media_metadata[field_name] = value
         if field_name == "title":
             post(Post.MEDIA_METADATA_TITLE_UPDATED, value)
+        self.sync_document()
 
     def on_add_media_metadata_field(self, field_name: str) -> None:
         """Adds a new media metadata field."""
         if field_name in self.file.media_metadata:
             raise MediaMetadataFieldAlreadyExists(f"Field {field_name} already exists.")
         self.file.media_metadata[field_name] = ""
+        self.sync_document()
 
     def on_update_media_metadata_fields(
         self, fields: list, renamed_fields: dict[str, str] | None = None
@@ -269,6 +271,7 @@ class FileManager:
             new_metadata[field] = value
 
         self.set_media_metadata(MediaMetadata.from_dict(new_metadata))
+        self.sync_document()
 
     def on_import_media_metadata_request(self, path: Path | str) -> None:
         try:
@@ -284,6 +287,12 @@ class FileManager:
             return
 
         self.set_media_metadata(MediaMetadata.from_dict(data))
+        self.sync_document()
+
+    def sync_document(self) -> None:
+        """Makes the document follow an edit of the file's fields, a person's edit
+        that records nothing for undo, so that an autosave in between writes it."""
+        self.file.sync(get(Get.APP_STATE))
 
     @staticmethod
     def get_media_metadata_required_fields():
@@ -297,7 +306,7 @@ class FileManager:
         self.file.sync(state)
         # The document read, or the new one: never one built again from the state,
         # which would have no fingerprint for the check before saving.
-        tla.write(path, self.file.document)
+        self.file.write(path)
         # The file open is now the one written, and the document follows it.
         self.file.file_path = Path(
             path.resolve() if isinstance(path, Path) else path

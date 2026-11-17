@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import copy
+import os
 import threading
+from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from tilia.file import tla_bridge
 from tilia.file.media_metadata import MediaMetadata
 from tilia.log import logger
 from tilia_core import tla
+from tilia_core.tla.writer import rebase_paths
 
 _MEDIA_LENGTH = "media length"
 
@@ -29,7 +33,9 @@ class OpenDocument:
 
     `synced` is the state the document reflects, and `sync` applies to it what differs
     from that state. `removed` keeps what `sync` took out of it, so that an undo gets
-    it back whole.
+    it back whole. For each state undo records, `remember` keeps what the document
+    then held that the state can't tell (`tla_bridge.history_of`), and an undo or a
+    redo back to that state gives it back.
 
     `media_path` is where the media was found, not the path the file stores.
     `timelines` and `timelines_hash` are the state's when the file was last read or
@@ -48,9 +54,14 @@ class OpenDocument:
     unknown_discarded: bool = False
     synced: dict[str, Any] | None = None
     removed: tla_bridge.Removed = field(default_factory=dict)
-    # Taken by `sync` and `copy_for_writing`: the autosaver copies from its thread.
+    # Taken by whatever changes the document or copies it: the autosaver copies
+    # from its thread.
     _lock: threading.Lock = field(
         default_factory=threading.Lock, init=False, repr=False
+    )
+    # By the id of a state undo recorded: that state, and the document's history.
+    _histories: dict[int, tuple[dict[str, Any], tla_bridge.History]] = field(
+        default_factory=dict, init=False, repr=False
     )
 
     def __post_init__(self) -> None:
@@ -69,10 +80,18 @@ class OpenDocument:
                 "timelines": {},
             }
 
-    def sync(self, state: dict[str, Any], *, by_person: bool = True) -> None:
+    def sync(
+        self,
+        state: dict[str, Any],
+        *,
+        by_person: bool = True,
+        back_to: dict[str, Any] | None = None,
+    ) -> None:
         """Makes the document follow `state`, as `App.get_app_state` gives it.
         `by_person` is False for an undo or a redo, which the states alone can't tell
-        from a person's edit. Logs what the document couldn't keep as it was."""
+        from a person's edit. `back_to` is the state undo recorded that an undo or a
+        redo has gone back to: the document gets back what it held then. Logs what
+        the document couldn't keep as it was."""
         with self._lock:
             if self.synced is None:
                 # A document read, before TiLiA took the state it built from it.
@@ -86,9 +105,53 @@ class OpenDocument:
                 removed=self.removed,
                 by_person=by_person,
             )
+            remembered = self._histories.get(id(back_to))
+            if remembered is not None and remembered[0] is back_to:
+                tla_bridge.give_back_history(
+                    self.document, remembered[1], state, removed=self.removed
+                )
             self.synced = state
         for note in notes:
             logger.warning(note)
+
+    def remember(self, state: dict[str, Any]) -> None:
+        """Keeps, for `state`, which undo has just recorded and the document follows,
+        what the document holds that the state can't tell, for an undo or a redo
+        back to it."""
+        with self._lock:
+            self._histories[id(state)] = (state, tla_bridge.history_of(self.document))
+
+    def forget_all_but(self, states: Iterable[dict[str, Any]]) -> None:
+        """Forgets the history kept for any state but these, which undo keeps."""
+        kept = {id(state) for state in states}
+        with self._lock:
+            for key in self._histories.keys() - kept:
+                del self._histories[key]
+
+    def write(self, path: str | Path) -> None:
+        """Writes the document to `path` through the core. Under the lock, so that a
+        copy for writing never sees the document part-way through following the
+        file. The PDF timelines `removed` holds follow the file too, as the
+        document's do, so that one an undo gives back after a Save As still names
+        its PDF. Raises what `tla.write` raises, having changed nothing."""
+        with self._lock:
+            held = {
+                item.id: item
+                for item in self.removed.values()
+                if isinstance(item, tla.Timeline) and item.kind == "pdf"
+            }
+            # The paths as they are now, relative to the folder the document was
+            # read from or last written to.
+            before = copy.copy(self.document)
+            before.timelines = held
+            tla.write(path, self.document)
+            if not held:
+                return
+            # The folder `tla.write` rebases to, and its function.
+            rebased = rebase_paths(before, os.path.dirname(os.path.abspath(path)))
+            for timeline_id, timeline in rebased.timelines.items():
+                if timeline is not held[timeline_id]:
+                    held[timeline_id].attrs["path"] = timeline.attrs["path"]
 
     def note_media_length(self, length: float) -> None:
         """Takes `length`, the player's report for the media the file already has,

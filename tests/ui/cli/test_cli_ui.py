@@ -1,6 +1,10 @@
+import argparse
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
+
+from tilia.timelines.marker.timeline import MarkerTimeline
 
 
 class TestCLI:
@@ -48,10 +52,24 @@ class TestCLI:
                 cli.launch()
         assert not cli._is_running
 
+    @staticmethod
+    def names_in_the_document(tilia):
+        return {tl.name for tl in tilia.file_manager.file.document.timelines.values()}
+
     def test_a_command_s_edit_reaches_the_document_at_once(self, cli, tilia):
         # A command records nothing for undo, so its end is where the document
         # follows TiLiA (TimeLineAnnotator/project-management#449).
-        cli.parse_and_run('metadata set composer "Franz Schubert"')
+        cli.parse_and_run('timelines add marker --name "Added"')
 
-        document = tilia.file_manager.file.document
-        assert document.metadata["composer"] == "Franz Schubert"
+        assert "Added" in self.names_in_the_document(tilia)
+
+    def test_so_does_what_a_failed_command_did(self, cli, tilia):
+        def add_then_fail(_):
+            tilia.timelines.create_timeline(MarkerTimeline, name="Half done")
+            raise RuntimeError("the command failed")
+
+        namespace = argparse.Namespace(func=add_then_fail)
+        with patch.object(cli.parser, "parse_args", return_value=namespace):
+            assert cli.run(["anything"])
+
+        assert "Half done" in self.names_in_the_document(tilia)
