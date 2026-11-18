@@ -7,6 +7,7 @@ import traceback
 from colorama import Fore
 
 import tilia.constants
+import tilia.errors
 from tilia.media.player.qtplayer import QtPlayer
 from tilia.requests import Get, serve
 from tilia.requests.post import Post, listen, post
@@ -27,7 +28,6 @@ from tilia.ui.cli import (
 )
 from tilia.ui.cli.io import ask_yes_or_no, error, tabulate
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
-from tilia.ui.dialogs.problems import problems_message
 
 
 class CLI:
@@ -243,7 +243,7 @@ def on_ask_unknown_timeline_kind_action(kinds: list[str]) -> tuple[bool, bool]:
 
 def on_show_problems(name: str, lines: list[str]) -> None:
     """The warnings a file opened with: what the dialog says, then one line each."""
-    io.output(problems_message(name, len(lines)))
+    io.output(tilia.errors.problems_message(name, len(lines)))
     for line in lines:
         io.output(line)
 
