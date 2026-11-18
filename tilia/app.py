@@ -615,22 +615,23 @@ def problem_line(
 
     A timeline TiLiA shows without its component, such as a beat without a time,
     gives its name alone, and a timeline without a name gives none
-    (TimeLineAnnotator/project-management#597, points 2 and 3)."""
+    (TimeLineAnnotator/project-management#597, points 2 and 3).
+
+    One warning, one line: a line break in the timeline's name or in the reason,
+    which can quote a value as JSON keeps it, is a space."""
     where: list[str] = []
     timeline = timelines.get(warning.timeline_id) if warning.timeline_id else None
     if timeline is not None:
         if timeline.get("name"):
-            # One warning, one line: a line break in the name is a space.
-            where.append(_LINE_BREAK.sub(" ", timeline["name"]))
+            where.append(timeline["name"])
         components = timeline.get("components", {})
         component = (
             components.get(warning.component_id) if warning.component_id else None
         )
         if component is not None:
             where.extend(_shown_time(component))
-    if not where:
-        return warning.message
-    return f"{', '.join(where)}: {warning.message}"
+    line = f"{', '.join(where)}: {warning.message}" if where else warning.message
+    return _LINE_BREAK.sub(" ", line)
 
 
 def _shown_time(component: Mapping[str, Any]) -> list[str]:
