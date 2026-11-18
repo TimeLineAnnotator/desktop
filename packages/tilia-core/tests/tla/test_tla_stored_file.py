@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from tilia_core import tla
-from tilia_core.tla import media_files
+from tilia_core.tla import paths
 
 WINDOWS = os.name == "nt"
 posix_only = pytest.mark.skipif(WINDOWS, reason="a name with a backslash, on POSIX")
@@ -230,14 +230,14 @@ def test_media_is_found_through_it(tmp_path, monkeypatch):
     given = []
     sentinel = tmp_path / "from the lookup"
 
-    def lookup(path, stored):
-        given.append((path, stored))
+    def lookup(path, stored, *, doc):
+        given.append((path, stored, doc))
         return sentinel
 
-    monkeypatch.setattr(media_files, "stored_file", lookup)
+    monkeypatch.setattr(paths, "stored_file", lookup)
     piece = tmp_path / "piece.tla"
     assert tla.media(piece, doc).path == sentinel
-    assert given == [(piece, "audio/piece.wav")]
+    assert given == [(piece, "audio/piece.wav", doc)]
 
 
 def test_media_and_the_lookup_agree(tmp_path):

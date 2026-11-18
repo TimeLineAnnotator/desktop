@@ -12,12 +12,12 @@ a file already migrated, then checks each file:
 - it reads back, without an error;
 - it holds what SOURCE's file holds when read through the migration;
 - an old file's copy is byte for byte what the migration gives, and a second read
-  and write leaves it byte-identical, but for a media or PDF path the migration
-  kept absolute: the copy is a current file now, and that write makes such a path
-  relative wherever it can (FR-033; TimeLineAnnotator/project-management#555). It
-  writes the copy in place. A file already in the current format is left
-  alone by the migration, whatever its layout, so its bytes aren't checked, and
-  the second read and write goes to a file beside it, so that it stays as it was;
+  and write leaves it byte-identical, a media or PDF path the migration kept
+  absolute included, which every write keeps (FR-033;
+  TimeLineAnnotator/project-management#555, option a). It writes the copy in
+  place. A file already in the current format is left alone by the migration,
+  whatever its layout, so its bytes aren't checked, and the second read and
+  write goes to a file beside it, so that it stays as it was;
 - an old file's copy is compared with the original's own JSON, per timeline and
   per component. Reading both through the migration couldn't show what the
   migration itself gets wrong: both sides would have it. The new ids hold what
@@ -66,13 +66,14 @@ from tilia_core.tla.layout import (
     Shape,
     nfc_value,
 )
-from tilia_core.tla.media_files import YOUTUBE_URL, paths_folder, paths_folder_of
+from tilia_core.tla.media_files import YOUTUBE_URL
 from tilia_core.tla.migrate.old import TILIA_0_7_HEIGHTS, renames_display_position
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
     component_kind_from_file,
     timeline_kind_from_file,
 )
+from tilia_core.tla.paths import paths_folder_of
 
 # What reading an old file and reading its migrated copy differ in on purpose: the
 # version it was read from, the warnings of a migration done since, and where it
@@ -557,9 +558,9 @@ def as_migrated(stored: Any, file_path: Any, folder: str, media: bool) -> Any:
     Q4, contract, *Media paths*): relative to `folder`, starting from where TiLiA
     would find it now: where it is, if it is on this computer; else beside
     `file_path`, by that path's own system; else beside the file. Absolute where no
-    relative path exists, which the writer keeps so wherever the file is
-    (TimeLineAnnotator/project-management#530); a URL, or a path written relative
-    by hand, as it is; a YouTube link without a scheme with one."""
+    relative path exists, which every write keeps so wherever the file is
+    (TimeLineAnnotator/project-management#530; #555, option a); a URL, or a path
+    written relative by hand, as it is; a YouTube link without a scheme with one."""
     if not isinstance(stored, str) or not stored or URL.match(stored):
         return stored
     if media and YOUTUBE_URL.match(stored):
@@ -868,54 +869,6 @@ def second_write_changes(copy: Path) -> bool:
         beside.unlink(missing_ok=True)
 
 
-def relative_from(stored: Any, folder: str) -> str | None:
-    """`stored`, a media or PDF path a current file holds, relative to `folder`, the
-    file's own, with "/", as a write makes an absolute path of this system's form
-    wherever a relative one exists (FR-033); None for a path it keeps: empty, a URL,
-    already relative, of the other system's form, or on another drive or share."""
-    if not isinstance(stored, str) or not stored or URL.match(stored):
-        return None
-    form = path_form(stored)
-    if form != HERE:
-        return None
-    try:
-        relative = PATHS[form].relpath(stored, folder)
-    except ValueError:  # on another drive or share
-        return None
-    return relative.replace("\\", "/") if form == "windows" else relative
-
-
-def made_relative(written: bytes, folder: str) -> bytes:
-    """`written`, the bytes the migration wrote for a file in `folder`, as a second
-    read and write should give them: each media or PDF path the migration kept
-    absolute made relative to `folder` wherever a relative one exists, by that
-    path's own system's rules, and every other byte as written. The write that
-    converted the old file kept such a path absolute
-    (TimeLineAnnotator/project-management#530); the copy is a current file now, and
-    the next write makes it relative wherever it can (FR-033, #555)."""
-    content = json.loads(written)
-    media = content.get("media")
-    paths = [media.get("path") if isinstance(media, dict) else None]
-    paths += [
-        timeline.get("path")
-        for timeline in content.get("timelines", {}).values()
-        if isinstance(timeline, dict) and timeline.get("kind") == "Pdf"
-    ]
-    expected = written
-    for stored in paths:  # in the order the file holds them
-        relative = relative_from(stored, folder)
-        if relative is not None:
-            # Each as the writer writes a key and its text.
-            before, after = (
-                f'"path": {json.dumps(text, ensure_ascii=False)}'.encode(
-                    "utf-8", "surrogatepass"
-                )
-                for text in (stored, relative)
-            )
-            expected = expected.replace(before, after, 1)
-    return expected
-
-
 def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[str]]:
     """The differences between a file of SOURCE and its migrated copy; what is worth
     saying about it and isn't one; and what the copy holds."""
@@ -947,7 +900,7 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
         found.extend(against_old_file(content, after, dropped))
         notes.extend(dropped.found)
         tla.write(copy, after, expect=tla.fingerprint(copy))
-        if copy.read_bytes() != made_relative(written, paths_folder(copy)):
+        if copy.read_bytes() != written:
             found.append(SECOND_WRITE_CHANGED)
     return found, notes, held_in(after)
 

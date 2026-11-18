@@ -13,7 +13,6 @@ it expects to replace, or that it expects no file.
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import errno
 import hashlib
@@ -58,19 +57,7 @@ from tilia_core.tla.layout import (
     nfc_text,
     pointer_to,
 )
-from tilia_core.tla.media_files import (
-    POSIX,
-    SYSTEM,
-    absolute_form,
-    is_relative,
-    paths_folder,
-    paths_folder_of,
-    pdf_path_place,
-    relative_path,
-    with_slashes,
-)
 from tilia_core.tla.model import (
-    MEDIA_PATH_PLACE,
     TIMELINE_COMPONENTS,
     Component,
     Document,
@@ -86,6 +73,7 @@ from tilia_core.tla.model import (
     timeline_kind_to_file,
 )
 from tilia_core.tla.parse import MAX_DEPTH
+from tilia_core.tla.paths import follow, paths_folder, rebase_paths
 from tilia_core.tla.problems import (
     cant_check,
     find_problems,
@@ -616,133 +604,6 @@ def _found(
         return None
 
 
-def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
-    """`doc` with its media's path and its PDF timelines' paths as a file in
-    `folder` stores them (FR-003, FR-033), with "/".
-
-    An absolute path becomes relative to `folder` wherever a relative path
-    exists, so not on another drive on Windows, but for one the migration kept
-    absolute in `doc`, read from an old file and not yet written: the write
-    that converts the file keeps that one absolute, wherever it writes it, while
-    its place still holds it: the media's until `media_path` is set, even to the
-    same text, and a PDF timeline's while that timeline has that path
-    (TimeLineAnnotator/project-management#530, #555). When `folder` isn't the
-    one `doc` was read from or last written to (`paths_folder_of`: the folder
-    of the file a link named, when it was reached through a link to a file), a
-    relative path is resolved against that one and made
-    relative to `folder`, or absolute where no relative path exists. A stored
-    relative path is joined with POSIX semantics, "/" between its parts: a
-    backslash in it is part of a name, never converted, so that the same
-    document gives the same bytes on every system (FR-023). A Windows path
-    that stays absolute, or becomes so, is written with "/". An empty path, a
-    URL, and a relative path in a document read from nowhere, whose base is
-    unknown, are kept. `doc` isn't changed: when a path changes, a copy is
-    returned, sharing with `doc` what didn't change."""
-    folder = _absolute_folder(folder)
-    read_from = paths_folder_of(doc)
-    origin = None if read_from is None else _absolute_folder(read_from)
-    if origin is not None and os.path.normcase(origin) == os.path.normcase(folder):
-        origin = None  # its relative paths are already relative to `folder`
-    read = dict(doc._absolute_as_read)
-    media_path = _rebased(doc.media_path, origin, folder, read.get(MEDIA_PATH_PLACE))
-    changed: dict[str, Timeline] = {}
-    if isinstance(doc.timelines, dict):
-        for key, timeline in doc.timelines.items():
-            if not (
-                isinstance(timeline, Timeline)
-                and timeline.kind == "pdf"
-                and isinstance(timeline.attrs, dict)
-            ):
-                continue
-            path = timeline.attrs.get("path")
-            rebased = _rebased(path, origin, folder, read.get(pdf_path_place(key)))
-            if rebased != path:
-                attrs = {**timeline.attrs, "path": rebased}
-                changed[key] = dataclasses.replace(timeline, attrs=attrs)
-    if media_path == doc.media_path and not changed:
-        return doc
-    timelines = {**doc.timelines, **changed} if changed else doc.timelines
-    return dataclasses.replace(doc, media_path=media_path, timelines=timelines)
-
-
-def _absolute_folder(folder: str | os.PathLike[str]) -> str:
-    """`folder` absolute, links not followed. On macOS and Linux, the two
-    slashes `os.path.abspath` keeps at the start of `//home/me`, which `Path`
-    takes for a root of their own, are the one root."""
-    absolute = os.path.abspath(folder)
-    return absolute[1:] if SYSTEM == POSIX and absolute.startswith("//") else absolute
-
-
-def _rebased(stored: Any, origin: str | None, folder: str, read: str | None) -> Any:
-    """`stored` as a file in `folder` stores it; `origin` is the folder its
-    relative paths are relative to when that isn't `folder`, or None; `read`
-    the absolute path the document was read or last written with at its place,
-    if it still holds it, or None."""
-    if not isinstance(stored, str):
-        return stored  # for the check to refuse
-    form = absolute_form(stored)
-    if form is not None:
-        # The one the document was read with stays absolute, and one of the
-        # other system's form has no relative path from here.
-        relative = (
-            relative_path(stored, folder, form)
-            if form == SYSTEM and stored != read
-            else None
-        )
-        return with_slashes(stored, form) if relative is None else relative
-    if origin is None or not is_relative(stored):
-        # Empty, a URL, relative to a drive or its root, or already relative
-        # to `folder`: kept as written.
-        return stored
-    return _moved(stored, origin, folder)
-
-
-def _moved(stored: str, origin: str, folder: str) -> str:
-    """`stored`, a path relative to the folder `origin`, as relative to
-    `folder`: as `os.path.relpath` would give it, except that the stored path
-    is split on "/" only and its names are compared exactly, on every system,
-    so that a backslash in one stays part of it and a document gives the same
-    bytes everywhere (FR-023). The two folders, which the system gave, are
-    compared as it reads them. Where no relative path exists (another drive
-    on Windows), absolute and normalised, with "/": in a path of Windows form,
-    a backslash separates folders."""
-    parts = _collapsed(stored)
-    up = 0
-    while up < len(parts) and parts[up] == "..":
-        up += 1
-    names = parts[up:]
-    base = Path(origin).parts
-    base = base[: max(1, len(base) - up)]  # never above the root
-    here = Path(folder).parts
-    if os.path.normcase(base[0]) != os.path.normcase(here[0]):
-        return with_slashes(os.path.normpath(os.path.join(origin, stored)), SYSTEM)
-    target = [*base, *names]
-    same = 0
-    for mine, theirs in zip(here, target, strict=False):  # up to the shorter
-        if same < len(base):  # two folders the system gave, not a stored name
-            mine, theirs = os.path.normcase(mine), os.path.normcase(theirs)
-        if mine != theirs:
-            break
-        same += 1
-    return "/".join([".."] * (len(here) - same) + target[same:]) or "."
-
-
-def _collapsed(stored: str) -> list[str]:
-    """The names of `stored`, split on "/", without "." and without a ".." that
-    can go back over the name before it. A ".." after a name holding a
-    backslash stays: what it goes back over differs by system, a part of that
-    name on Windows and all of it on macOS and Linux."""
-    names: list[str] = []
-    for name in stored.split("/"):
-        if name in ("", "."):
-            continue
-        if name == ".." and names and names[-1] != ".." and "\\" not in names[-1]:
-            names.pop()
-        else:
-            names.append(name)
-    return names
-
-
 def write(
     path: str | os.PathLike[str],
     doc: Document,
@@ -759,24 +620,24 @@ def write(
     `FileChanged` is raised and nothing is written (FR-042). The check and the
     rename are two steps: a change between them isn't caught.
 
-    The media's path and PDF timelines' paths are written relative to the
-    folder of `path` wherever a relative path exists, recomputed when it
-    isn't the folder `doc` was read from or last written to (`rebase_paths`,
-    FR-033). When `path` is a link to a file, that is the folder of the file
-    the link names, which the reader resolves them against too, so that the
-    file has one set of paths, whichever way it is reached; a link to a folder
-    isn't followed (`paths_folder`; TimeLineAnnotator/project-management#431).
-    The first write of a document read from an old file, which
-    converts the file, keeps a path the migration kept absolute
-    (TimeLineAnnotator/project-management#530, #555). After a successful
-    write, `doc` follows the file: its `origin` is `path`, its `fingerprint` is
-    the one returned, and its media and PDF paths are the ones written, so that
-    `canonical_bytes(doc)` and `fingerprint_of(doc)` are what is on disk, and
-    it is a current file's document, whose next write makes an absolute path
-    relative wherever it can. A write that fails leaves `doc` as it was. The
-    write changes `doc`'s own timelines: a document the caller wants to keep as
-    it was must be copied with `copy.deepcopy` first, since a shallow copy
-    shares its timelines.
+    The paths it stores, the media's and PDF timelines', go through the path
+    handler (`tla.paths`, FR-033). A path `doc` was read, or last written,
+    with absolute stays absolute while the text at its place is the text read,
+    however it got there, Save As included; any other is written relative to
+    the folder of `path` wherever a relative path exists, recomputed when it
+    isn't the folder `doc` was read from or last written to
+    (`paths.rebase_paths`; TimeLineAnnotator/project-management#555, option a;
+    #582). When `path` is a link to a file, that is the folder of the file the
+    link names, which the reader resolves them against too, so that the file
+    has one set of paths, whichever way it is reached; a link to a folder isn't
+    followed (`paths.paths_folder`; TimeLineAnnotator/project-management#431).
+    After a successful write, `doc` follows the file: its `origin` is `path`,
+    its `fingerprint` is the one returned, and its paths are the ones written,
+    so that `canonical_bytes(doc)` and `fingerprint_of(doc)` are what is on
+    disk; those written absolute stay so in its next write. A write that fails
+    leaves `doc` as it was. The write changes `doc`'s own timelines: a document
+    the caller wants to keep as it was must be copied with `copy.deepcopy`
+    first, since a shallow copy shares its timelines.
 
     A link stays a link, and the file it names is written; the file keeps its
     permission bits. A folder is refused with `IsADirectoryError`, and a
@@ -821,7 +682,7 @@ def write(
         if _held_open(error):
             raise FileInUse(path) from error
         raise
-    _follow(doc, rebased, path, folder)
+    follow(doc, rebased, path, folder)
     doc.read_problems = problems
     doc.read_unmeasured = unmeasured_states
     doc.unmeasured_edits = {}
@@ -839,29 +700,6 @@ def _read_digest(doc: Document, expect: str) -> str | None:
     if doc._read_digest is None or made != expect:
         return None
     return doc._read_digest
-
-
-def _follow(
-    doc: Document, rebased: Document, path: str | os.PathLike[str], folder: str
-) -> None:
-    """Make `doc` follow the file just written at `path` from `rebased`, its
-    copy with the paths as written relative to `folder` (FR-033): its origin
-    becomes the file, as the reader sets it, with that folder, and its media
-    and PDF paths the ones written. The
-    file is a current one now, so the document keeps no path absolute that the
-    migration kept so (TimeLineAnnotator/project-management#555). The
-    timelines keep their objects; only a rebased PDF timeline's path
-    changes."""
-    doc.origin = Path(os.path.abspath(path))
-    doc._paths_folder = (doc.origin, folder)
-    doc._absolute_as_read = ()
-    if rebased is doc:
-        return
-    doc.media_path = rebased.media_path
-    for key, timeline in rebased.timelines.items():
-        own = doc.timelines[key]
-        if timeline is not own:  # a PDF timeline whose path was rebased
-            own.attrs["path"] = timeline.attrs["path"]
 
 
 def _checked_with_the_rules(
