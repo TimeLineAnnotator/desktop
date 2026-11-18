@@ -103,8 +103,8 @@ class TestProblems:
 
         printed = capsys.readouterr().out.replace(Fore.RESET, "")
         assert printed.splitlines() == [
-            "'old.tla' has 1 problem. TiLiA keeps it as it is, and saves it unchanged"
-            " until you fix it.",
+            "'old.tla' has 1 problem. TiLiA keeps them as they are, and saves them"
+            " unchanged until you fix them.",
             'Form, 00:00.0–00:10.0: formal_type "sonata" dropped',
         ]
 
