@@ -74,7 +74,7 @@ def at_level_0(content):
     hierarchies((FIRST, {"start": 12.0, "end": 45.5, "level": 0}))(content)
 
 
-def an_old_file(tmp_path: Path) -> Path:
+def an_old_file(tmp_path: Path, formal_type: str = "sonata") -> Path:
     """A file as TiLiA 0.7 saved it, with a formal type and a formal function."""
     file_data = get_blank_file_data()
     file_data["version"] = "0.7.0"
@@ -94,7 +94,7 @@ def an_old_file(tmp_path: Path) -> Path:
                 "level": 1,
                 "label": "kept",
                 "color": "",
-                "formal_type": "sonata",
+                "formal_type": formal_type,
                 "formal_function": "opening",
                 "comments": "",
                 "kind": "HIERARCHY",
@@ -271,6 +271,20 @@ class TestAnOldFile:
     def test_its_dropped_formal_type_is_shown_when_it_opens(self, opening, tmp_path):
         assert lines_shown(an_old_file(tmp_path)) == [
             'Form, 00:00.0–01:40.0: formal_type "sonata" dropped',
+            'Form, 00:00.0–01:40.0: formal_function "opening" dropped',
+        ]
+
+    @pytest.mark.parametrize(
+        "line_break",
+        [chr(0x2028), chr(0x2029), chr(0x85)],
+        ids=["line separator", "paragraph separator", "next line"],
+    )
+    def test_a_line_break_in_the_reason_is_a_space(self, opening, tmp_path, line_break):
+        # The migration's reason quotes the value as JSON, which keeps these.
+        path = an_old_file(tmp_path, formal_type=f"sonata{line_break}form")
+
+        assert lines_shown(path) == [
+            'Form, 00:00.0–01:40.0: formal_type "sonata form" dropped',
             'Form, 00:00.0–01:40.0: formal_function "opening" dropped',
         ]
 
