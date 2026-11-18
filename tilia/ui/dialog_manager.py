@@ -22,6 +22,7 @@ from tilia.ui.dialogs.file import (
 )
 from tilia.ui.dialogs.harmony_params import ask_for_harmony_params
 from tilia.ui.dialogs.mode_params import ask_for_mode_params
+from tilia.ui.dialogs.problems import show_problems
 from tilia.ui.timelines.beat.dialogs import (
     ask_beat_timeline_fill_method,
     ask_for_beat_pattern,
@@ -32,6 +33,7 @@ class DialogManager:
     def __init__(self):
         SERVES = {
             (Get.FROM_USER_SHOULD_SAVE_CHANGES, ask_should_save_changes),
+            (Get.FROM_USER_SHOW_PROBLEMS, show_problems),
             (Get.FROM_USER_SAVE_PATH_TILIA, ask_for_path_to_save_tilia_file),
             (Get.FROM_USER_SAVE_PATH, ask_for_path_to_save),
             (Get.FROM_USER_EXPORT_PATH, ask_for_path_to_export),

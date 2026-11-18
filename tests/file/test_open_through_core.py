@@ -144,11 +144,12 @@ def with_lyrics_in_the_middle(content):
 
 def open_file(path) -> bool:
     """Opens `path`, as the File menu does, declining to look for media or PDFs
-    that aren't there."""
+    that aren't there, and closing the warnings it opens with."""
     with (
         Serve(Get.FROM_USER_RETRY_MEDIA_PATH, False),
         Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
         Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
+        Serve(Get.FROM_USER_SHOW_PROBLEMS, None),
     ):
         return commands.execute("file.open", path)
 
