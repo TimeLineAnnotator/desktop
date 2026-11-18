@@ -1,13 +1,13 @@
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, Qt
 from PySide6.QtTest import QTest
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
 from tilia.media.player import QtAudioPlayer
-from tilia.requests import Get, Post, post
+from tilia.requests import Get, Post, get, post
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
@@ -285,26 +285,28 @@ class TestMediaLength:
 
     def test_undo_and_redo(self, media_metadata_window, tilia_state):
         self.set_length(media_metadata_window, "2:30")
+        # Undo can't run while the window is open.
+        media_metadata_window.close()
 
         commands.execute("edit.undo")
         assert tilia_state.duration == 100
-        assert media_metadata_window.media_length_edit.text() == "01:40.0"
+        assert tilia_state.metadata["media length"] == 100
 
         commands.execute("edit.redo")
         assert tilia_state.duration == 150
-        assert media_metadata_window.media_length_edit.text() == "02:30.0"
+        assert tilia_state.metadata["media length"] == 150
 
     def test_undo_gives_back_no_length(self, tilia, media_metadata_window, tilia_state):
         # As in a new file.
         tilia_state.duration = 0
         tilia.reset_undo_manager()
         self.set_length(media_metadata_window, "1:00")
+        media_metadata_window.close()
 
         commands.execute("edit.undo")
 
         assert tilia_state.duration == 0
         assert tilia_state.metadata["media length"] == 0
-        assert media_metadata_window.media_length_edit.text() == "00:00.0"
 
     @pytest.mark.parametrize(
         "text, message",
@@ -351,31 +353,16 @@ class TestMediaLength:
         assert tilia_state.duration == 100.04
         assert len(tilia_state.undo_manager.stack) == recorded
 
-    def test_undo_shows_the_fields_as_set(self, media_metadata_window, tilia_state):
-        old_title = tilia_state.metadata["title"]
-        media_metadata_window.metadata["title"].setText("New Title")
-        self.set_length(media_metadata_window, "2:30")
-        media_metadata_window.metadata["composer"].setText("Not applied")
+    def test_shows_a_length_the_player_reports_late(self, qtui, tilia):
+        load_media()
+        post(Post.WINDOW_OPEN, WindowKind.MEDIA_METADATA)
+        window = qtui._windows[WindowKind.MEDIA_METADATA]
 
-        commands.execute("edit.undo")
+        # As a YouTube video's length arrives, after the video has loaded.
+        tilia.player.on_media_duration_available(20.0, is_late=True)
 
-        assert tilia_state.metadata["title"] == old_title
-        assert media_metadata_window.metadata["title"].text() == old_title
-        assert media_metadata_window.metadata["composer"].text() == ""
-        with patch_yes_or_no_dialog(True) as prompt:
-            media_metadata_window.close()
-        prompt.assert_not_called()
-
-    def test_follows_a_length_set_elsewhere(self, media_metadata_window, new_file):
-        self.type_length(media_metadata_window, "2:30")
-
-        add_timeline_setting_length(60)
-
-        assert media_metadata_window.media_length_edit.text() == "01:00.0"
-        # The length typed was dropped: nothing is left to apply.
-        with patch_yes_or_no_dialog(True) as prompt:
-            media_metadata_window.close()
-        prompt.assert_not_called()
+        assert window.read_only_labels["media length"].text() == "00:20.0"
+        window.close()
 
     def test_edit_fields_asks_about_a_length_not_applied(
         self, media_metadata_window, tilia_state
@@ -396,6 +383,7 @@ class TestMediaLength:
     ):
         media_metadata_window.metadata["title"].setText("New Title")
         self.set_length(media_metadata_window, "2:30")
+        media_metadata_window.close()
 
         commands.execute("edit.undo")
         commands.execute("edit.redo")
@@ -427,6 +415,7 @@ class TestMediaLength:
         with patch_yes_or_no_dialog([False, True]):
             self.set_length(media_metadata_window, "40")
         assert self.marker_times(marker_tlui) == [20]
+        media_metadata_window.close()
 
         with patch_yes_or_no_dialog(True) as prompt:
             commands.execute("edit.undo")
@@ -474,15 +463,6 @@ class TestMediaLength:
 
         assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
 
-    def test_unloading_media_makes_it_editable(self, media_metadata_window):
-        load_media()
-
-        commands.execute("edit.undo")
-
-        assert is_shown(media_metadata_window.media_length_edit)
-        assert media_metadata_window.media_length_edit.text() == "01:40.0"
-        assert media_metadata_window.read_only_labels["media path"].text() == ""
-
     def test_closed_window_stops_following_the_length(
         self, media_metadata_window, tilia_state
     ):
@@ -506,3 +486,99 @@ def test_undoing_a_timeline_added_with_a_length_gives_back_no_length(
     commands.execute("edit.redo")
     assert tilia_state.duration == 60
     assert tls.get_timelines_by_type(MarkerTimeline)
+
+
+class Received(QObject):
+    """Counts the key and mouse button presses a window receives."""
+
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.Type.KeyPress, QEvent.Type.MouseButtonPress):
+            self.count += 1
+        return False
+
+
+def press_escape(window):
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Escape)
+
+
+class TestModal:
+    def test_main_window_takes_no_input(self, media_metadata_window, marker_tlui):
+        commands.execute("timeline.marker.add", time=10)
+        main_window = get(Get.MAIN_WINDOW).windowHandle()
+        received = Received()
+        main_window.installEventFilter(received)
+        try:
+            QTest.keyClick(
+                main_window, Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier
+            )
+            QTest.mouseClick(
+                main_window, Qt.MouseButton.LeftButton, pos=QPoint(50, 200)
+            )
+        finally:
+            main_window.removeEventFilter(received)
+
+        assert received.count == 0
+        # The app's undo didn't run.
+        assert len(marker_tlui) == 1
+
+    def test_ctrl_z_in_a_field_undoes_the_typing(
+        self, media_metadata_window, marker_tlui
+    ):
+        commands.execute("timeline.marker.add", time=10)
+        title = media_metadata_window.metadata["title"]
+        old_title = title.text()
+        title.setFocus()
+        QTest.keyClicks(title, " typed")
+
+        QTest.keyClick(
+            media_metadata_window.windowHandle(),
+            Qt.Key.Key_Z,
+            Qt.KeyboardModifier.ControlModifier,
+        )
+
+        assert title.text() == old_title
+        assert len(marker_tlui) == 1
+
+    def test_escape_without_edits_closes(self, qtui, media_metadata_window):
+        press_escape(media_metadata_window)
+
+        assert not media_metadata_window.isVisible()
+        assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
+
+    def test_escape_with_edits_asks(self, qtui, media_metadata_window):
+        media_metadata_window.metadata["title"].setText("Typed title")
+
+        with patch_yes_or_no_dialog(False) as prompt:
+            press_escape(media_metadata_window)
+
+        prompt.assert_called_once()
+        assert media_metadata_window.isVisible()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert media_metadata_window.metadata["title"].text() == "Typed title"
+
+    def test_escape_with_edits_closes_if_confirmed(
+        self, qtui, media_metadata_window, tilia_state
+    ):
+        old_title = tilia_state.metadata["title"]
+        media_metadata_window.metadata["title"].setText("Typed title")
+
+        with patch_yes_or_no_dialog(True) as prompt:
+            press_escape(media_metadata_window)
+
+        prompt.assert_called_once()
+        assert not media_metadata_window.isVisible()
+        assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert tilia_state.metadata["title"] == old_title
+
+    def test_reopens_after_escape(self, qtui, media_metadata_window):
+        press_escape(media_metadata_window)
+
+        commands.execute("window.open.metadata")
+
+        window = qtui._windows[WindowKind.MEDIA_METADATA]
+        assert window is not None and window.isVisible()
+        window.close()

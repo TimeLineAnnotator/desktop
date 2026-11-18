@@ -40,20 +40,17 @@ class MediaMetadataWindow(QDialog):
         self.metadata_original = {}
         self.fields_to_formatters = {"media length": format_media_time}
         self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)
-        listen(
-            self,
-            Post.SETTINGS_UPDATED,
-            self.on_settings_updated,
-        )
-        # Loading or unloading media changes the length, and whether it can be
-        # edited.
+        # The window is modal, but media can still finish loading while it is
+        # open: loading runs nested event loops, in which keys open menus,
+        # and a YouTube video's length arrives after the video has loaded.
+        # Loading media changes the length, and whether it can be edited.
         listen(self, Post.PLAYER_URL_CHANGED, lambda _: self.update_read_only_fields())
         listen(self, Post.FILE_MEDIA_DURATION_CHANGED, self.on_media_duration_changed)
-        # Undo and redo can change any field. Like a length set elsewhere, they
-        # drop edits not applied, so that the window shows what is set.
-        listen(self, Post.APP_STATE_UNDO_OR_REDO_DONE, self.refresh_fields)
         self.setLayout(QVBoxLayout())
         self.setup_layout()
+        # Like the dialogs it opens: while it is open, the main window takes no
+        # input, so nothing else changes the metadata, and undo can't run.
+        self.setModal(True)
         self.show()
 
         post(Post.WINDOW_OPEN_DONE, WindowKind.MEDIA_METADATA)
@@ -210,6 +207,11 @@ class MediaMetadataWindow(QDialog):
     def focus(self):
         pass  # TODO: set focus on self
 
+    def reject(self) -> None:
+        # Escape: like Cancel, through closeEvent, which asks about edits not
+        # applied and lets the window be opened again.
+        self.close()
+
     def closeEvent(self, event):
         edited_fields = self._get_edits()
         if edited_fields and not get(
@@ -221,7 +223,8 @@ class MediaMetadataWindow(QDialog):
             return
         stop_listening_to_all(self)
         post(Post.WINDOW_CLOSE_DONE, WindowKind.MEDIA_METADATA)
-        super().closeEvent(event)
+        # Not QDialog.closeEvent, which would call reject() again.
+        event.accept()
 
     def update_metadata_fields(self, new_fields: list[str]):
         fields_without_required = [
@@ -301,7 +304,3 @@ class MediaMetadataWindow(QDialog):
         # line do, so that it asks whether to scale the timelines the same way.
         post(Post.PLAYER_DURATION_AVAILABLE, length, scale_timelines="prompt")
         post(Post.APP_STATE_RECORD, "media length set")
-
-    def on_settings_updated(self, updated_settings):
-        if "media_metadata" in updated_settings:
-            self.setMinimumSize(settings.get("media_metadata", "window_width"), 0)
