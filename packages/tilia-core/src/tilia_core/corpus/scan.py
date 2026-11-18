@@ -48,7 +48,6 @@ from types import TracebackType
 from . import _workers, build
 from .build import Rows
 from .documents import Document, DocumentReader, UnreadableFile
-from .fingerprint import of_document
 from .settings import CorpusSettings
 from .store import Store
 from .time_map import TimeMap, TimeMapOf
@@ -225,7 +224,7 @@ def _try_read(reader: DocumentReader, found: Found) -> Outcome | _Failure:
     read_at = now_ns()
     try:
         document = reader.read(found.native)
-        return Outcome(found, read_at, document, of_document(reader, document))
+        return Outcome(found, read_at, document, reader.fingerprint(document))
     except UnreadableFile as err:
         return (str(err), err.line, False, None)
     except OSError as err:

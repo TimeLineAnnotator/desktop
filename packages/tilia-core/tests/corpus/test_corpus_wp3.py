@@ -4,6 +4,8 @@
 Files of the current format are written with ``tla.write``; old ones are the
 files of ``tests/tla/old``, saved by the TiLiA versions they come from."""
 
+import hashlib
+import pickle
 import shutil
 from pathlib import Path
 
@@ -11,11 +13,19 @@ import pytest
 from tla_files import song, write
 
 from tilia_core import open_corpus, tla
-from tilia_core.corpus import fingerprint
+from tilia_core.corpus import fingerprint, scan
 from tilia_core.corpus.tla_reader import TlaReader
+from tilia_core.tla import reader as wp3_reader
+from tilia_core.tla.problems import unmeasured
+
+# The writer's own, not the recording one conftest.py puts in its place during a
+# test: these tests compute fingerprints, they don't write files.
+from tilia_core.tla.writer import canonical_bytes
 
 OLD = Path(__file__).parents[1] / "tla" / "old"
 OLD_FILES = sorted(p.name for p in OLD.glob("*.tla"))
+GOLDEN = Path(__file__).parents[1] / "tla" / "golden"
+EVERY_FILE = sorted(GOLDEN.glob("*.tla")) + sorted(OLD.glob("*.tla"))
 
 
 def opened(folder, **kw):
@@ -170,6 +180,130 @@ def test_the_reader_skips_wp3s_temporary_files():
     assert reader.extensions == (".tla",)
     assert reader.is_temporary(".song.tla.0123abcd.tmp")
     assert not reader.is_temporary("song.tla")
+
+
+# --------------------------------------------------------------------------- #
+# The fingerprint the document was read with
+# (TimeLineAnnotator/project-management#545)
+# --------------------------------------------------------------------------- #
+def file_id(path):
+    return path.name
+
+
+def without_media_length(path: Path) -> Path:
+    """A file in the current format with units and no media length, whose
+    components' states a read keeps until they are looked at."""
+    data = song()
+    data["media"]["length"] = None
+    return write(path, data)
+
+
+def as_computed_before(path: Path) -> str:
+    """The fingerprint the index recorded before it took the document's: the
+    SHA-256 of the canonical bytes of the document read, or for an old file of
+    the one read with its paths as stored."""
+    data = path.read_bytes()
+    doc = tla.loads(data, path=path)
+    if doc.format_version != tla.FORMAT_VERSION:
+        doc = wp3_reader.loads_for_fingerprint(data, path=path)
+    return hashlib.sha256(canonical_bytes(doc)).hexdigest()
+
+
+def scanned(path: Path) -> scan.Outcome:
+    """The outcome of reading ``path`` as a scan reads it, which a worker
+    process pickles back to the scan."""
+    info = path.stat()
+    found = scan.Found(path.name, path, info.st_size, info.st_mtime_ns)
+    outcome = scan.read_file(TlaReader(), found)
+    assert outcome.readable, outcome.reason
+    return outcome
+
+
+@pytest.mark.parametrize("source", EVERY_FILE, ids=file_id)
+def test_the_fingerprint_a_scan_reads_is_unchanged(tmp_path, source):
+    path = tmp_path / source.name
+    shutil.copyfile(source, path)
+    read = scanned(path).fingerprint
+    assert read == as_computed_before(path) == tla.fingerprint(path)
+
+
+# The index can't build unknown.tla's rows yet: a unit of an unknown kind spelled
+# "marker" is taken for a marker (TimeLineAnnotator/project-management#591).
+NOT_INDEXED_YET = pytest.mark.xfail(
+    strict=True, reason="TimeLineAnnotator/project-management#591"
+)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param(p, marks=NOT_INDEXED_YET) if p.name == "unknown.tla" else p
+        for p in EVERY_FILE
+    ],
+    ids=file_id,
+)
+def test_the_index_s_fingerprints_are_unchanged(tmp_path, source):
+    path = tmp_path / source.name
+    shutil.copyfile(source, path)
+    with opened(tmp_path) as corpus:
+        recorded = corpus.file(source.name).fingerprint
+    assert recorded == as_computed_before(path) == tla.fingerprint(path)
+
+
+def every_kind_of_file(tmp_path: Path) -> list[Path]:
+    """Every golden and old file, and one without a media length."""
+    paths = [without_media_length(tmp_path / "no-length.tla")]
+    for source in EVERY_FILE:
+        paths.append(tmp_path / source.name)
+        shutil.copyfile(source, paths[-1])
+    return paths
+
+
+def test_a_scanned_document_carries_no_file_bytes_once_read(tmp_path):
+    for path in every_kind_of_file(tmp_path):
+        outcome = scanned(path)
+        assert path.read_bytes() not in pickle.dumps(outcome), path.name
+
+
+def test_a_scanned_document_has_the_fingerprint_and_states_it_was_read_with(
+    tmp_path,
+):
+    # What a write of the core's document would state and compare: the index's
+    # fingerprint, and the components' states with no media length.
+    for path in every_kind_of_file(tmp_path):
+        outcome = scanned(path)
+        source = outcome.document.source
+        assert source.fingerprint == outcome.fingerprint == tla.fingerprint(path)
+        assert dict(source.read_unmeasured) == unmeasured(tla.read(path))
+    no_length = scanned(tmp_path / "no-length.tla").document.source
+    assert len(no_length.read_unmeasured) == 6, "one state for each unit"
+
+
+def test_a_scan_parses_a_current_file_once_and_migrates_an_old_one_twice(
+    tmp_path, monkeypatch
+):
+    # An old file's fingerprint is that of its migration with its paths as
+    # stored, which WP3 makes from the bytes read: a second migration. Nothing
+    # else is parsed again, not even the states of a file with no media length.
+    without_media_length(tmp_path / "current.tla")
+    shutil.copyfile(OLD / "0.7.0.tla", tmp_path / "old.tla")
+    parsed, migrated = [], []
+    real_parse, real_migrate = wp3_reader.parse, wp3_reader.migrate
+
+    def parse(data, *args, path=None, **kwargs):
+        parsed.append(Path(path).name)
+        return real_parse(data, *args, path=path, **kwargs)
+
+    def migrate(content, *args, path=None, **kwargs):
+        migrated.append(Path(path).name)
+        return real_migrate(content, *args, path=path, **kwargs)
+
+    monkeypatch.setattr(wp3_reader, "parse", parse)
+    monkeypatch.setattr(wp3_reader, "migrate", migrate)
+    with opened(tmp_path) as corpus:
+        assert {row.path for row in corpus.files()} == {"current.tla", "old.tla"}
+    assert sorted(parsed) == ["current.tla", "old.tla", "old.tla"]
+    assert migrated == ["old.tla", "old.tla"]
 
 
 def test_the_reader_reads_any_old_file_with_the_core_document_kept(tmp_path):

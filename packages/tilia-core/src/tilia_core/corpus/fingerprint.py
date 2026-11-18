@@ -8,18 +8,11 @@ the default, it is ``tla.fingerprint``'s.
 
 from __future__ import annotations
 
-import hashlib
 import os
 from pathlib import Path
 
-from .documents import Document, DocumentReader
+from .documents import DocumentReader
 from .tla_reader import default_reader
-
-
-def of_document(reader: DocumentReader, document: Document) -> str:
-    """The fingerprint of ``document``: the SHA-256 hex of
-    ``reader.canonical_bytes(document)``."""
-    return hashlib.sha256(reader.canonical_bytes(document)).hexdigest()
 
 
 def of_path(path: str | os.PathLike, reader: DocumentReader | None = None) -> str:
@@ -30,4 +23,4 @@ def of_path(path: str | os.PathLike, reader: DocumentReader | None = None) -> st
     WP3's by default."""
     if reader is None:
         reader = default_reader()
-    return of_document(reader, reader.read(Path(path)))
+    return reader.fingerprint(reader.read(Path(path)))

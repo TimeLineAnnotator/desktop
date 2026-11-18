@@ -2,9 +2,9 @@
 
 The index never parses a ``.tla`` file itself. It asks a :class:`DocumentReader`
 for a :class:`Document`, maps the document to rows, and asks the reader for the
-bytes the core would write, for fingerprints. WP3 (the format in the core,
-TimeLineAnnotator/project-management#7) provides the reader; until it lands,
-only tests read files, through a stand-in of their own.
+document's fingerprint: that of the bytes the core would write. WP3 (the format
+in the core, TimeLineAnnotator/project-management#7) provides the reader; tests
+also read files through a stand-in of their own.
 """
 
 from __future__ import annotations
@@ -89,9 +89,10 @@ class DocumentReader(Protocol):
 
     ``read`` never writes. It raises :class:`UnreadableFile` for content it
     refuses, and lets ``OSError`` through when it can't open or read the file.
-    ``canonical_bytes`` gives, for any document, the bytes the core's writer
-    would write for it. ``is_temporary`` tells the writer's temporary files,
-    next to a file it is writing, which the index never reads.
+    ``fingerprint`` gives, for a document it read, the file's fingerprint: the
+    SHA-256, in lower-case hexadecimal, of the bytes the core's writer would
+    write for it (research R5). ``is_temporary`` tells the writer's temporary
+    files, next to a file it is writing, which the index never reads.
     ``extensions`` are the file name endings the reader takes."""
 
     extensions: tuple[str, ...]
@@ -99,7 +100,7 @@ class DocumentReader(Protocol):
     def read(self, path: Path) -> Document:
         ...
 
-    def canonical_bytes(self, document: Document) -> bytes:
+    def fingerprint(self, document: Document) -> str:
         ...
 
     def is_temporary(self, name: str) -> bool:
