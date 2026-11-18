@@ -16,7 +16,6 @@ from tilia_core import open_corpus, tla
 from tilia_core.corpus import fingerprint, scan
 from tilia_core.corpus.tla_reader import TlaReader
 from tilia_core.tla import reader as wp3_reader
-from tilia_core.tla.problems import unmeasured
 
 # The writer's own, not the recording one conftest.py puts in its place during a
 # test: these tests compute fingerprints, they don't write files.
@@ -274,7 +273,8 @@ def test_a_scanned_document_has_the_fingerprint_and_states_it_was_read_with(
         outcome = scanned(path)
         source = outcome.document.source
         assert source.fingerprint == outcome.fingerprint == tla.fingerprint(path)
-        assert dict(source.read_unmeasured) == unmeasured(tla.read(path))
+        # As tla makes them itself, from the bytes, not as the reader does.
+        assert dict(source.read_unmeasured) == dict(tla.read(path).read_unmeasured)
     no_length = scanned(tmp_path / "no-length.tla").document.source
     assert len(no_length.read_unmeasured) == 6, "one state for each unit"
 
