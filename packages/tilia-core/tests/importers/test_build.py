@@ -1554,13 +1554,16 @@ def test_a_height_the_kind_doesnt_take_is_refused_before_its_value_is_checked():
 
 @pytest.mark.parametrize("kind", ["range", "pdf"])
 def test_a_height_on_a_kind_a_script_doesnt_add_is_refused(kind):
-    # The kind is refused first; either text names it.
+    # The kind is refused first, before its height.
     doc = script_document()
     before = copy.deepcopy(doc)
 
     message = refused(build.add_timeline, doc, kind, height=40)
 
-    assert f"kind {kind!r}" in message
+    assert message == (
+        f"can't add a timeline of kind {kind!r}:"
+        " give one of beat, hierarchy, marker, harmony"
+    )
     assert doc == before
 
 
