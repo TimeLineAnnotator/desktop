@@ -8,7 +8,10 @@ index parses nothing itself (constitution II).
 Fingerprints are ``tla.fingerprint``'s: those of the bytes the core's writer
 writes, and for an old file those of its migration with its media and PDF
 paths as the file stores them, so that a move doesn't change it. A writer that
-states the fingerprint the index holds then finds the file it expects.
+states the fingerprint the index holds then finds the file it expects. The
+reader takes it from the document read, which then holds none of the file's
+bytes (TimeLineAnnotator/project-management#545): the scan's workers pickle
+the documents back, and the scan holds many at once.
 """
 
 from __future__ import annotations
@@ -19,7 +22,7 @@ from pathlib import Path
 
 from tilia_core import timemap, tla
 from tilia_core.tla.model import Kind
-from tilia_core.tla.reader import loads_for_fingerprint
+from tilia_core.tla.problems import unmeasured
 
 from .documents import ComponentDoc, Document, TimelineDoc, UnreadableFile
 from .time_map import TimeMapFound
@@ -29,13 +32,10 @@ from .time_map import TimeMapFound
 class TlaDocument(Document):
     """The index's document, with the core's own: ``source`` is what ``tla``
     read, for what needs more than the index's view (WP9's time map), and
-    ``for_fingerprint`` the document the file's fingerprint is taken from,
-    when it isn't ``source`` (an old file)."""
+    ``fingerprint`` the one it was read with."""
 
     source: tla.Document | None = field(default=None, compare=False, repr=False)
-    for_fingerprint: tla.Document | None = field(
-        default=None, compare=False, repr=False
-    )
+    fingerprint: str | None = field(default=None, compare=False)
 
 
 def _kind(kind: Kind) -> str:
@@ -63,9 +63,7 @@ def _timeline(tl: tla.Timeline) -> TimelineDoc:
     )
 
 
-def document_of(
-    doc: tla.Document, for_fingerprint: tla.Document | None = None
-) -> TlaDocument:
+def document_of(doc: tla.Document, fingerprint: str | None = None) -> TlaDocument:
     """The index's view of ``doc``, its timelines in the file's order."""
     timelines = sorted(doc.timelines.values(), key=lambda tl: tl.ordinal)
     return TlaDocument(
@@ -76,7 +74,7 @@ def document_of(
         fields=dict(doc.metadata),
         timelines=tuple(_timeline(tl) for tl in timelines),
         source=doc,
-        for_fingerprint=for_fingerprint,
+        fingerprint=fingerprint,
     )
 
 
@@ -87,29 +85,39 @@ class TlaReader:
     extensions: tuple[str, ...] = (".tla",)
 
     def read(self, path: Path) -> Document:
-        """The file's document. Raises :class:`UnreadableFile` for content
-        ``tla`` refuses, and lets ``OSError`` through."""
+        """The file's document, with the fingerprint it was read with. Raises
+        :class:`UnreadableFile` for content ``tla`` refuses, and lets
+        ``OSError`` through.
+
+        ``tla`` keeps the bytes read in the document, for what a write states
+        and compares, until each is first asked for
+        (TimeLineAnnotator/project-management#533): its fingerprint, and its
+        components' states when it has no media length. Both are made here, so
+        that the document holds no bytes, without reading the file as a
+        document again where it can be helped."""
         with open(path, "rb") as file:
             data = file.read()
         try:
             doc = tla.loads(data, path=path)
-            # A file of the current format holds its fingerprint's document;
-            # an old one's is its migration with its paths as stored.
-            fp = None
-            if doc.format_version != tla.FORMAT_VERSION:
-                fp = loads_for_fingerprint(data, path=path)
+            if doc.format_version == tla.FORMAT_VERSION:
+                # Its fingerprint is that of the document read; asking for it
+                # would read the bytes again.
+                doc.fingerprint = tla.fingerprint_of(doc)
+            # An old file's is that of its migration with its paths as stored,
+            # which tla makes from the bytes.
+            fingerprint = doc.fingerprint
+            # As tla would make them from the bytes, which give this document.
+            doc.read_unmeasured = unmeasured(doc)
         except tla.UnreadableFile as err:
             raise UnreadableFile(Path(path), err.message, err.line) from err
-        return document_of(doc, fp)
+        return document_of(doc, fingerprint)
 
-    def canonical_bytes(self, document: Document) -> bytes:
-        """The bytes the file's fingerprint is taken from: ``tla``'s canonical
-        bytes of the document read, or for an old file of its migration with
-        its paths as stored. Raises ``TypeError`` for a document that
-        :meth:`read` didn't give."""
-        if not isinstance(document, TlaDocument) or document.source is None:
+    def fingerprint(self, document: Document) -> str:
+        """The fingerprint ``document`` was read with, ``tla.fingerprint``'s.
+        Raises ``TypeError`` for a document that :meth:`read` didn't give."""
+        if not isinstance(document, TlaDocument) or document.fingerprint is None:
             raise TypeError(f"not a document read from a .tla file: {document!r}")
-        return tla.canonical_bytes(document.for_fingerprint or document.source)
+        return document.fingerprint
 
     def is_temporary(self, name: str) -> bool:
         """Whether ``name`` is one of ``tla.write``'s temporary files."""

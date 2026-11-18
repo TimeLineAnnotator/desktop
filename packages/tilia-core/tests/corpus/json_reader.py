@@ -9,6 +9,7 @@ list of objects with the fields of ``TimelineDoc``, each with its
 ``components``, objects with the fields of ``ComponentDoc``.
 """
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -108,10 +109,14 @@ class JsonDocumentReader:
             raise UnreadableFile(Path(path), f"not a document: {err!r}") from err
 
     def canonical_bytes(self, document: Document) -> bytes:
+        """The bytes the stand-in writes, which its fingerprints are of."""
         text = json.dumps(
             to_json(document), sort_keys=True, ensure_ascii=False, indent=2
         )
         return (text + "\n").encode("utf-8")
+
+    def fingerprint(self, document: Document) -> str:
+        return hashlib.sha256(self.canonical_bytes(document)).hexdigest()
 
     def is_temporary(self, name: str) -> bool:
         return name.lower().endswith(TEMPORARY_SUFFIX)
