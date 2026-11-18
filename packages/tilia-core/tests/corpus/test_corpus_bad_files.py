@@ -370,7 +370,7 @@ def test_the_walk_names_the_folders_it_couldnt_list(tmp_path, monkeypatch):
     unlisted = []
     found = scan.walk(tmp_path, READER, scan_settings(), unlisted)
     assert [f.path for f in found] == ["a.tla"]
-    assert unlisted == ["sub/locked"]
+    assert unlisted == [("sub/locked/", "can't read: Permission denied")]
 
 
 def scan_settings():
@@ -392,6 +392,81 @@ def test_results_warn_of_a_folder_that_couldnt_be_listed_at_opening(
             "can't list the folder locked" in w and "as last read" in w
             for w in result.warnings
         )
+
+
+DENIED = "can't read: Permission denied"
+
+
+def test_the_open_report_names_the_folders_it_couldnt_list(tmp_path, monkeypatch):
+    # TimeLineAnnotator/project-management#541: tilia query names them, and
+    # exits 1, as for the unreadable files next to them.
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "locked" / "b.tla", song())
+    tla_files.write(tmp_path / "sub" / "deep" / "c.tla", song())
+    locking(monkeypatch, tmp_path / "locked", tmp_path / "sub" / "deep")
+    with opened(tmp_path) as corpus:
+        report = corpus.open_report
+    assert report.unlisted == (("locked/", DENIED), ("sub/deep/", DENIED))
+    assert report.added == ("a.tla",) and report.unreadable == ()
+
+
+def test_the_open_report_of_a_folder_listed_whole_names_none(tmp_path):
+    tla_files.write(tmp_path / "sub" / "a.tla", song())
+    with opened(tmp_path) as corpus:
+        assert corpus.open_report.unlisted == ()
+
+
+class Unseen:
+    """A folder's entry whose kind can't be found out, as one removed while
+    the walk lists the folder."""
+
+    def __init__(self, entry):
+        self._entry = entry
+
+    def __getattr__(self, name):
+        return getattr(self._entry, name)
+
+    def is_dir(self, *, follow_symlinks=True):
+        raise FileNotFoundError(2, "No such file or directory", self._entry.path)
+
+
+def test_an_entry_the_walk_cant_look_at_is_named_as_it_is(tmp_path, monkeypatch):
+    # It may be a file or a folder: no "/" is added to its path.
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "gone.tla", song())
+    real = os.scandir
+
+    class Listing:
+        def __init__(self, path):
+            self._listing = real(path)
+
+        def __enter__(self):
+            entries = self._listing.__enter__()
+            return (Unseen(e) if e.name == "gone.tla" else e for e in entries)
+
+        def __exit__(self, *exc):
+            return self._listing.__exit__(*exc)
+
+    monkeypatch.setattr(os, "scandir", Listing)
+    with opened(tmp_path) as corpus:
+        report = corpus.open_report
+    assert report.unlisted == (("gone.tla", "can't read: No such file or directory"),)
+    assert report.added == ("a.tla",)
+
+
+def test_a_scan_names_the_folders_it_still_cant_list_and_changes_nothing(
+    tmp_path, monkeypatch
+):
+    tla_files.write(tmp_path / "a.tla", song())
+    tla_files.write(tmp_path / "locked" / "b.tla", song())
+    with opened(tmp_path) as corpus:
+        assert corpus.open_report.unlisted == ()
+        locking(monkeypatch, tmp_path / "locked")
+        for _ in range(2):  # every scan that can't list it, not only the first
+            report = corpus.scan()
+            assert report.unlisted == (("locked/", DENIED),)
+            assert not report, "a folder it can't list isn't a change"
+        assert corpus.reread("a.tla").unlisted == ()
 
 
 # --------------------------------------------------------------------------- #
@@ -764,7 +839,7 @@ def test_a_file_the_walk_cant_look_at_is_kept_too(tmp_path, monkeypatch):
         real = scan.walk
 
         def walk(root, reader, settings, unlisted=None):
-            unlisted.append("a.tla")
+            unlisted.append(("a.tla", "can't read: No such file or directory"))
             return [f for f in real(root, reader, settings) if f.path != "a.tla"]
 
         monkeypatch.setattr(scan, "walk", walk)

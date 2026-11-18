@@ -76,6 +76,18 @@ if mode == "interrupted":
         return run(*args, **kwargs)
 
     tql.run = interrupted
+if mode == "locked":
+    # Every folder named "locked" can't be listed, as one the user may not read.
+    import os
+
+    scandir = os.scandir
+
+    def locked(path="."):
+        if os.path.basename(os.fspath(path)) == "locked":
+            raise PermissionError(13, "Permission denied", os.fspath(path))
+        return scandir(path)
+
+    os.scandir = locked
 
 from tilia_core.commands import main
 
@@ -86,9 +98,10 @@ sys.exit(main())
 
 def tilia(*arguments, cwd, mode="reader", encoding="utf-8"):
     """Run `tilia` with `arguments`, as a user would, but with the stand-in
-    reader (`mode` "reader"), with `open_corpus`'s own ("default-reader"), or with a Ctrl+C as
-    the query starts ("interrupted"). Its output is bytes with `encoding`
-    None, as for CSV."""
+    reader (`mode` "reader"), with `open_corpus`'s own ("default-reader"), with a Ctrl+C as
+    the query starts ("interrupted"), or with the stand-in reader and every
+    folder named "locked" refused as one the user may not read ("locked"). Its
+    output is bytes with `encoding` None, as for CSV."""
     env = {
         **os.environ,
         "PYTHONIOENCODING": "utf-8",
@@ -641,6 +654,51 @@ def test_an_unreadable_file_in_a_subfolder_is_named_by_its_path(exposition):
 
     assert result.returncode == 1
     assert result.stderr.startswith("sub/broken.tla: can't read")
+
+
+CANT_LIST_LOCKED = (
+    "warning: can't list the folder locked; these results have the files there"
+    " only as last read"
+)
+
+
+def test_a_folder_that_cant_be_listed_is_named_and_exits_1(exposition):
+    # TimeLineAnnotator/project-management#541; the line's wording waits for
+    # TimeLineAnnotator/project-management#593.
+    rows = expected(exposition, "PAC IN cadences").rows
+    write_fixture(exposition / "locked", "exposition")
+
+    result = tilia("query", ".", "PAC IN cadences", cwd=exposition, mode="locked")
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines() == [
+        "locked/: can't read: Permission denied",
+        CANT_LIST_LOCKED,
+    ]
+    assert [r["path"] for r in table(result.stdout)] == [r["path"] for r in rows]
+
+
+def test_folders_and_unreadable_files_are_named_in_path_order(exposition):
+    for name in ("broken.tla", "z/broken.tla"):
+        (exposition / name).parent.mkdir(exist_ok=True)
+        (exposition / name).write_text("{", encoding="utf-8")
+    write_fixture(exposition / "locked", "exposition")
+
+    result = tilia("query", ".", "PAC IN cadences", cwd=exposition, mode="locked")
+
+    assert result.returncode == 1
+    named = [line.split(": ")[0] for line in result.stderr.splitlines()[:3]]
+    assert named == ["broken.tla", "locked/", "z/broken.tla"]
+
+
+def test_a_folder_listed_after_all_exits_0(exposition):
+    # The same folder, when nothing stops the walk listing it.
+    write_fixture(exposition / "locked", "exposition")
+
+    result = tilia("query", ".", "PAC IN cadences", cwd=exposition)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
 
 
 def test_files_that_cant_answer_a_condition_warn_and_exit_0(exposition):

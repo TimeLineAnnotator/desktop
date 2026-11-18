@@ -137,14 +137,16 @@ def walk(
     root: Path,
     reader: DocumentReader,
     settings: CorpusSettings,
-    unlisted: list[str] | None = None,
+    unlisted: list[tuple[str, str]] | None = None,
 ) -> list[Found]:
     """The files of the corpus at ``root``, sorted by path.
 
     The walk goes depth first with ``os.scandir``. Listing ``root`` itself may
     raise ``OSError``; a subfolder that can't be listed is logged and skipped,
-    so its files are not found, and its path (as a file's, in NFC) goes into
-    ``unlisted``. So does an entry the walk can't look at."""
+    so its files are not found, and its path (as a file's, in NFC, ending in
+    ``/``) goes into ``unlisted``, with the reason, as a file that can't be
+    opened has it. So does an entry the walk can't look at, without the
+    ``/``: it may be a file."""
     endings = tuple(e.lower() for e in reader.extensions)
     found: list[Found] = []
 
@@ -157,7 +159,7 @@ def walk(
                 raise
             LOG.warning("can't list the folder %s; skipped: %s", folder, err)
             if unlisted is not None:
-                unlisted.append(prefix.removesuffix("/"))
+                unlisted.append((prefix, _cant_read(err)))
             return
         for entry in entries:
             name = entry.name
@@ -173,7 +175,7 @@ def walk(
             except OSError as err:
                 LOG.warning("can't look at %s; skipped: %s", entry.path, err)
                 if unlisted is not None:
-                    unlisted.append(path)
+                    unlisted.append((path, _cant_read(err)))
                 continue
             if folder:
                 visit(Path(entry.path), path + "/")
@@ -193,6 +195,11 @@ def walk(
     found = _one_per_path(found, root)
     found.sort(key=lambda f: f.path)
     return found
+
+
+def _cant_read(err: OSError) -> str:
+    """The reason of a file or folder the system wouldn't let be read."""
+    return f"can't read: {err.strerror or err}"
 
 
 # --------------------------------------------------------------------------- #
@@ -229,7 +236,7 @@ def _try_read(reader: DocumentReader, found: Found) -> Outcome | _Failure:
     except UnreadableFile as err:
         return (str(err), err.line, False, None)
     except OSError as err:
-        return (f"can't read: {err.strerror or err}", None, True, None)
+        return (_cant_read(err), None, True, None)
     except Exception as err:  # noqa: BLE001 - a bug in the reader stops nothing
         info = sys.exc_info()
         return (f"can't read: {type(err).__name__}: {err}", None, False, info)  # type: ignore[return-value]
@@ -498,7 +505,13 @@ class _Refused:
 class ScanReport:
     """What a scan, or the first build, changed (data-model.md, "The scan
     report"). ``unreadable`` holds ``(path, line, reason)``. ``error`` is the
-    error of a change that couldn't be applied: then nothing changed."""
+    error of a change that couldn't be applied: then nothing changed.
+
+    ``unlisted`` holds ``(path, reason)`` for each subfolder the scan couldn't
+    list, its path ending in ``/``, and each entry it couldn't look at, in
+    path order (:func:`walk`). Their files keep their last state, or are left
+    out if they have none (FR-021). It isn't a change: every scan of the whole
+    folder names them while they last, and ``bool`` doesn't count them."""
 
     added: tuple[str, ...]
     changed: tuple[str, ...]
@@ -510,6 +523,7 @@ class ScanReport:
     generation_before: int
     generation_after: int
     error: str | None = None
+    unlisted: tuple[tuple[str, str], ...] = ()
 
     def __bool__(self) -> bool:
         """True when anything changed."""
@@ -723,7 +737,8 @@ class Scanner:
         folder itself may raise ``OSError``; nothing inside it does."""
         with self.turn:
             self.last_scan = clock()
-            return self._refresh(self._walk())
+            found, unlisted = self._walk()
+            return replace(self._refresh(found), unlisted=unlisted)
 
     # -- scans ---------------------------------------------------------------- #
     def scan(self, older_than: float | None = None) -> ScanReport | None:
@@ -781,12 +796,14 @@ class Scanner:
             for place in self.store.unlisted
         )
 
-    def _walk(self) -> list[Found]:
-        """The folder's files; the store learns which subfolders it couldn't list."""
-        unlisted: list[str] = []
+    def _walk(self) -> tuple[list[Found], tuple[tuple[str, str], ...]]:
+        """The folder's files, and what the walk couldn't list, for the report;
+        the store learns which subfolders those are."""
+        unlisted: list[tuple[str, str]] = []
         found = walk(self.root, self.reader, self.settings, unlisted)
-        self.store.unlisted = tuple(unlisted)
-        return found
+        unlisted.sort()
+        self.store.unlisted = tuple(path.removesuffix("/") for path, _ in unlisted)
+        return found, tuple(unlisted)
 
     def reread(self, path: str, native: Path) -> ScanReport:
         """Read the file at ``path`` (relative, in NFC; ``native`` to open) at
@@ -870,13 +887,13 @@ class Scanner:
         """One scan, under the change mutex."""
         self.last_scan = clock()
         try:
-            found = self._walk()
+            found, unlisted = self._walk()
         except OSError as err:
             return self._out_of_reach(err)
         if not self.store.available:
             LOG.warning("the corpus folder %s can be reached again", self.root)
         self.store.available = True
-        return self._refresh(found)
+        return replace(self._refresh(found), unlisted=unlisted)
 
     def _refresh(
         self,

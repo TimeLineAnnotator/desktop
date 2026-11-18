@@ -7,8 +7,9 @@ over `open_corpus(path)` and `tql.run` (FR-047): the same matches, warnings and
 line to standard error.
 
 It exits 0 when it did everything it should; 1 when the run stopped (a limit,
-or Ctrl+C) or files were left out as unreadable; 2 when it was used wrongly,
-the query included (`tql.TQLError`).
+or Ctrl+C) or files were left out: unreadable ones, and those in a subfolder
+it couldn't list; 2 when it was used wrongly, the query included
+(`tql.TQLError`).
 """
 
 from __future__ import annotations
@@ -87,8 +88,8 @@ def _parser() -> argparse.ArgumentParser:
         ),
         epilog=(
             "Exit status: 0 when everything was done; 1 when the run stopped"
-            " or files were left out as unreadable; 2 when the command was"
-            " used wrongly or the query is malformed."
+            " or files were left out; 2 when the command was used wrongly or"
+            " the query is malformed."
         ),
         add_help=False,
         allow_abbrev=False,
@@ -262,9 +263,14 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         print(f"{PROG}: can't read {shown(folder)}: {why}", file=sys.stderr)
         return EXIT_FAILED
     with opened:
-        unreadable = opened.open_report.unreadable
-        for path, _line, reason in unreadable:
-            # The reason says the line, where there is one.
+        # The files it couldn't read and the folders it couldn't list, in path
+        # order. A file's reason says the line, where there is one.
+        report = opened.open_report
+        left_out = sorted(
+            [(path, reason) for path, _line, reason in report.unreadable]
+            + list(report.unlisted)
+        )
+        for path, reason in left_out:
             print_problem(path, reason)
         try:
             result = _run(opened, parsed, arguments)
@@ -281,7 +287,7 @@ def _query(parser: argparse.ArgumentParser, arguments: argparse.Namespace) -> in
         matches = "match" if n == 1 else "matches"
         why = _WHY_STOPPED.get(result.stopped, result.stopped)
         print(f"stopped: some {n} {matches} ({why})", file=sys.stderr)
-    if status == EXIT_OK and (unreadable or result.stopped is not None):
+    if status == EXIT_OK and (left_out or result.stopped is not None):
         return EXIT_FAILED
     return status
 
