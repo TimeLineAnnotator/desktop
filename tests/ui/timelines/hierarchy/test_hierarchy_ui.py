@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.mock import Serve
 from tests.utils import (
     get_blank_file_data,
     save_and_reopen,
@@ -63,6 +64,13 @@ def write_old_file(tmp_path: Path) -> Path:
     path = tmp_path / "old.tla"
     path.write_text(json.dumps(file_data), encoding="utf-8")
     return path
+
+
+def open_old_file(tmp_path: Path) -> None:
+    """Opens `write_old_file`'s file, closing the warnings it opens with: what it
+    drops."""
+    with Serve(Get.FROM_USER_SHOW_PROBLEMS, None):
+        commands.execute("file.open", path=write_old_file(tmp_path))
 
 
 class TestHierarchyUI:
@@ -631,7 +639,7 @@ class TestFieldInspectorEdit:
     def test_inspector_shows_no_formal_field_for_an_old_file(
         self, qtui, tluis, tmp_path
     ):
-        commands.execute("file.open", path=write_old_file(tmp_path))
+        open_old_file(tmp_path)
         reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
         hui = reloaded_tlui[0]
 
@@ -711,7 +719,7 @@ class TestFormalAttrsAreGone:
     def test_old_file_holding_them_opens_and_saves_without_them(
         self, tilia, qtui, tluis, tmp_path
     ):
-        commands.execute("file.open", path=write_old_file(tmp_path))
+        open_old_file(tmp_path)
 
         reloaded_tlui = [t for t in tluis if isinstance(t, HierarchyTimelineUI)][0]
         assert reloaded_tlui[0].get_data("label") == "kept"

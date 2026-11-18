@@ -27,6 +27,7 @@ from tilia.ui.cli import (
 )
 from tilia.ui.cli.io import ask_yes_or_no, error, tabulate
 from tilia.ui.cli.player import CLIVideoPlayer, CLIYoutubePlayer
+from tilia.ui.dialogs.problems import problems_message
 
 
 class CLI:
@@ -50,6 +51,7 @@ class CLI:
             (Get.FROM_USER_RETRY_MEDIA_PATH, on_ask_retry_media_file),
             (Get.FROM_USER_RETRY_PDF_PATH, on_ask_retry_pdf_file),
             (Get.FROM_USER_MEDIA_PATH, on_ask_media_path),
+            (Get.FROM_USER_SHOW_PROBLEMS, on_show_problems),
             (
                 Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION,
                 on_ask_unknown_timeline_kind_action,
@@ -237,6 +239,13 @@ def on_ask_unknown_timeline_kind_action(kinds: list[str]) -> tuple[bool, bool]:
     while (ans := input(prompt).lower()) not in valid_answers:
         pass
     return next(v for opt, v in outcomes.items() if ans in (opt, opt[0]))
+
+
+def on_show_problems(name: str, lines: list[str]) -> None:
+    """The warnings a file opened with: what the dialog says, then one line each."""
+    io.output(problems_message(name, len(lines)))
+    for line in lines:
+        io.output(line)
 
 
 def on_ask_media_path() -> tuple[bool, str]:

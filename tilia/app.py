@@ -3,8 +3,9 @@ from __future__ import annotations
 import functools
 import json
 import traceback
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import tilia.constants
 import tilia.dirs
@@ -172,7 +173,10 @@ class App:
             success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
             if not success:
                 return False
-        return self._do_open(Path(path))
+        if not self._do_open(Path(path)):
+            return False
+        self._show_problems(self.file_manager.file)
+        return True
 
     @long_operation("Loading file...")
     def _do_open(self, path: Path) -> bool:
@@ -206,6 +210,17 @@ class App:
         self.update_recent_files()
 
         return True
+
+    @staticmethod
+    def _show_problems(file: OpenDocument) -> None:
+        """The warnings the file opened with, one line each, once it is open
+        (FR-061). Nothing for a file with none."""
+        if not file.document.warnings:
+            return
+        # The state the timelines just built give: what TiLiA shows.
+        timelines = file.synced["timelines"]
+        lines = [problem_line(warning, timelines) for warning in file.document.warnings]
+        get(Get.FROM_USER_SHOW_PROBLEMS, Path(file.file_path).name, lines)
 
     def update_recent_files(self):
         try:
@@ -568,6 +583,44 @@ class App:
     def setup_file(self) -> None:
         self._ensure_slider_timeline()
         self.reset_undo_manager()
+
+
+def problem_line(
+    warning: tla.ReadWarning, timelines: Mapping[str, Mapping[str, Any]]
+) -> str:
+    """A warning a file opened with, in TiLiA's terms: the name of the timeline it
+    concerns and the time of its component, as TiLiA shows them, then the reason
+    (FR-061). `timelines` is the state's. The reason alone where TiLiA shows
+    neither: a warning without ids, or with ids of nothing TiLiA shows.
+
+    A timeline TiLiA shows without its component, such as a beat without a time,
+    gives its name alone, and a timeline without a name gives none
+    (TimeLineAnnotator/project-management#597, points 2 and 3)."""
+    where: list[str] = []
+    timeline = timelines.get(warning.timeline_id) if warning.timeline_id else None
+    if timeline is not None:
+        if timeline.get("name"):
+            where.append(timeline["name"])
+        components = timeline.get("components", {})
+        component = (
+            components.get(warning.component_id) if warning.component_id else None
+        )
+        if component is not None:
+            where.extend(_shown_time(component))
+    if not where:
+        return warning.message
+    return f"{', '.join(where)}: {warning.message}"
+
+
+def _shown_time(component: Mapping[str, Any]) -> list[str]:
+    """A component's time as TiLiA shows it, a span for a segment; none for a
+    component without one, such as a staff."""
+    start, end = component.get("start"), component.get("end")
+    if start is not None and end is not None:
+        return [f"{format_media_time(start)}–{format_media_time(end)}"]
+    if component.get("time") is not None:
+        return [format_media_time(component["time"])]
+    return []
 
 
 class _OpenBefore:

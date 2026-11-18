@@ -47,13 +47,14 @@ def names(paths):
 
 def open_file(path) -> bool:
     """Opens `path`, as the File menu does, without saving the file open, keeping
-    timelines of kinds TiLiA doesn't know and declining to look for media or PDFs
-    that aren't there."""
+    timelines of kinds TiLiA doesn't know, declining to look for media or PDFs
+    that aren't there, and closing the warnings it opens with."""
     with (
         Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
         Serve(Get.FROM_USER_RETRY_MEDIA_PATH, False),
         Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
         Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, False)),
+        Serve(Get.FROM_USER_SHOW_PROBLEMS, None),
     ):
         return commands.execute("file.open", path)
 

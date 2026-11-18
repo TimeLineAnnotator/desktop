@@ -28,6 +28,8 @@ class Get(Enum):
     FROM_USER_SAVE_PATH = auto()
     FROM_USER_SAVE_PATH_TILIA = auto()
     FROM_USER_SHOULD_SAVE_CHANGES = auto()
+    # A file's name and the lines of the warnings it opened with; replies None.
+    FROM_USER_SHOW_PROBLEMS = auto()
     FROM_USER_STRING = auto()
     FROM_USER_TILIA_FILE_PATH = auto()
     FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION = auto()

@@ -5,11 +5,12 @@ from unittest.mock import Mock, patch
 import pytest
 from PySide6.QtGui import QImage, QPainter
 
+from tests.mock import Serve
 from tests.ui.timelines.harmony.interact import click_harmony_ui
 from tests.ui.timelines.harmony.test_harmony_timeline_ui import add_harmony, add_mode
 from tests.ui.timelines.interact import click_timeline_ui
 from tests.utils import save_and_reopen, save_tilia_to_tmp_path, undoable
-from tilia.requests import Post, post
+from tilia.requests import Get, Post, post
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui import commands
 
@@ -573,7 +574,8 @@ class TestUnknownQualityInFile:
         Path(path).write_text(json.dumps(data), encoding="utf-8")
         post(Post.APP_CLEAR)
 
-        commands.execute("file.open", path=path)
+        with Serve(Get.FROM_USER_SHOW_PROBLEMS, None):  # it opens with a warning
+            commands.execute("file.open", path=path)
         return display_mode
 
     @staticmethod
