@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 import traceback
 from collections.abc import Mapping
 from pathlib import Path
@@ -220,7 +221,12 @@ class App:
         # The state the timelines just built give: what TiLiA shows.
         timelines = file.synced["timelines"]
         lines = [problem_line(warning, timelines) for warning in file.document.warnings]
-        get(Get.FROM_USER_SHOW_PROBLEMS, Path(file.file_path).name, lines)
+        name = Path(file.file_path).name
+        try:
+            get(Get.FROM_USER_SHOW_PROBLEMS, name, lines)
+        except NoReplyToRequest:
+            # No interface shows them: the file is open all the same.
+            logger.warning("'%s' has problems:\n%s", name, "\n".join(lines))
 
     def update_recent_files(self):
         try:
@@ -585,6 +591,10 @@ class App:
         self.reset_undo_manager()
 
 
+# What `str.splitlines` breaks a line at.
+_LINE_BREAK = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
+
+
 def problem_line(
     warning: tla.ReadWarning, timelines: Mapping[str, Mapping[str, Any]]
 ) -> str:
@@ -600,7 +610,8 @@ def problem_line(
     timeline = timelines.get(warning.timeline_id) if warning.timeline_id else None
     if timeline is not None:
         if timeline.get("name"):
-            where.append(timeline["name"])
+            # One warning, one line: a line break in the name is a space.
+            where.append(_LINE_BREAK.sub(" ", timeline["name"]))
         components = timeline.get("components", {})
         component = (
             components.get(warning.component_id) if warning.component_id else None

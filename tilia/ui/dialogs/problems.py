@@ -3,7 +3,9 @@ many there are, then one line each, with a button that copies the lines."""
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from collections.abc import Callable
+
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialog,
@@ -15,35 +17,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import tilia.errors
 from tilia.requests import Get, get
 
-TITLE = "Problems in this file"
 COPY = "Copy"
-
-
-def problems_message(name: str, count: int) -> str:
-    """What the dialog says before the lines, and the command line prints. One
-    problem is in the singular (TimeLineAnnotator/project-management#597, point 1)."""
-    if count == 1:
-        return (
-            f"'{name}' has 1 problem. TiLiA keeps it as it is, and saves it unchanged"
-            " until you fix it."
-        )
-    return (
-        f"'{name}' has {count} problems. TiLiA keeps them as they are, and saves"
-        " them unchanged until you fix them."
-    )
 
 
 class ProblemsDialog(QDialog):
     def __init__(self, name: str, lines: list[str], parent: QWidget | None) -> None:
         super().__init__(parent)
-        self.setWindowTitle(TITLE)
+        self.setWindowTitle(tilia.errors.OPEN_FILE_PROBLEMS.title)
         self.lines = lines
 
         layout = QVBoxLayout(self)
 
-        self.message = QLabel(problems_message(name, len(lines)))
+        self.message = QLabel(tilia.errors.problems_message(name, len(lines)))
         self.message.setTextFormat(Qt.TextFormat.PlainText)  # a name isn't markup
         self.message.setWordWrap(True)
         layout.addWidget(self.message)
@@ -70,6 +58,33 @@ class ProblemsDialog(QDialog):
 
 
 def show_problems(name: str, lines: list[str]) -> None:
-    dialog = ProblemsDialog(name, lines, get(Get.MAIN_WINDOW))
-    dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-    dialog.exec()
+    """Shows the dialog over TiLiA's window. A file named when TiLiA starts opens
+    before the window shows: its dialog waits for the window."""
+    window = get(Get.MAIN_WINDOW)
+
+    def show() -> None:
+        dialog = ProblemsDialog(name, lines, window)
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        dialog.exec()
+
+    if window.isVisible():
+        show()
+    else:
+        _OnceShown(window, show)
+
+
+class _OnceShown(QObject):
+    """Calls `callback` from the event loop once `window` has shown, so that what it
+    shows comes over the window."""
+
+    def __init__(self, window: QWidget, callback: Callable[[], None]) -> None:
+        super().__init__(window)  # the window keeps it until it has shown
+        self.callback = callback
+        window.installEventFilter(self)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Show:
+            watched.removeEventFilter(self)
+            QTimer.singleShot(0, watched, self.callback)
+            self.deleteLater()
+        return False

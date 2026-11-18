@@ -16,13 +16,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QDialog
 
 from tests.mock import Serve
 from tests.utils import get_blank_file_data
-from tilia.requests import Get
+from tilia.requests import Get, serve, server, stop_serving
 from tilia.ui import commands
 from tilia.ui.dialogs.problems import ProblemsDialog
 
@@ -208,6 +209,15 @@ class TestTheLines:
             "00:12.0–00:45.5: Level can't be below 1. Got '0'"
         ]
 
+    def test_a_line_break_in_a_timeline_s_name_is_a_space(self, opening, tmp_path):
+        def two_lines(content):
+            at_level_0(content)
+            content["timelines"][FORM]["name"] = "Form\nin two\r\nlines"
+
+        assert lines_shown(a_file(tmp_path, two_lines)) == [
+            "Form in two lines, 00:12.0–00:45.5: Level can't be below 1. Got '0'"
+        ]
+
     def test_the_dialog_names_the_file(self, opening, tmp_path):
         shown = open_file(a_file(tmp_path, at_level_0, name="Sonata.tla"))
 
@@ -251,6 +261,27 @@ class TestNoDialog:
 
         assert problems.shown == []
         tilia_errors.assert_error()
+
+
+@contextmanager
+def not_served(request: Get):
+    """No interface serves `request`."""
+    replier, callback = server(request)
+    stop_serving(replier, request)
+    try:
+        yield
+    finally:
+        serve(replier, request, callback)
+
+
+class TestWithoutAnInterface:
+    def test_the_file_opens_all_the_same(self, opening, tilia, tmp_path):
+        path = a_file(tmp_path, at_level_0)
+
+        with not_served(Get.FROM_USER_SHOW_PROBLEMS):
+            assert commands.execute("file.open", path)
+
+        assert tilia.file_manager.file.file_path == str(path.resolve())
 
 
 def a_dialog(lines=("Form, 00:12.0–00:45.5: Level can't be below 1. Got '0'",)):
@@ -326,10 +357,29 @@ def dialogs_shown(when_shown=lambda dialog: None):
         yield shown
 
 
-class TestOpening:
-    """TiLiA's window shows the dialog itself."""
+@pytest.fixture
+def main_window(qtui):
+    """TiLiA's window, shown, as it is once TiLiA has started."""
+    qtui.main_window.show()
+    QTest.qWaitForWindowExposed(qtui.main_window)
+    yield qtui.main_window
+    qtui.main_window.hide()
 
-    def test_a_file_with_warnings_shows_the_dialog(self, opening, qtui, tmp_path):
+
+def run_the_event_loop_until(condition, timeout_ms=2000):
+    for _ in range(timeout_ms // 10):
+        if condition():
+            return True
+        QTest.qWait(10)
+    return condition()
+
+
+class TestOpening:
+    """TiLiA's window shows the dialog itself, over it."""
+
+    def test_a_file_with_warnings_shows_the_dialog(
+        self, opening, qtui, main_window, tmp_path
+    ):
         with dialogs_shown() as shown:
             commands.execute("file.open", a_file(tmp_path, at_level_0))
 
@@ -344,13 +394,13 @@ class TestOpening:
         )
         assert dialog.parent() is qtui.main_window
 
-    def test_a_file_with_none_shows_none(self, opening, tmp_path):
+    def test_a_file_with_none_shows_none(self, opening, main_window, tmp_path):
         with dialogs_shown() as shown:
             commands.execute("file.open", a_file(tmp_path))
 
         assert shown == []
 
-    def test_once_the_file_is_open(self, opening, tilia, tmp_path):
+    def test_once_the_file_is_open(self, opening, tilia, main_window, tmp_path):
         path = a_file(tmp_path, at_level_0)
         seen = []
 
@@ -362,3 +412,53 @@ class TestOpening:
             commands.execute("file.open", path)
 
         assert seen == [(str(path.resolve()), False)]
+
+
+class TestOnStartUp:
+    """A file named when TiLiA starts opens before TiLiA's window shows: its
+    dialog waits for the window, and then shows over it."""
+
+    def test_waits_for_the_window(self, opening, qtui, tmp_path):
+        window = qtui.main_window
+        assert not window.isVisible()
+        shown_returned = []
+        seen = []
+
+        def when_shown(dialog):
+            seen.append(
+                (dialog.parent() is window, window.isVisible(), bool(shown_returned))
+            )
+
+        with dialogs_shown(when_shown) as shown:
+            assert commands.execute("file.open", a_file(tmp_path, at_level_0))
+            QCoreApplication.processEvents()
+            assert shown == []
+
+            window.show()
+            shown_returned.append(True)
+            try:
+                assert run_the_event_loop_until(lambda: shown)
+            finally:
+                window.hide()
+
+        # Over the window, once it shows, and from the event loop: not from within
+        # `show()`, as TiLiA's start calls it before its event loop runs.
+        assert seen == [(True, True, True)]
+        assert shown[0].lines_view.toPlainText() == (
+            "Form, 00:12.0–00:45.5: Level can't be below 1. Got '0'"
+        )
+
+    def test_shows_once(self, opening, qtui, tmp_path):
+        window = qtui.main_window
+        with dialogs_shown() as shown:
+            commands.execute("file.open", a_file(tmp_path, at_level_0))
+            window.show()
+            try:
+                assert run_the_event_loop_until(lambda: shown)
+                window.hide()
+                window.show()
+                QTest.qWait(50)
+            finally:
+                window.hide()
+
+        assert len(shown) == 1

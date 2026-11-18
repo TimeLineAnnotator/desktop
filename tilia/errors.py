@@ -110,6 +110,19 @@ OPEN_FILE_IN_QUARTERS = Error(
     "'{}' measures its times in quarter notes, which this version of TiLiA"
     " can't show yet.",
 )
+# The warnings a file opens with (FR-061): not an error, so `display` doesn't show
+# them. TiLiA's window and its command line show the message, then one line each.
+OPEN_FILE_PROBLEMS = Error(
+    "Problems in this file",
+    "'{}' has {} problems. TiLiA keeps them as they are, and saves them unchanged"
+    " until you fix them.",
+)
+# One (TimeLineAnnotator/project-management#597, point 1).
+OPEN_FILE_ONE_PROBLEM = Error(
+    "Problems in this file",
+    "'{}' has 1 problem. TiLiA keeps it as it is, and saves it unchanged until you"
+    " fix it.",
+)
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. \n{}")
 UNDO_FAILED = Error(
     "Undo failed",
@@ -143,6 +156,13 @@ AMBIGUOUS_SHORTCUT = Error(
 )
 VELOPACK_UPDATE_FAILED = Error("Update failed", "{}")
 GIT_PULL_FAILED = Error("Pull failed", "{}")
+
+
+def problems_message(name: str, count: int) -> str:
+    """What TiLiA says of the `count` warnings the file `name` opened with."""
+    if count == 1:
+        return OPEN_FILE_ONE_PROBLEM.message.format(name)
+    return OPEN_FILE_PROBLEMS.message.format(name, count)
 
 
 def display(error: Error, *args):
