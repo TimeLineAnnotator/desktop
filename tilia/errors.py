@@ -132,6 +132,14 @@ OPEN_FILE_ONE_PROBLEM = Error(
     " until you fix them.",
 )
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. \n{}")
+# A file that fails to load part-way, once the file open before is cleared, which
+# can't be given back: its unsaved changes are in the autosave copy TiLiA wrote
+# before clearing it. The file's name, then the copy's path.
+OPEN_FILE_NOT_GIVEN_BACK = Error(
+    "Open file",
+    "'{}' could not be loaded, and the file open before could not be given back."
+    " Its unsaved changes are in an autosave copy: '{}'.",
+)
 UNDO_FAILED = Error(
     "Undo failed",
     "Undo failed. TiLiA encountered an error while undoing the last command.\n{}",

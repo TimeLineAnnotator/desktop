@@ -10,6 +10,7 @@ from colorama import Fore, Style
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
+import tilia.dirs as dirs_module
 import tilia.log as logging_module
 import tilia.parsers.score.musicxml as musicxml_module
 import tilia.settings as settings_module
@@ -239,6 +240,17 @@ def no_score_drawing(request, monkeypatch):
     if request.node.get_closest_marker("draws_scores"):
         return
     monkeypatch.setattr(musicxml_module, "musicxml_to_svg", _UndrawnScore)
+
+
+@pytest.fixture(autouse=True)
+def autosaves_in_a_folder_of_the_test_s_own(tmp_path_factory, monkeypatch):
+    """Write autosaves in an empty folder of the test's own. TiLiA writes one before
+    it clears a file with unsaved changes to open another. The user's own folder
+    is set only when TiLiA starts; until then the folder is the working directory,
+    and making room for an autosave there would delete its oldest files."""
+    monkeypatch.setattr(
+        dirs_module, "autosaves_path", tmp_path_factory.mktemp("autosaves")
+    )
 
 
 def pytest_unconfigure(config):
