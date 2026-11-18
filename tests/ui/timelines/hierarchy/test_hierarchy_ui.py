@@ -535,6 +535,24 @@ class TestDoubleClick:
         mock.assert_not_called()
 
 
+class TestInspectorTimes:
+    @pytest.fixture(autouse=True)
+    def close_inspector(self):
+        yield
+        post(Post.WINDOW_CLOSE, WindowKind.INSPECT)
+
+    def test_a_start_before_zero_is_shown_with_a_minus_sign(self, qtui, tlui):
+        commands.execute("timeline.hierarchy.add", start=-0.5, end=2, level=1)
+        hui = tlui[0]
+        assert hui.get_data("start") == -0.5
+        tlui.select_element(hui)
+        commands.execute("timeline.element.inspect")
+        inspector = qtui._windows[WindowKind.INSPECT]
+
+        start_and_end = inspector.field_name_to_widgets["Start / end"][1]
+        assert start_and_end.text() == "-00:00.5 / 00:02.0"
+
+
 class TestFieldInspectorEdit:
     @pytest.fixture(autouse=True)
     def close_inspector(self):
@@ -545,15 +563,6 @@ class TestFieldInspectorEdit:
         tlui.select_element(element)
         commands.execute("timeline.element.inspect")
         return qtui._windows[WindowKind.INSPECT]
-
-    def test_a_start_before_zero_is_shown_with_a_minus_sign(self, qtui, tlui):
-        commands.execute("timeline.hierarchy.add", start=-0.5, end=2, level=1)
-        hui = tlui[0]
-        assert hui.get_data("start") == -0.5
-        inspector = self.open_inspector_for(tlui, hui, qtui)
-
-        start_and_end = inspector.field_name_to_widgets["Start / end"][1]
-        assert start_and_end.text() == "-00:00.5 / 00:02.0"
 
     @pytest.mark.parametrize(
         "field_name, attr, new_value",
