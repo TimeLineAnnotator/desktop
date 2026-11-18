@@ -102,6 +102,8 @@ COMPONENT_ATTRIBUTES: dict[str, tuple[str, ...]] = {
         "accidental",
         "quality",
         "inversion",
+        "bass_step",
+        "bass_accidental",
         "applied_to",
         "level",
         "display_mode",

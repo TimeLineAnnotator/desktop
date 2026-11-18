@@ -333,6 +333,14 @@
               "accidental": { "type": ["integer", "null"], "default": 0 },
               "quality": { "type": ["string", "null"], "default": "major" },
               "inversion": { "type": ["integer", "null"], "default": 0 },
+              "bass_step": {
+                "description": "The chord's real bass, in the terms of `step`: from 0 to 6. It goes together with bass_accidental: one without the other breaks a rule. TiLiA and the importer write them only where the inversion doesn't already give that bass, as in C/Eb, where inversion 1 gives E; a chord with them where it does reads the same (TimeLineAnnotator/project-management#514, #522). Without them, the bass is the inversion's.",
+                "type": ["integer", "null"]
+              },
+              "bass_accidental": {
+                "description": "The accidental of the chord's real bass, in the terms of `accidental`: from -2 to 2. It goes together with bass_step: one without the other breaks a rule.",
+                "type": ["integer", "null"]
+              },
               "applied_to": { "type": ["integer", "null"], "default": 0 },
               "level": { "description": "From 1.", "type": ["integer", "null"], "default": 1 },
               "display_mode": { "description": "\"letter\", \"roman\" or \"custom\".", "type": ["string", "null"], "default": "letter" },

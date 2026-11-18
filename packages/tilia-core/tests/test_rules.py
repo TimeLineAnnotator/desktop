@@ -374,6 +374,9 @@ class TestCodes:
             ("pdf_marker", {"page_number": 0}, "no_such_page"),
             ("harmony", {"step": 9}, "bad_step"),
             ("harmony", {"applied_to": 9}, "bad_applied_to"),
+            ("harmony", {"bass_step": 9}, "bad_bass_step"),
+            ("harmony", {"bass_accidental": 9}, "bad_bass_accidental"),
+            ("harmony", {"bass_step": 2}, "lone_bass_key"),
             ("harmony", {"accidental": 9}, "bad_accidental"),
             ("harmony", {"quality": "x"}, "bad_quality"),
             ("harmony", {"inversion": 99}, "bad_inversion"),
@@ -943,6 +946,13 @@ class TestHarmony:
             ("quality", None, "None is not a valid quality."),
             ("inversion", -1, "-1 is not a valid inversion."),
             ("inversion", 3, "3 is not a valid inversion."),
+            ("bass_step", 7, "7 is not a valid bass step."),
+            ("bass_step", -1, "-1 is not a valid bass step."),
+            ("bass_step", 1.0, "1.0 is not a valid bass step."),
+            ("bass_step", True, "True is not a valid bass step."),
+            ("bass_step", "E", "E is not a valid bass step."),
+            ("bass_accidental", 3, "3 is not a valid bass accidental."),
+            ("bass_accidental", -3, "-3 is not a valid bass accidental."),
             ("level", 0, "0 is not a valid level."),
             ("level", 3, "3 is not a valid level."),
             ("display_mode", "roman2", "roman2 is not a valid display mode."),
@@ -955,6 +965,36 @@ class TestHarmony:
     )
     def test_values_tilia_refuses_when_it_sets_them(self, attribute, value, reason):
         assert check("harmony", **{attribute: value}) == (False, reason)
+
+    @pytest.mark.parametrize("step", range(7))
+    @pytest.mark.parametrize("accidental", rules.HARMONY_ACCIDENTALS)
+    def test_a_bass_takes_steps_and_accidentals_values(self, step, accidental):
+        # The two go together.
+        assert check("harmony", bass_step=step, bass_accidental=accidental) == OK
+
+    @pytest.mark.parametrize(
+        "attrs, reason",
+        [
+            ({"bass_step": 2}, "None is not a valid bass accidental."),
+            ({"bass_accidental": -1}, "None is not a valid bass step."),
+        ],
+        ids=["bass_step alone", "bass_accidental alone"],
+    )
+    def test_one_bass_key_without_the_other_is_the_other_missing(self, attrs, reason):
+        outcome = check("harmony", **attrs)
+        assert outcome == (False, reason)
+        assert outcome.code == rules.LONE_BASS_KEY
+
+    @pytest.mark.parametrize(
+        "attrs",
+        [
+            {"step": 0, "inversion": 1, "bass_step": 2, "bass_accidental": 0},
+            {"step": 0, "inversion": 0, "bass_step": 0, "bass_accidental": 0},
+        ],
+        ids=["C/E, which inversion 1 gives", "C/C, which inversion 0 gives"],
+    )
+    def test_a_bass_the_inversion_already_gives_is_allowed(self, attrs):
+        assert check("harmony", **attrs) == OK
 
     def test_every_quality_music21_has(self, music21):
         for quality in music21.harmony.CHORD_TYPES:
@@ -1916,6 +1956,12 @@ class TestNotValid:
 # function gives, with the others as an import or a reading sees them.
 
 MISSING = object()  # a key the component doesn't have
+
+
+class Together(dict):
+    """Attributes drawn as one value of a pool: a chord's bass."""
+
+
 NAN = float("nan")
 ODD_NUMBERS = [NAN, float("inf"), "1.0", None, True, 10**400, -(10**400), [1.0]]
 TEXTS = ([MISSING, MISSING, "", "Exposição"], [3])
@@ -1937,6 +1983,24 @@ HARMONY_POOLS = {
         ["dominant-seventh-flat-ninth", "maj", None],
     ),
     "inversion": ([MISSING, 0, 1, 2], [3, -1, 1.0]),
+    # Drawn as one, as they are written: one alone is an odd value.
+    "bass": (
+        [
+            MISSING,
+            MISSING,
+            MISSING,
+            Together(bass_step=0, bass_accidental=0),
+            Together(bass_step=3, bass_accidental=1),
+            Together(bass_step=6, bass_accidental=-2),
+        ],
+        [
+            Together(bass_step=7, bass_accidental=0),
+            Together(bass_step=1.0, bass_accidental=0),
+            Together(bass_step=2, bass_accidental=True),
+            Together(bass_step=2),
+            Together(bass_accidental=-1),
+        ],
+    ),
     "level": ([MISSING, 1, 2], [0, 3]),
     "display_mode": ([MISSING, "roman", "letter", "custom"], ["roman2"]),
     "custom_text": TEXTS,
@@ -1965,11 +2029,14 @@ USES = pytest.mark.parametrize(
 
 
 def draw(rng, pools, odds=0.06):
-    """Attributes from `pools`: each a usual value or, now and then, an odd one."""
+    """Attributes from `pools`: each a usual value or, now and then, an odd one. A
+    `Together` gives several at once."""
     attrs = {}
     for name, (usual, odd) in pools.items():
         value = rng.choice(odd if rng.random() < odds else usual)
-        if value is not MISSING:
+        if isinstance(value, Together):
+            attrs.update(value)
+        elif value is not MISSING:
             attrs[name] = value
     return attrs
 
