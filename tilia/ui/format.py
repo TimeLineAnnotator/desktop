@@ -22,7 +22,8 @@ def parse_media_time(text: str) -> float | None:
     A time before 0, as format_media_time shows it, is invalid: no input for
     a time takes one, and MEDIA_TIME_PATTERN refuses its minus sign.
     """
-    if not re.fullmatch(MEDIA_TIME_PATTERN, text):
+    # ASCII, as \d is in the inputs' validators (Qt's QRegularExpression).
+    if not re.fullmatch(MEDIA_TIME_PATTERN, text, re.ASCII):
         return None
     parts = text.split(":")
     try:
