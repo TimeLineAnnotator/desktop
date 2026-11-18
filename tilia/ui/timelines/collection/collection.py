@@ -64,7 +64,10 @@ from .view import TimelineUIsView
 # their height, as `timeline.set_height` says when it refuses them.
 HEIGHT_IS_SET = (HierarchyTimeline, AudioWaveTimeline)
 HEIGHT_COMES_FROM = {
-    BeatTimeline: ("beat", "is fixed"),
+    BeatTimeline: (
+        "beat",
+        "is the default height, plus the time-signature band when shown",
+    ),
     HarmonyTimeline: ("harmony", "is its level height times the levels shown"),
     MarkerTimeline: ("marker", "comes from the default height in the settings"),
     PdfTimeline: ("PDF", "is the default height in the settings when it was added"),

@@ -12,16 +12,15 @@ from tilia.settings import settings
 from tilia.ui.consts import BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
 
 
-def get_creation_args(height: int | None = None) -> dict[str, Any]:
+def get_creation_args() -> dict[str, Any]:
     """
     Arguments that give a new beat timeline its time signatures and room for
-    them. Without `height`, it is the default height plus the band.
+    them: the default height plus the band.
     """
-    if height is None:
-        height = (
-            settings.get("beat_timeline", "default_height")
-            + BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
-        )
+    height = (
+        settings.get("beat_timeline", "default_height")
+        + BEAT_TIMELINE_TIME_SIGNATURE_BAND_HEIGHT
+    )
     return {"show_time_signatures": True, "height": height}
 
 

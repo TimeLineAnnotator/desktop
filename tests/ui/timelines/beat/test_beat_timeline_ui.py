@@ -2571,13 +2571,18 @@ class TestTimeSignatures:
         assert tluis[0].get_data("height") == height
         assert label_texts(all_labels(tluis[0])) == [("2", "4"), ("2", "8")]
 
-    def test_toggle_keeps_a_height_set_by_hand(self, tluis):
-        add_beat_timeline_with_pattern("4")
-        commands.execute("timeline.set_height", tluis[0], height=100)
+    def test_toggle_keeps_a_height_from_a_file(self, tls, tluis):
+        # A beat timeline's height can't be set, but a file can hold one other
+        # than the default, as earlier versions let it be set by hand.
+        tls.create_timeline(
+            BeatTimeline, beat_pattern="4", show_time_signatures=True, height=100
+        )
 
         commands.execute("timeline.beat.toggle_time_signatures", tluis[0])
-
         assert tluis[0].get_data("height") == 100 - TIME_SIGNATURE_BAND_HEIGHT
+
+        commands.execute("timeline.beat.toggle_time_signatures", tluis[0])
+        assert tluis[0].get_data("height") == 100
 
     def test_toggle_in_context_menu(self, tluis):
         add_beat_timeline_with_pattern("4")

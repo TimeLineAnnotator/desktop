@@ -169,7 +169,7 @@ def add(namespace: argparse.Namespace):
             return
         kwargs["beat_pattern"] = pattern
     if tl_type is BeatTimeline:
-        kwargs |= get_creation_args(kwargs.get("height"))
+        kwargs |= get_creation_args()
 
     output(f"Adding timeline with {kind=}, {name=}")
 
