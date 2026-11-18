@@ -303,9 +303,9 @@ ACCEPTED = [
         {"path": "a.mp3", "duration_if_error": 312.5, "scale_timelines": "no"},
     ),
     (
-        "timelines add beat --name Measures --height 40 --beat-pattern 3",
+        "timelines add beat --name Measures --beat-pattern 3",
         "timelines add",
-        {"kind": "beat", "name": "Measures", "height": 40, "beat_pattern": ["3"]},
+        {"kind": "beat", "name": "Measures", "height": None, "beat_pattern": ["3"]},
     ),
     (
         "timelines add beat --beat-pattern 10[4] 3 15[4]",
@@ -323,9 +323,14 @@ ACCEPTED = [
         {"kind": "hierarchy", "name": "", "height": None, "beat_pattern": None},
     ),
     (
-        "timelines add marker --height 30",
+        "timelines add hierarchy --name Phrases --height 40",
         "timelines add",
-        {"kind": "marker", "height": 30},
+        {"kind": "hierarchy", "name": "Phrases", "height": 40},
+    ),
+    (
+        "timelines add marker --name Cadences",
+        "timelines add",
+        {"kind": "marker", "name": "Cadences", "height": None},
     ),
     (
         "timelines add harmony --name Chords",
