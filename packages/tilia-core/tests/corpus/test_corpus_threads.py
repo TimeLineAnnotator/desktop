@@ -12,18 +12,25 @@ generation it carries.
 
 The run is bounded: ``MIN_SCANS`` scans, then more until ``LENGTH`` seconds
 have passed, never more than ``MAX_SCANS``. The scenario's own thread watches
-the others: a thread that gets no further for ``STALL`` seconds, or a run
-longer than ``DEADLINE``, fails it at once with the stack of every thread still
-running. It runs in a child process, because a fault can also freeze the whole
-process: two threads on one connection block inside sqlite3 with the GIL held
-(``tql/inuse.py``), and no thread of the process runs again. ``faulthandler``
-then prints every thread's stack and ends the child after ``FROZEN`` seconds.
+the others: when no thread has got any further for ``STALL`` seconds, or the
+run is longer than ``DEADLINE``, it fails at once with how far the run got and
+the stack of every thread still running. A slow thread is left to
+``DEADLINE`` while the others get on. The scenario runs in a child process,
+because a fault can also freeze the whole process: two threads on one
+connection block inside sqlite3 with the GIL held (``tql/inuse.py``), and no
+thread of the process runs again. ``faulthandler`` then prints every thread's
+stack and ends the child ``FROZEN`` seconds after the scenario began, and it
+does the same if the child crashes.
 
 In the child, threads take turns more often (``SWITCH``) and a change makes new
 reads wait sooner (``PATIENCE``), so that the run holds more scans, and a
-reader can come in at more places in a change.
+reader can come in at more places in a change. That assumes the child has more
+than one CPU to share with whatever else runs, as CI's runners have. On one
+CPU shared with busy processes, each turn waits for the system's scheduler,
+and the run takes several times as long.
 """
 
+import faulthandler
 import itertools
 import os
 import random
@@ -50,20 +57,30 @@ MIN_SCANS = 3
 MAX_SCANS = 1000 if LONG else 100
 """Scans the writer never goes beyond, however fast they are."""
 STALL = 20.0
-"""Seconds a thread may go without finishing a query, or a step of the writer,
-before it counts as stuck."""
-DEADLINE = LENGTH + 40.0
-"""Seconds after which the run fails, whatever its threads are doing."""
-FROZEN = DEADLINE + 15.0
-"""Seconds after which the child process counts as frozen."""
+"""Seconds in which no thread finished a query or a step of the writer, after
+which the run counts as stuck."""
+DEADLINE = LENGTH + 115.0
+"""Seconds after which the run fails, even while its threads get on. A run
+takes about 7 s; on one CPU shared with four busy processes, its three scans
+took 42 to 84 s."""
+FROZEN = DEADLINE + 30.0
+"""Seconds from the start of the scenario after which the child counts as
+frozen: past ``DEADLINE``, with time for the scenario's own report, which
+comes slowly on a busy machine."""
+STARTING = 120.0
+"""Seconds the child may take to start the scenario, its imports included."""
 SEED = 13
 SWITCH = 1e-4
 """The child's switch interval, in seconds: 50 times as often as Python's
 default. With the default, a reader almost never comes in between the end of
 a change and its next few statements."""
+DEFAULT_SWITCH = sys.getswitchinterval()
 PATIENCE = 0.05
 """Seconds a change waits for running reads in the child before new reads wait
-for it (``store.PATIENCE``, 2 s): with 2 s, the 5 s hold three scans."""
+for it (``store.PATIENCE``, 2 s): with 2 s, the 5 s hold three scans. It also
+bounds how long ``apply`` retries a lock error: 50 ms here instead of 2 s. A
+change of a correct store meets no lock error here, since it waits for the
+reads."""
 
 READERS = 4
 PIECES = [f"piece{n:02}" for n in range(12)]
@@ -129,15 +146,18 @@ def scenario(folder: Path) -> None:
     cond = threading.Condition()
     stop = threading.Event()
     errors: list[str] = []
+    # Each thread writes only its own entries, so these need no lock. The
+    # readers take ``cond`` only when their generation moves: taking it with
+    # every query kept the writer waiting to take it back, on a busy machine.
     progress = dict.fromkeys(names, time.monotonic())  # when each last got on
     doing = dict.fromkeys(names, "starting")
     latest = [0] * READERS  # the latest generation each reader has answers at
+    finished = [0] * READERS  # how many queries each reader has finished
     answers: list[dict[tuple[str, int], set[str]]] = [{} for _ in range(READERS)]
 
     def step(name: str, what: str) -> None:
-        with cond:
-            progress[name] = time.monotonic()
-            doing[name] = what
+        progress[name] = time.monotonic()
+        doing[name] = what
 
     def fail(name: str) -> None:
         errors.append(f"{name}:\n{traceback.format_exc()}")
@@ -153,21 +173,23 @@ def scenario(folder: Path) -> None:
                     return
                 step(name, f"running {query!r}")
                 result = tql.run(corpus, query)
-                key = (query, result.generation)
+                generation = result.generation
+                key = (query, generation)
                 answers[number].setdefault(key, set()).add(answer(result))
-                with cond:
-                    latest[number] = max(latest[number], result.generation)
-                    cond.notify_all()
+                finished[number] += 1
+                if generation > latest[number]:
+                    with cond:
+                        latest[number] = generation
+                        cond.notify_all()
         except BaseException:  # noqa: BLE001 - told at the end, whatever it was
             fail(name)
 
     def readers_caught_up(generation: int) -> None:
-        """Wait until every reader has finished a query on ``generation``."""
+        """Wait until every reader has finished a query on ``generation``; a
+        slow reader is left to ``DEADLINE``."""
         step("writer", f"waiting for every reader to read generation {generation}")
         with cond:
-            cond.wait_for(
-                lambda: stop.is_set() or min(latest) >= generation, STALL + 1.0
-            )
+            cond.wait_for(lambda: stop.is_set() or min(latest) >= generation, DEADLINE)
             behind = [names[n] for n in range(READERS) if latest[n] < generation]
         assert stop.is_set() or not behind, f"{behind} never read {generation}"
 
@@ -209,25 +231,22 @@ def scenario(folder: Path) -> None:
     started = time.monotonic()
     for thread in threads:
         thread.start()
-    while any(thread.is_alive() for thread in threads):
-        threads[-1].join(0.1)
+    while running := [thread for thread in threads if thread.is_alive()]:
+        running[0].join(0.1)
         now = time.monotonic()
-        with cond:
-            stuck = [
-                thread.name
-                for thread in threads
-                if thread.is_alive() and now - progress[thread.name] > STALL
-            ]
-        if stuck or now - started > DEADLINE:
-            # not closed: closing would wait for a stuck thread's read
+        idle = now - max(progress.values())
+        if idle > STALL or now - started > DEADLINE:
+            got = f"{len(expected) - 1} scans; queries per reader: {finished}"
+            sys.setswitchinterval(DEFAULT_SWITCH)  # the report needs its turns
             why = (
-                f"{stuck} got no further for {STALL:.0f} s"
-                if stuck
+                f"no thread got any further for {STALL:.0f} s"
+                if idle > STALL
                 else f"the run took longer than {DEADLINE:.0f} s"
             )
-            running = stacks(threads, doing)
+            frames = stacks(threads, doing)
             stop.set()
-            raise AssertionError(f"{why}\n{running}\n" + "\n".join(errors))
+            # not closed: closing would wait for a stuck thread's read
+            raise AssertionError(f"{why} ({got})\n{frames}\n" + "\n".join(errors))
     corpus.close()
 
     assert errors == [], "\n".join(errors)
@@ -248,11 +267,13 @@ def scenario(folder: Path) -> None:
 def main(folder: str) -> None:
     """Run in the child process: the scenario, then exit at once, without
     waiting for a thread stuck inside sqlite3."""
+    faulthandler.dump_traceback_later(FROZEN, exit=True)  # from now, not the start
     sys.setswitchinterval(SWITCH)
     store.PATIENCE = PATIENCE
     try:
         scenario(Path(folder))
     except BaseException:  # noqa: BLE001 - told on stderr, whatever it was
+        sys.setswitchinterval(DEFAULT_SWITCH)
         traceback.print_exc()
         sys.stderr.flush()
         os._exit(1)
@@ -260,10 +281,19 @@ def main(folder: str) -> None:
     os._exit(0)
 
 
+def text(output: str | bytes | None) -> str:
+    """What a child wrote: ``TimeoutExpired`` gives bytes on some systems,
+    even with ``text=True``."""
+    if isinstance(output, bytes):
+        return output.decode(errors="replace")
+    return output or ""
+
+
 def test_results_keep_to_one_generation_while_the_corpus_changes(tmp_path):
     code = (
         f"import sys; sys.path[:0] = {sys.path!r}\n"
-        f"import faulthandler; faulthandler.dump_traceback_later({FROZEN}, exit=True)\n"
+        "import faulthandler; faulthandler.enable()\n"
+        f"faulthandler.dump_traceback_later({STARTING}, exit=True)\n"
         "import test_corpus_threads\n"
         "test_corpus_threads.main(sys.argv[1])\n"
     )
@@ -272,10 +302,10 @@ def test_results_keep_to_one_generation_while_the_corpus_changes(tmp_path):
             [sys.executable, "-c", code, str(tmp_path)],
             capture_output=True,
             text=True,
-            timeout=FROZEN + 30.0,
+            timeout=STARTING + FROZEN + 30.0,
         )
     except subprocess.TimeoutExpired as err:
-        pytest.fail(f"the child didn't end:\n{err.stdout}\n{err.stderr}")
+        pytest.fail(f"the child didn't end:\n{text(err.stdout)}\n{text(err.stderr)}")
     print(done.stdout, end="")  # how many scans, shown with -s
     if done.returncode != 0 or "SCENARIO OK" not in done.stdout:
         pytest.fail(
