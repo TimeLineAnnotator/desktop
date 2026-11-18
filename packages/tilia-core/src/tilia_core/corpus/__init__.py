@@ -137,7 +137,8 @@ class Corpus:
         self._store: Store = scanner.store
         self.open_report = report
         """The report of the first build: every file in ``added``, the
-        unreadable ones, and every group of copies in ``shared_ids``."""
+        unreadable ones, every group of copies in ``shared_ids``, and the
+        subfolders it couldn't list in ``unlisted``."""
         self.rescan_before_reads = rescan_before_reads
         self._lock = threading.Lock()
         self._reads: dict[int, int] = {}  # thread -> how deep in reads
