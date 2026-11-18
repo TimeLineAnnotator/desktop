@@ -679,11 +679,19 @@ class Document:
     # states that fingerprint needn't read it as a document again, which for an
     # old file would migrate it again. None once `fingerprint` is set otherwise.
     _read_digest: str | None = field(default=None, repr=False, compare=False)
-    # The paths it was read, or last written, with absolute, each after its place
-    # in the file ("/media/path", "/timelines/<id>/path"), sorted, so that the
-    # document is the same in any process: its writes keep each so while the
-    # text at its place is the one held (FR-033; the path handler, `tla.paths`).
+    # The paths it was read with absolute, each after its place in the file
+    # ("/media/path", "/timelines/<id>/path"), sorted, so that the document is
+    # the same in any process. Kept for its whole life, whatever is written
+    # since: its writes keep each absolute while the text at its place is the
+    # one read (FR-033; TimeLineAnnotator/project-management#600, option a; the
+    # path handler, `tla.paths`).
     _absolute_as_read: tuple[tuple[str, str], ...] = field(
+        default=(), repr=False, compare=False
+    )
+    # The same of the paths it was last written with absolute, such as one on
+    # another drive on Windows, where no relative path exists: its later writes
+    # keep each absolute while the text at its place is the one written.
+    _absolute_as_written: tuple[tuple[str, str], ...] = field(
         default=(), repr=False, compare=False
     )
     # The folder its relative paths are relative to, found when it was read or

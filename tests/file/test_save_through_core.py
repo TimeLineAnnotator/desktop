@@ -30,6 +30,7 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
 from tilia_core import tla
+from tilia_core.tla import paths
 
 FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
 EVERY_KIND = FILES / "golden" / "every-kind.tla"
@@ -1260,6 +1261,100 @@ class TestAPathReadAbsolute:
 
         assert self.paths_in(path) == (media, pdf)
         assert path.read_bytes() == before
+
+    @pytest.fixture
+    def there(self, qtui, tilia, tls, tmp_path) -> tuple[Path, str, str, Path]:
+        """As `absolute`, with the media and the PDF there, and others beside them,
+        open, its media loaded."""
+        far = tmp_path / "far"
+        far.mkdir()
+        for name in ("x.mp3", "y.mp3"):
+            shutil.copyfile(EXAMPLE_MEDIA_PATH, far / name)
+        for name in ("x.pdf", "y.pdf"):
+            shutil.copyfile(RESOURCES / "example.pdf", far / name)
+        (tmp_path / "proj").mkdir()
+        path = written_by_the_core(EVERY_KIND, tmp_path / "proj")
+        media, pdf = (far / "x.mp3").as_posix(), (far / "x.pdf").as_posix()
+        stored_absolute(path, media, pdf)
+        with (
+            patch.object(QtAudioPlayer, "_engine_load_media", return_value=True),
+            Serve(Get.PLAYER_CLASS, QtAudioPlayer),
+        ):
+            assert open_file(path)
+            yield path, media, pdf, far
+
+    # An undo back to the media or PDF read gives the file's bytes, a save in
+    # between or not: the text read is the document's for its whole life
+    # (TimeLineAnnotator/project-management#600, option a).
+    SAVED_BETWEEN = pytest.mark.parametrize(
+        "saved_between", [False, True], ids=["unsaved", "saved in between"]
+    )
+
+    @SAVED_BETWEEN
+    def test_an_undo_of_a_media_load_gives_back_the_files_bytes(
+        self, there, saved_between
+    ):
+        # TiLiA gives the core the media it loads as `tla.as_media_path` makes it,
+        # with a backslash between folders on Windows: the text read, as a file
+        # stores it, so it stays absolute, as a PDF's does.
+        path, media, pdf, far = there
+        before = path.read_bytes()
+        post(Post.APP_MEDIA_LOAD, (far / "y.mp3").as_posix(), scale_timelines="no")
+        if saved_between:
+            assert save()
+            assert self.paths_in(path) == ("../far/y.mp3", pdf)
+        commands.execute("edit.undo")
+
+        assert save()
+
+        assert self.paths_in(path) == (media, pdf)
+        assert path.read_bytes() == before
+
+    @SAVED_BETWEEN
+    def test_an_undo_of_a_pdf_path_change_gives_back_the_files_bytes(
+        self, there, tilia, tls, saved_between
+    ):
+        path, media, pdf, far = there
+        before = path.read_bytes()
+        pdf_id = first_of_kind(the_document(tilia), "pdf").id
+        tls.set_timeline_data(pdf_id, "path", str(far / "y.pdf"))
+        record()
+        if saved_between:
+            assert save()
+            assert self.paths_in(path) == (media, "../far/y.pdf")
+        commands.execute("edit.undo")
+
+        assert save()
+
+        assert self.paths_in(path) == (media, pdf)
+        assert path.read_bytes() == before
+
+
+class TestAPdfPathFoundFromTheFolderRead:
+    def test_after_the_files_path_names_another_folder(
+        self, qtui, tilia, tls, tmp_path, monkeypatch
+    ):
+        # TiLiA finds a PDF from the folder the open file's paths are relative to,
+        # kept from its read, as its saves and its media do (WP3's FR-033): not
+        # from the folder its path names now, as a link to the file changed since
+        # would (TimeLineAnnotator/project-management#584).
+        path, pdf = a_pdf_in(tmp_path)
+        assert open_file(path)
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        now = paths.paths_folder
+        monkeypatch.setattr(
+            paths,
+            "paths_folder",
+            lambda given: str(elsewhere) if Path(given) == path else now(given),
+        )
+
+        with Serve(Get.FROM_USER_RETRY_PDF_PATH, False):
+            tls.set_timeline_data(pdf, "path", "other.pdf")
+
+        timeline = tls.get_timeline(pdf)
+        assert timeline.is_pdf_valid
+        assert timeline.get_data("path") == (tmp_path / "other.pdf").as_posix()
 
 
 class TestBackToTheStateRead:
