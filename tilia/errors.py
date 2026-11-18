@@ -117,11 +117,11 @@ OPEN_FILE_PROBLEMS = Error(
     "'{}' has {} problems. TiLiA keeps them as they are, and saves them unchanged"
     " until you fix them.",
 )
-# One (TimeLineAnnotator/project-management#597, point 1).
+# One: only the noun changes (TimeLineAnnotator/project-management#597, point 1).
 OPEN_FILE_ONE_PROBLEM = Error(
     "Problems in this file",
-    "'{}' has 1 problem. TiLiA keeps it as it is, and saves it unchanged until you"
-    " fix it.",
+    "'{}' has 1 problem. TiLiA keeps them as they are, and saves them unchanged"
+    " until you fix them.",
 )
 LOAD_FILE_ERROR = Error("Load file error", "File '{}' could not be loaded. \n{}")
 UNDO_FAILED = Error(

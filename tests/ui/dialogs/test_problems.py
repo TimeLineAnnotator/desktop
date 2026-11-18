@@ -47,6 +47,7 @@ make_broken = _load_make_broken()
 IDS = make_broken.IDS
 FORM, CADENCES, BEATS = IDS["form"], IDS["cadences"], IDS["beats"]
 FIRST, SECOND = make_broken.make_id(100), make_broken.make_id(101)
+LYRICS = make_broken.make_id(102)
 
 
 def a_file(tmp_path: Path, change=None, name: str = "piece.tla") -> Path:
@@ -117,11 +118,13 @@ class ShownProblems(Serve):
         self.shown.append((name, lines))
 
 
-def open_file(path: Path) -> list[tuple[str, list[str]]]:
-    """Opens `path`, as the File menu does; what the dialog was shown with."""
+def open_file(path: Path, discard=False) -> list[tuple[str, list[str]]]:
+    """Opens `path`, as the File menu does; what the dialog was shown with. Timelines
+    of kinds TiLiA doesn't know are kept, or discarded if `discard`."""
     with (
         Serve(Get.FROM_USER_RETRY_MEDIA_PATH, False),
         Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
+        Serve(Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION, (True, discard)),
         ShownProblems() as problems,
     ):
         assert commands.execute("file.open", path)
@@ -178,7 +181,7 @@ class TestTheLines:
     def test_a_warning_about_a_timeline_alone_is_its_name_and_the_reason(
         self, opening, tmp_path
     ):
-        # TimeLineAnnotator/project-management#597, point 2, as recommended.
+        # TimeLineAnnotator/project-management#597, point 2.
         def vocabulary(content):
             content["timelines"][FORM]["metadata"] = {"vocabulary": "not one"}
 
@@ -191,7 +194,7 @@ class TestTheLines:
         self, opening, tmp_path
     ):
         # A beat without a time is in no measure, so TiLiA shows it nowhere.
-        # TimeLineAnnotator/project-management#597, point 2, as recommended.
+        # TimeLineAnnotator/project-management#597, point 2.
         def without_a_time(content):
             del content["timelines"][BEATS]["components"][IDS["beat_2"]]["time"]
 
@@ -200,7 +203,7 @@ class TestTheLines:
         ]
 
     def test_a_timeline_without_a_name_is_left_out(self, opening, tmp_path):
-        # TimeLineAnnotator/project-management#597, point 3, as recommended.
+        # TimeLineAnnotator/project-management#597, point 3.
         def unnamed(content):
             at_level_0(content)
             content["timelines"][FORM]["name"] = ""
@@ -222,6 +225,43 @@ class TestTheLines:
         shown = open_file(a_file(tmp_path, at_level_0, name="Sonata.tla"))
 
         assert [name for name, _ in shown] == ["Sonata.tla"]
+
+
+def with_words(content):
+    """A timeline of a kind TiLiA doesn't know, "Words", with a vocabulary that isn't
+    a reference."""
+    content["timelines"][LYRICS] = {
+        "kind": "Lyrics",
+        "name": "Words",
+        "ordinal": 6,
+        "metadata": {"vocabulary": "not one"},
+        "components": {},
+    }
+
+
+class TestATimelineOfAKindTiLiADoesntKnow:
+    """TimeLineAnnotator/project-management#597, point 8."""
+
+    WORDS = (
+        """the vocabulary "not one" of the timeline "Words" isn't a valid reference"""
+    )
+
+    def test_kept_its_warnings_are_listed_as_their_reason(self, opening, tmp_path):
+        assert lines_shown(a_file(tmp_path, with_words)) == [self.WORDS]
+
+    def test_discarded_its_warnings_aren_t_listed(self, opening, tmp_path):
+        assert open_file(a_file(tmp_path, with_words), discard=True) == []
+
+    def test_discarded_the_others_are_listed_and_counted(self, opening, tmp_path):
+        def and_at_level_0(content):
+            with_words(content)
+            at_level_0(content)
+
+        shown = open_file(a_file(tmp_path, and_at_level_0), discard=True)
+
+        assert shown == [
+            ("piece.tla", ["Form, 00:12.0–00:45.5: Level can't be below 1. Got '0'"])
+        ]
 
 
 class TestAnOldFile:
@@ -305,11 +345,11 @@ class TestTheDialog:
         assert dialog.lines_view.toPlainText() == "\n".join(lines)
         assert button_texts(dialog) == ["Copy", "OK"]
 
-    def test_one_problem_is_one_problem(self, qtui):
-        # TimeLineAnnotator/project-management#597, point 1, as recommended.
+    def test_one_problem_changes_only_the_noun(self, qtui):
+        # TimeLineAnnotator/project-management#597, point 1.
         assert a_dialog().message.text() == (
-            "'piece.tla' has 1 problem. TiLiA keeps it as it is, and saves it unchanged"
-            " until you fix it."
+            "'piece.tla' has 1 problem. TiLiA keeps them as they are, and saves them"
+            " unchanged until you fix them."
         )
 
     def test_a_name_is_shown_as_it_is(self, qtui):
@@ -386,8 +426,8 @@ class TestOpening:
         [dialog] = shown
         assert dialog.windowTitle() == "Problems in this file"
         assert dialog.message.text() == (
-            "'piece.tla' has 1 problem. TiLiA keeps it as it is, and saves it unchanged"
-            " until you fix it."
+            "'piece.tla' has 1 problem. TiLiA keeps them as they are, and saves them"
+            " unchanged until you fix them."
         )
         assert dialog.lines_view.toPlainText() == (
             "Form, 00:12.0–00:45.5: Level can't be below 1. Got '0'"

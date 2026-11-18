@@ -215,12 +215,22 @@ class App:
     @staticmethod
     def _show_problems(file: OpenDocument) -> None:
         """The warnings the file opened with, one line each, once it is open
-        (FR-061). Nothing for a file with none."""
-        if not file.document.warnings:
+        (FR-061). Nothing for a file with none.
+
+        A warning about a timeline no longer in the document, which the person chose
+        to discard, isn't listed: it won't be saved
+        (TimeLineAnnotator/project-management#597, point 8)."""
+        document = file.document
+        warnings = [
+            warning
+            for warning in document.warnings
+            if warning.timeline_id is None or warning.timeline_id in document.timelines
+        ]
+        if not warnings:
             return
         # The state the timelines just built give: what TiLiA shows.
         timelines = file.synced["timelines"]
-        lines = [problem_line(warning, timelines) for warning in file.document.warnings]
+        lines = [problem_line(warning, timelines) for warning in warnings]
         name = Path(file.file_path).name
         try:
             get(Get.FROM_USER_SHOW_PROBLEMS, name, lines)
