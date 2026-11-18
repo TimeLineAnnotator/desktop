@@ -136,6 +136,18 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(
     tilia_errors.assert_in_error_message(format_media_time(999))
 
 
+def test_markers_by_time_from_csv_error_shows_a_negative_time_with_a_minus_sign(
+    marker_tlui, tilia_errors
+):
+    data = "time\n-0.5"
+
+    success = patch_import("time", marker_tlui.timeline, data)
+
+    assert success
+    assert len(marker_tlui) == 0
+    tilia_errors.assert_in_error_message("Time can't be negative. Got '-00:00.5'")
+
+
 def test_markers_by_measure_from_csv_outputs_error_if_bad_measure_value(
     marker_tlui, beat_tlui, tilia_errors
 ):
