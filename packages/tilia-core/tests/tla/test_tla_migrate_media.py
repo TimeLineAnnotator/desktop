@@ -1021,8 +1021,9 @@ def test_a_pdf_timeline_added_since_reading_with_a_path_read_is_written_relative
 def test_a_pdf_timeline_taken_out_over_a_write_and_put_back_keeps_its_path(
     tmp_path,
 ):
-    # Its place wasn't written: it keeps what it held, as for an undo that gives
-    # back a deleted timeline after a save.
+    # The text read is the document's for its whole life, whatever was written
+    # in between (TimeLineAnnotator/project-management#600, a), as for an undo
+    # that gives back a deleted timeline after a save.
     stored = nowhere_here(tmp_path).with_name("score.pdf")
     piece = old_file(tmp_path / "corpus", "pdf", str(stored), OTHER_SYSTEM_SAVED)
     doc = tla.read(piece)

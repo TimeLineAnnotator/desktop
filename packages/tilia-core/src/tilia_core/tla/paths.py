@@ -19,13 +19,14 @@ URL, a relative path, or an absolute one of either system's form, is
   the document's own origin, the folder kept from its read or last write, as
   a write takes it.
 - **Writing** (`rebase_paths`, `follow`): a path is judged by its text. One
-  the document was read, or last written, with absolute stays absolute while
-  the text at its place is the text read, however it got there, Save As
-  included; any other text is made relative to the folder written into
-  wherever a relative path exists, and a relative one is recomputed from it
-  (#555, option a; #582, points 1 and 4). A path written absolute because no
-  relative one exists, on another drive on Windows, is then one the document
-  was last written with absolute, so its later writes keep it so.
+  the document was read with absolute stays absolute in every write while the
+  text at its place is the text read, however it got there and whatever was
+  written in between, Save As included (#555, option a; #582, points 1 and 4;
+  #600, option a). So does one it was last written with absolute, as a path
+  is on another drive on Windows, where no relative one exists. The texts are
+  compared as a file stores them, with "/" between the folders of a Windows
+  path and in NFC. Any other text is made relative to the folder written into
+  wherever a relative path exists, and a relative one is recomputed from it.
 - **Timelines held outside the document** (`following`), as TiLiA's undo
   keeps one deleted: they follow its writes as its own do.
 """
@@ -39,7 +40,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from tilia_core.tla.layout import pointer_to
+from tilia_core.tla.layout import nfc_text, pointer_to
 from tilia_core.tla.media_files import (
     POSIX,
     SYSTEM,
@@ -146,11 +147,12 @@ def absolute_paths(doc: Document) -> Paths:
 
 
 def _recorded(held: Paths, written: Iterable[tuple[str, Any]]) -> Paths:
-    """`held`, the paths a document holds absolute after their places, once the
-    paths `written`, each after its place, are written: each of those is held
-    if it is written absolute, and no longer otherwise. A place not written,
-    such as that of a timeline taken out of the document, keeps what it held,
-    for the timeline put back."""
+    """`held`, the paths a document was last written with absolute, after their
+    places, once the paths `written`, each after its place, are written: each
+    of those is held if it is written absolute, and no longer otherwise. A
+    place not written, such as that of a timeline taken out of the document,
+    keeps what it held, for the timeline put back. What the document was read
+    with is held apart, for its whole life (`keep_as_read`)."""
     paths = dict(held)
     for place, path in written:
         if isinstance(path, str) and absolute_form(path) is not None:
@@ -164,7 +166,8 @@ def keep_as_read(doc: Document, path: str | os.PathLike[str] | None) -> None:
     """Give `doc`, just read from the file at `path`, or from bytes with no
     place when `path` is None, what its writes judge its paths by: the folder
     its relative paths are relative to, found now, and the paths it was read
-    with absolute (FR-033)."""
+    with absolute, which it keeps for its whole life (FR-033;
+    TimeLineAnnotator/project-management#600, option a)."""
     if doc.origin is not None and path is not None:
         doc._paths_folder = (doc.origin, paths_folder(path))
     doc._absolute_as_read = absolute_paths(doc)
@@ -335,11 +338,14 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     """`doc` with each path it stores as a file in `folder` stores it (FR-003,
     FR-033), with "/".
 
-    A path is judged by its text. One `doc` was read, or last written, with
-    absolute stays absolute while the text at its place is the text read,
-    however it got there (TimeLineAnnotator/project-management#555, option a;
-    #582). Any other absolute path becomes relative to `folder` wherever a
-    relative path exists, so not on another drive on Windows. When `folder`
+    A path is judged by its text. One `doc` was read with absolute stays
+    absolute while the text at its place is the text read, however it got
+    there and whatever was written since (TimeLineAnnotator/project-management
+    #555, option a; #582; #600, option a); so does one `doc` was last written
+    with absolute, as a path on another drive on Windows is. The texts are
+    compared as a file stores them, with "/" in a Windows path and in NFC
+    (`_same_text`). Any other absolute path becomes relative to `folder`
+    wherever a relative path exists, so not on another drive on Windows. When `folder`
     isn't the one `doc` was read from or last written to (`paths_folder_of`:
     the folder of the file a link named, when it was reached through a link
     to a file), a relative path is resolved against that one and made
@@ -356,10 +362,11 @@ def rebase_paths(doc: Document, folder: str | os.PathLike[str]) -> Document:
     origin = None if read_from is None else _absolute_folder(read_from)
     if origin is not None and os.path.normcase(origin) == os.path.normcase(folder):
         origin = None  # its relative paths are already relative to `folder`
-    read = dict(doc._absolute_as_read)
+    read, written = dict(doc._absolute_as_read), dict(doc._absolute_as_written)
     changed: dict[str, Any] = {}
     for place, path in stored_paths(doc):
-        rebased = _rebased(path, origin, folder, read.get(place))
+        held = (read.get(place), written.get(place))
+        rebased = _rebased(path, origin, folder, held)
         if rebased != path:
             changed[place] = rebased
     return _with_paths(doc, changed)
@@ -371,12 +378,14 @@ def follow(
     """Make `doc` follow the file just written at `path` from `rebased`, its
     copy with the paths as written relative to `folder` (FR-033): its origin
     becomes the file, as the reader sets it, with that folder; its paths the
-    ones written; and the paths it holds absolute those written so, which its
-    next write keeps. The timelines keep their objects; only a rebased path
-    changes."""
+    ones written; and the paths it was last written with absolute those written
+    so, which its next writes keep. What it was read with stays as it was. The
+    timelines keep their objects; only a rebased path changes."""
     doc.origin = Path(os.path.abspath(path))
     doc._paths_folder = (doc.origin, folder)
-    doc._absolute_as_read = _recorded(doc._absolute_as_read, stored_paths(rebased))
+    doc._absolute_as_written = _recorded(
+        doc._absolute_as_written, stored_paths(rebased)
+    )
     if rebased is doc:
         return
     doc.media_path = rebased.media_path
@@ -411,7 +420,7 @@ def following(
         for place, value in stored_paths(rebased)
         if place != MEDIA_PATH_PLACE
     ]
-    doc._absolute_as_read = _recorded(doc._absolute_as_read, written)
+    doc._absolute_as_written = _recorded(doc._absolute_as_written, written)
     _take_paths(held, rebased.timelines)
 
 
@@ -423,11 +432,13 @@ def _absolute_folder(folder: str | os.PathLike[str]) -> str:
     return absolute[1:] if SYSTEM == POSIX and absolute.startswith("//") else absolute
 
 
-def _rebased(stored: Any, origin: str | None, folder: str, read: str | None) -> Any:
+def _rebased(
+    stored: Any, origin: str | None, folder: str, held: tuple[str | None, ...]
+) -> Any:
     """`stored` as a file in `folder` stores it; `origin` is the folder its
-    relative paths are relative to when that isn't `folder`, or None; `read`
-    the absolute path the document was read or last written with at its place,
-    or None."""
+    relative paths are relative to when that isn't `folder`, or None; `held`
+    the absolute paths the document was read with and last written with at
+    its place, None for either it has none."""
     if not isinstance(stored, str):
         return stored  # for the check to refuse
     form = absolute_form(stored)
@@ -436,7 +447,7 @@ def _rebased(stored: Any, origin: str | None, folder: str, read: str | None) -> 
         # other system's form has no relative path from here.
         relative = (
             relative_path(stored, folder, form)
-            if form == SYSTEM and stored != read
+            if form == SYSTEM and not _same_text(stored, held)
             else None
         )
         return with_slashes(stored, form) if relative is None else relative
@@ -445,6 +456,22 @@ def _rebased(stored: Any, origin: str | None, folder: str, read: str | None) -> 
         # to `folder`: kept as written.
         return stored
     return _moved(stored, origin, folder)
+
+
+def _same_text(path: str, held: tuple[str | None, ...]) -> bool:
+    """Whether `path`, absolute, is one of the texts `held` once each is in the
+    form a file stores (FR-033): with "/" between the folders of a Windows path,
+    and in NFC. So `C:\\music\\x.mp3`, as `as_media_path` gives a path on
+    Windows, is the text `C:/music/x.mp3` read, which a write never stores
+    otherwise; any other difference, a drive's letter case or another spelling
+    of the same file, is another text."""
+    stored = _as_stored(path)
+    return any(text is not None and _as_stored(text) == stored for text in held)
+
+
+def _as_stored(path: str) -> str:
+    form = absolute_form(path)
+    return nfc_text(path if form is None else with_slashes(path, form))
 
 
 def _moved(stored: str, origin: str, folder: str) -> str:

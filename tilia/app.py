@@ -536,12 +536,17 @@ class App:
 
     def _verify_path_exists(self, path: str) -> str:
         """The file a PDF timeline's path names, as the core finds it: a relative
-        path from the folder of the file open. "" when it names none."""
+        path from the folder the open file's paths are relative to, kept from its
+        read or last save, as its saves and its media take it, so that a link to
+        the file changed since doesn't move it. While a file loads, its document
+        isn't the open one yet, and the folder is that of the file just read.
+        "" when it names none."""
         if not path:
             return path
         if self.cur_file_path is None:
             return path if Path(path).is_absolute() and Path(path).exists() else ""
-        found = tla.stored_file(self.cur_file_path, path)
+        document = self.file_manager.file.document
+        found = tla.stored_file(self.cur_file_path, path, doc=document)
         return found.as_posix() if found is not None else ""
 
     def on_clear(self) -> None:

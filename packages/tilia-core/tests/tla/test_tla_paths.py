@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import sys
+import unicodedata
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -189,24 +190,64 @@ def set_to_another_path_and_saved_as(doc, current, kind, tmp_path):
     return doc, target, other(current)
 
 
+def set_to_another_saved_and_set_back(doc, current, kind, tmp_path):
+    # The text read is the document's for its whole life, whatever was saved in
+    # between (TimeLineAnnotator/project-management#600, a): as an undo of an
+    # edit saved gives it back.
+    set_stored(doc, kind, other(current))
+    tla.write(current.piece, doc)
+    assert written_in(current.piece, kind) == relative(
+        other(current), current.piece.parent
+    )
+    set_stored(doc, kind, current.read)
+    return doc, current.piece, None
+
+
+def set_to_another_saved_as_and_set_back(doc, current, kind, tmp_path):
+    set_stored(doc, kind, other(current))
+    target = tmp_path / "other" / "piece.tla"
+    target.parent.mkdir()
+    tla.write(target, doc)
+    set_stored(doc, kind, current.read)
+    return doc, current.piece, None
+
+
+def set_to_the_text_read_as_windows_spells_it(doc, current, kind, tmp_path):
+    # With a backslash between its folders, as `tla.as_media_path` gives it and
+    # TiLiA's bridge stores the media: the text read, as a file stores it.
+    set_stored(doc, kind, os.path.normpath(current.read))
+    return doc, current.piece, None
+
+
 CASES = [
-    opened_and_saved,
-    saved_twice,
-    saved_then_read_and_saved,
-    saved_as_into_another_folder,
-    saved_as_and_back,
-    set_to_another_path,
-    set_to_another_and_back,
-    set_to_the_text_read,
-    set_to_the_same_file_spelled_otherwise,
-    copied_with_replace,
-    copied_with_replace_and_another_path,
-    copied_deeply,
-    set_to_another_path_and_saved_as,
+    pytest.param(case, id=case.__name__)
+    for case in (
+        opened_and_saved,
+        saved_twice,
+        saved_then_read_and_saved,
+        saved_as_into_another_folder,
+        saved_as_and_back,
+        set_to_another_path,
+        set_to_another_and_back,
+        set_to_the_text_read,
+        set_to_the_same_file_spelled_otherwise,
+        copied_with_replace,
+        copied_with_replace_and_another_path,
+        copied_deeply,
+        set_to_another_path_and_saved_as,
+        set_to_another_saved_and_set_back,
+        set_to_another_saved_as_and_set_back,
+    )
+] + [
+    pytest.param(
+        set_to_the_text_read_as_windows_spells_it,
+        id="set_to_the_text_read_as_windows_spells_it",
+        marks=windows_only,
+    )
 ]
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda case: case.__name__)
+@pytest.mark.parametrize("case", CASES)
 def test_every_kind_of_path_is_judged_by_its_text(current, kind, tmp_path, case):
     # The media's and a PDF timeline's alike, in every case (#582, point 1).
     before = current.piece.read_bytes()
@@ -224,6 +265,26 @@ def test_every_kind_of_path_is_judged_by_its_text(current, kind, tmp_path, case)
     data = target.read_bytes()
     tla.write(target, doc, expect=tla.fingerprint(target))
     assert target.read_bytes() == data
+
+
+def test_the_text_read_in_another_normal_form_is_the_text_read(tmp_path, kind):
+    # NFC and NFD spell the same text: a file stores it in NFC (FR-023).
+    name = "Ständchen.mp3" if kind == "media" else "Ständchen.pdf"
+    read = (Path(tmp_path.anchor) / "someone-584" / "music" / name).as_posix()
+    read = unicodedata.normalize("NFC", read)
+    doc = writable(tla.read(EVERY_KIND))
+    set_stored(doc, kind, read)
+    piece = tmp_path / "proj" / "piece.tla"
+    piece.parent.mkdir()
+    piece.write_bytes(tla.canonical_bytes(doc))
+    before = piece.read_bytes()
+    doc = tla.read(piece)
+
+    set_stored(doc, kind, unicodedata.normalize("NFD", read))
+    tla.write(piece, doc)
+
+    assert written_in(piece, kind) == read
+    assert piece.read_bytes() == before
 
 
 # Onto another drive, on Windows: no relative path exists there. The tests can't
@@ -302,6 +363,58 @@ def test_a_path_written_absolute_onto_another_drive_stays_so_back_on_this_one(
     back.parent.mkdir()
     tla.write(back, doc)
     assert written_in(back, kind) == absolute
+
+
+def a_relative_one(tmp_path, kind):
+    """every-kind's document, read from corpus/, where its paths are relative,
+    and the path of `kind` it holds, absolute, with "/"."""
+    piece = tmp_path / "corpus" / "piece.tla"
+    piece.parent.mkdir()
+    piece.write_bytes(tla.canonical_bytes(writable(tla.read(EVERY_KIND))))
+    doc = tla.read(piece)
+    absolute = os.path.normpath(piece.parent / stored(doc, kind))
+    return doc, absolute.replace("\\", "/")
+
+
+@windows_only
+def test_a_path_last_written_absolute_is_held_until_written_otherwise(
+    tmp_path, kind, onto_another_drive
+):
+    # What a write wrote absolute is held by the document until a write writes
+    # that place otherwise: it isn't a text the document was read with.
+    doc, absolute = a_relative_one(tmp_path, kind)
+    onto_another_drive(doc, "other-584")
+    assert stored(doc, kind) == absolute
+    another = absolute.replace("Ständchen", "Another")
+    set_stored(doc, kind, another)
+    back = tmp_path / "back" / "piece.tla"
+    back.parent.mkdir()
+    tla.write(back, doc)
+    assert written_in(back, kind) == relative(another, back.parent)
+
+    set_stored(doc, kind, absolute)
+    tla.write(back, doc)
+
+    assert written_in(back, kind) == relative(absolute, back.parent)
+
+
+@windows_only
+def test_a_timeline_taken_out_over_a_write_keeps_its_path_last_written_absolute(
+    tmp_path, onto_another_drive
+):
+    # Its place wasn't written: it keeps what it held, for the timeline put back.
+    doc, absolute = a_relative_one(tmp_path, "pdf")
+    onto_another_drive(doc, "other-584")
+    (pdf,) = [tl for tl in doc.timelines.values() if tl.kind == "pdf"]
+    del doc.timelines[pdf.id]
+    onto_another_drive(doc, "other-585")
+
+    doc.timelines[pdf.id] = pdf
+    back = tmp_path / "back" / "piece.tla"
+    back.parent.mkdir()
+    tla.write(back, doc)
+
+    assert written_in(back, "pdf") == absolute
 
 
 # `loads` with no place: what reading keeps absolute is written so, in every
@@ -403,6 +516,25 @@ def test_a_stored_file_of_the_documents_origin_is_found_from_the_folder_read(
     assert os.path.samefile(paths.stored_file_of(doc, pdf), corpus / "scores" / "a.pdf")
     # Without the document, the path names the file it names now.
     assert tla.stored_file(piece, pdf) is None
+
+
+def test_a_stored_file_of_another_file_is_found_from_that_files_folder(tmp_path):
+    # Given the document, only its own origin is looked up from the folder kept
+    # from its read: another file's stored path is that file's.
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    (tmp_path / "b" / "x.pdf").write_bytes(b"%PDF")
+    doc = writable(tla.read(EVERY_KIND))
+    set_stored(doc, "pdf", "x.pdf")
+    piece = tmp_path / "proj" / "piece.tla"
+    piece.parent.mkdir()
+    piece.write_bytes(tla.canonical_bytes(doc))
+    doc = tla.read(piece)
+
+    found = tla.stored_file(tmp_path / "b" / "f.tla", "x.pdf", doc=doc)
+
+    assert found is not None and found.samefile(tmp_path / "b" / "x.pdf")
+    assert tla.stored_file(tmp_path / "a" / "f.tla", "x.pdf", doc=doc) is None
 
 
 def test_written_where_it_was_read_its_paths_are_rebased_from_the_folder_read(
@@ -517,7 +649,7 @@ def test_a_held_timeline_doesnt_follow_a_write_that_fails(tmp_path):
             tla.write(target, doc, expect="0" * 64)
 
     assert pdf.attrs["path"] == "../scores/Ständchen.pdf"
-    assert doc._absolute_as_read == tla.read(piece)._absolute_as_read
+    assert doc._absolute_as_written == ()
 
 
 # SC-002: a file read and written twice keeps its bytes, every golden file and

@@ -621,13 +621,15 @@ def write(
     rename are two steps: a change between them isn't caught.
 
     The paths it stores, the media's and PDF timelines', go through the path
-    handler (`tla.paths`, FR-033). A path `doc` was read, or last written,
-    with absolute stays absolute while the text at its place is the text read,
-    however it got there, Save As included; any other is written relative to
-    the folder of `path` wherever a relative path exists, recomputed when it
-    isn't the folder `doc` was read from or last written to
-    (`paths.rebase_paths`; TimeLineAnnotator/project-management#555, option a;
-    #582). When `path` is a link to a file, that is the folder of the file the
+    handler (`tla.paths`, FR-033). A path `doc` was read with absolute stays
+    absolute while the text at its place is the text read, however it got
+    there and whatever was written since, Save As included; so does one it was
+    last written with absolute; the texts are compared as a file stores them
+    ("/" in a Windows path, NFC). Any other is written relative to the folder
+    of `path` wherever a relative path exists, recomputed when it isn't the
+    folder `doc` was read from or last written to (`paths.rebase_paths`;
+    TimeLineAnnotator/project-management#555, option a; #582; #600, option
+    a). When `path` is a link to a file, that is the folder of the file the
     link names, which the reader resolves them against too, so that the file
     has one set of paths, whichever way it is reached; a link to a folder isn't
     followed (`paths.paths_folder`; TimeLineAnnotator/project-management#431).
