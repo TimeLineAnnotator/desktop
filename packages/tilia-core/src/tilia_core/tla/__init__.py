@@ -40,6 +40,7 @@ from tilia_core.tla.model import (
 )
 from tilia_core.tla.layout import FORMAT_VERSION, schema
 from tilia_core.tla.media_files import as_media_path, media, stored_file
+from tilia_core.tla.problems import keep_read_problems
 from tilia_core.tla.reader import loads, read
 from tilia_core.tla.writer import (
     ABSENT,
@@ -85,6 +86,7 @@ __all__ = [
     "fingerprint",
     "fingerprint_of",
     "is_temporary",
+    "keep_read_problems",
     "loads",
     "mark_edited",
     "mark_moved",
