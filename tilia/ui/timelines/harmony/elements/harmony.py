@@ -133,8 +133,7 @@ class HarmonyUI(TimelineUIElement):
         """Whether TiLiA can read the key it is in: not after a mode whose tonic
         it can't read, up to the next mode (Anne, 2026-11-13,
         TimeLineAnnotator/project-management#563, point 3)."""
-        mode = self.timeline_ui.timeline.get_mode_by_time(self.get_data("time"))
-        return mode is None or mode.can_read_tonic
+        return self.timeline_ui.timeline.can_read_key_by_time(self.get_data("time"))
 
     @property
     def can_read_root(self) -> bool:

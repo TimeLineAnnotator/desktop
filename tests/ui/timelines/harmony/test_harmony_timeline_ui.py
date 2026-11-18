@@ -1,4 +1,8 @@
+from contextlib import contextmanager
+from unittest.mock import patch
+
 import pytest
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel
 
 import tilia.ui.commands
 from tests.mock import Serve
@@ -9,6 +13,7 @@ from tests.ui.timelines.harmony.interact import (
     numeral_part,
 )
 from tests.utils import get_command_action, get_command_names, undoable
+from tilia.errors import ROMAN_NUMERAL_KEY_UNREADABLE
 from tilia.requests import Get
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
@@ -743,6 +748,106 @@ class TestRomanNumeralInMinorKeys:
         add_harmony(step=step, accidental=accidental, quality=quality)
 
         assert harmony_tlui.harmonies()[0].label == expected
+
+
+@contextmanager
+def typing_in_the_add_harmony_dialog(*texts):
+    """Answers the Add harmony dialog, which is modal: types each text in turn and
+    presses OK, until the dialog takes one, and cancels it if none is taken.
+    Yields the texts of the dialog's labels when it opened."""
+    labels = []
+
+    def exec_(dialog):
+        labels.extend(label.text() for label in dialog.findChildren(QLabel))
+        taken = []
+        dialog.accepted.connect(lambda: taken.append(True))
+        ok = dialog.findChild(QDialogButtonBox).button(
+            QDialogButtonBox.StandardButton.Ok
+        )
+        for text in texts:
+            dialog.line_edit.clear()
+            dialog.line_edit.insert(text)  # as typing does, unlike setText
+            ok.click()
+            if taken:
+                return QDialog.DialogCode.Accepted
+        dialog.reject()
+        return QDialog.DialogCode.Rejected
+
+    with patch.object(SelectHarmonyParams, "exec", exec_):
+        yield labels
+
+
+class TestRomanNumeralWhereTheKeyCantBeRead:
+    """After a mode whose tonic TiLiA can't read, up to the next mode, a roman
+    numeral typed in the Add harmony dialog is refused, since no key can place it,
+    and letters work as before (TimeLineAnnotator/project-management#595, point
+    3)."""
+
+    @pytest.fixture(autouse=True)
+    def a_mode_tilia_can_t_read(self, harmony_tlui, tilia_state):
+        # As a file can hold it: opening one creates its components unchecked.
+        harmony_tlui.create_mode(time=0, step=9, checked=False)
+        tilia_state.current_time = 10
+
+    def test_a_roman_numeral_is_refused_with_the_message(
+        self, harmony_tlui, tilia_errors
+    ):
+        with typing_in_the_add_harmony_dialog("V"):
+            commands.execute("timeline.harmony.add_harmony")
+
+        assert tilia_errors.errors == [
+            {
+                "title": ROMAN_NUMERAL_KEY_UNREADABLE.title,
+                "message": ROMAN_NUMERAL_KEY_UNREADABLE.message.format("00:10.0", "V"),
+            }
+        ]
+        assert harmony_tlui.timeline.harmonies() == []
+
+    def test_letters_typed_then_are_taken(self, harmony_tlui, tilia_errors):
+        with typing_in_the_add_harmony_dialog("V", "G7"):
+            commands.execute("timeline.harmony.add_harmony")
+
+        assert len(tilia_errors.errors) == 1
+        (harmony,) = harmony_tlui.timeline.harmonies()
+        assert harmony.get_data("time") == 10
+        assert harmony.get_data("step") == 4
+        assert harmony.get_data("quality") == "dominant-seventh"
+
+    def test_letters_are_taken_as_before(self, harmony_tlui, tilia_errors):
+        with typing_in_the_add_harmony_dialog("Bb"):
+            commands.execute("timeline.harmony.add_harmony")
+
+        tilia_errors.assert_no_error()
+        (harmony,) = harmony_tlui.timeline.harmonies()
+        assert harmony.get_data("step") == 6
+        assert harmony.get_data("accidental") == -1
+
+    def test_a_roman_numeral_doesn_t_fill_the_fields(self, harmony_tlui):
+        # OK adds what the fields hold, even when the text is refused: C major's V
+        # in them would be taken once the text no longer reads as a numeral.
+        dialog = SelectHarmonyParams(harmony_tlui.get_key_by_time(10), 10.0)
+        dialog.line_edit.insert("V")
+
+        assert dialog.line_edit.styleSheet() == "color: red"
+        assert dialog.get_result()["step"] == 0
+
+    def test_the_key_shows_as_a_mark(self):
+        with typing_in_the_add_harmony_dialog() as labels:
+            commands.execute("timeline.harmony.add_harmony")
+
+        assert "Current key: ?" in labels
+
+    def test_a_mode_tilia_can_read_gives_roman_numerals_its_key(
+        self, harmony_tlui, tilia_state, tilia_errors
+    ):
+        add_mode(time=5, step=1)  # D major
+        with typing_in_the_add_harmony_dialog("V") as labels:
+            commands.execute("timeline.harmony.add_harmony")
+
+        tilia_errors.assert_no_error()
+        assert "Current key: D major" in labels
+        (harmony,) = harmony_tlui.timeline.harmonies()
+        assert harmony.get_data("step") == 5  # A, D major's dominant
 
 
 class TestLetterSymbolLabel:

@@ -8,6 +8,7 @@ from tests.mock import patch_file_dialog
 from tests.parsers.csv.common import assert_in_errors
 from tests.ui.timelines.harmony.interact import label_as_typed
 from tests.utils import undoable
+from tilia.errors import ROMAN_NUMERAL_KEY_UNREADABLE
 from tilia.timelines.beat.timeline import BeatTimeline
 from tilia.timelines.harmony.components import Harmony, Mode
 from tilia.timelines.harmony.timeline import HarmonyTimeline
@@ -411,6 +412,71 @@ class TestOptionalColumns:
         assert_in_errors("nonsense", errors)
         assert harmony_tl[0].get_data("display_mode") == "letter"
         assert harmony_tl[0].get_data("comments") == "hello"
+
+
+class TestRomanNumeralWhereTheKeyCantBeRead:
+    """After a mode whose tonic TiLiA can't read, up to the next mode, a roman
+    numeral is refused, since no key can place it, and letters are imported as
+    before (TimeLineAnnotator/project-management#595, point 3)."""
+
+    @staticmethod
+    def a_mode_tilia_can_t_read(harmony_tl, tonic):
+        # As a file can hold it: opening one creates its components unchecked.
+        harmony_tl.create_mode(time=0, **tonic, checked=False)
+
+    @pytest.mark.parametrize(
+        "tonic", [{"step": 9}, {"accidental": 5}], ids=["step", "accidental"]
+    )
+    @pytest.mark.parametrize("symbol", ["V", "V7/V", "bVI", "Cad64"])
+    def test_the_row_is_refused_and_the_others_imported(
+        self, harmony_tl, tonic, symbol
+    ):
+        self.a_mode_tilia_can_t_read(harmony_tl, tonic)
+        data = "\n".join(
+            ["time,harmony_or_key,symbol", f"10,harmony,{symbol}", "12,harmony,G"]
+        )
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert success
+        assert errors == [
+            ROMAN_NUMERAL_KEY_UNREADABLE.message.format("00:10.0", symbol)
+        ]
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("time") == 12
+        assert harmony.get_data("step") == 4
+
+    def test_letters_are_imported_as_before(self, harmony_tl):
+        self.a_mode_tilia_can_t_read(harmony_tl, {"step": 9})
+        data = "\n".join(["time,harmony_or_key,symbol", "10,harmony,Bb7"])
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert not errors
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("step") == 6
+        assert harmony.get_data("accidental") == -1
+        assert harmony.get_data("quality") == "dominant-seventh"
+
+    def test_a_mode_tilia_can_read_gives_roman_numerals_its_key(self, harmony_tl):
+        self.a_mode_tilia_can_t_read(harmony_tl, {"step": 9})
+        data = "\n".join(
+            [
+                "time,harmony_or_key,symbol",
+                "2,harmony,IV",
+                "5,key,D",
+                "10,harmony,V",
+            ]
+        )
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        # IV before D major is refused; V after it is A, D major's dominant.
+        assert errors == [ROMAN_NUMERAL_KEY_UNREADABLE.message.format("00:02.0", "IV")]
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("time") == 10
+        assert harmony.get_data("step") == 5
+        assert harmony.get_data("accidental") == 0
 
 
 class TestSymbolsThatRaise:
