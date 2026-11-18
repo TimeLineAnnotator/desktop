@@ -195,32 +195,49 @@ class Outcome(tuple[bool, str]):
     the ids of the other components a broken rule is about: those at the same
     time or place, the hierarchies it crosses, the ranges it should join. `code`
     says which rule it is, in words that don't change with the values its reason
-    quotes.
+    quotes. `about` says what of the component the rule checks, where one code
+    is given by rules about different attributes of one component: "start" and
+    "pre_start" can both be negative, and "time", a hierarchy's "start end"
+    (one rule, whichever of the two it is), "end" and "post_end" can be past the
+    media's end. Its code and `about` tell one component's problems apart. It is
+    "" where the code says it all.
     """
 
-    # Read through `others` and `code`, which can't be set: every outcome that
-    # keeps to the rules is the one `OK`. A tuple's subclass can't give it a slot.
+    # Read through `others`, `code` and `about`, which can't be set: every outcome
+    # that keeps to the rules is the one `OK`. A tuple's subclass can't give it a
+    # slot.
     _others: tuple[str, ...]
     _code: str
+    _about: str
 
     def __new__(
-        cls, ok: bool, reason: str = "", others: Iterable[str] = (), code: str = ""
+        cls,
+        ok: bool,
+        reason: str = "",
+        others: Iterable[str] = (),
+        code: str = "",
+        about: str = "",
     ) -> Outcome:
         outcome = super().__new__(cls, (bool(ok), reason))
         outcome._others = tuple(others)
         outcome._code = code
+        outcome._about = about
         return outcome
 
     def __bool__(self) -> bool:
         return self[0]
 
-    def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...], str]:  # type: ignore[override]
+    def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...], str, str]:  # type: ignore[override]
         # What copy and pickle give __new__: a tuple's would be the pair alone.
-        return self[0], self[1], self._others, self._code
+        return self[0], self[1], self._others, self._code, self._about
 
     @property
     def others(self) -> tuple[str, ...]:
         return self._others
+
+    @property
+    def about(self) -> str:
+        return self._about
 
     @property
     def code(self) -> str:
@@ -802,7 +819,9 @@ def _point(
 def _time_not_negative(time: float) -> Outcome | None:
     if time < 0:
         return _broken(
-            NEGATIVE_TIME, f"Time can't be negative. Got '{_media_time(time)}'"
+            NEGATIVE_TIME,
+            f"Time can't be negative. Got '{_media_time(time)}'",
+            about="time",
         )
     return None
 
@@ -813,6 +832,7 @@ def _time_in_media(time: float, media_length: float) -> Outcome | None:
             PAST_MEDIA_END,
             f"Time '{_media_time(time)}' is bigger than media time"
             f" '{_media_time(media_length)}'",
+            about="time",
         )
     return None
 
@@ -944,16 +964,21 @@ def _hierarchy_in_media(
         return _broken(
             PAST_MEDIA_END,
             f"Start time '{float(start)}' is bigger than media time '{length}'",
+            about="start end",
         )
     return _broken(
-        PAST_MEDIA_END, f"End time '{float(end)}' is bigger than media time '{length}'"
+        PAST_MEDIA_END,
+        f"End time '{float(end)}' is bigger than media time '{length}'",
+        about="start end",
     )
 
 
 def _hierarchy_start(start: float) -> Outcome | None:
     if start < 0:
         return _broken(
-            NEGATIVE_TIME, f"Start time can't be negative. Got '{float(start)}'"
+            NEGATIVE_TIME,
+            f"Start time can't be negative. Got '{float(start)}'",
+            about="start",
         )
     return None
 
@@ -983,7 +1008,9 @@ def _pre_start(pre_start: float | None, start: float) -> Outcome | None:
     if pre_start is None:
         return None
     if pre_start < 0:
-        return _broken(NEGATIVE_TIME, "pre_start is outside media bounds.")
+        return _broken(
+            NEGATIVE_TIME, "pre_start is outside media bounds.", about="pre_start"
+        )
     if pre_start > start:
         return _broken(PRE_START_AFTER_START, "pre_start can't be after start time.")
     return None
@@ -996,7 +1023,9 @@ def _post_end(
     if post_end is None:
         return None
     if post_end > media_length:
-        return _broken(PAST_MEDIA_END, "post_end is outside media bounds.")
+        return _broken(
+            PAST_MEDIA_END, "post_end is outside media bounds.", about="post_end"
+        )
     if post_end < end:
         return _broken(POST_END_BEFORE_END, "post_end can't be before end time.")
     return None
@@ -1089,9 +1118,9 @@ def _range_times(start: float, end: float) -> Outcome | None:
 
 def _range_in_media(start: float, end: float, media_length: float) -> Outcome | None:
     if start < 0:
-        return _broken(NEGATIVE_TIME, "Range is outside media bounds.")
+        return _broken(NEGATIVE_TIME, "Range is outside media bounds.", about="start")
     if end > media_length:
-        return _broken(PAST_MEDIA_END, "Range is outside media bounds.")
+        return _broken(PAST_MEDIA_END, "Range is outside media bounds.", about="end")
     return None
 
 
@@ -1478,8 +1507,8 @@ def _shown(value: Any) -> str:
         return f"{article} {name} that can't be shown"
 
 
-def _broken(code: str, reason: str) -> Outcome:
-    return Outcome(False, reason, code=code)
+def _broken(code: str, reason: str, about: str = "") -> Outcome:
+    return Outcome(False, reason, code=code, about=about)
 
 
 def _not_valid(attribute: str, value: Any) -> Outcome:
