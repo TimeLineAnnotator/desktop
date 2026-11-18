@@ -120,7 +120,9 @@ def test_a_file_whose_rows_cant_be_built_is_unreadable(
             assert per_file["a.tla"] == per_file["z.tla"] > 0
             result = tql.run(corpus, "verse")
             assert len(result.rows) == 2
-            assert any("1 file was left out: 1 unreadable" in w for w in result.warnings)
+            assert any(
+                "1 file was left out: 1 unreadable" in w for w in result.warnings
+            )
     logged = [r for r in caplog.records if "bad.tla" in r.getMessage()]
     assert logged and logged[0].exc_info  # with its traceback
 
@@ -149,7 +151,9 @@ def test_a_file_that_cant_be_stored_is_unreadable(tmp_path, change, error, caplo
             assert not corpus._store._writer.in_transaction
             result = tql.run(corpus, "verse")
             assert len(result.rows) == 2
-            assert any("1 file was left out: 1 unreadable" in w for w in result.warnings)
+            assert any(
+                "1 file was left out: 1 unreadable" in w for w in result.warnings
+            )
             assert not any("last change" in w for w in result.warnings)
     assert any(r.exc_info for r in caplog.records)
 
@@ -198,9 +202,12 @@ def test_a_fresh_build_gives_the_same_keys_with_a_bad_file(tmp_path):
                 "SELECT id, uuid FROM components ORDER BY id"
             ).fetchall()
         with two.reading() as r:
-            assert first == r.connection.execute(
-                "SELECT id, uuid FROM components ORDER BY id"
-            ).fetchall()
+            assert (
+                first
+                == r.connection.execute(
+                    "SELECT id, uuid FROM components ORDER BY id"
+                ).fetchall()
+            )
 
 
 def test_time_map_of_raising_makes_the_file_unreadable(tmp_path):
@@ -449,7 +456,9 @@ def test_a_twin_is_listed_as_unreadable_at_opening(tmp_path):
         assert rows[NFD].state == "unreadable"
         assert rows[NFD].reason == scan.TWIN_REASON
         assert corpus.open_report.unreadable == ((NFD, None, scan.TWIN_REASON),)
-        assert tql.run(corpus, '"one"').rows and not tql.run(corpus, '"two two two"').rows
+        assert (
+            tql.run(corpus, '"one"').rows and not tql.run(corpus, '"two two two"').rows
+        )
         result = tql.run(corpus, '"one"')
         assert any("1 file was left out: 1 unreadable" in w for w in result.warnings)
 
