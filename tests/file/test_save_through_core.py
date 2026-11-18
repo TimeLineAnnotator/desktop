@@ -920,9 +920,9 @@ class TestAutosave:
     def test_writes_a_copy_and_leaves_the_document_open(
         self, every_kind, tilia, tls, tmp_path
     ):
-        # #555: a write makes the document it is given follow the file written, and
-        # the first save of an old file keeps what its migration kept absolute, so an
-        # autosave never writes the document open.
+        # A write makes the document it is given follow the file written
+        # (TimeLineAnnotator/project-management#369), so an autosave never writes
+        # the document open.
         file = tilia.file_manager.file
         read = file.document
         origin, fingerprint = read.origin, read.fingerprint
@@ -1159,6 +1159,121 @@ class TestAPdfTimelineAnUndoGivesBack:
 
         saved = json.loads(copy_path.read_bytes())["timelines"][pdf]
         assert saved["path"] == "../a/score.pdf"
+
+    def test_saved_through_a_link_names_its_pdf_from_the_file_the_link_names(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        # The paths of a file reached through a link to it are relative to the
+        # file's own folder (WP3's FR-033, TimeLineAnnotator/project-management#431):
+        # the timeline an undo gives back follows the save as the document's do.
+        scores = tmp_path / "corpus" / "scores"
+        scores.mkdir(parents=True)
+        shutil.copyfile(RESOURCES / "example.pdf", scores / "score.pdf")
+        real = tmp_path / "elsewhere" / "deep"
+        real.mkdir(parents=True)
+
+        def pdf_here(doc):
+            first_of_kind(doc, "pdf").attrs["path"] = str(scores / "score.pdf")
+
+        path = written_by_the_core(EVERY_KIND, real, pdf_here)
+        pdf = first_of_kind(tla.read(path), "pdf").id
+        stored = "../../corpus/scores/score.pdf"
+        assert json.loads(path.read_bytes())["timelines"][pdf]["path"] == stored
+        link = tmp_path / "corpus" / "link.tla"
+        try:
+            link.symlink_to(path)
+        except (OSError, NotImplementedError) as error:
+            pytest.skip(f"this system doesn't let the tests make a link: {error}")
+        assert open_file(link)
+        tls.delete_timeline(tls.get_timeline(pdf))
+        record()
+        assert save()
+
+        with Serve(Get.FROM_USER_RETRY_PDF_PATH, False):
+            commands.execute("edit.undo")
+        assert save()
+
+        assert json.loads(path.read_bytes())["timelines"][pdf]["path"] == stored
+        found = tla.stored_file(link, stored, doc=the_document(tilia))
+        assert found is not None and found.samefile(scores / "score.pdf")
+
+
+def stored_absolute(path: Path, media: str, pdf: str) -> None:
+    """Stores `media` and `pdf` absolute in the file at `path`, which the core
+    wrote, in its layout: as a hand edit, or the save that converted an old file,
+    leaves them."""
+    content = json.loads(path.read_bytes())
+    content["media"]["path"] = media
+    for timeline in content["timelines"].values():
+        if timeline["kind"] == "Pdf":
+            timeline["path"] = pdf
+    text = json.dumps(content, indent=2, ensure_ascii=False) + "\n"
+    path.write_bytes(text.encode("utf-8"))
+
+
+class TestAPathReadAbsolute:
+    """A path the file was read with absolute stays so in every save, Save As
+    included, through the core's path handler: opening and saving changes nothing
+    (WP3's FR-033; TimeLineAnnotator/project-management#555, option a)."""
+
+    @pytest.fixture
+    def absolute(self, qtui, tilia, tls, tmp_path) -> tuple[Path, str, str]:
+        """WP3's file of every kind in proj/, with its media and PDF absolute, on
+        the drive of the test's folder, so that a relative path to each exists.
+        Neither is there: TiLiA says so, and the file keeps their paths."""
+        (tmp_path / "proj").mkdir()
+        path = written_by_the_core(EVERY_KIND, tmp_path / "proj")
+        far = Path(tmp_path.anchor) / "someone-584"
+        media, pdf = (far / "music" / "x.mp3").as_posix(), (far / "x.pdf").as_posix()
+        stored_absolute(path, media, pdf)
+        assert open_file(path)
+        return path, media, pdf
+
+    @staticmethod
+    def paths_in(path: Path) -> tuple[str, str]:
+        content = json.loads(path.read_bytes())
+        (pdf,) = [tl for tl in content["timelines"].values() if tl["kind"] == "Pdf"]
+        return content["media"]["path"], pdf["path"]
+
+    def test_saved_it_keeps_its_bytes_and_an_edit_its_paths(self, absolute, tilia, tls):
+        path, media, pdf = absolute
+        before = path.read_bytes()
+
+        assert save()
+
+        assert path.read_bytes() == before
+        marker = first_of_kind(the_document(tilia), "marker").id
+        tls.set_timeline_data(marker, "name", "Renamed")
+        record()
+        assert save()
+        assert self.paths_in(path) == (media, pdf)
+
+    def test_saved_as_elsewhere_its_paths_stay_absolute(self, absolute, tmp_path):
+        _, media, pdf = absolute
+        (tmp_path / "other" / "deeper").mkdir(parents=True)
+        copy_path = tmp_path / "other" / "deeper" / "copy.tla"
+
+        assert save_as(copy_path)
+
+        assert self.paths_in(copy_path) == (media, pdf)
+
+    def test_a_pdf_timeline_deleted_saved_and_given_back_keeps_its_path(
+        self, absolute, tls, tmp_path
+    ):
+        path, media, pdf = absolute
+        before = path.read_bytes()
+        pdf_id = first_of_kind(tla.read(path), "pdf").id
+        tls.delete_timeline(tls.get_timeline(pdf_id))
+        record()
+        (tmp_path / "other").mkdir()
+        assert save_as(tmp_path / "other" / "copy.tla")
+
+        with Serve(Get.FROM_USER_RETRY_PDF_PATH, False):
+            commands.execute("edit.undo")
+        assert save_as(path)
+
+        assert self.paths_in(path) == (media, pdf)
+        assert path.read_bytes() == before
 
 
 class TestBackToTheStateRead:

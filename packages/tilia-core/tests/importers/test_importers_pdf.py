@@ -3,15 +3,16 @@ import os
 import subprocess
 import sys
 import unicodedata
+from pathlib import Path
 
 import pypdf
 import pytest
 from import_docs import component, document, timeline
 
 from tilia_core import rules, tla
-from tilia_core.importers import pdf as pdf_module
 from tilia_core.importers._results import ImportFailed
 from tilia_core.importers.pdf import import_by_time
+from tilia_core.tla import paths
 
 
 def make_pdf(path, pages):
@@ -399,6 +400,35 @@ class TestThePdfsPath:
             "The PDF 'C:/scores/score.pdf' can't be read: every page number is refused"
         ]
 
+    def test_a_document_whose_file_is_named_otherwise_since_finds_its_pdf(
+        self, tmp_path, csv_file, monkeypatch
+    ):
+        # From the folder of the file read, kept from the read, as `tla.write` and
+        # `tla.media` take it (TimeLineAnnotator/project-management#584): not the
+        # folder the path names now, as a link to the file changed since would.
+        (tmp_path / "corpus" / "scores").mkdir(parents=True)
+        pdf = make_pdf(tmp_path / "corpus" / "scores" / "score.pdf", 2)
+        target = timeline("pdf", attrs={"path": str(pdf), "height": 30})
+        piece = tmp_path / "corpus" / "piece.tla"
+        tla.write(piece, document(timelines=[target]))
+        doc = tla.read(piece)
+        elsewhere = tmp_path / "elsewhere" / "deep"
+        elsewhere.mkdir(parents=True)
+        now = paths.paths_folder
+        monkeypatch.setattr(
+            paths,
+            "paths_folder",
+            lambda path: str(elsewhere) if Path(path) == piece else now(path),
+        )
+
+        result = import_by_time(
+            doc, target.id, csv_file(csv_of(["time", "page_number"], [0, 2]))
+        )
+
+        assert doc.timelines[target.id].attrs["path"] == "scores/score.pdf"
+        assert result.problems == []
+        assert result.notes == []
+
     def test_a_document_read_through_a_link_to_its_file_finds_its_pdf(
         self, tmp_path, csv_file
     ):
@@ -425,14 +455,17 @@ class TestThePdfsPath:
         assert result.problems == []
         assert result.notes == []
 
-    def test_pdf_file_asks_tlas_local_file(self, tmp_path, csv_file, monkeypatch):
+    def test_pdf_file_asks_the_cores_path_handler(
+        self, tmp_path, csv_file, monkeypatch
+    ):
+        # As every stored path is found (`tla.paths`).
         asked = []
 
         def local_file(stored, folder):
             asked.append((stored, folder))
             return None
 
-        monkeypatch.setattr(pdf_module, "local_file", local_file)
+        monkeypatch.setattr(paths, "local_file", local_file)
         target = timeline("pdf", attrs={"path": "scores/score.pdf"})
         doc = document(timelines=[target])
         doc.origin = tmp_path / "piece.tla"
@@ -446,7 +479,7 @@ class TestThePdfsPath:
         # file below a folder called `https:` on macOS and Linux.
         asked = []
         monkeypatch.setattr(
-            pdf_module, "local_file", lambda *args: asked.append(args) or None
+            paths, "local_file", lambda *args: asked.append(args) or None
         )
         stored = "https://example.com/score.pdf"
         target = timeline("pdf", attrs={"path": stored})

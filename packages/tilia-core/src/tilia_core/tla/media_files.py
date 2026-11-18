@@ -1,30 +1,22 @@
-"""Finding a document's media: a local file, a YouTube video, or none.
+"""What a stored path's text means, and the local file it names.
 
 A file stores the media's path, and each PDF timeline's path, relative to
-its folder with "/", a URL as it is, or empty (FR-033). A file reached through
-a link to it has the same paths, relative to its own folder, not the link's
-(`paths_folder`; TimeLineAnnotator/project-management#431). It is absolute where
-no relative path exists (another drive on Windows), and in the write that
-converts an old file, where the migration kept it absolute, such as an old
-file's path that it can't relate to where the file was saved, while it is
-still the path read at that place (TimeLineAnnotator/project-management#530,
-#555). The next write makes it relative wherever it can. The forms of a path
-are told apart here, for the migration, the writer and the lookup alike. An
-absolute path has the form of the system that wrote it, whichever system
-reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path, `/…` a POSIX
-one. A path of the other system's form is never looked up on this one. A
-backslash in a relative path, or in a POSIX one, is never converted: TiLiA
-and the core write "/" between folders, so it is a hand edit, or part of a
-name on macOS and Linux, and the lookup lets the system read it
-(TimeLineAnnotator/project-management#402). In a Windows path, it separates
-folders. A path is a URL only when it starts with a scheme, such as
+its folder with "/", a URL as it is, or empty, and absolute where no relative
+path exists or where the document was read with it absolute (FR-033). How a
+document's paths are read, found, written and rebased is the path handler's,
+`tla.paths`, which takes the forms of a path from here, as the migration and
+`build` do. An absolute path has the form of the system that wrote it,
+whichever system reads it: `C:/…` or `\\\\server\\share\\…` is a Windows path,
+`/…` a POSIX one. A path of the other system's form is never looked up on
+this one. A backslash in a relative path, or in a POSIX one, is never
+converted: TiLiA and the core write "/" between folders, so it is a hand
+edit, or part of a name on macOS and Linux, and the lookup lets the system
+read it (TimeLineAnnotator/project-management#402). In a Windows path, it
+separates folders. A path is a URL only when it starts with a scheme, such as
 `https://`: one without, even one like a YouTube link, is a file's path
 (FR-033, TimeLineAnnotator/project-management#380), and one that starts
 with `//` is a Windows server path, as TiLiA writes one with "/"
 (TimeLineAnnotator/project-management#397).
-
-The lookups are `tla.media`, and `tla.stored_file` for any stored path; this
-module has a name of its own, so that the function doesn't hide it.
 """
 
 from __future__ import annotations
@@ -36,10 +28,6 @@ import posixpath
 import re
 import unicodedata
 from pathlib import Path, PureWindowsPath
-from typing import Any
-
-from tilia_core.tla.layout import pointer_to
-from tilia_core.tla.model import MEDIA_PATH_PLACE, Document, Media, Timeline
 
 logger = logging.getLogger(__name__)
 
@@ -171,36 +159,6 @@ def absolute_form(path: str) -> str | None:
     return _form(path)
 
 
-def pdf_path_place(key: str) -> str:
-    """The place of the path of the PDF timeline at `key` in a document's
-    timelines, as a JSON Pointer into its file."""
-    return pointer_to(pointer_to("/timelines", key), "path")
-
-
-def absolute_paths(doc: Document) -> tuple[tuple[str, str], ...]:
-    """The media's path and the PDF timelines' paths of `doc` that are absolute,
-    of either system's form, each after its place (`MEDIA_PATH_PLACE`, or
-    `pdf_path_place`), sorted. Read from an old file, these are the paths the
-    write that converts it keeps absolute while their places hold them
-    (TimeLineAnnotator/project-management#530, #555)."""
-    paths: list[tuple[str, Any]] = [(MEDIA_PATH_PLACE, doc.media_path)]
-    if isinstance(doc.timelines, dict):
-        paths += [
-            (pdf_path_place(key), timeline.attrs.get("path"))
-            for key, timeline in doc.timelines.items()
-            if isinstance(timeline, Timeline)
-            and timeline.kind == "pdf"
-            and isinstance(timeline.attrs, dict)
-        ]
-    return tuple(
-        sorted(
-            (place, path)
-            for place, path in paths
-            if isinstance(path, str) and absolute_form(path) is not None
-        )
-    )
-
-
 def _form(path: str) -> str | None:
     """`absolute_form` of a path that isn't a URL. Only two slashes of one
     kind, `//` or `\\\\`, start a share, whatever `PureWindowsPath` reads: `/\\a`
@@ -259,134 +217,6 @@ def relative_path(path: str, folder: str, form: str) -> str | None:
     except ValueError:  # another drive or share
         return None
     return with_slashes(relative, form)
-
-
-def media(path: str | os.PathLike[str], doc: Document) -> Media:
-    """The media of `doc`, the document of the file at `path` (FR-110).
-
-    A relative path is resolved against the file's folder, an absolute one is
-    taken as it is, and a URL is a YouTube link when it matches TiLiA's
-    pattern; another URL is never looked up. A path without a scheme is a
-    file's, even one like a link (FR-033). A local file is found as
-    `stored_file` finds it; when none is found, `path` is None. TiLiA's
-    further fallbacks are its own."""
-    stored = doc.media_path
-    found: Path | None = None
-    youtube_id: str | None = None
-    if not stored:
-        kind = "none"
-    elif not is_url(stored):
-        kind = "local"
-        found = stored_file(path, stored)
-    elif youtube := YOUTUBE_URL.match(stored):
-        kind, youtube_id = "youtube", youtube[6]
-    else:
-        kind = "local"  # another URL, as TiLiA takes it: a file it can't find
-    return Media(
-        kind=kind,
-        stored=stored,
-        path=found,
-        youtube_id=youtube_id,
-        length=doc.media_length,
-    )
-
-
-def stored_file(path: str | os.PathLike[str], stored: str) -> Path | None:
-    """The file that `stored`, the media's path or a PDF timeline's as the file
-    at `path` stores it, names; None when it names none, and for an empty path
-    or a URL, which name no file here and are never looked up (FR-021, FR-033).
-
-    A relative path is resolved against the folder of the file at `path`, the
-    file a link names when `path` is a link to a file (`paths_folder`), and
-    an absolute one is taken as it is. It is tried as stored, then with its
-    name, then all of it, in decomposed form (NFD). A path that starts with `//`
-    is a server path, and a path of the other system's form is never looked up.
-    A backslash is left for the system to read: it separates folders on Windows,
-    and is part of a name on macOS and Linux."""
-    if not stored or is_url(stored):
-        return None
-    return local_file(stored, paths_folder(path))
-
-
-# How many links in a row are followed, as many as Linux follows: a loop of
-# links is given up on, not followed for ever.
-_LINKS_FOLLOWED = 40
-
-
-def paths_folder(path: str | os.PathLike[str]) -> str:
-    """The folder that the paths the file at `path` stores are relative to: the
-    file's own, absolute (FR-033).
-
-    When `path` is a link to a file, that is the folder of the file the link
-    names, so that one file has one set of paths, whichever way it is reached
-    (TimeLineAnnotator/project-management#431). A link to a folder isn't
-    followed: a folder is taken as `path`, or the link, names it, as a media
-    path given through one is (`as_media_path`), so that a path through a
-    linked folder stays through it (TimeLineAnnotator/project-management#366).
-    Only where that would name another folder than the system reads, when a
-    `..` in a link's target goes up from a linked folder, are links followed.
-    A loop of links names no file: its folder is that of `path`."""
-    given = os.path.abspath(path)
-    file = _named_file(given)
-    folder = os.path.dirname(file)
-    if file != given:
-        # macOS and Linux go up from a linked folder's target, where reading
-        # the link's target by name goes up from the link.
-        real = os.path.dirname(os.path.realpath(given))
-        if not _same_folder(folder, real):
-            return real
-    return folder
-
-
-def paths_folder_of(doc: Document) -> str | None:
-    """The folder that `doc`'s relative paths are relative to (FR-033): that of
-    the file it was read from or last written to, as `paths_folder` found it
-    then, so that a link to the file changed since doesn't move it
-    (TimeLineAnnotator/project-management#431). When a caller set `origin`,
-    `paths_folder` of it, found now: an origin that is a link to a file gives
-    the folder of the file the link names, as `write` and `tla.media` take
-    it. None for a document from nowhere."""
-    if doc.origin is None:
-        return None
-    held = doc._paths_folder
-    if held is not None and held[0] == doc.origin:
-        return held[1]
-    return paths_folder(doc.origin)
-
-
-def _named_file(path: str) -> str:
-    """The file `path`, absolute, names once the links to files it ends in are
-    followed, each target read from the folder of its link, by name; `path`
-    itself when it isn't a link, or when its links go round in a loop."""
-    file = path
-    for _ in range(_LINKS_FOLLOWED):
-        if not os.path.islink(file):
-            return file
-        try:
-            target = os.readlink(file)
-        except OSError:  # gone since
-            return file
-        file = os.path.abspath(os.path.join(os.path.dirname(file), _plain(target)))
-    return path
-
-
-def _plain(target: str) -> str:
-    """A link's target, without the `\\\\?\\` that Windows puts before an
-    absolute one, which no relative path reaches: `\\\\?\\C:\\…` is `C:\\…`, and
-    `\\\\?\\UNC\\server\\…` is `\\\\server\\…`. Where the two don't name one
-    folder, `paths_folder` follows the links instead."""
-    if SYSTEM == WINDOWS and target.startswith("\\\\?\\"):
-        rest = target[4:]
-        return "\\" + rest[3:] if rest.startswith("UNC\\") else rest
-    return target
-
-
-def _same_folder(folder: str, other: str) -> bool:
-    """Whether `folder` and `other` name one folder, or neither names any."""
-    found = os.path.isdir(folder)
-    if found != os.path.isdir(other):
-        return False
-    return not found or os.path.samefile(folder, other)
 
 
 def local_file(stored: str, folder: str | None) -> Path | None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -14,7 +13,7 @@ from tilia.file import tla_bridge
 from tilia.file.media_metadata import MediaMetadata
 from tilia.log import logger
 from tilia_core import tla
-from tilia_core.tla.writer import rebase_paths
+from tilia_core.tla import paths
 
 _MEDIA_LENGTH = "media length"
 
@@ -131,27 +130,17 @@ class OpenDocument:
     def write(self, path: str | Path) -> None:
         """Writes the document to `path` through the core. Under the lock, so that a
         copy for writing never sees the document part-way through following the
-        file. The PDF timelines `removed` holds follow the file too, as the
-        document's do, so that one an undo gives back after a Save As still names
-        its PDF. Raises what `tla.write` raises, having changed nothing."""
+        file. The timelines `removed` holds follow the file too, as the document's
+        do, through the core's path handler, so that a PDF timeline an undo gives
+        back after a Save As, or a save through a link to a file elsewhere, still
+        names its PDF, and one read with an absolute path keeps it. Raises what
+        `tla.write` raises, having changed nothing."""
         with self._lock:
-            held = {
-                item.id: item
-                for item in self.removed.values()
-                if isinstance(item, tla.Timeline) and item.kind == "pdf"
-            }
-            # The paths as they are now, relative to the folder the document was
-            # read from or last written to.
-            before = copy.copy(self.document)
-            before.timelines = held
-            tla.write(path, self.document)
-            if not held:
-                return
-            # The folder `tla.write` rebases to, and its function.
-            rebased = rebase_paths(before, os.path.dirname(os.path.abspath(path)))
-            for timeline_id, timeline in rebased.timelines.items():
-                if timeline is not held[timeline_id]:
-                    held[timeline_id].attrs["path"] = timeline.attrs["path"]
+            held = [
+                item for item in self.removed.values() if isinstance(item, tla.Timeline)
+            ]
+            with paths.following(self.document, held, path):
+                tla.write(path, self.document)
 
     def note_media_length(self, length: float) -> None:
         """Takes `length`, the player's report for the media the file already has,

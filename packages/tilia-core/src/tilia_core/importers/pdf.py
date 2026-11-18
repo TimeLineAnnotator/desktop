@@ -19,7 +19,8 @@ from tilia_core.importers._commit import commit
 from tilia_core.importers._csv import CsvRow, read_csv
 from tilia_core.importers._results import ImportFailed, ImportResult, RowProblem
 from tilia_core.tla.errors import printable
-from tilia_core.tla.media_files import is_relative, is_url, local_file, paths_folder_of
+from tilia_core.tla.media_files import is_relative
+from tilia_core.tla.paths import paths_folder_of, stored_file_of
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +67,14 @@ def import_by_time(
             raise ImportFailed(path, _COLUMN_NOT_FOUND.format(column))
 
     stored = document.timelines[target].attrs.get("path", "")
+    # Found as the core finds every stored path (`tla.paths`): from the folder
+    # the document's paths are relative to, the folder of the file a link named
+    # when it was read through a link to a file, kept from that read
+    # (TimeLineAnnotator/project-management#431); without one, only an absolute
+    # path names a file, as a stored path is never read from where the process
+    # happens to run. A URL names no file here.
+    pdf = stored_file_of(document, stored)
     folder = paths_folder_of(document)
-    pdf = _pdf_file(stored, folder)
     page_count = None if pdf is None else _page_count(pdf)
     notes = []
     if page_count is None:
@@ -137,20 +144,6 @@ def _problem(path: Path, csv_row: CsvRow, column: str, message: str) -> RowProbl
     return RowProblem(
         path=path, line=csv_row.line, column=column, message=message, skipped=True
     )
-
-
-def _pdf_file(stored: str, folder: str | None) -> Path | None:
-    """The file a PDF timeline's `path` names, found as `tla.media` finds a
-    media file: `local_file` looks a relative path up from `folder`, the one
-    the document's paths are relative to, the folder of the file a link names
-    when it was read through a link to a file (`paths_folder_of`), tries the
-    decomposed (NFD) form of the name, and never looks up a path of the other
-    system's form. Without that folder, only an absolute path names one, as a
-    stored path is never read from where the process happens to run. A URL
-    names no file here. None when it names no file."""
-    if not stored or is_url(stored):
-        return None
-    return local_file(stored, folder)
 
 
 def _looked_for(stored: str, folder: str | None) -> str:

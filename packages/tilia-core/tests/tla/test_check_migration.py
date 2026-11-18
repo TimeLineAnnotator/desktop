@@ -15,7 +15,7 @@ import pytest
 
 from tilia_core import tla
 from tilia_core.importers import harmony_available
-from tilia_core.tla import reader, writer
+from tilia_core.tla import reader
 from tilia_core.tla.migrate import beats as migrated_beats
 
 HERE = Path(__file__).parent
@@ -1250,27 +1250,39 @@ class TestWhatTheMigrationChangesOnPurpose:
         assert "/media/path: " in out
         assert f"/timelines/{PDFS}/path: " in out
 
-    @pytest.mark.parametrize(
-        "relative_path",
-        [
-            pytest.param(lambda path, folder, form: "wrong/sonata.ogg", id="wrong"),
-            pytest.param(lambda path, folder, form: None, id="kept absolute"),
-        ],
-    )
-    def test_a_second_write_that_doesnt_rebase_a_kept_path_is_a_difference(
-        self, folders_with, monkeypatch, capsys, tmp_path, relative_path
+    def test_a_kept_path_is_kept_by_the_second_write(
+        self, folders_with, capsys, tmp_path
     ):
-        # The path the converting write kept absolute is one the next write makes
-        # relative (TimeLineAnnotator/project-management#555). The script says
-        # which, on its own terms: a writer that makes it another relative path,
-        # or keeps it absolute, gives a difference. On the drive of the folders,
-        # so that a relative path to it exists.
+        # The path the converting write kept absolute stays absolute in every
+        # write (TimeLineAnnotator/project-management#555, option a), so the
+        # second read and write leaves the file as it was. On the drive of the
+        # folders, so that a relative path to it exists.
         here = (Path(tmp_path.anchor) / "Nowhere-543").as_posix()
         content = old_file()
         with_paths(
             f"{here}/sonata.ogg", f"{here}/sonata.pdf", f"{ELSEWHERE}/sonata.tla"
         )(content)
-        monkeypatch.setattr(writer, "relative_path", relative_path)
+
+        assert check_migration.main(folders_with(content)) == 0, capsys.readouterr().out
+
+    def test_a_second_write_that_rebases_a_kept_path_is_a_difference(
+        self, folders_with, monkeypatch, capsys, tmp_path
+    ):
+        # A writer that keeps such a path absolute only in the converting write,
+        # as the core did before #555's option a, gives a difference.
+        here = (Path(tmp_path.anchor) / "Nowhere-543").as_posix()
+        content = old_file()
+        with_paths(
+            f"{here}/sonata.ogg", f"{here}/sonata.pdf", f"{ELSEWHERE}/sonata.tla"
+        )(content)
+        keep = reader.keep_as_read
+
+        def kept_from_old_files_only(doc, path):
+            keep(doc, path)
+            if doc.format_version == tla.FORMAT_VERSION:
+                doc._absolute_as_read = ()
+
+        monkeypatch.setattr(reader, "keep_as_read", kept_from_old_files_only)
 
         assert check_migration.main(folders_with(content)) == 1
 
@@ -1692,8 +1704,9 @@ class TestALink:
     ):
         # SOURCE and COPY each hold a link to a file two folders deeper, outside
         # them. Its paths are relative to the folder of the file the link names
-        # (FR-033; TimeLineAnnotator/project-management#431): made so by the
-        # migration, or, for a path it kept absolute (#530), by the second write.
+        # (FR-033; TimeLineAnnotator/project-management#431), made so by the
+        # migration; a path it kept absolute (#530) stays so in every write
+        # (#555, option a).
         if kept_absolute:  # on the drive of the folders, so that a relative one exists
             here = (Path(tmp_path.anchor) / "Nowhere-433").as_posix()
             change = with_paths(

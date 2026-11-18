@@ -20,11 +20,11 @@ media now (contracts/migration.md, *Media paths*):
    TiLiA writes "/" between folders.
 
 Where no relative path exists, on another drive or of the other system's
-form, the path stays absolute, and the write that converts the file writes it
-so, wherever it writes it (TimeLineAnnotator/project-management#530). The file
-is a current one after that, and the next write makes it relative wherever it
-can (#555). The separators of a Windows path become "/"; a backslash in a
-POSIX path is part of a name, and
+form, the path stays absolute: the document is read with it so, and every
+write of it keeps it so, wherever it writes it, while it holds that text
+(TimeLineAnnotator/project-management#530; #555, option a; the path handler,
+`tla.paths`, which lists the paths a file stores). The separators of a
+Windows path become "/"; a backslash in a POSIX path is part of a name, and
 stays. The document id is derived before this step, so it depends neither on
 where the file is nor on the scheme a link is given.
 """
@@ -39,12 +39,11 @@ from tilia_core.tla.media_files import (
     absolute_form,
     folder_of,
     local_file,
-    paths_folder,
     relative_path,
     with_scheme,
     with_slashes,
 )
-from tilia_core.tla.model import timeline_kind_from_current_file
+from tilia_core.tla.paths import MEDIA_PATH_PLACE, paths_folder, places_in
 
 
 def make_relative(
@@ -53,25 +52,20 @@ def make_relative(
     file_path: Any,
     path: str | os.PathLike[str] | None,
 ) -> None:
-    """Make the media's path and each PDF timeline's path in `content`, an old
-    file's content once migrated, relative, in place, and give the media's
-    path `https://` when it is a YouTube link TiLiA stored without a scheme
-    (FR-033). `file_path` is the old file's, and `path` where the file is now;
+    """Make each path `content`, an old file's content once migrated, stores
+    (`paths.places_in`: the media's and each PDF timeline's) relative, in
+    place, and give the media's path `https://` when it is a YouTube link TiLiA
+    stored without a scheme (FR-033). `file_path` is the old file's, and `path` where the file is now;
     None for bytes read without their place, which then have no current
     folder. The current folder is that of the file a link names, when `path`
     is a link to a file (`paths_folder`)."""
     folder = None if path is None else paths_folder(path)
-    media = content["media"]
-    stored = media["path"]
-    if isinstance(stored, str):  # anything else is left for the check to refuse
-        stored = with_scheme(stored)
-    media["path"] = migrated_path(stored, file_path=file_path, folder=folder)
-    for timeline in content["timelines"].values():
-        kind = timeline_kind_from_current_file(timeline["kind"])
-        if kind == "pdf" and "path" in timeline:
-            timeline["path"] = migrated_path(
-                timeline["path"], file_path=file_path, folder=folder
-            )
+    for place, holder, key in places_in(content):
+        stored = holder[key]
+        if place == MEDIA_PATH_PLACE and isinstance(stored, str):
+            # Anything but text is left for the check to refuse.
+            stored = with_scheme(stored)
+        holder[key] = migrated_path(stored, file_path=file_path, folder=folder)
 
 
 def migrated_path(stored: Any, *, file_path: Any, folder: str | None) -> Any:

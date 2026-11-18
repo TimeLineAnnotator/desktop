@@ -31,7 +31,6 @@ from tilia_core.tla.layout import (
     nfc_value,
     pointer_to,
 )
-from tilia_core.tla.media_files import absolute_paths, paths_folder
 from tilia_core.tla.migrate.to_1 import Migrated, migrate
 from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
@@ -47,6 +46,7 @@ from tilia_core.tla.model import (
     timeline_kind_from_current_file,
 )
 from tilia_core.tla.parse import add_line, lines_of, parse, text_of
+from tilia_core.tla.paths import keep_as_read
 from tilia_core.tla.problems import keep_problems
 
 
@@ -164,12 +164,11 @@ def _keep_for_a_write(
 ) -> None:
     """Give `document`, just read from `data`, what a write states and what it
     compares: `_keep_what_was_read`'s and `keep_problems`'s, from one search of
-    `data` for a long integer. `where` is `keep_problems`'. And the folder its
-    relative paths are relative to, found now, which a write elsewhere rebases
-    them from (FR-033): that of the file a link names, when `path` is a link
-    to a file (TimeLineAnnotator/project-management#431)."""
-    if document.origin is not None and path is not None:
-        document._paths_folder = (document.origin, paths_folder(path))
+    `data` for a long integer. `where` is `keep_problems`'. And what its
+    writes judge its paths by, the folder they are relative to and those read
+    absolute, an old file's and bytes' with no place alike
+    (`paths.keep_as_read`, FR-033)."""
+    keep_as_read(document, path)
     long_integer = has_long_integer(data)
     _keep_what_was_read(document, data, path, long_integer)
     keep_problems(
@@ -226,9 +225,6 @@ def _old(
     ]
     if not for_fingerprint:
         _keep_for_a_write(document, data, path, where=migrated.places.old)
-        # The paths the migration kept absolute, which the write that converts
-        # the file keeps so (TimeLineAnnotator/project-management#530, #555).
-        document._absolute_as_read = absolute_paths(document)
     return document, migrated
 
 

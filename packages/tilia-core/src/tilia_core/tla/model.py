@@ -653,10 +653,6 @@ class _MadeWhenAsked:
             return (_MadeWhenAsked, (self._make,))
 
 
-# The place of a document's media path, as a JSON Pointer into its file.
-MEDIA_PATH_PLACE = "/media/path"
-
-
 @dataclass(kw_only=True)
 class Document:
     """One `.tla` file's content, in the current format, whatever version it was read from."""
@@ -683,24 +679,19 @@ class Document:
     # states that fingerprint needn't read it as a document again, which for an
     # old file would migrate it again. None once `fingerprint` is set otherwise.
     _read_digest: str | None = field(default=None, repr=False, compare=False)
-    # Read from an old file: its media path and PDF timelines' paths that the
-    # migration kept absolute, each after its place (`MEDIA_PATH_PLACE`, or
-    # "/timelines/<id>/path"), sorted, so that the document is the same in any
-    # process. The write that converts the file, its first, keeps each so while
-    # that place still holds it (TimeLineAnnotator/project-management#530); after
-    # it the document follows a current file, whose paths are relative wherever
-    # they can be (FR-033, #555), and holds none. Setting `media_path` drops the
-    # media's, even to the same text. A document read from a current file, or
-    # made in memory, holds none.
+    # The paths it was read, or last written, with absolute, each after its place
+    # in the file ("/media/path", "/timelines/<id>/path"), sorted, so that the
+    # document is the same in any process: its writes keep each so while the
+    # text at its place is the one held (FR-033; the path handler, `tla.paths`).
     _absolute_as_read: tuple[tuple[str, str], ...] = field(
         default=(), repr=False, compare=False
     )
     # The folder its relative paths are relative to, found when it was read or
-    # last written (`media_files.paths_folder`), after the `origin` it is the
-    # folder of: the folder of the file a link named, when the file was reached
+    # last written (`paths.paths_folder`), after the `origin` it is the folder
+    # of: the folder of the file a link named, when the file was reached
     # through a link to it (FR-033; TimeLineAnnotator/project-management#431).
     # It holds only while `origin` is that one: the folder of an origin a caller
-    # sets is found when it is needed (`media_files.paths_folder_of`).
+    # sets is found when it is needed (`paths.paths_folder_of`).
     _paths_folder: tuple[Path, str] | None = field(
         default=None, repr=False, compare=False
     )
@@ -742,25 +733,6 @@ class Document:
     def fingerprint(self, value: str | None) -> None:
         self._fingerprint = value
         self._read_digest = None  # no longer the bytes of that fingerprint
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        # A media path set is no longer the one read, even in the same text, as
-        # `build.load_media` stores media found again where it was: the writer
-        # makes it relative. The tuple is replaced, never changed, since a copy
-        # of the document shares it.
-        #
-        # `__init__` sets `media_path` before `_absolute_as_read`, which comes
-        # after it among the fields, so there is nothing to drop yet: a document
-        # made, or copied with `dataclasses.replace`, holds the entries it is
-        # given, even with a `media_path` given anew in the text read. A copy is
-        # the document it copies; a text other than the one read isn't kept.
-        if name == "media_path" and "_absolute_as_read" in self.__dict__:
-            self.__dict__["_absolute_as_read"] = tuple(
-                entry
-                for entry in self.__dict__["_absolute_as_read"]
-                if entry[0] != MEDIA_PATH_PLACE
-            )
-        super().__setattr__(name, value)
 
 
 @dataclass(frozen=True)
