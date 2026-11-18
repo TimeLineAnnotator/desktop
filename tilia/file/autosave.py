@@ -56,14 +56,15 @@ class AutoSaver:
         return not are_tilia_data_equal(self._last_autosave_data, self.get_app_state())
 
 
-def autosave(document: tla.Document) -> None:
-    """Writes `document` through the core into the autosaves folder. It must be a
-    copy of the open one (`OpenDocument.copy_for_writing`): a write makes the document
-    it is given follow the file written."""
+def autosave(document: tla.Document) -> Path:
+    """Writes `document` through the core into the autosaves folder, and returns the
+    path written. It must be a copy of the open one (`OpenDocument.copy_for_writing`):
+    a write makes the document it is given follow the file written."""
     make_room_for_new_autosave()
     autosave_path = get_autosave_path()
     tla.write(autosave_path, document)
     logger.debug(f"Autosave: {autosave_path}")
+    return autosave_path
 
 
 def get_autosave_path():

@@ -55,3 +55,10 @@ def test_create_autosaves_dir(test_dir):
     dirs.create_autosaves_dir(test_dir)
 
     assert os.path.exists(Path(test_dir, "autosaves"))
+
+
+def test_autosaves_go_to_an_empty_folder_of_the_test_s_own(tmp_path_factory):
+    # Not the user's folder, nor the working directory, whose oldest files
+    # making room for an autosave would delete.
+    assert Path(dirs.autosaves_path).is_relative_to(tmp_path_factory.getbasetemp())
+    assert not list(Path(dirs.autosaves_path).iterdir())

@@ -20,8 +20,10 @@ from PySide6.QtGui import QImage, QPainter
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.mock import Serve
 from tests.utils import get_blank_file_data
+from tilia import dirs
 from tilia.app import App
-from tilia.file import tla_bridge
+from tilia.errors import OPEN_FILE_NOT_GIVEN_BACK
+from tilia.file import autosave, tla_bridge
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
@@ -453,18 +455,26 @@ class TestALoadThatFailsPartWay:
         assert len(calls) == 2
         open_before.assert_unchanged()
 
+    @pytest.mark.parametrize("edited", [True, False], ids=["edited", "not edited"])
     def test_a_restore_that_keeps_failing_leaves_a_new_file(
-        self, open_before, tilia, tls, tmp_path
+        self, open_before, tilia, tls, tmp_path, edited
     ):
         # The file open before can't come back, so no save may write what is
         # left, nothing, over it: TiLiA keeps the new file the clearing gave.
         before = Path(tilia.file_manager.get_file_path())
         on_disk = before.read_bytes()
-        edit_and_record(tls)
+        if edited:
+            edit_and_record(tls)
 
         with patch.object(App, "_restore_app_state", side_effect=RuntimeError):
-            with pytest.raises(Exception, match="file.open"):
-                open_failing(a_file(tmp_path, name="other.tla"))
+            if edited:
+                # Its changes are in an autosave, which the message names
+                # (TestAnAutosaveBeforeLoading).
+                assert not open_failing(a_file(tmp_path, name="other.tla"))
+            else:
+                # Nothing is lost: the command fails, as it did.
+                with pytest.raises(Exception, match="file.open"):
+                    open_failing(a_file(tmp_path, name="other.tla"))
 
         assert tilia.file_manager.get_file_path() == ""
         assert tilia.cur_file_path is None
@@ -472,6 +482,109 @@ class TestALoadThatFailsPartWay:
             commands.execute("file.save")
         assert asked.called  # a new file: Save asks where
         assert before.read_bytes() == on_disk
+
+
+def autosaves() -> list[Path]:
+    return sorted(Path(dirs.autosaves_path).iterdir())
+
+
+def cadence_label_in(path: Path) -> str:
+    document = tla.read(path)
+    return document.timelines[CADENCES].components[IDS["cadence"]].attrs["label"]
+
+
+class TestAnAutosaveBeforeLoading:
+    """Before TiLiA clears a file with unsaved changes to load another, it writes an
+    autosave copy of it, so that they aren't lost if the other file fails to load
+    and the file open before can't be given back (FR-012)."""
+
+    def test_a_restore_that_keeps_failing_names_the_copy_which_holds_the_changes(
+        self, open_before, tilia, tls, tilia_errors, tmp_path
+    ):
+        edit_and_record(tls)
+
+        with patch.object(App, "_restore_app_state", side_effect=RuntimeError):
+            assert not open_failing(a_file(tmp_path, name="other.tla"))
+
+        [copy] = autosaves()
+        assert [error["title"] for error in tilia_errors.errors] == [
+            "Load file error",
+            OPEN_FILE_NOT_GIVEN_BACK.title,
+        ]
+        message = tilia_errors.errors[1]["message"]
+        assert message == OPEN_FILE_NOT_GIVEN_BACK.message.format("other.tla", copy)
+        assert str(copy) in message
+        assert cadence_label_in(copy) == "HC"
+        # It opens, with the changes.
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            assert open_file(copy)
+        assert cadence_label(tls) == "HC"
+
+    def test_a_file_without_unsaved_changes_writes_none(
+        self, open_before, tilia, tls, tmp_path
+    ):
+        assert not tilia.is_file_modified()
+
+        assert open_file(a_file(tmp_path, name="other.tla"))
+        with patch.object(App, "_restore_app_state", side_effect=RuntimeError):
+            with pytest.raises(Exception, match="file.open"):
+                open_failing(a_file(tmp_path, name="failing.tla"))
+
+        assert autosaves() == []
+
+    def test_a_load_that_succeeds_opens_the_other_file_as_before(
+        self, open_before, tilia, tls, tilia_errors, tmp_path
+    ):
+        edit_and_record(tls)
+        other = a_file(tmp_path, markers((IDS["cadence"], {"time": 1.0})), "other.tla")
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            assert open_file(other)
+
+        tilia_errors.assert_no_error()
+        assert tilia.file_manager.get_file_path() == str(other)
+        assert tilia.cur_file_path == other
+        assert not tilia.is_file_modified()
+        assert cadence_label(tls) == ""
+        [copy] = autosaves()
+        assert cadence_label_in(copy) == "HC"
+
+    def test_the_file_given_back_still_belongs_to_its_own_file(
+        self, open_before, tilia, tls, tmp_path
+    ):
+        # A write makes the document it is given follow the file written: the
+        # autosave writes a copy.
+        path = Path(tilia.file_manager.get_file_path())
+        edit_and_record(tls)
+        document = tilia.file_manager.file.document
+        origin, fingerprint = document.origin, document.fingerprint
+
+        assert not open_failing(a_file(tmp_path, name="other.tla"))
+
+        assert len(autosaves()) == 1
+        assert tilia.file_manager.file.document is document
+        assert (document.origin, document.fingerprint) == (origin, fingerprint)
+        assert commands.execute("file.save")
+        assert cadence_label_in(path) == "HC"
+
+    def test_a_copy_that_cant_be_written_is_logged_and_the_other_file_opens(
+        self, open_before, tilia, tls, tilia_errors, tmp_path
+    ):
+        # As an autosave's failure is logged
+        # (pending TimeLineAnnotator/project-management#603).
+        edit_and_record(tls)
+        other = a_file(tmp_path, name="other.tla")
+
+        with (
+            patch.object(autosave, "autosave", side_effect=OSError("full")),
+            patch("tilia.app.logger") as logger,
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+        ):
+            assert open_file(other)
+
+        logger.exception.assert_called_once()
+        tilia_errors.assert_no_error()
+        assert tilia.file_manager.get_file_path() == str(other)
 
 
 def expected_timelines(path: Path) -> dict:

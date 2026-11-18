@@ -10,7 +10,7 @@ import tilia.constants
 import tilia.dirs
 import tilia.errors
 from tilia.exceptions import NoReplyToRequest
-from tilia.file import tla_bridge
+from tilia.file import autosave, tla_bridge
 from tilia.file.file_manager import read_file
 from tilia.log import logger
 from tilia.media.loader import load_media
@@ -188,7 +188,7 @@ class App:
 
         success = self.on_file_load(file)
         if not success:
-            open_before.give_back()
+            open_before.give_back(path.name)
             return False
 
         file.timelines, file.timelines_hash = self.get_timelines_state()
@@ -573,7 +573,8 @@ class App:
 class _OpenBefore:
     """The file open before another is opened, to give back if the other fails to
     load part-way, once the app has been cleared: its state, its file with what
-    tells whether it is modified, and its undo history."""
+    tells whether it is modified, and its undo history; and, before the clearing, an
+    autosave copy of its unsaved changes, if it has any."""
 
     def __init__(self, app: App):
         self.app = app
@@ -584,8 +585,24 @@ class _OpenBefore:
         self.should_scale_timelines = app.should_scale_timelines
         undo = app.undo_manager
         self.undo = undo.stack, undo.current_state_index, undo.last_repeat_id
+        # Before the clearing: unsaved changes are copied to an autosave, where
+        # they are kept if the file can't be given back (FR-012).
+        self.autosave_path: Path | None = (
+            self._autosave() if app.file_manager.is_file_modified(self.state) else None
+        )
 
-    def give_back(self) -> None:
+    def _autosave(self) -> Path | None:
+        """Writes an autosave copy of the file, as the autosaver does, and returns its
+        path. None if it can't be written: that is logged, and the other file is
+        loaded all the same (pending TimeLineAnnotator/project-management#603)."""
+        try:
+            return autosave.autosave(self.app.file_manager.file.copy_for_writing())
+        except Exception:
+            logger.exception("Autosave of the file open before another failed.")
+            return None
+
+    def give_back(self, name: str) -> None:
+        """Gives the file back once the file `name` has failed to load part-way."""
         app = self.app
         # What the other file left half loaded goes first, so that restoring this
         # one finds no timelines: it then asks nothing about scaling them.
@@ -602,10 +619,17 @@ class _OpenBefore:
                 self._restore()
             except Exception:
                 # It can't come back. TiLiA keeps the new file the clearing gave,
-                # which a save doesn't write over the file open before, and the
+                # which a save doesn't write over the file open before. The message
+                # names the copy that holds its unsaved changes; without one, the
                 # command's failure says so.
                 app.cur_file_path = None
-                raise
+                if self.autosave_path is None:
+                    raise
+                logger.exception("Restoring the file open before, again.")
+                tilia.errors.display(
+                    tilia.errors.OPEN_FILE_NOT_GIVEN_BACK, name, self.autosave_path
+                )
+                return
         app.file_manager.give_back_file(self.file)
         app.cur_file_path = self.file_path
         undo = app.undo_manager
