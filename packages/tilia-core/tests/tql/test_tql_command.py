@@ -663,8 +663,8 @@ CANT_LIST_LOCKED = (
 
 
 def test_a_folder_that_cant_be_listed_is_named_and_exits_1(exposition):
-    # TimeLineAnnotator/project-management#541; the line's wording waits for
-    # TimeLineAnnotator/project-management#593.
+    # TimeLineAnnotator/project-management#541, worded as `tilia migrate` names
+    # such a folder (TimeLineAnnotator/project-management#593).
     rows = expected(exposition, "PAC IN cadences").rows
     write_fixture(exposition / "locked", "exposition")
 
