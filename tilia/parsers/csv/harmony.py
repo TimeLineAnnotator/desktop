@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 import music21
 
+from tilia.errors import ROMAN_NUMERAL_KEY_UNREADABLE
 from tilia.log import logger
 from tilia.parsers.csv.base import TiliaCSVReader
 from tilia.parsers.csv.common import (
@@ -17,10 +18,14 @@ from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
 )
+from tilia.timelines.harmony.components.harmony import (
+    is_roman_numeral,
+)
 from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia.ui.format import format_media_time
 from tilia_core import rules
 
 
@@ -98,6 +103,18 @@ def _create_component(
     errors = []
     key = harmony_tl.get_key_by_time(time)
     try:
+        if (
+            component_kind == "harmony"
+            and not harmony_tl.can_read_key_by_time(time)
+            and is_roman_numeral(symbol)
+        ):
+            # No key can place it (TimeLineAnnotator/project-management#595,
+            # point 3).
+            return [
+                ROMAN_NUMERAL_KEY_UNREADABLE.message.format(
+                    format_media_time(time), symbol
+                )
+            ]
         success, params = _get_component_params_from_text(component_kind, symbol, key)
     except (music21.Music21Exception, KeyError):
         # The harmony parser raises on some symbols instead of failing, e.g. an

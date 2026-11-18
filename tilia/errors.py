@@ -47,6 +47,14 @@ YOUTUBE_URL_INVALID = Error("Invalid YouTube URL", "{} is not a valid URL.")
 EXPORT_AUDIO_FAILED = Error("Export Audio", "{}")
 ADD_MODE_FAILED = Error("Add key failed", "Adding key failed: {}.")
 ADD_HARMONY_FAILED = Error("Add harmony failed", "{}")
+# Typed in the Add harmony dialog, or in a row of a CSV import, after a mode whose
+# tonic TiLiA can't read (TimeLineAnnotator/project-management#595, point 3): the
+# time, then the roman numeral as given.
+ROMAN_NUMERAL_KEY_UNREADABLE = Error(
+    "Add harmony",
+    "TiLiA can't read the key at {}, so the roman numeral '{}' can't be placed."
+    " Set a mode TiLiA can read before it, or enter the chord by its letters.",
+)
 ADD_PDF_MARKER_FAILED = Error("Add page marker failed", "Can't add page marker: {}")
 INVALID_PDF = Error("PDF timeline error", "Invalid PDF path: '{}'")
 AUDIOWAVE_INVALID_FILE = Error(

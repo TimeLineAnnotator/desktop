@@ -203,6 +203,12 @@ class HarmonyTimeline(Timeline):
         mode = self.get_mode_by_time(time)
         return mode.key if mode is not None else music21.key.Key("CM")
 
+    def can_read_key_by_time(self, time: float) -> bool:
+        """Whether TiLiA can read the key at a time: not after a mode whose tonic it
+        can't read, up to the next mode, where `get_key_by_time` gives C major."""
+        mode = self.get_mode_by_time(time)
+        return mode is None or mode.can_read_tonic
+
     def deserialize_components(self, components: dict[str, dict[str]]):
         super().deserialize_components(components)
         post(Post.HARMONY_TIMELINE_COMPONENTS_DESERIALIZED, self.id)

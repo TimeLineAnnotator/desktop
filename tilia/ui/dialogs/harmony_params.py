@@ -7,10 +7,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
 )
 
+from tilia import errors
 from tilia.requests import Get, get
 from tilia.settings import settings
 from tilia.timelines.harmony.components.harmony import (
     get_params_from_text as get_harmony_params_from_text,
+)
+from tilia.timelines.harmony.components.harmony import (
+    is_roman_numeral,
 )
 from tilia.timelines.harmony.constants import (
     HARMONY_QUALITIES,
@@ -18,6 +22,7 @@ from tilia.timelines.harmony.constants import (
     NOTE_NAME_TO_INT,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
+from tilia.ui.format import format_media_time
 from tilia.ui.timelines.harmony.constants import (
     ACCIDENTAL_TO_INT,
     QUALITY_TO_ABBREVIATION,
@@ -26,12 +31,18 @@ from tilia.ui.timelines.harmony.constants import (
 from tilia.ui.timelines.harmony.elements.harmony_attrs import _INV_TO_STRING
 from tilia.ui.timelines.harmony.utils import (
     INT_TO_APPLIED_TO_SUFFIX,
+    UNREADABLE,
 )
 from tilia_core.rules import HARMONY_DISPLAY_MODES, get_inversion_amount
 
 
 class SelectHarmonyParams(QDialog):
-    def __init__(self, current_key: str | None = None):
+    def __init__(
+        self, current_key: str | None = None, key_unreadable_at: float | None = None
+    ):
+        """`key_unreadable_at` is the harmony's time, when TiLiA can't read the key
+        there: a roman numeral is then refused, since no key can place it
+        (TimeLineAnnotator/project-management#595, point 3)."""
         super().__init__(get(Get.MAIN_WINDOW))
         self.setWindowTitle("Add harmony")
         layout = QGridLayout()
@@ -83,11 +94,17 @@ class SelectHarmonyParams(QDialog):
         self._populating = False
 
         self.current_key = current_key
-        current_key_label = QLabel(
-            "Current key: None (C)"
-            if not current_key
-            else f"Current key: {current_key}"
-        )
+        self.key_unreadable_at = key_unreadable_at
+        if key_unreadable_at is not None:
+            # A value TiLiA can't read shows as a mark
+            # (TimeLineAnnotator/project-management#563, point 3).
+            current_key_label = QLabel(f"Current key: {UNREADABLE}")
+        else:
+            current_key_label = QLabel(
+                "Current key: None (C)"
+                if not current_key
+                else f"Current key: {current_key}"
+            )
 
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
@@ -195,6 +212,10 @@ class SelectHarmonyParams(QDialog):
         if not text:
             return False
 
+        if self._needs_the_key_tilia_cant_read(text):
+            # Nor are the fields filled from it in C major: OK adds what they hold.
+            return False
+
         success, params = get_harmony_params_from_text(text, self.current_key)
         if not success:
             return False
@@ -202,11 +223,28 @@ class SelectHarmonyParams(QDialog):
         self._populate_widgets(params)
         return True
 
+    def _needs_the_key_tilia_cant_read(self, text: str) -> bool:
+        return self.key_unreadable_at is not None and is_roman_numeral(text)
+
+    def accept(self) -> None:
+        text = self.line_edit.text()
+        if self._needs_the_key_tilia_cant_read(text):
+            # The dialog stays open, for the chord's letters.
+            errors.display(
+                errors.ROMAN_NUMERAL_KEY_UNREADABLE,
+                format_media_time(self.key_unreadable_at),
+                text,
+            )
+            return
+        super().accept()
+
     @classmethod
     def select(cls) -> tuple[bool, None | dict[str, str | int]]:
         timeline_ui = get(Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, HarmonyTimeline)
-        current_key = timeline_ui.get_key_by_time(get(Get.MEDIA_CURRENT_TIME))
-        instance = SelectHarmonyParams(current_key)
+        time = get(Get.MEDIA_CURRENT_TIME)
+        current_key = timeline_ui.get_key_by_time(time)
+        can_read_key = timeline_ui.timeline.can_read_key_by_time(time)
+        instance = SelectHarmonyParams(current_key, None if can_read_key else time)
         return (
             (True, instance.get_result())
             if instance.exec() == QDialog.DialogCode.Accepted

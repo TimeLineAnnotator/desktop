@@ -183,6 +183,14 @@ def get_params_from_text(text: str, key: str):
     return True, params
 
 
+def is_roman_numeral(text: str) -> bool:
+    """Whether `get_params_from_text` reads the text as a roman numeral, which only a
+    key can place. It is read in C major, the key TiLiA takes where it can't read
+    one."""
+    _, object_type, _ = _get_music21_object_from_text(text, "C")
+    return object_type == "roman"
+
+
 SPECIAL_ABBREVIATIONS_TO_QUALITY = {
     "dimb9": "diminished-minor-ninth",
     "9#5": "augmented-dominant-ninth",

@@ -1014,7 +1014,9 @@ class TestHarmoniesTiLiACantReadWhole:
         assert after_it.label == "?"
         assert after_it.letter_symbol_label == "G"
         assert after_the_next.label == "V"
-        # What needs a key there, such as adding a harmony, reads C major.
+        # What else needs a key there reads C major, as with no mode. A roman
+        # numeral typed or imported there is refused
+        # (TimeLineAnnotator/project-management#595, point 3).
         assert tls.get_timeline(HARMONIES).get_key_by_time(1.0).tonic.name == "C"
         tilia_errors.assert_no_error()
 
