@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable
 
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QGraphicsScene
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene
 
 from tilia.requests import Post, post, stop_listening_to_all
 from tilia.ui.coords import time_x_converter
@@ -90,6 +90,22 @@ class TimelineUIElement(ABC):
     @abstractmethod
     def on_deselect(self):
         ...
+
+    def on_selection_box_select(self, item: QGraphicsItem) -> None:  # noqa: B027
+        """
+        Called when a selection box comes over `item`, one of the element's
+        selection triggers, once the element is selected. Elements that show
+        which of their triggers are selected override it.
+        """
+
+    def on_selection_box_deselect(self, item: QGraphicsItem) -> bool:
+        """
+        Called when a selection box leaves `item`, one of the element's
+        selection triggers. Returns whether the element stays selected if
+        that was the last of them under the box: elements whose triggers are
+        selected one by one stay selected while any other trigger is.
+        """
+        return False
 
     @abstractmethod
     def update_position(self):

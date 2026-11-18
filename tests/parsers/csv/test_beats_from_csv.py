@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+import pytest
+
 from tests.parsers.csv.common import assert_in_errors
 from tilia.parsers.csv.beat import beats_from_csv
 from tilia.settings import settings
@@ -128,3 +130,136 @@ def test_measure_number_on_every_beat_is_forced_once(beat_tlui):
 
     # A measure forced once per beat would need a reset per beat.
     assert not beat_tlui[4].label.isVisible()
+
+
+def beat_unit_values(beat_tl):
+    return [
+        (beat_tl.get_component(u.beat_id).time, u.denominator, u.units)
+        for u in beat_tl.beat_units
+    ]
+
+
+class TestTimeSignatureColumn:
+    def test_rows_give_their_measures_time_signatures(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        data = "time,time_signature\n0,6/8\n1,\n2,5/8(3 2)\n3,\n4,2/4\n5,"
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert success
+        assert errors == []
+        assert [m.time_signature for m in beat_tl.measure_meters] == [
+            (6, 8),
+            (5, 8),
+            (2, 4),
+        ]
+        assert beat_unit_values(beat_tl) == [(0, 8, "3"), (2, 8, "3+2"), (4, 4, "1")]
+
+    def test_a_time_signature_carries_on(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+
+        _import_with_patch(beat_tl, "time,time_signature\n0,6/8\n1,\n2,\n3,")
+
+        assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
+
+    def test_a_row_inside_a_measure_sets_that_measure(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+
+        _import_with_patch(beat_tl, "time,time_signature\n0,\n1,6/8\n2,\n3,")
+
+        assert beat_unit_values(beat_tl) == [(0, 8, "3")]
+
+    def test_invalid_values_are_reported(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        data = "time,time_signature\n0,3/0\n1,\n2,4/4(2 1 1)\n3,\n4,x\n5,\n6,3/8\n7,"
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert_in_errors("'3/0' is not a valid time signature", errors)
+        assert_in_errors("It gives 3 taps, but the bar has 2.", errors)
+        assert_in_errors("'x' is not a valid time signature", errors)
+        # The first beat keeps its default time signature; only the valid row
+        # adds one.
+        assert beat_unit_values(beat_tl) == [(0, 4, "1"), (6, 8, "3/2")]
+
+    def test_a_time_signature_carries_on_over_other_numbers_of_taps(self, beat_tl):
+        data = "time,is_first_in_measure,time_signature\n0,True,6/8\n1,,\n2,True,\n3,,\n4,,"
+
+        _import_with_patch(beat_tl, data)
+
+        assert beat_tl.beats_in_measure == [2, 3]
+        assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
+
+    @pytest.mark.parametrize(
+        "text, time_signatures",
+        [
+            ("6/8(3 3)", [(6, 8), (9, 8), (6, 8)]),
+            ("2", [(2, 4), (3, 4), (2, 4)]),
+        ],
+    )
+    def test_a_time_signature_carries_on_over_measures_it_does_not_fit(
+        self, beat_tl, text, time_signatures
+    ):
+        data = (
+            "time,is_first_in_measure,time_signature\n"
+            f"0,True,{text}\n1,,\n2,True,\n3,,\n4,,\n5,True,\n6,,"
+        )
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert errors == []
+        assert beat_tl.beats_in_measure == [2, 3, 2]
+        assert [m.time_signature for m in beat_tl.measure_meters] == time_signatures
+
+    def test_a_time_signature_replaces_the_patterns_later_ones(self, beat_tl):
+        beat_tl.beat_pattern = "2[2/4] 3/4"
+        rows = "\n".join(f"{time}," for time in range(1, 9))
+
+        _import_with_patch(beat_tl, f"time,time_signature\n0,6/8\n{rows}")
+
+        assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8)] * 4
+
+    def test_times_in_any_order(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+        data = "time,time_signature\n4,3/4\n0,6/8\n1,\n2,\n3,\n5,"
+
+        success, errors = _import_with_patch(beat_tl, data)
+
+        assert errors == []
+        assert beat_tl.beats_in_measure == [2, 2, 2]
+        assert [m.time_signature for m in beat_tl.measure_meters] == [
+            (6, 8),
+            (6, 8),
+            (3, 4),
+        ]
+
+    def test_a_number_alone_is_assumed(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+
+        _import_with_patch(beat_tl, "time,time_signature\n0,2\n1,")
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert beat_tl.beat_units[0].assumed
+
+    def test_without_the_column(self, beat_tl):
+        _import_with_patch(beat_tl, "time\n0\n1")
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert beat_tl.beat_units[0].assumed
+
+    def test_values_from_the_file_are_not_assumed(self, beat_tl):
+        beat_tl.beat_pattern = [2]
+
+        _import_with_patch(beat_tl, "time,time_signature\n0,2/4\n1,")
+
+        assert beat_unit_values(beat_tl) == [(0, 4, "1")]
+        assert not beat_tl.beat_units[0].assumed
+
+
+def test_times_alone_follow_the_patterns_time_signatures(beat_tl):
+    beat_tl.beat_pattern = "6/8(3 3)"
+
+    _import_with_patch(beat_tl, "time\n0\n1\n2\n3")
+
+    assert [m.time_signature for m in beat_tl.measure_meters] == [(6, 8), (6, 8)]
+    assert not any(m.is_assumed for m in beat_tl.measure_meters)

@@ -64,7 +64,10 @@ from .view import TimelineUIsView
 # their height, as `timeline.set_height` says when it refuses them.
 HEIGHT_IS_SET = (HierarchyTimeline, AudioWaveTimeline)
 HEIGHT_COMES_FROM = {
-    BeatTimeline: ("beat", "is fixed"),
+    BeatTimeline: (
+        "beat",
+        "is the default height, plus the time-signature band when shown",
+    ),
     HarmonyTimeline: ("harmony", "is its level height times the levels shown"),
     MarkerTimeline: ("marker", "comes from the default height in the settings"),
     PdfTimeline: ("PDF", "is the default height in the settings when it was added"),
@@ -395,7 +398,15 @@ class TimelineUIs:
             return True
         return False
 
-    def on_timeline_add(self, cls: type[Timeline], name: str | None = None):
+    def on_timeline_add(
+        self, cls: type[Timeline], name: str | None = None, **creation_args: Any
+    ) -> bool | None:
+        """
+        `creation_args` are values the timeline kind would otherwise prompt
+        for (e.g. `beat_pattern`, `path`), passed to its UI class's
+        get_additional_args_for_creation.
+        """
+
         def _get_media_is_loaded():
             if get(Get.MEDIA_DURATION) == 0:
                 return False
@@ -423,10 +434,17 @@ class TimelineUIs:
         # `cls` here is the backend timeline class — look the UI class up.
         ui_cls = self.get_timeline_ui_class(cls)
         if hasattr(ui_cls, "get_additional_args_for_creation"):
-            success, additional_args = ui_cls.get_additional_args_for_creation()
+            success, additional_args = ui_cls.get_additional_args_for_creation(
+                **creation_args
+            )
             if not success:
                 return False
             kwargs |= additional_args
+        elif creation_args:
+            logger.error(
+                f"{cls.__name__} takes no creation arguments; "
+                f"ignoring {sorted(creation_args)}."
+            )
 
         get(Get.TIMELINE_COLLECTION).create_timeline(
             kind=cls, components=None, name=name, **kwargs
@@ -742,7 +760,7 @@ class TimelineUIs:
             tlui = cast(SliderTimelineUI, tlui)
             tlui.update_items_position()
         else:
-            tlui.element_manager.update_time_on_elements()
+            tlui.update_time_on_elements()
 
     @staticmethod
     def get_timeline_ui_class(kind: type[Timeline]) -> type[TimelineUI]:
@@ -953,6 +971,7 @@ class TimelineUIs:
             return
 
         timeline_ui.select_element(element)
+        element.on_selection_box_select(item)
         # keep track of selection triggers under selection box
         if element in self.sb_items_to_selected_items:
             self.sb_items_to_selected_items[element].add(item)
@@ -974,12 +993,14 @@ class TimelineUIs:
             return
 
         self.sb_items_to_selected_items[element].remove(item)
+        stays_selected = element.on_selection_box_deselect(item)
 
         # stop tracking element if there are no more selection triggers under
         # selection box
         if not self.sb_items_to_selected_items[element]:
             self.sb_items_to_selected_items.pop(element)
-            timeline_ui.deselect_element(element)
+            if not stays_selected:
+                timeline_ui.deselect_element(element)
 
     def on_arrow_press(self, arrow: str):
         direction = "horizontal" if arrow in ["right", "left"] else "vertical"

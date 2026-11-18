@@ -35,6 +35,10 @@ class InspectRowKind(Enum):
     SPIN_BOX = auto()
     COMBO_BOX = auto()
     SINGLE_LINE_EDIT = auto()
+    # Apply when editing finishes (Enter or focus leaving) rather than on
+    # every keystroke, for values that aren't valid while half-typed or whose
+    # change needs confirming.
+    SINGLE_LINE_EDIT_ON_FINISH = auto()
     MULTI_LINE_EDIT = auto()
     LABEL = auto()
     SEPARATOR = auto()
@@ -168,8 +172,13 @@ class Inspect(QDockWidget):
         self.raise_()
 
     def update_inspected_object_stack(self, cls, field, values, id):
-        if (cls, field, values, id) not in self.inspected_objects_stack:
-            self.inspected_objects_stack.append((cls, field, values, id))
+        # One entry per element: an element given again, with new values,
+        # replaces its entry, which deselecting it then removes, rather than
+        # leaving the old one to be shown once it is deselected.
+        self.inspected_objects_stack = [
+            obj for obj in self.inspected_objects_stack if obj[-1] != id
+        ]
+        self.inspected_objects_stack.append((cls, field, values, id))
 
     def update_rows(
         self,
@@ -303,6 +312,14 @@ class Inspect(QDockWidget):
     def on_line_edit_changed(self, field_name, value):
         post(Post.INSPECTOR_FIELD_EDITED, field_name, value, self.element_id, id(self))
 
+    def on_line_edit_finished(self, field_name: str, widget: QLineEdit) -> None:
+        # editingFinished also fires when focus moves to a dialog opened in
+        # response to the first emission; only report an edit once.
+        if not widget.isModified():
+            return
+        widget.setModified(False)
+        self.on_line_edit_changed(field_name, widget.text())
+
     def on_text_edit_changed(self, field_name, text_edit):
         post(
             Post.INSPECTOR_FIELD_EDITED,
@@ -338,6 +355,14 @@ class Inspect(QDockWidget):
                 widget = QLineEdit(self.inspect_widget)
                 widget.textChanged.connect(
                     functools.partial(self.on_line_edit_changed, name)
+                )
+            case InspectRowKind.SINGLE_LINE_EDIT_ON_FINISH:
+                widget = QLineEdit(self.inspect_widget)
+                if kwargs and "validator" in kwargs:
+                    # editingFinished only fires for input the validator accepts.
+                    widget.setValidator(kwargs["validator"](widget))
+                widget.editingFinished.connect(
+                    functools.partial(self.on_line_edit_finished, name, widget)
                 )
             case InspectRowKind.MULTI_LINE_EDIT:
                 widget = QTextEdit(self.inspect_widget)

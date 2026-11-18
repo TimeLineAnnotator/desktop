@@ -3,15 +3,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 from PySide6.QtCore import QLineF, QPointF, Qt
-from PySide6.QtGui import QColor, QFont, QPen
+from PySide6.QtGui import QColor, QFont, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsLineItem, QGraphicsScene, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.timelines.base.element import TimelineUIElement
+from tilia.ui.timelines.beat.time_signature import TIME_SIGNATURE_Y
 
 from ...coords import time_x_converter
-from ...format import format_media_time
+from ...format import format_media_time, format_numerator
 from ...windows.inspect import InspectRowKind
 from ..copy_paste import CopyAttributes
 from ..cursors import CursorMixIn
@@ -41,6 +42,7 @@ class BeatUI(TimelineUIElement):
         ("Time", InspectRowKind.LABEL, None),
         ("Measure", InspectRowKind.LABEL, None),
         ("Beat", InspectRowKind.LABEL, None),
+        ("Time signature", InspectRowKind.LABEL, None),
     ]
 
     FIELD_NAMES_TO_ATTRIBUTES: dict[str, str] = {}
@@ -118,6 +120,7 @@ class BeatUI(TimelineUIElement):
 
     def update_time(self):
         self.update_position()
+        self.timeline_ui.update_time_signatures()
 
     def update_position(self):
         self.body.set_position(self.x, self.height)
@@ -201,9 +204,17 @@ class BeatUI(TimelineUIElement):
         self.body.on_deselect()
 
     def get_inspector_dict(self) -> dict:
+        timeline = self.timeline_ui.timeline
+        beat = self.tl_component
+        measure_index, _ = timeline.get_measure_index(timeline.get_beat_index(beat))
+        meter = timeline.get_measure_meter(measure_index)
+        time_signature = f"{format_numerator(meter.numerator)}/{meter.denominator}"
+        if meter.is_assumed:
+            time_signature += " (assumed)"
         return {
             "Time": format_media_time(self.time),
             "Measure": str(self.get_data("measure")),
+            "Time signature": time_signature,
         }
 
 
@@ -271,3 +282,15 @@ class BeatLabel(QGraphicsTextItem):
         else:
             self.setVisible(True)
             self.setPlainText(value)
+
+    def shape(self) -> QPainterPath:
+        # The text's box, with its margins and the space below the line,
+        # reaches into the row of time signature labels under the numbers,
+        # where a selection box over the labels would select the beat. Only
+        # the part above that row, where the number is drawn, is the label's.
+        rect = self.boundingRect()
+        rect.setBottom(min(rect.bottom(), TIME_SIGNATURE_Y - 2 - self.y()))
+        path = QPainterPath()
+        if rect.height() > 0:
+            path.addRect(rect)
+        return path

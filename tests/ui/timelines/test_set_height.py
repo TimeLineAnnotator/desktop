@@ -12,7 +12,10 @@ from tilia.ui import commands
 from tilia.ui.timelines.collection.collection import HEIGHT_COMES_FROM, HEIGHT_IS_SET
 
 REFUSED = {
-    "beat_tlui": "The height of a beat timeline is fixed.",
+    "beat_tlui": (
+        "The height of a beat timeline is the default height, plus the "
+        "time-signature band when shown."
+    ),
     "harmony_tlui": (
         "The height of a harmony timeline is its level height times the levels "
         "shown."
