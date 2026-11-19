@@ -158,6 +158,12 @@ class Store:
         return self._generation
 
     @property
+    def closed(self) -> bool:
+        """Whether :meth:`close` has closed the index."""
+        with self._cond:
+            return self._closed
+
+    @property
     def connections(self) -> int:
         """How many read connections the store has opened (its pool)."""
         with self._cond:
@@ -231,6 +237,33 @@ class Store:
         """The time map of the file whose key is ``file_id``, in the current
         generation."""
         return self._time_maps.get(file_id)
+
+    # -- the copy on disk (cache.py) ------------------------------------------ #
+    def save_to(self, target: sqlite3.Connection) -> int:
+        """Copy every table into ``target``, under the write side, so that no
+        change runs meanwhile; the generation copied."""
+        with self._write_side():
+            self._writer.backup(target)
+            return self._generation
+
+    def load_from(
+        self,
+        source: sqlite3.Connection,
+        time_maps: Mapping[int, TimeMap],
+        drop: Iterable[str] = (),
+    ) -> None:
+        """Fill the empty index with ``source``'s tables, less those named in
+        ``drop``, and give it ``time_maps``: its first generation, 1, as
+        though it had been built. Raises ``RuntimeError`` when the index isn't
+        empty."""
+        with self._write_side():
+            if self._generation:
+                raise RuntimeError("only an empty index can be loaded")
+            source.backup(self._writer)
+            for table in drop:
+                self._writer.execute(f'DROP TABLE IF EXISTS "{table}"')
+            self._time_maps = dict(time_maps)
+            self._generation = 1
 
     def _change_has_waited(self) -> bool:
         """Whether a change has waited longer than ``PATIENCE``: then new reads

@@ -881,16 +881,20 @@ class Scope:
             len(a.lits) == 1 and a.lits[0].kind == "any" and not a.lits[0].negate
             for a in term.alts
         ):
-            bld = SqlBuilder(self.lanes, self.time_map is not None)
-            bld.params.append(self.file_id)
-            test = tql_compile.unit_test(syntax.Unit(term, [], unit.pos), "c", bld)
-            # a lookup, not a search statement: kept out of the SQL a result shows
-            rows = self.log.con.execute(
-                "SELECT DISTINCT c.timeline_id FROM components c "
-                f"WHERE c.file_id = ? AND ({test})",
-                bld.params,
-            ).fetchall()
-            got = frozenset(r[0] for r in rows)
+            # lookups, not search statements: kept out of the SQL a result shows
+            by_file = self.catalog.label_timelines(term)
+            if by_file is not None:  # one for every file of the run
+                got = by_file.get(self.file_id, frozenset())
+            else:  # a label without a word: this file's alone
+                bld = SqlBuilder(self.lanes, self.time_map is not None)
+                bld.params.append(self.file_id)
+                test = tql_compile.unit_test(syntax.Unit(term, [], unit.pos), "c", bld)
+                rows = self.log.con.execute(
+                    "SELECT DISTINCT c.timeline_id FROM components c "
+                    f"WHERE c.file_id = ? AND ({test})",
+                    bld.params,
+                ).fetchall()
+                got = frozenset(r[0] for r in rows)
         self._label_fits[id(unit)] = got
         return got
 

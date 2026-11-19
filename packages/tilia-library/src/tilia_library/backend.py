@@ -225,7 +225,7 @@ class _Handle:
                     # The library rescans on its own timer (liveness), so a read
                     # answers from the index as the last scan left it.
                     self._corpus = open_core_corpus(
-                        self.path, rescan_before_reads=False
+                        self.path, rescan_before_reads=False, keep_on_disk=True
                     )
                 except FileNotFoundError:
                     return None
