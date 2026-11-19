@@ -1601,9 +1601,8 @@ class TestASliderThatIsntStored:
         assert path.read_bytes() == changed
 
 
-def a_file_with(tmp_path: Path, timeline: dict) -> tuple[Path, str]:
-    """A file with one timeline, without components, and no slider."""
-    timeline_id = make_id(9)
+def a_file_of(tmp_path: Path, timelines: dict[str, dict]) -> Path:
+    """A file with these timelines, by id, without components."""
     content = {
         "app_name": "TiLiA",
         "version": tla.FORMAT_VERSION,
@@ -1611,12 +1610,49 @@ def a_file_with(tmp_path: Path, timeline: dict) -> tuple[Path, str]:
         "time_unit": "seconds",
         "media": {"path": "", "length": 100.0},
         "metadata": {},
-        "timelines": {timeline_id: {"ordinal": 1, "components": {}, **timeline}},
+        "timelines": {
+            id: {"components": {}, **timeline} for id, timeline in timelines.items()
+        },
         "scores": [],
     }
     path = tmp_path / "file.tla"
     tla.write(path, tla.loads(json.dumps(content).encode()))
-    return path, timeline_id
+    return path
+
+
+def a_file_with(tmp_path: Path, timeline: dict) -> tuple[Path, str]:
+    """A file with one timeline, without components, and no slider."""
+    timeline_id = make_id(9)
+    return a_file_of(tmp_path, {timeline_id: {"ordinal": 1, **timeline}}), timeline_id
+
+
+class TestADeletionAboveAStoredSlider:
+    """TiLiA's undo gives a slider back its place, which its empty digest kept it
+    from doing (TimeLineAnnotator/project-management#573)."""
+
+    def test_an_undo_gives_back_the_order_and_the_file_s_bytes(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        above, slider, below = make_id(11), make_id(15), make_id(12)
+        path = a_file_of(
+            tmp_path,
+            {
+                above: {"kind": "Marker", "name": "A", "height": 30, "ordinal": 1},
+                slider: {"kind": "Slider", "height": 40, "ordinal": 2},
+                below: {"kind": "Marker", "name": "B", "height": 30, "ordinal": 3},
+            },
+        )
+        before = path.read_bytes()
+        assert open_file(path)
+        tls.delete_timeline(tls.get_timeline(above))
+        record()
+
+        commands.execute("edit.undo")
+
+        assert in_display_order(tls) == [above, slider, below]
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
 
 
 class TestWhatTiLiAFillsIn:
