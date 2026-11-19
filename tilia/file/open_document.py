@@ -211,7 +211,7 @@ class OpenDocument:
         self, timeline_id: str, component_id: str
     ) -> dict[str, str | list[str]]:
         """A copy of the fields of a component the document holds, which TiLiA shows
-        but doesn't edit (FR-092). None for a component it doesn't hold, such as one
+        but doesn't edit (FR-092). Empty for a component it doesn't hold, such as one
         TiLiA doesn't store or has made since its last action."""
         with self._lock:
             timeline = self.document.timelines.get(timeline_id)
