@@ -594,9 +594,13 @@ class _OpenBefore:
     def _autosave(self) -> Path | None:
         """Writes an autosave copy of the file, as the autosaver does, and returns its
         path. None if it can't be written: that is logged, and the other file is
-        loaded all the same (pending TimeLineAnnotator/project-management#603)."""
+        loaded all the same (TimeLineAnnotator/project-management#603, a)."""
+        file = self.app.file_manager.file
         try:
-            return autosave.autosave(self.app.file_manager.file.copy_for_writing())
+            # What TiLiA shows, as a save writes it: a change nothing recorded, such
+            # as a late report of the media's length, isn't in the document yet.
+            file.sync(self.state)
+            return autosave.autosave(file.copy_for_writing())
         except Exception:
             logger.exception("Autosave of the file open before another failed.")
             return None

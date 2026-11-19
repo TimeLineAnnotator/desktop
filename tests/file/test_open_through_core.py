@@ -549,6 +549,26 @@ class TestAnAutosaveBeforeLoading:
         [copy] = autosaves()
         assert cadence_label_in(copy) == "HC"
 
+    def test_the_copy_holds_a_change_that_wasnt_recorded(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        # A late report of the media's length, with the timelines scaled to it:
+        # nothing records it for undo, so the document hasn't followed it yet.
+        assert open_file(a_file(tmp_path, with_media_length(10.0), name="before.tla"))
+        tilia.set_file_media_duration(20.0, scale_timelines="yes")
+        cadence = tls.get_timeline(CADENCES).get_component(IDS["cadence"])
+        assert (tilia.duration, cadence.get_data("time")) == (20.0, 2.0)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            assert open_file(a_file(tmp_path, name="other.tla"))
+
+        [copy] = autosaves()
+        document = tla.read(copy)
+        assert document.media_length == 20.0
+        assert document.timelines[CADENCES].components[IDS["cadence"]].attrs[
+            "time"
+        ] == pytest.approx(2.0)
+
     def test_the_file_given_back_still_belongs_to_its_own_file(
         self, open_before, tilia, tls, tmp_path
     ):
@@ -571,7 +591,7 @@ class TestAnAutosaveBeforeLoading:
         self, open_before, tilia, tls, tilia_errors, tmp_path
     ):
         # As an autosave's failure is logged
-        # (pending TimeLineAnnotator/project-management#603).
+        # (TimeLineAnnotator/project-management#603, a).
         edit_and_record(tls)
         other = a_file(tmp_path, name="other.tla")
 
