@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -33,10 +34,11 @@ class OpenDocument:
     `synced` is the state the document reflects, and `sync` applies to it what differs
     from that state. `removed` keeps what `sync` took out of it, so that an undo gets
     it back whole. For each state undo records, `remember` keeps what the document
-    then held that the state can't tell (`tla_bridge.history_of`), and an undo or a
-    redo back to that state gives it back.
+    then held that the state can't tell (`tla_bridge.history_of`, and the media's path
+    as the file stores it), and an undo or a redo back to that state gives it back.
 
-    `media_path` is where the media was found, not the path the file stores.
+    `media_path` is where the media was found, not the path the file stores
+    (`note_media_found`).
     `timelines` and `timelines_hash` are the state's when the file was last read or
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.
@@ -58,8 +60,10 @@ class OpenDocument:
     _lock: threading.Lock = field(
         default_factory=threading.Lock, init=False, repr=False
     )
-    # By the id of a state undo recorded: that state, and the document's history.
-    _histories: dict[int, tuple[dict[str, Any], tla_bridge.History]] = field(
+    # By the id of a state undo recorded: that state, the document's history, and the
+    # media's path as the document then held it, which the state can't tell: the
+    # state holds where the media was found, or "" when it wasn't.
+    _histories: dict[int, tuple[dict[str, Any], tla_bridge.History, str]] = field(
         default_factory=dict, init=False, repr=False
     )
 
@@ -109,6 +113,10 @@ class OpenDocument:
                 tla_bridge.give_back_history(
                     self.document, remembered[1], state, removed=self.removed
                 )
+                # The media's path the file stored then, which `apply_changes` took
+                # from the state: where the media was found, or "" when it wasn't.
+                if self.document.media_path != remembered[2]:
+                    self.document.media_path = remembered[2]
             self.synced = state
         for note in notes:
             logger.warning(note)
@@ -118,7 +126,11 @@ class OpenDocument:
         what the document holds that the state can't tell, for an undo or a redo
         back to it."""
         with self._lock:
-            self._histories[id(state)] = (state, tla_bridge.history_of(self.document))
+            self._histories[id(state)] = (
+                state,
+                tla_bridge.history_of(self.document),
+                self.document.media_path,
+            )
 
     def forget_all_but(self, states: Iterable[dict[str, Any]]) -> None:
         """Forgets the history kept for any state but these, which undo keeps."""
@@ -133,14 +145,35 @@ class OpenDocument:
         file. The timelines `removed` holds follow the file too, as the document's
         do, through the core's path handler, so that a PDF timeline an undo gives
         back after a Save As, or a save through a link to a file elsewhere, still
-        names its PDF, and one read with an absolute path keeps it. Raises what
-        `tla.write` raises, having changed nothing."""
+        names its PDF, and one read with an absolute path keeps it; and so do the
+        media paths kept for undo, so that one an undo gives back names the media.
+        Raises what `tla.write` raises, having changed nothing."""
         with self._lock:
             held = [
                 item for item in self.removed.values() if isinstance(item, tla.Timeline)
             ]
+            # The paths as they are now, relative to the folder the document was
+            # read from or last written to.
+            before = copy.copy(self.document)
             with paths.following(self.document, held, path):
                 tla.write(path, self.document)
+            # The folder `tla.write` rebases to; `rebase_paths` is its function.
+            folder = os.path.dirname(os.path.abspath(path))
+            self._rebase_kept_media_paths(before, folder)
+
+    def _rebase_kept_media_paths(self, before: tla.Document, folder: str) -> None:
+        """Makes the media paths kept for undo those the file just written into
+        `folder` from `before` stores, as the document's own is: the one the
+        document held is what the core wrote, and any other is rebased as the core
+        would have written it."""
+        written = {before.media_path: self.document.media_path}
+        for key, (state, history, media_path) in list(self._histories.items()):
+            if media_path not in written:
+                other = copy.copy(before)
+                other.timelines = {}
+                other.media_path = media_path
+                written[media_path] = paths.rebase_paths(other, folder).media_path
+            self._histories[key] = (state, history, written[media_path])
 
     def note_media_length(self, length: float) -> None:
         """Takes `length`, the player's report for the media the file already has,
@@ -152,6 +185,17 @@ class OpenDocument:
             media_metadata = {**self.synced["media_metadata"], _MEDIA_LENGTH: length}
             # A new dict: undo may keep the old one in a state it records.
             self.synced = {**self.synced, "media_metadata": media_metadata}
+
+    def note_media_found(self, path: str) -> None:
+        """Takes `path`, where TiLiA found the media the file stores, or "" when the
+        user declined to look for it, as where the file's media is: so it is no
+        change, and the file keeps the path it stores (FR-032). Loading other media
+        is a change, which `sync` writes."""
+        with self._lock:
+            self.media_path = path
+            if self.synced is not None:
+                # A new dict: undo may keep the old one in a state it records.
+                self.synced = {**self.synced, "media_path": path}
 
     def copy_for_writing(self) -> tla.Document:
         """A copy of the document, to write elsewhere: a write makes the document it
