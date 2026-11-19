@@ -274,6 +274,7 @@ class QtUI:
                 Get.RIGHT_MARGIN_X,
                 lambda: self.playback_area_width + self.playback_area_margin,
             ),
+            (Get.IS_DIALOG_OPEN, self.is_dialog_open),
             (Get.WINDOW_CLOSED, self.close_window),
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
@@ -565,12 +566,16 @@ class QtUI:
         asks first."""
         if window := self._windows[kind]:
             window.close()
-        # Not what close() returns: called while the window's own close is
-        # asking, it returns True at once, and the answer may keep it open.
         return not self.is_window_open(kind)
 
     def is_window_open(self, kind: WindowKind):
         return self._windows[kind] is not None
+
+    def is_dialog_open(self) -> bool:
+        """Whether a dialog is on screen. The Metadata window is modal too, but
+        it is one of the windows, not a dialog."""
+        widget = QApplication.activeModalWidget()
+        return widget is not None and widget not in self._windows.values()
 
     def on_timeline_element_inspect(self):
         if not get(Get.TIMELINE_ELEMENTS_SELECTED):

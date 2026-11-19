@@ -5,7 +5,7 @@ import traceback
 from collections.abc import Callable
 from typing import NoReturn
 
-from PySide6.QtCore import QEvent, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import QEvent, QTimer, QtMsgType, qInstallMessageHandler
 from PySide6.QtWidgets import QApplication
 
 import tilia.errors
@@ -14,10 +14,12 @@ from tilia.app import App
 from tilia.clipboard import Clipboard
 from tilia.constants import FILE_EXTENSION
 from tilia.dirs import setup_dirs
+from tilia.exceptions import NoReplyToRequest
 from tilia.file.autosave import AutoSaver
 from tilia.file.file_manager import FileManager
 from tilia.log import logger
 from tilia.media.player import QtAudioPlayer
+from tilia.requests import Get, get
 from tilia.undo_manager import UndoManager
 
 app = None
@@ -69,27 +71,45 @@ def handle_qt_log_message(type, context, msg):
 
 
 class PendingFileOpen:
-    """Buffers a file path until a callback is registered to receive it.
+    """Holds a file path until a callback is registered to receive it, and
+    while a dialog is on screen. A path that arrives while another waits
+    replaces it.
 
     Split out from TiliaApplication so it is testable without constructing a
     QApplication (only one may exist per process).
     """
+
+    RETRY_INTERVAL_MS = 100
 
     def __init__(self):
         self._pending: str | None = None
         self._callback: Callable[[str], None] | None = None
 
     def handle(self, path: str) -> None:
-        if self._callback:
-            self._callback(path)
-        else:
-            self._pending = path
+        self._pending = path
+        self._deliver()
 
     def set_callback(self, callback: Callable[[str], None]) -> None:
         self._callback = callback
-        if self._pending is not None:
-            callback(self._pending)
-            self._pending = None
+        self._deliver()
+
+    def _deliver(self) -> None:
+        if self._pending is None or self._callback is None:
+            return
+        if _is_dialog_open():
+            # The event arrives inside the dialog's event loop. Opened now, the
+            # file would be the one that the dialog's answer then changes.
+            QTimer.singleShot(self.RETRY_INTERVAL_MS, self._deliver)
+            return
+        path, self._pending = self._pending, None
+        self._callback(path)
+
+
+def _is_dialog_open() -> bool:
+    try:
+        return get(Get.IS_DIALOG_OPEN)
+    except NoReplyToRequest:
+        return False  # No dialogs, as in the CLI.
 
 
 class TiliaApplication(QApplication):
@@ -100,7 +120,8 @@ class TiliaApplication(QApplication):
     Qt's Cocoa platform plugin turns into a QFileOpenEvent on the application
     object. On a cold launch this event can arrive as soon as the QApplication
     is constructed, before boot() has built the App/UI to hand it to, so it is
-    buffered until set_file_open_callback is called.
+    buffered until set_file_open_callback is called. It also waits while a
+    dialog is on screen, and is handed on once the dialog is closed.
     """
 
     def __init__(self, argv):
