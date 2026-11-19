@@ -9,6 +9,7 @@ stores are the same for TiLiA and for the core.
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import shutil
@@ -1375,3 +1376,79 @@ class TestImportingFields:
         saved = tla.read(every_kind)
         assert saved.media_length == 17.5
         assert saved.metadata["composer"] == "Schubert"
+
+
+OLD_SCORE = FILES / "old" / "0.7.0-osmd.tla"
+OLD_WITH_TIME_SIGNATURES = sorted(
+    path
+    for path in (FILES / "old").glob("*.tla")
+    if b'"TIME_SIGNATURE"' in path.read_bytes()
+)
+PAIRS = [["2", 4], ["3", 8]]
+
+
+def made_composite(doc: tla.Document) -> None:
+    """Each time signature of `doc` made 2/4 + 3/8, as TiLiA's MusicXML import
+    stores one."""
+    signatures = [
+        component
+        for timeline in doc.timelines.values()
+        for component in timeline.components.values()
+        if component.kind == "time_signature"
+    ]
+    assert signatures
+    for component in signatures:
+        component.attrs.update(
+            numerator=None, denominator=None, pairs=copy.deepcopy(PAIRS)
+        )
+
+
+class TestATimeSignaturesPairs:
+    """A composite time signature's `pairs`, a key of the format
+    (TimeLineAnnotator/project-management#515), through TiLiA."""
+
+    @pytest.mark.parametrize(
+        "old", OLD_WITH_TIME_SIGNATURES, ids=names(OLD_WITH_TIME_SIGNATURES)
+    )
+    def test_a_file_with_them_keeps_its_bytes(self, qtui, tilia, tls, tmp_path, old):
+        path = written_by_the_core(old, tmp_path, made_composite)
+        before = path.read_bytes()
+        assert b'"pairs"' in before
+        assert open_file(path)
+
+        assert save()
+
+        assert path.read_bytes() == before
+        assert not tilia.is_file_modified()
+
+    def test_an_edit_undone_and_redone_gives_back_each_step_s_bytes(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        path = written_by_the_core(OLD_SCORE, tmp_path, made_composite)
+        assert open_file(path)
+        score = first_of_kind(the_document(tilia), "score")
+        signature = next(
+            component.id
+            for component in score.components.values()
+            if component.kind == "time_signature"
+        )
+        timeline = tls.get_timeline(score.id)
+        steps = [path.read_bytes()]
+
+        for pairs in ([["3", 4], ["2", 8]], None, [["5", 8], ["2", 4]]):
+            if pairs is None:  # a simple time signature again
+                timeline.set_component_data(signature, "numerator", "3")
+                timeline.set_component_data(signature, "denominator", 4)
+            timeline.set_component_data(signature, "pairs", pairs)
+            record()
+            assert save()
+            steps.append(path.read_bytes())
+            written = json.loads(steps[-1])["timelines"][score.id]["components"]
+            keys = list(written[signature])
+            if pairs is None:
+                assert "pairs" not in keys
+            else:
+                assert keys[keys.index("denominator") + 1] == "pairs"
+                assert written[signature]["pairs"] == pairs
+
+        TestUndoAndRedoAreExact.walk_back_and_forth(path, steps)
