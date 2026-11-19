@@ -127,7 +127,7 @@ class OpenDocument:
         with self._lock:
             self._histories[id(state)] = (
                 state,
-                tla_bridge.history_of(self.document),
+                tla_bridge.history_of(self.document, state),
                 self.document.media_path,
             )
 
@@ -194,6 +194,18 @@ class OpenDocument:
             if self.synced is not None:
                 # A new dict: undo may keep the old one in a state it records.
                 self.synced = {**self.synced, "media_path": path}
+
+    def note_unstored_timeline(self, timeline_id: str, state: dict[str, Any]) -> None:
+        """Takes a timeline TiLiA shows and the document doesn't store, such as the
+        slider of a new file, with `state`, its state, as what the document reflects:
+        so it is no change, and the document stores it only once it differs
+        (FR-007)."""
+        with self._lock:
+            if self.synced is None:
+                return
+            timelines = {**self.synced["timelines"], timeline_id: state}
+            # A new dict: undo may keep the old one in a state it records.
+            self.synced = {**self.synced, "timelines": timelines}
 
     def copy_for_writing(self) -> tla.Document:
         """A copy of the document, to write elsewhere: a write makes the document it

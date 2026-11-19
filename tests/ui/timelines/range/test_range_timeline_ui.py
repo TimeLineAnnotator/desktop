@@ -241,8 +241,9 @@ class TestSaveLoad:
         save_and_reopen(tmp_path)
 
         assert len(tluis) == 2  # Slider timeline + Range timeline
-        assert tluis[0].get_data("name") == "range"
-        assert tluis[0].rows[0].name == "row"
+        # The slider, which the file doesn't store, shows first (FR-007).
+        assert tluis[1].get_data("name") == "range"
+        assert tluis[1].rows[0].name == "row"
 
     def test_single_row_with_components(self, tilia, tluis, tilia_state, tmp_path):
         commands.execute("timelines.add.range", name="range")
@@ -255,7 +256,7 @@ class TestSaveLoad:
         save_and_reopen(tmp_path)
 
         assert len(tluis) == 2
-        loaded_range_tlui = tluis[0]
+        loaded_range_tlui = tluis[1]
 
         assert len(loaded_range_tlui.rows) == 1
         assert len(loaded_range_tlui) == 1
@@ -282,7 +283,7 @@ class TestSaveLoad:
         save_and_reopen(tmp_path)
 
         assert len(tluis) == 2
-        loaded_range_tlui = tluis[0]
+        loaded_range_tlui = tluis[1]
 
         # Verify rows
         assert len(loaded_range_tlui.rows) == 2
@@ -310,7 +311,7 @@ class TestSaveLoad:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert len(loaded.rows) == 3
         assert len(loaded) == 0
 
@@ -328,7 +329,7 @@ class TestSaveLoad:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert len(loaded.rows) == 2
         assert loaded.rows[0].name == "same"
         assert loaded.rows[1].name == "same"
@@ -352,7 +353,7 @@ class TestSaveLoad:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert [r.name for r in loaded.rows] == ["first", "second", "third"]
 
     def test_row_color_preserved(self, tilia, tluis, tilia_state, tmp_path):
@@ -367,7 +368,7 @@ class TestSaveLoad:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert loaded.rows[0].color == "#123456"
 
 
@@ -549,7 +550,7 @@ class TestJoinRanges:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert loaded[0].get_data("joined_right") == loaded[1].id
 
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
@@ -587,7 +588,7 @@ class TestJoinRanges:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert loaded[0].id == saved_r1_id
         assert loaded[1].id == saved_r2_id
         assert loaded[0].get_data("joined_right") == loaded[1].id
@@ -625,7 +626,7 @@ class TestJoinRanges:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         click_end_handle(loaded[0])
         drag_mouse_in_timeline_view(time_x_converter.get_x_by_time(15), 0)
         assert loaded[0].get_data("end") == 15
@@ -874,7 +875,7 @@ class TestJoinedHandleVisibility:
 
         save_and_reopen(tmp_path)
 
-        loaded = tluis[0]
+        loaded = tluis[1]
         assert loaded[0].end_handle.brush().color().alpha() == 0
         assert loaded[1].start_handle.brush().color().alpha() == 0
 
@@ -1707,8 +1708,8 @@ class TestRowHeight:
 
         save_and_reopen(tmp_path)
 
-        assert tluis[0].timeline.default_row_height == 75
-        assert tluis[0].default_row_height == 75
+        assert tluis[1].timeline.default_row_height == 75
+        assert tluis[1].default_row_height == 75
         post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
 
     def test_label_font_uses_default_size_when_row_height_is_large(self, range_tlui):
