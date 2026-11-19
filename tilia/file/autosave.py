@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -53,8 +54,13 @@ def _raise_save_loop_exception(excp: Exception):
 
 
 def autosave(data: dict):
-    make_room_for_new_autosave()
     autosave_path = get_autosave_path()
+    if not is_in_autosaves_folder(autosave_path):
+        logger.error(
+            f"Autosave failed: {autosave_path} is not in the autosaves folder."
+        )
+        return
+    make_room_for_new_autosave()
     write_tilia_file_to_disk(TiliaFile(**data), autosave_path)
     logger.debug(f"Autosave: {autosave_path}")
 
@@ -63,10 +69,45 @@ def get_autosave_path():
     return Path(dirs.autosaves_path, get_autosave_filename())
 
 
-def get_autosave_filename():
-    title = get(Get.MEDIA_TITLE)
+def is_in_autosaves_folder(path: Path) -> bool:
+    """Whether `path` names a file directly inside the autosaves folder, once
+    both are resolved."""
+    return Path(path).resolve().parent == Path(dirs.autosaves_path).resolve()
+
+
+# The characters Windows refuses in a file name, and control characters. The
+# list is the same on every system, so that a title gives the same name on all.
+UNSAFE_FILENAME_CHARACTERS = re.compile(r'[\\/:*?"<>|\x00-\x1f\x7f]')
+# The longest file name most file systems accept, counted as Windows counts it:
+# in UTF-16 units, two for a character beyond U+FFFF.
+MAX_FILENAME_LENGTH = 255
+
+
+def get_autosave_filename() -> str:
+    """The date and the file's title. A character a file name can't hold
+    becomes "_", and a title too long for the name is cut to fit."""
+    title = UNSAFE_FILENAME_CHARACTERS.sub("_", str(get(Get.MEDIA_TITLE)))
     date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    return f"{date}_{title}.{tilia.constants.FILE_EXTENSION}"
+    start = f"{date}_"
+    end = f".{tilia.constants.FILE_EXTENSION}"
+    room = MAX_FILENAME_LENGTH - _utf16_length(start) - _utf16_length(end)
+    return start + _cut_to_length(title, room) + end
+
+
+def _utf16_length(text: str) -> int:
+    return sum(2 if ord(character) > 0xFFFF else 1 for character in text)
+
+
+def _cut_to_length(text: str, length: int) -> str:
+    """`text` if it takes `length` UTF-16 units or fewer. Otherwise, as many of
+    its characters as fit, a character beyond U+FFFF whole or not at all, and
+    without the dots and spaces the cut leaves at its end."""
+    used = 0
+    for index, character in enumerate(text):
+        used += _utf16_length(character)
+        if used > length:
+            return text[:index].rstrip(". ")
+    return text
 
 
 def get_autosaves_paths() -> list[str]:
