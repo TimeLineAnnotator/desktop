@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -726,7 +727,8 @@ class TestTheQuestion:
         assert reply == answer
         assert shown == [
             (
-                "File changed on disk",
+                # macOS shows no title on a message box, and Qt keeps none there.
+                "" if sys.platform == "darwin" else "File changed on disk",
                 question(CHANGED, "file.tla")[1],
                 sorted(CHANGED[2]),
                 "Cancel",  # Escape and closing the question choose it
