@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 
 import tilia.errors
@@ -322,6 +323,7 @@ class FileManager:
         self.file.timelines_hash = state["timelines_hash"]
         self.file.unknown_discarded = False
         self.resync_saved_metadata()
+        self._remember_media_place(state["media_path"])
 
         try:
             geometry, window_state = get(Get.WINDOW_GEOMETRY), get(Get.WINDOW_STATE)
@@ -337,6 +339,20 @@ class FileManager:
         settings.update_recent_files(
             path, geometry, window_state, zoom, time=current_time
         )
+
+    def _remember_media_place(self, media_path: str) -> None:
+        """At a save, remembers `media_path`, the media TiLiA has loaded, when it is
+        a local file, as where this document, storing the media path it now does,
+        found its media (FR-031; TimeLineAnnotator/project-management#627). So a
+        change of media that isn't saved, or is undone before saving, doesn't move
+        the place."""
+        if media_path and os.path.isfile(media_path):
+            document = self.file.document
+            settings.set_media_place(
+                document.document_id,
+                document.media_path,
+                Path(os.path.abspath(media_path)).as_posix(),
+            )
 
     def new(self):
         self._setup_file()

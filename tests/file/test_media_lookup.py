@@ -12,6 +12,7 @@ the user's own (FR-114).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -35,6 +36,8 @@ FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
 EMPTY = FILES / "golden" / "empty.tla"
 EVERY_KIND = FILES / "golden" / "every-kind.tla"
 DOCUMENT = tla.read(EMPTY).document_id
+# The media path the files here store, unless a test says otherwise.
+STORED = "m/example.mp3"
 OTHER_DOCUMENT = "019b76da-f000-7000-8000-000000000998"
 TIMELINE = "019b76da-f000-7000-8000-000000000999"
 
@@ -185,7 +188,7 @@ class TestMovedAloneAfterItsMediaWasFound:
         return moved_alone(path, tmp_path / "c")
 
     def test_the_place_is_remembered(self, moved, tmp_path):
-        place = settings.get_media_place(DOCUMENT)
+        place = settings.get_media_place(DOCUMENT, STORED)
 
         assert Path(place) == tmp_path / "a" / "m" / "example.mp3"
 
@@ -235,7 +238,7 @@ class TestMovedAloneAfterItsMediaWasFound:
             assert open_file(moved, look_for=picked)
 
         assert loaded_media() == picked
-        assert Path(settings.get_media_place(DOCUMENT)) == picked
+        assert Path(settings.get_media_place(DOCUMENT, STORED)) == picked
 
 
 class TestNotFound:
@@ -294,7 +297,7 @@ class TestNotFound:
 
         assert path.read_bytes() == before
         assert not tilia.is_file_modified()
-        assert settings.get_media_place(DOCUMENT) is None
+        assert settings.get_media_place(DOCUMENT, STORED) is None
 
 
 class TestMediaThatWontLoad:
@@ -306,7 +309,7 @@ class TestMediaThatWontLoad:
         with patch.object(QtAudioPlayer, "_engine_load_media", return_value=False):
             open_file(path)
 
-        assert settings.get_media_place(DOCUMENT) is None
+        assert settings.get_media_place(DOCUMENT, STORED) is None
 
     def test_picked_when_asked(self, qtui, tilia, tls, tmp_path):
         path = a_file_with_media(tmp_path / "file.tla", tmp_path / "m" / "example.mp3")
@@ -315,7 +318,7 @@ class TestMediaThatWontLoad:
         with patch.object(QtAudioPlayer, "_engine_load_media", return_value=False):
             assert open_file(path, look_for=picked)
 
-        assert settings.get_media_place(DOCUMENT) is None
+        assert settings.get_media_place(DOCUMENT, STORED) is None
 
     def test_picked_when_asked_and_not_media(self, qtui, tilia, tls, tmp_path):
         path = a_file_with_media(tmp_path / "file.tla", tmp_path / "m" / "example.mp3")
@@ -325,7 +328,7 @@ class TestMediaThatWontLoad:
 
         assert open_file(path, look_for=picked)
 
-        assert settings.get_media_place(DOCUMENT) is None
+        assert settings.get_media_place(DOCUMENT, STORED) is None
 
 
 class TestAYouTubeLink:
@@ -333,12 +336,18 @@ class TestAYouTubeLink:
         path = tmp_path / "file.tla"
         tla.write(path, media_doc(EXAMPLE_YT_URL))
 
+        def loads_it(player, url, **_):
+            player.media_path = url
+            return True, player
+
         # Without starting YouTube's player: only what TiLiA remembers matters.
-        with patch("tilia.app.load_media", return_value=(True, tilia.player)) as load:
+        with patch("tilia.app.load_media", side_effect=loads_it) as load:
             assert not open_file(path)
+            save()
 
         assert load.call_args.args[1] == EXAMPLE_YT_URL
-        assert settings.get_media_place(DOCUMENT) is None
+        assert get(Get.MEDIA_PATH) == EXAMPLE_YT_URL
+        assert settings.get_media_place(DOCUMENT, EXAMPLE_YT_URL) is None
 
 
 class TestTheMediasDriveGone:
@@ -414,6 +423,78 @@ class TestTheMediaMenu:
 
         assert path.read_bytes() == expected
         assert stored_media_path(path) == "other/other.mp3"
+
+
+class TestAPlacePerStoredPath:
+    """The place is kept per document id and stored path, and a save remembers the
+    media TiLiA has loaded (TimeLineAnnotator/project-management#627, c, and #637,
+    point 1, c)."""
+
+    def test_a_template_s_copies_each_open_with_their_own(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        # piece2 is a Save As of piece1, so they share a document id.
+        take1 = media_in(tmp_path / "p1", "take1.mp3")
+        piece1 = a_file_with_media(tmp_path / "p1" / "piece1.tla", take1)
+        assert not open_file(piece1)
+        take2 = media_in(tmp_path / "p2", "take2.mp3")
+        piece2 = tmp_path / "p2" / "piece2.tla"
+        save_as(piece2)
+        load_local_media(take2)
+        save()
+        assert tla.read(piece2).document_id == tla.read(piece1).document_id
+        assert not open_file(piece2)
+        piece1 = moved_alone(piece1, tmp_path / "elsewhere1")
+        piece2 = moved_alone(piece2, tmp_path / "elsewhere2")
+
+        assert not open_file(piece1)
+        assert loaded_media() == take1
+        assert not open_file(piece2)
+        assert loaded_media() == take2
+
+    @pytest.fixture
+    def opened(self, qtui, tilia, tls, tmp_path) -> Path:
+        """A file, open, whose media the core found beside it."""
+        path = a_file_with_media(
+            tmp_path / "a" / "file.tla", media_in(tmp_path / "a" / "m")
+        )
+        assert not open_file(path)
+        return path
+
+    @pytest.fixture
+    def other(self, tmp_path) -> Path:
+        """Other media beside the file, which it would store as `o/other.mp3`."""
+        return media_in(tmp_path / "a" / "o", "other.mp3")
+
+    def test_the_media_menu_then_a_save(self, opened, other, tmp_path):
+        load_local_media(other)
+
+        save()
+
+        assert stored_media_path(opened) == "o/other.mp3"
+        assert Path(settings.get_media_place(DOCUMENT, "o/other.mp3")) == other
+        assert not open_file(moved_alone(opened, tmp_path / "c"))
+        assert loaded_media() == other
+
+    def test_the_media_menu_without_a_save(self, opened, other, tmp_path):
+        load_local_media(other)
+
+        # Opening another file without saving this one.
+        assert not open_file(moved_alone(opened, tmp_path / "c"))
+
+        assert loaded_media() == tmp_path / "a" / "m" / "example.mp3"
+        assert settings.get_media_place(DOCUMENT, "o/other.mp3") is None
+
+    def test_the_media_menu_then_an_undo_then_a_save(self, opened, other, tmp_path):
+        load_local_media(other)
+        undo()
+
+        save()
+
+        assert stored_media_path(opened) == STORED
+        assert settings.get_media_place(DOCUMENT, "o/other.mp3") is None
+        assert not open_file(moved_alone(opened, tmp_path / "c"))
+        assert loaded_media() == tmp_path / "a" / "m" / "example.mp3"
 
 
 class TestAnUndoOfOtherMedia:
@@ -584,46 +665,72 @@ def restarted(store: SettingsManager, tmp_path: Path) -> SettingsManager:
     return SettingsManager(QSettings(str(copy), QSettings.Format.IniFormat))
 
 
+def sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 class TestRememberedPlaces:
-    """`SettingsManager.get_media_place` and `set_media_place` (FR-031)."""
+    """`SettingsManager.get_media_place` and `set_media_place`: per document id and
+    stored path (FR-031; TimeLineAnnotator/project-management#637)."""
 
     def test_none_before_one_is_stored(self, a_store):
-        assert a_store.get_media_place(DOCUMENT) is None
-        assert a_store.get_media_place(DOCUMENT, TIMELINE) is None
+        assert a_store.get_media_place(DOCUMENT, "take1.mp3") is None
+        assert a_store.get_media_place(DOCUMENT, "score.pdf", TIMELINE) is None
 
-    def test_one_per_document_and_one_per_pdf_timeline(self, a_store, tmp_path):
-        a_store.set_media_place(DOCUMENT, "C:/music/example.mp3")
-        a_store.set_media_place(DOCUMENT, "C:/scores/example.pdf", TIMELINE)
-        a_store.set_media_place(OTHER_DOCUMENT, "/home/me/other.mp3")
+    def test_one_per_document_stored_path_and_pdf_timeline(self, a_store, tmp_path):
+        a_store.set_media_place(DOCUMENT, "take1.mp3", "C:/music/take1.mp3")
+        a_store.set_media_place(DOCUMENT, "take2.mp3", "C:/music/take2.mp3")
+        a_store.set_media_place(
+            DOCUMENT, "score.pdf", "C:/scores/score.pdf", timeline_id=TIMELINE
+        )
+        a_store.set_media_place(OTHER_DOCUMENT, "take1.mp3", "/home/me/take1.mp3")
 
         store = restarted(a_store, tmp_path)
 
-        assert store.get_media_place(DOCUMENT) == "C:/music/example.mp3"
-        assert store.get_media_place(DOCUMENT, TIMELINE) == "C:/scores/example.pdf"
-        assert store.get_media_place(OTHER_DOCUMENT) == "/home/me/other.mp3"
-        assert store.get_media_place(OTHER_DOCUMENT, TIMELINE) is None
+        assert store.get_media_place(DOCUMENT, "take1.mp3") == "C:/music/take1.mp3"
+        assert store.get_media_place(DOCUMENT, "take2.mp3") == "C:/music/take2.mp3"
+        assert (
+            store.get_media_place(DOCUMENT, "score.pdf", TIMELINE)
+            == "C:/scores/score.pdf"
+        )
+        assert store.get_media_place(DOCUMENT, "score.pdf") is None
+        assert store.get_media_place(OTHER_DOCUMENT, "take1.mp3") == (
+            "/home/me/take1.mp3"
+        )
+        assert store.get_media_place(OTHER_DOCUMENT, "take2.mp3") is None
+
+    @pytest.mark.parametrize(
+        "other", ["Take1.mp3", "audio/take1.mp3", "audio\\take1.mp3", "take1.mp3 "]
+    )
+    def test_a_stored_path_spelt_otherwise_is_another(self, a_store, other):
+        a_store.set_media_place(DOCUMENT, "take1.mp3", "C:/music/take1.mp3")
+
+        assert a_store.get_media_place(DOCUMENT, other) is None
 
     def test_the_last_one_stored_is_kept(self, a_store):
-        a_store.set_media_place(DOCUMENT, "C:/music/example.mp3")
-        a_store.set_media_place(DOCUMENT, "D:/music/example.mp3")
+        a_store.set_media_place(DOCUMENT, "take1.mp3", "C:/music/take1.mp3")
+        a_store.set_media_place(DOCUMENT, "take1.mp3", "D:/music/take1.mp3")
 
-        assert a_store.get_media_place(DOCUMENT) == "D:/music/example.mp3"
+        assert a_store.get_media_place(DOCUMENT, "take1.mp3") == "D:/music/take1.mp3"
 
     def test_their_keys(self, a_store):
-        a_store.set_media_place(DOCUMENT, "C:/music/example.mp3")
-        a_store.set_media_place(DOCUMENT, "C:/scores/example.pdf", TIMELINE)
+        a_store.set_media_place(DOCUMENT, "audio/take1.mp3", "C:/music/take1.mp3")
+        a_store.set_media_place(DOCUMENT, "score.pdf", "C:/score.pdf", TIMELINE)
 
         stored = a_store._settings
-        assert stored.value(f"media_places/{DOCUMENT}") == "C:/music/example.mp3"
         assert (
-            stored.value(f"media_places/{DOCUMENT}/{TIMELINE}")
-            == "C:/scores/example.pdf"
+            stored.value(f"media_places/{DOCUMENT}/{sha256('audio/take1.mp3')}")
+            == "C:/music/take1.mp3"
+        )
+        assert (
+            stored.value(f"media_places/{DOCUMENT}/{TIMELINE}/{sha256('score.pdf')}")
+            == "C:/score.pdf"
         )
 
     def test_they_arent_among_the_settings_a_person_edits(self, a_store):
-        a_store.set_media_place(DOCUMENT, "C:/music/example.mp3")
+        a_store.set_media_place(DOCUMENT, "take1.mp3", "C:/music/take1.mp3")
 
         assert "media_places" not in a_store.DEFAULT_SETTINGS
         assert "media_places" not in a_store.get_dict()
         a_store.reset_to_default()
-        assert a_store.get_media_place(DOCUMENT) == "C:/music/example.mp3"
+        assert a_store.get_media_place(DOCUMENT, "take1.mp3") == "C:/music/take1.mp3"
