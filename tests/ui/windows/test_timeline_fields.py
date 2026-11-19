@@ -14,7 +14,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import Qt
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QDialogButtonBox, QLabel, QMessageBox
 
@@ -109,14 +110,20 @@ def cancel(window: TimelineFieldsWindow) -> None:
     window.button_box.button(QDialogButtonBox.StandardButton.Cancel).click()
 
 
-def edit_names(window: TimelineFieldsWindow, text: str | None) -> None:
-    """Clicks "Edit fields…", types `text` in its box and clicks OK, or Cancel
-    for None."""
+UNCHANGED = object()
+
+
+def edit_names(window: TimelineFieldsWindow, text) -> None:
+    """Clicks "Edit fields…", types `text` in its box and clicks OK. None clicks
+    Cancel, UNCHANGED clicks OK with nothing typed, and a function is given the
+    box's text and gives what is typed instead."""
 
     def exec_(dialog) -> bool:
         if text is None:
             return False
-        dialog.text_edit.setPlainText(text)
+        if text is not UNCHANGED:
+            given = dialog.text_edit.toPlainText()
+            dialog.text_edit.setPlainText(text(given) if callable(text) else text)
         return True
 
     with patch.object(FieldNamesDialog, "exec", new=exec_):
@@ -220,18 +227,67 @@ class TestTheMenu:
         assert window.windowTitle() == "Fields of Form"
 
     def test_twice_it_shows_the_same_window(self, every_kind, tluis):
+        # A guard: while the window is open, the menu can't be reached.
         window = open_fields(tluis, FORM)
 
         assert open_fields(tluis, FORM) is window
         assert list(TimelineFieldsWindow.open_windows()) == [window]
 
-    def test_another_timeline_s_has_its_own(self, every_kind, tluis):
-        form = open_fields(tluis, FORM)
-        cadences = open_fields(tluis, CADENCES)
 
-        assert cadences is not form
-        assert cadences.windowTitle() == "Fields of Cadences"
-        assert shown(form) == FORM_FIELDS
+class Received(QObject):
+    """Counts the key and mouse button presses a window receives."""
+
+    def __init__(self):
+        super().__init__()
+        self.count = 0
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.Type.KeyPress, QEvent.Type.MouseButtonPress):
+            self.count += 1
+        return False
+
+
+class TestModal:
+    """Like the Metadata window (TimeLineAnnotator/project-management#634, a)."""
+
+    def test_it_is_modal(self, every_kind, tluis):
+        assert open_fields(tluis, FORM).isModal()
+
+    def test_the_main_window_takes_no_input(self, every_kind, tluis):
+        commands.execute("timeline.marker.add", time=1.5)
+        markers = len(tluis.get_timeline_ui(CADENCES))
+        open_fields(tluis, FORM)
+        main_window = get(Get.MAIN_WINDOW).windowHandle()
+        received = Received()
+        main_window.installEventFilter(received)
+        try:
+            QTest.keyClick(
+                main_window, Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier
+            )
+            QTest.mouseClick(
+                main_window, Qt.MouseButton.LeftButton, pos=QPoint(50, 200)
+            )
+        finally:
+            main_window.removeEventFilter(received)
+
+        assert received.count == 0
+        # TiLiA's undo didn't run.
+        assert len(tluis.get_timeline_ui(CADENCES)) == markers
+
+    def test_ctrl_z_in_a_field_undoes_the_typing(self, every_kind, tluis):
+        commands.execute("timeline.marker.add", time=1.5)
+        markers = len(tluis.get_timeline_ui(CADENCES))
+        window = open_fields(tluis, FORM)
+        author = window.line_edits["author"]
+        author.setFocus()
+        QTest.keyClicks(author, " typed")
+
+        QTest.keyClick(
+            window.windowHandle(), Qt.Key.Key_Z, Qt.KeyboardModifier.ControlModifier
+        )
+
+        assert author.text() == "Anne"
+        assert len(tluis.get_timeline_ui(CADENCES)) == markers
 
 
 class TestTheWindow:
@@ -244,6 +300,15 @@ class TestTheWindow:
         window = open_fields(tluis, FORM)
 
         assert labels(window) == ["Role", "Author", "Source", "Vocabulary"]
+
+    def test_only_its_first_letter(self, opened, tluis):
+        def capitals(doc):
+            doc.timelines[FORM].metadata = {"BWV": "1", "bwv": "2", "über": "3"}
+
+        opened(capitals)
+        window = open_fields(tluis, FORM)
+
+        assert labels(window) == ["BWV", "Bwv", "Über"]
 
     def test_a_name_is_plain_text(self, opened, tluis):
         def a_name_like_markup(doc):
@@ -510,20 +575,43 @@ class TestRoleAndVocabulary:
 
 
 class TestUndo:
-    def test_undo_gives_back_the_fields_and_the_file_s_bytes(self, every_kind, tluis):
-        before = every_kind.read_bytes()
-        window = open_fields(tluis, FORM)
-        window.line_edits["role"].setText("sections")
-        apply(window)
+    """Undo can't run while the window is open: each test closes it first, as a
+    person would."""
+
+    def assert_undo_gives_back_the_bytes(self, path: Path, window) -> None:
+        before = path.read_bytes()
+        cancel(window)
 
         commands.execute("edit.undo")
 
         assert fields_of(FORM) == FORM_FIELDS
         assert save()
-        assert every_kind.read_bytes() == before
+        assert path.read_bytes() == before
+
+    def test_of_a_change(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+        window.line_edits["role"].setText("sections")
+        apply(window)
+
+        self.assert_undo_gives_back_the_bytes(every_kind, window)
+
+    def test_of_a_rename(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+        edit_names(window, "role\nanalyst\nsource\nvocabulary")
+
+        self.assert_undo_gives_back_the_bytes(every_kind, window)
+
+    def test_of_a_removal(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+        edit_names(window, "role\nauthor\nvocabulary")
+
+        self.assert_undo_gives_back_the_bytes(every_kind, window)
 
 
 class TestClosing:
+    """A closed window is deleted, so the tests ask whether the timeline's window is
+    open rather than ask the window."""
+
     def test_without_edits_it_closes_without_asking(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
 
@@ -532,7 +620,6 @@ class TestClosing:
 
         assert question.asked == []
         assert TimelineFieldsWindow.of(FORM) is None
-        assert not window.isVisible()
 
     def test_with_edits_it_asks_and_no_keeps_them(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
@@ -544,6 +631,7 @@ class TestClosing:
         assert question.asked == [
             ("Save field edits", "Close window without saving changes?")
         ]
+        assert TimelineFieldsWindow.of(FORM) is window
         assert window.isVisible()
         assert shown(window)["author"] == "Anne-Marie"
         assert fields_of(FORM) == FORM_FIELDS
@@ -555,7 +643,7 @@ class TestClosing:
         with patch_question(True):
             cancel(window)
 
-        assert not window.isVisible()
+        assert TimelineFieldsWindow.of(FORM) is None
         assert fields_of(FORM) == FORM_FIELDS
         assert not get(Get.IS_FILE_MODIFIED)
 
@@ -567,12 +655,11 @@ class TestClosing:
             QTest.keyClick(window.line_edits["author"], Qt.Key.Key_Escape)
 
         assert len(question.asked) == 1
-        assert window.isVisible()
+        assert TimelineFieldsWindow.of(FORM) is window
 
         with patch_question(True):
             QTest.keyClick(window.line_edits["author"], Qt.Key.Key_Escape)
 
-        assert not window.isVisible()
         assert TimelineFieldsWindow.of(FORM) is None
         assert fields_of(FORM) == FORM_FIELDS
 
@@ -588,19 +675,32 @@ class TestClosing:
 
         assert question.asked == []
         names.assert_not_called()
-        assert window.isVisible()
+        assert TimelineFieldsWindow.of(FORM) is window
         assert fields_of(FORM) == FORM_FIELDS
 
-    def test_it_can_be_opened_again(self, every_kind, tluis):
+    def test_a_closed_window_is_deleted(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
         cancel(window)
+
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert not shiboken6.isValid(window)
+
+    def test_it_can_be_opened_again(self, every_kind, tluis):
+        cancel(open_fields(tluis, FORM))
 
         again = open_fields(tluis, FORM)
 
         assert again.isVisible()
         assert shown(again) == FORM_FIELDS
 
-    def test_it_closes_without_asking_when_its_timeline_goes(self, every_kind, tluis):
+
+class TestItsTimelineGoing:
+    """Guards: while the window is open, TiLiA takes no input, but a file can still
+    be opened, by the system for example, and the window then closes with its
+    timeline, without asking."""
+
+    def test_deleted(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
         window.line_edits["author"].setText("Anne-Marie")
 
@@ -608,27 +708,45 @@ class TestClosing:
             commands.execute("timeline.delete", tluis.get_timeline_ui(FORM))
 
         assert question.asked == []
-        assert not window.isVisible()
         assert TimelineFieldsWindow.of(FORM) is None
 
-    def test_another_timeline_s_going_leaves_it(self, every_kind, tluis):
+    def test_another_timeline_deleted_leaves_it(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
 
         with Serve(Get.FROM_USER_YES_OR_NO, True):
             commands.execute("timeline.delete", tluis.get_timeline_ui(CADENCES))
 
-        assert window.isVisible()
+        assert TimelineFieldsWindow.of(FORM) is window
 
-    def test_a_new_file_closes_it(self, every_kind, tluis):
-        window = open_fields(tluis, FORM)
+    def test_a_new_file(self, every_kind, tluis):
+        open_fields(tluis, FORM)
 
         post(Post.APP_CLEAR)
 
-        assert not window.isVisible()
+        assert TimelineFieldsWindow.of(FORM) is None
+
+    def test_another_file_opened(self, every_kind, tluis, tmp_path):
+        open_fields(tluis, FORM)
+        other = tmp_path / "other"
+        other.mkdir()
+
+        assert open_file(written_by_the_core(EVERY_KIND, other))
+
+        assert TimelineFieldsWindow.of(FORM) is None
+
+    def test_an_undo_of_its_creation(self, every_kind, tluis):
+        commands.execute("timelines.add.marker", name="Added")
+        added = next(tlui.id for tlui in tluis if tlui.get_data("name") == "Added")
+        open_fields(tluis, added)
+
+        commands.execute("edit.undo")
+
+        assert TimelineFieldsWindow.of(added) is None
 
 
 class TestEditFieldsWithEditsNotApplied:
-    """It asks, as the Metadata window does, and Yes leaves the edits unapplied."""
+    """It asks, as the Metadata window does, and Yes leaves the edits unapplied
+    (TimeLineAnnotator/project-management#640, point 2)."""
 
     def test_yes_drops_the_edits(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
@@ -658,26 +776,88 @@ class TestEditFieldsWithEditsNotApplied:
         assert fields_of(FORM) == FORM_FIELDS
 
 
-class TestWhileItIsOpen:
-    """The window isn't modal: the rest of TiLiA can change the timeline meanwhile."""
+class TestNamesTheBoxCantShowAsTheyAre:
+    """A name the box shows changed, such as one with a non-breaking space, is still
+    that name; one it can't show on one line, with a line break, or empty or blank,
+    isn't in the box and stays as it is (TimeLineAnnotator/project-management#640,
+    point 1)."""
 
-    def test_apply_writes_only_the_values_edited(self, every_kind, tluis):
+    NBSP = "Op.\u00a01"
+
+    @pytest.fixture
+    def nbsp(self, opened):
+        def names(doc):
+            doc.timelines[FORM].metadata = {self.NBSP: "x", "BWV": "y", "bwv": "z"}
+
+        return opened(names)
+
+    @pytest.fixture
+    def on_two_lines(self, opened):
+        def names(doc):
+            doc.timelines[FORM].metadata = {
+                "a\nb": "v",
+                "c": "w",
+                "   ": "blank",
+                "e\u2028f": "u",
+            }
+
+        return opened(names)
+
+    def test_ok_with_nothing_typed_changes_nothing(self, nbsp, tluis):
         window = open_fields(tluis, FORM)
-        window.line_edits["author"].setText("Anne-Marie")
-        commands.execute(
-            "timeline.set_fields",
-            tluis.get_timeline_ui(FORM),
-            {**FORM_FIELDS, "role": "sections"},
-        )
 
-        apply(window)
+        edit_names(window, UNCHANGED)
 
-        assert fields_of(FORM) == {
-            **FORM_FIELDS,
-            "role": "sections",
-            "author": "Anne-Marie",
-        }
-        assert shown(window)["role"] == "sections"
+        assert list(fields_of(FORM).items()) == [
+            (self.NBSP, "x"),
+            ("BWV", "y"),
+            ("bwv", "z"),
+        ]
+        assert not get(Get.IS_FILE_MODIFIED)
+
+    def test_another_line_s_edit_renames_nothing(self, nbsp, tluis):
+        window = open_fields(tluis, FORM)
+
+        edit_names(window, lambda given: given.replace("bwv\n", ""))
+
+        assert list(fields_of(FORM).items()) == [(self.NBSP, "x"), ("BWV", "y")]
+
+        def change(metadata):
+            del metadata["bwv"]
+
+        assert_saved_as_the_core_s(nbsp, FORM, change)
+
+    def test_names_on_two_lines_or_blank_aren_t_in_the_box(self, on_two_lines, tluis):
+        window = open_fields(tluis, FORM)
+        given = []
+
+        edit_names(window, lambda text: given.append(text) or text)
+
+        assert given == ["c\n"]
+
+    def test_ok_with_nothing_typed_keeps_them(self, on_two_lines, tluis):
+        window = open_fields(tluis, FORM)
+
+        edit_names(window, UNCHANGED)
+
+        assert not get(Get.IS_FILE_MODIFIED)
+
+    def test_they_stay_in_their_place_when_the_others_change(self, on_two_lines, tluis):
+        window = open_fields(tluis, FORM)
+
+        edit_names(window, "key")
+
+        assert list(fields_of(FORM).items()) == [
+            ("a\nb", "v"),
+            ("   ", "blank"),
+            ("e\u2028f", "u"),
+            ("key", "w"),
+        ]
+
+        def change(metadata):
+            metadata["key"] = metadata.pop("c")
+
+        assert_saved_as_the_core_s(on_two_lines, FORM, change)
 
 
 class TestTheInspector:
@@ -766,7 +946,7 @@ class TestTheInspector:
     def test_a_line_break_in_a_value_is_a_space(self, opened, inspect):
         def a_value_on_two_lines(doc):
             component = doc.timelines[FORM].components[TAGGED_HIERARCHY]
-            component.metadata = {"note": "first\nsecond", "tags": ["a b"]}
+            component.metadata = {"note": "first\nsecond", "tags": ["a\u2028b"]}
 
         opened(a_value_on_two_lines)
 

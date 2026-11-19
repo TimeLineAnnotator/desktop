@@ -7,7 +7,9 @@ field only if its text was edited, and each Apply, or each change of the names, 
 one edit that undo covers. `role` and `vocabulary` are fields like any other: TiLiA
 checks none of them, and the core warns about what it would warn about on reading.
 
-The window isn't modal: one per timeline, closed when its timeline goes.
+The window is modal, like the Metadata window: while it is open the main window
+takes no input, so nothing else changes the fields and undo can't run. As guards,
+each timeline has one window, which closes when its timeline goes.
 """
 
 from __future__ import annotations
@@ -53,7 +55,7 @@ def field_text(value: Any) -> str:
 
 
 # The line breaks `str.splitlines` knows, as the warnings dialog has them.
-_LINE_BREAK = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85  ]")
+_LINE_BREAK = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
 
 
 def fields_lines(fields: Fields) -> str:
@@ -66,6 +68,12 @@ def fields_lines(fields: Fields) -> str:
     )
 
 
+def on_one_line(name: str) -> bool:
+    """Whether the names' box can show `name` on a line of its own: not empty or
+    blank, and without a line break."""
+    return bool(name.strip()) and not _LINE_BREAK.search(name)
+
+
 def field_value(text: str, was: Any) -> Any:
     """The value `text` gives a field whose value was `was`: a list stays a list,
     its texts split at the commas, without the spaces around them or empty ones."""
@@ -75,19 +83,26 @@ def field_value(text: str, was: Any) -> Any:
 
 
 def with_names(fields: Fields, names: list[str]) -> Fields:
-    """`fields` with `names` as its names. A name kept keeps its value and its place,
-    and a name gone goes. A new one is added last, empty, as the document adds a
-    field it didn't have. As in the Metadata window, a list of names as long as
-    before, where a name at some place is gone and the one there is new, renames
-    that field: it keeps its value, but goes last as any new name does."""
+    """`fields` with `names` as the names of those the names' box shows. A name kept
+    keeps its value and its place, and a name gone goes. A new one is added last,
+    empty, as the document adds a field it didn't have. As in the Metadata window,
+    a list of names as long as before, where a name at some place is gone and the
+    one there is new, renames that field: it keeps its value, but goes last as any
+    new name does. A field the box can't show stays as it is, in its place
+    (TimeLineAnnotator/project-management#640, point 1)."""
+    shown = [name for name in fields if on_one_line(name)]
     renamed: dict[str, str] = {}
-    if len(names) == len(fields):
+    if len(names) == len(shown):
         renamed = {
             new: was
-            for was, new in zip(fields, names, strict=True)
+            for was, new in zip(shown, names, strict=True)
             if was != new and was not in names and new not in fields
         }
-    result = {name: value for name, value in fields.items() if name in names}
+    result = {
+        name: value
+        for name, value in fields.items()
+        if name in names or not on_one_line(name)
+    }
     for name in names:
         if name not in result:
             result[name] = (
@@ -98,7 +113,8 @@ def with_names(fields: Fields, names: list[str]) -> Fields:
 
 class FieldNamesDialog(QDialog):
     """The names of a timeline's fields, one per line, as the Metadata window's
-    "Edit fields..." dialog has the file's."""
+    "Edit fields..." dialog has the file's. A name it can't show on one line isn't
+    in it."""
 
     def __init__(self, parent: QWidget, names: list[str]) -> None:
         super().__init__(parent)
@@ -107,7 +123,15 @@ class FieldNamesDialog(QDialog):
         self.setLayout(layout)
         self.text_edit = QTextEdit()
         self.text_edit.setAcceptRichText(False)
-        self.text_edit.setPlainText("".join(name + "\n" for name in names))
+        self._names = [name for name in names if on_one_line(name)]
+        self.text_edit.setPlainText("".join(name + "\n" for name in self._names))
+        # The box doesn't show every name as it is: a non-breaking space becomes
+        # a space. So a line left as the box showed it is the name it showed.
+        self._given = self.text_edit.toPlainText()
+        self._by_line: dict[str, list[str]] = {}
+        # A line per name, then the empty one after the last line break.
+        for line, name in zip(self._given.split("\n"), self._names, strict=False):
+            self._by_line.setdefault(line, []).append(name)
         layout.addWidget(self.text_edit)
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -117,10 +141,26 @@ class FieldNamesDialog(QDialog):
         layout.addWidget(button_box)
 
     def names(self) -> list[str]:
-        """The names typed, as typed: the format takes any name. A blank line is
-        skipped, and a name typed twice is one field."""
-        names = self.text_edit.toPlainText().split("\n")
-        return list(dict.fromkeys(name for name in names if name.strip()))
+        """The names typed: the format takes any name. A line as the box showed it
+        is the name it showed, and a box left as it was gives the names it was
+        given. A blank line is skipped, and a name typed twice is one field."""
+        text = self.text_edit.toPlainText()
+        if text == self._given:
+            return list(self._names)
+        names: list[str] = []
+        seen: dict[str, int] = {}
+        for line in text.split("\n"):
+            if not line.strip():
+                continue
+            shown = self._by_line.get(line)
+            if shown is None:
+                names.append(line)
+                continue
+            # The same line twice: the next name shown so, then the last again.
+            index = seen.get(line, 0)
+            seen[line] = index + 1
+            names.append(shown[min(index, len(shown) - 1)])
+        return list(dict.fromkeys(names))
 
 
 class TimelineFieldsWindow(QDialog):
@@ -161,6 +201,9 @@ class TimelineFieldsWindow(QDialog):
         self._setup_window_buttons()
         self._setup_fields()
         listen(self, Post.TIMELINE_DELETE_DONE, self.on_timeline_delete_done)
+        # Like the Metadata window: while it is open, the main window takes no
+        # input, so nothing else changes the fields, and undo can't run.
+        self.setModal(True)
 
     def _timeline(self) -> Timeline | None:
         return get(Get.TIMELINE, self.timeline_id)
@@ -195,8 +238,9 @@ class TimelineFieldsWindow(QDialog):
         self._shown.clear()
         for name, value in self._fields().items():
             line_edit = QLineEdit(field_text(value))
-            # The Metadata window's label, as plain text: a name is the file's.
-            label = QLabel(name.capitalize())
+            # The Metadata window's label, its first letter a capital, as plain
+            # text: a name is the file's. The rest as it is: `BWV` isn't `Bwv`.
+            label = QLabel(name[:1].upper() + name[1:])
             label.setTextFormat(Qt.TextFormat.PlainText)
             self.form_layout.addRow(label, line_edit)
             self.line_edits[name] = line_edit
@@ -222,8 +266,8 @@ class TimelineFieldsWindow(QDialog):
         }
 
     def apply(self) -> None:
-        """Writes the values edited, over the timeline's fields as they are now: the
-        others stay as they are, whatever TiLiA did to them meanwhile."""
+        """Writes the values edited, over the timeline's fields: the others stay as
+        they are."""
         fields = copy.deepcopy(self._fields())
         fields.update(self.edits())
         self._set_fields(fields)
@@ -278,3 +322,5 @@ class TimelineFieldsWindow(QDialog):
             del self._open[self.timeline_id]
         # Not QDialog's closeEvent, which would call reject() again.
         event.accept()
+        # Its parent, the main window, would otherwise keep it.
+        self.deleteLater()
