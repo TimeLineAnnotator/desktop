@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.mock import Serve
+from tests.mock import Serve, ServeSequence
 from tests.utils import load_youtube_media
 from tilia.constants import DURATION_JITTER_TOLERANCE
 from tilia.media.player.base import Player
@@ -256,6 +256,110 @@ class TestALengthBeyondTheTolerance:
         assert tilia.is_file_modified()
         assert save()
         assert tla.read(path).media_length == STORED + off
+
+
+class _Recorder(Serve):
+    """Serves `request` with `return_value`, noting `name` in `log` each time."""
+
+    def __init__(self, request: Get, return_value, log: list[str], name: str):
+        super().__init__(request, return_value)
+        self.log = log
+        self.name = name
+
+    def _callback(self, *_, **__):
+        self.log.append(self.name)
+        return super()._callback()
+
+
+def marker_times(path: Path) -> list[float]:
+    """The times of the markers the file at `path` stores."""
+    return sorted(
+        component.attrs["time"]
+        for timeline in tla.read(path).timelines.values()
+        if timeline.kind == "marker"
+        for component in timeline.components.values()
+    )
+
+
+class TestALocalFilesLengthAsItOpens:
+    """A local file's media reports its length while the file loads, before its
+    timelines are built. Once the file is open, TiLiA handles that report as a later
+    one (FR-034; TimeLineAnnotator/project-management#629, point 1, a)."""
+
+    @pytest.mark.parametrize(
+        "reported, answers, kept",
+        [
+            (20.0, [True], "scaled"),
+            (20.0, [False], "as they are"),
+            (15.0, [True], "scaled"),
+            (15.0, [False, True], "cropped"),
+            (15.0, [False, False], "scaled"),
+        ],
+        ids=[
+            "longer, scale",
+            "longer, don't scale",
+            "shorter, scale",
+            "shorter, crop",
+            "shorter, neither: scale",
+        ],
+    )
+    def test_beyond_the_tolerance_asks_and_takes_the_new_one(
+        self, audio, tilia, tmp_path, monkeypatch, reported, answers, kept
+    ):
+        monkeypatch.setattr(_Audio, "LENGTH", reported)
+        path = a_local_file(tmp_path, length=STORED)
+        times = marker_times(path)
+        questions = ServeSequence(Get.FROM_USER_YES_OR_NO, answers)
+
+        with questions:
+            assert open_file(path)
+
+        assert questions.return_count == len(answers)
+        assert get(Get.MEDIA_DURATION) == reported
+        assert tilia.is_file_modified()
+        assert save()
+        assert tla.read(path).media_length == reported
+        expected = {
+            "scaled": [time * reported / STORED for time in times],
+            "as they are": times,
+            "cropped": [time for time in times if time <= reported],
+        }[kept]
+        assert marker_times(path) == pytest.approx(expected)
+
+    def test_within_the_tolerance_asks_nothing(self, audio, tilia, tmp_path):
+        path = a_local_file(tmp_path, length=_Audio.LENGTH + 1.9)
+        before = path.read_bytes()
+
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as question:
+            assert open_file(path)
+
+        assert not question.called
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
+
+    def test_asks_after_the_file_s_warnings(self, audio, tilia, tmp_path):
+        # A hierarchy at level 0 breaks a rule: the file opens with a warning.
+        path = a_local_file(tmp_path, length=STORED)
+        content = json.loads(path.read_bytes())
+        hierarchies = next(
+            timeline
+            for timeline in content["timelines"].values()
+            if timeline["kind"] == "Hierarchy"
+        )
+        next(iter(hierarchies["components"].values()))["level"] = 0
+        path.write_text(json.dumps(content), encoding="utf-8")
+        shown: list[str] = []
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
+            _Recorder(Get.FROM_USER_SHOW_PROBLEMS, None, shown, "warnings"),
+            _Recorder(Get.FROM_USER_YES_OR_NO, True, shown, "question"),
+        ):
+            assert commands.execute("file.open", path)
+
+        assert shown == ["warnings", "question"]
 
 
 class TestAFileWithoutALength:
