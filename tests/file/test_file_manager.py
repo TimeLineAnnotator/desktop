@@ -47,7 +47,8 @@ class Tests:
             patch_yes_no_or_cancel_mb(False),  # do not save changes
         ):
             commands.execute("file.open")
-        assert len(tls[0]) == 2
+        # Below the slider TiLiA shows first: the file stores none (FR-007).
+        assert len(tls.get_timeline(marker_tlui.id)) == 2
 
 
 class TestFileManager:
