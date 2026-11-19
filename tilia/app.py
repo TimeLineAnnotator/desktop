@@ -478,20 +478,20 @@ class App:
         return get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
 
     @staticmethod
-    def _media_place(document_id: str) -> str:
-        """Where this document last found its media on this computer, if the media
-        is still there; else ""."""
-        place = settings.get_media_place(document_id)
+    def _media_place(document_id: str, stored: str) -> str:
+        """Where this document, storing the media path `stored`, last found its
+        media on this computer, if the media is still there; else ""."""
+        place = settings.get_media_place(document_id, stored)
         return place if place and os.path.isfile(place) else ""
 
     def _setup_file_media(
         self, document_id: str, media: tla.Media, duration: float | None
     ):
         """Loads the media of the file being opened: where the core finds it, else
-        where this document last found it on this computer, else where the user
-        picks it, when asked (FR-030, FR-031). The file keeps the path it stores,
-        and the place a local file is found and loaded is remembered on this
-        computer only (FR-032)."""
+        where this document, storing this media path, last found it on this
+        computer, else where the user picks it, when asked (FR-030, FR-031). The
+        file keeps the path it stores, and the place a local file is found and
+        loaded is remembered on this computer only (FR-032)."""
         if duration:
             self.set_file_media_duration(duration)
 
@@ -512,10 +512,10 @@ class App:
                 new_path, initial_duration=duration, scale_timelines="keep"
             )
             if loaded and media.kind == "local":
-                settings.set_media_place(document_id, new_path)
+                settings.set_media_place(document_id, media.stored, new_path)
             return
 
-        place = self._media_place(document_id)
+        place = self._media_place(document_id, media.stored)
         if place and self.load_media(
             place, initial_duration=duration, scale_timelines="keep"
         ):
@@ -529,7 +529,9 @@ class App:
             if success:
                 if self.load_media(new_path, initial_duration=duration):
                     settings.set_media_place(
-                        document_id, Path(os.path.abspath(new_path)).as_posix()
+                        document_id,
+                        media.stored,
+                        Path(os.path.abspath(new_path)).as_posix(),
                     )
                 return
 
