@@ -567,6 +567,25 @@ class TestAnAutosaveBeforeLoading:
         [copy] = autosaves()
         assert cadence_label_in(copy) == "HC"
 
+    def test_the_copy_is_of_the_document_open_with_what_tilia_doesnt_show(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        # A timeline of a kind TiLiA doesn't know, kept: the document open holds it,
+        # TiLiA's state doesn't. A copy of the new file the clearing gives, made to
+        # follow that state, wouldn't.
+        path = a_file(tmp_path, with_lyrics_in_the_middle, name="before.tla")
+        assert open_file(path)
+        edit_and_record(tls)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            assert open_file(a_file(tmp_path, name="other.tla"))
+
+        [copy] = autosaves()
+        assert (
+            tla.read(copy).timelines[LYRICS].raw == tla.read(path).timelines[LYRICS].raw
+        )
+        assert cadence_label_in(copy) == "HC"
+
     def test_the_copy_holds_a_change_that_wasnt_recorded(
         self, qtui, tilia, tls, tmp_path
     ):
