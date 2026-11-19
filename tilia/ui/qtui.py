@@ -274,6 +274,7 @@ class QtUI:
                 Get.RIGHT_MARGIN_X,
                 lambda: self.playback_area_width + self.playback_area_margin,
             ),
+            (Get.WINDOW_CLOSED, self.close_window),
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
             (Get.PLAYER_CLASS, self.get_player_class),
@@ -557,6 +558,16 @@ class QtUI:
 
     def on_window_close_done(self, kind: WindowKind):
         self._windows[kind] = None
+
+    def close_window(self, kind: WindowKind) -> bool:
+        """Closes the window of `kind`, if it is open, and returns whether it is
+        closed. It may stay open: the Metadata window, with edits not applied,
+        asks first."""
+        if window := self._windows[kind]:
+            window.close()
+        # Not what close() returns: called while the window's own close is
+        # asking, it returns True at once, and the answer may keep it open.
+        return not self.is_window_open(kind)
 
     def is_window_open(self, kind: WindowKind):
         return self._windows[kind] is not None
