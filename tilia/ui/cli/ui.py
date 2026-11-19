@@ -211,10 +211,13 @@ def on_ask_yes_or_no(title: str, prompt: str) -> bool:
     return ask_yes_or_no(f"{title}: {prompt}")
 
 
-def on_ask_choice(title: str, message: str, buttons: list[str]) -> str | None:
+def on_ask_choice(
+    title: str, message: str, buttons: list[str], default: str | None = None
+) -> str | None:
     """The message, then the buttons as choices (contracts/controls.md), until the
     answer is one of them: its words in any case, with or without a closing "…".
-    None at the end of the input, which chooses none."""
+    None at the end of the input, which chooses none. There is no default here: an
+    empty answer asks again (TimeLineAnnotator/project-management#631, b)."""
     answers = {_as_answer(words): words for words in buttons}
     prompt = f"{message} [{'/'.join(buttons)}]: "
     while True:

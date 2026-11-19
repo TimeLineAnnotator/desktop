@@ -99,7 +99,7 @@ def _kind_name(kind: tla.UnknownKind | str) -> str:
     return kind.spelling if isinstance(kind, tla.UnknownKind) else kind
 
 
-def _same_path(one: str | Path, other: str | Path) -> bool:
+def same_path(one: str | Path, other: str | Path) -> bool:
     """Whether two paths name the same file, however they are spelled, and even if
     it is gone. While both are there, the system says, so that a file system that
     ignores case is followed where normcase doesn't fold it, as on macOS."""
@@ -293,14 +293,23 @@ class FileManager:
                 # A file appeared where Save As expected none.
                 tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, str(changed))
                 return False
-            if changed.found is None:
+            # Something at the path that the core can't compare, such as a file
+            # with conflict markers or in a newer format, has changed too: only a
+            # path with nothing there is a file moved or deleted
+            # (TimeLineAnnotator/project-management#630, b).
+            if changed.found is None and not os.path.lexists(path):
                 question = tilia.errors.SAVE_FILE_MOVED_OR_DELETED
                 write = tilia.errors.SAVE
             else:
                 question = tilia.errors.SAVE_FILE_CHANGED
                 write = tilia.errors.OVERWRITE
+            # Enter cancels: the file on disk isn't what TiLiA read
+            # (TimeLineAnnotator/project-management#631, b).
             answer = self._ask(
-                question, [write, tilia.errors.SAVE_AS, tilia.errors.CANCEL], name
+                question,
+                [write, tilia.errors.SAVE_AS, tilia.errors.CANCEL],
+                name,
+                default=tilia.errors.CANCEL,
             )
             if answer == tilia.errors.SAVE_AS:
                 return None
@@ -321,12 +330,20 @@ class FileManager:
         )
 
     @staticmethod
-    def _ask(question: tilia.errors.Error, buttons: list[str], *args) -> str | None:
+    def _ask(
+        question: tilia.errors.Error,
+        buttons: list[str],
+        *args,
+        default: str | None = None,
+    ) -> str | None:
+        """The words of the button chosen; `default` is the one Enter chooses, the
+        first if None."""
         return get(
             Get.FROM_USER_CHOICE,
             question.title,
             question.message.format(*args),
             buttons,
+            default=default,
         )
 
     @staticmethod
@@ -343,7 +360,7 @@ class FileManager:
         """Whether `path` names the file open, however it is spelled."""
         if not self.file.file_path:
             return False
-        return _same_path(path, self.file.file_path)
+        return same_path(path, self.file.file_path)
 
     def on_close_modified_file(self):
         success, should_save = self.ask_save_changes_if_modified()

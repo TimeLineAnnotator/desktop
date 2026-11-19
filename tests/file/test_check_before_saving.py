@@ -18,6 +18,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 
 from tests.mock import PatchPost, Serve
 from tests.utils import get_blank_file_data
@@ -74,10 +76,12 @@ class Answers(Serve):
         self.answers = list(answers)
         self.watched = watched
         self.asked: list[tuple[str, str, list[str]]] = []
+        self.defaults: list[str | None] = []
         self.on_disk: list[bytes | None] = []
 
-    def _callback(self, title, message, buttons):
+    def _callback(self, title, message, buttons, default=None):
         self.asked.append((title, message, list(buttons)))
+        self.defaults.append(default)
         if self.watched is not None:
             self.on_disk.append(
                 self.watched.read_bytes() if self.watched.exists() else None
@@ -157,7 +161,33 @@ def moved(path: Path) -> None:
     path.rename(elsewhere / path.name)
 
 
-CHANGES = [(changed, CHANGED), (deleted, MOVED), (recreated, CHANGED), (moved, MOVED)]
+def conflicted(path: Path) -> None:
+    """As a `git merge` leaves the file: with conflict markers, which the core can't
+    read."""
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        f"<<<<<<< HEAD\n{text}=======\n{text}>>>>>>> theirs\n", encoding="utf-8"
+    )
+
+
+def newer(path: Path) -> None:
+    """As a newer TiLiA saves it, in a format this one can't read."""
+    content = json.loads(path.read_text(encoding="utf-8"))
+    content["version"] = "2.0.0"
+    path.write_text(json.dumps(content, indent=2), encoding="utf-8")
+
+
+# Something the core can't compare, at the path, is a change: only a path with
+# nothing there asks "File moved or deleted" (TimeLineAnnotator/project-management#630,
+# b).
+CHANGES = [
+    (changed, CHANGED),
+    (deleted, MOVED),
+    (recreated, CHANGED),
+    (moved, MOVED),
+    (conflicted, CHANGED),
+    (newer, CHANGED),
+]
 CHANGE_IDS = [change.__name__ for change, _ in CHANGES]
 
 
@@ -271,6 +301,73 @@ class TestAFileChangedOnDisk:
 
         assert not answers.asked
         assert notes_in(opened) == "mine, again"
+
+
+class TestTheDefaultButton:
+    """Enter chooses Cancel in the questions about a file changed, moved or deleted
+    on disk, and the first button in the others
+    (TimeLineAnnotator/project-management#631, b). TiLiA's window presses the
+    default button on Enter; the command line has none, and asks again on an empty
+    answer."""
+
+    @staticmethod
+    def pressing_enter(pressed: list):
+        """The question's `exec`: shown, then Enter, keeping the button it pressed
+        (None for none)."""
+
+        def exec_(box):
+            box.show()
+            QTest.keyClick(box, Qt.Key.Key_Return)
+            button = box.clickedButton()
+            pressed.append(button.text() if button is not None else None)
+            if box.isVisible():
+                box.close()
+            return 0
+
+        return exec_
+
+    @pytest.mark.parametrize("change", [changed, deleted], ids=["changed", "deleted"])
+    def test_cancels_when_the_file_changed_or_is_gone(self, opened, tilia, change):
+        change(opened)
+        theirs = on_disk(opened)
+        pressed = []
+
+        with patch.object(ChoiceMessageBox, "exec", self.pressing_enter(pressed)):
+            assert not save()
+
+        assert pressed == [CANCEL]
+        assert on_disk(opened) == theirs
+        assert tilia.is_file_modified()
+
+    def test_retries_when_the_file_is_held_open(self, opened, tilia, monkeypatch):
+        TestAFileHeldOpen.held_open(monkeypatch, 1)
+        pressed = []
+
+        with patch.object(ChoiceMessageBox, "exec", self.pressing_enter(pressed)):
+            assert save()
+
+        assert pressed == ["Retry"]
+        assert notes_in(opened) == "mine"
+
+    def test_saves_an_old_file(self, qtui, tilia, tls, tmp_path):
+        path = an_old_file(tmp_path)
+        assert open_file(path)
+        pressed = []
+
+        with patch.object(ChoiceMessageBox, "exec", self.pressing_enter(pressed)):
+            assert save()
+
+        assert pressed == ["Save"]
+        assert tla.read(path).format_version == tla.FORMAT_VERSION
+
+    @pytest.mark.parametrize("change", [changed, deleted], ids=["changed", "deleted"])
+    def test_is_asked_for(self, opened, change):
+        change(opened)
+
+        with Answers(CANCEL) as answers:
+            save()
+
+        assert answers.defaults == [CANCEL]
 
 
 class TestAFileWhoseContentDidntChange:

@@ -112,10 +112,17 @@ def ask_yes_or_no(title: str, prompt: str) -> bool:
 
 
 class ChoiceMessageBox(QMessageBox):
-    """A question whose buttons have words of their own. Escape and closing the
-    question choose the button "Cancel", if there is one."""
+    """A question whose buttons have words of their own. Enter chooses `default`,
+    or the first button if it is None. Escape and closing the question choose the
+    button "Cancel", if there is one."""
 
-    def __init__(self, title: str, message: str, buttons: Sequence[str]) -> None:
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        buttons: Sequence[str],
+        default: str | None = None,
+    ) -> None:
         super().__init__(
             QMessageBox.Icon.Question,
             title,
@@ -136,15 +143,19 @@ class ChoiceMessageBox(QMessageBox):
             button.setProperty(_WORDS, words)
             if role == QMessageBox.ButtonRole.RejectRole:
                 self.setEscapeButton(button)
+            if words == (default if default is not None else buttons[0]):
+                self.setDefaultButton(button)
 
 
 _WORDS = "words"
 
 
-def ask_for_choice(title: str, message: str, buttons: Sequence[str]) -> str | None:
+def ask_for_choice(
+    title: str, message: str, buttons: Sequence[str], default: str | None = None
+) -> str | None:
     """The words of the button chosen, or None when the question was closed
-    without one."""
-    box = ChoiceMessageBox(title, message, buttons)
+    without one. Enter chooses `default`, or the first button if it is None."""
+    box = ChoiceMessageBox(title, message, buttons, default)
     chosen: list[str] = []
 
     def on_clicked(button: QAbstractButton) -> None:
