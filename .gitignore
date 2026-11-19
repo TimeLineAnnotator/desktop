@@ -10,6 +10,9 @@ venv
 __pycache__
 tilia/dev
 
+# Generated repro fixtures - see "Delivering a fix for human testing"
+.repro
+
 # IDEs
 .vscode
 .idea
