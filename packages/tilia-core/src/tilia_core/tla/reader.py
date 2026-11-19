@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -37,7 +38,6 @@ from tilia_core.tla.model import (
     TIMELINE_COMPONENTS,
     Component,
     Document,
-    ReadWarning,
     Score,
     Timeline,
     UnknownKind,
@@ -220,8 +220,9 @@ def _old(
     named += [(w, *migrated.places.in_old_file(w.place, w.message)) for w in warnings]
     lines = lines_of(text_of(data), [place for _, place, _ in named]) if named else {}
     document = _Reader(path).document(migrated.content)
+    # Each with what else it has, such as the ids of the others it names.
     document.warnings = [
-        ReadWarning(place, lines[place], message, w.timeline_id, w.component_id)
+        dataclasses.replace(w, place=place, line=lines[place], message=message)
         for w, place, message in named
     ]
     if not for_fingerprint:
