@@ -8,13 +8,16 @@ import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tilia.file import tla_bridge
 from tilia.file.media_metadata import MediaMetadata
 from tilia.log import logger
 from tilia_core import tla
 from tilia_core.tla.writer import rebase_paths
+
+if TYPE_CHECKING:
+    from tilia_core.tla.writer import _Absent
 
 _MEDIA_LENGTH = "media length"
 
@@ -41,6 +44,8 @@ class OpenDocument:
     `timelines` and `timelines_hash` are the state's when the file was last read or
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.
+    `is_old` says the file was read from an older format, and hasn't been written
+    since: its first save asks first (FR-006).
 
     Two are the same file only if they are the same object.
     """
@@ -52,6 +57,7 @@ class OpenDocument:
     timelines: dict[str, Any] = field(default_factory=dict)
     timelines_hash: str = ""
     unknown_discarded: bool = False
+    is_old: bool = False
     synced: dict[str, Any] | None = None
     removed: tla_bridge.Removed = field(default_factory=dict)
     # Taken by whatever changes the document or copies it: the autosaver copies
@@ -128,8 +134,9 @@ class OpenDocument:
             for key in self._histories.keys() - kept:
                 del self._histories[key]
 
-    def write(self, path: str | Path) -> None:
-        """Writes the document to `path` through the core. Under the lock, so that a
+    def write(self, path: str | Path, *, expect: str | _Absent | None) -> None:
+        """Writes the document to `path` through the core, expecting there what
+        `expect` says, as `tla.write` takes it. Under the lock, so that a
         copy for writing never sees the document part-way through following the
         file. The PDF timelines `removed` holds follow the file too, as the
         document's do, so that one an undo gives back after a Save As still names
@@ -144,7 +151,7 @@ class OpenDocument:
             # read from or last written to.
             before = copy.copy(self.document)
             before.timelines = held
-            tla.write(path, self.document)
+            tla.write(path, self.document, expect=expect)
             if not held:
                 return
             # The folder `tla.write` rebases to, and its function.

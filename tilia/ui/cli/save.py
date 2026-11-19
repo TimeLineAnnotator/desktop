@@ -3,7 +3,8 @@ from pathlib import Path
 
 import tilia.errors
 from tilia.file.common import validate_save_path
-from tilia.requests import Post, post
+from tilia.file.file_manager import same_path
+from tilia.requests import Get, Post, get, post
 from tilia.ui.cli import io
 from tilia.ui.path import ensure_tla_extension
 
@@ -37,16 +38,35 @@ def ask_overwrite_save_path(path: Path):
 
 
 def save(namespace):
-    path = Path(namespace.path)
+    path = ensure_tla_extension(Path(namespace.path))
+    if _is_the_file_open(path):
+        # As Save does in TiLiA's window: straight to the check before saving, with
+        # or without --overwrite (TimeLineAnnotator/project-management#632, b).
+        post(Post.REQUEST_SAVE_TO_PATH, str(path.resolve()))
+        return
+    path = confirmed_save_path(path, namespace.overwrite)
+    if path is not None:
+        post(Post.REQUEST_SAVE_TO_PATH, str(path))
+
+
+def _is_the_file_open(path: Path) -> bool:
+    open_path = get(Get.FILE_PATH)
+    return bool(open_path) and same_path(path, open_path)
+
+
+def confirmed_save_path(path: Path, overwrite: bool = False) -> Path | None:
+    """`path`, with `.tla` added when missing, once overwriting a file there is
+    confirmed, by `overwrite` or by the person, and it can be saved to. None
+    otherwise, having said why a path can't be saved to."""
     path = ensure_tla_extension(path)
 
-    if path.exists() and not namespace.overwrite:
+    if path.exists() and not overwrite:
         if not ask_overwrite_save_path(path):
-            return
+            return None
 
     valid, message = validate_save_path(path)
     if not valid:
         tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, message)
-        return
+        return None
 
-    post(Post.REQUEST_SAVE_TO_PATH, str(path.resolve()))
+    return path.resolve()
