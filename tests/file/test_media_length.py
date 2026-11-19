@@ -19,7 +19,7 @@ from tests.mock import Serve
 from tests.utils import load_youtube_media
 from tilia.constants import DURATION_JITTER_TOLERANCE
 from tilia.media.player.base import Player
-from tilia.requests import Get, get
+from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia_core import tla
 
@@ -194,6 +194,23 @@ class TestALengthWithinTheTolerance:
         assert save()
         assert path.read_bytes() == before
 
+    def test_two_on_either_side_of_the_stored_one_ask_nothing(
+        self, youtube, tilia, tmp_path
+    ):
+        # Each is compared with the length the file stores, not with the one
+        # reported before it, 3.8 s away.
+        path = a_file(tmp_path)
+        before = path.read_bytes()
+        assert open_file(path)
+        report(tilia, STORED + 1.9)
+
+        question = report(tilia, STORED - 1.9)
+
+        assert not question.called
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
+
     def test_a_shorter_one_crops_nothing(self, youtube, tilia, tmp_path):
         assert open_file(a_file(tmp_path))
         timelines = tilia.get_timelines_state()[0]
@@ -266,6 +283,57 @@ class TestAFileWithoutALength:
 
         assert save()
         assert tla.read(path).media_length == 1.5
+
+    def test_a_second_report_within_the_tolerance_is_still_a_change(
+        self, youtube, tilia, tmp_path
+    ):
+        # The length taken isn't on disk: the file has none to keep yet.
+        path = a_file(tmp_path, length=None)
+        assert open_file(path)
+        report(tilia, STORED)
+
+        question = report(tilia, STORED + 0.003)
+
+        assert not question.called
+        assert tilia.is_file_modified()
+        assert save()
+        assert tla.read(path).media_length == STORED + 0.003
+
+    def test_once_saved_the_length_taken_is_the_stored_one(
+        self, youtube, tilia, tmp_path
+    ):
+        path = a_file(tmp_path, length=None)
+        assert open_file(path)
+        report(tilia, STORED)
+        assert save()
+        before = path.read_bytes()
+
+        question = report(tilia, STORED + 0.003)
+
+        assert not question.called
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
+
+    def test_an_edit_and_its_undo_leave_it_a_change(self, audio, tilia, tls, tmp_path):
+        # The undo gives the player the length again, which isn't on disk.
+        path = a_local_file(tmp_path, length=None)
+        assert open_file(path)
+        marker_timeline = next(
+            timeline
+            for timeline in tilia.file_manager.file.document.timelines.values()
+            if timeline.kind == "marker"
+        )
+        tls.get_timeline(marker_timeline.id).set_component_data(
+            next(iter(marker_timeline.components)), "label", "edited"
+        )
+        post(Post.APP_STATE_RECORD, "test")
+
+        commands.execute("edit.undo")
+
+        assert tilia.is_file_modified()
+        assert save()
+        assert tla.read(path).media_length == _Audio.LENGTH
 
     def test_takes_the_one_reported_as_its_media_loads(self, audio, tilia, tmp_path):
         # A local file's player reports while the file opens.

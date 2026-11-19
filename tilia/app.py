@@ -149,10 +149,23 @@ class App:
         self.on_media_duration_changed(duration)
 
     def _is_duration_confirmation(self, duration: float) -> bool:
-        """Whether `duration` is the length the file has, within the tolerance, for
-        its own media: the file then keeps its own (FR-034). A file without a length
-        has none to keep."""
+        """Whether `duration`, reported for the file's own media, is the length the
+        file stores on disk, within the tolerance: the file then keeps its own
+        (FR-034). A file without a stored length has none to keep, not even one it
+        has taken since it was read, until it is saved."""
+        stored = self.file_manager.file.stored_media_length
         return (
+            self.should_scale_timelines == "keep"
+            and stored is not None
+            and stored > 0
+            and abs(duration - stored) < tilia.constants.DURATION_JITTER_TOLERANCE
+        )
+
+    def _keeps_timelines(self, duration: float) -> bool:
+        """Whether `duration`, reported for the file's own media, is within the
+        tolerance of the length the file stores or of the one TiLiA has: the
+        timelines then stay as they are, with no question."""
+        return self._is_duration_confirmation(duration) or (
             self.should_scale_timelines == "keep"
             and self.duration > 0
             and abs(duration - self.duration)
@@ -435,7 +448,7 @@ class App:
         # this report only -- should_scale_timelines itself is untouched,
         # so a later, smaller jitter report is still handled as "keep".
         effective_mode = self.should_scale_timelines
-        if effective_mode == "keep" and not self._is_duration_confirmation(duration):
+        if effective_mode == "keep" and not self._keeps_timelines(duration):
             effective_mode = "prompt"
 
         # Without a length, there is none to scale or crop from: the file takes the
