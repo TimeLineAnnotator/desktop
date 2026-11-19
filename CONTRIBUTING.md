@@ -9,13 +9,13 @@ Apart from coding proper, contributions would be appreciated in:
 Testing guidelines can be found [here](./TESTING.md).
 
 ## Tutorials/guides:
-The program should be fairly intuitive for users, but comprehensive tutorials and guides will need to be done at some point, as they will significantly facilitate the adoption of this program by new users. They can be either written or in video form, ideally both. [This video](https://vimeo.com/767282249) serves as rough general quickstart guide, for now.
+Written [guides](https://tilia-app.com/help/) and [video tutorials](https://www.youtube.com/@tilia-app) are available, and more are always useful. If you find something missing or unclear, please [open an issue](https://github.com/TimeLineAnnotator/desktop/issues/new).
 
 ## Documentation:
-The documentation is almost non-existent at the moment. Docstrings for functions and modules need to be inserted soon.
+User documentation is available on our [help pages](https://tilia-app.com/help/). Developer documentation is still sparse: few functions and modules have docstrings, so contributions there are welcome.
 
 ## Making annotations using TiLiA
-With the new platform in the making (https://tilia-app.com/), it is possible to share TiLiA files publicly. Increasing the number of available files would be of great help.
+Our [online platform](https://tilia-app.com/) makes it possible to share TiLiA files publicly. Increasing the number of available files would be of great help.
 
 ## Reporting bugs
 If you find a bug, [check](https://github.com/TimeLineAnnotator/desktop/issues) if there is already an open issue reporting it. If not, please [open a new one](https://github.com/TimeLineAnnotator/desktop/issues/new). The following information in  your report will be greatly appreciated:
