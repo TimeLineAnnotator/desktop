@@ -490,8 +490,8 @@ class App:
         """Loads the media of the file being opened: where the core finds it, else
         where this document last found it on this computer, else where the user
         picks it, when asked (FR-030, FR-031). The file keeps the path it stores,
-        and the place a local file is found is remembered on this computer only
-        (FR-032)."""
+        and the place a local file is found and loaded is remembered on this
+        computer only (FR-032)."""
         if duration:
             self.set_file_media_duration(duration)
 
@@ -500,39 +500,40 @@ class App:
             # as user has set the duration manually
             return
 
-        if media.kind == "youtube":
-            new_path = media.stored
-        elif media.path is not None:
-            new_path = media.path.as_posix()
-        else:
-            new_path = self._media_place(document_id)
-
-        if not new_path:
-            tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, media.stored)
-            confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
-            if confirm:
-                success, new_path = get(Get.FROM_USER_MEDIA_PATH)
-                if success:
-                    if self.load_media(new_path, initial_duration=duration):
-                        settings.set_media_place(
-                            document_id, Path(os.path.abspath(new_path)).as_posix()
-                        )
-                    return
-
-            post(Post.PLAYER_URL_CHANGED, "")
-            return
-
         # Media that belongs to a file we just opened: the timelines were
         # saved to match it, so neither prompt to rescale nor crop when the
         # player reports its duration. "no" is not enough here — it still
         # crops when the reported duration comes back shorter, and YouTube
         # returns that duration asynchronously, often off by a few ms from
         # the stored value, which would silently delete end components (#453).
-        loaded = self.load_media(
-            new_path, initial_duration=duration, scale_timelines="keep"
-        )
-        if loaded and media.kind == "local":
-            settings.set_media_place(document_id, new_path)
+        if media.kind == "youtube" or media.path is not None:
+            new_path = media.stored if media.path is None else media.path.as_posix()
+            loaded = self.load_media(
+                new_path, initial_duration=duration, scale_timelines="keep"
+            )
+            if loaded and media.kind == "local":
+                settings.set_media_place(document_id, new_path)
+            return
+
+        place = self._media_place(document_id)
+        if place and self.load_media(
+            place, initial_duration=duration, scale_timelines="keep"
+        ):
+            return
+
+        # No place, or one whose file won't load: TiLiA asks.
+        tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, media.stored)
+        confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
+        if confirm:
+            success, new_path = get(Get.FROM_USER_MEDIA_PATH)
+            if success:
+                if self.load_media(new_path, initial_duration=duration):
+                    settings.set_media_place(
+                        document_id, Path(os.path.abspath(new_path)).as_posix()
+                    )
+                return
+
+        post(Post.PLAYER_URL_CHANGED, "")
 
     def on_file_load(self, file: OpenDocument) -> bool:
         document = file.document
