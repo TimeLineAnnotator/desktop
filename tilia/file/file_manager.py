@@ -101,10 +101,14 @@ def _kind_name(kind: tla.UnknownKind | str) -> str:
 
 def _same_path(one: str | Path, other: str | Path) -> bool:
     """Whether two paths name the same file, however they are spelled, and even if
-    it is gone."""
-    return os.path.normcase(os.path.realpath(one)) == os.path.normcase(
-        os.path.realpath(other)
-    )
+    it is gone. While both are there, the system says, so that a file system that
+    ignores case is followed where normcase doesn't fold it, as on macOS."""
+    try:
+        return os.path.samefile(one, other)
+    except OSError:  # one of them is gone, or can't be looked at
+        return os.path.normcase(os.path.realpath(one)) == os.path.normcase(
+            os.path.realpath(other)
+        )
 
 
 class FileManager:

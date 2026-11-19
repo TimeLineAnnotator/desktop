@@ -2,11 +2,13 @@ import json
 import os
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from tests.utils import get_blank_file_data
-from tilia.requests import Get, get
+from tilia.file import file_manager
+from tilia.requests import Get, Post, get, post
 from tilia.ui.path import ensure_tla_extension
 from tilia_core import tla
 
@@ -171,6 +173,39 @@ class TestTheCheckBeforeSaving:
         assert "changed on disk" not in capsys.readouterr().out
         assert tla.read(saved).metadata.get("notes") == "mine"
 
+    def test_the_file_open_spelled_in_another_case(
+        self, cli, saved, monkeypatch, capsys
+    ):
+        # On a file system that ignores case, as macOS's and Windows' do by
+        # default, another spelling of the file open is the file open: it is
+        # checked, not saved as.
+        spelled = saved.with_stem(saved.stem.upper())  # FILE.tla
+        if not spelled.exists():
+            pytest.skip("this file system tells case apart")
+        # As on macOS: normcase leaves case alone, and realpath keeps the case it is
+        # given.
+        monkeypatch.setattr(
+            file_manager,
+            "os",
+            SimpleNamespace(
+                path=SimpleNamespace(
+                    normcase=lambda path: path,
+                    realpath=os.path.abspath,
+                    samefile=os.path.samefile,
+                    lexists=os.path.lexists,
+                )
+            ),
+        )
+        theirs = changed_by_another_program(saved)
+        self.answering(monkeypatch, "cancel")
+
+        # What `save "<spelled>" --overwrite` posts where Path.resolve keeps the
+        # case it is given, as on macOS; on Windows it gives the case on disk.
+        post(Post.REQUEST_SAVE_TO_PATH, str(spelled))
+
+        assert "has changed on disk since you opened it" in capsys.readouterr().out
+        assert saved.read_bytes() == theirs
+
     def test_another_path_is_saved_as(self, cli, saved, tmp_path, monkeypatch, capsys):
         changed_by_another_program(saved)
         other = tmp_path / "other.tla"
@@ -281,6 +316,21 @@ class TestSaveAs:
             assert notes_in(other) == "mine"
         else:
             assert other.read_text() == "content"
+
+    def test_the_end_of_the_input_at_today_s_question_is_cancel(
+        self, cli, tilia, saved, tmp_path, monkeypatch, tilia_errors
+    ):
+        other = tmp_path / "other.tla"
+        other.write_text("content")
+
+        # The input ends before an answer to "File … already exists. Overwrite?".
+        theirs = self.save_as(cli, saved, monkeypatch, str(other))
+
+        assert other.read_text() == "content"
+        assert saved.read_bytes() == theirs
+        assert_open(tilia, saved)
+        assert tilia.is_file_modified()
+        tilia_errors.assert_no_error()
 
     def test_a_path_it_can_t_save_to_says_why(
         self, cli, tilia, saved, tmp_path, monkeypatch, tilia_errors

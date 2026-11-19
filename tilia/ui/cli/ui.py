@@ -233,15 +233,15 @@ def _as_answer(words: str) -> str:
 
 def on_ask_save_path(_initial_name: str) -> tuple[bool, str | None]:
     """A path to save the file to, taken as `save <path>` takes one; an empty
-    answer, or the end of the input, cancels
-    (TimeLineAnnotator/project-management#618, a)."""
+    answer, or the end of the input, here or at the question whether to overwrite
+    a file there, cancels (TimeLineAnnotator/project-management#618, a)."""
     try:
         answer = input("Path to save the file [leave empty to cancel]: ").strip()
+        if not answer:
+            return False, None
+        path = save.confirmed_save_path(Path(answer))
     except EOFError:
         return False, None
-    if not answer:
-        return False, None
-    path = save.confirmed_save_path(Path(answer))
     if path is None:
         return False, None
     return True, str(path)
