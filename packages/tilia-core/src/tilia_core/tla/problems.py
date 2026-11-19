@@ -55,7 +55,7 @@ import json
 import math
 import threading
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from typing import Any
+from typing import Any, cast
 
 from tilia_core import rules
 from tilia_core.tla.errors import UnreadableFile, printable
@@ -429,7 +429,9 @@ def warnings_of(
 ) -> list[ReadWarning]:
     """A warning for each of `problems`: its place and line in `source`, its
     reason, and the other components it is about, each named by its place, so
-    that an old file's are in its own terms. `where` is `keep_problems`'."""
+    that an old file's are in its own terms. `where` is `keep_problems`'. The
+    warning's ids, its own and those of the others it names, are the
+    document's, an old file's after its migration."""
     if not problems:
         return []
 
@@ -453,7 +455,16 @@ def warnings_of(
             what = "other component" if len(others) == 1 else "other components"
             message = f"{message} ({what}: {'; '.join(others)})"
         warnings.append(
-            ReadWarning(place, lines[place], message, *ids_at(problem.place))
+            ReadWarning(
+                place,
+                lines[place],
+                message,
+                *ids_at(problem.place),
+                # Each other is a component, which `ids_at` gives both ids of.
+                other_ids=tuple(
+                    cast(tuple[str, str], ids_at(other)) for other, _ in problem.others
+                ),
+            )
         )
     return warnings
 

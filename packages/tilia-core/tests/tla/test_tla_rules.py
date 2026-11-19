@@ -202,6 +202,7 @@ class TestReading:
                 message=f"{OVERLAP} {named(data, SECOND)}",
                 timeline_id=FORM,
                 component_id=FIRST,
+                other_ids=((FORM, SECOND),),
             )
         ]
 
@@ -213,12 +214,17 @@ class TestReading:
                 (THIRD, at_level(1.5, 4.0, 1)),
             )
         )
-        assert [(w.place, w.message) for w in tla.loads(data).warnings] == [
+        warnings = tla.loads(data).warnings
+        assert [(w.place, w.message) for w in warnings] == [
             (
                 component_place(FORM, FIRST),
                 f"{OVERLAP} {named(data, SECOND, THIRD)}",
             ),
             (component_place(FORM, SECOND), f"{OVERLAP} {named(data, THIRD)}"),
+        ]
+        assert [w.other_ids for w in warnings] == [
+            ((FORM, SECOND), (FORM, THIRD)),
+            ((FORM, THIRD),),
         ]
 
     def test_a_hierarchy_that_crosses_many_names_the_first_ten(self):
@@ -234,6 +240,8 @@ class TestReading:
         assert first.message == (
             f"{OVERLAP} {named(data, *ids[:10])[:-1]}; and 3 more)"
         )
+        # Those it names.
+        assert first.other_ids == tuple((FORM, key) for key in ids[:10])
 
     def test_twelve_inside_one_hierarchy_are_named_by_it_and_by_the_last_two(self):
         # The first ten are named by the hierarchy that holds them, so its
@@ -263,8 +271,24 @@ class TestReading:
                 f" {named(data, SECOND, timeline=CADENCES)}",
                 timeline_id=CADENCES,
                 component_id=FIRST,
+                other_ids=((CADENCES, SECOND),),
             )
         ]
+
+    def test_a_warning_about_one_component_names_no_others(self):
+        warnings = tla.loads(a_file(LEVEL_0)).warnings
+        assert [w.other_ids for w in warnings] == [()]
+
+    def test_a_join_names_what_comes_next_in_its_row(self):
+        # Its reason names the next range, not the range it joins, and so do
+        # its ids.
+        data = a_file(A_BAD_JOIN)
+        warnings = tla.loads(data).warnings
+        joins = [w for w in warnings if w.message.startswith("joined_with_next")]
+        assert [(w.component_id, w.other_ids) for w in joins] == [
+            (FIRST, ((TEXTURE, SECOND),))
+        ]
+        assert joins[0].message.endswith(named(data, SECOND, timeline=TEXTURE))
 
     def test_two_beats_at_one_time_are_both_kept_with_a_warning_naming_them(self):
         def change(content):
@@ -281,6 +305,7 @@ class TestReading:
                 f" {named(data, IDS['beat_2'], timeline=BEATS)}",
                 timeline_id=BEATS,
                 component_id=IDS["beat_1"],
+                other_ids=((BEATS, IDS["beat_2"]),),
             )
         ]
         assert len(doc.timelines[BEATS].components) == 2
@@ -339,6 +364,7 @@ class TestReading:
                 f" {named(data, MELODY_2, timeline=TEXTURE)}",
                 timeline_id=TEXTURE,
                 component_id=MELODY_1,
+                other_ids=((TEXTURE, MELODY_2),),
             )
         ]
 
@@ -624,6 +650,24 @@ class TestWriting:
         assert [w.place for w in problems] == [component_place(FORM, FIRST)]
         assert problems[0].message.startswith(OVERLAP)
         assert component_place(FORM, SECOND) in problems[0].message
+        assert problems[0].other_ids == ((FORM, SECOND),)
+
+    def test_a_refusal_gives_the_ids_of_the_others_it_names(self, tmp_path):
+        # The first crosses the second and the third; only the third changed,
+        # and the refusal names it alone.
+        data = a_file(
+            hierarchies(
+                (FIRST, at_level(0.0, 2.0, 1)),
+                (SECOND, at_level(1.0, 3.0, 1)),
+                (THIRD, at_level(1.5, 4.0, 1)),
+            )
+        )
+        doc = tla.loads(data)
+        doc.timelines[FORM].components[THIRD].attrs["label"] = "A"
+        first = refused(doc, tmp_path)[0]
+        assert first.place == component_place(FORM, FIRST)
+        assert component_place(FORM, SECOND) not in first.message
+        assert first.other_ids == ((FORM, THIRD),)
 
     @pytest.mark.parametrize("index", range(12))
     def test_a_change_to_one_of_twelve_inside_a_hierarchy_is_refused(
@@ -2659,6 +2703,56 @@ class TestOldFiles:
             f"{OVERLAP} (other component: line {line_of(data, other)},"
             f" /timelines/3/components/{other})"
         )
+
+    def test_crossings_give_the_others_migrated_ids(self):
+        # 0.7.0.tla's hierarchy 2 crosses 3, 4 and 5, and 3 crosses 5. The
+        # reasons name the old file's places; the ids are the document's.
+        doc = tla.read(OLD / "0.7.0.tla")
+        (form,) = [key for key, t in doc.timelines.items() if t.kind == "hierarchy"]
+        by_span = {
+            (c.attrs["start"], c.attrs["end"], c.attrs["level"]): key
+            for key, c in doc.timelines[form].components.items()
+        }
+        old = {
+            "2": by_span[(0, 9.952, 1)],
+            "3": by_span[(0.0, 4.5, 1)],
+            "4": by_span[(4.5, 9.952, 1)],
+            "5": by_span[(0.0, 2.0, 2)],
+        }
+        crossings = [w for w in doc.warnings if w.message.startswith(OVERLAP)]
+        assert [(w.place, w.component_id, w.other_ids) for w in crossings] == [
+            (
+                "/timelines/1/components/2",
+                old["2"],
+                ((form, old["3"]), (form, old["4"]), (form, old["5"])),
+            ),
+            ("/timelines/1/components/3", old["3"], ((form, old["5"]),)),
+        ]
+        assert crossings[1].message.endswith("/timelines/1/components/5)")
+
+    def test_two_markers_at_one_time_give_the_others_migrated_id(self):
+        # 0.7.0.tla with its second marker, "PAC", moved to the first's time.
+        content = json.loads((OLD / "0.7.0.tla").read_bytes())
+        content["timelines"]["6"]["components"]["8"]["time"] = 1.25
+        doc = tla.loads(json.dumps(content, indent=2).encode("utf-8"))
+        (cadences,) = [key for key, t in doc.timelines.items() if t.kind == "marker"]
+        labelled = {
+            c.attrs["label"]: key
+            for key, c in doc.timelines[cadences].components.items()
+        }
+        (same_time,) = [
+            w for w in doc.warnings if w.message.startswith("There is already a marker")
+        ]
+        assert same_time.place == "/timelines/6/components/7"
+        assert same_time.message.endswith("/timelines/6/components/8)")
+        assert (same_time.component_id, same_time.other_ids) == (
+            labelled["HC"],
+            ((cadences, labelled["PAC"]),),
+        )
+
+    def test_a_warning_about_one_old_component_names_no_others(self):
+        doc = tla.loads(old_file({"start": 0.0, "end": 2.0, "level": 0}))
+        assert [w.other_ids for w in doc.warnings] == [()]
 
     def test_a_measure_number_below_0_is_named_in_the_old_files_terms(self, tmp_path):
         # TiLiA 0.x keeps the numbers in a list on the timeline.
