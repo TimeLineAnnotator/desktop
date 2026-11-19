@@ -14,6 +14,9 @@ class Get(Enum):
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
     FROM_USER_BEAT_PATTERN = auto()
     FROM_USER_BEAT_TIMELINE_FILL_METHOD = auto()
+    # A title, a message and the words of its buttons; replies with the words of the
+    # one chosen, or None when none was.
+    FROM_USER_CHOICE = auto()
     FROM_USER_COLOR = auto()
     FROM_USER_EXPORT_PATH = auto()
     FROM_USER_FILE_PATH = auto()

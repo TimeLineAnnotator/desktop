@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import tilia.errors
 from tilia.exceptions import (
@@ -18,6 +20,9 @@ from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.ui import commands
 from tilia_core import tla
+
+if TYPE_CHECKING:
+    from tilia_core.tla.writer import _Absent
 
 _MEDIA_LENGTH = "media length"
 
@@ -77,6 +82,8 @@ def read_file(path: Path) -> OpenDocument | None:
         file_path=str(path.resolve()),
         media_metadata=MediaMetadata.from_dict(fields),
         unknown_discarded=discarded,
+        # The reader refuses any version but its own and the old ones.
+        is_old=document.format_version != tla.FORMAT_VERSION,
     )
 
 
@@ -90,6 +97,14 @@ def _reason(error: tla.UnreadableFile) -> str:
 def _kind_name(kind: tla.UnknownKind | str) -> str:
     """As the file spells it."""
     return kind.spelling if isinstance(kind, tla.UnknownKind) else kind
+
+
+def _same_path(one: str | Path, other: str | Path) -> bool:
+    """Whether two paths name the same file, however they are spelled, and even if
+    it is gone."""
+    return os.path.normcase(os.path.realpath(one)) == os.path.normcase(
+        os.path.realpath(other)
+    )
 
 
 class FileManager:
@@ -177,49 +192,154 @@ class FileManager:
     def _setup_file(self):
         self.file = OpenDocument()
 
-    def on_save_request(self):
-        """Saves tilia file to current file path."""
+    def on_save_request(self) -> bool:
+        """Saves the file open, once the check before saving allows it; asks for a
+        path for a file never saved. Whether it was written."""
         path = self.file.file_path
         if not path:
             # in case file has not been saved before
             return self.on_save_as_request()
+        return self.save_checked(path)
 
-        try:
-            self.save(path)
-        except Exception as exc:
-            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
-            return False
+    def on_save_as_request(self, path: str | Path | None = None) -> bool:
+        """Saves to `path`, or to a path the user chooses, which the save dialog
+        confirmed overwriting if a file is there. The file's title stays as it is:
+        one opened without a title gets none (FR-008). Whether it was written."""
+        return self.save_checked(path, save_as=True)
 
-        post(Post.FILE_SAVED, path)
-        return True
+    def on_save_to_path_request(self, path: str | Path) -> None:
+        """Saves to `path`, which the command line confirmed overwriting if a file
+        is there: a save of the file open, or a Save As to another path."""
+        self.save_checked(path, save_as=not self._is_the_file_open(path))
 
-    def on_save_as_request(self, path: str | None = None):
-        """Prompts user for a path, and saves tilia file to it. The file's title stays
-        as it is: one opened without a title gets none (FR-008)."""
-        if path is None:
-            accepted, path = get(
-                Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla"
-            )
-            if not accepted:
+    def save_checked(self, path: str | Path | None, *, save_as: bool = False) -> bool:
+        """Writes the file, asking what the check before saving finds (FR-006,
+        FR-025–FR-028): every save goes through here. Whether it was written.
+
+        A save over the file open states the fingerprint the file was read or last
+        written with, so that one changed, moved or deleted since is written over
+        only if the user chooses to; the question is asked on content, never on a
+        date. Save As, to `path` or, when it is None, to a path the user chooses,
+        expects no file there, or checks nothing over a file the user confirmed
+        overwriting. The first save over an old file asks first, once."""
+        asked_if_old = False
+        while True:
+            if path is None:
+                path = self._ask_for_save_path()
+                if path is None:
+                    return False
+                save_as = True
+            if self.file.is_old and not asked_if_old and self._is_the_file_open(path):
+                asked_if_old = True
+                answer = self._ask(
+                    tilia.errors.SAVE_OLD_FILE,
+                    [tilia.errors.SAVE, tilia.errors.SAVE_AS, tilia.errors.CANCEL],
+                    Path(path).name,
+                    self.file.document.format_version,
+                )
+                if answer == tilia.errors.SAVE_AS:
+                    path = None
+                    continue
+                if answer != tilia.errors.SAVE:
+                    return False
+            if save_as:
+                expect = None if os.path.lexists(path) else tla.ABSENT
+            else:
+                expect = self.file.document.fingerprint
+            written = self._write_asking(path, expect)
+            if written is None:  # Save As, chosen when asked
+                path = None
+                continue
+            if written:
+                post(Post.FILE_SAVED, path)
+            return written
+
+    def _write_asking(
+        self, path: str | Path, expect: str | _Absent | None
+    ) -> bool | None:
+        """Writes the file to `path`, expecting `expect` there, and asks what to do
+        when the file there isn't what it expects (messages 5 and 6), or another
+        program holds it (message 7). Whether it was written; None when the user
+        chose Save As. TiLiA says why a write the core refuses wrote nothing."""
+        name = Path(path).name
+        while True:
+            changed: tla.FileChanged | None = None
+            try:
+                self.save(path, expect=expect)
+                return True
+            except tla.FileChanged as error:
+                changed = error
+            except tla.FileInUse:
+                answer = self._ask(
+                    tilia.errors.SAVE_FILE_IN_USE,
+                    [tilia.errors.RETRY, tilia.errors.CANCEL],
+                    name,
+                )
+                if answer != tilia.errors.RETRY:
+                    return False
+                continue
+            except tla.BrokenRules as error:
+                self._show_broken_rules(error)
+                return False
+            except Exception as error:
+                tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(error))
                 return False
 
-        try:
-            self.save(path)
-        except Exception as exc:
-            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
+            if expect is tla.ABSENT:
+                # A file appeared where Save As expected none.
+                tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, str(changed))
+                return False
+            if changed.found is None:
+                question = tilia.errors.SAVE_FILE_MOVED_OR_DELETED
+                write = tilia.errors.SAVE
+            else:
+                question = tilia.errors.SAVE_FILE_CHANGED
+                write = tilia.errors.OVERWRITE
+            answer = self._ask(
+                question, [write, tilia.errors.SAVE_AS, tilia.errors.CANCEL], name
+            )
+            if answer == tilia.errors.SAVE_AS:
+                return None
+            if answer != write:
+                return False
+            expect = None  # written over without the check
+
+    @staticmethod
+    def _show_broken_rules(error: tla.BrokenRules) -> None:
+        """What the core refused to write, one line per problem, as the warnings a
+        file opens with are (FR-063)."""
+        from tilia.app import problem_line  # tilia.app imports this module
+
+        timelines = get(Get.APP_STATE)["timelines"]
+        tilia.errors.display(
+            tilia.errors.FILE_SAVE_FAILED,
+            "\n".join(problem_line(problem, timelines) for problem in error.problems),
+        )
+
+    @staticmethod
+    def _ask(question: tilia.errors.Error, buttons: list[str], *args) -> str | None:
+        return get(
+            Get.FROM_USER_CHOICE,
+            question.title,
+            question.message.format(*args),
+            buttons,
+        )
+
+    @staticmethod
+    def _ask_for_save_path() -> str | None:
+        """A path the user chose to save to, which the save dialog, or the command
+        line, confirmed overwriting if a file is there. None if the user
+        cancelled."""
+        accepted, path = get(
+            Get.FROM_USER_SAVE_PATH_TILIA, get(Get.MEDIA_TITLE) + ".tla"
+        )
+        return path if accepted else None
+
+    def _is_the_file_open(self, path: str | Path) -> bool:
+        """Whether `path` names the file open, however it is spelled."""
+        if not self.file.file_path:
             return False
-
-        post(Post.FILE_SAVED, path)
-        return True
-
-    def on_save_to_path_request(self, path: Path):
-        """Saves tilia file to specified path."""
-        try:
-            self.save(path)
-        except Exception as exc:
-            tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, repr(exc))
-
-        post(Post.FILE_SAVED, path)
+        return _same_path(path, self.file.file_path)
 
     def on_close_modified_file(self):
         success, should_save = self.ask_save_changes_if_modified()
@@ -304,15 +424,17 @@ class FileManager:
     def get_media_metadata_required_fields():
         return list(MediaMetadata.REQUIRED_FIELDS)  # REQUIRED_FIELDS is a dict
 
-    def save(self, path: Path | str) -> None:
+    def save(self, path: Path | str, *, expect: str | _Absent | None) -> None:
         """Writes the document open to `path` through the core, once it follows
-        TiLiA's state. Raises what the core raises, having written nothing: the
-        document then still follows TiLiA's state, and the file reads as modified."""
+        TiLiA's state, expecting there what `expect` says, as `tla.write` takes it.
+        Raises what the core raises, having written nothing: the document then
+        still follows TiLiA's state, and the file reads as modified. `save_checked`
+        asks what to do then."""
         state = get(Get.APP_STATE)
         self.file.sync(state)
         # The document read, or the new one: never one built again from the state,
         # which would have no fingerprint for the check before saving.
-        self.file.write(path)
+        self.file.write(path, expect=expect)
         # The file open is now the one written, and the document follows it.
         self.file.file_path = Path(
             path.resolve() if isinstance(path, Path) else path
@@ -321,6 +443,7 @@ class FileManager:
         self.file.timelines = state["timelines"]
         self.file.timelines_hash = state["timelines_hash"]
         self.file.unknown_discarded = False
+        self.file.is_old = False  # the file is in the current format now
         self.resync_saved_metadata()
 
         try:
