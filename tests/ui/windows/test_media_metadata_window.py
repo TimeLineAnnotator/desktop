@@ -1,4 +1,5 @@
 import json
+import time
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -7,7 +8,7 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, Qt
 from PySide6.QtGui import QFileOpenEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QMessageBox, QPushButton
+from PySide6.QtWidgets import QDialog, QMessageBox, QPushButton
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
@@ -807,34 +808,66 @@ class TestEditFieldsWithEditsNotApplied:
         assert tilia_state.metadata == {**before, "custom": ""}
 
 
+class Finder:
+    """Opens files as macOS does one opened from Finder: a FileOpen event to
+    the application, which hands the file on to App.on_open, as boot() sets it
+    up. A modal window doesn't block the event."""
+
+    def __init__(self, qapplication, app):
+        self.qapplication = qapplication
+        self.handed_on = []
+
+        def on_open(path):
+            self.handed_on.append(Path(path))
+            app.on_open(path)
+
+        # The session's QApplication can't be a TiliaApplication (only one may
+        # exist per process), so its event handling is borrowed, as in
+        # test_boot.
+        TiliaApplication.set_file_open_callback(qapplication, on_open)
+
+    def open(self, path):
+        assert TiliaApplication.event(self.qapplication, QFileOpenEvent(str(path)))
+
+    def assert_waits(self):
+        # Long enough for it to try again.
+        QTest.qWait(3 * PendingFileOpen.RETRY_INTERVAL_MS)
+        assert self.handed_on == []
+
+    def wait_until_handed_on(self):
+        deadline = time.monotonic() + 5
+        while not self.handed_on:
+            assert time.monotonic() < deadline, "The file wasn't handed on."
+            QTest.qWait(10)
+
+
 @pytest.fixture
-def open_from_finder(qapplication, tilia, monkeypatch):
-    """Opens a file as macOS does one opened from Finder: a FileOpen event to
-    the application, which boot() hands to App.on_open. The window, modal as it
-    is, doesn't block it."""
-    # The session's QApplication can't be a TiliaApplication (only one may
-    # exist per process), so its event handling is borrowed, as in test_boot.
-    monkeypatch.setattr(qapplication, "_file_open", PendingFileOpen(), raising=False)
-    TiliaApplication.set_file_open_callback(qapplication, tilia.on_open)
-
-    def send(path):
-        assert TiliaApplication.event(qapplication, QFileOpenEvent(str(path)))
-
-    return send
+def finder(qapplication, tilia, monkeypatch):
+    file_open = PendingFileOpen()
+    monkeypatch.setattr(qapplication, "_file_open", file_open, raising=False)
+    yield Finder(qapplication, tilia)
+    # Dropped, so that a file still waiting can't open in a later test.
+    file_open._pending = None
 
 
 @pytest.fixture
-def window_over_file_a(qtui, tmp_path):
-    """The Metadata window, open over file A. File B is saved beside it."""
+def files(qtui, tmp_path):
+    """Files A, B and C, saved with their own titles. A is open."""
     paths = {}
-    for name in ("A", "B"):
+    for name in ("A", "B", "C"):
         post(Post.MEDIA_METADATA_FIELD_SET, "title", f"Title {name}")
         paths[name] = Path(save_tilia_to_tmp_path(tmp_path, name))
     commands.execute("file.open", paths["A"])
+    return paths
+
+
+@pytest.fixture
+def window_over_file_a(qtui, files):
+    """The Metadata window, open over file A."""
     commands.execute("window.open.metadata")
     window = qtui._windows[WindowKind.MEDIA_METADATA]
 
-    yield window, paths["A"], paths["B"]
+    yield window
 
     if qtui.is_window_open(WindowKind.MEDIA_METADATA):
         with patch_yes_or_no_dialog(True):
@@ -842,21 +875,55 @@ def window_over_file_a(qtui, tmp_path):
 
 
 @contextmanager
+def on_screen(dialog_class, *answers):
+    """Patches dialog_class.exec(): the n-th dialog is on screen, modal, while
+    answers[n](dialog) runs, and exec() returns what that returns. Yields the
+    dialogs shown."""
+    shown = []
+
+    def exec_(dialog):
+        shown.append(dialog)
+        dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        dialog.show()
+        try:
+            return answers[len(shown) - 1](dialog)
+        finally:
+            dialog.hide()
+
+    # A function, not a mock, so that it gets the dialog as `self`.
+    with patch.object(dialog_class, "exec", exec_):
+        yield shown
+
+
+@contextmanager
 def questions(*answers):
-    """Answers the yes/no questions in turn, and records each one asked."""
+    """Answers the yes/no questions in turn, each on screen while its answer,
+    a bool or a function that returns one, is given. Yields the questions
+    asked."""
     asked = []
 
     def answer(box):
         asked.append(box.text())
+        given = answers[len(asked) - 1]
+        is_yes = given() if callable(given) else given
         return (
-            QMessageBox.StandardButton.Yes
-            if answers[len(asked) - 1]()
-            else QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes if is_yes else QMessageBox.StandardButton.No
         )
 
-    # A function, not a mock, so that it gets the box as `self`.
-    with patch.object(YesOrNoMessageBox, "exec", answer):
+    with on_screen(YesOrNoMessageBox, *[answer] * len(answers)):
         yield asked
+
+
+def file_arrives(finder, path, answer):
+    """An answer to a dialog: opens `path` from Finder while the dialog is on
+    screen, checks that it waits, then gives `answer`."""
+
+    def give(*_):
+        finder.open(path)
+        finder.assert_waits()
+        return answer
+
+    return give
 
 
 def open_file_path():
@@ -864,77 +931,200 @@ def open_file_path():
 
 
 CLOSE_QUESTION = "Close window without saving changes?"
+LEAVE_QUESTION = "Leave window without saving changes?"
 
 
 class TestFileOpenedFromTheSystem:
     def test_with_edits_yes_closes_the_window_and_opens_the_file(
-        self, qtui, tilia_state, window_over_file_a, open_from_finder
+        self, qtui, tilia_state, files, window_over_file_a, finder
     ):
-        window, file_a, file_b = window_over_file_a
+        window = window_over_file_a
         window.metadata["title"].setText("Typed over A")
 
-        with questions(lambda: True) as asked:
-            open_from_finder(file_b)
+        with questions(True) as asked:
+            finder.open(files["B"])
 
         assert asked == [CLOSE_QUESTION]
         assert not window.isVisible()
         assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
-        assert open_file_path() == file_b
+        assert open_file_path() == files["B"]
         # A's typed text went nowhere: B is as saved.
         assert tilia_state.metadata["title"] == "Title B"
         assert not get(Get.IS_FILE_MODIFIED)
 
     def test_with_edits_no_keeps_the_window_and_file_a(
-        self, qtui, tilia_state, window_over_file_a, open_from_finder
+        self, qtui, tilia_state, files, window_over_file_a, finder
     ):
-        window, file_a, file_b = window_over_file_a
+        window = window_over_file_a
         window.metadata["title"].setText("Typed over A")
 
-        with questions(lambda: False) as asked:
-            open_from_finder(file_b)
+        with questions(False) as asked:
+            finder.open(files["B"])
 
         assert asked == [CLOSE_QUESTION]
         assert window.isVisible()
         assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
         assert window.metadata["title"].text() == "Typed over A"
-        assert open_file_path() == file_a
+        assert open_file_path() == files["A"]
         assert tilia_state.metadata["title"] == "Title A"
         # Apply writes to A, the file the window shows.
         window.apply_fields()
-        assert open_file_path() == file_a
+        assert open_file_path() == files["A"]
         assert tilia_state.metadata["title"] == "Typed over A"
 
     def test_without_edits_closes_the_window_and_opens_the_file(
-        self, qtui, tilia_state, window_over_file_a, open_from_finder
+        self, qtui, tilia_state, files, window_over_file_a, finder
     ):
-        window, file_a, file_b = window_over_file_a
+        window = window_over_file_a
 
         with questions() as asked:
-            open_from_finder(file_b)
+            finder.open(files["B"])
 
         assert asked == []
         assert not window.isVisible()
         assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
-        assert open_file_path() == file_b
+        assert open_file_path() == files["B"]
         assert tilia_state.metadata["title"] == "Title B"
 
-    @pytest.mark.parametrize("answer", [True, False], ids=["yes", "no"])
-    def test_a_file_that_arrives_while_the_window_asks_is_not_opened(
-        self, qtui, tilia_state, window_over_file_a, open_from_finder, answer
+
+class TestFileOpenedWhileADialogIsOpen:
+    """The file waits until the dialog is closed, then opens as usual."""
+
+    @pytest.mark.parametrize(
+        "answers, is_opened",
+        [
+            # The window closes, and then B opens.
+            ([True], True),
+            # The window stays, and is asked again for B.
+            ([False, True], True),
+            ([False, False], False),
+        ],
+        ids=["yes", "no-then-yes", "no-then-no"],
+    )
+    def test_the_windows_question(
+        self, qtui, tilia_state, files, window_over_file_a, finder, answers, is_opened
     ):
-        # Closing the window from inside its own question doesn't close it,
-        # and the answer, not given yet, may keep it open over the new file.
-        window, file_a, file_b = window_over_file_a
+        window = window_over_file_a
+        window.metadata["title"].setText("Typed over A")
+        first, *then = answers
+
+        with questions(file_arrives(finder, files["B"], first), *then) as asked:
+            press_escape(window)
+            finder.wait_until_handed_on()
+
+        assert asked == [CLOSE_QUESTION] * len(answers)
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA) is not is_opened
+        assert open_file_path() == files["B" if is_opened else "A"]
+        assert tilia_state.metadata["title"] == ("Title B" if is_opened else "Title A")
+
+    @pytest.mark.parametrize("accepted", [True, False], ids=["ok", "cancel"])
+    def test_edit_notes(
+        self, qtui, tilia_state, files, window_over_file_a, finder, accepted
+    ):
+        window = window_over_file_a
+
+        def type_notes_while_file_arrives(dialog):
+            dialog.text_edit.setPlainText("Notes typed over A")
+            return file_arrives(finder, files["B"], accepted)()
+
+        with (
+            on_screen(EditNotesDialog, type_notes_while_file_arrives),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as save_question,
+            questions() as asked,
+        ):
+            window.on_edit_notes_button()
+            # The notes went to A, the file the window shows.
+            notes_in_a = "Notes typed over A" if accepted else ""
+            assert tilia_state.metadata["notes"] == notes_in_a
+            finder.wait_until_handed_on()
+
+        # Then B opens with the usual questions: about A's changes, if any.
+        assert save_question.called is accepted
+        assert asked == []
+        assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert open_file_path() == files["B"]
+        assert tilia_state.metadata["notes"] == ""
+
+    @pytest.mark.parametrize("accepted", [True, False], ids=["ok", "cancel"])
+    def test_edit_fields(
+        self, qtui, tilia_state, files, window_over_file_a, finder, accepted
+    ):
+        window = window_over_file_a
+
+        def add_a_field_while_file_arrives(dialog):
+            dialog.text_edit.append("extra")
+            return file_arrives(finder, files["B"], accepted)()
+
+        with (
+            on_screen(EditMetadataFieldsDialog, add_a_field_while_file_arrives),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as save_question,
+            questions() as asked,
+        ):
+            window.on_edit_metadata_fields_button()
+            assert ("extra" in tilia_state.metadata) is accepted
+            finder.wait_until_handed_on()
+
+        assert save_question.called is accepted
+        assert asked == []
+        assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert open_file_path() == files["B"]
+        assert "extra" not in tilia_state.metadata
+
+    @pytest.mark.parametrize("answer", [True, False], ids=["yes", "no"])
+    def test_edit_fields_question_about_edits(
+        self, qtui, tilia_state, files, window_over_file_a, finder, answer
+    ):
+        window = window_over_file_a
         window.metadata["title"].setText("Typed over A")
 
-        def file_arrives_then_answer():
-            open_from_finder(file_b)
-            return answer
+        with (
+            # Neither answer applies the edits. After Yes, OK on the names box
+            # shows the fields again without them; after No, they are still
+            # typed, and closing the window for B asks about them.
+            questions(file_arrives(finder, files["B"], answer), True) as asked,
+            on_screen(EditMetadataFieldsDialog, lambda dialog: True),
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as save_question,
+        ):
+            window.on_edit_metadata_fields_button()
+            assert tilia_state.metadata["title"] == "Title A"
+            finder.wait_until_handed_on()
 
-        with questions(file_arrives_then_answer) as asked:
-            press_escape(window)
+        assert asked == (
+            [LEAVE_QUESTION] if answer else [LEAVE_QUESTION, CLOSE_QUESTION]
+        )
+        assert not save_question.called
+        assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert open_file_path() == files["B"]
+        assert tilia_state.metadata["title"] == "Title B"
 
-        assert asked == [CLOSE_QUESTION]
-        assert open_file_path() == file_a
-        assert tilia_state.metadata["title"] == "Title A"
-        assert qtui.is_window_open(WindowKind.MEDIA_METADATA) is not answer
+    @pytest.fixture
+    def dialog(self, qtui):
+        """A dialog on screen, over the main window."""
+        dialog = QDialog(get(Get.MAIN_WINDOW))
+        dialog.setModal(True)
+        dialog.show()
+        yield dialog
+        dialog.reject()
+        dialog.deleteLater()
+
+    @pytest.mark.parametrize("accepted", [True, False], ids=["ok", "cancel"])
+    def test_any_dialog(self, tilia_state, files, finder, dialog, accepted):
+        finder.open(files["B"])
+        finder.assert_waits()
+
+        dialog.done(accepted)
+        finder.wait_until_handed_on()
+
+        assert open_file_path() == files["B"]
+
+    def test_two_files_the_last_one_opens(self, tilia_state, files, finder, dialog):
+        finder.open(files["C"])
+        finder.open(files["B"])
+        finder.assert_waits()
+
+        dialog.reject()
+        finder.wait_until_handed_on()
+        QTest.qWait(3 * PendingFileOpen.RETRY_INTERVAL_MS)
+
+        assert finder.handed_on == [files["B"]]
+        assert open_file_path() == files["B"]
