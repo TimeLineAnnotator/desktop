@@ -28,7 +28,17 @@ class TimelineUIContextMenu(TiliaMenu):
         # (Set name, etc.) — they reorder the timeline as a whole.
         self.check_move_up()
         self.check_move_down()
+        self.add_fields_action()
         self.add_default_actions()
+
+    def add_fields_action(self) -> None:
+        # The timeline's fields, edited like the file's in the Metadata window.
+        fields = CommandQAction("timeline.fields", self)
+        fields.setText("Fields…")
+        fields.triggered.connect(
+            lambda: commands.execute("timeline.fields", self.timeline_ui)
+        )
+        self.addAction(fields)
 
     def add_action(self, name: str):
         action = get_qaction(name)

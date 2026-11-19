@@ -9,6 +9,7 @@ class Get(Enum):
     APP_STATE = auto()
     TIMELINE_ELEMENTS_SELECTED = auto()
     CLIPBOARD_CONTENTS = auto()
+    COMPONENT_FIELDS = auto()
     FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
     FILE_PATH = auto()
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
