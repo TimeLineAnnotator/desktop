@@ -464,7 +464,7 @@ class TestLooksOnlyAtWhatChanged:
         assert opened.bytes() == opened.bytes_read
 
     def test_an_empty_digest_says_nothing(self):
-        # A slider's digest is always empty, as TiLiA makes it.
+        # As TiLiA made a slider's until TimeLineAnnotator/project-management#628.
         opened = Opened.read(EVERY_KIND)
         slider = first_of_kind(opened.doc, "slider")
         for state in (opened.synced, opened.current):

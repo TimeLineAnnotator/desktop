@@ -1601,6 +1601,58 @@ class TestASliderThatIsntStored:
         assert path.read_bytes() == changed
 
 
+class TestAChangeToTheSliderAlone:
+    """An unsaved change, as any other: the slider has a digest of its attributes,
+    as every timeline has (FR-021; TimeLineAnnotator/project-management#628, A)."""
+
+    @pytest.mark.parametrize("change", [resize, hide, move_down])
+    def test_reads_as_modified_until_undone(self, qtui, tilia, tls, tmp_path, change):
+        path = written_by_the_core(EVERY_KIND, tmp_path, without_a_slider)
+        assert open_file(path)
+        assert not tilia.is_file_modified()
+
+        change(tls, the_slider(tls))
+        record()
+
+        assert tilia.is_file_modified()
+        commands.execute("edit.undo")
+        assert not tilia.is_file_modified()
+
+    def test_to_a_stored_one_reads_as_modified(self, every_kind, tilia, tls):
+        resize(tls, the_slider(tls))
+        record()
+
+        assert tilia.is_file_modified()
+
+    def test_is_autosaved(self, qtui, tilia, tls, tmp_path):
+        path = written_by_the_core(EVERY_KIND, tmp_path, without_a_slider)
+        assert open_file(path)
+        with patch.object(autosave.settings, "get", return_value=0):
+            # No thread: autosaves are made here.
+            saver = autosave.AutoSaver(
+                tilia.get_app_state, tilia.file_manager.file.copy_for_writing
+            )
+        (tmp_path / "autosaves").mkdir()
+        written = iter(tmp_path / "autosaves" / name for name in ("1.tla", "2.tla"))
+        with (
+            patch.object(
+                autosave, "get_autosave_path", side_effect=lambda: next(written)
+            ),
+            patch.object(autosave, "make_room_for_new_autosave"),
+        ):
+            saver.auto_save_once()
+            assert not saver.needs_auto_save()
+            slider = the_slider(tls)
+            resize(tls, slider)
+            record()
+
+            assert saver.needs_auto_save()
+            saver.auto_save_once()
+
+        saved = tla.read(tmp_path / "autosaves" / "2.tla")
+        assert saved.timelines[slider.id].attrs["height"] == 30
+
+
 def a_file_of(tmp_path: Path, timelines: dict[str, dict]) -> Path:
     """A file with these timelines, by id, without components."""
     content = {
@@ -1627,8 +1679,9 @@ def a_file_with(tmp_path: Path, timeline: dict) -> tuple[Path, str]:
 
 
 class TestADeletionAboveAStoredSlider:
-    """TiLiA's undo gives a slider back its place, which its empty digest kept it
-    from doing (TimeLineAnnotator/project-management#573)."""
+    """TiLiA's undo gives a slider back its place, which its digest, empty until
+    TimeLineAnnotator/project-management#628, kept it from doing
+    (TimeLineAnnotator/project-management#573)."""
 
     def test_an_undo_gives_back_the_order_and_the_file_s_bytes(
         self, qtui, tilia, tls, tmp_path
