@@ -17,13 +17,16 @@ from tilia.settings import settings
 
 DATE = "2026-11-19_101010_"
 EXTENSION = ".tla"
-MAX_NAME_LENGTH = 255
-# What the date and the extension leave for the title.
-TITLE_ROOM = MAX_NAME_LENGTH - len(DATE) - len(EXTENSION)
+MAX_NAME_BYTES = 150
+# The bytes the date and the extension leave for the title: 128.
+TITLE_ROOM = MAX_NAME_BYTES - len(DATE) - len(EXTENSION)
 UNSAFE_CHARACTERS = ["\\", "/", ":", "*", "?", '"', "<", ">", "|"]
 CONTROL_CHARACTERS = ["\n", "\r", "\t", "\x00", "\x1f", "\x7f"]
-# A character beyond U+FFFF, which takes two UTF-16 units.
+# A character beyond U+FFFF, which takes four bytes in UTF-8.
 NOTE = "\U0001f3b5"
+# Characters that take two, three and four bytes in UTF-8.
+WIDE_CHARACTERS = ["я", "あ", NOTE]
+WIDE_IDS = ["cyrillic", "japanese", "beyond U+FFFF"]
 
 
 class AtTenPastTen(datetime):
@@ -61,8 +64,8 @@ def files_under(folder: Path) -> list[str]:
     )
 
 
-def utf16_length(text: str) -> int:
-    return len(text.encode("utf-16-le")) // 2
+def utf8_length(text: str) -> int:
+    return len(text.encode("utf-8"))
 
 
 class TestAutosaveFilename:
@@ -102,11 +105,16 @@ class TestAutosaveFilename:
         set_title(title)
         assert get_autosave_filename() == f"{DATE}{title}{EXTENSION}"
 
-    def test_a_long_title_is_cut_to_fit(self):
-        set_title("a" * 300)
+    @pytest.mark.parametrize(
+        "letter, kept",
+        [("a", 128), ("я", 64), ("あ", 42), (NOTE, 32)],
+        ids=["latin"] + WIDE_IDS,
+    )
+    def test_a_long_title_is_cut_to_fit(self, letter, kept):
+        set_title(letter * 300)
         name = get_autosave_filename()
-        assert name == f"{DATE}{'a' * TITLE_ROOM}{EXTENSION}"
-        assert len(name) == MAX_NAME_LENGTH
+        assert name == DATE + letter * kept + EXTENSION
+        assert utf8_length(name) <= MAX_NAME_BYTES
 
     def test_a_long_title_is_cut_after_its_characters_are_replaced(self):
         set_title(":" * 300)
@@ -118,20 +126,22 @@ class TestAutosaveFilename:
         set_title(kept + end + "b" * 100)
         assert get_autosave_filename() == f"{DATE}{kept}{EXTENSION}"
 
-    def test_a_cut_doesnt_split_a_character_that_takes_two_utf16_units(self):
-        # Windows counts a name's length in UTF-16 units. Here only one is
-        # left for the note, which takes two.
-        kept = "a" * (TITLE_ROOM - 1)
-        set_title(kept + NOTE + "b" * 100)
+    @pytest.mark.parametrize("character", WIDE_CHARACTERS, ids=WIDE_IDS)
+    def test_a_character_at_the_cut_that_doesnt_fit_is_left_out(self, character):
+        # One byte fewer is left than the character takes.
+        kept = "a" * (TITLE_ROOM - utf8_length(character) + 1)
+        set_title(kept + character + "b" * 100)
         name = get_autosave_filename()
         assert name == f"{DATE}{kept}{EXTENSION}"
-        assert utf16_length(name) <= MAX_NAME_LENGTH
+        assert utf8_length(name) <= MAX_NAME_BYTES
 
-    def test_a_long_title_of_characters_that_take_two_utf16_units(self):
-        set_title(NOTE * 300)
+    @pytest.mark.parametrize("character", WIDE_CHARACTERS, ids=WIDE_IDS)
+    def test_a_character_at_the_cut_that_fits_is_kept(self, character):
+        kept = "a" * (TITLE_ROOM - utf8_length(character)) + character
+        set_title(kept + "b" * 100)
         name = get_autosave_filename()
-        assert name == DATE + NOTE * (TITLE_ROOM // 2) + EXTENSION
-        assert utf16_length(name) <= MAX_NAME_LENGTH
+        assert name == f"{DATE}{kept}{EXTENSION}"
+        assert utf8_length(name) == MAX_NAME_BYTES
 
 
 class TestAutosave:
