@@ -24,6 +24,7 @@ from tests import SETTINGS_DIR
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH, EXAMPLE_YT_URL
 from tests.mock import Serve
 from tests.utils import load_local_media
+from tilia.file.open_document import OpenDocument
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import SettingsManager, settings
@@ -212,6 +213,30 @@ class TestMovedAloneAfterItsMediaWasFound:
 
         assert open_file(moved)
 
+    def test_when_its_media_wont_load_there_tilia_asks(self, moved, tilia):
+        # A file there that the player can't load: damaged, or a codec it lacks.
+        before = moved.read_bytes()
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=False):
+            assert open_file(moved)
+
+        save()
+
+        assert moved.read_bytes() == before
+
+    def test_the_media_picked_then_replaces_the_place(self, moved, tmp_path):
+        place = tmp_path / "a" / "m" / "example.mp3"
+        picked = media_in(tmp_path / "elsewhere")
+
+        with patch.object(
+            QtAudioPlayer,
+            "_engine_load_media",
+            side_effect=lambda path: Path(path) != place,
+        ):
+            assert open_file(moved, look_for=picked)
+
+        assert loaded_media() == picked
+        assert Path(settings.get_media_place(DOCUMENT)) == picked
+
 
 class TestNotFound:
     """US4, scenario 3: TiLiA asks, as today, and the file keeps its path (#409)."""
@@ -269,6 +294,37 @@ class TestNotFound:
 
         assert path.read_bytes() == before
         assert not tilia.is_file_modified()
+        assert settings.get_media_place(DOCUMENT) is None
+
+
+class TestMediaThatWontLoad:
+    """Isn't remembered as the place this document found its media."""
+
+    def test_where_the_core_finds_it(self, qtui, tilia, tls, tmp_path):
+        path = a_file_with_media(tmp_path / "file.tla", media_in(tmp_path / "m"))
+
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=False):
+            open_file(path)
+
+        assert settings.get_media_place(DOCUMENT) is None
+
+    def test_picked_when_asked(self, qtui, tilia, tls, tmp_path):
+        path = a_file_with_media(tmp_path / "file.tla", tmp_path / "m" / "example.mp3")
+        picked = media_in(tmp_path / "elsewhere")
+
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=False):
+            assert open_file(path, look_for=picked)
+
+        assert settings.get_media_place(DOCUMENT) is None
+
+    def test_picked_when_asked_and_not_media(self, qtui, tilia, tls, tmp_path):
+        path = a_file_with_media(tmp_path / "file.tla", tmp_path / "m" / "example.mp3")
+        picked = tmp_path / "elsewhere" / "notes.txt"
+        picked.parent.mkdir()
+        picked.write_text("not media", encoding="utf-8")
+
+        assert open_file(path, look_for=picked)
+
         assert settings.get_media_place(DOCUMENT) is None
 
 
@@ -426,6 +482,29 @@ class TestAnUndoOfOtherMedia:
         assert saved.read_bytes() == expected
         assert stored_media_path(saved) == "../m/example.mp3"
 
+    def test_after_a_save_as_through_a_link_names_the_media_from_its_target(
+        self, declined, other, tmp_path
+    ):
+        # The core writes the file the link names, with paths from that file's
+        # folder, which is at another depth than the link's.
+        (tmp_path / "store").mkdir()
+        target = tmp_path / "store" / "saved.tla"
+        link = tmp_path / "links" / "deeper" / "saved.tla"
+        link.parent.mkdir(parents=True)
+        try:
+            link.symlink_to(target)
+        except OSError as error:
+            pytest.skip(f"can't make a symbolic link here: {error}")
+        expected = the_core_s_bytes(declined, into=tmp_path / "store")
+        load_local_media(other)
+        save_as(link)
+
+        undo()
+        save()
+
+        assert target.read_bytes() == expected
+        assert stored_media_path(target) == "../m/example.mp3"
+
     @pytest.mark.parametrize("saved_between", [False, True], ids=["", "saved between"])
     def test_of_an_absolute_path_not_on_this_computer(
         self, qtui, tilia, tls, tmp_path, other, saved_between
@@ -461,6 +540,31 @@ class TestAnUndoOfOtherMedia:
         save()
 
         assert stored_media_path(declined) == "other/other.mp3"
+
+
+class TestNoteMediaFound:
+    def test_the_path_found_is_no_change(self):
+        doc = media_doc("m/example.mp3")
+        opened = OpenDocument(document=doc)
+        state = {"media_metadata": {}, "media_path": "", "timelines": {}}
+        opened.synced = state
+
+        opened.note_media_found("C:/found/example.mp3")
+        opened.sync({**state, "media_path": "C:/found/example.mp3"})
+
+        assert doc.media_path == "m/example.mp3"
+        assert opened.media_path == "C:/found/example.mp3"
+
+    def test_other_media_is_a_change(self):
+        doc = media_doc("m/example.mp3")
+        opened = OpenDocument(document=doc)
+        state = {"media_metadata": {}, "media_path": "", "timelines": {}}
+        opened.synced = state
+
+        opened.note_media_found("C:/found/example.mp3")
+        opened.sync({**state, "media_path": "C:/other/other.mp3"})
+
+        assert doc.media_path == tla.as_media_path("C:/other/other.mp3")
 
 
 @pytest.fixture

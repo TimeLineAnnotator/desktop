@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -157,15 +156,14 @@ class OpenDocument:
             before = copy.copy(self.document)
             with paths.following(self.document, held, path):
                 tla.write(path, self.document)
-            # The folder `tla.write` rebases to; `rebase_paths` is its function.
-            folder = os.path.dirname(os.path.abspath(path))
-            self._rebase_kept_media_paths(before, folder)
+            # The folder `tla.write` rebases to: that of the file a link names.
+            self._rebase_kept_media_paths(before, paths.paths_folder(path))
 
     def _rebase_kept_media_paths(self, before: tla.Document, folder: str) -> None:
-        """Makes the media paths kept for undo those the file just written into
-        `folder` from `before` stores, as the document's own is: the one the
-        document held is what the core wrote, and any other is rebased as the core
-        would have written it."""
+        """Makes the media paths kept for undo those the file just written from
+        `before` stores, relative to `folder`, as the document's own is: the one
+        the document held is what the core wrote, and any other is rebased as the
+        core would have written it."""
         written = {before.media_path: self.document.media_path}
         for key, (state, history, media_path) in list(self._histories.items()):
             if media_path not in written:
