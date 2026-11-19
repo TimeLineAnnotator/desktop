@@ -562,8 +562,7 @@ def _hierarchy(
         lambda: _hierarchy_start(start),
         lambda: _hierarchy_end(start, end),
         lambda: _hierarchy_level(level),
-        lambda: _pre_start(attrs.get("pre_start"), start),
-        lambda: _post_end(attrs.get("post_end"), end, media_length),
+        *_margins(attrs, start, end, media_length),
         lambda: _same_place(start, end, level, hierarchies()),
         lambda: _crossed(start, end, level, hierarchies()),
     )
@@ -581,10 +580,26 @@ def _range(
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _range_row(attrs.get("row_id"), context.row_ids),
         lambda: _range_times(start, end),
-        lambda: _range_in_media(start, end, media_length),
-        lambda: _pre_start(attrs.get("pre_start"), start),
-        lambda: _post_end(attrs.get("post_end"), end, media_length),
+        lambda: _range_start(start),
+        lambda: _range_end(end, media_length),
+        *_margins(attrs, start, end, media_length),
         lambda: _joined(attrs, others, context.rows),
+    )
+
+
+def _margins(
+    attrs: Mapping[str, Any], start: float, end: float, media_length: float
+) -> tuple[Check, ...]:
+    """The rules of a hierarchy's or a range's `pre_start` and `post_end`, each
+    rule a check of its own, so that every rule broken is found: a pre_start
+    before 0 can be after a start before it too, and a post_end past the end
+    before an end past it."""
+    pre_start, post_end = attrs.get("pre_start"), attrs.get("post_end")
+    return (
+        lambda: _pre_start_in_media(pre_start),
+        lambda: _pre_start_by_start(pre_start, start),
+        lambda: _post_end_in_media(post_end, media_length),
+        lambda: _post_end_by_end(post_end, end),
     )
 
 
@@ -1003,30 +1018,34 @@ def _hierarchy_level(level: Any) -> Outcome | None:
     return None
 
 
-def _pre_start(pre_start: float | None, start: float) -> Outcome | None:
-    """`pre_start`, when set, is from 0 to the start."""
-    if pre_start is None:
-        return None
-    if pre_start < 0:
+def _pre_start_in_media(pre_start: float | None) -> Outcome | None:
+    """`pre_start`, when set, is from 0."""
+    if pre_start is not None and pre_start < 0:
         return _broken(
             NEGATIVE_TIME, "pre_start is outside media bounds.", about="pre_start"
         )
-    if pre_start > start:
+    return None
+
+
+def _pre_start_by_start(pre_start: float | None, start: float) -> Outcome | None:
+    """`pre_start`, when set, is no later than the start."""
+    if pre_start is not None and pre_start > start:
         return _broken(PRE_START_AFTER_START, "pre_start can't be after start time.")
     return None
 
 
-def _post_end(
-    post_end: float | None, end: float, media_length: float
-) -> Outcome | None:
-    """`post_end`, when set, is from the end to the media length."""
-    if post_end is None:
-        return None
-    if post_end > media_length:
+def _post_end_in_media(post_end: float | None, media_length: float) -> Outcome | None:
+    """`post_end`, when set, is no later than the media length."""
+    if post_end is not None and post_end > media_length:
         return _broken(
             PAST_MEDIA_END, "post_end is outside media bounds.", about="post_end"
         )
-    if post_end < end:
+    return None
+
+
+def _post_end_by_end(post_end: float | None, end: float) -> Outcome | None:
+    """`post_end`, when set, is no earlier than the end."""
+    if post_end is not None and post_end < end:
         return _broken(POST_END_BEFORE_END, "post_end can't be before end time.")
     return None
 
@@ -1116,9 +1135,16 @@ def _range_times(start: float, end: float) -> Outcome | None:
     return None
 
 
-def _range_in_media(start: float, end: float, media_length: float) -> Outcome | None:
+def _range_start(start: float) -> Outcome | None:
+    """A range's start is from 0. TiLiA checks it with the end, in one text, but
+    they are two rules: a range before 0 can be past the end too."""
     if start < 0:
         return _broken(NEGATIVE_TIME, "Range is outside media bounds.", about="start")
+    return None
+
+
+def _range_end(end: float, media_length: float) -> Outcome | None:
+    """A range's end is no later than the media length."""
     if end > media_length:
         return _broken(PAST_MEDIA_END, "Range is outside media bounds.", about="end")
     return None

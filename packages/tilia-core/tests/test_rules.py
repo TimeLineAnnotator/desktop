@@ -2619,9 +2619,15 @@ class TestWhatAnOutcomeIsAbout:
                 },
                 {
                     (rules.NEGATIVE_TIME, "start"),
+                    (rules.PAST_MEDIA_END, "end"),
                     (rules.NEGATIVE_TIME, "pre_start"),
                     (rules.PAST_MEDIA_END, "post_end"),
                 },
+            ),
+            (
+                "range",
+                {"start": -1.0, "end": 10.0, "row_id": ROW},
+                {(rules.NEGATIVE_TIME, "start")},
             ),
             (
                 "range",
@@ -2634,6 +2640,7 @@ class TestWhatAnOutcomeIsAbout:
         ids=[
             "hierarchy",
             "hierarchy by its start",
+            "range",
             "range by its start",
             "range by its end",
             "marker before 0",
@@ -2746,6 +2753,13 @@ def every_rule(components, rows=ROWS, media_length=MEDIA):
     )
 
 
+# A hierarchy at level 1 and a range in a row that exists, from start to end.
+SEGMENTS = {
+    "hierarchy": lambda start, end, **attrs: hierarchy(start, end, 1, **attrs),
+    "range": lambda start, end, **attrs: range_in(ROW, start, end, **attrs),
+}
+
+
 def reasons(checked):
     """Each rule broken but the color, in the order the rules list them."""
     return [checked.outcome.reason, *(also.reason for also in checked.also)]
@@ -2781,7 +2795,10 @@ class TestEveryRule:
                 if checked.outcome:
                     assert checked.also == (), seed
                 assert not any(also.ok for also in checked.also), seed
-                assert len(set(reasons(checked))) == 1 + len(checked.also), seed
+                # Two rules may give one reason: a range's start before 0 and
+                # its end past the media's end.
+                found = [(o.code, o.about) for o in (checked.outcome, *checked.also)]
+                assert len(set(found)) == len(found), seed
 
     def test_the_random_timelines_break_more_than_one_rule_of_a_component(self):
         # So that the tests above have something to compare.
@@ -2829,6 +2846,36 @@ class TestEveryRule:
             "Level can't be below 1. Got '0'",
             "pre_start can't be after start time.",
             "post_end is outside media bounds.",
+            "post_end can't be before end time.",
+        ]
+
+    @pytest.mark.parametrize("kind", ["hierarchy", "range"])
+    def test_a_pre_start_before_0_and_after_the_start(self, kind):
+        # Both rules of the pre_start, each found: one doesn't hide the other.
+        first = SEGMENTS[kind](-5.0, 2.0, pre_start=-1.0)
+        checked = every_rule([first])[first.id]
+        found = [(o.code, o.about) for o in (checked.outcome, *checked.also)]
+        assert found[1:] == [
+            (rules.NEGATIVE_TIME, "pre_start"),
+            (rules.PRE_START_AFTER_START, ""),
+        ]
+        assert reasons(checked)[1:] == [
+            "pre_start is outside media bounds.",
+            "pre_start can't be after start time.",
+        ]
+
+    @pytest.mark.parametrize("kind", ["hierarchy", "range"])
+    def test_a_post_end_past_the_end_and_before_the_end(self, kind):
+        first = SEGMENTS[kind](10.0, 80.0, post_end=70.0)
+        checked = every_rule([first])[first.id]
+        found = [(o.code, o.about) for o in (checked.outcome, *checked.also)]
+        assert found[1:] == [
+            (rules.PAST_MEDIA_END, "post_end"),
+            (rules.POST_END_BEFORE_END, ""),
+        ]
+        assert reasons(checked)[1:] == [
+            "post_end is outside media bounds.",
+            "post_end can't be before end time.",
         ]
 
     def test_a_hierarchy_beyond_the_media_on_both_sides_is_one_rule(self):
@@ -2865,7 +2912,23 @@ class TestEveryRule:
             "Range is outside media bounds.",
             "pre_start is outside media bounds.",
             "post_end is outside media bounds.",
+            "post_end can't be before end time.",
         ]
+
+    def test_a_range_before_0_and_past_the_end_is_two_rules(self):
+        first = range_in(ROW, -1.0, 70.0)
+        checked = every_rule([first])[first.id]
+        assert [(o.code, o.about) for o in (checked.outcome, *checked.also)] == [
+            (rules.NEGATIVE_TIME, "start"),
+            (rules.PAST_MEDIA_END, "end"),
+        ]
+        assert reasons(checked) == ["Range is outside media bounds."] * 2
+
+    def test_one_rule_at_a_time_a_range_is_before_0_first(self):
+        # As an import checks it, and the range's function: the first rule.
+        first = range_in(ROW, -1.0, 70.0)
+        outcome = rules.range_(MEDIA, [], first.attrs, rows=ROWS)
+        assert (outcome.code, outcome.about) == (rules.NEGATIVE_TIME, "start")
 
     def test_a_range_with_a_broken_join(self):
         first = range_in(ROW, -1.0, 1.0, joined_right="next")
