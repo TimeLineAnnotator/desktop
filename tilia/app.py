@@ -194,7 +194,24 @@ class App:
         if not self._do_open(Path(path)):
             return False
         self._show_problems(self.file_manager.file)
+        self._handle_length_reported_on_load()
         return True
+
+    def _handle_length_reported_on_load(self) -> None:
+        """A local file's media reports its length while the file loads, before its
+        timelines are built and while the file open is still the blank one, so that
+        nothing could be kept, scaled or asked then. Once the file is open, after its
+        warnings, that report is handled as a later one is: within the tolerance of
+        the stored length, the stored one stays; beyond it, TiLiA asks to scale or
+        crop, then takes the new length (FR-034). A file without a stored length
+        took the reported one as it opened."""
+        stored = self.file_manager.file.stored_media_length
+        reported = self.duration
+        if not stored or not reported or reported == stored:
+            return
+        # The length the timelines were made for, which the report is compared with.
+        self.duration = stored
+        self.set_file_media_duration(reported, scale_timelines="keep")
 
     @long_operation("Loading file...")
     def _do_open(self, path: Path) -> bool:
