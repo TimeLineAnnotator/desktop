@@ -272,13 +272,18 @@ def history_of(doc: tla.Document) -> History:
     default height or the title of a file without one: a person's edit writes it,
     and an undo back to the state read gives back the file's own. So the file's
     fields, and each timeline's attributes and fields, are kept too; a PDF
-    timeline's path isn't: TiLiA's is the file it found, absolute, and the core's
-    path handler judges it by its text when it is written (`tla.paths`), so that
-    the file read's own path comes back: absolute while the document holds that
-    text absolute, and otherwise relative from the folder written into. The
-    caller keeps one of these for each state its undo records, and
-    `give_back_history` gives it back when an undo or a redo returns to that
-    state."""
+    timeline's path isn't. TiLiA's is the file it found, absolute and normalised,
+    and the core's path handler judges it by its text when it is written
+    (`tla.paths`): the text the file was read with, give or take "/" and NFC,
+    stays absolute, and any other is written relative from the folder written
+    into wherever a relative path exists. So an undo gives back the path the
+    file was read with only where TiLiA spells it as the file did: an absolute
+    path, or a relative one, already normalised. One that TiLiA's lookup
+    normalises, with a `.`, a `..` after a name or a doubled "/", comes back
+    normalised, and relative where it can be
+    (TimeLineAnnotator/project-management#625). The caller keeps one of these
+    for each state its undo records, and `give_back_history` gives it back when
+    an undo or a redo returns to that state."""
     scores: dict[str, tla.Score | None] = {}
     marks: dict[str, dict[str, Any]] = {}
     attributes: dict[str, dict[str, Any]] = {}
