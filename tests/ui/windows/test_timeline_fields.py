@@ -148,6 +148,15 @@ class patch_question:
         self._patch.__exit__(*args)
 
 
+@pytest.fixture(autouse=True)
+def no_question_unanswered():
+    """A question a test doesn't answer itself is answered No, and fails the test,
+    rather than waiting for a click."""
+    with patch_question(False) as unanswered:
+        yield
+    assert unanswered.asked == []
+
+
 def fields_of(timeline_id: str) -> dict:
     return get(Get.TIMELINE, timeline_id).get_data("fields")
 
