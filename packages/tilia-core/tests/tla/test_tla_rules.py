@@ -3585,6 +3585,41 @@ class TestKeepReadProblems:
             "post_end can't be before end time."
         ]
 
+    def test_an_end_put_past_the_end_beside_a_start_before_0_is_new(self, tmp_path):
+        # Read before 0 alone. The edit puts its end past the end too, a rule
+        # the start no longer hides, which the call doesn't keep.
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    ranges((FIRST, a_range(-1.0, 50.0, color="notacolor"))),
+                )
+            )
+        )
+        fixed_in_part(doc, FIRST, TEXTURE, end=150.0)
+        assert [w.message for w in refused(doc, tmp_path)] == [OUTSIDE]
+
+    def test_a_pre_start_put_after_the_start_beside_one_before_0_is_new(self, tmp_path):
+        # Read with a pre_start before 0, at its start. The edit puts it after
+        # the start, a rule its being before 0 no longer hides.
+        doc = tla.loads(a_file(SEGMENT_IN[FORM](-5.0, 2.0, pre_start=-5.0)))
+        fixed_in_part(doc, pre_start=-1.0)
+        assert [w.message for w in refused(doc, tmp_path)] == [
+            "pre_start can't be after start time."
+        ]
+
+    def test_past_a_length_first_learned_by_its_end_beside_a_start_before_0(
+        self, tmp_path
+    ):
+        # Read with no length, before 0 and past the end of the one given
+        # since: its end past it is a problem it came with, now that the
+        # start doesn't hide it, so fixing the start writes it.
+        doc = tla.loads(a_file(ranges((FIRST, a_range(-1.0, 150.0)))))
+        doc.media_length = 100.0
+        fixed_in_part(doc, FIRST, TEXTURE, start=0.0)
+        read = tla.read(written(doc, tmp_path))
+        assert [w.message for w in read.warnings] == [OUTSIDE]
+
     def test_unchanged_past_the_end_by_another_time_as_ever(self, tmp_path):
         # FR-054, without the call: a component that was past the end stays old,
         # by whichever of its times.
