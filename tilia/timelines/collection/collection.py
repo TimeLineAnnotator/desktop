@@ -318,8 +318,7 @@ class Timelines:
     def _restore_timeline_state(self, timeline: Timeline, state: dict[str, dict]):
         # Attributes must be restored before components, as component validation
         # may depend on them (e.g. RangeTimeline checks that row_id exists in rows).
-        # An empty digest says nothing: a slider's always is.
-        if not state["hash"] or timeline.get_state()["hash"] != state["hash"]:
+        if timeline.get_state()["hash"] != state["hash"]:
             for attr in timeline.SERIALIZABLE:
                 value = state[attr]
                 if isinstance(value, dict):
