@@ -1,8 +1,10 @@
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, Qt
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QMessageBox, QPushButton
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
@@ -11,9 +13,11 @@ from tilia.requests import Get, Post, get, post
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
+from tilia.ui.dialogs.basic import YesOrNoMessageBox
 from tilia.ui.format import format_media_time
 from tilia.ui.windows import WindowKind
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
+from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
 
 
 @pytest.fixture
@@ -582,3 +586,94 @@ class TestModal:
         window = qtui._windows[WindowKind.MEDIA_METADATA]
         assert window is not None and window.isVisible()
         window.close()
+
+
+@contextmanager
+def answer_questions(yes: bool):
+    """Answers the window's yes-or-no questions with Yes or No, and keeps the
+    text of each."""
+    asked = []
+
+    def exec_(box):
+        asked.append(box.text())
+        return QMessageBox.StandardButton.Yes if yes else QMessageBox.StandardButton.No
+
+    with patch.object(YesOrNoMessageBox, "exec", new=exec_):
+        yield asked
+
+
+# A field of each kind, and a text to type in it.
+FIELD_KINDS = [
+    pytest.param("title", "Typed title", id="required"),
+    pytest.param("composer", "Typed composer", id="default"),
+    pytest.param("media length", "2:30", id="media-length"),
+]
+
+
+def line_edit_of(window, field):
+    if field == "media length":
+        return window.media_length_edit
+    return window.metadata[field]
+
+
+def type_in(window, field, text):
+    line_edit = line_edit_of(window, field)
+    line_edit.clear()
+    QTest.keyClicks(line_edit, text)
+    return line_edit
+
+
+def buttons(window):
+    return window.findChildren(QPushButton)
+
+
+class TestEnter:
+    """Enter does nothing: no button is the default, and the person clicks
+    Apply (#910, point 1)."""
+
+    @staticmethod
+    def assert_no_button_is_or_becomes_the_default(window):
+        # The window makes its first auto-default button the default when it
+        # is shown, and any other when it gets the focus.
+        assert {"Apply", "Cancel", "Edit notes...", "Edit fields..."} <= {
+            button_.text() for button_ in buttons(window)
+        }
+        for button_ in buttons(window):
+            assert not button_.isDefault(), button_.text()
+            assert not button_.autoDefault(), button_.text()
+
+    def test_no_button_is_or_becomes_the_default(self, media_metadata_window):
+        self.assert_no_button_is_or_becomes_the_default(media_metadata_window)
+
+        # Apply makes the buttons below the fields again.
+        media_metadata_window.apply_fields()
+
+        self.assert_no_button_is_or_becomes_the_default(media_metadata_window)
+
+    @pytest.mark.parametrize(
+        "key", [Qt.Key.Key_Return, Qt.Key.Key_Enter], ids=["return", "enter"]
+    )
+    @pytest.mark.parametrize("field, text", FIELD_KINDS)
+    def test_in_a_field_does_nothing(
+        self, qtui, media_metadata_window, tilia_state, field, text, key
+    ):
+        before = dict(tilia_state.metadata)
+        line_edit = type_in(media_metadata_window, field, text)
+        typed = line_edit.text()
+
+        with (
+            answer_questions(True) as asked,
+            patch.object(EditMetadataFieldsDialog, "exec", return_value=False) as names,
+            patch.object(EditNotesDialog, "exec", return_value=False) as notes,
+        ):
+            QTest.keyClick(line_edit, key)
+
+        assert asked == []
+        names.assert_not_called()
+        notes.assert_not_called()
+        assert media_metadata_window.isVisible()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        # Nothing applied, and the typing is still there.
+        assert tilia_state.metadata == before
+        assert tilia_state.duration == 100
+        assert line_edit.text() == typed
