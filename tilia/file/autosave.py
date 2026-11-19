@@ -93,6 +93,10 @@ def delete_older_autosaves(amount: int):
 
 
 def make_room_for_new_autosave() -> None:
+    if Path(dirs.autosaves_path) == Path():
+        # Not set yet: the working directory, whose files aren't autosaves.
+        logger.error("The autosaves folder isn't set: deleting no older autosave.")
+        return
     if (
         remaining_autosaves := len(get_autosaves_paths())
         - settings.get("auto-save", "max_stored_files")

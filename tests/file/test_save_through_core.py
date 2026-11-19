@@ -941,6 +941,20 @@ class TestAutosave:
         assert (read.origin, read.fingerprint) == (origin, fingerprint)
         assert tla.read(autosave_path).timelines[timeline_id].name == "Renamed"
 
+    def test_making_room_deletes_nothing_before_the_folder_is_set(
+        self, tmp_path, monkeypatch
+    ):
+        # Until TiLiA starts, the folder is the working directory, whose files
+        # aren't autosaves.
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(autosave.dirs, "autosaves_path", Path())
+        (tmp_path / "not an autosave.txt").write_text("kept")
+
+        with patch.object(autosave.settings, "get", return_value=0):
+            autosave.make_room_for_new_autosave()
+
+        assert (tmp_path / "not an autosave.txt").read_text() == "kept"
+
 
 class TestTheOldWriterIsGone:
     def test_write_tilia_file_to_disk_and_tilia_file_are_gone(self):
