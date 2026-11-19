@@ -637,7 +637,7 @@ class TestFileFields:
         # #551, point 1, b: back at the state read, what TiLiA filled in goes. The
         # states alone can't tell it from a person's edit; the history can.
         opened = Opened.read(EMPTY)
-        history = tla_bridge.history_of(opened.doc)
+        history = tla_bridge.history_of(opened.doc, opened.current)
         first = copy.deepcopy(opened.current)
         opened.current["media_metadata"]["title"] = "Ständchen"
         opened.current["media_metadata"]["notes"] = "notes"

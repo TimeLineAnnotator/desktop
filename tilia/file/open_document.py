@@ -119,7 +119,10 @@ class OpenDocument:
         what the document holds that the state can't tell, for an undo or a redo
         back to it."""
         with self._lock:
-            self._histories[id(state)] = (state, tla_bridge.history_of(self.document))
+            self._histories[id(state)] = (
+                state,
+                tla_bridge.history_of(self.document, state),
+            )
 
     def forget_all_but(self, states: Iterable[dict[str, Any]]) -> None:
         """Forgets the history kept for any state but these, which undo keeps."""
@@ -163,6 +166,18 @@ class OpenDocument:
             media_metadata = {**self.synced["media_metadata"], _MEDIA_LENGTH: length}
             # A new dict: undo may keep the old one in a state it records.
             self.synced = {**self.synced, "media_metadata": media_metadata}
+
+    def note_unstored_timeline(self, timeline_id: str, state: dict[str, Any]) -> None:
+        """Takes a timeline TiLiA shows and the document doesn't store, such as the
+        slider of a new file, with `state`, its state, as what the document reflects:
+        so it is no change, and the document stores it only once it differs
+        (FR-007)."""
+        with self._lock:
+            if self.synced is None:
+                return
+            timelines = {**self.synced["timelines"], timeline_id: state}
+            # A new dict: undo may keep the old one in a state it records.
+            self.synced = {**self.synced, "timelines": timelines}
 
     def copy_for_writing(self) -> tla.Document:
         """A copy of the document, to write elsewhere: a write makes the document it
