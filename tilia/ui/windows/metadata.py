@@ -78,6 +78,10 @@ class MediaMetadataWindow(QDialog):
             QDialogButtonBox.StandardButton.Apply
             | QDialogButtonBox.StandardButton.Cancel
         )
+        # Enter in a field neither applies nor cancels: no button is the
+        # default, and none becomes it when it gets the focus.
+        for button in self.button_box.buttons():
+            button.setAutoDefault(False)
         self.button_box.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(
             self.apply_fields
         )
@@ -162,10 +166,13 @@ class MediaMetadataWindow(QDialog):
 
     def setup_buttons(self):
         edit_notes_button = QPushButton("Edit notes...")
+        # Like Apply and Cancel, so that Enter in a field doesn't click it.
+        edit_notes_button.setAutoDefault(False)
         edit_notes_button.clicked.connect(self.on_edit_notes_button)
         self.form_layout.addRow(edit_notes_button)
 
         edit_fields_button = QPushButton("Edit fields...")
+        edit_fields_button.setAutoDefault(False)
         edit_fields_button.clicked.connect(self.on_edit_metadata_fields_button)
         self.form_layout.addRow(edit_fields_button)
 
