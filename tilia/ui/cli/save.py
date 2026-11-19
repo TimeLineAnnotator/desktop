@@ -37,16 +37,24 @@ def ask_overwrite_save_path(path: Path):
 
 
 def save(namespace):
-    path = Path(namespace.path)
+    path = confirmed_save_path(Path(namespace.path), namespace.overwrite)
+    if path is not None:
+        post(Post.REQUEST_SAVE_TO_PATH, str(path))
+
+
+def confirmed_save_path(path: Path, overwrite: bool = False) -> Path | None:
+    """`path`, with `.tla` added when missing, once overwriting a file there is
+    confirmed, by `overwrite` or by the person, and it can be saved to. None
+    otherwise, having said why a path can't be saved to."""
     path = ensure_tla_extension(path)
 
-    if path.exists() and not namespace.overwrite:
+    if path.exists() and not overwrite:
         if not ask_overwrite_save_path(path):
-            return
+            return None
 
     valid, message = validate_save_path(path)
     if not valid:
         tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, message)
-        return
+        return None
 
-    post(Post.REQUEST_SAVE_TO_PATH, str(path.resolve()))
+    return path.resolve()

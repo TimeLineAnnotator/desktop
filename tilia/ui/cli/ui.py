@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import traceback
+from pathlib import Path
 
 from colorama import Fore
 
@@ -47,10 +48,12 @@ class CLI:
         SERVES = {
             (Get.PLAYER_CLASS, self.get_player_class),
             (Get.FROM_USER_YES_OR_NO, on_ask_yes_or_no),
+            (Get.FROM_USER_CHOICE, on_ask_choice),
             (Get.FROM_USER_SHOULD_SAVE_CHANGES, on_ask_should_save_changes),
             (Get.FROM_USER_RETRY_MEDIA_PATH, on_ask_retry_media_file),
             (Get.FROM_USER_RETRY_PDF_PATH, on_ask_retry_pdf_file),
             (Get.FROM_USER_MEDIA_PATH, on_ask_media_path),
+            (Get.FROM_USER_SAVE_PATH_TILIA, on_ask_save_path),
             (Get.FROM_USER_SHOW_PROBLEMS, on_show_problems),
             (
                 Get.FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION,
@@ -206,6 +209,42 @@ def _set_verbosity(verbose):
 
 def on_ask_yes_or_no(title: str, prompt: str) -> bool:
     return ask_yes_or_no(f"{title}: {prompt}")
+
+
+def on_ask_choice(title: str, message: str, buttons: list[str]) -> str | None:
+    """The message, then the buttons as choices (contracts/controls.md), until the
+    answer is one of them: its words in any case, with or without a closing "…".
+    None at the end of the input, which chooses none."""
+    answers = {_as_answer(words): words for words in buttons}
+    prompt = f"{message} [{'/'.join(buttons)}]: "
+    while True:
+        try:
+            answer = input(prompt)
+        except EOFError:
+            return None
+        if (chosen := answers.get(_as_answer(answer))) is not None:
+            return chosen
+
+
+def _as_answer(words: str) -> str:
+    """`words` as an answer typed in the terminal compares."""
+    return words.strip().removesuffix("…").removesuffix("...").strip().casefold()
+
+
+def on_ask_save_path(_initial_name: str) -> tuple[bool, str | None]:
+    """A path to save the file to, taken as `save <path>` takes one; an empty
+    answer, or the end of the input, cancels
+    (TimeLineAnnotator/project-management#618, a)."""
+    try:
+        answer = input("Path to save the file [leave empty to cancel]: ").strip()
+    except EOFError:
+        return False, None
+    if not answer:
+        return False, None
+    path = save.confirmed_save_path(Path(answer))
+    if path is None:
+        return False, None
+    return True, str(path)
 
 
 def on_ask_should_save_changes() -> tuple[bool, bool]:
