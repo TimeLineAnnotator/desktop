@@ -366,6 +366,15 @@ class TestEditing:
 
         assert fields_of(BARS) == {"author": ""}
 
+    def test_a_name_typed_twice_counts_once_for_a_rename(self, every_kind, tluis):
+        # Two fields replaced by one name typed twice is no rename: the list is
+        # shorter, and the new field starts empty.
+        window = open_fields(tluis, CADENCES)
+
+        edit_names(window, "key\nkey")
+
+        assert fields_of(CADENCES) == {"key": ""}
+
     def test_cancelled_the_names_change_nothing(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
 
@@ -559,10 +568,14 @@ class TestClosing:
         window = open_fields(tluis, FORM)
         window.line_edits["author"].setText("Anne-Marie")
 
-        with patch_question(True) as question:
+        with (
+            patch_question(True) as question,
+            patch.object(FieldNamesDialog, "exec", return_value=False) as names,
+        ):
             QTest.keyClick(window.line_edits["author"], Qt.Key.Key_Return)
 
         assert question.asked == []
+        names.assert_not_called()
         assert window.isVisible()
         assert fields_of(FORM) == FORM_FIELDS
 
