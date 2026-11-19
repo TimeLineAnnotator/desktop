@@ -533,6 +533,24 @@ class TestAnAutosaveBeforeLoading:
 
         assert autosaves() == []
 
+    @pytest.mark.parametrize(
+        "path",
+        [FILES / "broken" / "not-json.tla", IN_QUARTERS, FILES / "not here.tla"],
+        ids=["the core refuses it", "tilia refuses it", "not there"],
+    )
+    def test_a_file_that_isnt_opened_writes_none(
+        self, open_before, tilia, tls, tilia_errors, path
+    ):
+        # Nothing is cleared, so the file open stays as it was, with its changes.
+        edit_and_record(tls)
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            assert not open_file(path)
+
+        tilia_errors.assert_error()
+        assert cadence_label(tls) == "HC"
+        assert autosaves() == []
+
     def test_a_load_that_succeeds_opens_the_other_file_as_before(
         self, open_before, tilia, tls, tilia_errors, tmp_path
     ):
