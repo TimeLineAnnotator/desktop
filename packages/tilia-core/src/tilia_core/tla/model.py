@@ -170,6 +170,11 @@ class ReadWarning:
     `timeline_id` and `component_id` are the document's ids of what it concerns,
     or None where there is none, such as for a component the migration dropped.
     A migration's `place` can't say: it is in the old file, with the old ids.
+    `other_ids` are, for a problem between components, such as two hierarchies
+    that cross, the document's ids of the others its message names, each as
+    `(timeline_id, component_id)`, in the order it names them; for any other
+    warning, none. A program can so name them in its own terms, where the
+    message names them by their place and line in the file.
     """
 
     place: str
@@ -177,6 +182,7 @@ class ReadWarning:
     message: str
     timeline_id: str | None = None
     component_id: str | None = None
+    other_ids: tuple[tuple[str, str], ...] = ()
 
     def __str__(self) -> str:
         """As an `UnreadableFile` reads: the line when known, then the message."""
