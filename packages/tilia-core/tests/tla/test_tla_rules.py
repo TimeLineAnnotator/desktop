@@ -2800,6 +2800,7 @@ LEVEL_0_BEFORE_0 = hierarchies((FIRST, at_level(-1.0, 2.0, 0)))
 LEVEL_BELOW_1 = "Level can't be below 1. Got '0'"
 BEFORE_0 = "Start time can't be negative. Got '-1.0'"
 NOT_A_COLOR = "notacolor is not a valid color."
+OUTSIDE = "Range is outside media bounds."
 # A range joined over another to a range with two problems of its own, a color
 # that isn't one and a pre_start after its start; the first has a color that
 # isn't one, and the join.
@@ -2827,6 +2828,14 @@ A_CROSSES_B_C_BAD_COLOR = hierarchies(
     (THIRD, at_level(10.0, 12.0, 1, color="notacolor")),
 )
 LEVEL_0_AT_0 = at_level(0.0, 1.0, 0)
+# A change: the first component is a hierarchy at level 1 in the Form timeline,
+# or a range on the row `ROW` in the Texture timeline.
+SEGMENT_IN = {
+    FORM: lambda start, end, **attrs: hierarchies(
+        (FIRST, at_level(start, end, 1, **attrs))
+    ),
+    TEXTURE: lambda start, end, **attrs: ranges((FIRST, a_range(start, end, **attrs))),
+}
 
 
 def changed(doc, component, timeline=FORM, **attrs):
@@ -3501,6 +3510,80 @@ class TestKeepReadProblems:
         )
         fixed_in_part(doc, level=1, start=120.0)
         written(doc, tmp_path)
+
+    def test_a_range_before_0_and_past_the_end_is_fixed_by_its_start(self, tmp_path):
+        # Two rules, each with its warning: fixing the start leaves the end
+        # past the end, which it was read with
+        # (TimeLineAnnotator/project-management#576).
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    ranges((FIRST, a_range(-1.0, 150.0, color="notacolor"))),
+                )
+            )
+        )
+        place = component_place(TEXTURE, FIRST)
+        assert [(w.place, w.message) for w in doc.warnings] == [
+            (place, OUTSIDE),
+            (place, OUTSIDE),
+            (place, NOT_A_COLOR),
+        ]
+        fixed_in_part(doc, FIRST, TEXTURE, start=0.0)
+        read = tla.read(written(doc, tmp_path))
+        assert read.timelines[TEXTURE].components[FIRST].attrs["start"] == 0.0
+        assert [(w.place, w.message) for w in read.warnings] == [
+            (place, OUTSIDE),
+            (place, NOT_A_COLOR),
+        ]
+
+    def test_a_range_before_0_and_past_the_end_is_fixed_by_its_end(self, tmp_path):
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    ranges((FIRST, a_range(-1.0, 150.0))),
+                )
+            )
+        )
+        fixed_in_part(doc, FIRST, TEXTURE, end=90.0)
+        read = tla.read(written(doc, tmp_path))
+        assert [w.message for w in read.warnings] == [OUTSIDE]
+
+    @pytest.mark.parametrize("timeline", [FORM, TEXTURE], ids=["hierarchy", "range"])
+    def test_a_pre_start_before_0_and_after_the_start(self, timeline, tmp_path):
+        # Read with both of the pre_start's rules broken: an edit that fixes
+        # one keeps the other, which it was read with.
+        doc = tla.loads(a_file(SEGMENT_IN[timeline](-5.0, 2.0, pre_start=-1.0)))
+        assert [w.message for w in doc.warnings][1:] == [
+            "pre_start is outside media bounds.",
+            "pre_start can't be after start time.",
+        ]
+        fixed_in_part(doc, FIRST, timeline, pre_start=0.0)
+        warnings = tla.read(written(doc, tmp_path)).warnings
+        assert [w.message for w in warnings][1:] == [
+            "pre_start can't be after start time."
+        ]
+
+    @pytest.mark.parametrize("timeline", [FORM, TEXTURE], ids=["hierarchy", "range"])
+    def test_a_post_end_past_the_end_and_before_the_end(self, timeline, tmp_path):
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    SEGMENT_IN[timeline](10.0, 150.0, post_end=120.0),
+                )
+            )
+        )
+        assert [w.message for w in doc.warnings][1:] == [
+            "post_end is outside media bounds.",
+            "post_end can't be before end time.",
+        ]
+        fixed_in_part(doc, FIRST, timeline, post_end=100.0)
+        warnings = tla.read(written(doc, tmp_path)).warnings
+        assert [w.message for w in warnings][1:] == [
+            "post_end can't be before end time."
+        ]
 
     def test_unchanged_past_the_end_by_another_time_as_ever(self, tmp_path):
         # FR-054, without the call: a component that was past the end stays old,
