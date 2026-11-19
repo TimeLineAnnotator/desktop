@@ -151,15 +151,62 @@ class TestTheCheckBeforeSaving:
         assert CHANGED in capsys.readouterr().out
         assert saved.read_bytes() == theirs
 
-    def test_after_today_s_question_of_a_file_that_exists(
-        self, cli, saved, monkeypatch, capsys
+    @pytest.mark.parametrize("flag", ["", " --overwrite"], ids=["", "overwrite"])
+    def test_the_file_open_goes_straight_to_the_check(
+        self, cli, saved, monkeypatch, capsys, flag
     ):
+        # As Save does in TiLiA's window: no "already exists" question, with or
+        # without --overwrite (TimeLineAnnotator/project-management#632, b).
         theirs = changed_by_another_program(saved)
-        self.answering(monkeypatch, "yes", "cancel")
+        self.answering(monkeypatch, "cancel")
+
+        cli.parse_and_run(f'save "{saved.resolve()}"{flag}')
+
+        out = capsys.readouterr().out
+        assert "already exists" not in out
+        assert CHANGED in out
+        assert saved.read_bytes() == theirs
+
+    @pytest.mark.parametrize("flag", ["", " --overwrite"], ids=["", "overwrite"])
+    def test_the_file_open_unchanged_on_disk_is_saved_without_a_question(
+        self, cli, saved, monkeypatch, capsys, flag
+    ):
+        self.answering(monkeypatch)
+
+        cli.parse_and_run(f'save "{saved.resolve()}"{flag}')
+
+        out = capsys.readouterr().out
+        assert "already exists" not in out
+        assert "changed on disk" not in out
+        assert tla.read(saved).metadata.get("notes") == "mine"
+
+    @pytest.mark.parametrize("overwrite", ["yes", "no"])
+    def test_another_path_asks_today_s_question(
+        self, cli, saved, tmp_path, monkeypatch, capsys, overwrite
+    ):
+        other = tmp_path / "other.tla"
+        other.write_text("content")
+        self.answering(monkeypatch, overwrite)
+
+        cli.parse_and_run(f'save "{other.resolve()}"')
+
+        assert f"File {other.resolve()} already exists. Overwrite?" in (
+            capsys.readouterr().out
+        )
+        if overwrite == "yes":
+            assert tla.read(other).metadata.get("notes") == "mine"
+        else:
+            assert other.read_text() == "content"
+
+    def test_an_empty_answer_asks_again(self, cli, saved, monkeypatch, capsys):
+        # The command line has no default button
+        # (TimeLineAnnotator/project-management#631, b).
+        theirs = changed_by_another_program(saved)
+        self.answering(monkeypatch, "", "cancel")
 
         cli.parse_and_run(f'save "{saved.resolve()}"')
 
-        assert CHANGED in capsys.readouterr().out
+        assert capsys.readouterr().out.count(CHANGED) == 2
         assert saved.read_bytes() == theirs
 
     def test_a_file_unchanged_on_disk_asks_nothing(

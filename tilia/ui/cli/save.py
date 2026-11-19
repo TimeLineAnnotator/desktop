@@ -3,7 +3,8 @@ from pathlib import Path
 
 import tilia.errors
 from tilia.file.common import validate_save_path
-from tilia.requests import Post, post
+from tilia.file.file_manager import same_path
+from tilia.requests import Get, Post, get, post
 from tilia.ui.cli import io
 from tilia.ui.path import ensure_tla_extension
 
@@ -37,9 +38,20 @@ def ask_overwrite_save_path(path: Path):
 
 
 def save(namespace):
-    path = confirmed_save_path(Path(namespace.path), namespace.overwrite)
+    path = ensure_tla_extension(Path(namespace.path))
+    if _is_the_file_open(path):
+        # As Save does in TiLiA's window: straight to the check before saving, with
+        # or without --overwrite (TimeLineAnnotator/project-management#632, b).
+        post(Post.REQUEST_SAVE_TO_PATH, str(path.resolve()))
+        return
+    path = confirmed_save_path(path, namespace.overwrite)
     if path is not None:
         post(Post.REQUEST_SAVE_TO_PATH, str(path))
+
+
+def _is_the_file_open(path: Path) -> bool:
+    open_path = get(Get.FILE_PATH)
+    return bool(open_path) and same_path(path, open_path)
 
 
 def confirmed_save_path(path: Path, overwrite: bool = False) -> Path | None:
