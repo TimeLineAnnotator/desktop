@@ -464,7 +464,7 @@ class TestLooksOnlyAtWhatChanged:
         assert opened.bytes() == opened.bytes_read
 
     def test_an_empty_digest_says_nothing(self):
-        # A slider's digest is always empty, as TiLiA makes it.
+        # As TiLiA made a slider's until TimeLineAnnotator/project-management#628.
         opened = Opened.read(EVERY_KIND)
         slider = first_of_kind(opened.doc, "slider")
         for state in (opened.synced, opened.current):
@@ -637,7 +637,7 @@ class TestFileFields:
         # #551, point 1, b: back at the state read, what TiLiA filled in goes. The
         # states alone can't tell it from a person's edit; the history can.
         opened = Opened.read(EMPTY)
-        history = tla_bridge.history_of(opened.doc)
+        history = tla_bridge.history_of(opened.doc, opened.current)
         first = copy.deepcopy(opened.current)
         opened.current["media_metadata"]["title"] = "Ständchen"
         opened.current["media_metadata"]["notes"] = "notes"

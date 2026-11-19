@@ -27,7 +27,9 @@ from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.timelines.hierarchy.timeline import HierarchyTimeline
 from tilia.timelines.marker.timeline import MarkerTimeline
+from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia_core import tla
 
@@ -1195,6 +1197,346 @@ class TestBackToTheStateRead:
         assert save()
 
         assert path.read_bytes() == before
+
+
+def without_a_slider(doc: tla.Document) -> None:
+    """As TiLiA now saves a file it made: no slider timeline, and the others'
+    ordinals from 1."""
+    slider = first_of_kind(doc, "slider")
+    del doc.timelines[slider.id]
+    for timeline in doc.timelines.values():
+        if timeline.ordinal > slider.ordinal:
+            timeline.ordinal -= 1
+
+
+def the_slider(tls) -> SliderTimeline:
+    (slider,) = tls.get_timelines_by_type(SliderTimeline)
+    return slider
+
+
+def in_display_order(tls) -> list[str]:
+    return [timeline.id for timeline in sorted(tls)]
+
+
+def by_ordinal(path: Path) -> list[str]:
+    timelines = json.loads(path.read_bytes())["timelines"]
+    return sorted(timelines, key=lambda id: timelines[id]["ordinal"])
+
+
+def resize(tls, slider) -> None:
+    tls.set_timeline_data(slider.id, "height", 30)
+
+
+def hide(tls, slider) -> None:
+    tls.set_timeline_data(slider.id, "is_visible", False)
+
+
+def move_down(tls, slider) -> None:
+    tls.permute_ordinal(slider, sorted(tls)[slider.ordinal])
+
+
+class TestASliderThatIsntStored:
+    """FR-007: TiLiA shows a slider timeline first, without storing it, until it is
+    moved, hidden or resized (#436, point 2, A)."""
+
+    @pytest.fixture
+    def path(self, qtui, tilia, tls, tmp_path) -> Path:
+        """WP3's file of every kind without its slider, open."""
+        path = written_by_the_core(EVERY_KIND, tmp_path, without_a_slider)
+        assert open_file(path)
+        return path
+
+    def test_a_file_without_one_shows_one_first_and_keeps_its_bytes(
+        self, path, tilia, tls
+    ):
+        before = path.read_bytes()
+        assert "Slider" not in {
+            timeline["kind"] for timeline in json.loads(before)["timelines"].values()
+        }
+
+        assert in_display_order(tls) == [the_slider(tls).id, *by_ordinal(path)]
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
+
+    def test_an_edit_of_another_timeline_leaves_it_out(self, path, tilia, tls):
+        markers = first_of_kind(the_document(tilia), "marker").id
+        tls.set_timeline_data(markers, "name", "Renamed")
+        tls.permute_ordinal(*sorted(tls)[-2:])
+        record()
+
+        assert save()
+
+        assert the_slider(tls).id not in json.loads(path.read_bytes())["timelines"]
+
+    def test_a_new_file_with_one_hierarchy_has_none(self, qtui, tilia, tls, tmp_path):
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)):
+            commands.execute("file.new")
+        hierarchy = tls.create_timeline(HierarchyTimeline, name="Form")
+        record()
+        # Shown first, as today; a timeline added goes below it.
+        assert in_display_order(tls) == [the_slider(tls).id, hierarchy.id]
+        path = tmp_path / "new.tla"
+
+        assert save_as(path)
+
+        timelines = json.loads(path.read_bytes())["timelines"]
+        assert list(timelines) == [hierarchy.id]
+        assert timelines[hierarchy.id]["ordinal"] == 1
+
+    def test_resized_it_is_stored_first_and_the_others_go_down_once(
+        self, path, tilia, tls
+    ):
+        slider = the_slider(tls)
+        resize(tls, slider)
+        record()
+
+        def change(doc):
+            for timeline in doc.timelines.values():
+                timeline.ordinal += 1
+            doc.timelines[slider.id] = tla.Timeline(
+                id=slider.id, kind="slider", ordinal=1, attrs={"height": 30}
+            )
+
+        expected = the_core_s_bytes(path, change)
+        assert save()
+        assert path.read_bytes() == expected
+
+        # Once: a second edit of it moves nothing.
+        tls.set_timeline_data(slider.id, "height", 40)
+        record()
+        assert save()
+        saved = json.loads(path.read_bytes())["timelines"]
+        assert {id: tl["ordinal"] for id, tl in saved.items()} == {
+            id: tl["ordinal"] for id, tl in json.loads(expected)["timelines"].items()
+        }
+        assert saved[slider.id]["height"] == 40
+
+    @pytest.mark.parametrize("change", [resize, hide, move_down])
+    def test_changed_it_comes_back_there_when_reopened(self, path, tilia, tls, change):
+        slider = the_slider(tls)
+        change(tls, slider)
+        record()
+        shown = in_display_order(tls)
+        height, is_visible = slider.get_data("height"), slider.get_data("is_visible")
+
+        assert save()
+        saved = json.loads(path.read_bytes())["timelines"][slider.id]
+        assert saved["kind"] == "Slider"
+        assert by_ordinal(path) == shown
+
+        assert open_file(path)
+        assert in_display_order(tls) == shown
+        reopened = the_slider(tls)
+        assert reopened.id == slider.id
+        assert reopened.get_data("height") == height
+        assert reopened.get_data("is_visible") is is_visible
+
+    @pytest.mark.parametrize("change", [resize, hide, move_down])
+    def test_an_undo_back_to_the_state_read_leaves_it_out(
+        self, path, tilia, tls, change
+    ):
+        before = path.read_bytes()
+        shown = in_display_order(tls)
+        slider = the_slider(tls)
+        height = slider.get_data("height")
+        change(tls, slider)
+        record()
+        assert save()
+        changed = path.read_bytes()
+        assert changed != before
+
+        commands.execute("edit.undo")
+        assert save()
+
+        assert path.read_bytes() == before
+        assert in_display_order(tls) == shown
+        assert slider.get_data("height") == height
+        assert slider.get_data("is_visible") is True
+        commands.execute("edit.redo")
+        assert save()
+        assert path.read_bytes() == changed
+
+
+class TestAChangeToTheSliderAlone:
+    """An unsaved change, as any other: the slider has a digest of its attributes,
+    as every timeline has (FR-021; TimeLineAnnotator/project-management#628, A)."""
+
+    @pytest.mark.parametrize("change", [resize, hide, move_down])
+    def test_reads_as_modified_until_undone(self, qtui, tilia, tls, tmp_path, change):
+        path = written_by_the_core(EVERY_KIND, tmp_path, without_a_slider)
+        assert open_file(path)
+        assert not tilia.is_file_modified()
+
+        change(tls, the_slider(tls))
+        record()
+
+        assert tilia.is_file_modified()
+        commands.execute("edit.undo")
+        assert not tilia.is_file_modified()
+
+    def test_to_a_stored_one_reads_as_modified(self, every_kind, tilia, tls):
+        resize(tls, the_slider(tls))
+        record()
+
+        assert tilia.is_file_modified()
+
+    def test_is_autosaved(self, qtui, tilia, tls, tmp_path):
+        path = written_by_the_core(EVERY_KIND, tmp_path, without_a_slider)
+        assert open_file(path)
+        with patch.object(autosave.settings, "get", return_value=0):
+            # No thread: autosaves are made here.
+            saver = autosave.AutoSaver(
+                tilia.get_app_state, tilia.file_manager.file.copy_for_writing
+            )
+        (tmp_path / "autosaves").mkdir()
+        written = iter(tmp_path / "autosaves" / name for name in ("1.tla", "2.tla"))
+        with (
+            patch.object(
+                autosave, "get_autosave_path", side_effect=lambda: next(written)
+            ),
+            patch.object(autosave, "make_room_for_new_autosave"),
+        ):
+            saver.auto_save_once()
+            assert not saver.needs_auto_save()
+            slider = the_slider(tls)
+            resize(tls, slider)
+            record()
+
+            assert saver.needs_auto_save()
+            saver.auto_save_once()
+
+        saved = tla.read(tmp_path / "autosaves" / "2.tla")
+        assert saved.timelines[slider.id].attrs["height"] == 30
+
+
+def a_file_of(tmp_path: Path, timelines: dict[str, dict]) -> Path:
+    """A file with these timelines, by id, without components."""
+    content = {
+        "app_name": "TiLiA",
+        "version": tla.FORMAT_VERSION,
+        "document_id": make_id(0),
+        "time_unit": "seconds",
+        "media": {"path": "", "length": 100.0},
+        "metadata": {},
+        "timelines": {
+            id: {"components": {}, **timeline} for id, timeline in timelines.items()
+        },
+        "scores": [],
+    }
+    path = tmp_path / "file.tla"
+    tla.write(path, tla.loads(json.dumps(content).encode()))
+    return path
+
+
+def a_file_with(tmp_path: Path, timeline: dict) -> tuple[Path, str]:
+    """A file with one timeline, without components, and no slider."""
+    timeline_id = make_id(9)
+    return a_file_of(tmp_path, {timeline_id: {"ordinal": 1, **timeline}}), timeline_id
+
+
+class TestADeletionAboveAStoredSlider:
+    """TiLiA's undo gives a slider back its place, which its digest, empty until
+    TimeLineAnnotator/project-management#628, kept it from doing
+    (TimeLineAnnotator/project-management#573)."""
+
+    def test_an_undo_gives_back_the_order_and_the_file_s_bytes(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        above, slider, below = make_id(11), make_id(15), make_id(12)
+        path = a_file_of(
+            tmp_path,
+            {
+                above: {"kind": "Marker", "name": "A", "height": 30, "ordinal": 1},
+                slider: {"kind": "Slider", "height": 40, "ordinal": 2},
+                below: {"kind": "Marker", "name": "B", "height": 30, "ordinal": 3},
+            },
+        )
+        before = path.read_bytes()
+        assert open_file(path)
+        tls.delete_timeline(tls.get_timeline(above))
+        record()
+
+        commands.execute("edit.undo")
+
+        assert in_display_order(tls) == [above, slider, below]
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
+
+
+class TestWhatTiLiAFillsIn:
+    """Stored by its first edit, and taken out again by an undo back to the state
+    read, as the slider is (#551, point 1, b; #524)."""
+
+    @staticmethod
+    def walk_back_and_forth(path: Path, before: bytes) -> None:
+        assert save()
+        edited = path.read_bytes()
+        assert edited != before
+
+        commands.execute("edit.undo")
+        assert save()
+        assert path.read_bytes() == before
+
+        commands.execute("edit.redo")
+        assert save()
+        assert path.read_bytes() == edited
+
+    def test_the_unit_of_an_empty_hierarchy_timeline(self, qtui, tilia, tls, tmp_path):
+        path, timeline_id = a_file_with(
+            tmp_path, {"kind": "Hierarchy", "name": "Form", "height": 60}
+        )
+        before = path.read_bytes()
+        assert open_file(path)
+        timeline = tls.get_timeline(timeline_id)
+        (unit,) = timeline.components
+        timeline.set_component_data(unit.id, "label", "Exposition")
+        record()
+
+        self.walk_back_and_forth(path, before)
+
+        components = json.loads(path.read_bytes())["timelines"][timeline_id][
+            "components"
+        ]
+        assert components[unit.id]["label"] == "Exposition"
+
+    def test_row_0_of_a_range_timeline_without_rows(self, qtui, tilia, tls, tmp_path):
+        path, timeline_id = a_file_with(
+            tmp_path, {"kind": "Range", "name": "Ranges", "height": 40, "rows": []}
+        )
+        before = path.read_bytes()
+        assert open_file(path)
+        timeline = tls.get_timeline(timeline_id)
+        (row,) = timeline.rows
+        made, reason = timeline.create_component(
+            ComponentKind.RANGE, start=1.0, end=2.0, row_id=row.id
+        )
+        assert made, reason
+        record()
+
+        self.walk_back_and_forth(path, before)
+
+        saved = json.loads(path.read_bytes())["timelines"][timeline_id]
+        assert [r["id"] for r in saved["rows"]] == [row.id]
+
+    def test_the_page_marker_of_an_empty_pdf_timeline(self, qtui, tilia, tls, tmp_path):
+        path, timeline_id = a_file_with(
+            tmp_path, {"kind": "Pdf", "name": "Pages", "height": 40, "path": ""}
+        )
+        before = path.read_bytes()
+        assert open_file(path)
+        timeline = tls.get_timeline(timeline_id)
+        (marker,) = timeline.components
+        timeline.set_component_data(marker.id, "time", 5.0)
+        record()
+
+        self.walk_back_and_forth(path, before)
+
+        components = json.loads(path.read_bytes())["timelines"][timeline_id][
+            "components"
+        ]
+        assert components[marker.id]["time"] == 5.0
 
 
 class TestTheLock:

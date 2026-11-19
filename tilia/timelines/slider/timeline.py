@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from tilia.settings import settings
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
+from tilia.timelines.hash_timelines import hash_function
 
 if TYPE_CHECKING:
     from tilia.timelines.base.component import TimelineComponent
@@ -35,17 +36,13 @@ class SliderTimeline(Timeline):
         """Nothing to do. Must implement abstract method."""
 
     def get_state(self) -> dict:
-        result = {}
-
-        for attr in self.SERIALIZABLE:
-            result[attr] = getattr(self, attr)
-
-        result["kind"] = self.type_name()
-        result["components"] = {}
-        result["components_hash"] = ""
-        result["hash"] = ""
-
-        return result
+        """With a digest of its attributes, as every timeline has: a change to the
+        slider alone is an unsaved change, and undo gives it back (FR-021;
+        TimeLineAnnotator/project-management#628). It has no components."""
+        state = self._get_base_state()
+        state["components"] = {}
+        state["components_hash"] = hash_function("")
+        return state
 
     def deserialize_components(self, components: dict[str, dict[str]]):
         """Nothing to do."""

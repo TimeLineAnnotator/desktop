@@ -454,23 +454,25 @@ class TestBeatTimeline:
     def test_open_file_with_many_beats(self, resources, tilia):
         commands.execute("file.open", path=resources / "tla" / "many_beats.tla")
 
-        assert len(tilia.timelines[0]) == 1000
+        # The file has no slider: TiLiA shows one first, so the beats are second,
+        # here and in the two tests below.
+        assert len(tilia.timelines[1]) == 1000
 
     @pytest.mark.timeout(5)
     def test_scale_timeline_with_many_beats(self, resources, tilia, tilia_state):
         commands.execute("file.open", path=resources / "tla" / "many_beats.tla")
         tilia_state.set_duration(2000, scale_timelines="yes")
 
-        assert len(tilia.timelines[0]) == 1000
-        assert tilia.timelines[0][-1].get_data("time") == 1998.0
+        assert len(tilia.timelines[1]) == 1000
+        assert tilia.timelines[1][-1].get_data("time") == 1998.0
 
     @pytest.mark.timeout(5)
     def test_crop_timeline_with_many_beats(self, resources, tilia, tilia_state):
         commands.execute("file.open", path=resources / "tla" / "many_beats.tla")
         tilia_state.set_duration(10, scale_timelines="no")
 
-        assert len(tilia.timelines[0]) == 11
-        assert tilia.timelines[0][-1].get_data("time") == 10
+        assert len(tilia.timelines[1]) == 11
+        assert tilia.timelines[1][-1].get_data("time") == 10
 
     @staticmethod
     def _add_beats(times):

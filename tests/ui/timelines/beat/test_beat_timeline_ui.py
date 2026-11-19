@@ -50,7 +50,8 @@ class TestLoadFromFile:
 
         commands.execute("file.open", tmp_file)
 
-        assert [x.label.toPlainText() for x in tluis[0]] == ["1", "3", "5", "7"]
+        # Below the slider, which the file doesn't store (FR-007).
+        assert [x.label.toPlainText() for x in tluis[1]] == ["1", "3", "5", "7"]
 
     def test_file_with_measures_to_force_display(
         self, beat_tlui, tluis, tmp_path, use_test_settings
@@ -69,7 +70,7 @@ class TestLoadFromFile:
 
         commands.execute("file.open", tmp_file)
 
-        assert [x.label.toPlainText() for x in tluis[0]] == [
+        assert [x.label.toPlainText() for x in tluis[1]] == [
             "1",
             "2",
             "3",
@@ -96,7 +97,7 @@ class TestLoadFromFile:
         post(Post.REQUEST_SAVE_TO_PATH, tmp_file)
         commands.execute("file.open", tmp_file)
 
-        reopened = tluis[0]
+        reopened = tluis[1]
         reopened.select_element(reopened[1])
         commands.execute("timeline.beat.reset_measure_number")
         # A duplicate would need a second reset to hide the label.
@@ -531,7 +532,8 @@ class TestSetMeasureNumber:
 
         @reloadable(tmp_path / "file.tla")
         def check_measure_number():
-            assert tluis[0].timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
+            # Last: once reloaded, below the slider the file doesn't store (FR-007).
+            assert tluis[-1].timeline.measure_numbers[0] == DUMMY_MEASURE_NUMBER
 
     def test_reset_measure_number_is_undoable(self, beat_tlui):
         """Undoing a measure-number reset must restore the custom

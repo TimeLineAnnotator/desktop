@@ -28,8 +28,9 @@ State = dict[str, Any]
 # the timelines left.
 Removed = dict[str, tla.Timeline | tla.Component | tla.Score | dict[str, Any]]
 # `history_of`'s: the file's fields; by timeline id, each score timeline's score,
-# each beat timeline's measure marks by beat id, and each timeline's attributes
-# (its path aside) and fields.
+# each beat timeline's measure marks by beat id, each timeline's attributes (its
+# path aside, a range's rows included), fields and ordinal; and what TiLiA showed
+# that the document didn't store: timelines, and components by timeline id.
 History = dict[str, Any]
 
 # `Timeline.type_name()` and `ComponentKind.NAME`, and the document's names for them.
@@ -260,7 +261,7 @@ def stored_ordinals(
     return dict(zip(known, slots, strict=True))
 
 
-def history_of(doc: tla.Document) -> History:
+def history_of(doc: tla.Document, state: State) -> History:
     """What the document holds that TiLiA's state can't tell, since it depends on
     how TiLiA came to that state: each score timeline's score, and each beat
     timeline's measure marks. A person's edit and an undo can leave TiLiA in the
@@ -269,13 +270,16 @@ def history_of(doc: tla.Document) -> History:
     has a bare mark, where an undo gives back its old one and the names a `next`
     lost. So the states alone can't make an undo exact. The same goes for what
     TiLiA filled in where the file stores something else, or nothing, such as a
-    default height or the title of a file without one: a person's edit writes it,
-    and an undo back to the state read gives back the file's own. So the file's
-    fields, and each timeline's attributes and fields, are kept too; a PDF
-    timeline's path isn't: TiLiA's, made relative by the core when written, gives
-    the same bytes, from whichever folder. The caller keeps one of these for each
-    state its undo records, and `give_back_history` gives it back when an undo or
-    a redo returns to that state."""
+    default height, the title of a file without one, a slider, the unit of an empty
+    hierarchy timeline or "Row 0" of a range timeline without rows: a person's edit
+    writes it, and an undo back to the state read gives back the file's own, or
+    takes it out again (#551, point 1, b). So the file's fields, each timeline's
+    attributes, fields and ordinal, and what `state`, the state the document
+    follows, holds that the document doesn't, are kept too; a PDF timeline's path
+    isn't: TiLiA's, made relative by the core when written, gives the same bytes,
+    from whichever folder. The caller keeps one of these for each state its undo
+    records, and `give_back_history` gives it back when an undo or a redo returns
+    to that state."""
     scores: dict[str, tla.Score | None] = {}
     marks: dict[str, dict[str, Any]] = {}
     attributes: dict[str, dict[str, Any]] = {}
@@ -302,20 +306,56 @@ def history_of(doc: tla.Document) -> History:
         "scores": scores,
         "marks": marks,
         "attributes": attributes,
+        "ordinals": {id: timeline.ordinal for id, timeline in doc.timelines.items()},
+        "unstored_timelines": [
+            id for id in state["timelines"] if id not in doc.timelines
+        ],
+        "unstored_components": _unstored_components(doc, state),
     }
 
 
 def _kept_attributes(timeline: tla.Timeline) -> tuple[str, ...]:
-    return tuple(attr for attr in TIMELINE_ATTRIBUTES[timeline.kind] if attr != "path")
+    kept = tuple(attr for attr in TIMELINE_ATTRIBUTES[timeline.kind] if attr != "path")
+    return (*kept, "rows") if timeline.kind == "range" else kept
+
+
+def _unstored_components(doc: tla.Document, state: State) -> dict[str, list[str]]:
+    """By timeline id, the components of a stored kind that `state` holds and the
+    document doesn't: those TiLiA filled in, such as the unit of an empty hierarchy
+    timeline, until an edit stores them. AudioWave's bars, which the file never
+    stores, aren't among them."""
+    unstored: dict[str, list[str]] = {}
+    for timeline_id, timeline in doc.timelines.items():
+        components = state["timelines"].get(timeline_id, {}).get("components", {})
+        missing = components.keys() - timeline.components.keys()
+        filled_in = [id for id in missing if components[id]["kind"] in COMPONENT_KINDS]
+        if filled_in:
+            unstored[timeline_id] = sorted(filled_in)
+    return unstored
 
 
 def give_back_history(
     doc: tla.Document, history: History, current: State, *, removed: Removed
 ) -> None:
-    """Gives the document back the scores, measure marks, fields and timeline
-    attributes it held in `history`, for `current`, the state it held them in, which an undo or a redo has brought
-    TiLiA back to after `apply_changes`. Only what differs changes; a score taken
-    out waits in `removed`, for the undo or redo that gives it back."""
+    """Gives the document back the scores, measure marks, fields, timeline
+    attributes and ordinals it held in `history`, for `current`, the state it held
+    them in, which an undo or a redo has brought TiLiA back to after
+    `apply_changes`; and takes out what it didn't store then of what TiLiA shows,
+    such as a slider or the unit of an empty hierarchy timeline, which a person's
+    edit stored since. Only what differs changes; a score taken out waits in
+    `removed`, for the undo or redo that gives it back."""
+    for timeline_id in history["unstored_timelines"]:
+        doc.timelines.pop(timeline_id, None)
+    for timeline_id, component_ids in history["unstored_components"].items():
+        timeline = doc.timelines.get(timeline_id)
+        if timeline is None:
+            continue
+        for component_id in component_ids:
+            timeline.components.pop(component_id, None)
+    for timeline_id, ordinal in history["ordinals"].items():
+        timeline = doc.timelines.get(timeline_id)
+        if timeline is not None and timeline.ordinal != ordinal:
+            timeline.ordinal = ordinal
     states = current["timelines"]
     for timeline_id, score in history["scores"].items():
         timeline = doc.timelines.get(timeline_id)
@@ -509,6 +549,14 @@ def _apply_timelines(
         _remember_ordinals(doc, _display_order(before), removed)
     for timeline_id in before.keys() - after.keys():
         _take_out_timeline(doc, timeline_id, before[timeline_id], removed)
+    # A timeline both states hold and the document doesn't isn't stored: a slider
+    # nobody has changed (FR-007). It is stored once it differs, in its place too.
+    differing = {
+        timeline_id
+        for timeline_id in before.keys() & after.keys()
+        if timeline_id not in doc.timelines
+        and _differs_where_stored(before[timeline_id], after[timeline_id])
+    }
     for timeline_id, state in after.items():
         was = before.get(timeline_id)
         if was is None:
@@ -525,11 +573,14 @@ def _apply_timelines(
             _apply_timeline(
                 doc, timeline, was, state, removed, notes, by_person=by_person
             )
-    if not order_changed:
+    if not order_changed and not differing:
         return
-    # A timeline both states hold and the document doesn't isn't stored, and has
-    # no slot: a slider nobody has changed (FR-007).
-    stored = [id for id in order if id in doc.timelines or id not in before]
+    # One that isn't stored has no slot until it differs. A slider changed where
+    # TiLiA shows it, first, takes the first slot, and each of the others the next
+    # one: in a file stored from 1, ordinal 1, and the others' go up by one.
+    stored = [
+        id for id in order if id in doc.timelines or id not in before or id in differing
+    ]
     ordinals = _remembered_ordinals(stored, removed) or stored_ordinals(
         doc, stored, removed=removed
     )
@@ -550,6 +601,16 @@ def _apply_timelines(
 
 def _display_order(timelines: Mapping[str, State]) -> list[str]:
     return sorted(timelines, key=lambda id: (timelines[id]["ordinal"], id))
+
+
+def _differs_where_stored(was: State, state: State) -> bool:
+    """Whether a timeline differs in what the document would store of it: its place,
+    its name, its fields or its kind's attributes."""
+    kind = TIMELINE_KINDS.get(state["kind"])
+    if kind is None:
+        return False
+    names = ("ordinal", "name", "fields", *TIMELINE_ATTRIBUTES[kind])
+    return any(state.get(name) != was.get(name) for name in names)
 
 
 def _remember_ordinals(doc: tla.Document, order: list[str], removed: Removed) -> None:
@@ -642,7 +703,9 @@ def _apply_timeline(
 
 
 def _digest_differs(was: State, state: State) -> bool:
-    """An empty digest says nothing: a slider's always is."""
+    """An empty digest says nothing. TiLiA gives every timeline one, a slider too
+    since TimeLineAnnotator/project-management#628; a state made otherwise may
+    not."""
     digest = state.get("hash")
     return not digest or digest != was.get("hash")
 

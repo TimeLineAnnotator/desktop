@@ -591,10 +591,12 @@ class App:
         }
 
     def _ensure_slider_timeline(self) -> None:
-        # creates a slider timeline if none was loaded
+        """Shows a slider timeline first, where a new file has it, if none was
+        loaded. The file doesn't store it until it is changed (FR-007)."""
         if not get(Get.TIMELINE_COLLECTION).has_timeline_of_type(SliderTimeline):
-            self.timelines.create_timeline(SliderTimeline)
+            slider = self.timelines.create_timeline_first(SliderTimeline)
             self.file_manager.set_timelines(*self.get_timelines_state())
+            self.file_manager.file.note_unstored_timeline(slider.id, slider.get_state())
 
     def setup_file(self) -> None:
         self._ensure_slider_timeline()

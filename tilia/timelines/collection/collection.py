@@ -142,6 +142,12 @@ class Timelines:
 
         return tl
 
+    def create_timeline_first(self, kind: type[Timeline], **kwargs) -> Timeline:
+        """Creates a timeline above the others, which each go down one place."""
+        for timeline in self._timelines:
+            timeline.ordinal += 1
+        return self.create_timeline(kind, ordinal=1, **kwargs)
+
     def get_timeline(self, id: str) -> Timeline | None:
         return next((tl for tl in self._timelines if tl.id == id), None)
 
