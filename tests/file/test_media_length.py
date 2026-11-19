@@ -120,6 +120,19 @@ def youtube(qtui, tilia, tls):
         yield
 
 
+@pytest.fixture
+def audio(qtui, tilia, tls):
+    """The stand-in for TiLiA's audio player, as the app's player now: TiLiA changes
+    its player only for media of another kind, and the one it has may be its own."""
+    with Serve(Get.PLAYER_CLASS, _Audio):
+        if not isinstance(tilia.player, _Audio):
+            # As TiLiA changes its player: the new one first, then the old one goes.
+            player = _Audio()
+            tilia.player.destroy()
+            tilia.player = player
+        yield
+
+
 def a_file(folder: Path, media_path: str = LINK, length: float | None = STORED) -> Path:
     """WP3's file of every kind, with this media, a link or an absolute path, as the
     core writes it into `folder`."""
@@ -254,18 +267,14 @@ class TestAFileWithoutALength:
         assert save()
         assert tla.read(path).media_length == 1.5
 
-    def test_takes_the_one_reported_as_its_media_loads(
-        self, qtui, tilia, tls, tmp_path
-    ):
+    def test_takes_the_one_reported_as_its_media_loads(self, audio, tilia, tmp_path):
         # A local file's player reports while the file opens.
         path = a_local_file(tmp_path, length=None)
 
-        with (
-            Serve(Get.PLAYER_CLASS, _Audio),
-            Serve(Get.FROM_USER_YES_OR_NO, True) as question,
-        ):
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as question:
             assert open_file(path)
 
+        assert get(Get.MEDIA_PATH).endswith("/media.mp3")
         assert not question.called
         assert get(Get.MEDIA_DURATION) == _Audio.LENGTH
         assert tilia.is_file_modified()
@@ -273,14 +282,14 @@ class TestAFileWithoutALength:
         assert tla.read(path).media_length == _Audio.LENGTH
 
     def test_a_file_with_a_length_keeps_it_as_its_media_loads(
-        self, qtui, tilia, tls, tmp_path
+        self, audio, tilia, tmp_path
     ):
         path = a_local_file(tmp_path, length=_Audio.LENGTH + 0.003)
         before = path.read_bytes()
 
-        with Serve(Get.PLAYER_CLASS, _Audio):
-            assert open_file(path)
+        assert open_file(path)
 
+        assert get(Get.MEDIA_DURATION) == _Audio.LENGTH
         assert not tilia.is_file_modified()
         assert save()
         assert path.read_bytes() == before
