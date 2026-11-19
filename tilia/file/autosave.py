@@ -78,9 +78,12 @@ def is_in_autosaves_folder(path: Path) -> bool:
 # The characters Windows refuses in a file name, and control characters. The
 # list is the same on every system, so that a title gives the same name on all.
 UNSAFE_FILENAME_CHARACTERS = re.compile(r'[\\/:*?"<>|\x00-\x1f\x7f]')
-# The longest file name most file systems accept, counted as Windows counts it:
-# in UTF-16 units, two for a character beyond U+FFFF.
-MAX_FILENAME_LENGTH = 255
+# The most bytes an autosave's name takes in UTF-8, counted the same way on
+# every system. Linux allows a name 255 bytes, and Windows, unless long paths
+# are on, a whole path 259 characters; no character takes fewer bytes in UTF-8
+# than units in UTF-16. 150 fits both, with room for the autosaves folder's
+# path and for a temporary name a few characters longer.
+MAX_FILENAME_BYTES = 150
 
 
 def get_autosave_filename() -> str:
@@ -90,21 +93,21 @@ def get_autosave_filename() -> str:
     date = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     start = f"{date}_"
     end = f".{tilia.constants.FILE_EXTENSION}"
-    room = MAX_FILENAME_LENGTH - _utf16_length(start) - _utf16_length(end)
+    room = MAX_FILENAME_BYTES - _utf8_length(start) - _utf8_length(end)
     return start + _cut_to_length(title, room) + end
 
 
-def _utf16_length(text: str) -> int:
-    return sum(2 if ord(character) > 0xFFFF else 1 for character in text)
+def _utf8_length(text: str) -> int:
+    return len(text.encode("utf-8", "surrogatepass"))
 
 
 def _cut_to_length(text: str, length: int) -> str:
-    """`text` if it takes `length` UTF-16 units or fewer. Otherwise, as many of
-    its characters as fit, a character beyond U+FFFF whole or not at all, and
-    without the dots and spaces the cut leaves at its end."""
+    """`text` if it takes `length` bytes or fewer in UTF-8. Otherwise, as many
+    of its characters as fit, each whole, and without the dots and spaces the
+    cut leaves at its end."""
     used = 0
     for index, character in enumerate(text):
-        used += _utf16_length(character)
+        used += _utf8_length(character)
         if used > length:
             return text[:index].rstrip(". ")
     return text
