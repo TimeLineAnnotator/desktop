@@ -150,8 +150,12 @@ class App:
         self.on_media_duration_changed(duration)
 
     def _is_duration_confirmation(self, duration: float) -> bool:
+        """Whether `duration` is the length the file has, within the tolerance, for
+        its own media: the file then keeps its own (FR-034). A file without a length
+        has none to keep."""
         return (
             self.should_scale_timelines == "keep"
+            and self.duration > 0
             and abs(duration - self.duration)
             < tilia.constants.DURATION_JITTER_TOLERANCE
         )
@@ -201,6 +205,11 @@ class App:
         # Where the media was found, or "" when the user declined to look for it:
         # the file keeps the path it stores (FR-032).
         file.note_media_found(get(Get.MEDIA_PATH))
+        if not file.document.media_length and self.duration:
+            # A file without a length takes the one its media reported as it loaded,
+            # while the file open was still the blank one (FR-034): as a change,
+            # which a save stores, since opening changes nothing (FR-003).
+            self.file_manager.set_media_duration(self.duration)
         # The undo baseline must be recorded only now: until the line above,
         # file_manager holds the blank file from on_clear(), and undoing back
         # to a baseline taken from it would wipe the loaded metadata (#666).
@@ -427,8 +436,11 @@ class App:
         if effective_mode == "keep" and not self._is_duration_confirmation(duration):
             effective_mode = "prompt"
 
+        # Without a length, there is none to scale or crop from: the file takes the
+        # one reported (FR-034).
         if (
-            not self.timelines.is_blank
+            self.duration > 0
+            and not self.timelines.is_blank
             and duration != self.duration
             and effective_mode != "keep"
         ):
