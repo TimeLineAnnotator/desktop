@@ -25,13 +25,14 @@ from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH, EXAMPLE_
 from tests.mock import Serve
 from tests.utils import load_local_media
 from tilia.media.player import QtAudioPlayer
-from tilia.requests import Get, get
+from tilia.requests import Get, Post, get, post
 from tilia.settings import SettingsManager, settings
 from tilia.ui import commands
 from tilia_core import tla
 
 FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
 EMPTY = FILES / "golden" / "empty.tla"
+EVERY_KIND = FILES / "golden" / "every-kind.tla"
 DOCUMENT = tla.read(EMPTY).document_id
 OTHER_DOCUMENT = "019b76da-f000-7000-8000-000000000998"
 TIMELINE = "019b76da-f000-7000-8000-000000000999"
@@ -90,12 +91,13 @@ def stored_media_path(path: Path) -> str:
 
 def open_file(path: Path, look_for: Path | None = None) -> bool:
     """Opens `path`, as the File menu does. Asked to look for media that isn't
-    there, the user picks `look_for`, or declines when it is None. Whether TiLiA
-    asked."""
+    there, the user picks `look_for`, or declines when it is None; asked to look for
+    a PDF, the user declines. Whether TiLiA asked about the media."""
     with (
         Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
         Serve(Get.FROM_USER_RETRY_MEDIA_PATH, look_for is not None) as asked,
         Serve(Get.FROM_USER_MEDIA_PATH, (True, str(look_for))),
+        Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
         Serve(Get.FROM_USER_SHOW_PROBLEMS, None),
     ):
         assert commands.execute("file.open", path)
@@ -423,6 +425,33 @@ class TestAnUndoOfOtherMedia:
         saved = tmp_path / "sub" / "saved.tla"
         assert saved.read_bytes() == expected
         assert stored_media_path(saved) == "../m/example.mp3"
+
+    @pytest.mark.parametrize("saved_between", [False, True], ids=["", "saved between"])
+    def test_of_an_absolute_path_not_on_this_computer(
+        self, qtui, tilia, tls, tmp_path, other, saved_between
+    ):
+        # A file with timelines, whose media someone else keeps at an absolute path.
+        doc = tla.read(EVERY_KIND)
+        doc.media_path = (Path(tmp_path.anchor) / "someone" / "x.mp3").as_posix()
+        path = tmp_path / "proj" / "file.tla"
+        path.parent.mkdir()
+        path.write_bytes(tla.canonical_bytes(doc))
+        # As the core writes it for the file unchanged: whether a path read
+        # absolute stays so is the core's, as
+        # TimeLineAnnotator/project-management#600 has it.
+        expected = json.loads(the_core_s_bytes(path))["media"]
+        assert open_file(path)
+        post(Post.APP_MEDIA_LOAD, other.as_posix(), scale_timelines="no")
+        if saved_between:
+            save()
+
+        # Back to no media, TiLiA asks whether to scale the timelines; the undo
+        # restores them whatever the answer.
+        with Serve(Get.FROM_USER_YES_OR_NO, False):
+            undo()
+        save()
+
+        assert json.loads(path.read_bytes())["media"] == expected
 
     def test_a_redo_gives_back_the_other_media(self, declined, other):
         load_local_media(other)
