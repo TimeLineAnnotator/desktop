@@ -1,3 +1,4 @@
+import json
 from contextlib import contextmanager
 from unittest.mock import patch
 
@@ -8,6 +9,7 @@ from PySide6.QtWidgets import QMessageBox, QPushButton
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
+from tests.utils import save_tilia_to_tmp_path
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.marker.timeline import MarkerTimeline
@@ -627,6 +629,24 @@ def buttons(window):
     return window.findChildren(QPushButton)
 
 
+def button(window, text):
+    return next(button for button in buttons(window) if button.text() == text)
+
+
+def edit_fields(window, add=None):
+    """Clicks "Edit fields...", and in its box, OK with the field `add` added,
+    or Cancel if `add` is None."""
+
+    def exec_(dialog):
+        if add is None:
+            return False
+        dialog.text_edit.setPlainText(dialog.text_edit.toPlainText() + add + "\n")
+        return True
+
+    with patch.object(EditMetadataFieldsDialog, "exec", new=exec_):
+        button(window, "Edit fields...").click()
+
+
 class TestEnter:
     """Enter does nothing: no button is the default, and the person clicks
     Apply (#910, point 1)."""
@@ -677,3 +697,97 @@ class TestEnter:
         assert tilia_state.metadata == before
         assert tilia_state.duration == 100
         assert line_edit.text() == typed
+
+
+class TestEditFieldsWithEditsNotApplied:
+    """'Edit fields...' asks "Leave window without saving changes?". Yes leaves
+    the edits not applied, as the question says, and No stays in the window
+    (#910, point 3)."""
+
+    LEAVE = "Leave window without saving changes?"
+    CLOSE = "Close window without saving changes?"
+
+    @pytest.mark.parametrize("field, text", FIELD_KINDS)
+    def test_yes_then_ok_drops_the_edit(
+        self, media_metadata_window, tilia_state, tmp_path, field, text
+    ):
+        # A title of its own: saving an untitled file names it after the file.
+        type_in(media_metadata_window, "title", "Bolero")
+        media_metadata_window.apply_fields()
+        before = dict(tilia_state.metadata)
+        shown = line_edit_of(media_metadata_window, field).text()
+        type_in(media_metadata_window, field, text)
+
+        with answer_questions(True) as asked:
+            edit_fields(media_metadata_window, add="custom")
+
+        assert asked == [self.LEAVE]
+        assert tilia_state.metadata == {**before, "custom": ""}
+        assert tilia_state.duration == 100
+        # OK on the names box shows the fields again, without the edit.
+        assert line_edit_of(media_metadata_window, field).text() == shown
+        assert media_metadata_window.metadata["custom"].text() == ""
+
+        # Nothing is left to apply.
+        with answer_questions(True) as asked:
+            media_metadata_window.close()
+        assert asked == []
+
+        # The file has the names change only.
+        with open(save_tilia_to_tmp_path(tmp_path), encoding="utf-8") as file:
+            assert json.load(file)["media_metadata"] == {**before, "custom": ""}
+
+    @pytest.mark.parametrize("field, text", FIELD_KINDS)
+    def test_yes_then_cancel_keeps_the_typing_not_applied(
+        self, qtui, media_metadata_window, tilia_state, field, text
+    ):
+        before = dict(tilia_state.metadata)
+        typed = type_in(media_metadata_window, field, text).text()
+
+        with answer_questions(True) as asked:
+            edit_fields(media_metadata_window, add=None)
+
+        assert asked == [self.LEAVE]
+        # Back in the window, as in the timeline fields window: the typing is
+        # still shown, and still not applied. Only OK on the names box shows
+        # the fields again.
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert line_edit_of(media_metadata_window, field).text() == typed
+        assert tilia_state.metadata == before
+        assert tilia_state.duration == 100
+
+        # So closing asks about it, and Yes drops it.
+        with answer_questions(True) as asked:
+            media_metadata_window.close()
+        assert asked == [self.CLOSE]
+        assert tilia_state.metadata == before
+        assert tilia_state.duration == 100
+
+    @pytest.mark.parametrize("field, text", FIELD_KINDS)
+    def test_no_stays_in_the_window_with_the_edit(
+        self, qtui, media_metadata_window, tilia_state, field, text
+    ):
+        before = dict(tilia_state.metadata)
+        typed = type_in(media_metadata_window, field, text).text()
+
+        with (
+            answer_questions(False) as asked,
+            patch.object(EditMetadataFieldsDialog, "exec") as names,
+        ):
+            button(media_metadata_window, "Edit fields...").click()
+
+        assert asked == [self.LEAVE]
+        names.assert_not_called()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert line_edit_of(media_metadata_window, field).text() == typed
+        assert tilia_state.metadata == before
+        assert tilia_state.duration == 100
+
+    def test_without_edits_it_asks_nothing(self, media_metadata_window, tilia_state):
+        before = dict(tilia_state.metadata)
+
+        with answer_questions(True) as asked:
+            edit_fields(media_metadata_window, add="custom")
+
+        assert asked == []
+        assert tilia_state.metadata == {**before, "custom": ""}

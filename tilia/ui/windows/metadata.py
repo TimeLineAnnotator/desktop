@@ -183,14 +183,15 @@ class MediaMetadataWindow(QDialog):
             post(Post.MEDIA_METADATA_FIELD_SET, "notes", dialog.get_result())
 
     def on_edit_metadata_fields_button(self):
-        edited_fields = self._get_edits()
-        if edited_fields and not get(
+        # Yes leaves the edits not applied, as the question says. If the names
+        # box is then cancelled, they are still shown, still not applied; OK
+        # shows the fields again, without them.
+        if self._get_edits() and not get(
             Get.FROM_USER_YES_OR_NO,
             "Save metadata edits",
             "Leave window without saving changes?",
         ):
             return
-        self._save_edits(edited_fields)
         dialog = EditMetadataFieldsDialog(self)
         accepted = dialog.exec()
         if accepted:
