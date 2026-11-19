@@ -1370,6 +1370,25 @@ class TestAPdfPathFoundFromTheFolderRead:
         assert timeline.is_pdf_valid
         assert timeline.get_data("path") == (tmp_path / "other.pdf").as_posix()
 
+    def test_after_a_save_as_from_the_new_folder(self, qtui, tilia, tls, tmp_path):
+        # The file open is the one saved: its paths are relative to its folder,
+        # not to that of the file opened.
+        (tmp_path / "a").mkdir()
+        path, pdf = a_pdf_in(tmp_path / "a")
+        assert open_file(path)
+        (tmp_path / "b").mkdir()
+        shutil.copyfile(RESOURCES / "example.pdf", tmp_path / "b" / "only-in-b.pdf")
+        assert save_as(tmp_path / "b" / "copy.tla")
+
+        with Serve(Get.FROM_USER_RETRY_PDF_PATH, False):
+            tls.set_timeline_data(pdf, "path", "only-in-b.pdf")
+
+        timeline = tls.get_timeline(pdf)
+        assert timeline.is_pdf_valid
+        assert (
+            timeline.get_data("path") == (tmp_path / "b" / "only-in-b.pdf").as_posix()
+        )
+
 
 class TestBackToTheStateRead:
     """An undo back to the state read gives the file's bytes, also where TiLiA
