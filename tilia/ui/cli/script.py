@@ -18,13 +18,32 @@ def setup_parser(subparsers, parse_and_run_func: Callable[[str], bool]):
     script.set_defaults(func=partial(run, parse_and_run_func))
 
 
+def split_commands(text: str) -> list[str]:
+    """
+    Splits text into commands, separated by newlines or by ";".
+    Separators inside double quotes don't count. Empty commands and comments
+    (starting with "#") are dropped.
+    """
+    commands = []
+    current = []
+    in_quotes = False
+    for char in text:
+        if char == '"':
+            in_quotes = not in_quotes
+        if char in ";\n" and not in_quotes:
+            commands.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    commands.append("".join(current))
+
+    commands = [cmd.strip() for cmd in commands]
+    return [cmd for cmd in commands if cmd and not cmd.startswith("#")]
+
+
 def run(parse_and_run_func, namespace):
     with open(namespace.path, "r", encoding=namespace.encoding) as file:
-        commands = [
-            line
-            for line in file.read().splitlines()
-            if line.strip() and not line.startswith("#")
-        ]
+        commands = split_commands(file.read())
 
     if not commands:
         tilia.errors.display(tilia.errors.EMPTY_CLI_SCRIPT, namespace.path)

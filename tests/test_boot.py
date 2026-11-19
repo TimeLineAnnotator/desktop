@@ -1,4 +1,7 @@
 import argparse
+import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -7,6 +10,7 @@ import pytest
 from PySide6.QtCore import QEvent
 from PySide6.QtGui import QFileOpenEvent
 
+from tests.utils import get_blank_file_data
 from tilia.boot import PendingFileOpen, TiliaApplication, get_initial_file, setup_parser
 
 
@@ -175,3 +179,65 @@ class TestTiliaApplicationFileOpenEvent:
 
         assert handled is True
         assert received == ["/tmp/probe.tla"]
+
+
+class TestCommandOption:
+    def test_parsed(self):
+        sys.argv = ["main.py", "-i", "cli", "-c", "about;about"]
+
+        args = setup_parser()
+
+        assert args.command == "about;about"
+
+    def test_absent(self):
+        sys.argv = ["main.py", "-i", "cli"]
+
+        assert setup_parser().command is None
+
+    def test_requires_cli(self):
+        sys.argv = ["main.py", "-c", "about"]
+
+        with pytest.raises(SystemExit):
+            setup_parser()
+
+
+@pytest.mark.timeout(60)
+class TestRunCommands:
+    """Boots TiLiA in a subprocess, the way scripts and hooks call it."""
+
+    @staticmethod
+    def run_tilia(*args):
+        return subprocess.run(
+            [sys.executable, "-m", "tilia", "-i", "cli", *args],
+            cwd=Path(__file__).parent.parent,
+            env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+            capture_output=True,
+            text=True,
+        )
+
+    def test_export(self, tmp_path):
+        tla_path = tmp_path / "test.tla"
+        tla_path.write_text(
+            json.dumps({**get_blank_file_data(), "media_path": "missing.mp3"})
+        )
+        json_path = tmp_path / "test.json"
+
+        result = self.run_tilia(
+            "-c", f'open "{tla_path}" --no-media;export "{json_path}"'
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert json.loads(json_path.read_text())["media_path"] == "missing.mp3"
+
+    def test_failing_command(self):
+        result = self.run_tilia("-c", "nonsense")
+
+        assert result.returncode == 1
+
+    def test_failing_initial_file(self, tmp_path):
+        tla_path = tmp_path / "test.tla"
+        tla_path.write_text("{not json")
+
+        result = self.run_tilia(str(tla_path), "-c", "about")
+
+        assert result.returncode == 1
