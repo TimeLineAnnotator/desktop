@@ -30,6 +30,7 @@ from tilia_core.tla.ids import migrated_id
 
 FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
 OLD = sorted((FILES / "old").glob("*.tla"))
+assert OLD, f"no old files in {FILES / 'old'}"
 # What the migration drops, each with a warning (US2, scenario 1): a hierarchy's
 # formal type and function, and an AudioWave timeline's amplitude bars, which TiLiA
 # computes from the media.
@@ -39,7 +40,7 @@ WITHOUT_COMPONENTS = ("audiowave",)
 # (WP3's `contracts/migration.md`, *Comment marks*).
 SEPARATORS = re.compile(r"[\s|]+")
 MARKS = ("tag=", "gen=")
-NOT_COMPARED = ("kind", "hash")
+NOT_COMPARED = ("hash",)
 
 
 def names(paths):
@@ -76,22 +77,25 @@ def kind_of(kind: str) -> str:
     return kind.lower().removesuffix("_timeline")
 
 
-def words(comment: Any) -> Any:
-    """A comment's words: the migration may take a separator with a mark."""
-    if not isinstance(comment, str):
-        return comment
-    return [word for word in SEPARATORS.split(comment) if word]
-
-
 def is_mark(word: str) -> bool:
     return any(word.startswith(mark) and word != mark for mark in MARKS)
 
 
-def comment_words(comment: Any) -> Any:
+def comment_words(comment: str) -> list[str]:
     """A comment's words, without the marks the migration moves into fields."""
+    return [word for word in SEPARATORS.split(comment) if word and not is_mark(word)]
+
+
+def expected_comment(comment: Any) -> Any:
+    """A comment as TiLiA shows it once migrated: unchanged without a mark; with
+    one, its other words, each with the separator before it, which in the old files
+    is a space (WP3's `contracts/migration.md`, *Comment marks*: "the rest of the
+    comment stays character for character")."""
     if not isinstance(comment, str):
         return comment
-    return [word for word in words(comment) if not is_mark(word)]
+    if not any(is_mark(word) for word in SEPARATORS.split(comment)):
+        return comment
+    return " ".join(comment_words(comment))
 
 
 def as_drawn(svg: str) -> str:
@@ -198,7 +202,7 @@ def expected_component(
         if attr not in NOT_COMPARED and attr not in DROPPED.get(kind, ())
     }
     if "comments" in expected:
-        expected["comments"] = comment_words(expected["comments"])
+        expected["comments"] = expected_comment(expected["comments"])
     if kind == "harmony" and expected.get("display_mode") == "chord":
         # TiLiA 0.5's name for letters, which TiLiA 0.7 couldn't draw: the migration
         # writes `letter` (WP3's `contracts/migration.md`;
@@ -213,15 +217,6 @@ def expected_component(
             old_timeline_id, expected["joined_right"]
         )
     return expected
-
-
-def component_held(component: dict) -> dict:
-    """A component TiLiA holds, as `expected_component` gives one: its comment's
-    words, marks and all, which it shouldn't hold."""
-    held = dict(component)
-    if "comments" in held:
-        held["comments"] = words(held["comments"])
-    return held
 
 
 @pytest.fixture
@@ -247,8 +242,11 @@ def assert_the_same_timelines(held: dict, old: dict, ids: Ids) -> None:
         } == expected, f"timeline {old_id}"
     the_file_s = [ids.timeline(old_id) for old_id in in_display_order(old)]
     assert [id for id in in_display_order(held) if id in the_file_s] == the_file_s
-    # The slider timeline TiLiA shows when the file has none (FR-007).
-    assert {held[id]["kind"] for id in held.keys() - set(the_file_s)} <= {"Slider"}
+    # The one slider timeline TiLiA shows when the file has none (FR-007), and no
+    # other.
+    others = [held[id]["kind"] for id in held.keys() - set(the_file_s)]
+    has_a_slider = any(kind_of(tl["kind"]) == "slider" for tl in old.values())
+    assert others == ([] if has_a_slider else ["Slider"])
 
 
 def assert_the_same_components(held: dict, old: dict, ids: Ids) -> None:
@@ -262,12 +260,13 @@ def assert_the_same_components(held: dict, old: dict, ids: Ids) -> None:
             for old_id in timeline["components"]
         }
         assert set(components) == set(expected_ids), f"timeline {old_timeline_id}"
+        assert len(components) == len(timeline["components"])
         for id, old_id in expected_ids.items():
             old_component = timeline["components"][old_id]
             expected = expected_component(
                 old_component["kind"].lower(), old_component, old_timeline_id, ids
             )
-            component = component_held(components[id])
+            component = components[id]
             assert {
                 attr: component.get(attr, "<missing>") for attr in expected
             } == expected, f"component {old_id}"
@@ -315,11 +314,15 @@ class TestAsTiLiA07ShowedThem:
 
         held = dict(old_file_open(path)["media_metadata"])
 
+        # The fields in the file's order, as the Metadata window lists them. TiLiA
+        # puts the notes and the media length in places of its own.
+        assert [key for key in held if key not in ("notes", "media length")] == [
+            key for key in old if key not in ("notes", "media length")
+        ]
         # The file's media length, which the Metadata window shows with the fields
-        # (FR-035). TiLiA 0.0.96 stored none.
+        # (FR-035): none, as TiLiA 0.0.96 stored, shows as 0.
         length = held.pop("media length")
-        if "media length" in old:
-            assert length == old.pop("media length")
+        assert length == old.pop("media length", 0)
         assert held == old
 
 
