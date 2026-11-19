@@ -62,6 +62,7 @@ class Get(Enum):
     TIMELINE_UI_ELEMENT = auto()
     TIMELINE_WIDTH = auto()
     VERIFIED_PATH = auto()
+    WINDOW_CLOSED = auto()
     WINDOW_GEOMETRY = auto()
     WINDOW_STATE = auto()
     CURRENT_ZOOM = auto()

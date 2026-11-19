@@ -24,6 +24,7 @@ from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
+from tilia.ui.windows.kinds import WindowKind
 from tilia.undo_manager import PauseUndoManager
 from tilia.utils import get_tilia_class_string
 
@@ -191,9 +192,22 @@ class App:
             success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
             if not success:
                 return False
+        if not self._close_metadata_window():
+            return False
         prev_state = self.get_app_state()
         self.on_clear()
         self._do_open(path, prev_state)
+
+    @staticmethod
+    def _close_metadata_window() -> bool:
+        # Before anything is cleared. The window is modal, but on macOS a file
+        # opened from Finder still reaches on_open. With edits not applied the
+        # window asks before it closes; if it stays open, the file isn't
+        # opened, or its Apply would write them into that file.
+        try:
+            return get(Get.WINDOW_CLOSED, WindowKind.MEDIA_METADATA)
+        except NoReplyToRequest:
+            return True  # No windows, as in the CLI.
 
     @long_operation("Loading file...")
     def _do_open(self, path: Path, prev_state: dict) -> None:
