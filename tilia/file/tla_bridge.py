@@ -710,7 +710,9 @@ def _apply_timeline(
 
 
 def _digest_differs(was: State, state: State) -> bool:
-    """An empty digest says nothing: a slider's always is."""
+    """An empty digest says nothing. TiLiA gives every timeline one, a slider too
+    since TimeLineAnnotator/project-management#628; a state made otherwise may
+    not."""
     digest = state.get("hash")
     return not digest or digest != was.get("hash")
 
