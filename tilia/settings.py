@@ -17,6 +17,11 @@ class _Unreadable:
 UNREADABLE = _Unreadable()
 
 
+def _media_place_key(document_id: str, timeline_id: str | None) -> str:
+    key = f"media_places/{document_id}"
+    return key if timeline_id is None else f"{key}/{timeline_id}"
+
+
 def _store_auto_scroll_by_name(qsettings: QSettings) -> None:
     """Version 1 to 2: auto-scroll was stored as a pickled enum; store its name.
 
@@ -355,6 +360,23 @@ class SettingsManager(QObject):
 
     def get_recent_files(self):
         return self._settings.value("private/recent_files", [])[:10]
+
+    def get_media_place(
+        self, document_id: str, timeline_id: str | None = None
+    ) -> str | None:
+        """Where the document `document_id` last found its media on this computer,
+        or, with `timeline_id`, that PDF timeline its PDF: an absolute path, or None
+        (FR-031). Kept here, never in the file, and, as recent files are, outside
+        the settings a person edits."""
+        value = self._settings.value(_media_place_key(document_id, timeline_id), None)
+        return value if isinstance(value, str) and value else None
+
+    def set_media_place(
+        self, document_id: str, path: str, timeline_id: str | None = None
+    ) -> None:
+        """Remembers `path`, absolute, as where the document `document_id` found its
+        media on this computer, or, with `timeline_id`, that PDF timeline its PDF."""
+        self._settings.setValue(_media_place_key(document_id, timeline_id), path)
 
     def get_user(self) -> tuple[str, str]:
         email = self._settings.value("private/user/email", "")

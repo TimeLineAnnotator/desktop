@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import re
 import traceback
 from collections.abc import Mapping
@@ -197,12 +198,13 @@ class App:
             return False
 
         file.timelines, file.timelines_hash = self.get_timelines_state()
-        # Where the media was found: the file keeps the path it stores.
-        file.media_path = get(Get.MEDIA_PATH)
         self.file_manager.file = file
         # What the document reflects: the state the timelines just built give, with
         # TiLiA's own digests, so that nothing TiLiA filled in reaches the file.
         file.synced = self.get_app_state()
+        # Where the media was found, or "" when the user declined to look for it:
+        # the file keeps the path it stores (FR-032).
+        file.note_media_found(get(Get.MEDIA_PATH))
         # The undo baseline must be recorded only now: until the line above,
         # file_manager holds the blank file from on_clear(), and undoing back
         # to a baseline taken from it would wipe the loaded metadata (#666).
@@ -476,16 +478,20 @@ class App:
         return get(Get.FROM_USER_YES_OR_NO, "Crop timelines", crop_prompt)
 
     @staticmethod
-    def _found_media(media: tla.Media) -> str:
-        """Where the core found the media: a YouTube link as the file stores it, or
-        a local file's path. "" when it found none."""
-        if media.kind == "youtube":
-            return media.stored
-        if media.path is not None:
-            return media.path.as_posix()
-        return ""
+    def _media_place(document_id: str) -> str:
+        """Where this document last found its media on this computer, if the media
+        is still there; else ""."""
+        place = settings.get_media_place(document_id)
+        return place if place and os.path.isfile(place) else ""
 
-    def _setup_file_media(self, media: tla.Media, duration: float | None):
+    def _setup_file_media(
+        self, document_id: str, media: tla.Media, duration: float | None
+    ):
+        """Loads the media of the file being opened: where the core finds it, else
+        where this document last found it on this computer, else where the user
+        picks it, when asked (FR-030, FR-031). The file keeps the path it stores,
+        and the place a local file is found is remembered on this computer only
+        (FR-032)."""
         if duration:
             self.set_file_media_duration(duration)
 
@@ -494,14 +500,23 @@ class App:
             # as user has set the duration manually
             return
 
-        new_path = self._found_media(media)
+        if media.kind == "youtube":
+            new_path = media.stored
+        elif media.path is not None:
+            new_path = media.path.as_posix()
+        else:
+            new_path = self._media_place(document_id)
+
         if not new_path:
             tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, media.stored)
             confirm = get(Get.FROM_USER_RETRY_MEDIA_PATH)
             if confirm:
                 success, new_path = get(Get.FROM_USER_MEDIA_PATH)
                 if success:
-                    self.load_media(new_path, initial_duration=duration)
+                    if self.load_media(new_path, initial_duration=duration):
+                        settings.set_media_place(
+                            document_id, Path(os.path.abspath(new_path)).as_posix()
+                        )
                     return
 
             post(Post.PLAYER_URL_CHANGED, "")
@@ -513,14 +528,20 @@ class App:
         # crops when the reported duration comes back shorter, and YouTube
         # returns that duration asynchronously, often off by a few ms from
         # the stored value, which would silently delete end components (#453).
-        self.load_media(new_path, initial_duration=duration, scale_timelines="keep")
+        loaded = self.load_media(
+            new_path, initial_duration=duration, scale_timelines="keep"
+        )
+        if loaded and media.kind == "local":
+            settings.set_media_place(document_id, new_path)
 
     def on_file_load(self, file: OpenDocument) -> bool:
         document = file.document
         try:
             if document.media_path or document.media_length:
                 self._setup_file_media(
-                    tla.media(file.file_path, document), document.media_length
+                    document.document_id,
+                    tla.media(file.file_path, document),
+                    document.media_length,
                 )
 
             # As the reader keeps them: none is checked (FR-060).
