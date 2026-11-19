@@ -143,6 +143,12 @@ class FileManager:
             ),
             (Get.MEDIA_TITLE, lambda: self.file.media_metadata.get("title", "")),
             (Get.FILE_PATH, lambda: self.file.file_path),
+            (
+                Get.COMPONENT_FIELDS,
+                lambda timeline_id, component_id: self.file.component_fields(
+                    timeline_id, component_id
+                ),
+            ),
         }
 
         for post_, callback in LISTENS:

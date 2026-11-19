@@ -164,6 +164,17 @@ class OpenDocument:
             # A new dict: undo may keep the old one in a state it records.
             self.synced = {**self.synced, "media_metadata": media_metadata}
 
+    def component_fields(
+        self, timeline_id: str, component_id: str
+    ) -> dict[str, str | list[str]]:
+        """A copy of the fields of a component the document holds, which TiLiA shows
+        but doesn't edit (FR-092). None for a component it doesn't hold, such as one
+        TiLiA doesn't store or has made since its last action."""
+        with self._lock:
+            timeline = self.document.timelines.get(timeline_id)
+            component = timeline.components.get(component_id) if timeline else None
+            return copy.deepcopy(component.metadata) if component else {}
+
     def copy_for_writing(self) -> tla.Document:
         """A copy of the document, to write elsewhere: a write makes the document it
         is given follow the file written, and the one open must stay with its file."""
