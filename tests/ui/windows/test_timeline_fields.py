@@ -132,20 +132,32 @@ class patch_question:
         self.asked: list[tuple[str, str]] = []
 
     def __enter__(self):
+        made = YesOrNoMessageBox.__init__
+
+        # The words as given: on macOS, a message box keeps no window title.
+        def init(box, title, prompt):
+            made(box, title, prompt)
+            box.words = (title, prompt)
+
         def exec_(box):
-            self.asked.append((box.windowTitle(), box.text()))
+            self.asked.append(box.words)
             return (
                 QMessageBox.StandardButton.Yes
                 if self.answer
                 else QMessageBox.StandardButton.No
             )
 
-        self._patch = patch.object(YesOrNoMessageBox, "exec", new=exec_)
-        self._patch.__enter__()
+        self._patches = [
+            patch.object(YesOrNoMessageBox, "__init__", new=init),
+            patch.object(YesOrNoMessageBox, "exec", new=exec_),
+        ]
+        for patch_ in self._patches:
+            patch_.__enter__()
         return self
 
     def __exit__(self, *args):
-        self._patch.__exit__(*args)
+        for patch_ in reversed(self._patches):
+            patch_.__exit__(*args)
 
 
 @pytest.fixture(autouse=True)
