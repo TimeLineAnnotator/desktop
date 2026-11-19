@@ -257,10 +257,13 @@ def new_problems(
             continue
         changed = was.changed(problem)
         if changed:
-            # A refusal names those that are new. A join's others are what comes
-            # next in its row, whichever of them it was that changed.
+            # A refusal names those that are new. They are among those it
+            # names, so none is left to count beyond them: one that changed
+            # past them has a problem of its own, which names this one. A join's
+            # others are what comes next in its row, whichever of them it was
+            # that changed.
             if problem.joined is None:
-                problem = dataclasses.replace(problem, others=changed)
+                problem = dataclasses.replace(problem, others=changed, more=0)
             new.append(problem)
     return new
 
@@ -444,7 +447,8 @@ def warnings_of(
     warnings = []
     for problem in problems:
         place = named(problem.pointer or problem.place)
-        message = printable(problem.reason)
+        reason = printable(problem.reason)
+        message = reason
         if problem.others:
             others = [
                 f"line {lines[named(other)]}, {named(other)}"
@@ -464,6 +468,8 @@ def warnings_of(
                 other_ids=tuple(
                     cast(tuple[str, str], ids_at(other)) for other, _ in problem.others
                 ),
+                more=problem.more,
+                reason=reason,
             )
         )
     return warnings

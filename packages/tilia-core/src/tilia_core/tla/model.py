@@ -173,8 +173,12 @@ class ReadWarning:
     `other_ids` are, for a problem between components, such as two hierarchies
     that cross, the document's ids of the others its message names, each as
     `(timeline_id, component_id)`, in the order it names them; for any other
-    warning, none. A program can so name them in its own terms, where the
-    message names them by their place and line in the file.
+    warning, none. `more` is how many others it is about beyond those, which
+    the message counts as "and 3 more". `reason` is, for a broken rule, the
+    rule's reason, which the message gives followed by the others it names:
+    `message` without them. It is None for any other warning. A program can so
+    name the others in its own terms, where the message names them by their
+    place and line in the file, without reading the message.
     """
 
     place: str
@@ -183,6 +187,8 @@ class ReadWarning:
     timeline_id: str | None = None
     component_id: str | None = None
     other_ids: tuple[tuple[str, str], ...] = ()
+    more: int = 0
+    reason: str | None = None
 
     def __str__(self) -> str:
         """As an `UnreadableFile` reads: the line when known, then the message."""

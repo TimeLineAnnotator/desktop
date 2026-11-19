@@ -186,9 +186,10 @@ class TestReading:
             tla.ReadWarning(
                 place=component_place(FORM, FIRST),
                 line=line_of(data, FIRST),
-                message="Level can't be below 1. Got '0'",
+                message=LEVEL_BELOW_1,
                 timeline_id=FORM,
                 component_id=FIRST,
+                reason=LEVEL_BELOW_1,
             )
         ]
         assert doc.timelines[FORM].components[FIRST].attrs["level"] == 0
@@ -203,6 +204,7 @@ class TestReading:
                 timeline_id=FORM,
                 component_id=FIRST,
                 other_ids=((FORM, SECOND),),
+                reason=OVERLAP,
             )
         ]
 
@@ -240,8 +242,9 @@ class TestReading:
         assert first.message == (
             f"{OVERLAP} {named(data, *ids[:10])[:-1]}; and 3 more)"
         )
-        # Those it names.
+        # Those it names, how many more, and the reason without them.
         assert first.other_ids == tuple((FORM, key) for key in ids[:10])
+        assert (first.more, first.reason) == (3, OVERLAP)
 
     def test_twelve_inside_one_hierarchy_are_named_by_it_and_by_the_last_two(self):
         # The first ten are named by the hierarchy that holds them, so its
@@ -272,6 +275,7 @@ class TestReading:
                 timeline_id=CADENCES,
                 component_id=FIRST,
                 other_ids=((CADENCES, SECOND),),
+                reason="There is already a marker component at the selected position.",
             )
         ]
 
@@ -306,6 +310,7 @@ class TestReading:
                 timeline_id=BEATS,
                 component_id=IDS["beat_1"],
                 other_ids=((BEATS, IDS["beat_2"]),),
+                reason="There is already a beat component at the selected position.",
             )
         ]
         assert len(doc.timelines[BEATS].components) == 2
@@ -320,13 +325,12 @@ class TestReading:
         data = a_file(hierarchies((FIRST, at_level(2.0, 3.0, 0, pre_start=2.5))))
         place = component_place(FORM, FIRST)
         line = line_of(data, FIRST)
+        after = "pre_start can't be after start time."
         assert tla.loads(data).warnings == [
             tla.ReadWarning(
-                place, line, "Level can't be below 1. Got '0'", FORM, FIRST
+                place, line, LEVEL_BELOW_1, FORM, FIRST, reason=LEVEL_BELOW_1
             ),
-            tla.ReadWarning(
-                place, line, "pre_start can't be after start time.", FORM, FIRST
-            ),
+            tla.ReadWarning(place, line, after, FORM, FIRST, reason=after),
         ]
 
     def test_a_crossing_is_named_even_when_both_are_at_level_0(self):
@@ -355,16 +359,19 @@ class TestReading:
             components[MELODY_2]["start"] = 1.5
 
         data = a_file(change)
+        reason = (
+            "joined_with_next=true but next range on row 'Melody' starts"
+            " at 1.5 (must equal 1.0 for ranges to join)"
+        )
         assert tla.loads(data).warnings == [
             tla.ReadWarning(
                 place=component_place(TEXTURE, MELODY_1),
                 line=line_of(data, MELODY_1),
-                message="joined_with_next=true but next range on row 'Melody' starts"
-                " at 1.5 (must equal 1.0 for ranges to join)"
-                f" {named(data, MELODY_2, timeline=TEXTURE)}",
+                message=f"{reason} {named(data, MELODY_2, timeline=TEXTURE)}",
                 timeline_id=TEXTURE,
                 component_id=MELODY_1,
                 other_ids=((TEXTURE, MELODY_2),),
+                reason=reason,
             )
         ]
 
@@ -385,9 +392,10 @@ class TestReading:
         data = a_file(change)
         place = f"/timelines/{TEXTURE}/rows/1"
         line = data.decode().split("\n").index('          "id": "Ab-12",')
+        bad_id = "Ab-12 is not a valid row id."
         assert tla.loads(data).warnings == [
-            tla.ReadWarning(place, line, "Ab-12 is not a valid row id.", TEXTURE),
-            tla.ReadWarning(place, line, "notacolor is not a valid color.", TEXTURE),
+            tla.ReadWarning(place, line, bad_id, TEXTURE, reason=bad_id),
+            tla.ReadWarning(place, line, NOT_A_COLOR, TEXTURE, reason=NOT_A_COLOR),
         ]
 
     def test_a_component_the_rules_dont_cover_is_not_checked(self):
@@ -456,6 +464,7 @@ class TestMediaLength:
                 place="/media/length",
                 line=line_of(data, "length"),
                 message=f"{shown} is not a valid media length.",
+                reason=f"{shown} is not a valid media length.",
             )
         ]
 
@@ -538,13 +547,14 @@ class TestBeatPattern:
     def test_one_that_doesnt_parse_is_kept_with_a_warning_naming_the_timeline(self):
         data = a_file(self.with_pattern("abc"))
         doc = tla.loads(data)
+        reason = 'the beat pattern "abc" of the timeline "Beats" isn\'t a valid pattern'
         assert doc.warnings == [
             tla.ReadWarning(
                 place=f"/timelines/{BEATS}/beat_pattern",
                 line=line_of(data, "beat_pattern"),
-                message='the beat pattern "abc" of the timeline "Beats"'
-                " isn't a valid pattern",
+                message=reason,
                 timeline_id=BEATS,
+                reason=reason,
             )
         ]
         assert doc.timelines[BEATS].attrs["beat_pattern"] == "abc"
@@ -2426,6 +2436,7 @@ class TestBeatWithoutATime:
                 message="None is not a valid time.",
                 timeline_id=BEATS,
                 component_id=BEAT_2,
+                reason="None is not a valid time.",
             )
         ]
 
@@ -2477,6 +2488,7 @@ class TestAMeasureNumberBelow0:
             message=BELOW_0,
             timeline_id=BEATS,
             component_id=FIRST,
+            reason=BELOW_0,
         )
         assert [p.code for p in doc.read_problems] == [rules.NEGATIVE_MEASURE_NUMBER]
 
@@ -2684,9 +2696,10 @@ class TestOldFiles:
             tla.ReadWarning(
                 place="/timelines/3/components/17",
                 line=line_of(data, "17"),
-                message="Level can't be below 1. Got '0'",
+                message=LEVEL_BELOW_1,
                 timeline_id=timeline.id,
                 component_id=component,
+                reason=LEVEL_BELOW_1,
             )
         ]
 
@@ -2801,6 +2814,7 @@ class TestOldFiles:
                 message=BELOW_0,
                 timeline_id=timeline.id,
                 component_id=component,
+                reason=BELOW_0,
             )
         ]
         written(doc, tmp_path)
@@ -3816,3 +3830,134 @@ class TestKeepReadProblems:
         doc = tla.loads(a_file(LEVEL_0_BEFORE_0))
         with pytest.raises(KeyError):
             tla.keep_read_problems(doc, SECOND)
+
+
+# The others a warning names, by their ids (TimeLineAnnotator/project-management#601)
+
+# One hierarchy over thirteen that don't touch each other: it names the first
+# ten, and "and 3 more"; each of the last three names it.
+OVER_13 = [make_id(400 + n) for n in range(13)]
+ONE_OVER_13 = hierarchies(
+    (FIRST, at_level(0.0, 95.0, 1)),
+    *((key, at_level(7.0 * n, 7.0 * n + 5.0, 1)) for n, key in enumerate(OVER_13)),
+)
+THREE_CROSSING = hierarchies(
+    (FIRST, at_level(0.0, 2.0, 1)),
+    (SECOND, at_level(1.0, 3.0, 1)),
+    (THIRD, at_level(1.5, 4.0, 1)),
+)
+SAME_TIME = "There is already a {} component at the selected position."
+
+
+def read_with_others(change):
+    """The warnings of a file with `change` that name others."""
+    return [w for w in tla.loads(a_file(change)).warnings if w.other_ids]
+
+
+def refused_with_no_length_read(tmp_path):
+    # Read with no media length, crossing in pairs; a length given since, and
+    # the third changed: each refusal names the third alone.
+    doc = tla.loads(a_file(THREE_CROSSING))
+    doc.media_length = 100.0
+    doc.timelines[FORM].components[THIRD].attrs["label"] = "A"
+    return refused(doc, tmp_path)
+
+
+class TestTheOthersAWarningNames:
+    @pytest.mark.parametrize(
+        "found, expected",
+        [
+            (
+                lambda tmp_path: read_with_others(
+                    TestPdfMarkers.pdf_markers(
+                        (FIRST, {"time": 1.0, "page_number": 1}),
+                        (SECOND, {"time": 1.0, "page_number": 2}),
+                    )
+                ),
+                [(FIRST, SAME_TIME.format("PDF page marker"), ((PDF, SECOND),))],
+            ),
+            (
+                lambda tmp_path: read_with_others(
+                    harmony_timeline((FIRST, harmony(1.0)), (SECOND, harmony(1.0)))
+                ),
+                [(FIRST, SAME_TIME.format("harmony"), ((HARMONIES, SECOND),))],
+            ),
+            (
+                lambda tmp_path: read_with_others(
+                    harmony_timeline((FIRST, mode(1.0)), (SECOND, mode(1.0)))
+                ),
+                [(FIRST, SAME_TIME.format("mode"), ((HARMONIES, SECOND),))],
+            ),
+            (
+                # A warning for each rule: at one place, and crossing.
+                lambda tmp_path: read_with_others(
+                    hierarchies(
+                        (FIRST, at_level(0.0, 2.0, 1)),
+                        (SECOND, at_level(0.0, 2.0, 1)),
+                        (THIRD, at_level(0.0, 2.0, 1)),
+                    )
+                ),
+                [
+                    (
+                        FIRST,
+                        "There is already a hierarchy component at the selected"
+                        " position.",
+                        ((FORM, SECOND), (FORM, THIRD)),
+                    ),
+                    (FIRST, OVERLAP, ((FORM, SECOND), (FORM, THIRD))),
+                    (
+                        SECOND,
+                        "There is already a hierarchy component at the selected"
+                        " position.",
+                        ((FORM, THIRD),),
+                    ),
+                    (SECOND, OVERLAP, ((FORM, THIRD),)),
+                ],
+            ),
+            (
+                refused_with_no_length_read,
+                [
+                    (FIRST, OVERLAP, ((FORM, THIRD),)),
+                    (SECOND, OVERLAP, ((FORM, THIRD),)),
+                ],
+            ),
+        ],
+        ids=[
+            "PDF markers at one time",
+            "harmonies at one time",
+            "modes at one time",
+            "three hierarchies at one place",
+            "a refusal after a length, read with none",
+        ],
+    )
+    def test_their_ids(self, found, expected, tmp_path):
+        warnings = found(tmp_path)
+        assert [(w.component_id, w.reason, w.other_ids) for w in warnings] == expected
+        assert all(w.more == 0 for w in warnings)
+
+    def test_a_refusal_counts_only_the_others_that_changed(self, tmp_path):
+        # The hierarchy names ten of the thirteen, and 3 more; one of the ten
+        # changed, and the refusal names it alone, with no more
+        # (FR-054: a refusal names the others that changed).
+        doc = tla.loads(a_file(ONE_OVER_13))
+        doc.timelines[FORM].components[OVER_13[2]].attrs["label"] = "A"
+        (refusal,) = refused(doc, tmp_path)
+        assert (refusal.component_id, refusal.other_ids, refusal.more) == (
+            FIRST,
+            ((FORM, OVER_13[2]),),
+            0,
+        )
+        assert refusal.reason == OVERLAP
+        assert refusal.message.endswith(
+            f"(other component: line {line_of(writer.checked_bytes(doc), OVER_13[2])},"
+            f" {component_place(FORM, OVER_13[2])})"
+        )
+
+    def test_one_that_changed_past_the_ten_named_is_refused(self, tmp_path):
+        # Past the ten the hierarchy names, it names the hierarchy itself, and
+        # that is what a refusal gives.
+        doc = tla.loads(a_file(ONE_OVER_13))
+        doc.timelines[FORM].components[OVER_13[11]].attrs["label"] = "A"
+        assert [
+            (w.component_id, w.other_ids, w.more) for w in refused(doc, tmp_path)
+        ] == [(OVER_13[11], ((FORM, FIRST),), 0)]
