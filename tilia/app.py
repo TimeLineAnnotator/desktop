@@ -61,6 +61,10 @@ class App:
         # The length TiLiA held once the media of the file open last loaded, before
         # its timelines were built: what the media reported as it loaded, if it did.
         self._length_on_load = 0.0
+        # How many times TiLiA has settled whether to scale or crop the timelines to a
+        # new length, asking or not: an answer given as a file opens is part of the
+        # file as opened.
+        self._length_answers = 0
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -191,10 +195,20 @@ class App:
             success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
             if not success:
                 return False
+        answers = self._length_answers
         if not self._do_open(Path(path)):
             return False
         self._show_problems(self.file_manager.file)
         self._handle_length_reported_on_load()
+        if self._length_answers != answers:
+            # The answer to scale or crop, given as the file opened, for the length
+            # its media reported as it loaded or while its warnings were shown, is
+            # part of the file as opened: the document follows it, and the undo
+            # history starts again after it, so that undo can't take the timelines
+            # back to a length the media no longer has
+            # (TimeLineAnnotator/project-management#642, a).
+            self.sync_document()
+            self.reset_undo_manager()
         return True
 
     def _handle_length_reported_on_load(self) -> None:
@@ -209,12 +223,7 @@ class App:
 
         Only that report: one that came after it, such as a YouTube page's while the
         warnings were shown, has been handled already. The YouTube page reports, as
-        it loads, the length the file stores.
-
-        The answer, to scale or to crop, is part of the file as opened: the document
-        follows it, and the undo history starts again after it, so that undo can't
-        take the timelines back to a length the media no longer has
-        (TimeLineAnnotator/project-management#642, a)."""
+        it loads, the length the file stores."""
         reported = self._length_on_load
         if self.duration != reported:
             return
@@ -224,8 +233,6 @@ class App:
         # The length the timelines were made for, which the report is compared with.
         self.duration = stored
         self.set_file_media_duration(reported, scale_timelines="keep")
-        self.sync_document()
-        self.reset_undo_manager()
 
     @long_operation("Loading file...")
     def _do_open(self, path: Path) -> bool:
@@ -491,6 +498,7 @@ class App:
             and duration != self.duration
             and effective_mode != "keep"
         ):
+            self._length_answers += 1
             crop_or_scale = ""
             if effective_mode == "prompt":
                 if self.prompt_scale_timelines(self.duration, duration):

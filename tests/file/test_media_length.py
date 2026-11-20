@@ -492,6 +492,39 @@ class TestALocalFilesLengthAsItOpens:
             [time * new / STORED for time in times]
         )
 
+    def test_undo_doesn_t_go_back_past_an_answer_given_while_the_warnings_are_shown(
+        self, youtube, tilia, tls, tmp_path
+    ):
+        # The answer is given as the file opens, too
+        # (TimeLineAnnotator/project-management#642, a).
+        path = a_file(tmp_path)
+        with_a_warning(path)
+        times = marker_times(path)
+        new = STORED + 2.5
+        shown: list[str] = []
+        assert open_noting(path, shown, lambda: tilia.player.report(new))
+        assert shown == ["warnings", "question"]
+        answered = tilia.get_timelines_state()[0]
+        markers = tls.get_timelines_by_type(MarkerTimeline)[0]
+        last = max(markers, key=lambda marker: marker.get_data("time"))
+        markers.set_component_data(last.id, "label", "edited")
+        post(Post.APP_STATE_RECORD, "test")
+
+        with Serve(Get.FROM_USER_YES_OR_NO, False) as question:
+            commands.execute("edit.undo")
+            commands.execute("edit.undo")
+
+        assert not question.called
+        assert tilia.get_timelines_state()[0] == answered
+        assert get(Get.MEDIA_DURATION) == new
+        assert tilia.is_file_modified()
+        assert save()
+        assert tla.read(path).media_length == new
+        assert marker_times(path) == pytest.approx(
+            [time * new / STORED for time in times]
+        )
+        assert "edited" not in marker_labels(path)
+
     def test_a_youtube_report_as_the_file_loads_is_handled_as_a_local_one(
         self, youtube, tilia, tmp_path, monkeypatch
     ):
