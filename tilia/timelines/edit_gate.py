@@ -186,15 +186,16 @@ def _changed(
     breaks fewer rules than it did. A pair it wasn't at odds with is new, and so is
     one with another the action changed."""
     if set(problems) == set(was):
-        # The same: nothing fixed, and new only with another the action changed.
-        return [p for p in problems if p.between & changed], False
-    pairs, was_pairs = _pairs(problems), _pairs(was)
+        return [], False  # the same: nothing fixed
+    was_pairs = _pairs(was)
     new = [
         problem
-        for (code, about, other), problem in pairs.items()
+        for (code, about, other), problem in _pairs(problems).items()
         if (code, about, other) not in was_pairs or other in changed
     ]
-    return new, len(pairs) < len(was_pairs)
+    # Not the same, and nothing new: at odds with fewer, since each rule a
+    # component breaks is one problem.
+    return new, True
 
 
 def _unchanged(
@@ -202,15 +203,15 @@ def _unchanged(
 ) -> list[Problem]:
     """What a component the action didn't change breaks that it didn't: a pair it
     wasn't at odds with, or a join to a range the action changed."""
-    if set(problems) == set(was):
-        return [p for p in problems if p.code == rules.BAD_JOIN and p.between & changed]
-    was_pairs = _pairs(was)
-    return [
-        problem
-        for (code, about, other), problem in _pairs(problems).items()
-        if (code, about, other) not in was_pairs
-        or (code == rules.BAD_JOIN and other in changed)
-    ]
+    new = [p for p in problems if p.code == rules.BAD_JOIN and p.between & changed]
+    if set(problems) != set(was):
+        was_pairs = _pairs(was)
+        new += [
+            problem
+            for key, problem in _pairs(problems).items()
+            if key not in was_pairs and problem not in new
+        ]
+    return new
 
 
 def _pairs(problems: Iterable[Problem]) -> dict[tuple[str, str, str], Problem]:
