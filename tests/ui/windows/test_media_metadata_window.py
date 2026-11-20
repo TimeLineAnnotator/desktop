@@ -5,10 +5,24 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, Qt
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEvent,
+    QEventLoop,
+    QObject,
+    QPoint,
+    Qt,
+    QTimer,
+)
 from PySide6.QtGui import QFileOpenEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QDialog, QMessageBox, QPushButton
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+)
 
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH
 from tests.mock import Serve, patch_yes_or_no_dialog
@@ -19,7 +33,7 @@ from tilia.requests import Get, Post, get, post
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
-from tilia.ui.dialogs.basic import YesOrNoMessageBox
+from tilia.ui.dialogs.basic import YesNoOrCancelMessageBox, YesOrNoMessageBox
 from tilia.ui.format import format_media_time
 from tilia.ui.windows import WindowKind
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
@@ -816,10 +830,18 @@ class Finder:
     def __init__(self, qapplication, app):
         self.qapplication = qapplication
         self.handed_on = []
+        # When each open handed on starts and ends: one inside another shows
+        # in the order.
+        self.opens = []
 
         def on_open(path):
+            name = Path(path).stem
             self.handed_on.append(Path(path))
-            app.on_open(path)
+            self.opens.append(f"start {name}")
+            try:
+                app.on_open(path)
+            finally:
+                self.opens.append(f"end {name}")
 
         # The session's QApplication can't be a TiliaApplication (only one may
         # exist per process), so its event handling is borrowed, as in
@@ -827,16 +849,19 @@ class Finder:
         TiliaApplication.set_file_open_callback(qapplication, on_open)
 
     def open(self, path):
+        self.handed_on_before_open = list(self.handed_on)
         assert TiliaApplication.event(self.qapplication, QFileOpenEvent(str(path)))
 
     def assert_waits(self):
+        """Checks that the file last opened hasn't been handed on, at once or
+        when it tried again."""
         # Long enough for it to try again.
         QTest.qWait(3 * PendingFileOpen.RETRY_INTERVAL_MS)
-        assert self.handed_on == []
+        assert self.handed_on == self.handed_on_before_open
 
-    def wait_until_handed_on(self):
+    def wait_until_handed_on(self, count=1):
         deadline = time.monotonic() + 5
-        while not self.handed_on:
+        while len(self.handed_on) < count:
             assert time.monotonic() < deadline, "The file wasn't handed on."
             QTest.qWait(10)
 
@@ -1127,4 +1152,186 @@ class TestFileOpenedWhileADialogIsOpen:
         QTest.qWait(3 * PendingFileOpen.RETRY_INTERVAL_MS)
 
         assert finder.handed_on == [files["B"]]
+        assert open_file_path() == files["B"]
+
+
+SAVE_QUESTION = "Save changes to current file?"
+
+
+def in_main_loop(body):
+    """Runs body() inside an event loop, as TiLiA's code runs inside the
+    application's main loop: an event loop that the code starts is then nested
+    in it, as in the app. Raises what body() raises."""
+    loop = QEventLoop()
+    raised = []
+
+    def run():
+        try:
+            body()
+        except BaseException as exc:
+            raised.append(exc)
+        finally:
+            loop.quit()
+
+    QTimer.singleShot(0, run)
+    loop.exec()
+    if raised:
+        raise raised[0]
+
+
+@contextmanager
+def media_load_runs_an_event_loop(while_loading=None):
+    """Loading media runs an event loop for a while, as QtPlayer's
+    wait_for_signal does until the player reports the media loaded.
+    `while_loading` runs inside that loop."""
+
+    def load(player, _path):
+        loop = QEventLoop()
+        QTimer.singleShot(150, loop.quit)
+        if while_loading:
+            QTimer.singleShot(0, while_loading)
+        loop.exec()
+        player.on_media_duration_available(EXAMPLE_MEDIA_DURATION)
+        return True
+
+    with patch.object(
+        QtAudioPlayer, "_engine_load_media", autospec=True, side_effect=load
+    ):
+        yield
+
+
+@contextmanager
+def save_questions(*answers):
+    """Answers "Save changes to current file?" in turn with No (don't save),
+    each on screen while its answer, a function or None, runs. Yields the
+    questions asked."""
+    asked = []
+
+    def answer(box):
+        asked.append(box.text())
+        if given := answers[len(asked) - 1]:
+            given()
+        return QMessageBox.StandardButton.No
+
+    with on_screen(YesNoOrCancelMessageBox, *[answer] * len(answers)):
+        yield asked
+
+
+@pytest.fixture
+def b_with_media(files):
+    """B, saved with media. A is open again."""
+    commands.execute("file.open", files["B"])
+    load_media()
+    commands.execute("file.save")
+    commands.execute("file.open", files["A"])
+
+
+class TestFileOpenedWhileTiliaIsBusy:
+    """A file that arrives in the middle of something waits until it ends: a
+    file opening, media loading, a menu. These run event loops, or process
+    events, in which the file would otherwise open."""
+
+    def test_while_a_file_opens(self, tilia_state, files, finder):
+        post(Post.MEDIA_METADATA_FIELD_SET, "title", "Changed A")
+
+        def c_arrives():
+            finder.open(files["C"])
+            finder.assert_waits()
+            # The answer takes long enough for C's next try to fall due while
+            # B opens, when only the long operation processes events.
+            time.sleep(1.5 * PendingFileOpen.RETRY_INTERVAL_MS / 1000)
+
+        def body():
+            with save_questions(c_arrives) as asked:
+                finder.open(files["B"])
+                finder.wait_until_handed_on(2)
+            assert asked == [SAVE_QUESTION]
+
+        in_main_loop(body)
+
+        assert finder.opens == ["start B", "end B", "start C", "end C"]
+        assert open_file_path() == files["C"]
+        assert tilia_state.metadata["title"] == "Title C"
+
+    @pytest.mark.parametrize(
+        "c_arrives_during", ["the save question", "the media load"]
+    )
+    def test_while_a_file_with_media_opens(
+        self, tilia_state, files, b_with_media, finder, c_arrives_during
+    ):
+        def c_arrives():
+            finder.open(files["C"])
+
+        if c_arrives_during == "the save question":
+            post(Post.MEDIA_METADATA_FIELD_SET, "title", "Changed A")
+            answers, while_loading = [c_arrives], None
+        else:
+            # B and C opened together: C arrives while B opens.
+            answers, while_loading = [], c_arrives
+
+        def body():
+            with (
+                save_questions(*answers) as asked,
+                media_load_runs_an_event_loop(while_loading),
+            ):
+                finder.open(files["B"])
+                finder.wait_until_handed_on(2)
+            assert asked == [SAVE_QUESTION] * len(answers)
+
+        in_main_loop(body)
+
+        assert finder.opens == ["start B", "end B", "start C", "end C"]
+        assert open_file_path() == files["C"]
+        assert tilia_state.metadata["title"] == "Title C"
+        assert not get(Get.MEDIA_PATH)
+
+    def test_while_media_loads(self, tilia_state, files, finder):
+        # File > Load media: C arrives while the media file dialog is on
+        # screen, and waits until the media has loaded into A.
+        def choose_media(dialog):
+            finder.open(files["C"])
+            finder.assert_waits()
+            return True
+
+        def body():
+            with (
+                patch.object(
+                    QFileDialog, "selectedFiles", return_value=[EXAMPLE_MEDIA_PATH]
+                ),
+                on_screen(QFileDialog, choose_media),
+                media_load_runs_an_event_loop(),
+                save_questions(None) as asked,
+            ):
+                commands.execute("media.load.local")
+                finder.wait_until_handed_on()
+            # A had the media when C opened: it asked whether to save A.
+            assert asked == [SAVE_QUESTION]
+
+        in_main_loop(body)
+
+        assert finder.opens == ["start C", "end C"]
+        assert open_file_path() == files["C"]
+        assert not get(Get.MEDIA_PATH)
+
+    def test_while_a_menu_is_open(self, tilia_state, files, finder):
+        handed_on_while_open = []
+
+        def body():
+            menu = QMenu(get(Get.MAIN_WINDOW))
+            menu.addAction("Action")
+
+            def b_arrives_then_close_the_menu():
+                finder.open(files["B"])
+                QTest.qWait(3 * PendingFileOpen.RETRY_INTERVAL_MS)
+                handed_on_while_open.extend(finder.handed_on)
+                menu.close()
+
+            QTimer.singleShot(0, b_arrives_then_close_the_menu)
+            menu.exec(QPoint(0, 0))
+            finder.wait_until_handed_on()
+            menu.deleteLater()
+
+        in_main_loop(body)
+
+        assert handed_on_while_open == []
         assert open_file_path() == files["B"]

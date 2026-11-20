@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QKeyCombination,
     QObject,
     Qt,
+    QThread,
     QTimer,
     QUrl,
 )
@@ -274,7 +275,7 @@ class QtUI:
                 Get.RIGHT_MARGIN_X,
                 lambda: self.playback_area_width + self.playback_area_margin,
             ),
-            (Get.IS_DIALOG_OPEN, self.is_dialog_open),
+            (Get.IS_BUSY, self.is_busy),
             (Get.WINDOW_CLOSED, self.close_window),
             (Get.WINDOW_GEOMETRY, self.get_window_geometry),
             (Get.WINDOW_STATE, self.get_window_state),
@@ -570,6 +571,16 @@ class QtUI:
 
     def is_window_open(self, kind: WindowKind):
         return self._windows[kind] is not None
+
+    def is_busy(self) -> bool:
+        """Whether TiLiA is in the middle of something: a dialog is on screen,
+        a long operation is running, or an event loop runs inside the main one
+        (a dialog's, a menu's, or the player's while it waits for media)."""
+        return (
+            self.is_dialog_open()
+            or self._long_op_toolbar.is_running
+            or QThread.currentThread().loopLevel() > 1
+        )
 
     def is_dialog_open(self) -> bool:
         """Whether a dialog is on screen. The Metadata window is modal too, but
