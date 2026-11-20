@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 import pypdf
 import pytest
+from PySide6.QtGui import QColor
 
 import tilia.errors
 from tests.constants import EXAMPLE_MEDIA_PATH
@@ -669,6 +670,21 @@ class TestAnActionThatChangesTwoAtOdds:
             tls.get_timeline(FORM).set_component_data(component_id, "level", 1)
         as_if_allowed(tilia, A, B)
         assert not save()
+
+    def test_that_fixes_nothing_is_refused_for_what_is_between_them(
+        self, open_hierarchies, tilia, tluis, tilia_errors
+    ):
+        # A, at a level of 0, holds B at a level not below its own: both change
+        # color, and the reason is their crossing, which the writer would find
+        # new, not A's level, which A came with.
+        open_hierarchies((A, a_hierarchy(0, 20, 0)), (B, a_hierarchy(5, 15, 1)))
+        timeline_ui = tluis.get_timeline_ui(FORM)
+        timeline_ui.deselect_all_elements()
+        for component_id in (A, B):
+            timeline_ui.select_element(timeline_ui.get_element(component_id))
+
+        with Refused(tilia, tilia_errors, crossing()):
+            commands.execute("timeline.component.set_color", color=QColor("#000000"))
 
 
 class TestARow:
