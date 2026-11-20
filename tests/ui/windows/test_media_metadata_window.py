@@ -760,11 +760,31 @@ def press_enter_on_questions():
         yield questions
 
 
+# Ways the window is asked to close, or to leave for the names box. Each gets the
+# window, a file to open over it, and Finder.
+
+
 def click_button(text):
-    def click(window):
+    def click(window, _file, _finder):
         button(window, text).click()
 
     return click
+
+
+def escape(window, _file, _finder):
+    press_escape(window)
+
+
+def close_from_the_title_bar(window, _file, _finder):
+    window.windowHandle().close()
+
+
+def open_the_file(window, file, _finder):
+    commands.execute("file.open", file)
+
+
+def open_the_file_from_the_system(window, file, finder):
+    finder.open(file)
 
 
 class TestEnterOnTheQuestions:
@@ -780,30 +800,48 @@ class TestEnterOnTheQuestions:
         "ask, question",
         [
             pytest.param(click_button("Cancel"), CLOSE, id="cancel"),
-            pytest.param(press_escape, CLOSE, id="escape"),
+            pytest.param(escape, CLOSE, id="escape"),
+            pytest.param(close_from_the_title_bar, CLOSE, id="title-bar"),
+            pytest.param(open_the_file, CLOSE, id="file-opened"),
+            pytest.param(
+                open_the_file_from_the_system, CLOSE, id="file-from-the-system"
+            ),
             pytest.param(click_button("Edit fields..."), LEAVE, id="edit-fields"),
         ],
     )
     def test_keeps_the_window_open_with_the_edits(
-        self, qtui, media_metadata_window, tilia_state, ask, question, field, text
+        self,
+        qtui,
+        tilia_state,
+        files,
+        window_over_file_a,
+        finder,
+        ask,
+        question,
+        field,
+        text,
     ):
+        window = window_over_file_a
         before = dict(tilia_state.metadata)
-        typed = type_in(media_metadata_window, field, text).text()
+        duration = tilia_state.duration
+        typed = type_in(window, field, text).text()
 
         with (
             press_enter_on_questions() as questions,
             patch.object(EditMetadataFieldsDialog, "exec", return_value=False) as names,
         ):
-            ask(media_metadata_window)
+            ask(window, files["B"], finder)
 
         assert questions.asked == [question]
         assert questions.answered == [QMessageBox.StandardButton.No]
         names.assert_not_called()
-        assert media_metadata_window.isVisible()
+        assert window.isVisible()
         assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
-        assert line_edit_of(media_metadata_window, field).text() == typed
+        assert line_edit_of(window, field).text() == typed
+        # File A is still open, as it was.
+        assert open_file_path() == files["A"]
         assert tilia_state.metadata == before
-        assert tilia_state.duration == 100
+        assert tilia_state.duration == duration
 
     def test_other_questions_keep_yes(self, qtui):
         with press_enter_on_questions() as questions:
