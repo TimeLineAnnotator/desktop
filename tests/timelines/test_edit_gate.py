@@ -47,6 +47,7 @@ def make_id(number: int) -> str:
 
 
 FORM, TEXTURE, EDITION = make_id(1), make_id(2), make_id(3)
+CADENCES, BEATS = make_id(4), make_id(5)
 A, B, C, D = make_id(11), make_id(12), make_id(13), make_id(14)
 ROW = {"id": "aZ3k9P", "name": "Melody"}
 EXAMPLE_PDF = Path(EXAMPLE_MEDIA_PATH).with_name("example.pdf")
@@ -82,15 +83,43 @@ def hierarchies(*components: tuple[str, dict]) -> tla.Timeline:
     )
 
 
-def ranges(*components: tuple[str, dict]) -> tla.Timeline:
+def ranges(*components: tuple[str, dict], row: dict = ROW) -> tla.Timeline:
     return tla.Timeline(
         id=TEXTURE,
         kind="range",
         ordinal=1,
         name="Texture",
-        attrs={"height": 60, "rows": [dict(ROW)]},
+        attrs={"height": 60, "rows": [dict(row)]},
         components={
-            id: tla.Component(id=id, kind="range", attrs={"row_id": ROW["id"], **attrs})
+            id: tla.Component(id=id, kind="range", attrs={"row_id": row["id"], **attrs})
+            for id, attrs in components
+        },
+    )
+
+
+def markers(*components: tuple[str, dict]) -> tla.Timeline:
+    return tla.Timeline(
+        id=CADENCES,
+        kind="marker",
+        ordinal=1,
+        name="Cadences",
+        attrs={"height": 30},
+        components={
+            id: tla.Component(id=id, kind="marker", attrs=attrs)
+            for id, attrs in components
+        },
+    )
+
+
+def beats(*components: tuple[str, dict], pattern: str) -> tla.Timeline:
+    return tla.Timeline(
+        id=BEATS,
+        kind="beat",
+        ordinal=1,
+        name="Beats",
+        attrs={"height": 35, "beat_pattern": pattern},
+        components={
+            id: tla.Component(id=id, kind="beat", attrs=attrs)
             for id, attrs in components
         },
     )
@@ -764,6 +793,70 @@ class TestWhatTheNextActionIsComparedWith:
         edit_label(tluis, FORM, C, "changed")
 
         assert_not_refused(tilia_errors)
+
+
+class TestOneOfSeveralAtOdds:
+    """A component at odds with several others: one fewer is one problem fewer."""
+
+    @pytest.fixture
+    def a_crosses_b_and_d(self, open_hierarchies):
+        # A holds B at its own level, and D starts inside A and ends after it.
+        return open_hierarchies(
+            (A, a_hierarchy(0, 20, 2)),
+            (B, a_hierarchy(5, 15, 2)),
+            (D, a_hierarchy(15, 30, 1)),
+        )
+
+    def test_deleting_one_is_allowed_and_saves(
+        self, a_crosses_b_and_d, tluis, tilia_errors
+    ):
+        select(tluis, FORM, B)
+
+        commands.execute("timeline.component.delete")
+
+        assert_not_refused(tilia_errors)
+        assert B not in timelines_now()[FORM]["components"]
+        assert save()
+
+    def test_uncrossing_one_is_allowed_and_saves(
+        self, a_crosses_b_and_d, tluis, tilia_errors
+    ):
+        # B goes below A: A, unchanged, crosses D alone.
+        select(tluis, FORM, B)
+
+        commands.execute("timeline.hierarchy.decrease_level")
+
+        assert_not_refused(tilia_errors)
+        assert element(tluis, FORM, B).get_data("level") == 1
+        assert save()
+
+    def test_a_changed_one_no_longer_at_odds_with_one_fixes_a_problem(
+        self, a_crosses_b_and_d, tluis, tilia_errors
+    ):
+        # A goes above B and still crosses D: the core keeps that one.
+        select(tluis, FORM, A)
+
+        commands.execute("timeline.hierarchy.increase_level")
+
+        assert_not_refused(tilia_errors)
+        assert element(tluis, FORM, A).get_data("level") == 3
+        assert save()
+
+    def test_deleting_one_of_three_markers_at_one_time_is_allowed_and_saves(
+        self, qtui, tilia, tls, tluis, tilia_errors, tmp_path
+    ):
+        open_file(
+            a_file(
+                tmp_path,
+                markers((A, {"time": 10.0}), (B, {"time": 10.0}), (C, {"time": 10.0})),
+            )
+        )
+        select(tluis, CADENCES, B)
+
+        commands.execute("timeline.component.delete")
+
+        assert_not_refused(tilia_errors)
+        assert save()
 
 
 class TestASaveAfterAnAcceptedEdit:
