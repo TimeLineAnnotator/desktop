@@ -3832,6 +3832,285 @@ class TestKeepReadProblems:
             tla.keep_read_problems(doc, SECOND)
 
 
+# A time past the end in a document read with no media length, judged at the
+# length written (TimeLineAnnotator/project-management#614, option c)
+
+# Read with no media length: a hierarchy from 10 to 40, with a post_end of 150.
+TEN_TO_40 = hierarchies((FIRST, at_level(10.0, 40.0, 1, post_end=150.0)))
+END_120_PAST_100 = "End time '120.0' is bigger than media time '100.0'"
+POST_END_PAST = "post_end is outside media bounds."
+
+
+class TestKeptPastTheEndWithNoLengthRead:
+    """In a document read with no media length, a time past the end that
+    `tla.keep_read_problems` keeps is judged at the length the document has
+    when it is written, not at the call: it stays old only while the component
+    as it was read is past that length by the same rule (FR-054)."""
+
+    @pytest.mark.parametrize(
+        "through", [30.0, None], ids=["through a length of 30", "at 100"]
+    )
+    def test_an_end_moved_past_the_length_written_is_refused(self, through, tmp_path):
+        # Shortened, edited and kept, lengthened again: refused, as the same
+        # edit made at 100 is. Its post_end, past 100 as read, is old.
+        doc = tla.loads(a_file(TEN_TO_40))
+        doc.media_length = 100.0 if through is None else through
+        fixed_in_part(doc, end=120.0)
+        doc.media_length = 100.0
+        assert [w.message for w in refused(doc, tmp_path)] == [END_120_PAST_100]
+
+    def test_one_read_past_the_length_written_is_written(self, tmp_path):
+        # TiLiA gives a file read with no length its media's length; a person
+        # then changes the level of a hierarchy past it.
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(10.0, 150.0, 0)))))
+        doc.media_length = 100.0
+        fixed_in_part(doc, level=1)
+        read = tla.read(written(doc, tmp_path))
+        assert read.timelines[FORM].components[FIRST].attrs["level"] == 1
+        assert [w.message for w in read.warnings] == [
+            "End time '150.0' is bigger than media time '100.0'"
+        ]
+
+    @pytest.mark.parametrize("at_the_call", [30.0, 50.0, 100.0])
+    @pytest.mark.parametrize(
+        "length, refusal",
+        [
+            # Read past 30 by its end and its post_end.
+            (30.0, []),
+            # Read past 50 by its post_end alone: the end the edit moved is new.
+            (50.0, ["End time '60.0' is bigger than media time '50.0'"]),
+            # Read past 100 by its post_end, and its end is within it.
+            (100.0, []),
+        ],
+    )
+    def test_the_length_at_the_call_doesnt_count(
+        self, at_the_call, length, refusal, tmp_path
+    ):
+        # Read from 10 to 40 at level 0; the level fixed and the end moved to
+        # 60, at one length, then written at another: as the same edit made at
+        # the length written.
+        doc = tla.loads(
+            a_file(hierarchies((FIRST, at_level(10.0, 40.0, 0, post_end=150.0))))
+        )
+        doc.media_length = at_the_call
+        fixed_in_part(doc, level=1, end=60.0)
+        doc.media_length = length
+        if refusal:
+            assert [w.message for w in refused(doc, tmp_path)] == refusal
+        else:
+            written(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "at_the_call", [None, 200.0], ids=["with no length", "with a longer one"]
+    )
+    def test_a_call_with_nothing_past_the_end_keeps_no_time_past_it(
+        self, at_the_call, tmp_path
+    ):
+        # The call keeps the times past the end at the length the document has
+        # then. With none, a time past a length given since is new on a
+        # component that has changed, as without the call.
+        doc = tla.loads(
+            a_file(hierarchies((FIRST, at_level(10.0, 40.0, 0, post_end=150.0))))
+        )
+        doc.media_length = at_the_call
+        fixed_in_part(doc, level=1)
+        doc.media_length = 100.0
+        assert [w.message for w in refused(doc, tmp_path)] == [POST_END_PAST]
+
+    def test_set_back_as_it_was_read_it_is_old_by_whichever_of_its_times(
+        self, tmp_path
+    ):
+        # As an undo gives it back: as read, not compared with any length.
+        doc = tla.loads(a_file(TEN_TO_40))
+        doc.media_length = 30.0
+        fixed_in_part(doc, end=120.0)
+        changed(doc, FIRST, end=40.0)
+        doc.media_length = 20.0
+        written(doc, tmp_path)
+
+
+def old_file_with_no_length(*hierarchy_attrs):
+    content = json.loads(old_file(*hierarchy_attrs))
+    del content["media_metadata"]["media length"]
+    return json.dumps(content, indent=2).encode("utf-8")
+
+
+class TestPastAFirstLength:
+    """`tla.past_a_first_length`: in a document read with no media length that
+    has one now, each component's time past it that a write keeps as old,
+    never having been compared with a length, as a warning, with its rule's
+    own text (FR-054; TimeLineAnnotator/project-management#496, point 1,
+    option B, and #614, option c)."""
+
+    @pytest.mark.parametrize("kind", PAST_THE_END)
+    def test_a_component_past_it_has_a_warning(self, kind, tmp_path):
+        timeline, change = PAST_THE_END[kind]
+        doc = tla.loads(a_file(change))
+        doc.media_length = 100.0
+        (warning,) = tla.past_a_first_length(doc)
+        assert (warning.place, warning.timeline_id, warning.component_id) == (
+            component_place(timeline, FIRST),
+            timeline,
+            FIRST,
+        )
+        # Its line in what a write would write, as a refusal gives it.
+        assert warning.line == line_of(writer.checked_bytes(doc), FIRST)
+        assert (warning.reason, warning.other_ids, warning.more) == (
+            warning.message,
+            (),
+            0,
+        )
+        # The file written warns about it so too.
+        assert tla.read(written(doc, tmp_path)).warnings == [warning]
+
+    def test_each_rule_it_breaks_has_its_own(self):
+        doc = tla.loads(
+            a_file(hierarchies((FIRST, at_level(10.0, 90.0, 1, post_end=150.0))))
+        )
+        doc.media_length = 50.0
+        assert [w.message for w in tla.past_a_first_length(doc)] == [
+            "End time '90.0' is bigger than media time '50.0'",
+            POST_END_PAST,
+        ]
+
+    def test_in_the_order_of_the_file(self):
+        doc = tla.loads(
+            a_file(
+                together(
+                    hierarchies((FIRST, at_level(140.0, 150.0, 1))),
+                    markers((SECOND, {"time": 150.0})),
+                )
+            )
+        )
+        doc.media_length = 100.0
+        assert [w.component_id for w in tla.past_a_first_length(doc)] == [
+            w.component_id
+            for w in tla.loads(writer.checked_bytes(doc)).warnings
+            if w.component_id is not None
+        ]
+
+    def test_one_kept_past_it_after_an_edit_is_listed(self, tmp_path):
+        # TiLiA's case: listed when the length is given, and after the edit.
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(10.0, 150.0, 0)))))
+        doc.media_length = 100.0
+        listed = [w.message for w in tla.past_a_first_length(doc)]
+        fixed_in_part(doc, level=1)
+        assert (
+            listed
+            == [w.message for w in tla.past_a_first_length(doc)]
+            == ["End time '150.0' is bigger than media time '100.0'"]
+        )
+        written(doc, tmp_path)
+
+    @pytest.mark.parametrize(
+        "through", [None, 30.0], ids=["without the call", "through a length of 30"]
+    )
+    def test_what_a_write_refuses_isnt_listed(self, through, tmp_path):
+        # The end moved past the length given since: without the call, both
+        # of its times past the end are new; kept through a shorter length,
+        # its post_end, past 100 as read, is old.
+        doc = tla.loads(a_file(TEN_TO_40))
+        if through is None:
+            doc.media_length = 100.0
+            changed(doc, FIRST, end=120.0)
+        else:
+            doc.media_length = through
+            fixed_in_part(doc, end=120.0)
+            doc.media_length = 100.0
+        listed = [w.message for w in tla.past_a_first_length(doc)]
+        refusal = [w.message for w in refused(doc, tmp_path)]
+        if through is None:
+            assert (listed, refusal) == ([], [END_120_PAST_100, POST_END_PAST])
+        else:
+            assert (listed, refusal) == ([POST_END_PAST], [END_120_PAST_100])
+
+    @pytest.mark.parametrize(
+        "read_with, length",
+        [(100.0, 50.0), (None, None), (None, -5.0)],
+        ids=["read with a length", "with no length now", "one that isn't one"],
+    )
+    def test_nothing_else_and_nothing_checked(self, read_with, length, monkeypatch):
+        # Read with a length, its times were compared with it, and the reader
+        # warned about those past it. With no length, nothing is past the end.
+        # Found so without a check.
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(read_with),
+                    hierarchies((FIRST, at_level(10.0, 90.0, 1, post_end=150.0))),
+                )
+            )
+        )
+        doc.media_length = length
+        monkeypatch.setattr(writer, "checked_bytes", None)  # any check fails
+        assert tla.past_a_first_length(doc) == []
+
+    def test_nothing_in_a_quarters_file(self):
+        # FR-080: its times are in quarter notes, and a media length in seconds.
+        def change(content):
+            content["time_unit"] = "quarters"
+
+        doc = tla.loads(a_file(together(change, markers((FIRST, {"time": 150.0})))))
+        doc.media_length = 100.0
+        assert tla.past_a_first_length(doc) == []
+
+    def test_nothing_once_written_with_a_length(self, tmp_path):
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(140.0, 150.0, 1)))))
+        doc.media_length = 100.0
+        assert len(tla.past_a_first_length(doc)) == 1
+        written(doc, tmp_path)
+        assert tla.past_a_first_length(doc) == []
+
+    def test_listed_once_written_with_no_length(self, tmp_path):
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(140.0, 150.0, 1)))))
+        written(doc, tmp_path)
+        doc.media_length = 100.0
+        assert len(tla.past_a_first_length(doc)) == 1
+
+    def test_an_old_file_names_the_document_s_places(self, tmp_path):
+        doc = tla.loads(
+            old_file_with_no_length({"start": 10.0, "end": 150.0, "level": 1})
+        )
+        assert doc.media_length is None
+        (timeline,) = doc.timelines
+        (component,) = doc.timelines[timeline].components
+        doc.media_length = 100.0
+        (warning,) = tla.past_a_first_length(doc)
+        assert (warning.place, warning.line) == (
+            component_place(timeline, component),
+            line_of(writer.checked_bytes(doc), component),
+        )
+        assert tla.read(written(doc, tmp_path)).warnings == [warning]
+
+    def test_it_changes_nothing(self):
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(10.0, 150.0, 0)))))
+        doc.media_length = 100.0
+        fixed_in_part(doc, level=1)
+        before = copy.deepcopy(doc)
+        tla.past_a_first_length(doc)
+        assert doc == before
+        assert doc.read_problems == before.read_problems
+        assert doc.warnings == before.warnings
+        assert dict(doc.read_unmeasured) == dict(before.read_unmeasured)
+        assert doc.unmeasured_edits == before.unmeasured_edits
+
+    def test_it_raises_what_write_raises(self, tmp_path):
+        # A measure table that names no timeline: the reader refuses the
+        # timeline.
+        doc = tla.loads(a_file(hierarchies((FIRST, at_level(140.0, 150.0, 1)))))
+        doc.media_length = 100.0
+        doc.timelines[FORM].attrs["measure_table"] = tla.new_id()
+        with pytest.raises(tla.UnreadableFile) as writing:
+            tla.write(tmp_path / "piece.tla", doc)
+        with pytest.raises(tla.UnreadableFile) as listing:
+            tla.past_a_first_length(doc)
+        assert (listing.value.place, listing.value.line, listing.value.message) == (
+            writing.value.place,
+            writing.value.line,
+            writing.value.message,
+        )
+
+
 # The others a warning names, by their ids (TimeLineAnnotator/project-management#601)
 
 # One hierarchy over thirteen that don't touch each other: it names the first

@@ -224,7 +224,11 @@ class ReadProblem:
     `about`. At its state, a time past the end is old, as for a component as it
     was read, by whichever of its times (FR-054), as when another length puts it
     there; but not one that was past the end then and wasn't kept: the edit put
-    it there, and the call refused it.
+    it there, and the call refused it. On a component read with no media length,
+    a time past the end at a state one was kept at is judged when the document
+    is written instead, at the length it then has, by the component as it was
+    read (TimeLineAnnotator/project-management#614, option c), and
+    `past_at_kept` isn't read.
     """
 
     code: str

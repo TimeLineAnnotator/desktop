@@ -41,7 +41,7 @@ from tilia_core.tla.model import (
 from tilia_core.tla.layout import FORMAT_VERSION, schema
 from tilia_core.tla.media_files import as_media_path
 from tilia_core.tla.paths import media, stored_file
-from tilia_core.tla.problems import keep_read_problems
+from tilia_core.tla.problems import keep_read_problems, past_a_first_length
 from tilia_core.tla.reader import loads, read
 from tilia_core.tla.writer import (
     ABSENT,
@@ -96,6 +96,7 @@ __all__ = [
     "migrate_folder",
     "new_document",
     "new_id",
+    "past_a_first_length",
     "read",
     "schema",
     "stored_file",
