@@ -475,6 +475,306 @@ def test_apply_lists_a_file_it_couldnt_write(clean, monkeypatch, capsys):
     assert out.endswith("\nWrote 1 file.\n")
 
 
+# Files with other names (hard links): a write gives the name written a file
+# of its own (FR-044). The report lists, without --apply and with it, each
+# such file the run writes: its names in the folder, then how many it has
+# outside, which keep the old version
+# (TimeLineAnnotator/project-management#594).
+WOULD_SEPARATE = (
+    "Would separate from their other names, which would keep the old version"
+    " outside the folder (hard links): "
+)
+SEPARATED = (
+    "Separated from their other names, which keep the old version outside the"
+    " folder (hard links): "
+)
+
+
+def lists_files_with_other_names(out):
+    return WOULD_SEPARATE in out or SEPARATED in out
+
+
+@pytest.fixture
+def linked(tmp_path):
+    """A corpus whose old file `piece.tla` has another name outside it, and
+    whose file in the current format has one too, beside an old file with
+    one name. Windows makes a hard link without administrator rights, so
+    every system can."""
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    place(root / "plain.tla", OLD / "0.6.0-s4-10.tla")
+    place(root / "current.tla", GOLDEN / "every-kind.tla")
+    (tmp_path / "elsewhere").mkdir()
+    os.link(root / "piece.tla", tmp_path / "elsewhere" / "piece.tla")
+    os.link(root / "current.tla", tmp_path / "elsewhere" / "current.tla")
+    return root
+
+
+LINKED_FILES = """\
+  from 0.0.96: 1 file
+  from 0.6.0: 1 file
+Already in the new format: 1 file
+Left alone: 0 files
+{}1 file
+  piece.tla, and 1 name outside the folder
+Changes the migration makes:
+  piece.tla               dropped 2 formal_type and formal_function values; moved 2 marks to metadata
+  plain.tla               dropped 5 formal_type and formal_function values
+
+"""
+
+
+def test_without_apply_a_file_with_a_name_outside_is_listed_as_would_separate(
+    linked, monkeypatch, capsys
+):
+    monkeypatch.chdir(linked.parent)
+    before = snapshot(linked.parent)
+
+    assert migrate_command.main(["corpus"]) == 0
+
+    assert capsys.readouterr().out == (
+        f"Would migrate 2 files to format {FORMAT}:\n"
+        + LINKED_FILES.format(WOULD_SEPARATE)
+        + ADVICE
+        + "Then run: tilia migrate corpus --apply\n"
+    )
+    assert snapshot(linked.parent) == before
+
+
+def test_with_apply_a_file_with_a_name_outside_is_listed_and_that_keeps_it_old(
+    linked, monkeypatch, capsys
+):
+    monkeypatch.chdir(linked.parent)
+    elsewhere = linked.parent / "elsewhere"
+    old = (linked / "piece.tla").read_bytes()
+
+    assert migrate_command.main(["corpus", "--apply"]) == 0
+
+    assert capsys.readouterr().out == (
+        f"Migrated 2 files to format {FORMAT}:\n"
+        + LINKED_FILES.format(SEPARATED)
+        + "Wrote 2 files.\n"
+    )
+    assert tla.read(linked / "piece.tla").format_version == FORMAT
+    assert (elsewhere / "piece.tla").read_bytes() == old
+    assert not os.path.samefile(linked / "piece.tla", elsewhere / "piece.tla")
+    # Not written, so still one file with two names.
+    assert os.path.samefile(linked / "current.tla", elsewhere / "current.tla")
+
+
+@pytest.fixture
+def twins(tmp_path):
+    """A corpus that holds two names of one old file."""
+    root = tmp_path / "corpus"
+    place(root / "a.tla", OLD / "0.0.96.tla")
+    os.link(root / "a.tla", root / "b.tla")
+    return root
+
+
+TWINS_FILES = """\
+  from 0.0.96: 2 files
+Already in the new format: 0 files
+Left alone: 0 files
+{}1 file
+  a.tla, b.tla
+Share a document id (copies): a.tla, b.tla
+Changes the migration makes:
+  a.tla                   dropped 2 formal_type and formal_function values; moved 2 marks to metadata
+  b.tla                   dropped 2 formal_type and formal_function values; moved 2 marks to metadata
+
+"""
+
+
+def test_without_apply_two_names_in_the_folder_are_one_line(twins, monkeypatch, capsys):
+    monkeypatch.chdir(twins.parent)
+    before = snapshot(twins.parent)
+
+    assert migrate_command.main(["corpus"]) == 0
+
+    assert capsys.readouterr().out == (
+        f"Would migrate 2 files to format {FORMAT}:\n"
+        + TWINS_FILES.format(WOULD_SEPARATE)
+        + ADVICE
+        + "Then run: tilia migrate corpus --apply\n"
+    )
+    assert snapshot(twins.parent) == before
+
+
+def test_with_apply_two_names_in_the_folder_are_one_line_and_both_migrated(
+    twins, monkeypatch, capsys
+):
+    monkeypatch.chdir(twins.parent)
+
+    assert migrate_command.main(["corpus", "--apply"]) == 0
+
+    # The same line as without --apply: the second name has one when it is
+    # written, but the run noted the names of each file before writing any.
+    assert capsys.readouterr().out == (
+        f"Migrated 2 files to format {FORMAT}:\n"
+        + TWINS_FILES.format(SEPARATED)
+        + "Wrote 2 files.\n"
+    )
+    for name in ("a.tla", "b.tla"):
+        assert tla.read(twins / name).format_version == FORMAT
+    assert not os.path.samefile(twins / "a.tla", twins / "b.tla")
+
+
+@pytest.mark.parametrize("apply", [[], ["--apply"]], ids=["listing", "apply"])
+def test_names_in_the_folder_and_one_outside_it_are_one_line(twins, capsys, apply):
+    outside = twins.parent / "outside.tla"
+    os.link(twins / "a.tla", outside)
+    old = outside.read_bytes()
+
+    assert migrate_command.main([str(twins), *apply]) == 0
+
+    head = SEPARATED if apply else WOULD_SEPARATE
+    assert (
+        f"{head}1 file\n  a.tla, b.tla, and 1 name outside the folder\n"
+        in capsys.readouterr().out
+    )
+    assert outside.read_bytes() == old
+
+
+def test_a_second_apply_lists_no_file_with_other_names(linked, capsys):
+    migrate_command.main([str(linked), "--apply"])
+    capsys.readouterr()
+
+    assert migrate_command.main([str(linked), "--apply"]) == 0
+
+    out = capsys.readouterr().out
+    assert not lists_files_with_other_names(out)
+    assert out.endswith("\nNothing was written.\n")
+
+
+def test_a_file_with_other_names_left_alone_isnt_listed_with_them(
+    linked, monkeypatch, capsys
+):
+    write = folder_module.write
+    old = (linked / "piece.tla").read_bytes()
+
+    def held_open(target, doc, **kwargs):
+        if Path(target).name == "piece.tla":
+            raise tla.FileInUse(target)
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", held_open)
+
+    assert migrate_command.main([str(linked), "--apply"]) == 1
+
+    out = capsys.readouterr().out
+    assert "In use by another program: 1 file\n  piece.tla\n" in out
+    assert not lists_files_with_other_names(out)
+    assert (linked.parent / "elsewhere" / "piece.tla").read_bytes() == old
+    assert os.path.samefile(
+        linked / "piece.tla", linked.parent / "elsewhere" / "piece.tla"
+    )
+
+
+def test_a_name_left_alone_is_on_its_files_line(twins, monkeypatch, capsys):
+    write = folder_module.write
+    old = (twins / "b.tla").read_bytes()
+
+    def held_open(target, doc, **kwargs):
+        if Path(target).name == "b.tla":
+            raise tla.FileInUse(target)
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", held_open)
+
+    assert migrate_command.main([str(twins), "--apply"]) == 1
+
+    out = capsys.readouterr().out
+    assert (
+        "In use by another program: 1 file\n  b.tla\n"
+        f"{SEPARATED}1 file\n  a.tla, b.tla\n"
+    ) in out
+    assert (twins / "b.tla").read_bytes() == old
+
+
+@pytest.mark.parametrize("apply", [[], ["--apply"]], ids=["listing", "apply"])
+def test_a_name_the_walk_skips_is_on_its_files_line(tmp_path, capsys, apply):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    (root / ".backup").mkdir()
+    os.link(root / "piece.tla", root / ".backup" / "piece.tla")
+    os.link(root / "piece.tla", tmp_path / "outside.tla")
+
+    assert migrate_command.main([str(root), *apply]) == 0
+
+    head = SEPARATED if apply else WOULD_SEPARATE
+    assert (
+        f"{head}1 file\n"
+        "  .backup/piece.tla, piece.tla, and 1 name outside the folder\n"
+    ) in capsys.readouterr().out
+
+
+def test_the_files_with_other_names_are_listed_after_those_in_use(
+    tmp_path, monkeypatch, capsys
+):
+    """After the files in use by another program, before the files that
+    share a document id: a line for each file, in path order of its first
+    name, its names in path order, then how many it has outside the folder."""
+    root = tmp_path / "corpus"
+    place(root / "held.tla", OLD / "0.0.96.tla")
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    os.link(root / "piece.tla", tmp_path / "other.tla")
+    place(root / "e.tla", OLD / "0.0.96.tla")
+    os.link(root / "e.tla", root / "d.tla")
+    os.link(root / "e.tla", tmp_path / "other d 1.tla")
+    os.link(root / "e.tla", tmp_path / "other d 2.tla")
+    place(root / "c.tla", OLD / "0.0.96.tla")
+    os.link(root / "c.tla", root / "a.tla")
+    os.link(root / "c.tla", root / "b.tla")
+    write = folder_module.write
+
+    def held_open(target, doc, **kwargs):
+        if Path(target).name == "held.tla":
+            raise tla.FileInUse(target)
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", held_open)
+
+    assert migrate_command.main([str(root), "--apply"]) == 1
+
+    changes = (
+        "dropped 2 formal_type and formal_function values; moved 2 marks to metadata"
+    )
+    assert capsys.readouterr().out == (
+        f"Migrated 6 files to format {FORMAT}:\n"
+        "  from 0.0.96: 6 files\n"
+        "Already in the new format: 0 files\n"
+        "Left alone: 0 files\n"
+        "In use by another program: 1 file\n"
+        "  held.tla\n"
+        f"{SEPARATED}3 files\n"
+        "  a.tla, b.tla, c.tla\n"
+        "  d.tla, e.tla, and 2 names outside the folder\n"
+        "  piece.tla, and 1 name outside the folder\n"
+        "Share a document id (copies): a.tla, b.tla, c.tla, d.tla, e.tla,"
+        " held.tla, piece.tla\n"
+        "Changes the migration makes:\n"
+        f"  a.tla                   {changes}\n"
+        f"  b.tla                   {changes}\n"
+        f"  c.tla                   {changes}\n"
+        f"  d.tla                   {changes}\n"
+        f"  e.tla                   {changes}\n"
+        f"  piece.tla               {changes}\n"
+        "\n"
+        "Wrote 6 files.\n"
+    )
+
+
+@pytest.mark.parametrize("apply", [[], ["--apply"]], ids=["listing", "apply"])
+def test_a_folder_without_hard_links_lists_no_file_with_other_names(
+    clean, capsys, apply
+):
+    assert migrate_command.main([str(clean), *apply]) == 0
+
+    out = capsys.readouterr().out
+    assert out.startswith(("Would migrate 2 files", "Migrated 2 files"))
+    assert not lists_files_with_other_names(out)
+
+
 def test_one_mark_moved_is_worded_in_the_singular(tmp_path, capsys):
     old = json.loads((OLD / "0.0.96.tla").read_text(encoding="utf-8"))
     old["timelines"]["1"]["components"]["4"]["comments"] = "tag=p1 first theme"

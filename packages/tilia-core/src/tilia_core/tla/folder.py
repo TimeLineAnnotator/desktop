@@ -23,6 +23,7 @@ import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 from traceback import format_exception
+from typing import NamedTuple
 
 from tilia_core.tla.errors import (
     BrokenRules,
@@ -37,6 +38,7 @@ from tilia_core.tla.model import (
     Document,
     FileResult,
     FolderNotListed,
+    HardLinks,
     MigrationReport,
     Outcome,
 )
@@ -146,7 +148,11 @@ def migrate_folder(
     the core, is reported for that file, and the others go on. Running it
     again writes nothing. An old file with harmonies or modes can't be written
     without the `harmony` extra, since they can't be checked (FR-054): with or
-    without `apply`, it is reported as left alone, naming the command.
+    without `apply`, it is reported as left alone, naming the command. The
+    report lists the files with more than one name (hard links) that it
+    writes, or would write (`MigrationReport.hard_links`): the names of each
+    file are noted before anything is written, so that `apply` lists what the
+    listing listed.
 
     Raises `FileNotFoundError` for a folder that doesn't exist,
     `NotADirectoryError` for a path that isn't a folder, and the system's
@@ -179,8 +185,10 @@ def migrate_folder(
             ids.setdefault(document.document_id, []).append(relative)
         return True
 
+    files = corpus_files(root, on_error=not_listed)
+    names = _names(files)
     again: list[tuple[str, Path]] = []
-    for relative, path in corpus_files(root, on_error=not_listed):
+    for relative, path in files:
         if not taken(relative, path, last=False):
             again.append((relative, path))
     if again:
@@ -196,6 +204,9 @@ def migrate_folder(
         files=results,
         shared_ids=sorted(shared, key=lambda paths: _path_order(paths[0])),
         folders_not_listed=folders,
+        hard_links=_hard_links(
+            results, names, root, {relative for relative, _ in files}
+        ),
     )
 
 
@@ -256,6 +267,173 @@ def _result(
         result.outcome = Outcome.WRITE_FAILED
         result.reason = f"can't write: {unable}"
     return result
+
+
+# A file, whatever its name: its device and inode numbers; or, on a file system
+# that gives no inode numbers, its real path, which a link to it shares.
+_FileKey = tuple[int, int] | str
+
+# A name in a folder, as a file system that ignores case and Unicode form
+# compares it: the folder, as `_FileKey`, and the name, in NFC, casefolded.
+_NameKey = tuple[_FileKey, str]
+
+# The outcomes of a file written, or that would be.
+_WRITTEN = frozenset({Outcome.MIGRATED, Outcome.WOULD_MIGRATE})
+
+
+class _Name(NamedTuple):
+    """A name of a file with more than one name (hard links)."""
+
+    file: _FileKey  # which file it is
+    names: int  # how many names the file has
+    link: bool  # a symbolic link to the file, not one of its names
+    name: _NameKey  # the name, or for a link the name it gives
+
+
+def _names(files: list[tuple[str, Path]]) -> dict[str, _Name]:
+    """Each file with more than one name (hard links), by its path relative
+    to the folder. Taken before anything is written, as a write gives the
+    name written a file of its own (FR-044). A link to a file counts the
+    names of the file it names, and a write through it replaces the name it
+    gives, not the link. A file that can't be looked at is left out: reading
+    it says why."""
+    noted: dict[str, _Name] = {}
+    for relative, path in files:
+        try:
+            info = os.stat(path)
+            if info.st_nlink < 2:
+                continue
+            real = os.path.realpath(path)
+            link = os.path.islink(path)
+            name = _name_key(real if link else os.fspath(path))
+        except OSError:
+            continue
+        file = (info.st_dev, info.st_ino) if info.st_ino else real
+        noted[relative] = _Name(file, info.st_nlink, link, name)
+    return noted
+
+
+def _name_key(path: str) -> _NameKey:
+    """The name at `path`: its folder, whatever the folder's name, and the
+    name in NFC, casefolded. On POSIX a link's real path keeps the link's
+    spelling, which a case-insensitive file system, as macOS's, takes for the
+    name of another case or Unicode form."""
+    folder, name = os.path.split(path)
+    info = os.stat(folder)
+    where = (info.st_dev, info.st_ino) if info.st_ino else os.path.realpath(folder)
+    return where, unicodedata.normalize("NFC", name).casefold()
+
+
+def _hard_links(
+    results: list[FileResult],
+    names: dict[str, _Name],
+    folder: Path,
+    taken: set[str],
+) -> list[HardLinks]:
+    """The files with more than one name that the run writes, or would
+    write, under one name or more: each with all its names in the folder,
+    written or not, in path order, and how many names it has outside the
+    folder, which keep the old version. The names in the folder are those
+    that aren't links, which are exact, and the names the links give that
+    aren't among them: first those the walk took, from `results`; then, for
+    a file that still has names unaccounted for, those the walk skips,
+    hidden or with another extension (TimeLineAnnotator/project-management#626)."""
+    noted = [result for result in results if result.path in names]
+    written = {
+        names[result.path].file
+        for result in noted
+        if Outcome(result.outcome) in _WRITTEN
+    }
+    paths: dict[_FileKey, list[str]] = {}
+    exact: dict[_FileKey, list[_NameKey]] = {}
+    linked: dict[_FileKey, set[_NameKey]] = {}
+    for result in noted:
+        name = names[result.path]
+        if name.file in written:
+            paths.setdefault(name.file, []).append(result.path)
+            if name.link:
+                linked.setdefault(name.file, set()).add(name.name)
+            else:
+                exact.setdefault(name.file, []).append(name.name)
+
+    def outside(file: _FileKey) -> int:
+        not_links = exact.get(file, [])
+        in_folder = len(not_links) + len(linked.get(file, set()) - set(not_links))
+        # A name added to the file while its names were counted could make
+        # more names in the folder than the count taken before it.
+        return max(names[paths[file][0]].names - in_folder, 0)
+
+    # How many names each file still has unaccounted for. Only a file told by
+    # its inode number can be found by it.
+    missing = {
+        file: outside(file)
+        for file in paths
+        if isinstance(file, tuple) and outside(file) > 0
+    }
+    if missing:
+        for file, found in _names_the_walk_skips(folder, taken, missing).items():
+            for path, name in found:
+                paths[file].append(path)
+                exact.setdefault(file, []).append(name)
+    lines = [
+        HardLinks(paths=tuple(sorted(found, key=_path_order)), outside=outside(file))
+        for file, found in paths.items()
+    ]
+    return sorted(lines, key=lambda line: _path_order(line.paths[0]))
+
+
+def _names_the_walk_skips(
+    folder: Path, taken: set[str], missing: dict[tuple[int, int], int]
+) -> dict[tuple[int, int], list[tuple[str, _NameKey]]]:
+    """The names of the files in `missing`, by device and inode, in `folder`
+    that the walk of `corpus_files` didn't take, `taken` being those it took:
+    hidden ones, with other extensions, in hidden folders. Each is its path
+    relative to `folder`, with "/", and its name as `_name_key` gives it. The
+    walk reads the folder's entries once, and stops once it has found as many
+    names of each file as `missing` says are missing. Links aren't names, and
+    links to folders aren't followed, as in the walk. A folder that can't be
+    listed, or a name that can't be looked at, is left out, and so isn't
+    found."""
+    left = dict(missing)
+    inodes = {inode for _, inode in left}
+    found: dict[tuple[int, int], list[tuple[str, _NameKey]]] = {}
+    pending = [("", folder)]
+    while pending:
+        prefix, current = pending.pop()
+        try:
+            with os.scandir(current) as listing:
+                entries = list(listing)
+        except OSError:
+            continue
+        for entry in entries:
+            relative = prefix + entry.name
+            try:
+                if entry.is_dir(follow_symlinks=False):
+                    if not _is_junction(entry):
+                        pending.append((relative + "/", Path(entry.path)))
+                    continue
+                if relative in taken or not entry.is_file(follow_symlinks=False):
+                    continue
+                # On POSIX the listing gives each entry's inode number, so
+                # only a match is looked at, and the look confirms it, as on
+                # overlayfs the two can differ. On Windows the listing gives
+                # none, and the entry's own stat gives none either.
+                if os.name != "nt" and entry.inode() not in inodes:
+                    continue
+                info = os.stat(entry.path)
+                file = (info.st_dev, info.st_ino)
+                if file not in left:
+                    continue
+                name = _name_key(entry.path)
+            except OSError:
+                continue
+            found.setdefault(file, []).append((relative, name))
+            left[file] -= 1
+            if not left[file]:
+                del left[file]
+                if not left:
+                    return found
+    return found
 
 
 def _write(path: Path, document: Document) -> tuple[Outcome, str | None, str | None]:

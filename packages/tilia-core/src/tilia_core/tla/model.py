@@ -821,6 +821,21 @@ class FolderNotListed:
     reason: str
 
 
+@dataclass(frozen=True)
+class HardLinks:
+    """A file with more than one name (hard links) that migrating a folder
+    writes, or would write, under its names in the folder. A write gives each
+    name written a file of its own (FR-044), so its other names keep the old
+    version.
+
+    `paths` are its names in the folder, relative to it, with "/", in path
+    order: those the run writes and those it leaves alone, which the report
+    lists too. `outside` counts its names outside the folder."""
+
+    paths: tuple[str, ...]
+    outside: int
+
+
 @dataclass(kw_only=True)
 class MigrationReport:
     files: list[FileResult] = field(default_factory=list)  # in path order
@@ -828,6 +843,9 @@ class MigrationReport:
         default_factory=list
     )  # paths whose files share an id
     folders_not_listed: list[FolderNotListed] = field(default_factory=list)
+    # The files with more than one name that the run writes, or would write,
+    # in path order of their first names.
+    hard_links: list[HardLinks] = field(default_factory=list)
 
     @property
     def status(self) -> int:
