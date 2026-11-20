@@ -246,6 +246,42 @@ class TestExportedPositions:
 
         assert (marker["measure"], marker["beat"]) == (7, 1.5)
 
+    def test_a_beat_to_a_millionth(self, tilia, beat_tl, marker_tl, tmp_path):
+        # A beat every 0.6 s: 7.5 s lies half-way between the beats at 7.2 and 7.8,
+        # which the arithmetic gives as 1.5000000000000009.
+        self.add_beats(beat_tl, [place * 0.6 for place in range(40)])
+        for time in (7.5, 12.3, 3.3, 9.9):
+            marker_tl.create_component(ComponentKind.MARKER, time)
+
+        markers = self.export(tmp_path)["Marker"]
+
+        assert [(m["time"], m["measure"], m["beat"]) for m in markers] == [
+            (3.3, 2, 2.5),
+            (7.5, 4, 1.5),
+            (9.9, 5, 1.5),
+            (12.3, 6, 1.5),
+        ]
+
+    def test_a_length_in_measures_to_a_millionth(
+        self, tilia, beat_tl, hierarchy_tl, tmp_path
+    ):
+        self.add_beats(beat_tl, [place * 0.6 for place in range(40)])
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 3.3, 12.3, 1)
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 7.5, 12.3, 2)
+
+        hierarchies = self.export(tmp_path)["Hierarchy"]
+
+        assert [
+            (
+                h["start_measure"],
+                h["start_beat"],
+                h["end_measure"],
+                h["end_beat"],
+                h["length_in_measures"],
+            )
+            for h in sorted(hierarchies, key=lambda h: h["start"])
+        ] == [(2, 2.5, 6, 1.5, [3, 3.0]), (4, 1.5, 6, 1.5, [2, 0.0])]
+
 
 class TestExportImage:
     @staticmethod

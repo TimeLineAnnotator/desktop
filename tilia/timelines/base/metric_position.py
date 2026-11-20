@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# The decimal places of a beat in the export: a millionth of a beat, as the core
+# rounds a length and quarter notes (TimeLineAnnotator/project-management#651).
+EXPORTED_BEAT_PLACES = 6
+
 
 @dataclass
 class MetricPosition:

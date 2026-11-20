@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.timelines.test_metric_position import a_file, an_id, beats, open_file
 from tests.utils import undoable
 from tilia.requests import Get, get
 from tilia.timelines.beat.timeline import BeatTimeline
@@ -599,16 +600,66 @@ class TestAddMeasureZero:
 
         assert beat_tl[0].get_data("time") == 3
 
+    REFUSED = (
+        False,
+        "Measures 1 and 2 can't both be found on this timeline. Cannot estimate"
+        " measure zero duration.",
+    )
+
     @pytest.mark.parametrize("times", [range(4), [0], []], ids=["4", "1", "0"])
     def test_refused_with_fewer_than_two_measures(self, beat_tl, times):
         self.add_beats(beat_tl, times)
 
-        assert beat_tl.add_measure_zero(0.5) == (
-            False,
-            "Timeline has less than two measures. Cannot estimate measure zero"
-            " duration.",
-        )
+        assert beat_tl.add_measure_zero(0.5) == self.REFUSED
         assert len(beat_tl) == len(times)
+
+    def test_refused_without_a_measure_2(self, beat_tl):
+        self.add_beats(beat_tl, range(5, 17))
+        beat_tl.set_measure_number(1, 3)
+        assert beat_tl.measure_numbers == [1, 3, 4]
+
+        assert beat_tl.add_measure_zero(0.5) == self.REFUSED
+        assert len(beat_tl) == 12
+
+    def test_refused_without_a_measure_1(self, beat_tl):
+        self.add_beats(beat_tl, range(5, 17))
+        beat_tl.set_measure_number(0, 5)
+        assert beat_tl.measure_numbers == [5, 6, 7]
+
+        assert beat_tl.add_measure_zero(0.5) == self.REFUSED
+        assert len(beat_tl) == 12
+
+    @staticmethod
+    def open_beats(tmp_path, change):
+        """Opens a file with one beat timeline, a beat every second from 5 to 16
+        and a measure every four, with `change` made to it; gives its timeline."""
+        content = beats(range(5, 17), {0: {}, 4: {}, 8: {}})
+        change(content)
+        assert open_file(a_file(tmp_path, {an_id(1): content}))
+        return get(Get.TIMELINE, an_id(1))
+
+    def test_refused_with_a_folded_table(self, qtui, tls, tmp_path):
+        # The measures played next: the core maps no times to such a table.
+        def fold(content):
+            components = content["components"]
+            components[an_id(100)]["measure"] = {"next": [an_id(104)]}
+            components[an_id(104)]["measure"] = {"next": [an_id(108)]}
+
+        timeline = self.open_beats(tmp_path, fold)
+        assert timeline.measure_numbers == [1, 2, 3]
+
+        assert timeline.add_measure_zero(0.5) == self.REFUSED
+        assert len(timeline) == 12
+
+    def test_refused_with_a_table_the_core_can_t_map(self, qtui, tls, tmp_path):
+        def a_beat_without_a_time(content):
+            content["components"][an_id(199)] = {"kind": "BEAT"}
+
+        timeline = self.open_beats(tmp_path, a_beat_without_a_time)
+        assert timeline.measure_numbers == [1, 2, 3]
+
+        assert timeline.add_measure_zero(0.5) == self.REFUSED
+        assert len(timeline) == 12
 
     def test_refused_without_room_before_measure_one(self, beat_tl):
         self.add_beats(beat_tl, range(1, 9))
