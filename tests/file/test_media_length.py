@@ -384,8 +384,10 @@ class TestALocalFilesLengthAsItOpens:
         # (TimeLineAnnotator/project-management#642, a).
         monkeypatch.setattr(_Audio, "LENGTH", reported)
         path = a_local_file(tmp_path, length=STORED)
-        with ServeSequence(Get.FROM_USER_YES_OR_NO, answers):
+        questions = ServeSequence(Get.FROM_USER_YES_OR_NO, answers)
+        with questions:
             assert open_file(path)
+        assert questions.return_count == len(answers)
         answered = tilia.get_timelines_state()[0]
         markers = tls.get_timelines_by_type(MarkerTimeline)[0]
         first = min(markers, key=lambda marker: marker.get_data("time"))
