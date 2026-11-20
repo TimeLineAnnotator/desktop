@@ -728,6 +728,306 @@ class TestEnter:
         assert line_edit.text() == typed
 
 
+class Questions:
+    def __init__(self):
+        self.asked = []
+        self.answered = []
+
+
+@contextmanager
+def press_enter_on_questions():
+    """Shows each yes-or-no question on screen, as exec() does, and presses Enter
+    on it, as a person does out of habit. Keeps the text of each question and the
+    button Enter clicked, None if it clicked none."""
+    questions = Questions()
+
+    def exec_(box):
+        questions.asked.append(box.text())
+        clicked = []
+        # A click closes the box, which deletes it.
+        box.buttonClicked.connect(
+            lambda button_: clicked.append(box.standardButton(button_))
+        )
+        box.setWindowModality(Qt.WindowModality.ApplicationModal)
+        box.show()
+        QTest.keyClick(box.windowHandle(), Qt.Key.Key_Return)
+        if not clicked:
+            box.close()
+        questions.answered.append(clicked[0] if clicked else None)
+        return clicked[0] if clicked else QMessageBox.StandardButton.No
+
+    with patch.object(YesOrNoMessageBox, "exec", new=exec_):
+        yield questions
+
+
+# Ways the window is asked to close, or to leave for the names box. Each gets the
+# window, a file to open over it, and Finder.
+
+
+def click_button(text):
+    def click(window, _file, _finder):
+        button(window, text).click()
+
+    return click
+
+
+def escape(window, _file, _finder):
+    press_escape(window)
+
+
+def close_from_the_title_bar(window, _file, _finder):
+    window.windowHandle().close()
+
+
+def open_the_file(window, file, _finder):
+    commands.execute("file.open", file)
+
+
+def open_the_file_from_the_system(window, file, finder):
+    finder.open(file)
+
+
+class TestEnterOnTheQuestions:
+    """Enter on "Close window without saving changes?" and "Leave window without
+    saving changes?" answers No: the window stays open, with the edits. Losing
+    them takes a click on Yes."""
+
+    CLOSE = "Close window without saving changes?"
+    LEAVE = "Leave window without saving changes?"
+
+    @pytest.mark.parametrize("field, text", FIELD_KINDS)
+    @pytest.mark.parametrize(
+        "ask, question",
+        [
+            pytest.param(click_button("Cancel"), CLOSE, id="cancel"),
+            pytest.param(escape, CLOSE, id="escape"),
+            pytest.param(close_from_the_title_bar, CLOSE, id="title-bar"),
+            pytest.param(open_the_file, CLOSE, id="file-opened"),
+            pytest.param(
+                open_the_file_from_the_system, CLOSE, id="file-from-the-system"
+            ),
+            pytest.param(click_button("Edit fields..."), LEAVE, id="edit-fields"),
+        ],
+    )
+    def test_keeps_the_window_open_with_the_edits(
+        self,
+        qtui,
+        tilia_state,
+        files,
+        window_over_file_a,
+        finder,
+        ask,
+        question,
+        field,
+        text,
+    ):
+        window = window_over_file_a
+        before = dict(tilia_state.metadata)
+        duration = tilia_state.duration
+        typed = type_in(window, field, text).text()
+
+        with (
+            press_enter_on_questions() as questions,
+            patch.object(EditMetadataFieldsDialog, "exec", return_value=False) as names,
+        ):
+            ask(window, files["B"], finder)
+
+        assert questions.asked == [question]
+        assert questions.answered == [QMessageBox.StandardButton.No]
+        names.assert_not_called()
+        assert window.isVisible()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert line_edit_of(window, field).text() == typed
+        # File A is still open, as it was.
+        assert open_file_path() == files["A"]
+        assert tilia_state.metadata == before
+        assert tilia_state.duration == duration
+
+    def test_other_questions_keep_yes(self, qtui):
+        with press_enter_on_questions() as questions:
+            answer = get(Get.FROM_USER_YES_OR_NO, "Title", "Prompt?")
+
+        assert questions.asked == ["Prompt?"]
+        assert questions.answered == [QMessageBox.StandardButton.Yes]
+        assert answer is True
+
+
+def open_file_with(tmp_path, values):
+    """Saves a file, then opens it with `values` in its metadata, as a script may
+    write them: TiLiA itself writes text."""
+    path = save_tilia_to_tmp_path(tmp_path, "made-by-a-script")
+    with open(path, encoding="utf-8") as file:
+        data = json.load(file)
+    data["media_metadata"].update(values)
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(data, file)
+    commands.execute("file.open", path)
+    return path
+
+
+def saved_metadata(path):
+    with open(path, encoding="utf-8") as file:
+        return json.load(file)["media_metadata"]
+
+
+def file_bytes(path):
+    with open(path, "rb") as file:
+        return file.read()
+
+
+@pytest.fixture
+def open_window(qtui):
+    def open_():
+        commands.execute("window.open.metadata")
+        return qtui._windows[WindowKind.MEDIA_METADATA]
+
+    yield open_
+
+    if qtui.is_window_open(WindowKind.MEDIA_METADATA):
+        with patch_yes_or_no_dialog(True):
+            qtui._windows[WindowKind.MEDIA_METADATA].close()
+
+
+# A value that isn't text, as a file made by a script may hold, and its text.
+VALUES_NOT_TEXT = [
+    pytest.param(1990, "1990", id="integer"),
+    pytest.param(19.5, "19.5", id="decimal"),
+    pytest.param(True, "True", id="true"),
+    pytest.param(None, "None", id="null"),
+]
+
+
+class TestAValueThatIsNotText:
+    """A single value that isn't text, such as the number 1990, isn't an edit:
+    its box shows its text, and nothing is asked until it is typed over. The first
+    Apply that sets a field stores it as text, as the box shows it."""
+
+    @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
+    def test_opening_and_closing_asks_nothing(
+        self, qtui, tmp_path, open_window, tilia_state, value, shown
+    ):
+        open_file_with(tmp_path, {"composer": value})
+        window = open_window()
+        assert window.metadata["composer"].text() == shown
+
+        with answer_questions(False) as asked:
+            window.close()
+
+        assert asked == []
+        assert not qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        # Kept as it is: nothing was applied.
+        assert repr(tilia_state.metadata["composer"]) == repr(value)
+
+    @pytest.mark.parametrize("add", ["custom", None], ids=["ok", "cancel"])
+    @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
+    def test_edit_fields_asks_nothing(
+        self, tmp_path, open_window, tilia_state, value, shown, add
+    ):
+        open_file_with(tmp_path, {"composer": value})
+        window = open_window()
+
+        with answer_questions(False) as asked:
+            edit_fields(window, add=add)
+
+        assert asked == []
+        assert repr(tilia_state.metadata["composer"]) == repr(value)
+        assert window.metadata["composer"].text() == shown
+        assert ("custom" in tilia_state.metadata) == (add is not None)
+
+        with answer_questions(False) as asked:
+            window.close()
+        assert asked == []
+
+    @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
+    def test_an_apply_of_another_field_stores_it_as_text(
+        self, tmp_path, open_window, tilia_state, value, shown
+    ):
+        path = open_file_with(tmp_path, {"composer": value, "year": value})
+        window = open_window()
+        type_in(window, "title", "Bolero")
+
+        button(window, "Apply").click()
+
+        assert tilia_state.metadata["title"] == "Bolero"
+        assert tilia_state.metadata["composer"] == shown
+        assert tilia_state.metadata["year"] == shown
+        assert window.metadata["composer"].text() == shown
+
+        with answer_questions(False) as asked:
+            window.close()
+        assert asked == []
+
+        commands.execute("file.save")
+        metadata = saved_metadata(path)
+        assert metadata["composer"] == shown
+        assert metadata["year"] == shown
+
+    @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
+    def test_typed_over_it_stores_the_text_typed(
+        self, tmp_path, open_window, tilia_state, value, shown
+    ):
+        open_file_with(tmp_path, {"composer": value, "year": value})
+        window = open_window()
+        type_in(window, "composer", "Ravel")
+
+        with answer_questions(False) as asked:
+            edit_fields(window, add=None)
+        assert asked == [TestEnterOnTheQuestions.LEAVE]
+
+        button(window, "Apply").click()
+
+        assert tilia_state.metadata["composer"] == "Ravel"
+        assert tilia_state.metadata["year"] == shown
+
+    @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
+    def test_an_apply_with_no_edits_keeps_it(
+        self, tilia, tmp_path, open_window, tilia_state, value, shown
+    ):
+        path = open_file_with(tmp_path, {"composer": value})
+        window = open_window()
+
+        button(window, "Apply").click()
+
+        assert repr(tilia_state.metadata["composer"]) == repr(value)
+        assert not tilia.is_file_modified()
+        window.close()
+        commands.execute("file.save")
+        assert repr(saved_metadata(path)["composer"]) == repr(value)
+
+    @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
+    def test_an_apply_of_the_length_alone_keeps_it(
+        self, tmp_path, open_window, tilia_state, value, shown
+    ):
+        open_file_with(tmp_path, {"composer": value})
+        window = open_window()
+        type_in(window, "media length", "2:30")
+
+        with patch_yes_or_no_dialog(False):  # Don't scale the timelines.
+            button(window, "Apply").click()
+
+        assert tilia_state.duration == 150
+        assert repr(tilia_state.metadata["composer"]) == repr(value)
+
+    def test_a_file_all_text_is_unchanged_by_an_apply_with_no_edits(
+        self, tilia, tmp_path, open_window, tilia_state
+    ):
+        path = open_file_with(tmp_path, {"composer": "Ravel", "year": "1928"})
+        before = dict(tilia_state.metadata)
+        commands.execute("file.save")
+        saved = file_bytes(path)
+        window = open_window()
+
+        with answer_questions(False) as asked:
+            button(window, "Apply").click()
+            window.close()
+
+        assert asked == []
+        assert tilia_state.metadata == before
+        assert not tilia.is_file_modified()
+        commands.execute("file.save")
+        assert file_bytes(path) == saved
+
+
 class TestEditFieldsWithEditsNotApplied:
     """'Edit fields...' asks "Leave window without saving changes?". Yes leaves
     the edits not applied, as the question says, and No stays in the window
