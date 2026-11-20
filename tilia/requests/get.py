@@ -33,7 +33,7 @@ class Get(Enum):
     FROM_USER_UNKNOWN_TIMELINE_KIND_ACTION = auto()
     FROM_USER_YES_OR_NO = auto()
     ID = auto()
-    IS_DIALOG_OPEN = auto()
+    IS_BUSY = auto()
     IS_FILE_MODIFIED = auto()
     LEFT_MARGIN_X = auto()
     LOOP_TIME = auto()

@@ -72,8 +72,8 @@ def handle_qt_log_message(type, context, msg):
 
 class PendingFileOpen:
     """Holds a file path until a callback is registered to receive it, and
-    while a dialog is on screen. A path that arrives while another waits
-    replaces it.
+    while TiLiA is busy (see QtUI.is_busy). A path that arrives while another
+    waits replaces it.
 
     Split out from TiliaApplication so it is testable without constructing a
     QApplication (only one may exist per process).
@@ -84,6 +84,8 @@ class PendingFileOpen:
     def __init__(self):
         self._pending: str | None = None
         self._callback: Callable[[str], None] | None = None
+        # Made when first needed: this object exists before the QApplication.
+        self._retry: QTimer | None = None
 
     def handle(self, path: str) -> None:
         self._pending = path
@@ -96,20 +98,28 @@ class PendingFileOpen:
     def _deliver(self) -> None:
         if self._pending is None or self._callback is None:
             return
-        if _is_dialog_open():
-            # The event arrives inside the dialog's event loop. Opened now, the
-            # file would be the one that the dialog's answer then changes.
-            QTimer.singleShot(self.RETRY_INTERVAL_MS, self._deliver)
+        if _is_busy():
+            # The event arrives inside what keeps TiLiA busy: a dialog, an
+            # operation, an event loop. Opened now, the file would be the one
+            # that the rest of it then changes.
+            self._retry_later()
             return
         path, self._pending = self._pending, None
         self._callback(path)
 
+    def _retry_later(self) -> None:
+        if self._retry is None:
+            self._retry = QTimer(singleShot=True, interval=self.RETRY_INTERVAL_MS)
+            self._retry.timeout.connect(self._deliver)
+        if not self._retry.isActive():
+            self._retry.start()
 
-def _is_dialog_open() -> bool:
+
+def _is_busy() -> bool:
     try:
-        return get(Get.IS_DIALOG_OPEN)
+        return get(Get.IS_BUSY)
     except NoReplyToRequest:
-        return False  # No dialogs, as in the CLI.
+        return False  # Nothing to wait for, as in the CLI.
 
 
 class TiliaApplication(QApplication):
@@ -120,8 +130,9 @@ class TiliaApplication(QApplication):
     Qt's Cocoa platform plugin turns into a QFileOpenEvent on the application
     object. On a cold launch this event can arrive as soon as the QApplication
     is constructed, before boot() has built the App/UI to hand it to, so it is
-    buffered until set_file_open_callback is called. It also waits while a
-    dialog is on screen, and is handed on once the dialog is closed.
+    buffered until set_file_open_callback is called. It also waits while
+    TiLiA is busy, with a dialog on screen for example, and is handed on once
+    TiLiA is idle again.
     """
 
     def __init__(self, argv):

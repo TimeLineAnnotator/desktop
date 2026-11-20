@@ -81,6 +81,11 @@ class LongOperationToolbar(QToolBar):
 
         listen(self, Post.LONG_OPERATION, self._on_long_operation)
 
+    @property
+    def is_running(self) -> bool:
+        """Whether a long operation is running."""
+        return bool(self._stack)
+
     def _on_long_operation(self, phase: LongOperation, *args) -> None:
         match phase:
             case LongOperation.STARTED:
