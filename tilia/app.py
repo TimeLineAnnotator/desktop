@@ -650,21 +650,52 @@ def problem_line(
     gives its name alone, and a timeline without a name gives none
     (TimeLineAnnotator/project-management#597, points 2 and 3).
 
+    The other components that a problem between components names, such as two
+    hierarchies that cross, are named as its own is
+    (TimeLineAnnotator/project-management#597, point 4, b).
+
     One warning, one line: a line break in the timeline's name or in the reason,
     which can quote a value as JSON keeps it, is a space."""
-    where: list[str] = []
-    timeline = timelines.get(warning.timeline_id) if warning.timeline_id else None
-    if timeline is not None:
-        if timeline.get("name"):
-            where.append(timeline["name"])
-        components = timeline.get("components", {})
-        component = (
-            components.get(warning.component_id) if warning.component_id else None
-        )
-        if component is not None:
-            where.extend(_shown_time(component))
-    line = f"{', '.join(where)}: {warning.message}" if where else warning.message
+    where = _shown_place(warning.timeline_id, warning.component_id, timelines)
+    reason = _naming_the_others(warning, timelines)
+    line = f"{where}: {reason}" if where else reason
     return _LINE_BREAK.sub(" ", line)
+
+
+def _shown_place(
+    timeline_id: str | None,
+    component_id: str | None,
+    timelines: Mapping[str, Mapping[str, Any]],
+) -> str:
+    """Where TiLiA shows a component: its timeline's name, then its time. "" for
+    nothing TiLiA shows."""
+    timeline = timelines.get(timeline_id) if timeline_id else None
+    if timeline is None:
+        return ""
+    where = [timeline["name"]] if timeline.get("name") else []
+    components = timeline.get("components", {})
+    component = components.get(component_id) if component_id else None
+    if component is not None:
+        where.extend(_shown_time(component))
+    return ", ".join(where)
+
+
+def _naming_the_others(
+    warning: tla.ReadWarning, timelines: Mapping[str, Mapping[str, Any]]
+) -> str:
+    """The warning's reason, then the other components it is about, each where
+    TiLiA shows it, and how many more, as the core counts them:
+    `… (other component: Form, 00:01.0–00:03.0)`. Its message, which names them
+    by their lines and places in the file, if TiLiA shows one of them nowhere."""
+    if not warning.other_ids or warning.reason is None:
+        return warning.message
+    others = [_shown_place(*other, timelines) for other in warning.other_ids]
+    if not all(others):
+        return warning.message
+    if warning.more:
+        others.append(f"and {warning.more} more")
+    what = "other component" if len(others) == 1 else "other components"
+    return f"{warning.reason} ({what}: {'; '.join(others)})"
 
 
 def _shown_time(component: Mapping[str, Any]) -> list[str]:

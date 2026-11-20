@@ -9,6 +9,7 @@ WP3's own `make_broken.py`, as its tests make them.
 from __future__ import annotations
 
 import copy
+import dataclasses
 import importlib.util
 import json
 from contextlib import contextmanager
@@ -23,9 +24,11 @@ from PySide6.QtWidgets import QDialog
 
 from tests.mock import Serve
 from tests.utils import get_blank_file_data
+from tilia.app import problem_line
 from tilia.requests import Get, serve, server, stop_serving
 from tilia.ui import commands
 from tilia.ui.dialogs.problems import ProblemsDialog
+from tilia_core import tla
 
 FILES = Path(__file__).parents[3] / "packages" / "tilia-core" / "tests" / "tla"
 MESSAGE = (
@@ -72,6 +75,15 @@ def hierarchies(*components):
 def at_level_0(content):
     """Row 4's example: a hierarchy at level 0, from 12 s to 45.5 s, in 'Form'."""
     hierarchies((FIRST, {"start": 12.0, "end": 45.5, "level": 0}))(content)
+
+
+def markers(*components):
+    def change(content):
+        content["timelines"][CADENCES]["components"] = {
+            id: {"kind": "MARKER", **attrs} for id, attrs in components
+        }
+
+    return change
 
 
 def an_old_file(tmp_path: Path, formal_type: str = "sonata") -> Path:
@@ -298,6 +310,214 @@ class TestAnOldFile:
         assert "formal_type" not in text
         assert "formal_function" not in text
         assert '"kept"' in text
+
+
+OVERLAP = "Component would overlap with existing component."
+A_MARKER_THERE = "There is already a marker component at the selected position."
+A_BEAT_THERE = "There is already a beat component at the selected position."
+CROSSING = hierarchies(
+    (FIRST, {"start": 0.0, "end": 2.0, "level": 1}),
+    (SECOND, {"start": 1.0, "end": 3.0, "level": 1}),
+)
+
+
+def an_old_file_from_wp3(tmp_path: Path, change=None) -> Path:
+    """WP3's `old/0.7.0.tla`, as TiLiA 0.7 saved it, with `change` made to it."""
+    content = json.loads((FILES / "old" / "0.7.0.tla").read_bytes())
+    if change is not None:
+        change(content)
+    path = tmp_path / "0.7.0.tla"
+    path.write_text(json.dumps(content, indent=2), encoding="utf-8")
+    return path
+
+
+class TestTheOtherComponents:
+    """A problem between components names the others as it names its own: by the
+    timeline's name and the component's time, for an old file too, from the ids
+    the core gives (TimeLineAnnotator/project-management#597, point 4, b)."""
+
+    def test_two_hierarchies_that_cross(self, opening, tmp_path):
+        # The decision's example, word for word.
+        assert lines_shown(a_file(tmp_path, CROSSING)) == [
+            "Form, 00:00.0–00:02.0: Component would overlap with existing component."
+            " (other component: Form, 00:01.0–00:03.0)"
+        ]
+
+    def test_two_markers_at_one_time(self, opening, tmp_path):
+        at_one_time = markers((FIRST, {"time": 1.0}), (SECOND, {"time": 1.0}))
+
+        assert lines_shown(a_file(tmp_path, at_one_time)) == [
+            f"Cadences, 00:01.0: {A_MARKER_THERE} (other component: Cadences, 00:01.0)"
+        ]
+
+    def test_two_beats_at_one_time(self, opening, tmp_path):
+        def at_one_time(content):
+            beats = content["timelines"][BEATS]["components"]
+            beats[IDS["beat_2"]]["time"] = 0.0
+
+        assert lines_shown(a_file(tmp_path, at_one_time)) == [
+            f"Beats, 00:00.0: {A_BEAT_THERE} (other component: Beats, 00:00.0)"
+        ]
+
+    def test_a_join_names_what_comes_next_in_its_row(self, opening, tmp_path):
+        def not_at_its_end(content):
+            texture = content["timelines"][IDS["texture"]]["components"]
+            texture[IDS["melody_2"]]["start"] = 1.5
+
+        assert lines_shown(a_file(tmp_path, not_at_its_end)) == [
+            "Texture, 00:00.0–00:01.0: joined_with_next=true but next range on row"
+            " 'Melody' starts at 1.5 (must equal 1.0 for ranges to join)"
+            " (other component: Texture, 00:01.5–00:02.0)"
+        ]
+
+    def test_several_others_in_one_warning(self, opening, tmp_path):
+        third = make_broken.make_id(103)
+        three = hierarchies(
+            (FIRST, {"start": 0.0, "end": 2.0, "level": 1}),
+            (SECOND, {"start": 1.0, "end": 3.0, "level": 1}),
+            (third, {"start": 1.5, "end": 4.0, "level": 1}),
+        )
+
+        assert lines_shown(a_file(tmp_path, three)) == [
+            f"Form, 00:00.0–00:02.0: {OVERLAP} (other components:"
+            " Form, 00:01.0–00:03.0; Form, 00:01.5–00:04.0)",
+            f"Form, 00:01.0–00:03.0: {OVERLAP} (other component:"
+            " Form, 00:01.5–00:04.0)",
+        ]
+
+    def test_more_than_the_core_names_are_counted(self, opening, tmp_path):
+        # The core names ten, and counts the others.
+        many = [make_broken.make_id(200 + n) for n in range(13)]
+        crossing_many = hierarchies(
+            (FIRST, {"start": 0.0, "end": 2.0, "level": 1}),
+            *(
+                (key, {"start": 1.0, "end": 3.0 + n, "level": 1})
+                for n, key in enumerate(many)
+            ),
+        )
+
+        first = lines_shown(a_file(tmp_path, crossing_many))[0]
+
+        named = "; ".join(f"Form, 00:01.0–00:{3 + n:02}.0" for n in range(10))
+        assert first == (
+            f"Form, 00:00.0–00:02.0: {OVERLAP} (other components: {named}; and 3 more)"
+        )
+
+    def test_a_timeline_without_a_name_is_left_out(self, opening, tmp_path):
+        # As for the line's own component
+        # (TimeLineAnnotator/project-management#597, point 3).
+        def unnamed(content):
+            CROSSING(content)
+            content["timelines"][FORM]["name"] = ""
+
+        assert lines_shown(a_file(tmp_path, unnamed)) == [
+            f"00:00.0–00:02.0: {OVERLAP} (other component: 00:01.0–00:03.0)"
+        ]
+
+    def test_a_line_break_in_their_timeline_s_name_is_a_space(self, opening, tmp_path):
+        def two_lines(content):
+            CROSSING(content)
+            content["timelines"][FORM]["name"] = "Form\nA"
+
+        assert lines_shown(a_file(tmp_path, two_lines)) == [
+            f"Form A, 00:00.0–00:02.0: {OVERLAP} (other component: Form A,"
+            " 00:01.0–00:03.0)"
+        ]
+
+    def test_two_hierarchies_that_cross_in_an_old_file(self, opening, tmp_path):
+        # 0.7.0.tla's hierarchy from 0 s to its end crosses the three others, and
+        # the one from 0 s to 4.5 s crosses the one below it. The core names them
+        # by the old file's lines and ids.
+        lines = lines_shown(an_old_file_from_wp3(tmp_path))
+
+        assert [line for line in lines if OVERLAP in line] == [
+            f"Formal analysis, 00:00.0–00:10.0: {OVERLAP} (other components:"
+            " Formal analysis, 00:00.0–00:04.5; Formal analysis, 00:04.5–00:10.0;"
+            " Formal analysis, 00:00.0–00:02.0)",
+            f"Formal analysis, 00:00.0–00:04.5: {OVERLAP} (other component:"
+            " Formal analysis, 00:00.0–00:02.0)",
+        ]
+
+    def test_two_markers_at_one_time_in_an_old_file(self, opening, tmp_path):
+        # Its second marker, "PAC", moved to the first's time.
+        def at_one_time(content):
+            content["timelines"]["6"]["components"]["8"]["time"] = 1.25
+
+        lines = lines_shown(an_old_file_from_wp3(tmp_path, at_one_time))
+
+        assert [line for line in lines if A_MARKER_THERE in line] == [
+            f"Cadences, 00:01.2: {A_MARKER_THERE} (other component: Cadences, 00:01.2)"
+        ]
+
+
+# A state as TiLiA's timelines give it: a timeline "Form" with two hierarchies.
+FORM_STATE = {
+    "form": {
+        "name": "Form",
+        "components": {
+            "first": {"start": 0.0, "end": 2.0},
+            "second": {"start": 1.0, "end": 3.0},
+        },
+    }
+}
+IN_THE_CORE_S_TERMS = f"{OVERLAP} (other component: line 9, /timelines/b/components/c)"
+
+
+def a_crossing(*others: tuple[str, str]) -> tla.ReadWarning:
+    """The warning of "first", in "Form", crossing `others`."""
+    return tla.ReadWarning(
+        place="/timelines/form/components/first",
+        line=5,
+        message=IN_THE_CORE_S_TERMS,
+        timeline_id="form",
+        component_id="first",
+        other_ids=others,
+        reason=OVERLAP,
+    )
+
+
+class TestAnOtherTiLiADoesntShow:
+    """Where TiLiA shows one of the others nowhere, the line keeps the core's
+    message, which names them by their lines and places in the file. No file gives
+    one: the others are always in the warning's own timeline, and TiLiA shows each
+    timeline of a kind it knows, with each of its components that has a time."""
+
+    def test_named_in_tilia_s_terms_when_it_shows_them(self):
+        assert problem_line(a_crossing(("form", "second")), FORM_STATE) == (
+            f"Form, 00:00.0–00:02.0: {OVERLAP} (other component: Form, 00:01.0–00:03.0)"
+        )
+
+    def test_an_other_whose_timeline_tilia_doesn_t_show(self):
+        assert problem_line(a_crossing(("other", "second")), FORM_STATE) == (
+            f"Form, 00:00.0–00:02.0: {IN_THE_CORE_S_TERMS}"
+        )
+
+    def test_an_other_tilia_shows_only_the_timeline_of(self):
+        # As for the line's own component
+        # (TimeLineAnnotator/project-management#597, point 2).
+        assert problem_line(a_crossing(("form", "gone")), FORM_STATE) == (
+            f"Form, 00:00.0–00:02.0: {OVERLAP} (other component: Form)"
+        )
+
+    def test_an_other_tilia_shows_nothing_of(self):
+        unnamed = {"form": {**FORM_STATE["form"], "name": ""}}
+
+        assert problem_line(a_crossing(("form", "gone")), unnamed) == (
+            f"00:00.0–00:02.0: {IN_THE_CORE_S_TERMS}"
+        )
+
+    def test_a_warning_whose_own_timeline_tilia_doesn_t_show(self):
+        # Its reason alone, as one without ids
+        # (TimeLineAnnotator/project-management#597, point 2).
+        assert problem_line(a_crossing(("form", "second")), {}) == IN_THE_CORE_S_TERMS
+
+    def test_others_without_a_reason_are_named_by_the_message(self):
+        # The core gives others only with a rule's reason, which they follow.
+        warning = dataclasses.replace(a_crossing(("form", "second")), reason=None)
+
+        assert problem_line(warning, FORM_STATE) == (
+            f"Form, 00:00.0–00:02.0: {IN_THE_CORE_S_TERMS}"
+        )
 
 
 class TestNoDialog:
