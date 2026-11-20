@@ -370,12 +370,6 @@ def keep_old(
             # A join is between ranges, which these edits don't change.
             others=tuple((other, as_now(other, s)) for other, s in problem.others),
             kept=True,
-            # A beat is past the end by its time alone.
-            past_at_kept=(
-                frozenset({"time"})
-                if problem.code == rules.PAST_MEDIA_END
-                else problem.past_at_kept
-            ),
         )
         if again.state != problem.state or again.others != problem.others:
             keep(again)
@@ -558,14 +552,19 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     one of its code, about the same, on the component: another of that code
     that the edit adds elsewhere on it, such as a negative pre_start beside the
     negative start it was read with, is new
-    (TimeLineAnnotator/project-management#557). In a document read with no
-    media length, whose times weren't compared with any, a time past the end of
-    the length it now has is kept too, and judged when the document is written,
-    at the length it then has, not the one it has at the call: it stays old only
-    while the component as it was read is past that length by the same rule, and
-    so does any other of its times past it, in the state it was kept in
-    (TimeLineAnnotator/project-management#614, option c). A call with nothing of
-    the component past the end keeps none of its times past the end. A
+    (TimeLineAnnotator/project-management#557). A time past the end is so kept
+    by the rule the component was read past the end by, whatever length the
+    document is written at: one that a length given since, before the call or
+    after it, puts past the end by another rule is new
+    (TimeLineAnnotator/project-management#587 and #659, option b). In a
+    document read with no media length, whose times weren't compared with any,
+    a time past the end of the length it now has is kept too, and judged when
+    the document is written, at the length it then has, not the one it has at
+    the call: it stays old only while the component as it was read is past that
+    length by the same rule, and so does any other of its times past it, in the
+    state it was kept in (TimeLineAnnotator/project-management#614, option c).
+    A call with nothing of the component past the end keeps none of its times
+    past the end. A
     problem between the component and others, such as a crossing, is kept when
     it was read between them by the same rule, whichever of them it was named
     on, with the others as they were then; its join, when it was read joining the
@@ -608,12 +607,6 @@ def keep_read_problems(document: Document, component_id: str) -> None:
         return  # nothing read about it
     written = _as_written(document, timeline_id)
     found = find_problems(written)
-    # What of it is past the end, kept or not, for a length given since.
-    past = frozenset(
-        problem.about
-        for problem in found
-        if problem.place == place and problem.code == rules.PAST_MEDIA_END
-    )
     kept = []
     for problem in found:
         between = _between(problem)
@@ -651,15 +644,7 @@ def keep_read_problems(document: Document, component_id: str) -> None:
             problem.place, document.read_unmeasured, document.unmeasured_edits
         ):
             continue  # old as it is: its time wasn't compared with any
-        kept.append(
-            dataclasses.replace(
-                problem,
-                kept=True,
-                past_at_kept=past
-                if problem.code == rules.PAST_MEDIA_END
-                else frozenset(),
-            )
-        )
+        kept.append(dataclasses.replace(problem, kept=True))
     if kept:
         document.read_problems = [*document.read_problems, *kept]
 
@@ -776,13 +761,14 @@ class _Read:
     def __init__(self, read: list[ReadProblem]) -> None:
         self.problems: set[tuple[str, str, str]] = set()
         self.read: set[tuple[str, str, str]] = set()  # not kept
-        # Those kept, each told apart within its component by `about` too.
+        # Those kept, each told apart within its component by `about` too. A
+        # time kept past the end is so old by the rule it was read past the end
+        # by, at whatever length: one that another length puts past it by
+        # another rule is new (TimeLineAnnotator/project-management#659).
         self.kept_problems: set[tuple[str, str, str, str]] = set()
-        # Those kept past the end, by place and state, with what of each was
-        # past the end then: old by whichever of their times, as FR-054 has it
-        # for a component as it was read, but for what was past it then and
-        # wasn't kept.
-        self.kept_past: dict[tuple[str, str], set[str]] = {}
+        # The places and states one was kept past the end in, which, read with
+        # no media length, `_uncompared_past_the_end` judges.
+        self.kept_past: set[tuple[str, str]] = set()
         self.codes: set[tuple[str, str, str]] = set()
         self.places: set[str] = set()
         self.states: dict[str, str] = {}
@@ -804,8 +790,7 @@ class _Read:
                 self.kept.setdefault(key, set()).update(between)
                 self.kept_problems.add((*key, problem.about, problem.state))
                 if problem.code == rules.PAST_MEDIA_END:
-                    at = (problem.place, problem.state)
-                    self.kept_past.setdefault(at, set()).update(problem.past_at_kept)
+                    self.kept_past.add((problem.place, problem.state))
             else:
                 self.read.add((problem.place, problem.code, problem.state))
                 self.states[problem.place] = problem.state
@@ -816,16 +801,11 @@ class _Read:
         One read is told by its code alone, as FR-054 tells it on a component
         as it was read; one kept, on a component an edit fixed in part, by its
         `about` too, so that another of the same code that the edit added
-        elsewhere on it is new (TimeLineAnnotator/project-management#557)."""
+        elsewhere on it is new (TimeLineAnnotator/project-management#557), and
+        so is one that a length given since puts past the end by another rule
+        (TimeLineAnnotator/project-management#659)."""
         if (problem.place, problem.code, problem.state) in self.read:
             return True
-        past = self.kept_past.get((problem.place, problem.state))
-        if (
-            problem.code == rules.PAST_MEDIA_END
-            and past is not None
-            and problem.about not in past
-        ):
-            return True  # put past the end by another length, not by the edit
         key = (problem.place, problem.code, problem.about, problem.state)
         return key in self.kept_problems
 
