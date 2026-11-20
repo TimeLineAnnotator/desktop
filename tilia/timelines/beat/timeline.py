@@ -648,7 +648,8 @@ class BeatTimeline(Timeline):
         try:
             self.unforce_display_measure_number(measure_index)
         except ValueError:
-            pass
+            # Not forced: the numbers have changed all the same.
+            post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, measure_index)
 
     def force_display_measure_number(self, measure_index: int) -> None:
         self.clear_cached_metric_positions()
