@@ -1,3 +1,4 @@
+import hashlib
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
@@ -15,6 +16,18 @@ class _Unreadable:
 
 
 UNREADABLE = _Unreadable()
+
+
+def _media_place_key(document_id: str, stored: str, timeline_id: str | None) -> str:
+    """`media_places/<document id>/<stored path's key>`, with the PDF timeline's id
+    before the stored path's key for a PDF. A key can't hold the path itself: a
+    slash would make groups of its folders, and Windows' registry would take two
+    spellings of a name in other letter cases for one."""
+    digest = hashlib.sha256(stored.encode("utf-8", "surrogatepass")).hexdigest()
+    parts = ["media_places", document_id]
+    if timeline_id is not None:
+        parts.append(timeline_id)
+    return "/".join([*parts, digest])
 
 
 def _store_auto_scroll_by_name(qsettings: QSettings) -> None:
@@ -355,6 +368,28 @@ class SettingsManager(QObject):
 
     def get_recent_files(self):
         return self._settings.value("private/recent_files", [])[:10]
+
+    def get_media_place(
+        self, document_id: str, stored: str, timeline_id: str | None = None
+    ) -> str | None:
+        """Where the document `document_id`, storing the media path `stored`, last
+        found its media on this computer, or, with `timeline_id`, that PDF timeline
+        its PDF: an absolute path, or None (FR-031). Copies of a file that store
+        the same path share it; a copy that stores another has its own
+        (TimeLineAnnotator/project-management#637). Kept here, never in the file,
+        and, as recent files are, outside the settings a person edits."""
+        key = _media_place_key(document_id, stored, timeline_id)
+        value = self._settings.value(key, None)
+        return value if isinstance(value, str) and value else None
+
+    def set_media_place(
+        self, document_id: str, stored: str, path: str, timeline_id: str | None = None
+    ) -> None:
+        """Remembers `path`, absolute, as where the document `document_id`, storing
+        the media path `stored`, found its media on this computer, or, with
+        `timeline_id`, that PDF timeline its PDF."""
+        key = _media_place_key(document_id, stored, timeline_id)
+        self._settings.setValue(key, path)
 
     def get_user(self) -> tuple[str, str]:
         email = self._settings.value("private/user/email", "")
