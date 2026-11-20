@@ -1285,6 +1285,38 @@ class TestFileOpenedWhileTiliaIsBusy:
         assert tilia_state.metadata["title"] == "Title C"
         assert not get(Get.MEDIA_PATH)
 
+    def test_while_the_player_stops_for_a_file_that_opens(
+        self, tilia_state, files, finder
+    ):
+        # B and C opened together. C arrives while opening B stops the media
+        # (on_clear), before B's long operation starts: the player runs an
+        # event loop until the media has stopped.
+        stops = []
+
+        def stop_running_an_event_loop(player):
+            loop = QEventLoop()
+            QTimer.singleShot(150, loop.quit)
+            if not stops:
+                QTimer.singleShot(0, lambda: finder.open(files["C"]))
+            stops.append(player)
+            loop.exec()
+
+        def body():
+            with patch.object(
+                QtAudioPlayer,
+                "_engine_unload_media",
+                autospec=True,
+                side_effect=stop_running_an_event_loop,
+            ):
+                finder.open(files["B"])
+                finder.wait_until_handed_on(2)
+
+        in_main_loop(body)
+
+        assert finder.opens == ["start B", "end B", "start C", "end C"]
+        assert open_file_path() == files["C"]
+        assert tilia_state.metadata["title"] == "Title C"
+
     def test_while_media_loads(self, tilia_state, files, finder):
         # File > Load media: C arrives while the media file dialog is on
         # screen, and waits until the media has loaded into A.
