@@ -784,9 +784,11 @@ class TestRomanNumeralWhereTheKeyCantBeRead:
     3)."""
 
     @pytest.fixture(autouse=True)
-    def a_mode_tilia_can_t_read(self, harmony_tlui, tilia_state):
-        # As a file can hold it: opening one creates its components unchecked.
+    def a_mode_tilia_can_t_read(self, tilia, harmony_tlui, tilia_state):
+        # As a file can hold it: opening one creates its components unchecked, and
+        # the next action is compared with what it opened with.
         harmony_tlui.create_mode(time=0, step=9, checked=False)
+        tilia.reset_undo_manager()
         tilia_state.current_time = 10
 
     def test_a_roman_numeral_is_refused_with_the_message(

@@ -979,7 +979,9 @@ class TestCopyPaste:
         click_range_ui(r2, modifier="ctrl")
         commands.execute("timeline.component.copy")
 
-        commands.execute("timeline.range.add_range", start=50, end=55)
+        # As long as the range copied first, so that the second, pasted after it,
+        # starts where the target ends: a join to one that doesn't is refused.
+        commands.execute("timeline.range.add_range", start=50, end=60)
         target = range_tlui[2]
         click_range_ui(target)
         commands.execute("timeline.component.paste")

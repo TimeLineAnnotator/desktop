@@ -184,21 +184,22 @@ class TestRestoreById:
         commands.execute("edit.redo")
         assert [beat.id for beat in beat_tl] == second_ids
 
-    def test_a_component_creation_would_refuse_is_restored(self, marker_tl):
-        # Two markers at one time, which creating a marker refuses and moving one
-        # doesn't: undo gives back what was there, unchecked.
+    def test_a_component_creation_would_refuse_is_restored(self, tilia, marker_tl):
+        # Two markers at one time, which creating a marker refuses, as a file may
+        # hold them: undo gives back what was there, unchecked.
         marker_tl.create_marker(10)
         moved, _ = marker_tl.create_marker(20)
         id = moved.id
         marker_tl.set_component_data(id, "time", 10)
-        _record()
-        marker_tl.set_component_data(id, "label", "edited")
+        # As a file opens with them: the check at the end of each action refuses
+        # an action that makes them.
+        tilia.reset_undo_manager()
+        marker_tl.delete_components([marker_tl.get_component(id)])
         _record()
 
         commands.execute("edit.undo")
 
         assert marker_tl.get_component(id).get_data("time") == 10
-        assert marker_tl.get_component(id).get_data("label") == ""
         assert [marker.get_data("time") for marker in marker_tl] == [10, 10]
 
     def test_a_restore_that_raises_leaves_the_manager_as_it_was(self, marker_tl):

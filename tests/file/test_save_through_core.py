@@ -850,14 +850,14 @@ class TestAFailedSave:
         self, every_kind, tilia, tls, tilia_errors
     ):
         # A marker at the time of another, which TiLiA's creation checks would
-        # refuse: the core refuses to write it (`BrokenRules`).
+        # refuse: the core refuses to write it (`BrokenRules`). Made without ending
+        # an action, whose check would refuse it first.
         timeline = first_of_kind(the_document(tilia), "marker")
         time = next(iter(timeline.components.values())).attrs["time"]
         before = every_kind.read_bytes()
         tls.get_timeline(timeline.id).create_component(
             ComponentKind.MARKER, time=time, checked=False
         )
-        record()
 
         assert not save()
 

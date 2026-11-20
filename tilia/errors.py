@@ -140,6 +140,9 @@ OPEN_FILE_NOT_GIVEN_BACK = Error(
     "'{}' could not be loaded, and the file open before could not be given back."
     " Its unsaved changes are in an autosave copy: '{}'.",
 )
+# An action the core's rules refuse (FR-062, FR-070): the message is the rule's
+# reason, as the core gives it.
+EDIT_REFUSED = Error("Can't make this change", "{}")
 UNDO_FAILED = Error(
     "Undo failed",
     "Undo failed. TiLiA encountered an error while undoing the last command.\n{}",

@@ -818,9 +818,10 @@ class TestCreateHierarchy:
         assert len(tlui.elements) == 1
 
     def test_create_multiple(self, tlui):
+        # Side by side: hierarchies that cross are refused.
         commands.execute("timeline.hierarchy.add", start=0, end=1, level=1)
-        commands.execute("timeline.hierarchy.add", start=0.1, end=1, level=1)
-        commands.execute("timeline.hierarchy.add", start=0.2, end=1, level=1)
+        commands.execute("timeline.hierarchy.add", start=1, end=2, level=1)
+        commands.execute("timeline.hierarchy.add", start=2, end=3, level=1)
         assert len(tlui.elements) == 3
 
     def test_add_command_creates_component(self, tlui):
