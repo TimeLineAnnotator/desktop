@@ -31,7 +31,7 @@ from tilia_core.commands._report import (
 from tilia_core.commands._report import shown as _shown
 from tilia_core.tla.folder import migrate_folder
 from tilia_core.tla.layout import FORMAT_VERSION
-from tilia_core.tla.model import FileResult, MigrationReport, Outcome
+from tilia_core.tla.model import FileResult, HardLinks, MigrationReport, Outcome
 
 PROG = "tilia migrate"
 
@@ -83,6 +83,19 @@ _ADVICE = (
     "Nothing was written. The migration rewrites every file it lists. Keep the\n"
     "originals first: commit them if the folder is in git, or copy the folder."
 )
+
+# The list of files with more than one name (hard links) that the run writes,
+# or would write, one line each (FR-044;
+# TimeLineAnnotator/project-management#594, #608): its head without --apply,
+# and with it; then, after a file's names in the folder, how many it has
+# outside, once and more than once.
+_HARD_LINKS = (
+    "Would separate from their other names, which would keep the old version"
+    " outside the folder (hard links)",
+    "Separated from their other names, which keep the old version outside the"
+    " folder (hard links)",
+)
+_OUTSIDE = ("1 name outside the folder", "{} names outside the folder")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -185,6 +198,10 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     if in_use:
         lines.append(f"In use by another program: {_files(len(in_use))}")
         lines += [f"  {_shown(f.path)}" for f in in_use]
+    if report.hard_links:
+        title = _HARD_LINKS[1] if apply else _HARD_LINKS[0]
+        lines.append(f"{title}: {_files(len(report.hard_links))}")
+        lines += [f"  {_names_of(linked)}" for linked in report.hard_links]
     for group in report.shared_ids:
         copies = ", ".join(_shown(path) for path in group)
         lines.append(f"Share a document id (copies): {copies}")
@@ -224,6 +241,17 @@ def _path_order(path: str) -> tuple[str, str]:
 
 def _files(count: int) -> str:
     return "1 file" if count == 1 else f"{count} files"
+
+
+def _names_of(linked: HardLinks) -> str:
+    """A file's line in the list of files with more than one name: its names
+    in the folder, then how many it has outside, if any."""
+    names = ", ".join(_shown(path) for path in linked.paths)
+    if not linked.outside:
+        return names
+    once, more = _OUTSIDE
+    outside = once if linked.outside == 1 else more.format(linked.outside)
+    return f"{names}, and {outside}"
 
 
 def _change_texts(file: FileResult) -> list[str]:

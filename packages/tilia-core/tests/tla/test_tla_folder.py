@@ -11,6 +11,7 @@ import shutil
 import stat
 import sys
 import time
+import types
 import unicodedata
 import weakref
 from pathlib import Path
@@ -21,7 +22,7 @@ from tilia_core import tla
 from tilia_core.tla import folder as folder_module
 from tilia_core.tla import reader
 from tilia_core.tla.folder import corpus_files, migrate_folder
-from tilia_core.tla.model import FileResult, MigrationReport
+from tilia_core.tla.model import FileResult, HardLinks, MigrationReport
 
 HERE = Path(__file__).parent
 OLD = HERE / "old"
@@ -1104,3 +1105,505 @@ def test_without_the_harmony_extra_a_file_with_harmonies_cant_be_written(
     )
     assert report.status == 1
     assert (tmp_path / "piece.tla").read_bytes() == data
+
+
+# Files with other names (hard links)
+
+
+@pytest.fixture
+def linked(tmp_path):
+    """A corpus whose old file `piece.tla` has another name outside it, and
+    whose file in the current format has one too, beside an old file with
+    one name."""
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    place(root / "plain.tla", OLD / "0.6.0-s4-10.tla")
+    place(root / "current.tla", GOLDEN / "every-kind.tla")
+    (tmp_path / "elsewhere").mkdir()
+    os.link(root / "piece.tla", tmp_path / "elsewhere" / "piece.tla")
+    os.link(root / "current.tla", tmp_path / "elsewhere" / "current.tla")
+    return root
+
+
+@pytest.fixture
+def twins(tmp_path):
+    """A corpus that holds two names of one old file."""
+    root = tmp_path / "corpus"
+    place(root / "a.tla", OLD / "0.0.96.tla")
+    os.link(root / "a.tla", root / "b.tla")
+    return root
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_file_written_with_a_name_outside_is_listed_with_it(linked, apply):
+    report = migrate_folder(linked, apply=apply)
+
+    # current.tla has another name too, but isn't written.
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_names_of_one_file_in_the_run_are_listed_together(twins, apply):
+    report = migrate_folder(twins, apply=apply)
+
+    assert report.hard_links == [HardLinks(paths=("a.tla", "b.tla"), outside=0)]
+    assert by_path(report)["b.tla"].outcome == (
+        "migrated" if apply else "would_migrate"
+    )
+
+
+def test_three_names_of_one_file_in_the_run_are_listed_together(twins):
+    os.link(twins / "a.tla", twins / "c.tla")
+
+    report = migrate_folder(twins, apply=True)
+
+    assert report.hard_links == [
+        HardLinks(paths=("a.tla", "b.tla", "c.tla"), outside=0)
+    ]
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_names_in_the_run_are_listed_with_those_outside_it(twins, apply):
+    os.link(twins / "a.tla", twins.parent / "outside 1.tla")
+    os.link(twins / "a.tla", twins.parent / "outside 2.tla")
+
+    report = migrate_folder(twins, apply=apply)
+
+    assert report.hard_links == [HardLinks(paths=("a.tla", "b.tla"), outside=2)]
+
+
+def test_files_are_listed_in_path_order_of_their_first_names(tmp_path):
+    root = tmp_path / "corpus"
+    place(root / "z.tla", OLD / "0.0.96.tla")
+    os.link(root / "z.tla", root / "b.tla")
+    place(root / "y.tla", OLD / "0.0.96.tla")
+    os.link(root / "y.tla", root / "a.tla")
+
+    report = migrate_folder(root)
+
+    assert report.hard_links == [
+        HardLinks(paths=("a.tla", "y.tla"), outside=0),
+        HardLinks(paths=("b.tla", "z.tla"), outside=0),
+    ]
+
+
+def test_a_name_the_run_leaves_alone_is_on_its_files_line(twins, monkeypatch):
+    write = folder_module.write
+
+    def held_open(target, doc, **kwargs):
+        if Path(target).name == "b.tla":
+            raise tla.FileInUse(target)
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", held_open)
+
+    report = migrate_folder(twins, apply=True)
+
+    assert outcomes(report) == [("a.tla", "migrated"), ("b.tla", "in_use")]
+    # b.tla keeps the old version; the report lists it as in use too.
+    assert report.hard_links == [HardLinks(paths=("a.tla", "b.tla"), outside=0)]
+
+
+class _OsWithoutInodes:
+    """`os`, but for a file system that gives no inode numbers: `stat` says 0."""
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+    @staticmethod
+    def stat(path, *args, **kwargs):
+        info = os.stat(path, *args, **kwargs)
+        return types.SimpleNamespace(
+            st_dev=info.st_dev, st_ino=0, st_nlink=info.st_nlink
+        )
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_without_inode_numbers_each_name_is_listed_alone(twins, monkeypatch, apply):
+    # The names of one file can't be told from those of another: each is a
+    # file of its own, with all its other names outside.
+    monkeypatch.setattr(folder_module, "os", _OsWithoutInodes())
+
+    report = migrate_folder(twins, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=("a.tla",), outside=1),
+        HardLinks(paths=("b.tla",), outside=1),
+    ]
+
+
+class _OsCountingOneNameLess:
+    """`os`, but `stat` counts one name less than a file has: as when another
+    name is added to the file after its first name was counted."""
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+    @staticmethod
+    def stat(path, *args, **kwargs):
+        info = os.stat(path, *args, **kwargs)
+        return types.SimpleNamespace(
+            st_dev=info.st_dev, st_ino=info.st_ino, st_nlink=info.st_nlink - 1
+        )
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_name_added_while_names_are_counted_leaves_none_outside(
+    twins, monkeypatch, apply
+):
+    os.link(twins / "a.tla", twins / "c.tla")
+    monkeypatch.setattr(folder_module, "os", _OsCountingOneNameLess())
+
+    report = migrate_folder(twins, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=("a.tla", "b.tla", "c.tla"), outside=0)
+    ]
+
+
+class _OsWithALinkInAnotherCase:
+    """`os` on a case-insensitive file system, as macOS's, where link.tla is a
+    symbolic link to PIECE.TLA, which is piece.tla: the link's real path keeps
+    its spelling, and here spells the folder another way too."""
+
+    def __init__(self):
+        self.path = types.SimpleNamespace(
+            **{name: getattr(os.path, name) for name in dir(os.path)}
+        )
+        self.path.islink = lambda path: Path(path).name == "link.tla"
+        self.path.realpath = self._realpath
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+    @staticmethod
+    def _realpath(path, *args, **kwargs):
+        if Path(path).name == "link.tla":
+            folder = os.path.realpath(Path(path).parent)
+            return os.path.join(folder, "..", os.path.basename(folder), "PIECE.TLA")
+        return os.path.realpath(path, *args, **kwargs)
+
+    @staticmethod
+    def stat(path, *args, **kwargs):
+        if Path(path).name == "link.tla":
+            path = Path(path).with_name("piece.tla")
+        return os.stat(path, *args, **kwargs)
+
+
+def test_a_link_spelled_in_another_case_isnt_another_name(tmp_path, monkeypatch):
+    # piece.tla has another name outside the folder, and link.tla, in the
+    # folder, names it as PIECE.TLA; link.tla is a copy here, read as the
+    # link would be, so the run is only listed, not applied.
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD_0_5_15)
+    os.link(root / "piece.tla", tmp_path / "outside.tla")
+    place(root / "link.tla", OLD_0_5_15)
+    monkeypatch.setattr(folder_module, "os", _OsWithALinkInAnotherCase())
+
+    report = migrate_folder(root)
+
+    assert report.hard_links == [HardLinks(paths=("link.tla", "piece.tla"), outside=1)]
+
+
+def test_a_file_gone_before_its_names_are_counted_is_reported(
+    clean_corpus, monkeypatch
+):
+    walk = folder_module.corpus_files
+
+    def with_a_file_gone(folder, **kwargs):
+        return walk(folder, **kwargs) + [("gone.tla", Path(folder) / "gone.tla")]
+
+    monkeypatch.setattr(folder_module, "corpus_files", with_a_file_gone)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+
+    report = migrate_folder(clean_corpus, apply=True)
+
+    assert by_path(report)["gone.tla"].outcome == "unreadable"
+    assert by_path(report)["a.tla"].outcome == "migrated"
+    assert report.hard_links == []
+
+
+def test_a_file_with_other_names_that_cant_be_written_isnt_listed(
+    tmp_path, monkeypatch
+):
+    find_spec = importlib.util.find_spec
+
+    def find_spec_without_music21(name, *args, **kwargs):
+        if name.partition(".")[0] == "music21":
+            return None
+        return find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+    place(tmp_path / "corpus" / "piece.tla", OLD / "0.7.0.tla")
+    os.link(tmp_path / "corpus" / "piece.tla", tmp_path / "other.tla")
+
+    report = migrate_folder(tmp_path / "corpus")
+
+    assert outcomes(report) == [("piece.tla", "write_failed")]
+    assert report.hard_links == []
+
+
+def test_a_link_to_a_file_is_listed_by_the_names_of_its_target(tmp_path):
+    outside = tmp_path / "outside"
+    place(outside / "piece.tla", OLD_0_5_15)
+    place(outside / "alone.tla", OLD_0_5_15)
+    os.link(outside / "piece.tla", outside / "other name.tla")
+    (tmp_path / "corpus").mkdir()
+    try:
+        os.symlink(outside / "piece.tla", tmp_path / "corpus" / "piece.tla")
+        os.symlink(outside / "alone.tla", tmp_path / "corpus" / "alone.tla")
+    except OSError:
+        pytest.skip("this system doesn't let the tests make symbolic links")
+
+    report = migrate_folder(tmp_path / "corpus", apply=True)
+
+    assert by_path(report)["piece.tla"].outcome == "migrated"
+    # The file it names has two names, outside the folder; writing through
+    # the link replaces one of them.
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+    assert (tmp_path / "corpus" / "piece.tla").is_symlink()
+    assert tla.read(outside / "piece.tla").format_version == tla.FORMAT_VERSION
+    assert (outside / "other name.tla").read_bytes() == OLD_0_5_15
+
+
+@pytest.mark.parametrize("inodes", [True, False], ids=["inodes", "no-inodes"])
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_link_in_the_run_to_a_name_in_it_isnt_another_name(
+    tmp_path, monkeypatch, apply, inodes
+):
+    # piece.tla has another name outside the folder; link.tla, in the folder,
+    # is a symbolic link to piece.tla. Writing through the link replaces
+    # piece.tla, so the run writes one of its two names, not both: the
+    # outside one keeps the old version.
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD_0_5_15)
+    os.link(root / "piece.tla", tmp_path / "outside.tla")
+    try:
+        os.symlink(root / "piece.tla", root / "link.tla")
+    except OSError:
+        pytest.skip("this system doesn't let the tests make symbolic links")
+    if not inodes:
+        # A file system without inode numbers: the link and the name it
+        # gives are still one file, by its real path.
+        monkeypatch.setattr(folder_module, "os", _OsWithoutInodes())
+
+    report = migrate_folder(root, apply=apply)
+
+    # With apply, piece.tla, written through the link first, is then in the
+    # current format, and isn't written; it is on the line all the same.
+    assert report.hard_links == [HardLinks(paths=("link.tla", "piece.tla"), outside=1)]
+    assert (tmp_path / "outside.tla").read_bytes() == OLD_0_5_15
+
+
+# Names the walk skips (TimeLineAnnotator/project-management#626)
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_name_in_a_hidden_folder_is_on_its_files_line(tmp_path, apply):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    (root / ".backup").mkdir()
+    os.link(root / "piece.tla", root / ".backup" / "piece.tla")
+    old = (root / "piece.tla").read_bytes()
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=(".backup/piece.tla", "piece.tla"), outside=0)
+    ]
+    assert (root / ".backup" / "piece.tla").read_bytes() == old
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_name_with_another_extension_is_on_its_files_line(tmp_path, apply):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    os.link(root / "piece.tla", root / "piece.tla.bak")
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=("piece.tla", "piece.tla.bak"), outside=0)
+    ]
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_name_in_a_nested_hidden_folder_is_named_and_the_rest_counted(
+    tmp_path, apply
+):
+    root = tmp_path / "corpus"
+    place(root / "sub" / "piece.tla", OLD / "0.0.96.tla")
+    deeper = root / "sub" / ".old" / "deeper"
+    deeper.mkdir(parents=True)
+    os.link(root / "sub" / "piece.tla", deeper / "piece.tla")
+    os.link(root / "sub" / "piece.tla", tmp_path / "outside.tla")
+    # A file of its own beside it, which the second look reads and leaves.
+    place(deeper / ".notes.tla", OLD / "0.0.96.tla")
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=("sub/.old/deeper/piece.tla", "sub/piece.tla"), outside=1)
+    ]
+
+
+def test_a_name_in_a_folder_that_cant_be_listed_counts_as_outside(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    (root / ".locked").mkdir()
+    os.link(root / "piece.tla", root / ".locked" / "piece.tla")
+    scandir = os.scandir
+
+    def refusing(path):
+        if Path(path).name == ".locked":
+            raise PermissionError(13, "Permission denied", str(path))
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", refusing)
+
+    report = migrate_folder(root)
+
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+
+
+@pytest.mark.parametrize("apply", [False, True])
+@pytest.mark.parametrize("links", [False, True], ids=["no-links", "all-taken"])
+def test_the_folder_is_looked_through_again_only_for_names_unaccounted_for(
+    tmp_path, monkeypatch, apply, links
+):
+    # Without hard links, or with every name taken by the walk, the run
+    # doesn't look through the folder a second time.
+    root = tmp_path / "corpus"
+    place(root / "a.tla", OLD / "0.0.96.tla")
+    if links:
+        os.link(root / "a.tla", root / "b.tla")
+    looks = []
+    monkeypatch.setattr(
+        folder_module,
+        "_names_the_walk_skips",
+        lambda *args: looks.append(args) or {},
+    )
+
+    report = migrate_folder(root, apply=apply)
+
+    assert looks == []
+    assert len(report.hard_links) == (1 if links else 0)
+
+
+def test_a_link_the_walk_skips_isnt_a_name(tmp_path):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD_0_5_15)
+    os.link(root / "piece.tla", tmp_path / "outside.tla")
+    (root / ".links").mkdir()
+    try:
+        os.symlink(root / "piece.tla", root / ".links" / "piece.tla")
+    except OSError:
+        pytest.skip("this system doesn't let the tests make symbolic links")
+
+    report = migrate_folder(root)
+
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_line_whose_first_name_the_second_look_found_comes_first(tmp_path, apply):
+    # b.tla's hidden name .bk/b.tla comes before a.tla in path order, so
+    # b.tla's line comes first.
+    root = tmp_path / "corpus"
+    place(root / "a.tla", OLD / "0.0.96.tla")
+    place(root / "b.tla", OLD / "0.0.96.tla")
+    os.link(root / "a.tla", tmp_path / "a outside.tla")
+    (root / ".bk").mkdir()
+    os.link(root / "b.tla", root / ".bk" / "b.tla")
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=(".bk/b.tla", "b.tla"), outside=0),
+        HardLinks(paths=("a.tla",), outside=1),
+    ]
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_the_second_look_stops_once_every_name_is_found(tmp_path, monkeypatch, apply):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    os.link(root / "piece.tla", root / ".piece.tla")
+    for name in ("a", "b", "c"):
+        place(root / ".venv" / name, OLD / "0.0.96.tla")
+    listed = []
+    scandir = os.scandir
+
+    def listing(path):
+        listed.append(Path(path).name)
+        return scandir(path)
+
+    monkeypatch.setattr(os, "scandir", listing)
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [
+        HardLinks(paths=(".piece.tla", "piece.tla"), outside=0)
+    ]
+    assert ".venv" not in listed
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_a_name_gone_during_the_second_look_counts_as_outside(
+    tmp_path, monkeypatch, apply
+):
+    # .bk/piece.tla is removed between the listing and its look: the run
+    # still reports, after writing with --apply.
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    (root / ".bk").mkdir()
+    os.link(root / "piece.tla", root / ".bk" / "piece.tla")
+    name_key = folder_module._name_key
+
+    def gone(path):
+        if ".bk" in Path(path).parts:
+            raise FileNotFoundError(2, "No such file or directory", path)
+        return name_key(path)
+
+    monkeypatch.setattr(folder_module, "_name_key", gone)
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+    assert outcomes(report) == [("piece.tla", "migrated" if apply else "would_migrate")]
+
+
+class _OsRecordingStats:
+    """`os`, recording each path `stat` is asked about."""
+
+    def __init__(self):
+        self.stats = []
+
+    def __getattr__(self, name):
+        return getattr(os, name)
+
+    def stat(self, path, *args, **kwargs):
+        self.stats.append(Path(path))
+        return os.stat(path, *args, **kwargs)
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="Windows' listing gives no inode numbers"
+)
+def test_on_posix_the_second_look_reads_only_entries_whose_inode_matches(
+    tmp_path, monkeypatch
+):
+    root = tmp_path / "corpus"
+    place(root / "piece.tla", OLD / "0.0.96.tla")
+    os.link(root / "piece.tla", tmp_path / "outside.tla")
+    for name in ("a", "b", "c"):
+        place(root / ".venv" / name, OLD / "0.0.96.tla")
+    recording = _OsRecordingStats()
+    monkeypatch.setattr(folder_module, "os", recording)
+
+    report = migrate_folder(root)
+
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+    assert not [path for path in recording.stats if ".venv" in path.parts]
