@@ -186,7 +186,9 @@ def _changed(
     breaks fewer rules than it did. A pair it wasn't at odds with is new, and so is
     one with another the action changed."""
     if set(problems) == set(was):
-        return [], False  # the same: nothing fixed
+        # The same: nothing fixed. The reason is one with another the action
+        # changed, which the writer would find new, if there is one.
+        return [p for p in problems if p.between & changed], False
     was_pairs = _pairs(was)
     new = [
         problem
