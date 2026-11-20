@@ -329,6 +329,10 @@ class Inspect(QDockWidget):
         match kind:
             case InspectRowKind.LABEL:
                 widget = QLabel(self.inspect_widget)
+                if kwargs and kwargs.get("plain_text"):
+                    widget.setTextFormat(Qt.TextFormat.PlainText)
+                if kwargs and kwargs.get("word_wrap"):
+                    widget.setWordWrap(True)
             case InspectRowKind.SINGLE_LINE_EDIT:
                 widget = QLineEdit(self.inspect_widget)
                 widget.textChanged.connect(

@@ -34,6 +34,8 @@ from tilia.ui.timelines.copy_paste import (
     get_copy_data_from_elements,
 )
 from tilia.ui.timelines.scene import TimelineScene
+from tilia.ui.windows.inspect import HIDE_FIELD, InspectRowKind
+from tilia.ui.windows.timeline_fields import fields_lines
 from tilia.utils import get_sibling_packages, get_tilia_class_string
 
 from ...coords import time_x_converter
@@ -46,6 +48,14 @@ if TYPE_CHECKING:
 
 T = TypeVar("T", bound="TimelineUIElement")
 V = TypeVar("V")
+
+# A component's fields, read only, after its own rows, and only when it has some
+# (FR-092; `contracts/controls.md`, row 10). As plain text: they are the file's.
+FIELDS_ROW = (
+    "Fields",
+    InspectRowKind.LABEL,
+    lambda: {"plain_text": True, "word_wrap": True},
+)
 
 
 def with_elements(func: Callable) -> Callable:
@@ -513,11 +523,15 @@ class TimelineUI(ABC):  # noqa: B024
                 f"Can't inspect {element}, necessary attributes not found."
             )
 
+        fields = get(Get.COMPONENT_FIELDS, element.timeline_ui.id, element.id)
         post(
             Post.INSPECTABLE_ELEMENT_SELECTED,
             type(element),
-            element.INSPECTOR_FIELDS,
-            element.get_inspector_dict(),
+            [*element.INSPECTOR_FIELDS, FIELDS_ROW],
+            {
+                **element.get_inspector_dict(),
+                "Fields": fields_lines(fields) if fields else HIDE_FIELD,
+            },
             element.id,
         )
 

@@ -88,7 +88,9 @@ def ask_unknown_timeline_kind_action(kinds: list[str]) -> tuple[bool, bool]:
 
 
 class YesOrNoMessageBox(QMessageBox):
-    def __init__(self, title: str, prompt: str) -> None:
+    """`default` is the answer Enter gives: Yes unless it is False."""
+
+    def __init__(self, title: str, prompt: str, default: bool = True) -> None:
         super().__init__(
             QMessageBox.Icon.Question,
             title,
@@ -97,10 +99,16 @@ class YesOrNoMessageBox(QMessageBox):
             get(Get.MAIN_WINDOW),
         )
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setDefaultButton(
+            QMessageBox.StandardButton.Yes if default else QMessageBox.StandardButton.No
+        )
 
 
-def ask_yes_or_no(title: str, prompt: str) -> bool:
-    return YesOrNoMessageBox(title, prompt).exec() == QMessageBox.StandardButton.Yes
+def ask_yes_or_no(title: str, prompt: str, default: bool = True) -> bool:
+    """Whether the person answers Yes. `default` is the answer Enter gives, as on
+    the command line."""
+    box = YesOrNoMessageBox(title, prompt, default)
+    return box.exec() == QMessageBox.StandardButton.Yes
 
 
 def _truncate_error_message(message: str):
