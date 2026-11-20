@@ -154,6 +154,21 @@ def delete_line(number: int):
     return delete
 
 
+def replace_line(number: int, text: str):
+    """Types `text` over a line of the names' box, as selecting the line's text and
+    typing does."""
+
+    def replace(text_edit) -> None:
+        block = text_edit.document().findBlockByNumber(number)
+        cursor = QTextCursor(block)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.EndOfBlock, QTextCursor.MoveMode.KeepAnchor
+        )
+        cursor.insertText(text)
+
+    return replace
+
+
 class patch_question:
     """Answers TiLiA's yes-or-no questions with `answer`, and keeps each question's
     title and text."""
@@ -448,6 +463,18 @@ class TestEditing:
             metadata["analyst"] = metadata.pop("author")
 
         assert_saved_as_the_core_s(every_kind, FORM, change)
+
+    def test_a_line_typed_over_is_the_name_typed(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+
+        edit_names(window, replace_line(1, "analyst"))
+
+        assert list(fields_of(FORM).items()) == [
+            ("role", "form"),
+            ("source", "Caplin 1998"),
+            ("vocabulary", "lcma-form@0.3.0"),
+            ("analyst", "Anne"),
+        ]
 
     def test_the_names_keep_their_order(self, every_kind, tluis):
         # The document keeps each field in its place: reordering the names moves none.
