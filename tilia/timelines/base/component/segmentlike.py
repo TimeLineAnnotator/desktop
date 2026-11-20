@@ -6,7 +6,11 @@ from typing import Iterable, TypeVar
 from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_extended
-from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
+from tilia.timelines.base.metric_position import (
+    EXPORTED_BEAT_PLACES,
+    MetricInterval,
+    MetricPosition,
+)
 from tilia.timelines.base.timeline import TimelineComponentManager
 
 T = TypeVar("T")
@@ -35,9 +39,10 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         # This is only needed because the property name
         # is currently coupled to the name of the
         # attribute in the exported file.
-        if not self.length_metric:
+        length = self.length_metric
+        if length is None:
             return None
-        return self.length_metric.measures, self.length_metric.beats
+        return length.measures, round(length.beats, EXPORTED_BEAT_PLACES)
 
     @property
     def start_metric_position(self) -> MetricPosition | None:
@@ -55,7 +60,9 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
     @property
     def start_beat(self) -> float | None:
-        return self.start_metric_position.beat if self.start_metric_position else None
+        # As the export writes it.
+        position = self.start_metric_position
+        return round(position.beat, EXPORTED_BEAT_PLACES) if position else None
 
     @property
     def end_measure(self) -> int | None:
@@ -63,7 +70,9 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
     @property
     def end_beat(self) -> float | None:
-        return self.end_metric_position.beat if self.end_metric_position else None
+        # As the export writes it.
+        position = self.end_metric_position
+        return round(position.beat, EXPORTED_BEAT_PLACES) if position else None
 
     @property
     def loop_start(self) -> float:

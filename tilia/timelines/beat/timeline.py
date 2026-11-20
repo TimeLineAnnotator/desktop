@@ -726,9 +726,12 @@ class BeatTimeline(Timeline):
         measure_one_starts = time_map.times_of(1) if time_map is not None else []
         measure_two_starts = time_map.times_of(2) if time_map is not None else []
         if not measure_one_starts or not measure_two_starts:
+            # Fewer than two measures, measures numbered otherwise, or a table the
+            # core can't map to times (TimeLineAnnotator/project-management#650).
             return (
                 False,
-                "Timeline has less than two measures. Cannot estimate measure zero duration.",
+                "Measures 1 and 2 can't both be found on this timeline. Cannot"
+                " estimate measure zero duration.",
             )
 
         measure_one_start = measure_one_starts[0]
