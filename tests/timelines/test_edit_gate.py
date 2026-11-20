@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 import shutil
+import sys
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -957,8 +958,20 @@ class TestAScaleOrACropAnsweredAsAFileOpens:
         assert save()
 
 
+def traced() -> bool:
+    """Whether a tracer, such as coverage's, slows what runs."""
+    if sys.gettrace() is not None:
+        return True
+    monitoring = getattr(sys, "monitoring", None)
+    return monitoring is not None and (
+        monitoring.get_tool(monitoring.COVERAGE_ID) is not None
+    )
+
+
 class TestSpeed:
     def test_one_label_edit_of_3000_hierarchies_is_checked_well_under_a_second(self):
+        if traced():
+            pytest.skip("timed only without a tracer, such as coverage's")
         # Without the UI: the states TiLiA builds from a document (`state_of`), of
         # 2,000 units at level 1, in 1,000 at level 2, and the same with a label
         # changed.
