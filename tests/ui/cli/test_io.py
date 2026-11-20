@@ -3,7 +3,23 @@ from unittest.mock import patch
 import pytest
 
 from tilia.ui.cli.io import ask_yes_or_no
-from tilia.ui.cli.ui import on_ask_retry_media_file, on_ask_retry_pdf_file
+from tilia.ui.cli.ui import (
+    on_ask_retry_media_file,
+    on_ask_retry_pdf_file,
+    on_ask_yes_or_no,
+)
+
+
+class TestYesOrNoRequest:
+    @pytest.mark.parametrize("default, option", [(True, "Yes/no"), (False, "yes/No")])
+    def test_its_default_is_the_answer_to_an_empty_reply(self, default, option):
+        with patch("builtins.input", return_value="") as p:
+            assert on_ask_yes_or_no("Title", "Prompt?", default=default) is default
+        assert option in p.call_args.args[0]
+
+    def test_without_one_it_is_yes(self):
+        with patch("builtins.input", return_value=""):
+            assert on_ask_yes_or_no("Title", "Prompt?") is True
 
 
 class TestInput:
