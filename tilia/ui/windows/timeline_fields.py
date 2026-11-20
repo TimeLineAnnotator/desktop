@@ -120,6 +120,12 @@ def with_names(fields: Fields, names: list[str]) -> Fields:
     return result
 
 
+def _ask_to_drop_edits(prompt: str) -> bool:
+    """Whether the person drops the edits not applied. Enter keeps them: No is the
+    default (TimeLineAnnotator/project-management#644, a)."""
+    return get(Get.FROM_USER_YES_OR_NO, QUESTION_TITLE, prompt, default=False)
+
+
 class FieldNamesDialog(QDialog):
     """The names of a timeline's fields, one per line, as the Metadata window's
     "Edit fields..." dialog has the file's. A name it can't show on one line isn't
@@ -252,9 +258,12 @@ class TimelineFieldsWindow(QDialog):
         self._shown.clear()
         for name, value in self._fields().items():
             line_edit = QLineEdit(field_text(value))
-            # The Metadata window's label, its first letter a capital, as plain
-            # text: a name is the file's. The rest as it is: `BWV` isn't `Bwv`.
-            label = QLabel(name[:1].upper() + name[1:])
+            # The name as the inspector shows it, a line break as a space
+            # (TimeLineAnnotator/project-management#643, a), then the Metadata
+            # window's label: its first letter a capital, the rest as it is (`BWV`
+            # isn't `Bwv`), as plain text, since a name is the file's.
+            shown_name = _LINE_BREAK.sub(" ", name)
+            label = QLabel(shown_name[:1].upper() + shown_name[1:])
             label.setTextFormat(Qt.TextFormat.PlainText)
             self.form_layout.addRow(label, line_edit)
             self.line_edits[name] = line_edit
@@ -296,10 +305,8 @@ class TimelineFieldsWindow(QDialog):
         commands.execute("timeline.set_fields", timeline_ui, fields)
 
     def on_edit_names(self) -> None:
-        if self.edits() and not get(
-            Get.FROM_USER_YES_OR_NO,
-            QUESTION_TITLE,
-            "Leave window without saving changes?",
+        if self.edits() and not _ask_to_drop_edits(
+            "Leave window without saving changes?"
         ):
             return
         fields = self._fields()
@@ -327,11 +334,7 @@ class TimelineFieldsWindow(QDialog):
         if (
             not self._timeline_gone
             and self.edits()
-            and not get(
-                Get.FROM_USER_YES_OR_NO,
-                QUESTION_TITLE,
-                "Close window without saving changes?",
-            )
+            and not _ask_to_drop_edits("Close window without saving changes?")
         ):
             event.ignore()
             return

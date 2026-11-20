@@ -174,24 +174,27 @@ class patch_question:
     title and text."""
 
     def __init__(self, answer: bool):
-        self.answer = answer
+        self.answer_yes = answer
         self.asked: list[tuple[str, str]] = []
+
+    def answer(self, box):
+        return (
+            QMessageBox.StandardButton.Yes
+            if self.answer_yes
+            else QMessageBox.StandardButton.No
+        )
 
     def __enter__(self):
         made = YesOrNoMessageBox.__init__
 
         # The words as given: on macOS, a message box keeps no window title.
-        def init(box, title, prompt):
-            made(box, title, prompt)
+        def init(box, title, prompt, *args, **kwargs):
+            made(box, title, prompt, *args, **kwargs)
             box.words = (title, prompt)
 
         def exec_(box):
             self.asked.append(box.words)
-            return (
-                QMessageBox.StandardButton.Yes
-                if self.answer
-                else QMessageBox.StandardButton.No
-            )
+            return self.answer(box)
 
         self._patches = [
             patch.object(YesOrNoMessageBox, "__init__", new=init),
@@ -204,6 +207,19 @@ class patch_question:
     def __exit__(self, *args):
         for patch_ in reversed(self._patches):
             patch_.__exit__(*args)
+
+
+class answer_with_enter(patch_question):
+    """Answers TiLiA's yes-or-no questions as Enter does: the box shows, and Enter
+    clicks the button Qt makes its default."""
+
+    def __init__(self):
+        super().__init__(answer=False)
+
+    def answer(self, box):
+        box.show()
+        QTest.keyClick(box, Qt.Key.Key_Return)
+        return box.standardButton(box.clickedButton())
 
 
 @pytest.fixture(autouse=True)
@@ -744,6 +760,30 @@ class TestClosing:
 
         assert not shiboken6.isValid(dialog)
 
+    def test_enter_on_the_question_keeps_the_window_and_the_edits(
+        self, every_kind, tluis
+    ):
+        # No is the default (TimeLineAnnotator/project-management#644, a).
+        window = open_fields(tluis, FORM)
+        window.line_edits["author"].setText("Anne-Marie")
+
+        with answer_with_enter() as question:
+            cancel(window)
+
+        assert question.asked == [
+            ("Save field edits", "Close window without saving changes?")
+        ]
+        assert TimelineFieldsWindow.of(FORM) is window
+        assert shown(window)["author"] == "Anne-Marie"
+        assert fields_of(FORM) == FORM_FIELDS
+
+    def test_other_questions_keep_yes_as_their_default(self, every_kind, tluis):
+        with answer_with_enter() as question:
+            answer = get(Get.FROM_USER_YES_OR_NO, "Title", "Prompt?")
+
+        assert question.asked == [("Title", "Prompt?")]
+        assert answer is True
+
     def test_it_can_be_opened_again(self, every_kind, tluis):
         cancel(open_fields(tluis, FORM))
 
@@ -818,6 +858,24 @@ class TestEditFieldsWithEditsNotApplied:
         ]
         assert fields_of(FORM) == {**FORM_FIELDS, "key": ""}
         assert shown(window) == {**FORM_FIELDS, "key": ""}
+
+    def test_enter_keeps_them_and_opens_nothing(self, every_kind, tluis):
+        # No is the default (TimeLineAnnotator/project-management#644, a).
+        window = open_fields(tluis, FORM)
+        window.line_edits["author"].setText("Anne-Marie")
+
+        with (
+            answer_with_enter() as question,
+            patch.object(FieldNamesDialog, "exec") as exec_,
+        ):
+            window.edit_names_button.click()
+
+        assert question.asked == [
+            ("Save field edits", "Leave window without saving changes?")
+        ]
+        exec_.assert_not_called()
+        assert shown(window)["author"] == "Anne-Marie"
+        assert fields_of(FORM) == FORM_FIELDS
 
     def test_no_keeps_them_and_opens_nothing(self, every_kind, tluis):
         window = open_fields(tluis, FORM)
@@ -896,6 +954,20 @@ class TestNamesTheBoxCantShowAsTheyAre:
         edit_names(window, lambda box: given.append(box.toPlainText()))
 
         assert given == ["c\n"]
+
+    def test_their_labels_are_as_the_inspector_shows_them(self, on_two_lines, tluis):
+        # A line break is a space, and an empty or blank name gives an empty or
+        # blank label (TimeLineAnnotator/project-management#643, a).
+        window = open_fields(tluis, FORM)
+
+        assert labels(window) == [
+            "A b",
+            "C",
+            "   ",
+            "",
+            "E f",
+            "G" + self.FRAME_MARK[1:],
+        ]
 
     def test_ok_with_nothing_typed_keeps_them(self, on_two_lines, tluis):
         window = open_fields(tluis, FORM)
