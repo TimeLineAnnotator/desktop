@@ -43,9 +43,9 @@ class OpenDocument:
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.
 
-    `time_map_found` is the document's time map. `beats_changed` says a beat
-    timeline has changed in TiLiA since the document last followed its state, so
-    that whoever asks for the time map has it follow first.
+    `time_map_found` is the document's time map. `time_map_behind` says a beat
+    timeline or the media's length has changed in TiLiA since the document last
+    followed its state, so that whoever asks for the time map has it follow first.
 
     Two are the same file only if they are the same object.
     """
@@ -59,8 +59,9 @@ class OpenDocument:
     unknown_discarded: bool = False
     synced: dict[str, Any] | None = None
     removed: tla_bridge.Removed = field(default_factory=dict)
-    # Set by `Timelines` when a beat timeline changes, and cleared by `sync`.
-    beats_changed: bool = field(default=False, init=False)
+    # Set by `Timelines` when a beat timeline or the media's length changes, and
+    # cleared by `sync`.
+    time_map_behind: bool = field(default=False, init=False)
     # The document's time map once asked for, until `sync` changes what it is
     # built from.
     _time_map_found: timemap.TimeMapFound | None = field(
@@ -107,7 +108,7 @@ class OpenDocument:
         redo has gone back to: the document gets back what it held then. Logs what
         the document couldn't keep as it was."""
         with self._lock:
-            self.beats_changed = False
+            self.time_map_behind = False
             if self.synced is None:
                 # A document read, before TiLiA took the state it built from it.
                 logger.warning("The document reflects no state yet: taking this one.")

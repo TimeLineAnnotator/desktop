@@ -217,6 +217,17 @@ class TestTheTimeMapFollowsTheBeats:
 
         assert position(6.5).measure == 10
 
+    def test_a_measure_number_reset_before_the_action_is_recorded(self, beat_tl):
+        add_beats(beat_tl, range(12))
+        # A number set to 0 isn't forced to show.
+        beat_tl.set_measure_number(1, 0)
+        post(Post.APP_STATE_RECORD, "measure number")
+        assert position(6.5).measure == 0
+
+        beat_tl.reset_measure_number(1)
+
+        assert position(6.5).measure == 2
+
     def test_the_beats_in_a_measure_set(self, beat_tl):
         add_beats(beat_tl, range(9))
         assert position(6.5).measure == 2
@@ -285,6 +296,40 @@ class TestTheTimeMapFollowsTheBeats:
         # Once the undo has synced, the closing barline is at 9.
         assert position(9.5) is None
         assert position(8.5).measure == 3
+
+
+class TestTheTimeMapFollowsTheMediaLength:
+    """The last beat lasts as long as the one before it, or until the media ends if
+    that comes first."""
+
+    @pytest.fixture
+    def set_media_length(self, tilia):
+        def set_length(length):
+            tilia.set_file_media_duration(length, scale_timelines="no")
+
+        yield set_length
+        tilia.set_file_media_duration(100, scale_timelines="no")
+        post(Post.APP_STATE_RECORD, "media length")
+
+    def test_a_media_length_recorded(self, beat_tl, set_media_length):
+        add_beats(beat_tl, range(10))
+        assert str(position(9.7)) == "3.2.70"
+
+        set_media_length(9.5)
+        post(Post.APP_STATE_RECORD, "media length")
+
+        assert position(9.7) is None
+        assert str(position(9.3)) == "3.2.60"
+
+    def test_a_media_length_before_the_action_is_recorded(
+        self, beat_tl, set_media_length
+    ):
+        add_beats(beat_tl, range(10))
+        assert str(position(9.7)) == "3.2.70"
+
+        set_media_length(9.5)
+
+        assert position(9.7) is None
 
 
 class TestTheInspector:

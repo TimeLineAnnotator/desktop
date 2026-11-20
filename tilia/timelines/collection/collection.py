@@ -80,6 +80,12 @@ class Timelines:
                 post_,
                 lambda _kind, timeline_id, *_: self._note_beat_change(timeline_id),
             )
+        # The media's length can end the last measure.
+        listen(
+            self,
+            Post.FILE_MEDIA_DURATION_CHANGED,
+            lambda *_, **__: self._note_time_map_behind(),
+        )
 
     @property
     def timeline_types(self):
@@ -413,14 +419,18 @@ class Timelines:
         document no longer follows TiLiA's beat timelines."""
         timeline = self.get_timeline(timeline_id)
         if timeline is None or isinstance(timeline, BeatTimeline):
-            self._app.file_manager.file.beats_changed = True
+            self._note_time_map_behind()
+
+    def _note_time_map_behind(self) -> None:
+        self._app.file_manager.file.time_map_behind = True
 
     def _follow_beats(self) -> None:
-        """Has the document follow TiLiA's state when a beat timeline has changed
-        since it last did, unless an undo or a redo is restoring a state: that
-        syncs once it has, as an undo, and the time map follows then."""
+        """Has the document follow TiLiA's state when a beat timeline or the
+        media's length has changed since it last did, unless an undo or a redo is
+        restoring a state: that syncs once it has, as an undo, and the time map
+        follows then."""
         if (
-            self._app.file_manager.file.beats_changed
+            self._app.file_manager.file.time_map_behind
             and self._app.undo_manager.is_recording
         ):
             self._app.sync_document()
