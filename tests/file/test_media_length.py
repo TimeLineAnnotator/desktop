@@ -442,6 +442,59 @@ class TestALocalFilesLengthAsItOpens:
             [time * new / STORED for time in times]
         )
 
+    def test_a_youtube_report_during_a_dialog_as_the_file_loads_asks_once(
+        self, youtube, tilia, tmp_path
+    ):
+        # every-kind.tla's PDF isn't there: TiLiA asks, as the file loads, whether to
+        # look for it, and the page reports then. What the file then stores is
+        # TimeLineAnnotator/project-management#652's.
+        path = a_file(tmp_path)
+        shown: list[str] = []
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            Serve(Get.FROM_USER_SHOW_PROBLEMS, None),
+            _Recorder(
+                Get.FROM_USER_RETRY_PDF_PATH,
+                False,
+                shown,
+                "pdf",
+                lambda: tilia.player.report(STORED + 2.5),
+            ),
+            _Recorder(Get.FROM_USER_YES_OR_NO, True, shown, "question", None),
+        ):
+            assert commands.execute("file.open", path)
+
+        assert shown.count("question") == 1
+
+    def test_media_picked_within_the_tolerance_keeps_the_stored_length(
+        self, audio, tilia, tmp_path
+    ):
+        # The file's media isn't there and no place is remembered: the person picks
+        # a file, whose player reports 1 s more than the file stores. It is the
+        # file's media found elsewhere, which changes nothing (FR-032, FR-034).
+        picked = tmp_path / "picked.mp3"
+        picked.write_bytes(b"")
+        path = a_file(tmp_path, str(tmp_path / "missing.mp3"), _Audio.LENGTH - 1.0)
+        before = path.read_bytes()
+        shown: list[str] = []
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+            Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
+            Serve(Get.FROM_USER_SHOW_PROBLEMS, None),
+            Serve(Get.FROM_USER_RETRY_MEDIA_PATH, True),
+            Serve(Get.FROM_USER_MEDIA_PATH, (True, str(picked))),
+            _Recorder(Get.FROM_USER_YES_OR_NO, True, shown, "question", None),
+        ):
+            assert commands.execute("file.open", path)
+
+        assert get(Get.MEDIA_DURATION) == _Audio.LENGTH
+        assert shown == []
+        assert not tilia.is_file_modified()
+        assert save()
+        assert path.read_bytes() == before
+
 
 class TestAFileWithoutALength:
     """FR-034: it takes the length reported, without a question, as a change that a

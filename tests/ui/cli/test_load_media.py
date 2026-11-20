@@ -243,8 +243,20 @@ EVERY_KIND = (
 )
 
 
+@pytest.fixture
+def player_kept(tilia):
+    """Gives the app back a player of the kind it had, for the module's other tests,
+    as TiLiA changes players: the new one first, then the old one goes."""
+    kind = type(tilia.player)
+    yield
+    if type(tilia.player) is not kind:
+        player = kind()
+        tilia.player.destroy()
+        tilia.player = player
+
+
 def test_open_takes_the_length_its_youtube_player_reports_as_it_loads(
-    cli, tilia, tmp_path, monkeypatch
+    cli, tilia, player_kept, tmp_path, monkeypatch
 ):
     # The command line's YouTube player reports the video's length as it loads it,
     # as a local file's player does. Once the file is open, a length beyond the
