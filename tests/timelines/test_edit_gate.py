@@ -958,32 +958,27 @@ class TestAScaleOrACropAnsweredAsAFileOpens:
 
 
 class TestSpeed:
-    def test_one_label_edit_of_3000_hierarchies_is_checked_well_under_a_second(
-        self, tilia, tls
-    ):
-        # Without the UI: 2,000 units at level 1, in 1,000 at level 2.
-        timeline = tls.create_timeline(HierarchyTimeline)
-        timeline.clear()
+    def test_one_label_edit_of_3000_hierarchies_is_checked_well_under_a_second(self):
+        # Without the UI: the states TiLiA builds from a document (`state_of`), of
+        # 2,000 units at level 1, in 1,000 at level 2, and the same with a label
+        # changed.
+        components = {}
         for index in range(1000):
             start = index * 3.0
-            for child in range(2):
-                timeline.create_component(
-                    ComponentKind.HIERARCHY,
-                    start=start + child * 1.5,
-                    end=start + (child + 1) * 1.5,
-                    level=1,
-                    checked=False,
+            spans = [(start, start + 1.5, 1), (start + 1.5, start + 3.0, 1)]
+            for offset, (begin, end, level) in enumerate(
+                [*spans, (start, start + 3.0, 2)]
+            ):
+                id = make_id(1000 + index * 3 + offset)
+                components[id] = tla.Component(
+                    id=id, kind="hierarchy", attrs=a_hierarchy(begin, end, level)
                 )
-            timeline.create_component(
-                ComponentKind.HIERARCHY,
-                start=start,
-                end=start + 3.0,
-                level=2,
-                checked=False,
-            )
-        before = tilia.get_app_state()
-        timeline.set_component_data(timeline[0].id, "label", "changed")
-        after = tilia.get_app_state()
+        document = tla.new_document()
+        document.timelines[FORM] = hierarchies()
+        document.timelines[FORM].components = components
+        before = {"timelines": tla_bridge.state_of(document)}
+        next(iter(components.values())).attrs["label"] = "changed"
+        after = {"timelines": tla_bridge.state_of(document)}
 
         def timed() -> float:
             # A new gate each time, which knows neither state yet. The time this
