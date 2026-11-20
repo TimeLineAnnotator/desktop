@@ -40,9 +40,13 @@ class CLI:
         self.exception = None
         self._save_verbosity()
         self._is_running = False
+        # For each command running, the inner last: how many of its actions the
+        # check at the end of an action refused.
+        self._refused: list[int] = []
         listen(
             self, Post.DISPLAY_ERROR, self.on_request_to_display_error
         )  # ignores error title
+        listen(self, Post.APP_EDIT_REFUSED, self.on_edit_refused)
 
         SERVES = {
             (Get.PLAYER_CLASS, self.get_player_class),
@@ -138,29 +142,42 @@ class CLI:
     def run(self, cmd: str) -> bool:
         """
         Parses the commands entered by the user.
-        Return True if an uncaught exception occurred.
+        Return True if an uncaught exception occurred, or if the check at the end
+        of an action refused what the command did, whose reason is printed
+        (TimeLineAnnotator/project-management#656, b): a script stops there, as
+        at a command that raises.
         The exception is stored in self.exception.
         """
+        self._refused.append(0)
         try:
-            namespace = self.parser.parse_args(cmd)
-            if hasattr(namespace, "func"):
-                namespace.func(namespace)
-            failed = False
-        except argparse.ArgumentError as err:
-            post(Post.DISPLAY_ERROR, "Argument error", str(err))
-            self.exception = err
-            failed = True
-        except SystemExit as err:
-            self.exception = err
-            failed = True
-        except Exception as err:
-            self.exception = err
-            post(Post.DISPLAY_ERROR, "CLI error", traceback.format_exc())
-            failed = True
-        # A command records nothing for undo: the file's document follows what it
-        # did here.
-        post(Post.APP_EDIT_DONE)
-        return failed
+            try:
+                namespace = self.parser.parse_args(cmd)
+                if hasattr(namespace, "func"):
+                    namespace.func(namespace)
+                failed = False
+            except argparse.ArgumentError as err:
+                post(Post.DISPLAY_ERROR, "Argument error", str(err))
+                self.exception = err
+                failed = True
+            except SystemExit as err:
+                self.exception = err
+                failed = True
+            except Exception as err:
+                self.exception = err
+                post(Post.DISPLAY_ERROR, "CLI error", traceback.format_exc())
+                failed = True
+            # A command records nothing for undo: the file's document follows what
+            # it did here, once the check at the end of an action allows it.
+            post(Post.APP_EDIT_DONE)
+        finally:
+            refused = self._refused.pop()
+        return failed or refused > 0
+
+    def on_edit_refused(self, _reason: str) -> None:
+        """Counts a refusal against the command running, not a script that runs
+        it, as a command that raises fails alone."""
+        if self._refused:
+            self._refused[-1] += 1
 
     @staticmethod
     def on_request_to_display_error(_, message: str) -> None:

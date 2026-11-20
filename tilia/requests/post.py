@@ -54,6 +54,8 @@ class Post(Enum):
     APP_CLEAR = auto()
     # The end of a command on the command line, which records nothing for undo.
     APP_EDIT_DONE = auto()
+    # The check at the end of an action refused it. args: (reason: str)
+    APP_EDIT_REFUSED = auto()
     APP_FILE_LOADED = auto()
     APP_MEDIA_LOAD = auto()
     APP_SETUP_FILE = auto()

@@ -420,6 +420,7 @@ class App:
             logger.exception("Taking the timelines back to the state accepted.")
             self.recover_to_state(accepted)
         tilia.errors.display(tilia.errors.EDIT_REFUSED, reason)
+        post(Post.APP_EDIT_REFUSED, reason)
 
     def _media_length_for_rules(self, state: dict) -> float:
         """The media length the document has once it follows `state`, as a write
