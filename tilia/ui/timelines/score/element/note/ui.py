@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 
 from tilia.settings import settings
+from tilia.timelines.base.metric_position import format_metric_span
 from tilia.timelines.score.components.note import pitch
 from tilia.ui import commands
 from tilia.ui.color import get_tinted_color
@@ -20,6 +21,7 @@ from tilia.ui.timelines.score.element.note.body import NoteBody
 from tilia.ui.timelines.score.element.note.ledger_line import (
     NoteLedgerLines,
 )
+from tilia.ui.windows.inspect import HIDE_FIELD
 
 
 class NoteUI(TimelineUIElement):
@@ -324,10 +326,10 @@ class NoteUI(TimelineUIElement):
                 str(self.get_data("octave")),
             ]
         )
-        if start := self.get_data("start_metric_position"):
-            end = self.get_data("end_metric_position")
-            inspector[
-                "Start / end (metric)"
-            ] = f"{start.measure}.{start.beat} / {end.measure}.{end.beat}"
+        shown = format_metric_span(
+            self.get_data("start_metric_position"),
+            self.get_data("end_metric_position"),
+        )
+        inspector["Start / end (metric)"] = shown if shown is not None else HIDE_FIELD
 
         return inspector

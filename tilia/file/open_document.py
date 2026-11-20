@@ -12,10 +12,11 @@ from typing import Any
 from tilia.file import tla_bridge
 from tilia.file.media_metadata import MediaMetadata
 from tilia.log import logger
-from tilia_core import tla
+from tilia_core import timemap, tla
 from tilia_core.tla import paths
 
 _MEDIA_LENGTH = "media length"
+_BEAT = "beat"
 
 
 @dataclass(eq=False)
@@ -42,6 +43,10 @@ class OpenDocument:
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.
 
+    `time_map_found` is the document's time map. `beats_changed` says a beat
+    timeline has changed in TiLiA since the document last followed its state, so
+    that whoever asks for the time map has it follow first.
+
     Two are the same file only if they are the same object.
     """
 
@@ -54,6 +59,13 @@ class OpenDocument:
     unknown_discarded: bool = False
     synced: dict[str, Any] | None = None
     removed: tla_bridge.Removed = field(default_factory=dict)
+    # Set by `Timelines` when a beat timeline changes, and cleared by `sync`.
+    beats_changed: bool = field(default=False, init=False)
+    # The document's time map once asked for, until `sync` changes what it is
+    # built from.
+    _time_map_found: timemap.TimeMapFound | None = field(
+        default=None, init=False, repr=False
+    )
     # Taken by whatever changes the document or copies it: the autosaver copies
     # from its thread.
     _lock: threading.Lock = field(
@@ -95,11 +107,15 @@ class OpenDocument:
         redo has gone back to: the document gets back what it held then. Logs what
         the document couldn't keep as it was."""
         with self._lock:
+            self.beats_changed = False
             if self.synced is None:
                 # A document read, before TiLiA took the state it built from it.
                 logger.warning("The document reflects no state yet: taking this one.")
                 self.synced = state
                 return
+            # Whatever changed the beat timelines, a post or not, an edit or an undo.
+            if _time_map_reads(self.synced) != _time_map_reads(state):
+                self._time_map_found = None
             notes = tla_bridge.apply_changes(
                 self.document,
                 self.synced,
@@ -119,6 +135,17 @@ class OpenDocument:
             self.synced = state
         for note in notes:
             logger.warning(note)
+
+    @property
+    def time_map_found(self) -> timemap.TimeMapFound:
+        """The document's time map, chosen by T12's rule: from the beat timeline
+        whose role is time_map, else the first by ordinal (`timemap.find_time_map`).
+        Built from the document as it is, when first asked for after `sync` has
+        changed a beat timeline, a role or the media's length."""
+        with self._lock:
+            if self._time_map_found is None:
+                self._time_map_found = timemap.find_time_map(self.document)
+            return self._time_map_found
 
     def remember(self, state: dict[str, Any]) -> None:
         """Keeps, for `state`, which undo has just recorded and the document follows,
@@ -212,3 +239,15 @@ class OpenDocument:
         is given follow the file written, and the one open must stay with its file."""
         with self._lock:
             return copy.deepcopy(self.document)
+
+
+def _time_map_reads(state: dict[str, Any]) -> tuple[Any, ...]:
+    """What, of a state, the document's time map is built from: each beat timeline,
+    with its place, fields (its role among them) and beats, and the media's
+    length."""
+    beat_timelines = sorted(
+        (timeline_id, timeline.get("hash"), timeline.get("components_hash"))
+        for timeline_id, timeline in state.get("timelines", {}).items()
+        if tla_bridge.TIMELINE_KINDS.get(timeline.get("kind")) == _BEAT
+    )
+    return tuple(beat_timelines), state.get("media_metadata", {}).get(_MEDIA_LENGTH)

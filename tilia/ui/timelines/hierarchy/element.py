@@ -18,6 +18,7 @@ from tilia.requests import (
     stop_listening_to_all,
 )
 from tilia.settings import settings
+from tilia.timelines.base.metric_position import format_metric_span
 from tilia.ui import commands
 from tilia.ui.timelines.base.element import TimelineUIElement
 from tilia.ui.timelines.copy_paste import CopyAttributes
@@ -616,26 +617,22 @@ class HierarchyUI(TimelineUIElement):
             return f"- / {self.post_end_formatted}"
 
     @property
-    def metric_position_formatted(self):
-        start_metric_position = self.get_data("start_metric_position")
-        end_metric_position = self.get_data("end_metric_position")
-        if not start_metric_position:
-            return "-"
-        return f"{start_metric_position.measure}.{start_metric_position.beat} / {end_metric_position.measure}.{end_metric_position.beat}"
+    def metric_position_formatted(self) -> str:
+        shown = format_metric_span(
+            self.get_data("start_metric_position"),
+            self.get_data("end_metric_position"),
+        )
+        return shown if shown is not None else HIDE_FIELD
 
     def get_inspector_dict(self) -> dict:
-        data = {
+        return {
             "Label": self.get_data("label"),
             "Start / end": self.start_and_end_formatted,
             "Pre-start / post-end": self.frame_times_for_inspector,
             "Length": self.length_formatted,
             "Comments": self.get_data("comments"),
+            "Start / end (metric)": self.metric_position_formatted,
         }
-
-        if self.get_data("start_metric_position"):
-            data["Start / end (metric)"] = self.metric_position_formatted
-
-        return data
 
     def delete(self):
         for item in self.child_items():

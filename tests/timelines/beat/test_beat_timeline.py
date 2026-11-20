@@ -3,7 +3,9 @@ from unittest.mock import patch
 import pytest
 
 from tests.utils import undoable
+from tilia.requests import Get, get
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
 
 
@@ -551,6 +553,71 @@ class TestBeatTimeline:
                 timeline.delete_components(list(timeline.components))
 
         assert component_manager.compute_is_first_in_measure is True
+
+
+class TestAddMeasureZero:
+    """Measures 1 and 2 are found with the core's `times_of`, on the timeline's
+    own time map (FR-042)."""
+
+    @staticmethod
+    def add_beats(timeline, times):
+        for time in times:
+            timeline.create_component(ComponentKind.BEAT, float(time))
+
+    def test_a_measure_before_measure_one(self, beat_tl):
+        # Measure 1 starts at 5 and measure 2 at 9.
+        self.add_beats(beat_tl, range(5, 13))
+
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
+
+        assert beat_tl[0].get_data("time") == 3
+        assert beat_tl.measure_numbers[:2] == [0, 1]
+        assert beat_tl.beats_in_measure[:2] == [1, 4]
+        assert get(Get.METRIC_POSITION, 3.0).measure == 0
+        assert get(Get.METRIC_POSITION, 5.0).measure == 1
+
+    def test_the_bars_are_the_core_s(self, beat_tl):
+        self.add_beats(beat_tl, range(5, 13))
+
+        with patch.object(
+            BeatTimeline, "get_time_by_measure", side_effect=AssertionError
+        ):
+            assert beat_tl.add_measure_zero(0.25) == (True, "")
+
+        assert beat_tl[0].get_data("time") == 4
+
+    def test_the_timeline_s_own_measures(self, tls, beat_tl):
+        # Another beat timeline gives the positions TiLiA shows: in its measures,
+        # measure 2 starts at 7.
+        other = tls.create_timeline(
+            BeatTimeline, [], beat_pattern=[2], fields={"role": "time_map"}
+        )
+        self.add_beats(other, range(5, 13))
+        self.add_beats(beat_tl, range(5, 13))
+
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
+
+        assert beat_tl[0].get_data("time") == 3
+
+    @pytest.mark.parametrize("times", [range(4), [0], []], ids=["4", "1", "0"])
+    def test_refused_with_fewer_than_two_measures(self, beat_tl, times):
+        self.add_beats(beat_tl, times)
+
+        assert beat_tl.add_measure_zero(0.5) == (
+            False,
+            "Timeline has less than two measures. Cannot estimate measure zero"
+            " duration.",
+        )
+        assert len(beat_tl) == len(times)
+
+    def test_refused_without_room_before_measure_one(self, beat_tl):
+        self.add_beats(beat_tl, range(1, 9))
+
+        assert beat_tl.add_measure_zero(0.5) == (
+            False,
+            "There is not enough available space before the first measure.",
+        )
+        assert len(beat_tl) == 8
 
 
 class TestGetExtensionFromBeatPattern:
