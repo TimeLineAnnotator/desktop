@@ -105,14 +105,18 @@ class EditGate:
         *,
         media_length: float,
         page_counts: Mapping[str, float],
+        numbered: Mapping[str, frozenset[str]] | None = None,
     ) -> Verdict:
         """What the action that leaves `current` breaks, since `accepted`.
 
         `media_length` is the one the document has once it follows `current`, or
         `math.inf` when it is unknown; both states are checked with it, as a write
         would check them. `page_counts` gives a PDF timeline's page count, by its id,
-        `math.inf` when the PDF wasn't found. With nothing accepted, there is
-        nothing to compare with, and the action passes."""
+        `math.inf` when the PDF wasn't found. `numbered` gives, by a beat
+        timeline's id, the beats whose marks the document stores a number on:
+        the bridge keeps such a number, as the measure's, whatever it is. With
+        nothing accepted, there is nothing to compare with, and the action
+        passes."""
         if self.accepted is None:
             return Verdict()
         accepted = self.accepted["timelines"]
@@ -123,15 +127,15 @@ class EditGate:
             was = accepted.get(timeline_id)
             if was is not None and not _differs(was, timeline):
                 continue
-            page_count = page_counts.get(timeline_id, math.inf)
-            after = self._find(timeline_id, timeline, media_length, page_count)
+            context = (
+                media_length,
+                page_counts.get(timeline_id, math.inf),
+                (numbered or {}).get(timeline_id, frozenset()),
+            )
+            after = self._find(timeline_id, timeline, context)
             if not after.parts:
                 continue
-            before = (
-                _NOTHING
-                if was is None
-                else self._find(timeline_id, was, media_length, page_count)
-            )
+            before = _NOTHING if was is None else self._find(timeline_id, was, context)
             changed = {
                 key
                 for key, part in after.parts.items()
@@ -157,20 +161,24 @@ class EditGate:
         return Verdict(kept=tuple(kept))
 
     def _find(
-        self, timeline_id: str, timeline: State, media_length: float, page_count: float
+        self,
+        timeline_id: str,
+        timeline: State,
+        context: tuple[float, float, frozenset[str]],
     ) -> _Found:
+        """`_find`'s, kept by what it depends on: the timeline, its components'
+        ids, and `context`, its media length, page count and numbered beats."""
         components = timeline.get("components", {})
         key = (
             timeline_id,
             timeline.get("hash"),
             timeline.get("components_hash"),
             tuple(components),
-            media_length,
-            page_count,
+            context,
         )
         found = self._found.get(key)
         if found is None:
-            found = _find(timeline, media_length, page_count)
+            found = _find(timeline, *context)
             self._found[key] = found
             while len(self._found) > _KEPT:
                 self._found.popitem(last=False)
@@ -251,7 +259,9 @@ def _differs(was: State, timeline: State) -> bool:
     )
 
 
-def _find(timeline: State, media_length: float, page_count: float) -> _Found:
+def _find(
+    timeline: State, media_length: float, page_count: float, numbered: frozenset[str]
+) -> _Found:
     """What the rules find in a timeline of a state."""
     components = {
         component_id: component
@@ -259,7 +269,7 @@ def _find(timeline: State, media_length: float, page_count: float) -> _Found:
         if (component := _for_rules(component_id, state)).kind in rules.KINDS
     }
     if timeline.get("kind") == "Beat":
-        _number_measures(timeline, components)
+        _number_measures(timeline, components, numbered)
     rows = timeline.get("rows")
     parts: dict[str, Any] = {
         component_id: component.attrs for component_id, component in components.items()
@@ -303,11 +313,14 @@ def _for_rules(component_id: str, state: State) -> tla.Component:
     return component
 
 
-def _number_measures(timeline: State, beats: dict[str, tla.Component]) -> None:
-    """Gives each beat that starts a measure a mark, as the document stores it: with
-    the number TiLiA shows for it where that isn't the one before's plus one, as
-    `tla_bridge` writes it. So the rules check the numbers stored, and a number that
-    only follows another that changed doesn't change its beat."""
+def _number_measures(
+    timeline: State, beats: dict[str, tla.Component], numbered: frozenset[str]
+) -> None:
+    """Gives each beat that starts a measure a mark, as the document stores it, with
+    the number TiLiA shows for it where the mark stores one, `numbered`, or where it
+    isn't the one before's plus one, as `tla_bridge` writes it. So the rules check
+    the numbers stored, and a number that only follows another that changed
+    changes its beat only where the mark stores it."""
     states = {beat_id: timeline["components"][beat_id] for beat_id in beats}
     # The bridge's order and measures, so that the numbers are those it writes.
     order = tla_bridge._beats_in_order(states)
@@ -319,9 +332,8 @@ def _number_measures(timeline: State, beats: dict[str, tla.Component]) -> None:
     )
     for beat_id, index in starts:
         number = numbers[index] if index < len(numbers) else following
-        beats[beat_id].attrs["measure"] = (
-            {} if number == following else {"number": number}
-        )
+        stored = number != following or beat_id in numbered
+        beats[beat_id].attrs["measure"] = {"number": number} if stored else {}
         following = number + 1
 
 
