@@ -728,6 +728,92 @@ class TestEnter:
         assert line_edit.text() == typed
 
 
+class Questions:
+    def __init__(self):
+        self.asked = []
+        self.answered = []
+
+
+@contextmanager
+def press_enter_on_questions():
+    """Shows each yes-or-no question on screen, as exec() does, and presses Enter
+    on it, as a person does out of habit. Keeps the text of each question and the
+    button Enter clicked, None if it clicked none."""
+    questions = Questions()
+
+    def exec_(box):
+        questions.asked.append(box.text())
+        clicked = []
+        # A click closes the box, which deletes it.
+        box.buttonClicked.connect(
+            lambda button_: clicked.append(box.standardButton(button_))
+        )
+        box.setWindowModality(Qt.WindowModality.ApplicationModal)
+        box.show()
+        QTest.keyClick(box.windowHandle(), Qt.Key.Key_Return)
+        if not clicked:
+            box.close()
+        questions.answered.append(clicked[0] if clicked else None)
+        return clicked[0] if clicked else QMessageBox.StandardButton.No
+
+    with patch.object(YesOrNoMessageBox, "exec", new=exec_):
+        yield questions
+
+
+def click_button(text):
+    def click(window):
+        button(window, text).click()
+
+    return click
+
+
+class TestEnterOnTheQuestions:
+    """Enter on "Close window without saving changes?" and "Leave window without
+    saving changes?" answers No: the window stays open, with the edits. Losing
+    them takes a click on Yes."""
+
+    CLOSE = "Close window without saving changes?"
+    LEAVE = "Leave window without saving changes?"
+
+    @pytest.mark.parametrize("field, text", FIELD_KINDS)
+    @pytest.mark.parametrize(
+        "ask, question",
+        [
+            pytest.param(click_button("Cancel"), CLOSE, id="cancel"),
+            pytest.param(press_escape, CLOSE, id="escape"),
+            pytest.param(click_button("Edit fields..."), LEAVE, id="edit-fields"),
+        ],
+    )
+    def test_keeps_the_window_open_with_the_edits(
+        self, qtui, media_metadata_window, tilia_state, ask, question, field, text
+    ):
+        before = dict(tilia_state.metadata)
+        typed = type_in(media_metadata_window, field, text).text()
+
+        with (
+            press_enter_on_questions() as questions,
+            patch.object(EditMetadataFieldsDialog, "exec", return_value=False) as names,
+        ):
+            ask(media_metadata_window)
+
+        assert questions.asked == [question]
+        assert questions.answered == [QMessageBox.StandardButton.No]
+        names.assert_not_called()
+        assert media_metadata_window.isVisible()
+        assert qtui.is_window_open(WindowKind.MEDIA_METADATA)
+        assert line_edit_of(media_metadata_window, field).text() == typed
+        assert tilia_state.metadata == before
+        assert tilia_state.duration == 100
+
+    def test_other_questions_keep_yes(self, qtui):
+        with press_enter_on_questions() as questions:
+            answer = get(Get.FROM_USER_YES_OR_NO, "Title", "Prompt?")
+
+        assert questions.asked == ["Prompt?"]
+        assert questions.answered == [QMessageBox.StandardButton.Yes]
+        assert answer is True
+
+
 class TestEditFieldsWithEditsNotApplied:
     """'Edit fields...' asks "Leave window without saving changes?". Yes leaves
     the edits not applied, as the question says, and No stays in the window

@@ -185,11 +185,12 @@ class MediaMetadataWindow(QDialog):
     def on_edit_metadata_fields_button(self):
         # Yes leaves the edits not applied, as the question says. If the names
         # box is then cancelled, they are still shown, still not applied; OK
-        # shows the fields again, without them.
+        # shows the fields again, without them. Enter answers No.
         if self._get_edits() and not get(
             Get.FROM_USER_YES_OR_NO,
             "Save metadata edits",
             "Leave window without saving changes?",
+            default=False,
         ):
             return
         dialog = EditMetadataFieldsDialog(self)
@@ -222,10 +223,12 @@ class MediaMetadataWindow(QDialog):
 
     def closeEvent(self, event):
         edited_fields = self._get_edits()
+        # Enter answers No, and keeps the edits.
         if edited_fields and not get(
             Get.FROM_USER_YES_OR_NO,
             "Save metadata edits",
             "Close window without saving changes?",
+            default=False,
         ):
             event.ignore()
             return
