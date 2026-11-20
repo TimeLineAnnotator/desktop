@@ -12,12 +12,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
 from tests.mock import Serve, ServeSequence
 from tests.utils import load_youtube_media
 from tilia.constants import DURATION_JITTER_TOLERANCE
+from tilia.file import autosave
 from tilia.media.player.base import Player
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.marker.timeline import MarkerTimeline
@@ -406,6 +408,29 @@ class TestALocalFilesLengthAsItOpens:
         assert save()
         assert tla.read(path).media_length == reported
         assert "edited" in marker_labels(path)
+
+    def test_the_document_follows_the_answer_at_once(
+        self, audio, tilia, tmp_path, monkeypatch
+    ):
+        # An autosave before any action writes the timelines as answered.
+        monkeypatch.setattr(_Audio, "LENGTH", 20.0)
+        path = a_local_file(tmp_path, length=STORED)
+        times = marker_times(path)
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            assert open_file(path)
+        (tmp_path / "autosaves").mkdir()
+        autosaved = tmp_path / "autosaves" / "autosave.tla"
+
+        with (
+            patch.object(autosave, "get_autosave_path", return_value=autosaved),
+            patch.object(autosave, "make_room_for_new_autosave"),
+        ):
+            autosave.autosave(tilia.file_manager.file.copy_for_writing())
+
+        assert tla.read(autosaved).media_length == 20.0
+        assert marker_times(autosaved) == pytest.approx(
+            [time * 20.0 / STORED for time in times]
+        )
 
     def test_within_the_tolerance_asks_nothing(self, audio, tilia, tmp_path):
         path = a_local_file(tmp_path, length=_Audio.LENGTH + 1.9)
