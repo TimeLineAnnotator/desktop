@@ -19,9 +19,11 @@ rule's code, never by its reason, which quotes values
 the rule checks (`Outcome.about`), so that a second problem of a code the component
 came with, on another of its attributes, is new
 (TimeLineAnnotator/project-management#557); and by the other components a problem is
-between. A problem between a changed component and another the action changed too is
-new, and so is a join to a range the action changed, as the writer would find them
-(TimeLineAnnotator/project-management#496, point 2).
+between, each pair on its own, so that a component no longer at odds with one of its
+others breaks one rule fewer, and one that loses one of them, deleted or moved away,
+breaks no new one. A problem between a changed component and another the action
+changed too is new, and so is a join to a range the action changed, as the writer
+would find them (TimeLineAnnotator/project-management#496, point 2).
 
 A component that passes with problems left has the ones it came with: the caller has
 the core keep them (`tla.keep_read_problems`), so that its save isn't refused
@@ -135,22 +137,17 @@ class EditGate:
                 if before.parts.get(key) != part
             }
             for key, problems in after.problems.items():
-                old = set(before.problems.get(key, ()))
+                was_problems = before.problems.get(key, ())
                 if key in changed:
-                    new = [p for p in problems if p not in old or p.between & changed]
-                    if new or key.startswith(_ROW) or len(problems) == len(old):
+                    new, fixed = _changed(problems, was_problems, changed)
+                    if new or not fixed or key.startswith(_ROW):
                         # Something new, or nothing fixed: the core keeps a problem
                         # only for a component.
                         refused = refused or (new or problems)[0].reason
                     else:
                         kept.append((timeline_id, key))
                 else:
-                    new = [
-                        p
-                        for p in problems
-                        if p not in old
-                        or (p.code == rules.BAD_JOIN and p.between & changed)
-                    ]
+                    new = _unchanged(problems, was_problems, changed)
                     if new:
                         broken = broken or new[0].reason
         reason = refused or broken
@@ -179,6 +176,50 @@ class EditGate:
         else:
             self._found.move_to_end(key)
         return found
+
+
+def _changed(
+    problems: tuple[Problem, ...], was: tuple[Problem, ...], changed: set[str]
+) -> tuple[list[Problem], bool]:
+    """What a component the action changed breaks that it didn't, and whether it
+    breaks fewer rules than it did. A pair it wasn't at odds with is new, and so is
+    one with another the action changed."""
+    if set(problems) == set(was):
+        # The same: nothing fixed, and new only with another the action changed.
+        return [p for p in problems if p.between & changed], False
+    pairs, was_pairs = _pairs(problems), _pairs(was)
+    new = [
+        problem
+        for (code, about, other), problem in pairs.items()
+        if (code, about, other) not in was_pairs or other in changed
+    ]
+    return new, len(pairs) < len(was_pairs)
+
+
+def _unchanged(
+    problems: tuple[Problem, ...], was: tuple[Problem, ...], changed: set[str]
+) -> list[Problem]:
+    """What a component the action didn't change breaks that it didn't: a pair it
+    wasn't at odds with, or a join to a range the action changed."""
+    if set(problems) == set(was):
+        return [p for p in problems if p.code == rules.BAD_JOIN and p.between & changed]
+    was_pairs = _pairs(was)
+    return [
+        problem
+        for (code, about, other), problem in _pairs(problems).items()
+        if (code, about, other) not in was_pairs
+        or (code == rules.BAD_JOIN and other in changed)
+    ]
+
+
+def _pairs(problems: Iterable[Problem]) -> dict[tuple[str, str, str], Problem]:
+    """Each problem by its code, what it is about, and each of the others it is
+    between, one at a time; "" for a problem of the component alone."""
+    pairs: dict[tuple[str, str, str], Problem] = {}
+    for problem in problems:
+        for other in problem.between or ("",):
+            pairs.setdefault((problem.code, problem.about, other), problem)
+    return pairs
 
 
 def changed_components(accepted: State, current: State) -> list[str]:
