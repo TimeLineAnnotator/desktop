@@ -1030,6 +1030,69 @@ class TestTheCommandLine:
             import_hierarchies("second.csv", "0,10,1", "5,15,1")
 
 
+class TestARefusedCommand:
+    """A command whose action is refused fails, as one that raises: its reason is
+    printed, and a script stops there (TimeLineAnnotator/project-management#656,
+    b)."""
+
+    @staticmethod
+    def crossing_rows(tmp_path) -> Path:
+        csv = tmp_path / "form.csv"
+        csv.write_text("start,end,level\n0,10,1\n5,15,1\n", encoding="utf-8")
+        return csv
+
+    def test_stops_a_script_before_its_save(
+        self, tilia, tls, cli, tilia_errors, tmp_path
+    ):
+        piece = tmp_path / "piece.tla"
+        script = tmp_path / "script.txt"
+        script.write_text(
+            "timeline add hierarchy --name Form\n"
+            "timelines import hierarchy by-time"
+            f' --file "{self.crossing_rows(tmp_path).as_posix()}" --target-ordinal 1\n'
+            f'save "{piece.as_posix()}"\n',
+            encoding="utf-8",
+        )
+
+        cli.parse_and_run(f'script "{script.as_posix()}"')
+
+        assert refusals(tilia_errors) == [crossing()]
+        assert not piece.exists()
+
+    def test_fails_its_reason_printed_and_the_session_goes_on(
+        self, tilia, tls, cli, tilia_errors, tmp_path
+    ):
+        assert not cli.parse_and_run("timeline add hierarchy --name Form")
+
+        with patch("tilia.ui.cli.io.output") as output:
+            failed = cli.parse_and_run(
+                "timelines import hierarchy by-time"
+                f' --file "{self.crossing_rows(tmp_path).as_posix()}"'
+                " --target-ordinal 1"
+            )
+
+        assert failed
+        assert any(crossing() in str(call.args[0]) for call in output.call_args_list)
+        assert not cli.parse_and_run("timeline add mrk --name Cadences")
+        assert "Cadences" in [timeline.get_data("name") for timeline in tls]
+
+    def test_doesn_t_fail_the_script_that_runs_it(
+        self, tilia, tls, cli, tilia_errors, tmp_path
+    ):
+        # As a command in a script that raises: the script stops, and is itself
+        # no failure.
+        script = tmp_path / "script.txt"
+        script.write_text(
+            "timeline add hierarchy --name Form\n"
+            "timelines import hierarchy by-time"
+            f' --file "{self.crossing_rows(tmp_path).as_posix()}" --target-ordinal 1\n',
+            encoding="utf-8",
+        )
+
+        assert not cli.parse_and_run(f'script "{script.as_posix()}"')
+        assert refusals(tilia_errors) == [crossing()]
+
+
 class TestTheMediaLength:
     def test_is_the_document_s(self, qtui, tilia, tls, tluis, tilia_errors, tmp_path):
         # The player reports a length a little off the stored one: the document
