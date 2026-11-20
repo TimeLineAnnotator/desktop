@@ -417,22 +417,30 @@ class TestALocalFilesLengthAsItOpens:
             [time * new / STORED for time in times]
         )
 
-    def test_a_youtube_report_as_the_file_loads_isn_t_handled_here(
+    def test_a_youtube_report_as_the_file_loads_is_handled_as_a_local_one(
         self, youtube, tilia, tmp_path, monkeypatch
     ):
-        # Only a local file's (#629, point 1): a YouTube page reports once it has
-        # loaded, and its report is handled then.
+        # As the command line's YouTube player reports: as it loads the media.
+        new = STORED + 2.5
+
         def load_media(player, path, start=0.0, end=0.0, initial_duration=0.0):
             success = _Player.load_media(player, path, start, end)
-            player.report(STORED + 2.5)
+            player.report(new)
             return success
 
         monkeypatch.setattr(_YouTube, "load_media", load_media)
+        path = a_file(tmp_path)
+        times = marker_times(path)
         shown: list[str] = []
 
-        assert open_noting(a_file(tmp_path), shown)
+        assert open_noting(path, shown)
 
-        assert shown == []
+        assert shown == ["question"]
+        assert save()
+        assert tla.read(path).media_length == new
+        assert marker_times(path) == pytest.approx(
+            [time * new / STORED for time in times]
+        )
 
 
 class TestAFileWithoutALength:

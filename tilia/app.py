@@ -58,9 +58,9 @@ class App:
         # The file open, or being opened: a PDF timeline's relative path is the
         # file's.
         self.cur_file_path: Path | None = None
-        # The length TiLiA held once the file open last loaded: what its media
-        # reported as it loaded, if anything did.
-        self._length_on_load: float | None = None
+        # The length TiLiA held once the media of the file open last loaded, before
+        # its timelines were built: what the media reported as it loaded, if it did.
+        self._length_on_load = 0.0
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -198,7 +198,8 @@ class App:
         return True
 
     def _handle_length_reported_on_load(self) -> None:
-        """A local file's media reports its length while the file loads, before its
+        """A player that reports the media's length as it loads it, a local file's or
+        the command line's YouTube player, reports while the file loads, before its
         timelines are built and while the file open is still the blank one, so that
         nothing could be kept, scaled or asked then. Once the file is open, after its
         warnings, that report is handled as a later one is: within the tolerance of
@@ -206,13 +207,11 @@ class App:
         crop, then takes the new length (FR-034). A file without a stored length
         took the reported one as it opened.
 
-        Only that report: a YouTube player reports once its page has loaded, and a
-        report that came since, while the warnings were shown, has been handled
-        already."""
-        reported, self._length_on_load = self._length_on_load, None
-        if reported is None or self.duration != reported:
-            return
-        if self.player.MEDIA_TYPE == "youtube":
+        Only that report: one that came after it, such as a YouTube page's while the
+        warnings were shown, has been handled already. The YouTube page reports, as
+        it loads, the length the file stores."""
+        reported = self._length_on_load
+        if self.duration != reported:
             return
         stored = self.file_manager.file.stored_media_length
         if not stored or not reported or reported == stored:
@@ -257,7 +256,6 @@ class App:
         self.reset_undo_manager()
         post(Post.APP_FILE_LOADED, file)
         self.update_recent_files()
-        self._length_on_load = self.duration
 
         return True
 
@@ -596,6 +594,9 @@ class App:
                     tla.media(file.file_path, document),
                     document.media_length,
                 )
+            # What the media reported as it loaded: a report after this one has been
+            # handled when it came.
+            self._length_on_load = self.duration
 
             # As the reader keeps them: none is checked (FR-060).
             self.timelines.deserialize_timelines(tla_bridge.state_of(document))
