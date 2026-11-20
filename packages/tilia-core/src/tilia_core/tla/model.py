@@ -219,12 +219,13 @@ class ReadProblem:
     that an edit kept it old, with what it is about as the edit left it (an
     edit of `tla.edits`, or one `keep_read_problems` was called for): its states
     are old for this problem alone, where those of a problem read are old for
-    every problem about the same components. `past_at_kept` is, for one kept
-    past the end, what of the component was past the end then, each as its
-    `about`. At its state, a time past the end is old, as for a component as it
-    was read, by whichever of its times (FR-054), as when another length puts it
-    there; but not one that was past the end then and wasn't kept: the edit put
-    it there, and the call refused it.
+    every problem about the same components. A time kept past the end is
+    judged at the length written: with a length read, it is old by the rule it
+    was read past the end by, and one that another length puts past it by
+    another rule is new (TimeLineAnnotator/project-management#659, option b);
+    with none read, it is old while the component as it was read is past that
+    length by the same rule (TimeLineAnnotator/project-management#614,
+    option c).
     """
 
     code: str
@@ -238,7 +239,6 @@ class ReadProblem:
     warned: bool = False
     about: str = ""
     kept: bool = False
-    past_at_kept: frozenset[str] = frozenset()
 
 
 @dataclass(kw_only=True)

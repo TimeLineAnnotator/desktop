@@ -715,7 +715,7 @@ def _checked_with_the_rules(
     written = written_document(data, path=path)
     problems = find_problems(written)
     new = new_problems(
-        problems, doc.read_problems, doc.read_unmeasured, doc.unmeasured_edits
+        problems, doc.read_problems, doc.read_unmeasured, doc.unmeasured_edits, written
     )
     refused = warnings_of(new, data)
     unable = cant_check(written)
