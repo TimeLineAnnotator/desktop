@@ -891,8 +891,48 @@ class TestOneOfSeveralAtOdds:
 
 
 class TestMeasureNumbers:
-    """The rules see a beat's mark as the document stores it: its number only where
-    it isn't the one before's plus one."""
+    """The rules see a beat's mark as the document stores it: its number where the
+    mark stores one, or where it isn't the one before's plus one."""
+
+    @pytest.mark.parametrize(
+        "stored, refused",
+        [
+            pytest.param([1, 2, 3, 4, 5], True, id="every number stored"),
+            pytest.param([1, None, None, None, None], False, id="the first stored"),
+        ],
+    )
+    def test_renumbering_changes_the_later_downbeats_that_store_theirs(
+        self, qtui, tilia, tls, tluis, tilia_errors, tmp_path, stored, refused
+    ):
+        # The last downbeat is read past the media's end. Where its mark stores
+        # its number, renumbering measure 1 to 0 changes it, as the bridge
+        # rewrites the number, so the edit is refused, as its save would be.
+        times = [0.0, 1.0, 2.0, 3.0, 100.5]
+        ids = [make_id(21 + n) for n in range(len(times))]
+        path = a_file(
+            tmp_path,
+            beats(
+                *(
+                    (id, {"time": time, "measure": {} if n is None else {"number": n}})
+                    for id, time, n in zip(ids, times, stored, strict=True)
+                ),
+                pattern="1",
+            ),
+        )
+        open_file(path)
+        select(tluis, BEATS, ids[0])
+        reason = the_core_s_reason("last", components_of("beat", last={"time": 100.5}))
+
+        with Serve(Get.FROM_USER_INT, (True, 0)):
+            if refused:
+                with Refused(tilia, tilia_errors, reason):
+                    commands.execute("timeline.beat.set_measure_number")
+            else:
+                commands.execute("timeline.beat.set_measure_number")
+
+        if not refused:
+            assert_not_refused(tilia_errors)
+            assert save()
 
     def test_renumbering_doesn_t_change_the_later_downbeats(
         self, qtui, tilia, tls, tluis, tilia_errors, tmp_path

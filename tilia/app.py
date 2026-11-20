@@ -396,6 +396,7 @@ class App:
             state,
             media_length=self._media_length_for_rules(state),
             page_counts=self._page_counts(),
+            numbered=self._numbered_beats(),
         )
         if verdict.reason is not None:
             self._refuse(verdict.reason)
@@ -437,6 +438,21 @@ class App:
         if not length or not rules.media_length(length):
             return math.inf
         return length
+
+    def _numbered_beats(self) -> dict[str, frozenset[str]]:
+        """By a beat timeline's id, the beats whose marks the document stores a
+        number on, which the bridge keeps and rewrites (`tla_bridge`'s
+        `_set_measure_number`)."""
+        return {
+            timeline.id: frozenset(
+                beat_id
+                for beat_id, beat in timeline.components.items()
+                if isinstance(beat.attrs.get("measure"), dict)
+                and "number" in beat.attrs["measure"]
+            )
+            for timeline in self.file_manager.file.document.timelines.values()
+            if timeline.kind == "beat"
+        }
 
     def _page_counts(self) -> dict[str, float]:
         """Each PDF timeline's page count, by its id: `math.inf` when its PDF wasn't
