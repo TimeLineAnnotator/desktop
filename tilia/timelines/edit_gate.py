@@ -31,7 +31,8 @@ the core keep them (`tla.keep_read_problems`), so that its save isn't refused
 
 A range timeline's rows are checked the same way as its components. The rules see
 each component as the document stores it: a `pre_start` or `post_end` equal to its
-`start` or `end` is unset, and a beat that starts a measure has its number.
+`start` or `end` is unset, and a beat that starts a measure has a mark, with its
+number where it isn't the one before's plus one.
 """
 
 from __future__ import annotations
@@ -300,8 +301,10 @@ def _for_rules(component_id: str, state: State) -> tla.Component:
 
 
 def _number_measures(timeline: State, beats: dict[str, tla.Component]) -> None:
-    """Gives each beat that starts a measure the number TiLiA shows for it, as its
-    mark has it, so that the rules check it."""
+    """Gives each beat that starts a measure a mark, as the document stores it: with
+    the number TiLiA shows for it where that isn't the one before's plus one, as
+    `tla_bridge` writes it. So the rules check the numbers stored, and a number that
+    only follows another that changed doesn't change its beat."""
     states = {beat_id: timeline["components"][beat_id] for beat_id in beats}
     # The bridge's order and measures, so that the numbers are those it writes.
     order = tla_bridge._beats_in_order(states)
@@ -313,7 +316,9 @@ def _number_measures(timeline: State, beats: dict[str, tla.Component]) -> None:
     )
     for beat_id, index in starts:
         number = numbers[index] if index < len(numbers) else following
-        beats[beat_id].attrs["measure"] = {"number": number}
+        beats[beat_id].attrs["measure"] = (
+            {} if number == following else {"number": number}
+        )
         following = number + 1
 
 
