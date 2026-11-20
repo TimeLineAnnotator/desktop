@@ -859,6 +859,71 @@ class TestOneOfSeveralAtOdds:
         assert save()
 
 
+class TestMeasureNumbers:
+    """The rules see a beat's mark as the document stores it: its number only where
+    it isn't the one before's plus one."""
+
+    def test_renumbering_doesn_t_change_the_later_downbeats(
+        self, qtui, tilia, tls, tluis, tilia_errors, tmp_path
+    ):
+        # A measure of one beat each, the last read past the media's end: its
+        # number follows the first's, which the person sets to 0.
+        times = [0.0, 1.0, 2.0, 3.0, 100.5]
+        ids = [make_id(21 + n) for n in range(len(times))]
+        path = a_file(
+            tmp_path,
+            beats(
+                *(
+                    (id, {"time": time, "measure": {}})
+                    for id, time in zip(ids, times, strict=True)
+                ),
+                pattern="1",
+            ),
+        )
+        open_file(path)
+        select(tluis, BEATS, ids[0])
+
+        with Serve(Get.FROM_USER_INT, (True, 0)):
+            commands.execute("timeline.beat.set_measure_number")
+
+        assert_not_refused(tilia_errors)
+        assert tls.get_timeline(BEATS).measure_numbers[:2] == [0, 1]
+        assert save()
+        stored = tla.read(path).timelines[BEATS].components
+        assert [stored[id].attrs["measure"].get("number") for id in ids] == [
+            0,
+            None,
+            None,
+            None,
+            None,
+        ]
+
+    def test_one_after_a_stored_number_below_0_isn_t_one(
+        self, qtui, tilia, tls, tilia_errors, tmp_path
+    ):
+        # Read with measure 1 numbered -3: measure 2 is -2, which no mark stores,
+        # so moving its downbeat breaks no rule.
+        ids = [make_id(21 + n) for n in range(4)]
+        path = a_file(
+            tmp_path,
+            beats(
+                (ids[0], {"time": 0.0, "measure": {"number": -3}}),
+                (ids[1], {"time": 1.0}),
+                (ids[2], {"time": 2.0, "measure": {}}),
+                (ids[3], {"time": 3.0}),
+                pattern="2",
+            ),
+        )
+        open_file(path)
+        assert tls.get_timeline(BEATS).measure_numbers == [-3, -2]
+
+        tls.get_timeline(BEATS).set_component_data(ids[2], "time", 2.5)
+        record()
+
+        assert_not_refused(tilia_errors)
+        assert save()
+
+
 class TestASaveAfterAnAcceptedEdit:
     @pytest.mark.parametrize(
         "edit",
