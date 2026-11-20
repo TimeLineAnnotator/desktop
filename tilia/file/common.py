@@ -21,17 +21,15 @@ def are_tilia_data_equal(data1: dict, data2: dict) -> bool:
     return True
 
 
-def validate_save_path(path: Path):
-    error = False
-    error_message = ""
+def validate_save_path(path: Path) -> tuple[bool, str]:
+    """Whether a file can be saved at `path`, and if not, the first reason why.
+    The checks stop at the first that fails: a folder that doesn't exist, or a
+    read-only file, can't be written to either."""
     if not path.parent.exists():
-        error = True
-        error_message = f"Parent directory {path.parent} does not exist."
+        return False, f"Parent directory {path.parent} does not exist."
     if path.parent.is_file():
-        error = True
-        error_message = f"Parent directory {path.parent} is a file."
+        return False, f"Parent directory {path.parent} is a file."
     if not os.access(path.parent, os.W_OK):
-        error = True
-        error_message = f"Parent directory {path.parent} is not writable."
+        return False, f"Parent directory {path.parent} is not writable."
 
-    return not error, error_message
+    return True, ""
