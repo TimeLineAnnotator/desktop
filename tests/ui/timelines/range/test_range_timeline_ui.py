@@ -1157,6 +1157,39 @@ class TestPasteJoinedRangesOntoASelectedRange:
         ]
         assert get(Get.APP_STATE)["timelines"] == before
 
+    def test_a_pre_start_before_0_refuses_the_paste(
+        self, range_tlui, tilia_state, tilia_errors
+    ):
+        # The second range, 60–70, has a pre-start at 52: pasted onto 3–4, it
+        # would start at 4 with a pre-start at -4. Refused, with the core's
+        # reason, until TimeLineAnnotator/project-management#654.
+        tilia_state.duration = 100
+        copied = add_and_join_ranges(range_tlui, [(50, 60), (60, 70)])
+        range_tlui.timeline.set_component_data(copied[1].id, "pre_start", 52)
+        post(Post.APP_STATE_RECORD, "pre-start")
+        for element in copied:
+            range_tlui.select_element(element)
+        commands.execute("timeline.component.copy")
+        range_tlui.deselect_all_elements()
+        commands.execute("timeline.range.add_range", start=3, end=4)
+        target = next(e for e in range_tlui if e.get_data("start") == 3)
+        range_tlui.select_element(target)
+        before = get(Get.APP_STATE)["timelines"]
+        rows = before[range_tlui.id]["rows"]
+        reason = rules.range_(
+            100,
+            [],
+            {"start": 4, "end": 14, "pre_start": -4, "row_id": rows[0]["id"]},
+            rows=rows,
+        ).reason
+
+        commands.execute("timeline.component.paste")
+
+        assert tilia_errors.errors == [
+            {"title": tilia.errors.EDIT_REFUSED.title, "message": reason}
+        ]
+        assert get(Get.APP_STATE)["timelines"] == before
+
 
 class TestCut:
     def test_cut_across_rows_deletes_nothing(self, range_tlui, tilia_errors):
