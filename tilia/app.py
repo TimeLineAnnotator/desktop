@@ -57,6 +57,9 @@ class App:
         # The file open, or being opened: a PDF timeline's relative path is the
         # file's.
         self.cur_file_path: Path | None = None
+        # The length TiLiA held once the file open last loaded: what its media
+        # reported as it loaded, if anything did.
+        self._length_on_load: float | None = None
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -204,9 +207,17 @@ class App:
         warnings, that report is handled as a later one is: within the tolerance of
         the stored length, the stored one stays; beyond it, TiLiA asks to scale or
         crop, then takes the new length (FR-034). A file without a stored length
-        took the reported one as it opened."""
+        took the reported one as it opened.
+
+        Only that report: a YouTube player reports once its page has loaded, and a
+        report that came since, while the warnings were shown, has been handled
+        already."""
+        reported, self._length_on_load = self._length_on_load, None
+        if reported is None or self.duration != reported:
+            return
+        if self.player.MEDIA_TYPE == "youtube":
+            return
         stored = self.file_manager.file.stored_media_length
-        reported = self.duration
         if not stored or not reported or reported == stored:
             return
         # The length the timelines were made for, which the report is compared with.
@@ -248,6 +259,7 @@ class App:
         self.reset_undo_manager()
         post(Post.APP_FILE_LOADED, file)
         self.update_recent_files()
+        self._length_on_load = self.duration
 
         return True
 
