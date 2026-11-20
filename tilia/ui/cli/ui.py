@@ -204,8 +204,8 @@ def _set_verbosity(verbose):
     post(Post.SETTINGS_UPDATED, [*{"dev": {"log_requests", verbose}}])
 
 
-def on_ask_yes_or_no(title: str, prompt: str) -> bool:
-    return ask_yes_or_no(f"{title}: {prompt}")
+def on_ask_yes_or_no(title: str, prompt: str, default: bool = True) -> bool:
+    return ask_yes_or_no(f"{title}: {prompt}", default=default)
 
 
 def on_ask_should_save_changes() -> tuple[bool, bool]:
