@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import copy
-from bisect import bisect
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from tilia.exceptions import TimelineValidationError
-from tilia.requests import Get, Post, get, post, serve
+from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.timelines.audiowave.timeline import AudioWaveTimeline
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import Timeline, TimelineFlag
@@ -17,6 +16,7 @@ from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
 from tilia.undo_manager import PauseUndoManager
 from tilia.utils import get_tilia_class_string
+from tilia_core import timemap
 
 if TYPE_CHECKING:
     from tilia.app import App
@@ -60,6 +60,26 @@ class Timelines:
 
         for request, callback in SERVES:
             serve(self, request, callback)
+
+        # What changes a beat timeline, or which one gives the time map.
+        for post_ in (
+            Post.TIMELINE_COMPONENT_SET_DATA_DONE,
+            Post.BEAT_TIMELINE_COMPONENTS_DESERIALIZED,
+            Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
+            Post.TIMELINE_SET_DATA_DONE,
+            Post.TIMELINE_DELETE_DONE,
+        ):
+            listen(self, post_, self._note_beat_change)
+        for post_ in (
+            Post.TIMELINE_COMPONENT_CREATED,
+            Post.TIMELINE_COMPONENT_DELETED,
+            Post.TIMELINE_CREATE_DONE,
+        ):
+            listen(
+                self,
+                post_,
+                lambda _kind, timeline_id, *_: self._note_beat_change(timeline_id),
+            )
 
     @property
     def timeline_types(self):
@@ -382,36 +402,58 @@ class Timelines:
             tl.crop(new_length)
         post(Post.TIMELINES_CROP_DONE)
 
-    def get_beat_timeline_for_measure_calculation(self):
-        beat_tls = sorted(self.get_timelines_by_type(BeatTimeline))
-        if beat_tls:
-            return beat_tls[0]
-        else:
-            return None
+    def _note_beat_change(self, timeline_id: str, *_: Any) -> None:
+        """After a change to a timeline: if it is a beat timeline, or is gone, the
+        document no longer follows TiLiA's beat timelines."""
+        timeline = self.get_timeline(timeline_id)
+        if timeline is None or isinstance(timeline, BeatTimeline):
+            self._app.file_manager.file.beats_changed = True
+
+    def _follow_beats(self) -> None:
+        """Has the document follow TiLiA's state when a beat timeline has changed
+        since it last did, unless an undo or a redo is restoring a state: that
+        syncs once it has, as an undo, and the time map follows then."""
+        if (
+            self._app.file_manager.file.beats_changed
+            and self._app.undo_manager.is_recording
+        ):
+            self._app.sync_document()
+
+    def time_map_found(self) -> timemap.TimeMapFound:
+        """The time map T12's rule chooses: from the beat timeline whose role is
+        time_map, else the first by ordinal, on the document as TiLiA's beat
+        timelines now are."""
+        self._follow_beats()
+        return self._app.file_manager.file.time_map_found
+
+    def time_map_for(self, timeline_id: str) -> timemap.TimeMap | None:
+        """A beat timeline's own time map, as TiLiA's beat timelines now are: none
+        with fewer than two beats, or measures the core can't map to times."""
+        self._follow_beats()
+        return timemap.time_map_for(self._app.file_manager.file.document, timeline_id)
+
+    def get_time_map_timeline(self) -> BeatTimeline | None:
+        """The beat timeline T12's rule chooses, even when it gives no time map;
+        None without one."""
+        timeline_id = self.time_map_found().timeline_id
+        return self.get_timeline(timeline_id) if timeline_id is not None else None
 
     def get_metric_position(self, time: float) -> MetricPosition | None:
-        if not self.get_timelines_by_type(BeatTimeline):
+        """Where `time` lies on the time map T12's rule chooses, as the core gives
+        it (FR-044). None without a time map, and off it: before the first beat, on
+        the closing barline and after it."""
+        time_map = self.time_map_found().time_map
+        if time_map is None:
             return None
-        tl = self.get_beat_timeline_for_measure_calculation()
-        if not tl:
+        positions = time_map.positions(time, time)
+        if positions is None:
             return None
-        beats = tl.components
-        if not beats:
-            return None
-        times = [beat.get_data("time") for beat in beats]
-
-        time_idx = bisect(times, time)  # returns the index where the time would go
-
-        if time_idx == 0:
-            closest_beat = beats[0]  # time is before first beat, get first beat
-        elif time_idx == len(beats):
-            closest_beat = beats[-1]  # time is after last beat, get last beat
-        elif abs(time - times[time_idx - 1]) <= abs(time - times[time_idx]):
-            closest_beat = beats[time_idx - 1]  # previous beat is closer
-        else:
-            closest_beat = beats[time_idx]  # next beat is closer
-
-        return closest_beat.metric_position
+        return MetricPosition(
+            measure=positions.bar,
+            beat=positions.beat,
+            measure_beat_count=positions.bar_beat_count,
+            label=positions.bar_label,
+        )
 
     def clear(self):
         for timeline in self._timelines.copy():

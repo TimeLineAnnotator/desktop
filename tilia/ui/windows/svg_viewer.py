@@ -487,9 +487,7 @@ class SvgViewer(ViewDockWidget):
                 k: self.beat_x_position[k] for k in sorted(self.beat_x_position.keys())
             }
 
-        beat_tl = get(
-            Get.TIMELINE_COLLECTION
-        ).get_beat_timeline_for_measure_calculation()
+        beat_tl = get(Get.TIMELINE_COLLECTION).get_time_map_timeline()
 
         if not beat_tl or not beat_tl.measure_count:
             return {}
@@ -507,9 +505,7 @@ class SvgViewer(ViewDockWidget):
         return output
 
     def _get_scene_x_from_time(self, time: float) -> float:
-        beat_tl = get(
-            Get.TIMELINE_COLLECTION
-        ).get_beat_timeline_for_measure_calculation()
+        beat_tl = get(Get.TIMELINE_COLLECTION).get_time_map_timeline()
         if not beat_tl:
             return 0
         beat = beat_tl.get_metric_fraction_by_time(time)

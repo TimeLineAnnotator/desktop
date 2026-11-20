@@ -720,14 +720,18 @@ class BeatTimeline(Timeline):
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
     def add_measure_zero(self, fraction_of_measure_one: float) -> tuple[bool, str]:
-        if self.measure_count < 2:
+        # Measures 1 and 2 where the core finds them on this timeline (FR-042).
+        time_map = get(Get.TIMELINE_COLLECTION).time_map_for(self.id)
+        measure_one_starts = time_map.times_of(1) if time_map is not None else []
+        measure_two_starts = time_map.times_of(2) if time_map is not None else []
+        if not measure_one_starts or not measure_two_starts:
             return (
                 False,
                 "Timeline has less than two measures. Cannot estimate measure zero duration.",
             )
 
-        measure_one_start = self.get_time_by_measure(1)[0]
-        measure_two_start = self.get_time_by_measure(2)[0]
+        measure_one_start = measure_one_starts[0]
+        measure_two_start = measure_two_starts[0]
 
         measure_zero_duration = (
             measure_two_start - measure_one_start
