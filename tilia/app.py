@@ -209,7 +209,12 @@ class App:
 
         Only that report: one that came after it, such as a YouTube page's while the
         warnings were shown, has been handled already. The YouTube page reports, as
-        it loads, the length the file stores."""
+        it loads, the length the file stores.
+
+        The answer, to scale or to crop, is part of the file as opened: the document
+        follows it, and the undo history starts again after it, so that undo can't
+        take the timelines back to a length the media no longer has
+        (TimeLineAnnotator/project-management#642, a)."""
         reported = self._length_on_load
         if self.duration != reported:
             return
@@ -219,6 +224,8 @@ class App:
         # The length the timelines were made for, which the report is compared with.
         self.duration = stored
         self.set_file_media_duration(reported, scale_timelines="keep")
+        self.sync_document()
+        self.reset_undo_manager()
 
     @long_operation("Loading file...")
     def _do_open(self, path: Path) -> bool:

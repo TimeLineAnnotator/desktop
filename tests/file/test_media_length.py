@@ -20,6 +20,7 @@ from tests.utils import load_youtube_media
 from tilia.constants import DURATION_JITTER_TOLERANCE
 from tilia.media.player.base import Player
 from tilia.requests import Get, Post, get, post
+from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
 from tilia_core import tla
 
@@ -304,6 +305,16 @@ def open_noting(path: Path, log: list[str], while_warnings_shown=None) -> bool:
         return commands.execute("file.open", path)
 
 
+def marker_labels(path: Path) -> list[str]:
+    """The labels of the markers the file at `path` stores."""
+    return [
+        component.attrs.get("label", "")
+        for timeline in tla.read(path).timelines.values()
+        if timeline.kind == "marker"
+        for component in timeline.components.values()
+    ]
+
+
 def marker_times(path: Path) -> list[float]:
     """The times of the markers the file at `path` stores."""
     return sorted(
@@ -358,6 +369,43 @@ class TestALocalFilesLengthAsItOpens:
             "cropped": [time for time in times if time <= reported],
         }[kept]
         assert marker_times(path) == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        "reported, answers",
+        [(20.0, [True]), (15.0, [False, True])],
+        ids=["scale", "crop"],
+    )
+    def test_undo_doesn_t_go_back_past_the_answer(
+        self, audio, tilia, tls, tmp_path, monkeypatch, reported, answers
+    ):
+        # The answer is part of the file as opened: undo starts after it
+        # (TimeLineAnnotator/project-management#642, a).
+        monkeypatch.setattr(_Audio, "LENGTH", reported)
+        path = a_local_file(tmp_path, length=STORED)
+        with ServeSequence(Get.FROM_USER_YES_OR_NO, answers):
+            assert open_file(path)
+        answered = tilia.get_timelines_state()[0]
+        markers = tls.get_timelines_by_type(MarkerTimeline)[0]
+        first = min(markers, key=lambda marker: marker.get_data("time"))
+        markers.set_component_data(first.id, "label", "edited")
+        post(Post.APP_STATE_RECORD, "test")
+
+        with Serve(Get.FROM_USER_YES_OR_NO, False) as question:
+            commands.execute("edit.undo")
+            commands.execute("edit.undo")
+
+        assert not question.called
+        assert tilia.get_timelines_state()[0] == answered
+        assert get(Get.MEDIA_DURATION) == reported
+        assert save()
+        assert tla.read(path).media_length == reported
+        assert "edited" not in marker_labels(path)
+
+        commands.execute("edit.redo")
+
+        assert save()
+        assert tla.read(path).media_length == reported
+        assert "edited" in marker_labels(path)
 
     def test_within_the_tolerance_asks_nothing(self, audio, tilia, tmp_path):
         path = a_local_file(tmp_path, length=_Audio.LENGTH + 1.9)
