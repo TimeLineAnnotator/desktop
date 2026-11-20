@@ -626,7 +626,13 @@ def type_in(window, field, text):
 
 
 def buttons(window):
-    return window.findChildren(QPushButton)
+    # The window's own: the names and notes boxes stay its children once
+    # closed, with buttons of their own.
+    return [
+        button_
+        for button_ in window.findChildren(QPushButton)
+        if button_.window() is window
+    ]
 
 
 def button(window, text):
@@ -665,8 +671,13 @@ class TestEnter:
     def test_no_button_is_or_becomes_the_default(self, media_metadata_window):
         self.assert_no_button_is_or_becomes_the_default(media_metadata_window)
 
-        # Apply makes the buttons below the fields again.
+        # Apply makes the buttons below the fields again, and so does OK on the
+        # names box.
         media_metadata_window.apply_fields()
+
+        self.assert_no_button_is_or_becomes_the_default(media_metadata_window)
+
+        edit_fields(media_metadata_window, add="custom")
 
         self.assert_no_button_is_or_becomes_the_default(media_metadata_window)
 
