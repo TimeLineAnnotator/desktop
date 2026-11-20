@@ -68,10 +68,19 @@ def fields_lines(fields: Fields) -> str:
     )
 
 
+# QTextDocument's marks for the start and the end of a frame, at which the names'
+# box, a QTextEdit, starts a new line too.
+_FRAME_MARKS = (chr(0xFDD0), chr(0xFDD1))
+
+
 def on_one_line(name: str) -> bool:
     """Whether the names' box can show `name` on a line of its own: not empty or
-    blank, and without a line break."""
-    return bool(name.strip()) and not _LINE_BREAK.search(name)
+    blank, and without a line break or a mark the box starts a new line at."""
+    return (
+        bool(name.strip())
+        and not _LINE_BREAK.search(name)
+        and not any(mark in name for mark in _FRAME_MARKS)
+    )
 
 
 def field_value(text: str, was: Any) -> Any:
@@ -125,13 +134,16 @@ class FieldNamesDialog(QDialog):
         self.text_edit.setAcceptRichText(False)
         self._names = [name for name in names if on_one_line(name)]
         self.text_edit.setPlainText("".join(name + "\n" for name in self._names))
-        # The box doesn't show every name as it is: a non-breaking space becomes
-        # a space. So a line left as the box showed it is the name it showed.
         self._given = self.text_edit.toPlainText()
-        self._by_line: dict[str, list[str]] = {}
-        # A line per name, then the empty one after the last line break.
-        for line, name in zip(self._given.split("\n"), self._names, strict=False):
-            self._by_line.setdefault(line, []).append(name)
+        # The box doesn't show every name as it is: its text has a non-breaking
+        # space as a space. So each line is tagged with its name's place, and a
+        # line left as it was is that name, even beside one that looks the same.
+        self._shown: list[str] = []
+        block = self.text_edit.document().firstBlock()
+        for index in range(len(self._names)):
+            block.setUserState(index)
+            self._shown.append(block.text())
+            block = block.next()
         layout.addWidget(self.text_edit)
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -141,25 +153,27 @@ class FieldNamesDialog(QDialog):
         layout.addWidget(button_box)
 
     def names(self) -> list[str]:
-        """The names typed: the format takes any name. A line as the box showed it
-        is the name it showed, and a box left as it was gives the names it was
-        given. A blank line is skipped, and a name typed twice is one field."""
-        text = self.text_edit.toPlainText()
-        if text == self._given:
+        """The names typed: the format takes any name. A line left as the box
+        showed it is the name it showed, and a box left as it was gives the names
+        it was given. A blank line is skipped, and a name typed twice is one
+        field."""
+        if self.text_edit.toPlainText() == self._given:
             return list(self._names)
         names: list[str] = []
-        seen: dict[str, int] = {}
-        for line in text.split("\n"):
-            if not line.strip():
-                continue
-            shown = self._by_line.get(line)
-            if shown is None:
-                names.append(line)
-                continue
-            # The same line twice: the next name shown so, then the last again.
-            index = seen.get(line, 0)
-            seen[line] = index + 1
-            names.append(shown[min(index, len(shown) - 1)])
+        block = self.text_edit.document().firstBlock()
+        while block.isValid():
+            line = block.text()
+            index = block.userState()
+            if 0 <= index < len(self._names) and line == self._shown[index]:
+                names.append(self._names[index])
+            else:
+                # Typed, as the line holds it, but a line or paragraph separator,
+                # which a paste can bring, starts a new line, as the box shows it.
+                typed = line
+                for separator in (chr(0x2028), chr(0x2029)):
+                    typed = typed.replace(separator, "\n")
+                names.extend(name for name in typed.split("\n") if name.strip())
+            block = block.next()
         return list(dict.fromkeys(names))
 
 
@@ -290,9 +304,13 @@ class TimelineFieldsWindow(QDialog):
             return
         fields = self._fields()
         dialog = FieldNamesDialog(self, list(fields))
-        if not dialog.exec():
+        accepted = dialog.exec()
+        names = dialog.names()
+        # Its parent, this window, would otherwise keep it.
+        dialog.deleteLater()
+        if not accepted:
             return
-        self._set_fields(with_names(fields, dialog.names()))
+        self._set_fields(with_names(fields, names))
         self.refresh()
 
     def on_timeline_delete_done(self, timeline_id: str) -> None:
