@@ -448,21 +448,47 @@ class Timelines:
         timeline_id = self.time_map_found().timeline_id
         return self.get_timeline(timeline_id) if timeline_id is not None else None
 
-    def get_metric_position(self, time: float) -> MetricPosition | None:
+    def get_metric_position(
+        self, time: float, *, end: bool = False
+    ) -> MetricPosition | None:
         """Where `time` lies on the time map T12's rule chooses, as the core gives
         it (FR-044). None without a time map, and off it: before the first beat, on
-        the closing barline and after it."""
+        a closing barline and after it.
+
+        With `end`, `time` ends a span. On a closing barline (a closing tap, the end
+        of the media or the last beat's length after it), or within the tolerance
+        of one, it is then the end of the measure that barline closes, its beats
+        counted on: a measure of four beats ends on beat 5
+        (TimeLineAnnotator/project-management#649)."""
         time_map = self.time_map_found().time_map
         if time_map is None:
             return None
         positions = time_map.positions(time, time)
         if positions is None:
-            return None
+            return self._closing_position(time_map, time) if end else None
         return MetricPosition(
             measure=positions.bar,
             beat=positions.beat,
             measure_beat_count=positions.bar_beat_count,
             label=positions.bar_label,
+        )
+
+    @staticmethod
+    def _closing_position(
+        time_map: timemap.TimeMap, time: float
+    ) -> MetricPosition | None:
+        """The end of the measure a closing barline at `time` closes; None when
+        `time` isn't on one. On a closing barline the core places a time at the end
+        of its measure, the measure's index plus one in bars."""
+        bars = time_map.position(time, "bar")
+        if bars is None:
+            return None
+        row = time_map.measure_rows()[int(bars) - 1]
+        return MetricPosition(
+            measure=row.number,
+            beat=float(row.beats + 1),
+            measure_beat_count=row.beats,
+            label=row.label,
         )
 
     def clear(self):

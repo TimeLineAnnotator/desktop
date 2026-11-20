@@ -214,6 +214,21 @@ class TestExportedPositions:
         assert (hierarchy["end_measure"], hierarchy["end_beat"]) == (None, None)
         assert hierarchy["length_in_measures"] is None
 
+    def test_an_end_on_the_closing_barline(
+        self, tilia, beat_tl, hierarchy_tl, tmp_path
+    ):
+        # The closing barline is at 20: the end of measure 5, counted on from its
+        # four beats (TimeLineAnnotator/project-management#649).
+        self.add_beats(beat_tl, range(20))
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 0.0, 20.0, 1)
+
+        (hierarchy,) = self.export(tmp_path)["Hierarchy"]
+
+        assert (hierarchy["start_measure"], hierarchy["start_beat"]) == (1, 1)
+        assert (hierarchy["end_measure"], hierarchy["end_beat"]) == (5, 5.0)
+        assert isinstance(hierarchy["end_beat"], float)
+        assert hierarchy["length_in_measures"] == [4, 4.0]
+
     def test_a_start_off_the_map(self, tilia, beat_tl, hierarchy_tl, tmp_path):
         self.add_beats(beat_tl, range(5, 20))
         hierarchy_tl.create_component(ComponentKind.HIERARCHY, 1.0, 10.0, 1)

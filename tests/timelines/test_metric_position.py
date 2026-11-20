@@ -298,18 +298,19 @@ class TestTheTimeMapFollowsTheBeats:
         assert position(8.5).measure == 3
 
 
+@pytest.fixture
+def set_media_length(tilia):
+    def set_length(length):
+        tilia.set_file_media_duration(length, scale_timelines="no")
+
+    yield set_length
+    tilia.set_file_media_duration(100, scale_timelines="no")
+    post(Post.APP_STATE_RECORD, "media length")
+
+
 class TestTheTimeMapFollowsTheMediaLength:
     """The last beat lasts as long as the one before it, or until the media ends if
     that comes first."""
-
-    @pytest.fixture
-    def set_media_length(self, tilia):
-        def set_length(length):
-            tilia.set_file_media_duration(length, scale_timelines="no")
-
-        yield set_length
-        tilia.set_file_media_duration(100, scale_timelines="no")
-        post(Post.APP_STATE_RECORD, "media length")
 
     def test_a_media_length_recorded(self, beat_tl, set_media_length):
         add_beats(beat_tl, range(10))
@@ -330,6 +331,99 @@ class TestTheTimeMapFollowsTheMediaLength:
         set_media_length(9.5)
 
         assert position(9.7) is None
+
+
+class TestAnEndOnAClosingBarline:
+    """A span that ends on a closing barline ends at the end of the measure that
+    barline closes, its beats counted on; a point or a start there has no position
+    (TimeLineAnnotator/project-management#649)."""
+
+    @staticmethod
+    def end(time):
+        return get(Get.METRIC_POSITION, time, end=True)
+
+    def test_the_last_beat_s_length_after_the_last_beat(self, beat_tl):
+        # The last measure has beats at 16, 17, 18 and 19: its closing barline is
+        # at 20.
+        add_beats(beat_tl, range(20))
+
+        shown = self.end(20.0)
+
+        assert (shown.measure, shown.beat) == (5, 5)
+        assert (shown.measure_beat_count, shown.label) == (4, "5")
+        assert str(shown) == "5.5"
+        assert position(20.0) is None
+
+    def test_within_the_tolerance_of_it(self, beat_tl):
+        add_beats(beat_tl, range(20))
+        assert str(self.end(19.95)) == "5.5"
+        assert str(self.end(20.05)) == "5.5"
+
+    def test_after_it(self, beat_tl):
+        add_beats(beat_tl, range(20))
+        assert self.end(20.5) is None
+        assert self.end(50.0) is None
+
+    def test_elsewhere_as_a_point(self, beat_tl):
+        add_beats(beat_tl, range(20))
+        assert str(self.end(19.5)) == "5.4.50"
+        assert str(self.end(16.0)) == "5.1"
+        assert self.end(-1.0) is None
+
+    def test_the_end_of_the_media(self, beat_tl, set_media_length):
+        add_beats(beat_tl, range(20))
+
+        set_media_length(19.5)
+
+        assert str(self.end(19.5)) == "5.5"
+        assert self.end(20.0) is None
+
+    def test_a_closing_tap(self, qtui, tls, tmp_path):
+        content = beats(range(20), {0: {}, 4: {}, 8: {}, 12: {}, 16: {}})
+        content["components"][an_id(199)] = {
+            "kind": "BEAT",
+            "time": 19.5,
+            "closing": True,
+        }
+        assert open_file(a_file(tmp_path, {an_id(1): content}))
+
+        assert str(self.end(19.5)) == "5.5"
+        assert position(19.5) is None
+        assert self.end(19.7) is None
+
+    def test_a_movement_s_closing_tap(self, qtui, tls, tmp_path):
+        # Movement 1, two measures, ends with a closing tap at 7.5; movement 2
+        # starts at 9.
+        content = beats(
+            [*range(8), *range(9, 17)],
+            {0: {}, 4: {}, 8: {"restart": True, "number": 1}, 12: {}},
+        )
+        content["components"][an_id(198)] = {
+            "kind": "BEAT",
+            "time": 7.5,
+            "closing": True,
+        }
+        assert open_file(a_file(tmp_path, {an_id(1): content}))
+
+        assert str(self.end(7.5)) == "2.5"
+        # The pause before movement 2.
+        assert self.end(8.2) is None
+
+    def test_the_inspector(self, beat_tl, hierarchy_tlui):
+        add_beats(beat_tl, range(20))
+        commands.execute("timeline.hierarchy.add", start=0.0, end=20.0, level=1)
+
+        shown = hierarchy_tlui[0].get_inspector_dict()["Start / end (metric)"]
+
+        assert shown == "1.1 / 5.5"
+
+    def test_a_start_on_it(self, beat_tl, hierarchy_tlui):
+        add_beats(beat_tl, range(20))
+        commands.execute("timeline.hierarchy.add", start=20.0, end=30.0, level=1)
+
+        shown = hierarchy_tlui[0].get_inspector_dict()["Start / end (metric)"]
+
+        assert shown == HIDE_FIELD
 
 
 class TestTheInspector:
