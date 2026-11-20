@@ -57,6 +57,9 @@ class App:
         # The file open, or being opened: a PDF timeline's relative path is the
         # file's.
         self.cur_file_path: Path | None = None
+        # The length TiLiA held once the file open last loaded: what its media
+        # reported as it loaded, if anything did.
+        self._length_on_load: float | None = None
 
     def __str__(self):
         return get_tilia_class_string(self)
@@ -149,8 +152,25 @@ class App:
         self.on_media_duration_changed(duration)
 
     def _is_duration_confirmation(self, duration: float) -> bool:
+        """Whether `duration`, reported for the file's own media, is the length the
+        file stores on disk, within the tolerance: the file then keeps its own
+        (FR-034). A file without a stored length has none to keep, not even one it
+        has taken since it was read, until it is saved."""
+        stored = self.file_manager.file.stored_media_length
         return (
             self.should_scale_timelines == "keep"
+            and stored is not None
+            and stored > 0
+            and abs(duration - stored) < tilia.constants.DURATION_JITTER_TOLERANCE
+        )
+
+    def _keeps_timelines(self, duration: float) -> bool:
+        """Whether `duration`, reported for the file's own media, is within the
+        tolerance of the length the file stores or of the one TiLiA has: the
+        timelines then stay as they are, with no question."""
+        return self._is_duration_confirmation(duration) or (
+            self.should_scale_timelines == "keep"
+            and self.duration > 0
             and abs(duration - self.duration)
             < tilia.constants.DURATION_JITTER_TOLERANCE
         )
@@ -177,7 +197,32 @@ class App:
         if not self._do_open(Path(path)):
             return False
         self._show_problems(self.file_manager.file)
+        self._handle_length_reported_on_load()
         return True
+
+    def _handle_length_reported_on_load(self) -> None:
+        """A local file's media reports its length while the file loads, before its
+        timelines are built and while the file open is still the blank one, so that
+        nothing could be kept, scaled or asked then. Once the file is open, after its
+        warnings, that report is handled as a later one is: within the tolerance of
+        the stored length, the stored one stays; beyond it, TiLiA asks to scale or
+        crop, then takes the new length (FR-034). A file without a stored length
+        took the reported one as it opened.
+
+        Only that report: a YouTube player reports once its page has loaded, and a
+        report that came since, while the warnings were shown, has been handled
+        already."""
+        reported, self._length_on_load = self._length_on_load, None
+        if reported is None or self.duration != reported:
+            return
+        if self.player.MEDIA_TYPE == "youtube":
+            return
+        stored = self.file_manager.file.stored_media_length
+        if not stored or not reported or reported == stored:
+            return
+        # The length the timelines were made for, which the report is compared with.
+        self.duration = stored
+        self.set_file_media_duration(reported, scale_timelines="keep")
 
     @long_operation("Loading file...")
     def _do_open(self, path: Path) -> bool:
@@ -203,12 +248,18 @@ class App:
         # What the document reflects: the state the timelines just built give, with
         # TiLiA's own digests, so that nothing TiLiA filled in reaches the file.
         file.synced = self.get_app_state()
+        if not file.document.media_length and self.duration:
+            # A file without a length takes the one its media reported as it loaded,
+            # while the file open was still the blank one (FR-034): as a change,
+            # which a save stores, since opening changes nothing (FR-003).
+            self.file_manager.set_media_duration(self.duration)
         # The undo baseline must be recorded only now: until the line above,
         # file_manager holds the blank file from on_clear(), and undoing back
         # to a baseline taken from it would wipe the loaded metadata (#666).
         self.reset_undo_manager()
         post(Post.APP_FILE_LOADED, file)
         self.update_recent_files()
+        self._length_on_load = self.duration
 
         return True
 
@@ -426,11 +477,14 @@ class App:
         # this report only -- should_scale_timelines itself is untouched,
         # so a later, smaller jitter report is still handled as "keep".
         effective_mode = self.should_scale_timelines
-        if effective_mode == "keep" and not self._is_duration_confirmation(duration):
+        if effective_mode == "keep" and not self._keeps_timelines(duration):
             effective_mode = "prompt"
 
+        # Without a length, there is none to scale or crop from: the file takes the
+        # one reported (FR-034).
         if (
-            not self.timelines.is_blank
+            self.duration > 0
+            and not self.timelines.is_blank
             and duration != self.duration
             and effective_mode != "keep"
         ):

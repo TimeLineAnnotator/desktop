@@ -54,6 +54,10 @@ class OpenDocument:
     unknown_discarded: bool = False
     synced: dict[str, Any] | None = None
     removed: tla_bridge.Removed = field(default_factory=dict)
+    # The media length the file on disk stores, as read or as last written: None for
+    # a file without one and for a new file. A report within the tolerance of it
+    # leaves it as it is (FR-034).
+    stored_media_length: float | None = field(default=None, init=False)
     # Taken by whatever changes the document or copies it: the autosaver copies
     # from its thread.
     _lock: threading.Lock = field(
@@ -79,6 +83,7 @@ class OpenDocument:
                 "media_path": self.media_path,
                 "timelines": {},
             }
+        self.stored_media_length = self.document.media_length
 
     def sync(
         self,
@@ -145,6 +150,7 @@ class OpenDocument:
             before = copy.copy(self.document)
             before.timelines = held
             tla.write(path, self.document)
+            self.stored_media_length = self.document.media_length
             if not held:
                 return
             # The folder `tla.write` rebases to, and its function.

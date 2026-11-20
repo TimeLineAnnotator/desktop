@@ -579,6 +579,13 @@ class QtUI:
             tilia.errors.display(tilia.errors.YOUTUBE_URL_INVALID, url)
             return
 
+        # A link, with its scheme: a text without one is a file's path (FR-033).
+        # The pattern's first group is what the text has before the host: a scheme
+        # with its "//", "//" alone, or nothing.
+        if not match[1]:
+            url = f"https://{url}"
+        elif match[1] == "//":
+            url = f"https:{url}"
         post(Post.APP_MEDIA_LOAD, url)
 
     def on_clear_ui(self):
