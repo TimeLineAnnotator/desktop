@@ -16,6 +16,7 @@ from unittest.mock import patch
 import pytest
 import shiboken6
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPoint, Qt
+from PySide6.QtGui import QTextCursor, QTextDocument
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QDialogButtonBox, QLabel, QMessageBox
 
@@ -32,7 +33,11 @@ from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.dialogs.basic import YesOrNoMessageBox
 from tilia.ui.windows.kinds import WindowKind
-from tilia.ui.windows.timeline_fields import FieldNamesDialog, TimelineFieldsWindow
+from tilia.ui.windows.timeline_fields import (
+    FieldNamesDialog,
+    TimelineFieldsWindow,
+    on_one_line,
+)
 
 # WP3's file of every kind: its timelines, and the components that have fields.
 BEATS = "019b76da-a802-75fc-a8eb-94052e5f713a"  # role time_map, author
@@ -113,21 +118,40 @@ def cancel(window: TimelineFieldsWindow) -> None:
 UNCHANGED = object()
 
 
-def edit_names(window: TimelineFieldsWindow, text) -> None:
-    """Clicks "Edit fields…", types `text` in its box and clicks OK. None clicks
-    Cancel, UNCHANGED clicks OK with nothing typed, and a function is given the
-    box's text and gives what is typed instead."""
+def edit_names(window: TimelineFieldsWindow, text) -> FieldNamesDialog:
+    """Clicks "Edit fields…", types `text` in its box and clicks OK, and gives the
+    box. None clicks Cancel, UNCHANGED clicks OK with nothing typed, and a function
+    is given the box's text edit to edit, as a person would, before OK."""
+    opened = []
 
     def exec_(dialog) -> bool:
+        opened.append(dialog)
         if text is None:
             return False
-        if text is not UNCHANGED:
-            given = dialog.text_edit.toPlainText()
-            dialog.text_edit.setPlainText(text(given) if callable(text) else text)
+        if callable(text):
+            text(dialog.text_edit)
+        elif text is not UNCHANGED:
+            dialog.text_edit.setPlainText(text)
         return True
 
     with patch.object(FieldNamesDialog, "exec", new=exec_):
         window.edit_names_button.click()
+    return opened[0]
+
+
+def delete_line(number: int):
+    """Deletes a line of the names' box, as selecting it to the start of the next
+    and pressing Delete does."""
+
+    def delete(text_edit) -> None:
+        block = text_edit.document().findBlockByNumber(number)
+        cursor = QTextCursor(block)
+        cursor.movePosition(
+            QTextCursor.MoveOperation.NextBlock, QTextCursor.MoveMode.KeepAnchor
+        )
+        cursor.removeSelectedText()
+
+    return delete
 
 
 class patch_question:
@@ -686,6 +710,13 @@ class TestClosing:
 
         assert not shiboken6.isValid(window)
 
+    def test_the_names_box_is_deleted(self, every_kind, tluis):
+        dialog = edit_names(open_fields(tluis, FORM), UNCHANGED)
+
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert not shiboken6.isValid(dialog)
+
     def test_it_can_be_opened_again(self, every_kind, tluis):
         cancel(open_fields(tluis, FORM))
 
@@ -783,6 +814,8 @@ class TestNamesTheBoxCantShowAsTheyAre:
     point 1)."""
 
     NBSP = "Op.\u00a01"
+    # QTextDocument's mark for the start of a frame, where the box starts a line.
+    FRAME_MARK = "g" + chr(0xFDD0) + "h"
 
     @pytest.fixture
     def nbsp(self, opened):
@@ -798,7 +831,9 @@ class TestNamesTheBoxCantShowAsTheyAre:
                 "a\nb": "v",
                 "c": "w",
                 "   ": "blank",
+                "": "empty",
                 "e\u2028f": "u",
+                self.FRAME_MARK: "t",
             }
 
         return opened(names)
@@ -818,7 +853,7 @@ class TestNamesTheBoxCantShowAsTheyAre:
     def test_another_line_s_edit_renames_nothing(self, nbsp, tluis):
         window = open_fields(tluis, FORM)
 
-        edit_names(window, lambda given: given.replace("bwv\n", ""))
+        edit_names(window, delete_line(2))
 
         assert list(fields_of(FORM).items()) == [(self.NBSP, "x"), ("BWV", "y")]
 
@@ -831,7 +866,7 @@ class TestNamesTheBoxCantShowAsTheyAre:
         window = open_fields(tluis, FORM)
         given = []
 
-        edit_names(window, lambda text: given.append(text) or text)
+        edit_names(window, lambda box: given.append(box.toPlainText()))
 
         assert given == ["c\n"]
 
@@ -850,7 +885,9 @@ class TestNamesTheBoxCantShowAsTheyAre:
         assert list(fields_of(FORM).items()) == [
             ("a\nb", "v"),
             ("   ", "blank"),
+            ("", "empty"),
             ("e\u2028f", "u"),
+            (self.FRAME_MARK, "t"),
             ("key", "w"),
         ]
 
@@ -858,6 +895,51 @@ class TestNamesTheBoxCantShowAsTheyAre:
             metadata["key"] = metadata.pop("c")
 
         assert_saved_as_the_core_s(on_two_lines, FORM, change)
+
+    @pytest.mark.parametrize(
+        "first, second",
+        [("a b", "a" + chr(0xA0) + "b"), ("a" + chr(0xA0) + "b", "a b")],
+        ids=["space first", "non-breaking space first"],
+    )
+    def test_of_two_that_look_the_same_the_one_deleted_goes(
+        self, opened, tluis, first, second
+    ):
+        def names(doc):
+            doc.timelines[FORM].metadata = {first: "1", second: "2"}
+
+        path = opened(names)
+        window = open_fields(tluis, FORM)
+
+        edit_names(window, delete_line(0))
+
+        assert fields_of(FORM) == {second: "2"}
+
+        def change(metadata):
+            del metadata[first]
+
+        assert_saved_as_the_core_s(path, FORM, change)
+
+    def test_every_character_the_box_starts_a_line_at_is_caught(self, qtui):
+        # The characters at which the box, a QTextEdit, starts a new line, found by
+        # putting each through a document, in groups, then one by one.
+        document = QTextDocument()
+
+        def starts_a_line(text: str) -> bool:
+            document.setPlainText(text)
+            return document.blockCount() > 1 or "\n" in document.toPlainText()
+
+        found = []
+        for start in range(0, 0x110000, 4096):
+            group = [
+                chr(code)
+                for code in range(start, min(start + 4096, 0x110000))
+                if not 0xD800 <= code <= 0xDFFF
+            ]
+            if starts_a_line("x".join(group)):
+                found += [c for c in group if starts_a_line("a" + c + "b")]
+
+        assert chr(0xFDD0) in found and chr(0x2029) in found
+        assert [c for c in found if on_one_line("a" + c + "b")] == []
 
 
 class TestTheInspector:
