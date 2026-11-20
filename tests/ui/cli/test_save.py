@@ -32,6 +32,23 @@ def test_save(cli, tmp_path):
     assert os.listdir(tmp_path) == [path.name]
 
 
+def test_the_help_says_the_file_open_is_checked(cli, capsys):
+    # TimeLineAnnotator/project-management#646, a.
+    cli.parse_and_run("save --help")
+
+    assert (
+        "Examples:\n"
+        "  # Save (prompts for overwrite if the file exists)\n"
+        "  save /path/to/file.tla\n"
+        "\n"
+        "  # Save (overwrites without prompting)\n"
+        "  save /path/to/file.tla --overwrite\n"
+        "\n"
+        "Saving to the file that is open checks it against the file on disk first,\n"
+        "with or without --overwrite, as Save does in TiLiA's window.\n"
+    ) in capsys.readouterr().out
+
+
 def test_save_parent_is_file_fails(cli, tmp_path, tilia_errors):
     parent = tmp_path / "parent"
     parent.touch()

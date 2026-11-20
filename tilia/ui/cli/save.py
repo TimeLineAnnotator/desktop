@@ -16,11 +16,14 @@ def setup_parser(subparsers):
         help="Save the current project",
         epilog="""
 Examples:
-  # Save (prompts for overwrite if file exists)
+  # Save (prompts for overwrite if the file exists)
   save /path/to/file.tla
 
   # Save (overwrites without prompting)
   save /path/to/file.tla --overwrite
+
+Saving to the file that is open checks it against the file on disk first,
+with or without --overwrite, as Save does in TiLiA's window.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
