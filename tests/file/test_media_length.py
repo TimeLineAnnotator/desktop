@@ -259,16 +259,49 @@ class TestALengthBeyondTheTolerance:
 
 
 class _Recorder(Serve):
-    """Serves `request` with `return_value`, noting `name` in `log` each time."""
+    """Serves `request` with `return_value`, noting `name` in `log` each time, after
+    doing `action`: what happens while a dialog is open."""
 
-    def __init__(self, request: Get, return_value, log: list[str], name: str):
+    def __init__(self, request: Get, return_value, log: list[str], name: str, action):
         super().__init__(request, return_value)
         self.log = log
         self.name = name
+        self.action = action
 
     def _callback(self, *_, **__):
         self.log.append(self.name)
+        if self.action is not None:
+            self.action()
         return super()._callback()
+
+
+def with_a_warning(path: Path) -> None:
+    """Puts two of the markers of the file at `path` at 0 s, which breaks a rule, so
+    that the file opens with a warning. A scale leaves them there, unchanged, so the
+    file keeps the problem it came with."""
+    content = json.loads(path.read_bytes())
+    markers = next(
+        timeline
+        for timeline in content["timelines"].values()
+        if timeline["kind"] == "Marker"
+    )
+    for marker in list(markers["components"].values())[:2]:
+        marker["time"] = 0.0
+    path.write_text(json.dumps(content), encoding="utf-8")
+
+
+def open_noting(path: Path, log: list[str], while_warnings_shown=None) -> bool:
+    """Opens `path`, noting in `log` the warnings and each question, answered yes,
+    and doing `while_warnings_shown` while the warnings are."""
+    with (
+        Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+        Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
+        _Recorder(
+            Get.FROM_USER_SHOW_PROBLEMS, None, log, "warnings", while_warnings_shown
+        ),
+        _Recorder(Get.FROM_USER_YES_OR_NO, True, log, "question", None),
+    ):
+        return commands.execute("file.open", path)
 
 
 def marker_times(path: Path) -> list[float]:
@@ -339,27 +372,67 @@ class TestALocalFilesLengthAsItOpens:
         assert path.read_bytes() == before
 
     def test_asks_after_the_file_s_warnings(self, audio, tilia, tmp_path):
-        # A hierarchy at level 0 breaks a rule: the file opens with a warning.
         path = a_local_file(tmp_path, length=STORED)
-        content = json.loads(path.read_bytes())
-        hierarchies = next(
-            timeline
-            for timeline in content["timelines"].values()
-            if timeline["kind"] == "Hierarchy"
-        )
-        next(iter(hierarchies["components"].values()))["level"] = 0
-        path.write_text(json.dumps(content), encoding="utf-8")
+        with_a_warning(path)
         shown: list[str] = []
 
-        with (
-            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
-            Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
-            _Recorder(Get.FROM_USER_SHOW_PROBLEMS, None, shown, "warnings"),
-            _Recorder(Get.FROM_USER_YES_OR_NO, True, shown, "question"),
-        ):
-            assert commands.execute("file.open", path)
+        assert open_noting(path, shown)
 
         assert shown == ["warnings", "question"]
+
+    def test_a_report_handled_while_the_warnings_are_shown_isn_t_handled_again(
+        self, audio, tilia, tmp_path
+    ):
+        # The warnings dialog runs an event loop. Here the player reports the stored
+        # length then: it is the latest, and confirms the stored one.
+        path = a_local_file(tmp_path, length=STORED)
+        with_a_warning(path)
+        times = marker_times(path)
+        shown: list[str] = []
+
+        assert open_noting(path, shown, lambda: tilia.player.report(STORED))
+
+        assert shown == ["warnings"]
+        assert get(Get.MEDIA_DURATION) == STORED
+        assert not tilia.is_file_modified()
+        assert save()
+        assert tla.read(path).media_length == STORED
+        assert marker_times(path) == times
+
+    def test_a_youtube_report_while_the_warnings_are_shown_is_handled_once(
+        self, youtube, tilia, tmp_path
+    ):
+        path = a_file(tmp_path)
+        with_a_warning(path)
+        times = marker_times(path)
+        new = STORED + 2.5
+        shown: list[str] = []
+
+        assert open_noting(path, shown, lambda: tilia.player.report(new))
+
+        assert shown == ["warnings", "question"]
+        assert save()
+        assert tla.read(path).media_length == new
+        assert marker_times(path) == pytest.approx(
+            [time * new / STORED for time in times]
+        )
+
+    def test_a_youtube_report_as_the_file_loads_isn_t_handled_here(
+        self, youtube, tilia, tmp_path, monkeypatch
+    ):
+        # Only a local file's (#629, point 1): a YouTube page reports once it has
+        # loaded, and its report is handled then.
+        def load_media(player, path, start=0.0, end=0.0, initial_duration=0.0):
+            success = _Player.load_media(player, path, start, end)
+            player.report(STORED + 2.5)
+            return success
+
+        monkeypatch.setattr(_YouTube, "load_media", load_media)
+        shown: list[str] = []
+
+        assert open_noting(a_file(tmp_path), shown)
+
+        assert shown == []
 
 
 class TestAFileWithoutALength:
