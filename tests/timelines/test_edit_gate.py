@@ -682,6 +682,21 @@ class TestARow:
             row.color = "notacolor"
             record()
 
+    def test_fixed_in_part_is_refused(
+        self, qtui, tilia, tls, tluis, tilia_errors, tmp_path
+    ):
+        # Read with an id and a color that aren't ones: the core keeps the
+        # problems of components only, so resetting its color is refused while its
+        # id stands, until TimeLineAnnotator/project-management#658.
+        row = {"id": "abc", "name": "Melody", "color": "notacolor"}
+        open_file(a_file(tmp_path, ranges((A, {"start": 0, "end": 10}), row=row)))
+        reason = rules.range_rows([{**row, "color": None}]).reason
+
+        with Refused(tilia, tilia_errors, reason):
+            commands.execute(
+                "timeline.range.reset_row_color", row=tls.get_timeline(TEXTURE).rows[0]
+            )
+
 
 class TestAComponentsColor:
     """A hierarchy read with a color that isn't one, as a file may hold it."""
