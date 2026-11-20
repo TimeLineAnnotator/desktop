@@ -24,12 +24,13 @@ class SegmentLikeTimelineComponent(TimelineComponent):
     def length_metric(self) -> MetricInterval | None:
         start_metric_position = self.start_metric_position
         end_metric_position = self.end_metric_position
-        if not start_metric_position:
+        # Either may lie off the time map.
+        if start_metric_position is None or end_metric_position is None:
             return None
         return end_metric_position - start_metric_position
 
     @property
-    def length_in_measures(self) -> tuple[int, int] | None:
+    def length_in_measures(self) -> tuple[int, float] | None:
         # A workaround to facilitate exporting.
         # This is only needed because the property name
         # is currently coupled to the name of the
@@ -53,7 +54,7 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         )
 
     @property
-    def start_beat(self) -> int | None:
+    def start_beat(self) -> float | None:
         return self.start_metric_position.beat if self.start_metric_position else None
 
     @property
@@ -61,7 +62,7 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         return self.end_metric_position.measure if self.end_metric_position else None
 
     @property
-    def end_beat(self) -> int | None:
+    def end_beat(self) -> float | None:
         return self.end_metric_position.beat if self.end_metric_position else None
 
     @property

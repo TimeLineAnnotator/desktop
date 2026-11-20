@@ -9,6 +9,8 @@ from tests.mock import Serve
 from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.timelines.base.timeline import TimelineFlag
+from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.harmony.timeline import HarmonyTimeline
 from tilia.ui import commands
 from tilia.ui.dialogs.resize_rect import ResizeRect
@@ -162,6 +164,87 @@ class TestExportJSON:
         assert exported_component["label"] == "exported"
         assert "formal_type" not in exported_component
         assert "formal_function" not in exported_component
+
+
+class TestExportedPositions:
+    """A component's measure and beat are the core's position on the time map, as
+    TiLiA shows them (FR-009, FR-044)."""
+
+    @staticmethod
+    def export(tmp_path):
+        path = tmp_path / "test.json"
+        commands.execute("file.export.json", path)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            timeline["kind"]: timeline["components"] for timeline in data["timelines"]
+        }
+
+    @staticmethod
+    def add_beats(beat_tl, times):
+        for time in times:
+            beat_tl.create_component(ComponentKind.BEAT, float(time))
+
+    def test_a_marker(self, tilia, beat_tl, marker_tl, tmp_path):
+        self.add_beats(beat_tl, range(20))
+        marker_tl.create_component(ComponentKind.MARKER, 12.5)
+        marker_tl.create_component(ComponentKind.MARKER, 13.0)
+
+        markers = self.export(tmp_path)["Marker"]
+
+        assert [(m["measure"], m["beat"]) for m in markers] == [(4, 1.5), (4, 2)]
+
+    def test_a_hierarchy(self, tilia, beat_tl, hierarchy_tl, tmp_path):
+        self.add_beats(beat_tl, range(20))
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 12.5, 18.0, 1)
+
+        (hierarchy,) = self.export(tmp_path)["Hierarchy"]
+
+        assert (hierarchy["start_measure"], hierarchy["start_beat"]) == (4, 1.5)
+        assert (hierarchy["end_measure"], hierarchy["end_beat"]) == (5, 3)
+        assert hierarchy["length_in_measures"] == [1, 1.5]
+
+    def test_an_end_off_the_map(self, tilia, beat_tl, hierarchy_tl, tmp_path):
+        self.add_beats(beat_tl, range(20))
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 12.5, 30.0, 1)
+
+        (hierarchy,) = self.export(tmp_path)["Hierarchy"]
+
+        assert (hierarchy["start_measure"], hierarchy["start_beat"]) == (4, 1.5)
+        assert (hierarchy["end_measure"], hierarchy["end_beat"]) == (None, None)
+        assert hierarchy["length_in_measures"] is None
+
+    def test_a_start_off_the_map(self, tilia, beat_tl, hierarchy_tl, tmp_path):
+        self.add_beats(beat_tl, range(5, 20))
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 1.0, 10.0, 1)
+
+        (hierarchy,) = self.export(tmp_path)["Hierarchy"]
+
+        assert (hierarchy["start_measure"], hierarchy["start_beat"]) == (None, None)
+        assert (hierarchy["end_measure"], hierarchy["end_beat"]) == (2, 2)
+        assert hierarchy["length_in_measures"] is None
+
+    def test_without_a_beat_timeline(self, tilia, marker_tl, tmp_path):
+        marker_tl.create_component(ComponentKind.MARKER, 12.5)
+
+        (marker,) = self.export(tmp_path)["Marker"]
+
+        assert (marker["measure"], marker["beat"]) == (None, None)
+
+    def test_the_beat_timeline_whose_role_is_time_map(
+        self, tilia, tls, marker_tl, tmp_path
+    ):
+        first = tls.create_timeline(BeatTimeline, [], beat_pattern=[4])
+        second = tls.create_timeline(
+            BeatTimeline, [], beat_pattern=[2], fields={"role": "time_map"}
+        )
+        self.add_beats(first, range(20))
+        self.add_beats(second, range(20))
+        marker_tl.create_component(ComponentKind.MARKER, 12.5)
+
+        (marker,) = self.export(tmp_path)["Marker"]
+
+        assert (marker["measure"], marker["beat"]) == (7, 1.5)
 
 
 class TestExportImage:

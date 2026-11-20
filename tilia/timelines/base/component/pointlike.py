@@ -21,7 +21,7 @@ class PointLikeTimelineComponent(TimelineComponent):
         return self.metric_position.measure if self.metric_position else None
 
     @property
-    def beat(self) -> int | None:
+    def beat(self) -> float | None:
         return self.metric_position.beat if self.metric_position else None
 
     @classmethod
