@@ -986,14 +986,15 @@ class TestSpeed:
         after = tilia.get_app_state()
 
         def timed() -> float:
-            # A new gate each time, which knows neither state yet.
+            # A new gate each time, which knows neither state yet. The time this
+            # process spends, so that the other test workers' don't count.
             gate = EditGate()
             gate.accepted = before
-            began = time.perf_counter()
+            began = time.process_time()
             verdict = gate.check(after, media_length=3000.0, page_counts={})
-            took = time.perf_counter() - began
+            took = time.process_time() - began
             assert verdict.reason is None
             return took
 
-        # The best of three, so that another program's load doesn't count.
-        assert min(timed() for _ in range(3)) < 0.5
+        best = min(timed() for _ in range(3))
+        assert best < 0.5, f"{best:.3f} s"
