@@ -24,6 +24,12 @@ from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
 
 
+def _is_single_value_not_text(value: object) -> bool:
+    # A number, true or false, or null, as a file written by a script may hold.
+    # Lists and other structured values are left as they are.
+    return value is None or isinstance(value, (int, float))
+
+
 class MediaMetadataWindow(QDialog):
     KIND = WindowKind.MEDIA_METADATA
 
@@ -271,16 +277,31 @@ class MediaMetadataWindow(QDialog):
             )
 
     def apply_fields(self):
-        self._save_edits(self._get_edits())
+        edits = self._get_edits()
+        if set(edits) - {"media length"}:
+            # An Apply that sets a field also stores as text each single value
+            # that isn't, as its box shows it. None are left after the first.
+            edits = self._single_values_as_text() | edits
+        self._save_edits(edits)
         self.clear_layout()
         self._setup_fields()
 
+    def _single_values_as_text(self) -> dict[str, str]:
+        return {
+            name: str(value)
+            for name, value in self.metadata_original.items()
+            if _is_single_value_not_text(value)
+        }
+
     def _get_edits(self) -> dict:
+        # A single value that isn't text, such as the number 1990, is compared
+        # as the text its box shows, so that it isn't an edit until it is typed
+        # over. Any other value is compared as it is.
+        originals = self.metadata_original | self._single_values_as_text()
         edits = {
             name: self.metadata[name].text()
             for name in self.metadata
-            if name in self.metadata_original
-            and self.metadata[name].text() != self.metadata_original[name]
+            if name in originals and self.metadata[name].text() != originals[name]
         }
         # Compared as times: the length shown is rounded to a tenth of a
         # second, and typing it back changes nothing.
