@@ -50,7 +50,8 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
     @property
     def end_metric_position(self) -> MetricPosition | None:
-        return get(Get.METRIC_POSITION, self.get_data("end"))
+        # On a closing barline, the end of the measure it closes.
+        return get(Get.METRIC_POSITION, self.get_data("end"), end=True)
 
     @property
     def start_measure(self) -> int | None:
