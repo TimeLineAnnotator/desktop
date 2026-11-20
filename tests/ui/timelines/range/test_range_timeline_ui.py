@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QToolButton
 
+import tilia.errors
 from tests.mock import Serve
 from tests.ui.timelines.interact import (
     click_timeline_ui,
@@ -32,7 +33,7 @@ from tests.utils import (
     save_and_reopen,
     undoable,
 )
-from tilia.requests import Get, Post, post
+from tilia.requests import Get, Post, get, post
 from tilia.settings import settings
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
@@ -44,6 +45,7 @@ from tilia.ui.timelines.range.context_menu import (
 from tilia.ui.timelines.range.drag import _row_at_y
 from tilia.ui.timelines.range.element import RangeCommentsIcon
 from tilia.ui.windows.kinds import WindowKind
+from tilia_core import rules
 
 
 def get_timeline_context_menu_for_row(range_tlui, row_index=0):
@@ -967,19 +969,22 @@ class TestCopyPaste:
         assert pasted_left.get_data("joined_right") == pasted_right.id
         assert pasted_right.get_data("joined_right") is None
 
+    @pytest.mark.parametrize("target_end", [60, 55], ids=["as long", "shorter"])
     def test_paste_multiple_into_selected_elements_keeps_anchor_join(
-        self, range_tlui, tilia_state
+        self, range_tlui, tilia_state, target_end
     ):
         # Copy a joined pair, then paste onto an existing selected range.
         # The first pasted item reuses the selected element (the "anchor")
         # instead of creating a new one — its outgoing join must still be
-        # restored onto the newly created second pasted range.
+        # restored onto the newly created second pasted range. The selected
+        # range keeps its times, and the second starts where it ends, so that
+        # the join holds (TimeLineAnnotator/project-management#648, b).
         r1, r2 = add_and_join_ranges(range_tlui, [(0, 10), (10, 20)])
         click_range_ui(r1)
         click_range_ui(r2, modifier="ctrl")
         commands.execute("timeline.component.copy")
 
-        commands.execute("timeline.range.add_range", start=50, end=55)
+        commands.execute("timeline.range.add_range", start=50, end=target_end)
         target = range_tlui[2]
         click_range_ui(target)
         commands.execute("timeline.component.paste")
@@ -987,6 +992,11 @@ class TestCopyPaste:
         assert len(range_tlui) == 4
         pasted_new = next(e for e in range_tlui if e not in (r1, r2, target))
         assert target.get_data("joined_right") == pasted_new.id
+        assert (target.get_data("start"), target.get_data("end")) == (50, target_end)
+        assert (pasted_new.get_data("start"), pasted_new.get_data("end")) == (
+            target_end,
+            target_end + 10,
+        )
 
     def test_paste_preserves_pre_start_and_post_end(self, range_tlui, tilia_state):
         commands.execute("timeline.range.add_range", start=10, end=20)
@@ -1039,6 +1049,146 @@ class TestCopyPaste:
         assert len(range_tlui) == 3  # 2 originals + 1 successfully pasted
         starts = sorted(r.get_data("start") for r in range_tlui)
         assert starts == [0, 20, 80]
+
+
+class TestPasteJoinedRangesOntoASelectedRange:
+    """A joined run of ranges pasted onto a selected range of another length: the
+    selected range takes the first one's values and keeps its times, the second
+    starts where it ends, joined, and the others keep their distances from it
+    (TimeLineAnnotator/project-management#648, b)."""
+
+    @staticmethod
+    def copy_joined(range_tlui, segments):
+        copied = add_and_join_ranges(range_tlui, segments)
+        for element in copied:
+            range_tlui.select_element(element)
+        commands.execute("timeline.component.copy")
+        range_tlui.deselect_all_elements()
+        return copied
+
+    @staticmethod
+    def paste_onto(range_tlui, start, end):
+        commands.execute("timeline.range.add_range", start=start, end=end)
+        target = next(e for e in range_tlui if e.get_data("start") == start)
+        range_tlui.deselect_all_elements()
+        range_tlui.select_element(target)
+        commands.execute("timeline.component.paste")
+        return target
+
+    @staticmethod
+    def chain_from(range_tlui, first):
+        """The ranges joined from `first`, in order, as (start, end) pairs."""
+        by_id = {element.id: element for element in range_tlui}
+        chain, element = [], first
+        while element is not None:
+            chain.append((element.get_data("start"), element.get_data("end")))
+            element = by_id.get(element.get_data("joined_right"))
+        return chain
+
+    def test_three_joined(self, range_tlui, tilia_errors):
+        self.copy_joined(range_tlui, [(0, 10), (10, 20), (20, 30)])
+
+        target = self.paste_onto(range_tlui, 50, 55)
+
+        assert self.chain_from(range_tlui, target) == [(50, 55), (55, 65), (65, 75)]
+        assert not tilia_errors.errors
+
+    def test_ranges_not_joined_keep_their_distance_from_its_start(self, range_tlui):
+        # Not what TimeLineAnnotator/project-management#648 answers: as before,
+        # from the selected range's start.
+        for start, end in [(0, 10), (15, 25)]:
+            commands.execute("timeline.range.add_range", start=start, end=end)
+        for element in list(range_tlui):
+            range_tlui.select_element(element)
+        commands.execute("timeline.component.copy")
+        range_tlui.deselect_all_elements()
+
+        self.paste_onto(range_tlui, 50, 55)
+
+        assert any(
+            (e.get_data("start"), e.get_data("end")) == (65, 75) for e in range_tlui
+        )
+
+    def test_the_selected_range_takes_the_first_one_s_values(self, range_tlui):
+        copied = add_and_join_ranges(range_tlui, [(0, 10), (10, 20)])
+        range_tlui.timeline.set_component_data(copied[0].id, "label", "first")
+        range_tlui.timeline.set_component_data(copied[1].id, "label", "second")
+        for element in copied:
+            range_tlui.select_element(element)
+        commands.execute("timeline.component.copy")
+
+        target = self.paste_onto(range_tlui, 50, 55)
+
+        pasted = next(e for e in range_tlui if e.get_data("start") == 55)
+        assert target.get_data("label") == "first"
+        assert pasted.get_data("label") == "second"
+
+    def test_undo_and_redo(self, range_tlui):
+        self.copy_joined(range_tlui, [(0, 10), (10, 20)])
+        commands.execute("timeline.range.add_range", start=50, end=55)
+        target = next(e for e in range_tlui if e.get_data("start") == 50)
+        range_tlui.select_element(target)
+
+        with undoable():
+            commands.execute("timeline.component.paste")
+            assert self.chain_from(range_tlui, target) == [(50, 55), (55, 65)]
+
+    def test_a_second_past_the_media_s_end_refuses_the_paste(
+        self, range_tlui, tilia_state, tilia_errors
+    ):
+        # Pasted onto 90–95 of 100 s, the second range would be 95–105. Refused,
+        # with the core's reason, until TimeLineAnnotator/project-management#654.
+        tilia_state.duration = 100
+        self.copy_joined(range_tlui, [(0, 10), (10, 20)])
+        commands.execute("timeline.range.add_range", start=90, end=95)
+        target = next(e for e in range_tlui if e.get_data("start") == 90)
+        range_tlui.select_element(target)
+        before = get(Get.APP_STATE)["timelines"]
+        row_id = target.get_data("row_id")
+        rows = before[range_tlui.id]["rows"]
+        reason = rules.range_(
+            100, [], {"start": 95, "end": 105, "row_id": row_id}, rows=rows
+        ).reason
+
+        commands.execute("timeline.component.paste")
+
+        assert tilia_errors.errors == [
+            {"title": tilia.errors.EDIT_REFUSED.title, "message": reason}
+        ]
+        assert get(Get.APP_STATE)["timelines"] == before
+
+    def test_a_pre_start_before_0_refuses_the_paste(
+        self, range_tlui, tilia_state, tilia_errors
+    ):
+        # The second range, 60–70, has a pre-start at 52: pasted onto 3–4, it
+        # would start at 4 with a pre-start at -4. Refused, with the core's
+        # reason, until TimeLineAnnotator/project-management#654.
+        tilia_state.duration = 100
+        copied = add_and_join_ranges(range_tlui, [(50, 60), (60, 70)])
+        range_tlui.timeline.set_component_data(copied[1].id, "pre_start", 52)
+        post(Post.APP_STATE_RECORD, "pre-start")
+        for element in copied:
+            range_tlui.select_element(element)
+        commands.execute("timeline.component.copy")
+        range_tlui.deselect_all_elements()
+        commands.execute("timeline.range.add_range", start=3, end=4)
+        target = next(e for e in range_tlui if e.get_data("start") == 3)
+        range_tlui.select_element(target)
+        before = get(Get.APP_STATE)["timelines"]
+        rows = before[range_tlui.id]["rows"]
+        reason = rules.range_(
+            100,
+            [],
+            {"start": 4, "end": 14, "pre_start": -4, "row_id": rows[0]["id"]},
+            rows=rows,
+        ).reason
+
+        commands.execute("timeline.component.paste")
+
+        assert tilia_errors.errors == [
+            {"title": tilia.errors.EDIT_REFUSED.title, "message": reason}
+        ]
+        assert get(Get.APP_STATE)["timelines"] == before
 
 
 class TestCut:

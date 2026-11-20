@@ -419,13 +419,31 @@ class RangeTimelineUI(TimelineUI):
             old_to_new[anchor_context["id"]] = first.id
         old_joined_right_pairs = [(first.id, anchor_context.get("joined_right"))]
 
+        joined = anchor_context.get("joined_right") is not None and any(
+            d["context"].get("id") == anchor_context["joined_right"]
+            for d in paste_data[1:]
+        )
+        if joined:
+            # The selected range keeps its times, and the range the first one
+            # joins starts where it ends, so that the join holds; the others keep
+            # their distances from it (TimeLineAnnotator/project-management#648,
+            # b). They are made as they are: one the rules refuse, such as one
+            # past the media's end, refuses the paste with the core's reason
+            # rather than leaving out the join
+            # (TimeLineAnnotator/project-management#654).
+            reference_time, target_time = anchor_context["end"], first.get_data("end")
+        else:
+            reference_time = anchor_context["start"]
+            target_time = first.get_data("start")
+
         self._create_pasted_ranges(
             paste_data[1:],
-            anchor_context["start"],
-            first.get_data("start"),
+            reference_time,
+            target_time,
             first.get_data("row_id"),
             old_to_new=old_to_new,
             old_joined_right_pairs=old_joined_right_pairs,
+            checked=not joined,
         )
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict) -> None:
@@ -451,6 +469,7 @@ class RangeTimelineUI(TimelineUI):
         row_id: str,
         old_to_new: dict | None = None,
         old_joined_right_pairs: list[tuple] | None = None,
+        checked: bool = True,
     ) -> None:
         old_to_new = {} if old_to_new is None else old_to_new
         old_joined_right_pairs = (
@@ -479,6 +498,7 @@ class RangeTimelineUI(TimelineUI):
                 start=new_start,
                 end=new_start + duration,
                 row_id=row_id,
+                checked=checked,
                 **d["values"],
                 **d["context"],
                 **extension_kwargs,

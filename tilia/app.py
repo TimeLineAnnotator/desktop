@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import re
 import traceback
 from collections.abc import Mapping
@@ -19,13 +20,15 @@ from tilia.media.loader import load_media
 from tilia.requests import Get, Post, get, listen, long_operation, post, serve
 from tilia.settings import settings
 from tilia.timelines.collection.collection import Timelines
+from tilia.timelines.edit_gate import EditGate, changed_components
+from tilia.timelines.pdf.timeline import PdfTimeline
 from tilia.timelines.slider.timeline import SliderTimeline
 from tilia.ui import commands
 from tilia.ui.format import format_media_time
 from tilia.ui.strings import SCALE_TIMELINE_PROMPT
 from tilia.undo_manager import PauseUndoManager
 from tilia.utils import get_tilia_class_string
-from tilia_core import tla
+from tilia_core import rules, tla
 
 if TYPE_CHECKING:
     from tilia.clipboard import Clipboard
@@ -50,6 +53,8 @@ class App:
         self.player = player
         self.duration = 0.0
         self.should_scale_timelines = "prompt"
+        # The check at the end of each action (FR-062, FR-070).
+        self.edit_gate = EditGate()
         self._setup_timelines()
         self.file_manager.file.timelines_hash = self.get_timelines_state()[1]
         self._setup_requests()
@@ -339,6 +344,8 @@ class App:
         # exact. The document gets back what it held in `state`, which undo
         # recorded and the state alone can't tell.
         self.sync_document(by_person=False, back_to=state)
+        # Undo and redo aren't checked: they go back to states accepted.
+        self.edit_gate.accepted = state
 
     def recover_to_state(self, state: dict) -> None:
         """
@@ -356,25 +363,103 @@ class App:
         self.file_manager.give_back_file(kept)
         self._restore_app_state(state)
         self.sync_document(by_person=False)
+        self.edit_gate.accepted = state
 
     def on_record_state(self, action, no_repeat=False, repeat_identifier=""):
+        if not self.undo_manager.is_recording:
+            # An undo or a redo restoring a state, which syncs once it has, or a part
+            # of an action that pauses undo: the action is checked when it ends.
+            return
         state = self.get_app_state()
+        if not self._end_action(state):
+            return
         self.undo_manager.record(
             state,
             action,
             no_repeat=no_repeat,
             repeat_identifier=repeat_identifier,
         )
-        if self.undo_manager.is_recording:
-            # A person's action, which the document follows at once. While the undo
-            # manager doesn't record, an undo or a redo is restoring a state, and
-            # syncs once it has.
-            self.file_manager.file.sync(state)
-            self._remember(state)
+        self._remember(state)
 
     def on_edit_done(self) -> None:
         """The end of a command on the command line, which records nothing."""
-        self.sync_document()
+        self._end_action(self.get_app_state())
+
+    def _end_action(self, state: dict) -> bool:
+        """Whether the core's rules accept what a person's action leaves, `state`
+        (FR-062, FR-070). Accepted, the document follows it, and keeps the problems
+        a component still has that the action fixed in part. Refused, the timelines
+        go back to the state last accepted, and the rule's reason is shown."""
+        verdict = self.edit_gate.check(
+            state,
+            media_length=self._media_length_for_rules(state),
+            page_counts=self._page_counts(),
+            numbered=self._numbered_beats(),
+        )
+        if verdict.reason is not None:
+            self._refuse(verdict.reason)
+            return False
+        file = self.file_manager.file
+        # A person's action, which the document follows at once.
+        file.sync(state)
+        if verdict.kept:
+            file.keep_read_problems(component_id for _, component_id in verdict.kept)
+        self.edit_gate.accepted = state
+        return True
+
+    def _refuse(self, reason: str) -> None:
+        """Takes the timelines back to the state last accepted, as an undo would,
+        and says why. Only the timelines: what else the state holds, such as the
+        file's fields, the gate doesn't check, and stays as it is."""
+        accepted = self.edit_gate.accepted
+        try:
+            with PauseUndoManager():
+                self.timelines.restore_state(accepted["timelines"])
+        except Exception:
+            logger.exception("Taking the timelines back to the state accepted.")
+            self.recover_to_state(accepted)
+        tilia.errors.display(tilia.errors.EDIT_REFUSED, reason)
+        post(Post.APP_EDIT_REFUSED, reason)
+
+    def _media_length_for_rules(self, state: dict) -> float:
+        """The media length the document has once it follows `state`, as a write
+        checks times with it: `math.inf` when it is unknown, or isn't one."""
+        file = self.file_manager.file
+        length = state["media_metadata"].get("media length")
+        synced = file.synced
+        if synced is not None and length == synced["media_metadata"].get(
+            "media length"
+        ):
+            # Unchanged, or the player's report for the media the file has: the
+            # document keeps its own (FR-034).
+            length = file.document.media_length
+        if not length or not rules.media_length(length):
+            return math.inf
+        return length
+
+    def _numbered_beats(self) -> dict[str, frozenset[str]]:
+        """By a beat timeline's id, the beats whose marks the document stores a
+        number on, which the bridge keeps and rewrites (`tla_bridge`'s
+        `_set_measure_number`)."""
+        return {
+            timeline.id: frozenset(
+                beat_id
+                for beat_id, beat in timeline.components.items()
+                if isinstance(beat.attrs.get("measure"), dict)
+                and "number" in beat.attrs["measure"]
+            )
+            for timeline in self.file_manager.file.document.timelines.values()
+            if timeline.kind == "beat"
+        }
+
+    def _page_counts(self) -> dict[str, float]:
+        """Each PDF timeline's page count, by its id: `math.inf` when its PDF wasn't
+        found, as the upper bound can't be known then."""
+        return {
+            timeline.id: timeline.page_total if timeline.is_pdf_valid else math.inf
+            for timeline in self.timelines
+            if isinstance(timeline, PdfTimeline)
+        }
 
     def sync_document(
         self, *, by_person: bool = True, back_to: dict | None = None
@@ -453,8 +538,28 @@ class App:
                 self.timelines.scale_timeline_components(duration / self.duration)
             elif crop_or_scale == "crop":
                 self.timelines.crop_timeline_components(duration)
+            if crop_or_scale:
+                self._accept_scale_or_crop()
 
         self.duration = duration
+
+    def _accept_scale_or_crop(self) -> None:
+        """A scale or a crop to the media's new length, as the person answered,
+        isn't checked as an edit of the components it moves: TiLiA leaves none past
+        the new end (FR-034). The document follows it at once, and the problems those
+        components came with stay ones they came with, so that a save doesn't refuse
+        them. Undo is left as it was: whether it can go back past the answer is
+        TimeLineAnnotator/project-management#642's."""
+        if not self.undo_manager.is_recording:
+            # An undo restoring a state, which syncs once it has.
+            return
+        accepted = self.edit_gate.accepted
+        state = self.get_app_state()
+        file = self.file_manager.file
+        file.sync(state)
+        if accepted is not None:
+            file.keep_read_problems(changed_components(accepted, state))
+        self.edit_gate.accepted = state
 
     @staticmethod
     def prompt_scale_timelines(prev_duration: float, new_duration: float) -> bool:
@@ -561,6 +666,7 @@ class App:
             self.player.clear()
             self.set_file_media_duration(0.0)
         self.undo_manager.clear()
+        self.edit_gate.accepted = self.get_app_state()
         post(Post.REQUEST_CLEAR_UI)
 
     def reset_undo_manager(self):
@@ -568,6 +674,9 @@ class App:
         state = self.get_app_state()
         self.undo_manager.record(state, "file start")
         self._remember(state)
+        # What the file opened with, or a new one, is what the next action is
+        # compared with: the problems a file came with aren't the action's.
+        self.edit_gate.accepted = state
 
     def restore_player_state(self, media_path: str, duration: float) -> None:
         if self.player.media_path == media_path:
@@ -669,6 +778,7 @@ class _OpenBefore:
         self.should_scale_timelines = app.should_scale_timelines
         undo = app.undo_manager
         self.undo = undo.stack, undo.current_state_index, undo.last_repeat_id
+        self.accepted = app.edit_gate.accepted
         # Before the clearing: unsaved changes are copied to an autosave, where
         # they are kept if the file can't be given back (FR-012).
         self.autosave_path: Path | None = (
@@ -722,6 +832,7 @@ class _OpenBefore:
         app.cur_file_path = self.file_path
         undo = app.undo_manager
         undo.stack, undo.current_state_index, undo.last_repeat_id = self.undo
+        app.edit_gate.accepted = self.accepted
 
     def _restore(self) -> None:
         app = self.app
