@@ -297,6 +297,45 @@ class TestExportedPositions:
             for h in sorted(hierarchies, key=lambda h: h["start"])
         ] == [(2, 2.5, 6, 1.5, [3, 3.0]), (4, 1.5, 6, 1.5, [2, 0.0])]
 
+    @pytest.mark.parametrize(
+        "start, end, exported",
+        [
+            (0.9, 8.1, (1, 2.5, 4, 2.5, [3, 0.0])),
+            (2.7, 5.1, (2, 1.5, 3, 1.5, [1, 0.0])),
+            (2.1, 11.7, (1, 4.5, 5, 4.5, [4, 0.0])),
+        ],
+    )
+    def test_a_length_in_measures_agrees_with_the_beats_exported(
+        self, tilia, beat_tl, hierarchy_tl, tmp_path, start, end, exported
+    ):
+        # The arithmetic puts the end's beat a hair below the start's: the length
+        # is taken from the beats as exported, so it borrows no measure.
+        self.add_beats(beat_tl, [place * 0.6 for place in range(40)])
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, start, end, 1)
+
+        (h,) = self.export(tmp_path)["Hierarchy"]
+
+        assert (
+            h["start_measure"],
+            h["start_beat"],
+            h["end_measure"],
+            h["end_beat"],
+            h["length_in_measures"],
+        ) == exported
+
+    def test_a_length_in_measures_of_exported_beats_to_a_millionth(
+        self, tilia, beat_tl, hierarchy_tl, tmp_path
+    ):
+        # A beat every 10 s: 1 s and 3 s are beats 1.1 and 1.3, and 1.3 less 1.1
+        # is 0.20000000000000018 in floating point.
+        self.add_beats(beat_tl, range(0, 100, 10))
+        hierarchy_tl.create_component(ComponentKind.HIERARCHY, 1.0, 3.0, 1)
+
+        (h,) = self.export(tmp_path)["Hierarchy"]
+
+        assert (h["start_beat"], h["end_beat"]) == (1.1, 1.3)
+        assert h["length_in_measures"] == [0, 0.2]
+
 
 class TestExportImage:
     @staticmethod

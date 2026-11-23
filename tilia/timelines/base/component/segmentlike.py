@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import functools
 from typing import Iterable, TypeVar
 
@@ -31,7 +32,10 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         # Either may lie off the time map.
         if start_metric_position is None or end_metric_position is None:
             return None
-        return end_metric_position - start_metric_position
+        # From the beats as the export writes them, so that the length agrees with
+        # them: an end whose beat the arithmetic puts a hair below the start's
+        # borrows no measure.
+        return _as_exported(end_metric_position) - _as_exported(start_metric_position)
 
     @property
     def length_in_measures(self) -> tuple[int, float] | None:
@@ -133,6 +137,13 @@ class SegmentLikeTimelineComponent(TimelineComponent):
                 f"There is already a {cls.frontend_name()} component at the selected position.",
             )
         return True, ""
+
+
+def _as_exported(position: MetricPosition) -> MetricPosition:
+    """`position` with its beat as the export writes it, to a millionth of a beat."""
+    return dataclasses.replace(
+        position, beat=round(position.beat, EXPORTED_BEAT_PLACES)
+    )
 
 
 def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:

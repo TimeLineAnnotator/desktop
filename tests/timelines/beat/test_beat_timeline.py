@@ -651,6 +651,18 @@ class TestAddMeasureZero:
         assert timeline.add_measure_zero(0.5) == self.REFUSED
         assert len(timeline) == 12
 
+    def test_refused_when_measure_2_is_a_cadenza(self, qtui, tls, tmp_path):
+        # A cadenza takes the number after measure 1, as TiLiA shows it, but the
+        # core finds no cadenza by its number.
+        def a_cadenza(content):
+            content["components"][an_id(104)]["measure"] = {"cadenza": True}
+
+        timeline = self.open_beats(tmp_path, a_cadenza)
+        assert timeline.measure_numbers == [1, 2, 3]
+
+        assert timeline.add_measure_zero(0.5) == self.REFUSED
+        assert len(timeline) == 12
+
     def test_refused_with_a_table_the_core_can_t_map(self, qtui, tls, tmp_path):
         def a_beat_without_a_time(content):
             content["components"][an_id(199)] = {"kind": "BEAT"}
