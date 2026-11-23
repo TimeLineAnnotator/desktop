@@ -67,12 +67,24 @@ class TiliaLogger(logging.Logger):
             release=f"{APP_NAME}@{VERSION}",
             integrations=[
                 sentry_sdk.integrations.logging.LoggingIntegration(
-                    level=logging.WARNING,  # Capture level and above as breadcrumbs
-                    event_level=logging.CRITICAL,  # Send records as events
+                    breadcrumb_level=logging.WARNING,  # Records as breadcrumbs
+                    event_level=logging.CRITICAL,  # Records as events
+                    level=None,  # No records as Sentry Logs
                 ),
             ],
             default_integrations=False,
-            send_default_pii=True,
+            # A message event carries no stack trace.
+            attach_stacktrace=False,
+            # The other defaults collect what send_default_pii=True did in
+            # sentry-sdk 2.x. The variables of an exception's stack frames are
+            # filtered, as 2.x's event scrubber filtered them: "cookie" and
+            # "symfony" are on 2.x's list but not covered by 3.x's own terms.
+            data_collection={
+                "stack_frame_variables": {
+                    "mode": "denylist",
+                    "terms": ["cookie", "symfony"],
+                },
+            },
             traces_sample_rate=1.0,
             environment=env,
         )
@@ -104,7 +116,6 @@ class TiliaLogger(logging.Logger):
         sentry_sdk.get_global_scope().add_attachment(
             path=file_handler.baseFilename,
             content_type="text/plain",
-            add_to_transactions=True,
         )
 
     def on_settings_updated(self):
@@ -119,7 +130,6 @@ class TiliaLogger(logging.Logger):
             filename=f"dump_{next(self._dump_count)}.tla",
             bytes=dumps(app_state).encode("utf-8"),
             content_type="text/json",
-            add_to_transactions=True,
         )
 
 
