@@ -272,18 +272,33 @@ def assert_the_same_components(held: dict, old: dict, ids: Ids) -> None:
             } == expected, f"component {old_id}"
 
 
+class Answering(Serve):
+    """Answers the questions before saving with `answer`, keeping each one's title."""
+
+    def __init__(self, answer: str):
+        super().__init__(Get.FROM_USER_CHOICE, answer)
+        self.titles: list[str] = []
+
+    def _callback(self, title, *_, **__):
+        self.titles.append(title)
+        return self.return_value
+
+
 def assert_first_save_is_what_tilia_migrate_writes(old: Path, folder: Path) -> None:
     """Opens a copy of `old` in TiLiA and saves it, and has `tla.migrate_folder` write
     another, each in a folder of its own in `folder`, so that the paths they store are
-    the same."""
+    the same. The first save of an old file asks first, and a person converting the
+    file answers Save (TimeLineAnnotator/project-management#453)."""
     (folder / "saved").mkdir()
     (folder / "migrated").mkdir()
     saved = Path(shutil.copy(old, folder / "saved"))
     migrated = Path(shutil.copy(old, folder / "migrated"))
     assert open_file(saved)
 
-    assert commands.execute("file.save")
+    with Answering("Save") as answering:
+        assert commands.execute("file.save")
 
+    assert answering.titles == ["Save in the new format"]
     (result,) = tla.migrate_folder(migrated.parent, apply=True).files
     assert result.outcome == tla.Outcome.MIGRATED
     assert saved.read_bytes() == migrated.read_bytes()
