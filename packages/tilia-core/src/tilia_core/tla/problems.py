@@ -47,10 +47,11 @@ that a component with two can be fixed one at a time (WP6's FR-062), and then
 calls `keep_read_problems`: the problems the component still has, which it was
 read with, are old as it now is too, beside what it was read as, which an undo
 gives back (TimeLineAnnotator/project-management#439). A place can so have more
-than one state that is old. With no media length read, a time it keeps past the
-end is judged at the length written, not the one at the call, so that no
-detour through another length keeps what a write at that length refuses
-(TimeLineAnnotator/project-management#614, option c).
+than one state that is old. For the component's times past the end, the call
+keeps its state, whatever the length then, and a write judges them at the
+length it writes with, so that no order of edits, calls and lengths keeps or
+refuses what the same edit made at that length doesn't
+(TimeLineAnnotator/project-management#614, option c; #659 and #665, option b).
 """
 
 from __future__ import annotations
@@ -59,7 +60,7 @@ import dataclasses
 import json
 import math
 import threading
-from collections.abc import Callable, Container, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any, cast
 
 from tilia_core import rules
@@ -250,17 +251,17 @@ def new_problems(
     changed or been added, and is given with those others alone. Its code and
     its place decide: what it reads is its reason, and it may read otherwise.
     What an edit kept old (`keep_old`, `keep_read_problems`) is among `read`,
-    beside what was read, which an undo gives back. A time past the end on a
-    component read with no media length is old as `_uncompared_past_the_end`
-    says, at the length `document` has."""
+    beside what was read, which an undo gives back. A time past the end is old
+    as `_old_past_the_end` says, at the length `document` has, where it
+    decides."""
     was = _Read(read)
     new = []
     for problem in written:
-        uncompared = _uncompared_past_the_end(
-            problem, document, read_unmeasured, unmeasured_edits, was.kept_past
+        old = _old_past_the_end(
+            problem, document, read_unmeasured, unmeasured_edits, was
         )
-        if uncompared is not None:
-            if not uncompared:
+        if old is not None:
+            if not old:
                 new.append(problem)
             continue
         if not was.has(problem):
@@ -407,38 +408,46 @@ def _has_unmeasured(document: Document) -> bool:
     )
 
 
-def _uncompared_past_the_end(
+def _old_past_the_end(
     problem: ReadProblem,
     document: Document,
     read_unmeasured: Mapping[str, str],
     unmeasured_edits: Mapping[str, Iterable[tuple[str, str]]],
-    kept: Container[tuple[str, str]],
+    was: _Read,
 ) -> bool | None:
-    """For a time past the end of `document`'s media length, on a component
-    read with no media length, or last written with none: whether it is old,
-    never having been compared with a length. None for any other problem, and
-    for one on a component in a state neither below gives, which is compared
-    as every other is.
+    """For a time past the end of `document`'s media length, where that length
+    decides it: whether it is old. None for any other problem, and for one in
+    a state neither below gives, which is compared as every other is.
 
-    In a state it was read in, or that an edit of `tla.edits` kept from one
-    (`_uncompared`), it is old, by whichever of its times
-    (TimeLineAnnotator/project-management#496, point 1, option B). In a state
-    `keep_read_problems` kept a time of it past the end in (`kept`, by place
-    and state), it is judged at the length `document` has, the one written,
-    not the one the call was made at: old only while the component as it was
-    read is past that length by the same rule
-    (TimeLineAnnotator/project-management#614, option c). So shortening the
-    length, editing and calling, then lengthening it again, leaves nothing a
-    write at the longer one wouldn't refuse."""
+    On a component read with no media length, or last written with none, in a
+    state it was read in, or that an edit of `tla.edits` kept from one
+    (`_uncompared`), it is old by whichever of its times, never having been
+    compared with a length (TimeLineAnnotator/project-management#496, point
+    1, option B).
+
+    In a state `keep_read_problems` was called in (`_Read.kept_past`), it is
+    judged at the length `document` has, the one written, whatever the length
+    at the call, none included (TimeLineAnnotator/project-management#665,
+    option b). With no media length read, it is old only while the component
+    as it was read is past that length by the same rule
+    (TimeLineAnnotator/project-management#614, option c); with one, only by a
+    rule the component was read past the end by
+    (TimeLineAnnotator/project-management#587 and #659, option b). So no order
+    of edits, calls and lengths keeps or refuses what the same edit made at the
+    length written doesn't."""
     if problem.code != rules.PAST_MEDIA_END:
         return None
     states = _uncompared(problem.place, read_unmeasured, unmeasured_edits)
-    if not states:
-        return None  # read with a length, or added since
     if problem.state in states:
         return True
-    if (problem.place, problem.state) not in kept:
-        return None
+    if (problem.place, problem.state) not in was.kept_past or (
+        problem.place,
+        problem.code,
+        problem.state,
+    ) in was.read:
+        return None  # not kept, or as it was read: by whichever of its times
+    if not states:  # read with a length
+        return problem.about in was.read_past.get(problem.place, ())
     timeline_id, _ = ids_at(problem.place)
     assert timeline_id is not None  # a component's place
     return any(
@@ -552,20 +561,24 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     one of its code, about the same, on the component: another of that code
     that the edit adds elsewhere on it, such as a negative pre_start beside the
     negative start it was read with, is new
-    (TimeLineAnnotator/project-management#557). A time past the end is so kept
-    by the rule the component was read past the end by, whatever length the
-    document is written at: one that a length given since, before the call or
-    after it, puts past the end by another rule is new
-    (TimeLineAnnotator/project-management#587 and #659, option b). In a
-    document read with no media length, whose times weren't compared with any,
-    a time past the end of the length it now has is kept too, and judged when
-    the document is written, at the length it then has, not the one it has at
-    the call: it stays old only while the component as it was read is past that
-    length by the same rule, and so does any other of its times past it, in the
-    state it was kept in (TimeLineAnnotator/project-management#614, option c).
-    A call with nothing of the component past the end keeps none of its times
-    past the end. A
-    problem between the component and others, such as a crossing, is kept when
+    (TimeLineAnnotator/project-management#557).
+
+    For its times past the end, the call keeps the component's state, whatever
+    the length the document has at the call, none included, and a write judges
+    them at the length it writes with (TimeLineAnnotator/project-management#665,
+    option b). With a media length read, a time past the end in that state is
+    old only by a rule the component was read past the end by: one that a
+    length given since, before the call or after it, puts past the end by
+    another rule is new (TimeLineAnnotator/project-management#587 and #659,
+    option b). With none read, whose times weren't compared with any, it is old
+    only while the component as it was read is past that length by the same
+    rule (TimeLineAnnotator/project-management#614, option c). So no order of
+    edits, calls and lengths keeps or refuses what the same edit made at the
+    length written doesn't. The state is kept only where it can matter: on a
+    component read with no length, or read past the end, and not as it was
+    read.
+
+    A problem between the component and others, such as a crossing, is kept when
     it was read between them by the same rule, whichever of them it was named
     on, with the others as they were then; its join, when it was read joining the
     same range, as that range was. A join to it is the problem of the range that
@@ -574,10 +587,11 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     the component was read as stays old too, as an undo gives it back, until a
     write.
 
-    A component that no problem read is about, and that is either in a document
-    with no media length or was read with one, has nothing to keep, and is
-    found so without checking anything: a document made in memory has nothing
-    read at all. Otherwise the component's timeline is checked as a write
+    A component that no problem read is about, read with a media length, has
+    nothing to keep, and is found so without checking anything: a document made
+    in memory has nothing read at all. One read with no length always has its
+    times past the end to keep. Otherwise the component's timeline is checked
+    as a write
     checks it, with the beat timeline it names as its measure table. Raises
     `KeyError` for a component the document doesn't have. For that timeline,
     with its measure table, it raises what `write` raises, with the same place
@@ -600,15 +614,41 @@ def keep_read_problems(document: Document, component_id: str) -> None:
     held = pointer_to(pointer_to("/timelines", timeline_id), "components")
     place = pointer_to(held, component_id)
     was = _Read(document.read_problems)
-    if place not in was.places and (
-        document.media_length is None
-        or not _uncompared(place, document.read_unmeasured, document.unmeasured_edits)
-    ):
+    uncompared = _uncompared(place, document.read_unmeasured, document.unmeasured_edits)
+    if place not in was.places and not uncompared:
         return  # nothing read about it
     written = _as_written(document, timeline_id)
     found = find_problems(written)
     kept = []
+    # Its state, for its times past the end, whatever the length now, none
+    # included: a write judges them at the length it writes with
+    # (`_old_past_the_end`). Kept as a problem past the end about nothing, so
+    # that it follows the document as the problems kept do. Not where it would
+    # change nothing: as it was read, where they are old anyway, and read with
+    # a length and within it, where none of them can be.
+    as_it_is = _component_state(
+        written.timelines[timeline_id].components[component_id],
+        place,
+        TIMELINE_COMPONENTS.get(written.timelines[timeline_id].kind, frozenset()),
+    )
+    if (
+        (uncompared or place in was.read_past)
+        and as_it_is not in uncompared
+        and (place, rules.PAST_MEDIA_END, as_it_is) not in was.read
+        and (place, as_it_is) not in was.kept_past
+    ):
+        kept.append(
+            ReadProblem(
+                code=rules.PAST_MEDIA_END,
+                reason="",
+                place=place,
+                state=as_it_is,
+                kept=True,
+            )
+        )
     for problem in found:
+        if problem.code == rules.PAST_MEDIA_END:
+            continue  # its state is kept above
         between = _between(problem)
         if problem.place == place:
             if between:
@@ -616,16 +656,7 @@ def keep_read_problems(document: Document, component_id: str) -> None:
                     was.at_odds(problem, at, state) for at, state in between
                 )
             else:
-                # Past the end, read with no length: kept, and judged when the
-                # document is written, at the length it then has.
-                came_with = (place, problem.code, problem.about) in was.codes or (
-                    problem.code == rules.PAST_MEDIA_END
-                    and bool(
-                        _uncompared(
-                            place, document.read_unmeasured, document.unmeasured_edits
-                        )
-                    )
-                )
+                came_with = (place, problem.code, problem.about) in was.codes
         elif problem.joined is None and any(at == place for at, _ in between):
             # Named on another, which hasn't changed.
             came_with = was.has(problem) and all(
@@ -640,10 +671,6 @@ def keep_read_problems(document: Document, component_id: str) -> None:
             continue  # new, or new with another
         if was.has(problem) and not was.changed(problem):
             continue  # old as it is
-        if problem.code == rules.PAST_MEDIA_END and problem.state in _uncompared(
-            problem.place, document.read_unmeasured, document.unmeasured_edits
-        ):
-            continue  # old as it is: its time wasn't compared with any
         kept.append(dataclasses.replace(problem, kept=True))
     if kept:
         document.read_problems = [*document.read_problems, *kept]
@@ -654,9 +681,10 @@ def past_a_first_length(document: Document) -> list[ReadWarning]:
     has one now: a warning for each of its components' times past that length
     which a write keeps as old, never having been compared with a length
     (FR-054; TimeLineAnnotator/project-management#496, point 1, option B):
-    those of the components as they were read, and those
-    `keep_read_problems` kept past the end that the component as it was read is
-    past by the same rule (TimeLineAnnotator/project-management#614, option c).
+    those of the components as they were read, and, in a state
+    `keep_read_problems` was called in, whatever the length then, those the
+    component as it was read is past by the same rule
+    (TimeLineAnnotator/project-management#614, option c, and #665, option b).
     A time past the end that a write refuses isn't one of them.
 
     Each warning is the one a file written now would be read with: its rule's
@@ -681,17 +709,17 @@ def past_a_first_length(document: Document) -> list[ReadWarning]:
 
     data = checked_bytes(document)
     written = written_document(data)
-    kept = _Read(document.read_problems).kept_past
+    was = _Read(document.read_problems)
     return warnings_of(
         [
             problem
             for problem in find_problems(written)
-            if _uncompared_past_the_end(
+            if _old_past_the_end(
                 problem,
                 written,
                 document.read_unmeasured,
                 document.unmeasured_edits,
-                kept,
+                was,
             )
         ],
         data,
@@ -761,14 +789,17 @@ class _Read:
     def __init__(self, read: list[ReadProblem]) -> None:
         self.problems: set[tuple[str, str, str]] = set()
         self.read: set[tuple[str, str, str]] = set()  # not kept
-        # Those kept, each told apart within its component by `about` too. A
-        # time kept past the end is so old by the rule it was read past the end
-        # by, at whatever length: one that another length puts past it by
-        # another rule is new (TimeLineAnnotator/project-management#659).
+        # Those kept, each told apart within its component by `about` too.
         self.kept_problems: set[tuple[str, str, str, str]] = set()
-        # The places and states one was kept past the end in, which, read with
-        # no media length, `_uncompared_past_the_end` judges.
+        # The places and states a time past the end is kept in, by
+        # `keep_read_problems` or an edit of `tla.edits`, which a write judges
+        # at the length it writes with (`_old_past_the_end`).
         self.kept_past: set[tuple[str, str]] = set()
+        # By place, what of each component was read past the end, each as its
+        # rule's `about`: with a media length read, a time kept past the end is
+        # old by those rules alone, at whatever length
+        # (TimeLineAnnotator/project-management#659).
+        self.read_past: dict[str, set[str]] = {}
         self.codes: set[tuple[str, str, str]] = set()
         self.places: set[str] = set()
         self.states: dict[str, str] = {}
@@ -795,15 +826,16 @@ class _Read:
                 self.read.add((problem.place, problem.code, problem.state))
                 self.states[problem.place] = problem.state
                 self.states.update(between)
+                if problem.code == rules.PAST_MEDIA_END:
+                    self.read_past.setdefault(problem.place, set()).add(problem.about)
 
     def has(self, problem: ReadProblem) -> bool:
         """Whether `problem` was read, or kept, on what it is about as it is.
         One read is told by its code alone, as FR-054 tells it on a component
         as it was read; one kept, on a component an edit fixed in part, by its
         `about` too, so that another of the same code that the edit added
-        elsewhere on it is new (TimeLineAnnotator/project-management#557), and
-        so is one that a length given since puts past the end by another rule
-        (TimeLineAnnotator/project-management#659)."""
+        elsewhere on it is new (TimeLineAnnotator/project-management#557). A
+        time past the end in a state one was kept in is `_old_past_the_end`'s."""
         if (problem.place, problem.code, problem.state) in self.read:
             return True
         key = (problem.place, problem.code, problem.about, problem.state)

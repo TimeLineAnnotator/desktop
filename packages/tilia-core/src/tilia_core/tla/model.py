@@ -219,13 +219,16 @@ class ReadProblem:
     that an edit kept it old, with what it is about as the edit left it (an
     edit of `tla.edits`, or one `keep_read_problems` was called for): its states
     are old for this problem alone, where those of a problem read are old for
-    every problem about the same components. A time kept past the end is
-    judged at the length written: with a length read, it is old by the rule it
-    was read past the end by, and one that another length puts past it by
-    another rule is new (TimeLineAnnotator/project-management#659, option b);
-    with none read, it is old while the component as it was read is past that
-    length by the same rule (TimeLineAnnotator/project-management#614,
-    option c).
+    every problem about the same components. For the component's times past
+    the end, `keep_read_problems` keeps its state, whatever the length at the
+    call, as a kept problem of the code `past_media_end` about nothing (`about`
+    and `reason` empty): a write judges a time past the end in that state at
+    the length it writes with. With a length read, it is old by a rule the
+    component was read past the end by, and one that another length puts past
+    it by another rule is new (TimeLineAnnotator/project-management#659, option
+    b); with none read, it is old while the component as it was read is past
+    that length by the same rule (TimeLineAnnotator/project-management#614,
+    option c; #665, option b).
     """
 
     code: str

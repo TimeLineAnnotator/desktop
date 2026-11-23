@@ -3760,13 +3760,12 @@ class TestKeepReadProblems:
         ):
             written(other, tmp_path)
 
-    @pytest.mark.parametrize(
-        "length", [None, 100.0], ids=["with no length", "read with a length"]
-    )
-    def test_a_component_nothing_read_is_about_checks_nothing(
-        self, length, monkeypatch
-    ):
-        doc = tla.loads(a_file(together(with_media_length(length), LEVEL_0_BEFORE_0)))
+    def test_a_component_nothing_read_is_about_checks_nothing(self, monkeypatch):
+        # Read with a length and with no problem, nothing of it can be old.
+        # Read with none, its times were never compared with a length, so the
+        # call keeps its state for them, and checks it
+        # (TimeLineAnnotator/project-management#665).
+        doc = tla.loads(a_file(together(with_media_length(100.0), LEVEL_0_BEFORE_0)))
         changed(doc, CADENCE, CADENCES, label="A")
         monkeypatch.setattr(writer, "checked_bytes", None)  # any check fails
         tla.keep_read_problems(doc, CADENCE)
@@ -3886,18 +3885,19 @@ class TestKeptPastTheEndJudgedAtTheLengthWritten:
             "End time '150.0' is bigger than media time '100.0'"
         ]
 
-    @pytest.mark.parametrize("at_the_call", [30.0, 50.0, 100.0])
+    @pytest.mark.parametrize("at_the_call", [None, 30.0, 50.0, 100.0, 200.0])
     @pytest.mark.parametrize("length", [30.0, 50.0, 100.0])
     @READ_WITH
     def test_the_length_at_the_call_doesnt_count(
         self, read_with, length, at_the_call, tmp_path
     ):
         # From 10 to 40 at level 0; the level fixed and the end moved to 60, at
-        # one length, then written at another: as the same edit made at the
-        # length written. Its post_end, past the end at each length, is old.
-        # Its end past the end is old only with no length read, at 30, which
-        # the hierarchy as it was read is past by its end; at 100 its end is
-        # within it.
+        # one length or none, then written at another: as the same edit made
+        # at the length written, nothing of it past the end at the call
+        # included (TimeLineAnnotator/project-management#665, option b). Its
+        # post_end, past the end at each length, is old. Its end past the end
+        # is old only with no length read, at 30, which the hierarchy as it was
+        # read is past by its end; at 100 its end is within it.
         refusal = {
             (None, 30.0): [],
             (None, 50.0): ["End time '60.0' is bigger than media time '50.0'"],
@@ -3984,17 +3984,90 @@ class TestKeptPastTheEndJudgedAtTheLengthWritten:
     @pytest.mark.parametrize(
         "at_the_call", [None, 200.0], ids=["with no length", "with a longer one"]
     )
-    def test_a_call_with_nothing_past_the_end_keeps_no_time_past_it(
-        self, at_the_call, tmp_path
+    @READ_WITH
+    def test_a_call_with_nothing_past_the_end_keeps_its_state(
+        self, read_with, at_the_call, tmp_path
     ):
-        # The call keeps the times past the end at the length the document has
-        # then. With none, a time past a length given since is new on a
-        # component that has changed, as without the call.
+        # The call keeps the component's state for its times past the end
+        # whatever the length at the call, none included: written at 100, its
+        # post_end, past 100 as read, is old, as for the call made at 100
+        # (TimeLineAnnotator/project-management#665, option b).
         doc = tla.loads(
-            a_file(hierarchies((FIRST, at_level(10.0, 40.0, 0, post_end=150.0))))
+            a_file(
+                together(
+                    with_media_length(read_with),
+                    hierarchies((FIRST, at_level(10.0, 40.0, 0, post_end=150.0))),
+                )
+            )
         )
         doc.media_length = at_the_call
         fixed_in_part(doc, level=1)
+        doc.media_length = 100.0
+        read = tla.read(written(doc, tmp_path))
+        assert [w.message for w in read.warnings] == [POST_END_PAST]
+
+    def test_a_call_with_no_length_on_one_read_with_no_problem(self, tmp_path):
+        # Read with no length and no problem, its times were never compared
+        # with one: its state is kept with no length at the call too.
+        doc = tla.loads(a_file(TEN_TO_40))
+        fixed_in_part(doc, end=50.0)
+        doc.media_length = 100.0
+        read = tla.read(written(doc, tmp_path))
+        assert [w.message for w in read.warnings] == [POST_END_PAST]
+
+    @pytest.mark.parametrize("shorter", [False, True], ids=["at 100", "at 5"])
+    def test_unchanged_read_past_the_end_it_keeps_nothing_more(self, shorter, tmp_path):
+        # Read at 100 past the end by its end and its post_end: as it was read,
+        # it is old by whichever of its times (FR-054), at 5 by its start too,
+        # so the call has nothing to keep for them.
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(10.0, 150.0, 1, post_end=160.0))),
+                )
+            )
+        )
+        if shorter:
+            doc.media_length = 5.0
+        read = list(doc.read_problems)
+        tla.keep_read_problems(doc, FIRST)
+        assert doc.read_problems == read
+        written(doc, tmp_path)
+
+    def test_a_kept_state_taken_back_to_the_one_read(self, tmp_path):
+        # Read at 100 past the end by its post_end alone; fixed in part and
+        # kept. An edit of `tla.edits` that takes it back to the state it was
+        # read in keeps that state too (`keep_old`): as it was read, it is old
+        # by whichever of its times, its end past 50 included (FR-054).
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(100.0),
+                    hierarchies((FIRST, at_level(10.0, 90.0, 0, post_end=150.0))),
+                )
+            )
+        )
+        fixed_in_part(doc, level=1)
+        kept = problems.states_of(doc, FORM, [FIRST])
+        changed(doc, FIRST, level=0)
+        problems.keep_old(doc, FORM, kept)
+        doc.media_length = 50.0
+        written(doc, tmp_path)
+
+    @READ_WITH
+    def test_without_the_call_its_state_isnt_kept(self, read_with, tmp_path):
+        # The same component changed with no call: a time past the end is new
+        # on a component changed since it was read (FR-054).
+        doc = tla.loads(
+            a_file(
+                together(
+                    with_media_length(read_with),
+                    hierarchies((FIRST, at_level(10.0, 40.0, 1, post_end=150.0))),
+                )
+            )
+        )
+        changed(doc, FIRST, label="A")
         doc.media_length = 100.0
         assert [w.message for w in refused(doc, tmp_path)] == [POST_END_PAST]
 
@@ -4082,6 +4155,25 @@ class TestPastAFirstLength:
             == ["End time '150.0' is bigger than media time '100.0'"]
         )
         written(doc, tmp_path)
+
+    def test_one_kept_before_the_length_is_given_is_listed(self, tmp_path):
+        # A person fixes part of a component before the media reports its
+        # length, as a YouTube player does a moment after the file opens:
+        # listed and written as with the length first
+        # (TimeLineAnnotator/project-management#665, option b).
+        doc = tla.loads(
+            a_file(hierarchies((FIRST, at_level(10.0, 150.0, 0, pre_start=-5.0))))
+        )
+        fixed_in_part(doc, level=1)
+        doc.media_length = 100.0
+        assert [w.message for w in tla.past_a_first_length(doc)] == [
+            "End time '150.0' is bigger than media time '100.0'"
+        ]
+        read = tla.read(written(doc, tmp_path))
+        assert sorted(w.message for w in read.warnings) == [
+            "End time '150.0' is bigger than media time '100.0'",
+            "pre_start is outside media bounds.",
+        ]
 
     @pytest.mark.parametrize(
         "through", [None, 30.0], ids=["without the call", "through a length of 30"]
