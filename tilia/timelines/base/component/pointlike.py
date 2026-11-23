@@ -52,16 +52,23 @@ class PointLikeTimelineComponent(TimelineComponent):
         else:
             return True, ""
 
-    @staticmethod
-    def validate_time_is_inbounds(time: float) -> tuple[bool, str]:
+    @classmethod
+    def validate_time_is_inbounds(cls, time: float) -> tuple[bool, str]:
+        """The time is from 0 to the media's end. The texts are the core's, naming
+        the kind (WP16's contracts/rules.md, "A component's times")."""
         media_duration = get(Get.MEDIA_DURATION)
+        kind = cls.kind_shown()
         if time > media_duration:
             return (
                 False,
-                f"Time '{format_media_time(time)}' is bigger than media time '{format_media_time(media_duration)}'",
+                f"{kind} time '{format_media_time(time)}' is bigger than media time"
+                f" '{format_media_time(media_duration)}'",
             )
         elif time < 0:
-            return False, f"Time can't be negative. Got '{format_media_time(time)}'"
+            return (
+                False,
+                f"{kind} time can't be negative. Got '{format_media_time(time)}'",
+            )
         else:
             return True, ""
 

@@ -368,7 +368,7 @@ def test_the_report_lists_the_rules_a_migrated_file_breaks(tmp_path):
     marker, *broken = result.warnings
     assert 'holds a component of kind "MARKER"' in marker.message
     assert [w.message.partition(" (")[0] for w in broken] == [
-        "Component would overlap with existing component."
+        "Hierarchy would overlap with an existing hierarchy."
     ] * 2
 
 
@@ -395,11 +395,11 @@ def test_a_migrated_file_lists_only_the_rules_it_breaks_with_their_lines(tmp_pat
     assert marker.line == text.splitlines().index('        "999": {') + 1
     assert 'holds a component of kind "MARKER"' in marker.message
     assert [str(w) for w in broken] == [
-        "line 39: Component would overlap with existing component. (other components:"
-        " line 53, /timelines/1/components/3; line 67, /timelines/1/components/4;"
-        " line 81, /timelines/1/components/5)",
-        "line 53: Component would overlap with existing component. (other component:"
-        " line 81, /timelines/1/components/5)",
+        "line 39: Hierarchy would overlap with an existing hierarchy."
+        " (other components: line 53, /timelines/1/components/3;"
+        " line 67, /timelines/1/components/4; line 81, /timelines/1/components/5)",
+        "line 53: Hierarchy would overlap with an existing hierarchy."
+        " (other component: line 81, /timelines/1/components/5)",
     ]
 
 

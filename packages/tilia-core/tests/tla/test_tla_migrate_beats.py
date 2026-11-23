@@ -772,7 +772,7 @@ def test_a_beat_kept_past_the_end_breaks_the_rule_the_reader_warns_about():
         doc.media_length, beat_timeline_of(doc).components.values()
     )
     assert [check.outcome[1] for check in found.values() if not check.outcome] == [
-        "Time '00:11.5' is bigger than media time '00:10.0'"
+        "Beat time '00:11.5' is bigger than media time '00:10.0'"
     ]
 
 

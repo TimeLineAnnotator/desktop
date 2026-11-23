@@ -48,7 +48,7 @@ ROW = "aZ3k9P"
 HARMONIES = make_id(110)
 PDF = make_id(111)
 INSTALL = 'pip install "tilia-core[harmony]"'
-OVERLAP = "Component would overlap with existing component."
+OVERLAP = "Hierarchy would overlap with an existing hierarchy."
 
 
 def a_file(change=None):
@@ -208,6 +208,18 @@ class TestReading:
             )
         ]
 
+    def test_a_range_before_0_and_past_the_end_has_two_warnings_two_texts(self):
+        # WP16's example (`contracts/rules.md`, *A component's times*;
+        # TimeLineAnnotator/project-management#610): each starts with its line.
+        data = a_file(
+            together(with_media_length(100.0), ranges((FIRST, a_range(-1.0, 150.0))))
+        )
+        line = line_of(data, FIRST)
+        assert [str(w) for w in tla.loads(data).warnings] == [
+            f"line {line}: Range start can't be negative. Got '-00:01.0'",
+            f"line {line}: Range end '02:30.0' is bigger than media time '01:40.0'",
+        ]
+
     def test_each_pair_that_crosses_is_named_once(self):
         data = a_file(
             hierarchies(
@@ -325,7 +337,7 @@ class TestReading:
         data = a_file(hierarchies((FIRST, at_level(2.0, 3.0, 0, pre_start=2.5))))
         place = component_place(FORM, FIRST)
         line = line_of(data, FIRST)
-        after = "pre_start can't be after start time."
+        after = "Hierarchy pre-start '00:02.5' can't be after start '00:02.0'"
         assert tla.loads(data).warnings == [
             tla.ReadWarning(
                 place, line, LEVEL_BELOW_1, FORM, FIRST, reason=LEVEL_BELOW_1
@@ -430,7 +442,7 @@ class TestMediaLength:
             a_file(together(with_media_length(60.0), markers((FIRST, {"time": 61.0}))))
         )
         assert [w.message for w in doc.warnings] == [
-            "Time '01:01.0' is bigger than media time '01:00.0'"
+            "Marker time '01:01.0' is bigger than media time '01:00.0'"
         ]
 
     def test_with_an_unknown_length_no_time_is_beyond_it(self):
@@ -762,7 +774,7 @@ class TestWriting:
             tla.write(tmp_path / "piece.tla", doc)
         assert [w.message for w in refused.value.problems] == [
             "Level can't be below 1. Got '0'",
-            "Time can't be negative. Got '-00:01.0'",
+            "Marker time can't be negative. Got '-00:01.0'",
             "notacolor is not a valid color.",
         ]
 
@@ -1093,10 +1105,10 @@ class TestAnEditElsewhereIsNoNewProblem:
                 )
             )
         )
-        assert doc.warnings[0].message.startswith("End time")
+        assert doc.warnings[0].message.startswith("Hierarchy end ")
         doc.media_length = 85.0
         read = tla.read(written(doc, tmp_path))
-        assert read.warnings[0].message.startswith("Start time")
+        assert read.warnings[0].message.startswith("Hierarchy start ")
 
     @pytest.mark.parametrize("kind", PAST_THE_END)
     def test_a_length_first_learned_is_no_new_problem(self, kind, tmp_path):
@@ -1148,8 +1160,11 @@ class TestStillANewProblem:
     @pytest.mark.parametrize(
         "attrs, message",
         [
-            ({"time": -1.0}, "Time can't be negative. Got '-00:01.0'"),
-            ({"time": 150.0}, "Time '02:30.0' is bigger than media time '01:40.0'"),
+            ({"time": -1.0}, "Marker time can't be negative. Got '-00:01.0'"),
+            (
+                {"time": 150.0},
+                "Marker time '02:30.0' is bigger than media time '01:40.0'",
+            ),
             ({"time": 5.0, "color": "bad"}, "bad is not a valid color."),
         ],
     )
@@ -1218,13 +1233,13 @@ class TestStillANewProblem:
         doc = tla.loads(a_file())
         doc.timelines[CADENCES].components[CADENCE].attrs["time"] = -1.0
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "Time can't be negative. Got '-00:01.0'"
+            "Marker time can't be negative. Got '-00:01.0'"
         ]
 
     def test_a_component_with_a_problem_changed_breaks_another_rule(self, tmp_path):
         doc = tla.loads(a_file(LEVEL_0))
         doc.timelines[FORM].components[FIRST].attrs["end"] = -1.0
-        assert "End time '-1.0' should be bigger than start time '0.0'" in [
+        assert "Hierarchy end '-00:01.0' should be bigger than start '00:00.0'" in [
             w.message for w in refused(doc, tmp_path)
         ]
 
@@ -1296,13 +1311,13 @@ class TestStillANewProblem:
                 100.0,
                 20.0,
                 50.0,
-                "Time '00:50.0' is bigger than media time '00:20.0'",
+                "Marker time '00:50.0' is bigger than media time '00:20.0'",
             ),
             (
                 -5.0,
                 100.0,
                 150.0,
-                "Time '02:30.0' is bigger than media time '01:40.0'",
+                "Marker time '02:30.0' is bigger than media time '01:40.0'",
             ),
         ],
         ids=["a shorter length", "a length after one that wasn't"],
@@ -1335,7 +1350,7 @@ class TestStillANewProblem:
         assert [(w.place, w.message) for w in problems] == [
             (
                 component_place(FORM, FIRST),
-                "End time '5.0' is bigger than media time '3.0'",
+                "Hierarchy end '00:05.0' is bigger than media time '00:03.0'",
             )
         ]
 
@@ -2231,7 +2246,7 @@ class TestWithoutMusic21:
         )
         messages = [w.message for w in tla.loads(data).warnings]
         assert messages[:-1] == [
-            "Time can't be negative. Got '-00:01.0'",
+            "Harmony time can't be negative. Got '-00:01.0'",
             "9 is not a valid step.",
             "There is already a harmony component at the selected position."
             f" {named(data, FOURTH, timeline=HARMONIES)}",
@@ -2453,7 +2468,7 @@ class TestBeatWithoutATime:
 
         assert [w.message for w in tla.loads(a_file(change)).warnings] == [
             'a beat of the timeline "Beats" has no time',
-            "Time can't be negative. Got '-00:01.0'",
+            "Beat time can't be negative. Got '-00:01.0'",
         ]
 
 
@@ -2906,9 +2921,11 @@ class TestKeyOrderIsNotAChange:
 
 LEVEL_0_BEFORE_0 = hierarchies((FIRST, at_level(-1.0, 2.0, 0)))
 LEVEL_BELOW_1 = "Level can't be below 1. Got '0'"
-BEFORE_0 = "Start time can't be negative. Got '-1.0'"
+BEFORE_0 = "Hierarchy start can't be negative. Got '-00:01.0'"
 NOT_A_COLOR = "notacolor is not a valid color."
-OUTSIDE = "Range is outside media bounds."
+# A range from -1 to 150, with a media length of 100: two rules, two texts.
+RANGE_BEFORE_0 = "Range start can't be negative. Got '-00:01.0'"
+RANGE_PAST_THE_END = "Range end '02:30.0' is bigger than media time '01:40.0'"
 # A range joined over another to a range with two problems of its own, a color
 # that isn't one and a pre_start after its start; the first has a color that
 # isn't one, and the join.
@@ -2944,6 +2961,8 @@ SEGMENT_IN = {
     ),
     TEXTURE: lambda start, end, **attrs: ranges((FIRST, a_range(start, end, **attrs))),
 }
+# The kind of the first component, as its texts name it.
+KIND_SHOWN = {FORM: "Hierarchy", TEXTURE: "Range"}
 
 
 def changed(doc, component, timeline=FORM, **attrs):
@@ -3052,7 +3071,7 @@ class TestKeepReadProblems:
         )
         fixed_in_part(doc, level=1)
         assert [w.message for w in tla.read(written(doc, tmp_path)).warnings] == [
-            "Start time '140.0' is bigger than media time '100.0'"
+            "Hierarchy start '02:20.0' is bigger than media time '01:40.0'"
         ]
 
     def test_a_time_past_a_length_first_learned_is_kept(self, tmp_path):
@@ -3246,7 +3265,7 @@ class TestKeepReadProblems:
         if call:
             tla.keep_read_problems(doc, FIRST)
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "End time '150.0' is bigger than media time '100.0'"
+            "Hierarchy end '02:30.0' is bigger than media time '01:40.0'"
         ]
 
     @pytest.mark.parametrize(
@@ -3348,7 +3367,7 @@ class TestKeepReadProblems:
         if call:
             tla.keep_read_problems(doc, FIRST)
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "End time '50.0' is bigger than media time '20.0'"
+            "Hierarchy end '00:50.0' is bigger than media time '00:20.0'"
         ]
 
     def test_it_raises_what_write_raises_for_its_timeline(self, tmp_path):
@@ -3385,7 +3404,7 @@ class TestKeepReadProblems:
         fixed_in_part(doc, level=1, **added)
         if added:
             assert [w.message for w in refused(doc, tmp_path)] == [
-                "pre_start is outside media bounds."
+                "Hierarchy pre-start can't be negative. Got '-00:05.0'"
             ]
         else:
             written(doc, tmp_path)
@@ -3405,7 +3424,7 @@ class TestKeepReadProblems:
         fixed_in_part(doc, level=1, **added)
         if added:
             assert [w.message for w in refused(doc, tmp_path)] == [
-                "post_end is outside media bounds."
+                "Hierarchy post-end '02:40.0' is bigger than media time '01:40.0'"
             ]
         else:
             written(doc, tmp_path)
@@ -3418,7 +3437,7 @@ class TestKeepReadProblems:
         fixed_in_part(doc, FIRST, TEXTURE, color=None, **added)
         if added:
             assert [w.message for w in refused(doc, tmp_path)] == [
-                "pre_start is outside media bounds."
+                "Range pre-start can't be negative. Got '-00:05.0'"
             ]
         else:
             written(doc, tmp_path)
@@ -3435,7 +3454,7 @@ class TestKeepReadProblems:
         fixed_in_part(doc, level=1, **moved)
         if moved:
             assert [w.message for w in refused(doc, tmp_path)] == [
-                "End time '120.0' is bigger than media time '100.0'"
+                "Hierarchy end '02:00.0' is bigger than media time '01:40.0'"
             ]
         else:
             written(doc, tmp_path)
@@ -3533,7 +3552,7 @@ class TestKeepReadProblems:
         if call:
             tla.keep_read_problems(doc, FIRST)
             assert [w.message for w in refused(doc, tmp_path)] == [
-                "End time '90.0' is bigger than media time '50.0'"
+                "Hierarchy end '01:30.0' is bigger than media time '00:50.0'"
             ]
         else:
             assert len(refused(doc, tmp_path)) == 2
@@ -3559,7 +3578,7 @@ class TestKeepReadProblems:
         fixed_in_part(doc, level=1, end=120.0)
         doc.media_length = 100.0
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "End time '120.0' is bigger than media time '100.0'"
+            "Hierarchy end '02:00.0' is bigger than media time '01:40.0'"
         ]
 
     def test_a_second_call_at_a_shorter_length(self, tmp_path):
@@ -3581,7 +3600,7 @@ class TestKeepReadProblems:
         tla.keep_read_problems(doc, FIRST)
         doc.media_length = 100.0
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "End time '120.0' is bigger than media time '100.0'"
+            "Hierarchy end '02:00.0' is bigger than media time '01:40.0'"
         ]
 
     @pytest.mark.parametrize("call", [False, True], ids=["without", "with the call"])
@@ -3602,7 +3621,7 @@ class TestKeepReadProblems:
         if call:
             tla.keep_read_problems(doc, FIRST)
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "End time '90.0' is bigger than media time '50.0'"
+            "Hierarchy end '01:30.0' is bigger than media time '00:50.0'"
         ]
 
     def test_past_the_end_by_its_end_then_its_start(self, tmp_path):
@@ -3633,15 +3652,15 @@ class TestKeepReadProblems:
         )
         place = component_place(TEXTURE, FIRST)
         assert [(w.place, w.message) for w in doc.warnings] == [
-            (place, OUTSIDE),
-            (place, OUTSIDE),
+            (place, RANGE_BEFORE_0),
+            (place, RANGE_PAST_THE_END),
             (place, NOT_A_COLOR),
         ]
         fixed_in_part(doc, FIRST, TEXTURE, start=0.0)
         read = tla.read(written(doc, tmp_path))
         assert read.timelines[TEXTURE].components[FIRST].attrs["start"] == 0.0
         assert [(w.place, w.message) for w in read.warnings] == [
-            (place, OUTSIDE),
+            (place, RANGE_PAST_THE_END),
             (place, NOT_A_COLOR),
         ]
 
@@ -3656,21 +3675,22 @@ class TestKeepReadProblems:
         )
         fixed_in_part(doc, FIRST, TEXTURE, end=90.0)
         read = tla.read(written(doc, tmp_path))
-        assert [w.message for w in read.warnings] == [OUTSIDE]
+        assert [w.message for w in read.warnings] == [RANGE_BEFORE_0]
 
     @pytest.mark.parametrize("timeline", [FORM, TEXTURE], ids=["hierarchy", "range"])
     def test_a_pre_start_before_0_and_after_the_start(self, timeline, tmp_path):
         # Read with both of the pre_start's rules broken: an edit that fixes
         # one keeps the other, which it was read with.
         doc = tla.loads(a_file(SEGMENT_IN[timeline](-5.0, 2.0, pre_start=-1.0)))
+        kind = KIND_SHOWN[timeline]
         assert [w.message for w in doc.warnings][1:] == [
-            "pre_start is outside media bounds.",
-            "pre_start can't be after start time.",
+            f"{kind} pre-start can't be negative. Got '-00:01.0'",
+            f"{kind} pre-start '-00:01.0' can't be after start '-00:05.0'",
         ]
         fixed_in_part(doc, FIRST, timeline, pre_start=0.0)
         warnings = tla.read(written(doc, tmp_path)).warnings
         assert [w.message for w in warnings][1:] == [
-            "pre_start can't be after start time."
+            f"{kind} pre-start '00:00.0' can't be after start '-00:05.0'"
         ]
 
     @pytest.mark.parametrize("timeline", [FORM, TEXTURE], ids=["hierarchy", "range"])
@@ -3683,14 +3703,15 @@ class TestKeepReadProblems:
                 )
             )
         )
+        kind = KIND_SHOWN[timeline]
         assert [w.message for w in doc.warnings][1:] == [
-            "post_end is outside media bounds.",
-            "post_end can't be before end time.",
+            f"{kind} post-end '02:00.0' is bigger than media time '01:40.0'",
+            f"{kind} post-end '02:00.0' can't be before end '02:30.0'",
         ]
         fixed_in_part(doc, FIRST, timeline, post_end=100.0)
         warnings = tla.read(written(doc, tmp_path)).warnings
         assert [w.message for w in warnings][1:] == [
-            "post_end can't be before end time."
+            f"{kind} post-end '01:40.0' can't be before end '02:30.0'"
         ]
 
     def test_an_end_put_past_the_end_beside_a_start_before_0_is_new(self, tmp_path):
@@ -3705,7 +3726,7 @@ class TestKeepReadProblems:
             )
         )
         fixed_in_part(doc, FIRST, TEXTURE, end=150.0)
-        assert [w.message for w in refused(doc, tmp_path)] == [OUTSIDE]
+        assert [w.message for w in refused(doc, tmp_path)] == [RANGE_PAST_THE_END]
 
     def test_a_pre_start_put_after_the_start_beside_one_before_0_is_new(self, tmp_path):
         # Read with a pre_start before 0, at its start. The edit puts it after
@@ -3713,7 +3734,7 @@ class TestKeepReadProblems:
         doc = tla.loads(a_file(SEGMENT_IN[FORM](-5.0, 2.0, pre_start=-5.0)))
         fixed_in_part(doc, pre_start=-1.0)
         assert [w.message for w in refused(doc, tmp_path)] == [
-            "pre_start can't be after start time."
+            "Hierarchy pre-start '-00:01.0' can't be after start '-00:05.0'"
         ]
 
     def test_past_a_length_first_learned_by_its_end_beside_a_start_before_0(
@@ -3726,7 +3747,7 @@ class TestKeepReadProblems:
         doc.media_length = 100.0
         fixed_in_part(doc, FIRST, TEXTURE, start=0.0)
         read = tla.read(written(doc, tmp_path))
-        assert [w.message for w in read.warnings] == [OUTSIDE]
+        assert [w.message for w in read.warnings] == [RANGE_PAST_THE_END]
 
     def test_unchanged_past_the_end_by_another_time_as_ever(self, tmp_path):
         # FR-054, without the call: a component that was past the end stays old,

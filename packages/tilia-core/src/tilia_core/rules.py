@@ -12,7 +12,9 @@ length, the timeline's other components (not the one checked) and the
 attributes of the component to check, and gives the first rule they break:
 `(False, reason)`, or `(True, "")` when they break none. The reasons are
 TiLiA's, word for word, where TiLiA has one. A value that isn't one always
-reads `<value> is not a valid <attribute>.`, whatever the kind.
+reads `<value> is not a valid <attribute>.`, whatever the kind. The rules for a
+component's times give one set of texts, which name the kind and which of its
+times is wrong, the same in TiLiA's own checks.
 
 `check_timeline` checks a whole timeline at once with the same rules, finding
 for each component the others that matter rather than comparing it with every
@@ -143,15 +145,17 @@ NO_INVERSION_QUALITIES = frozenset(
 # hold boundaries a few ulps apart where they should meet.
 _TIME_ABS_TOL = 1e-9
 
-# The names TiLiA's reasons give the point kinds (their `frontend_name`).
-_POINT_NAMES = {
+# The names TiLiA's reasons give the kinds (their `frontend_name`).
+_NAMES = {
     "marker": "marker",
     "harmony": "harmony",
     "mode": "mode",
     "beat": "beat",
     "pdf_marker": "PDF page marker",
+    "hierarchy": "hierarchy",
+    "range": "range",
 }
-_POINT_KINDS = tuple(_POINT_NAMES)
+_POINT_KINDS = ("marker", "harmony", "mode", "beat", "pdf_marker")
 # The kinds whose rules read music21.
 _NEED_MUSIC21 = ("harmony", "mode")
 
@@ -559,10 +563,10 @@ def _hierarchy(
     return (
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _hierarchy_in_media(start, end, media_length),
-        lambda: _hierarchy_start(start),
-        lambda: _hierarchy_end(start, end),
+        lambda: _start_not_negative("hierarchy", start),
+        lambda: _end_after_start("hierarchy", start, end),
         lambda: _hierarchy_level(level),
-        *_margins(attrs, start, end, media_length),
+        *_margins("hierarchy", attrs, start, end, media_length),
         lambda: _same_place(start, end, level, hierarchies()),
         lambda: _crossed(start, end, level, hierarchies()),
     )
@@ -579,16 +583,20 @@ def _range(
     return (
         lambda: _every_kind(attrs, _SEGMENT_TIMES),
         lambda: _range_row(attrs.get("row_id"), context.row_ids),
-        lambda: _range_times(start, end),
-        lambda: _range_start(start),
+        lambda: _end_after_start("range", start, end),
+        lambda: _start_not_negative("range", start),
         lambda: _range_end(end, media_length),
-        *_margins(attrs, start, end, media_length),
+        *_margins("range", attrs, start, end, media_length),
         lambda: _joined(attrs, others, context.rows),
     )
 
 
 def _margins(
-    attrs: Mapping[str, Any], start: float, end: float, media_length: float
+    kind: str,
+    attrs: Mapping[str, Any],
+    start: float,
+    end: float,
+    media_length: float,
 ) -> tuple[Check, ...]:
     """The rules of a hierarchy's or a range's `pre_start` and `post_end`, each
     rule a check of its own, so that every rule broken is found: a pre_start
@@ -596,10 +604,10 @@ def _margins(
     before an end past it."""
     pre_start, post_end = attrs.get("pre_start"), attrs.get("post_end")
     return (
-        lambda: _pre_start_in_media(pre_start),
-        lambda: _pre_start_by_start(pre_start, start),
-        lambda: _post_end_in_media(post_end, media_length),
-        lambda: _post_end_by_end(post_end, end),
+        lambda: _pre_start_in_media(kind, pre_start),
+        lambda: _pre_start_by_start(kind, pre_start, start),
+        lambda: _post_end_in_media(kind, post_end, media_length),
+        lambda: _post_end_by_end(kind, post_end, end),
     )
 
 
@@ -825,30 +833,58 @@ def _point(
     time = attrs.get("time")
     return (
         lambda: _every_kind(attrs, ("time",)),
-        lambda: _time_not_negative(time),
-        lambda: _time_in_media(time, media_length),
+        lambda: _time_not_negative(kind, time),
+        lambda: _time_in_media(kind, time, media_length),
         lambda: _same_time(kind, time, others),
     )
 
 
-def _time_not_negative(time: float) -> Outcome | None:
+# The rules for a component's times give one set of texts, the same for every
+# kind: each names the kind, as TiLiA names it, and which of its times is wrong,
+# and gives the times as media times. Two rules don't share one text. TiLiA's own
+# checks give the same (WP16's `contracts/rules.md`, *A component's times*;
+# TimeLineAnnotator/project-management#610).
+
+
+def _kind_shown(kind: str) -> str:
+    """`kind` as TiLiA names it, at the start of a text: "Marker", "PDF page
+    marker"."""
+    name = _NAMES[kind]
+    return name[:1].upper() + name[1:]
+
+
+def _negative(kind: str, what: str, value: float, about: str) -> Outcome:
+    """A time before 0: `what` of a component of `kind`, its `time`, `start` or
+    `pre-start`."""
+    return _broken(
+        NEGATIVE_TIME,
+        f"{_kind_shown(kind)} {what} can't be negative. Got '{_media_time(value)}'",
+        about=about,
+    )
+
+
+def _past_the_end(
+    kind: str, what: str, value: float, media_length: float, about: str
+) -> Outcome:
+    """A time past the media's end: `what` of a component of `kind`, its `time`,
+    `start`, `end` or `post-end`."""
+    return _broken(
+        PAST_MEDIA_END,
+        f"{_kind_shown(kind)} {what} '{_media_time(value)}' is bigger than media"
+        f" time '{_media_time(media_length)}'",
+        about=about,
+    )
+
+
+def _time_not_negative(kind: str, time: float) -> Outcome | None:
     if time < 0:
-        return _broken(
-            NEGATIVE_TIME,
-            f"Time can't be negative. Got '{_media_time(time)}'",
-            about="time",
-        )
+        return _negative(kind, "time", time, about="time")
     return None
 
 
-def _time_in_media(time: float, media_length: float) -> Outcome | None:
+def _time_in_media(kind: str, time: float, media_length: float) -> Outcome | None:
     if time > media_length:
-        return _broken(
-            PAST_MEDIA_END,
-            f"Time '{_media_time(time)}' is bigger than media time"
-            f" '{_media_time(media_length)}'",
-            about="time",
-        )
+        return _past_the_end(kind, "time", time, media_length, about="time")
     return None
 
 
@@ -863,7 +899,7 @@ def _same_time(
     if same:
         return Outcome(
             False,
-            f"There is already a {_POINT_NAMES[kind]} component at the selected position.",
+            f"There is already a {_NAMES[kind]} component at the selected position.",
             same,
             SAME_TIME,
         )
@@ -968,42 +1004,35 @@ def _mode_type(music21: ModuleType, attrs: Mapping[str, Any]) -> Outcome | None:
 def _hierarchy_in_media(
     start: float, end: float, media_length: float
 ) -> Outcome | None:
+    """A hierarchy's start, then its end, is no later than the media length: one
+    rule, whichever of the two it is."""
     # The values are compared as they are given, as `_time_in_media` compares them,
-    # so a media length too large for a float is longer than any time. TiLiA shows
-    # them as floats, and so do the reasons, but for such a length, which is shown
-    # as it is.
-    if not (start > media_length or end > media_length):
-        return None
-    length = float(media_length) if _is_number(media_length) else _shown(media_length)
+    # so a media length too large for a float is longer than any time, and
+    # `_media_time` shows such a length as it is.
     if start > media_length:
-        return _broken(
-            PAST_MEDIA_END,
-            f"Start time '{float(start)}' is bigger than media time '{length}'",
-            about="start end",
+        return _past_the_end(
+            "hierarchy", "start", start, media_length, about="start end"
         )
-    return _broken(
-        PAST_MEDIA_END,
-        f"End time '{float(end)}' is bigger than media time '{length}'",
-        about="start end",
-    )
-
-
-def _hierarchy_start(start: float) -> Outcome | None:
-    if start < 0:
-        return _broken(
-            NEGATIVE_TIME,
-            f"Start time can't be negative. Got '{float(start)}'",
-            about="start",
-        )
+    if end > media_length:
+        return _past_the_end("hierarchy", "end", end, media_length, about="start end")
     return None
 
 
-def _hierarchy_end(start: float, end: float) -> Outcome | None:
+def _start_not_negative(kind: str, start: float) -> Outcome | None:
+    """A hierarchy's or a range's start is from 0: a rule apart from its end's, as
+    a range before 0 can be past the end too."""
+    if start < 0:
+        return _negative(kind, "start", start, about="start")
+    return None
+
+
+def _end_after_start(kind: str, start: float, end: float) -> Outcome | None:
+    """A hierarchy's or a range's end is after its start."""
     if end <= start:
         return _broken(
             END_NOT_AFTER_START,
-            f"End time '{float(end)}' should be bigger than start time"
-            f" '{float(start)}'",
+            f"{_kind_shown(kind)} end '{_media_time(end)}' should be bigger than"
+            f" start '{_media_time(start)}'",
         )
     return None
 
@@ -1018,35 +1047,43 @@ def _hierarchy_level(level: Any) -> Outcome | None:
     return None
 
 
-def _pre_start_in_media(pre_start: float | None) -> Outcome | None:
+def _pre_start_in_media(kind: str, pre_start: float | None) -> Outcome | None:
     """`pre_start`, when set, is from 0."""
     if pre_start is not None and pre_start < 0:
-        return _broken(
-            NEGATIVE_TIME, "pre_start is outside media bounds.", about="pre_start"
-        )
+        return _negative(kind, "pre-start", pre_start, about="pre_start")
     return None
 
 
-def _pre_start_by_start(pre_start: float | None, start: float) -> Outcome | None:
+def _pre_start_by_start(
+    kind: str, pre_start: float | None, start: float
+) -> Outcome | None:
     """`pre_start`, when set, is no later than the start."""
     if pre_start is not None and pre_start > start:
-        return _broken(PRE_START_AFTER_START, "pre_start can't be after start time.")
-    return None
-
-
-def _post_end_in_media(post_end: float | None, media_length: float) -> Outcome | None:
-    """`post_end`, when set, is no later than the media length."""
-    if post_end is not None and post_end > media_length:
         return _broken(
-            PAST_MEDIA_END, "post_end is outside media bounds.", about="post_end"
+            PRE_START_AFTER_START,
+            f"{_kind_shown(kind)} pre-start '{_media_time(pre_start)}' can't be after"
+            f" start '{_media_time(start)}'",
         )
     return None
 
 
-def _post_end_by_end(post_end: float | None, end: float) -> Outcome | None:
+def _post_end_in_media(
+    kind: str, post_end: float | None, media_length: float
+) -> Outcome | None:
+    """`post_end`, when set, is no later than the media length."""
+    if post_end is not None and post_end > media_length:
+        return _past_the_end(kind, "post-end", post_end, media_length, about="post_end")
+    return None
+
+
+def _post_end_by_end(kind: str, post_end: float | None, end: float) -> Outcome | None:
     """`post_end`, when set, is no earlier than the end."""
     if post_end is not None and post_end < end:
-        return _broken(POST_END_BEFORE_END, "post_end can't be before end time.")
+        return _broken(
+            POST_END_BEFORE_END,
+            f"{_kind_shown(kind)} post-end '{_media_time(post_end)}' can't be before"
+            f" end '{_media_time(end)}'",
+        )
     return None
 
 
@@ -1079,7 +1116,10 @@ def _crossed(
     ]
     if crossed:
         return Outcome(
-            False, "Component would overlap with existing component.", crossed, CROSSING
+            False,
+            "Hierarchy would overlap with an existing hierarchy.",
+            crossed,
+            CROSSING,
         )
     return None
 
@@ -1129,24 +1169,10 @@ def _range_row(row_id: Any, row_ids: _RowIds) -> Outcome | None:
     return None
 
 
-def _range_times(start: float, end: float) -> Outcome | None:
-    if start >= end:
-        return _broken(END_NOT_AFTER_START, "Start time must be before end time.")
-    return None
-
-
-def _range_start(start: float) -> Outcome | None:
-    """A range's start is from 0. TiLiA checks it with the end, in one text, but
-    they are two rules: a range before 0 can be past the end too."""
-    if start < 0:
-        return _broken(NEGATIVE_TIME, "Range is outside media bounds.", about="start")
-    return None
-
-
 def _range_end(end: float, media_length: float) -> Outcome | None:
     """A range's end is no later than the media length."""
     if end > media_length:
-        return _broken(PAST_MEDIA_END, "Range is outside media bounds.", about="end")
+        return _past_the_end("range", "end", end, media_length, about="end")
     return None
 
 

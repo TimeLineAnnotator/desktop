@@ -138,3 +138,42 @@ def test_crop_staff(score_tl, tilia_state):
     score_tl.crop(50)
 
     assert s in score_tl
+
+
+class TestTheTextsOfTheirTimes:
+    """A score's components keep TiLiA's texts for their times, which name no kind,
+    while the other kinds' name theirs: TiLiA shows no name for a clef, a bar line
+    or a signature (TimeLineAnnotator/project-management#669)."""
+
+    @pytest.mark.parametrize(
+        "kind",
+        [
+            ComponentKind.CLEF,
+            ComponentKind.BAR_LINE,
+            ComponentKind.TIME_SIGNATURE,
+            ComponentKind.KEY_SIGNATURE,
+        ],
+    )
+    @pytest.mark.parametrize(
+        "time, reason",
+        [
+            (150.0, "Time '02:30.0' is bigger than media time '01:40.0'"),
+            (5000.0, "Time '1:23:20.0' is bigger than media time '01:40.0'"),
+        ],
+    )
+    def test_a_time_past_the_end(self, score_tl, tilia_state, kind, time, reason):
+        tilia_state.duration = 100.0
+        assert score_tl.create_component(kind, time=time) == (None, reason)
+
+    @pytest.mark.parametrize(
+        "start, end, reason",
+        [
+            (150.0, 160.0, "Start time '150.0' is bigger than media time '100.0'"),
+            (95.0, 150.0, "End time '150.0' is bigger than media time '100.0'"),
+            (2.0, 1.0, "End time '1.0' should be bigger than start time '2.0'"),
+        ],
+    )
+    def test_a_note(self, score_tl, tilia_state, start, end, reason):
+        tilia_state.duration = 100.0
+        note = score_tl.create_component(ComponentKind.NOTE, start=start, end=end)
+        assert note == (None, reason)

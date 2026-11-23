@@ -210,4 +210,6 @@ def test_component_creation_fail_reason_gets_into_errors(
             Path(),
         )
 
-    assert_in_errors("101", errors)
+    assert_in_errors(
+        "Hierarchy start '01:41.0' is bigger than media time '01:40.0'", errors
+    )

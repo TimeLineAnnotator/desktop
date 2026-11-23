@@ -20,6 +20,7 @@ from tilia.timelines.base.timeline import (
 from tilia.timelines.base.validators import validate_color
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.range.components import Range
+from tilia.ui.format import format_media_time
 
 
 def generate_row_id() -> str:
@@ -60,20 +61,45 @@ class RangeTLComponentManager(TimelineComponentManager):
         if not row_id or row_id not in self.timeline.row_ids:
             return False, "Invalid row ID."
 
+        # The texts are the core's, naming the kind and which of its times is
+        # wrong (WP16's contracts/rules.md, "A component's times").
+        kind = Range.kind_shown()
         if start >= end:
-            return False, "Start time must be before end time."
+            return (
+                False,
+                f"{kind} end '{format_media_time(end)}' should be bigger than start"
+                f" '{format_media_time(start)}'",
+            )
 
         media_duration = get(Get.MEDIA_DURATION)
-        if start < 0 or end > media_duration:
-            return False, "Range is outside media bounds."
+        length = format_media_time(media_duration)
+        if start < 0:
+            return (
+                False,
+                f"{kind} start can't be negative. Got '{format_media_time(start)}'",
+            )
+        if end > media_duration:
+            return (
+                False,
+                f"{kind} end '{format_media_time(end)}' is bigger than media time"
+                f" '{length}'",
+            )
 
         pre_start = kwargs.get("pre_start")
         if pre_start is not None and pre_start < 0:
-            return False, "pre_start is outside media bounds."
+            return (
+                False,
+                f"{kind} pre-start can't be negative. Got"
+                f" '{format_media_time(pre_start)}'",
+            )
 
         post_end = kwargs.get("post_end")
         if post_end is not None and post_end > media_duration:
-            return False, "post_end is outside media bounds."
+            return (
+                False,
+                f"{kind} post-end '{format_media_time(post_end)}' is bigger than media"
+                f" time '{length}'",
+            )
 
         return True, ""
 

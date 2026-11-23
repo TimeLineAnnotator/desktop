@@ -1,4 +1,5 @@
 from tilia.timelines.component_kinds import ComponentKind
+from tilia.ui.format import format_media_time
 
 
 class TestRangeTimelineComponentManager:
@@ -100,7 +101,9 @@ class TestRangeTimelineComponentManager:
             pre_start=-1,
         )
         assert c is None
-        assert "pre_start" in reason
+        assert reason == (
+            f"Range pre-start can't be negative. Got '{format_media_time(-1)}'"
+        )
 
     def test_post_end_past_duration_rejected(self, range_tl, tilia_state):
         row_id = range_tl.rows[0].id
@@ -113,7 +116,11 @@ class TestRangeTimelineComponentManager:
             post_end=tilia_state.duration + 1,
         )
         assert c is None
-        assert "post_end" in reason
+        length = tilia_state.duration
+        assert reason == (
+            f"Range post-end '{format_media_time(length + 1)}' is bigger than media"
+            f" time '{format_media_time(length)}'"
+        )
 
     def test_join_ranges(self, range_tl):
         row_id = range_tl.rows[0].id
