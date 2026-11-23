@@ -44,6 +44,11 @@ def _kind(kind: Kind) -> str:
 
 
 def _timeline(tl: tla.Timeline) -> TimelineDoc:
+    """The index's view of ``tl``, without its components of kinds the core
+    doesn't know: the index holds none (FR-005), and the file can spell one as
+    a known kind's name, which the index would take for that kind. A marker
+    timeline holds "MARKER"s, so one spelled "marker" isn't a marker
+    (TimeLineAnnotator/project-management#591)."""
     return TimelineDoc(
         id=tl.id,
         kind=_kind(tl.kind),
@@ -59,6 +64,7 @@ def _timeline(tl: tla.Timeline) -> TimelineDoc:
                 fields=dict(c.metadata),
             )
             for c in tl.components.values()
+            if not isinstance(c.kind, tla.UnknownKind)
         ),
     )
 
