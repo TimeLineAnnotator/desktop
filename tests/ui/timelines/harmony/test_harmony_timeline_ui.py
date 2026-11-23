@@ -12,11 +12,13 @@ from tests.ui.timelines.harmony.interact import (
     label_as_typed,
     numeral_part,
 )
+from tests.ui.timelines.interact import click_timeline_ui, drag_mouse_in_timeline_view
 from tests.utils import get_command_action, get_command_names, undoable
 from tilia.errors import ROMAN_NUMERAL_KEY_UNREADABLE
-from tilia.requests import Get
+from tilia.requests import Get, Post, get, post
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
+from tilia.ui.coords import time_x_converter
 from tilia.ui.dialogs.harmony_params import SelectHarmonyParams
 from tilia.ui.timelines.harmony.constants import QUALITY_TO_ABBREVIATION
 
@@ -848,6 +850,86 @@ class TestRomanNumeralWhereTheKeyCantBeRead:
         assert "Current key: D major" in labels
         (harmony,) = harmony_tlui.timeline.harmonies()
         assert harmony.get_data("step") == 5  # A, D major's dominant
+
+
+class TestTheKeyWhereTheHarmonyGoes:
+    """The Add harmony dialog reads a roman numeral in the key at the time the
+    harmony goes, and checks there that TiLiA can read that key, rather than at the
+    media's time (TimeLineAnnotator/project-management#607). The two differ when
+    the command is given a time, and while the slider is dragged."""
+
+    @pytest.fixture(autouse=True)
+    def the_media_at_0(self, tilia_state):
+        tilia_state.current_time = 0
+
+    def test_a_roman_numeral_is_read_in_the_key_at_the_time_given(
+        self, harmony_tlui, tilia_errors
+    ):
+        add_mode(**MAJOR)  # C major, at the media's time
+        add_mode(time=40, step=1)  # D major
+        with typing_in_the_add_harmony_dialog("V") as labels:
+            commands.execute("timeline.harmony.add_harmony", time=50)
+
+        tilia_errors.assert_no_error()
+        assert "Current key: D major" in labels
+        (harmony,) = harmony_tlui.timeline.harmonies()
+        assert harmony.get_data("time") == 50
+        assert harmony.get_data("step") == 5  # A, D major's dominant, not C's G
+
+    def test_a_roman_numeral_is_read_in_the_key_at_the_time_dragged_to(
+        self, harmony_tlui, slider_tlui, tilia_errors
+    ):
+        add_mode(**MAJOR)
+        add_mode(time=40, step=1)  # D major
+        y = slider_tlui.trough.pos().y()
+        click_timeline_ui(slider_tlui, 0, y=y)
+        drag_mouse_in_timeline_view(
+            time_x_converter.get_x_by_time(50), y, release=False
+        )
+        try:
+            # The selected time follows the drag; the media's is set on release.
+            assert get(Get.MEDIA_CURRENT_TIME) == 0
+            with typing_in_the_add_harmony_dialog("V") as labels:
+                commands.execute("timeline.harmony.add_harmony")
+        finally:
+            post(Post.TIMELINE_VIEW_LEFT_BUTTON_RELEASE)
+
+        tilia_errors.assert_no_error()
+        assert "Current key: D major" in labels
+        (harmony,) = harmony_tlui.timeline.harmonies()
+        assert harmony.get_data("time") == pytest.approx(50)
+        assert harmony.get_data("step") == 5
+
+    def test_a_key_tilia_can_t_read_where_the_harmony_goes_refuses_a_numeral(
+        self, harmony_tlui, tilia_errors
+    ):
+        # No mode at the media's time: C major, which TiLiA can read.
+        harmony_tlui.create_mode(time=40, step=9, checked=False)
+        with typing_in_the_add_harmony_dialog("V") as labels:
+            commands.execute("timeline.harmony.add_harmony", time=50)
+
+        assert tilia_errors.errors == [
+            {
+                "title": ROMAN_NUMERAL_KEY_UNREADABLE.title,
+                "message": ROMAN_NUMERAL_KEY_UNREADABLE.message.format("00:50.0", "V"),
+            }
+        ]
+        assert "Current key: ?" in labels
+        assert harmony_tlui.timeline.harmonies() == []
+
+    def test_a_key_tilia_can_read_where_the_harmony_goes_places_a_numeral(
+        self, harmony_tlui, tilia_errors
+    ):
+        # The media's time is after a mode whose tonic TiLiA can't read.
+        harmony_tlui.create_mode(time=0, step=9, checked=False)
+        add_mode(time=40, step=1)  # D major
+        with typing_in_the_add_harmony_dialog("V") as labels:
+            commands.execute("timeline.harmony.add_harmony", time=50)
+
+        tilia_errors.assert_no_error()
+        assert "Current key: D major" in labels
+        (harmony,) = harmony_tlui.timeline.harmonies()
+        assert harmony.get_data("step") == 5
 
 
 class TestLetterSymbolLabel:

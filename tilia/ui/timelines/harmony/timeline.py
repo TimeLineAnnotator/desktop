@@ -246,7 +246,7 @@ class HarmonyTimelineUI(TimelineUI):
             errors.display(errors.ADD_HARMONY_FAILED, reason)
             return False
 
-        confirmed, kwargs = get(Get.FROM_USER_HARMONY_PARAMS)
+        confirmed, kwargs = get(Get.FROM_USER_HARMONY_PARAMS, time)
         if not confirmed:
             return False
 

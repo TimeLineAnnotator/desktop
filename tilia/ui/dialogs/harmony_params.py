@@ -239,9 +239,11 @@ class SelectHarmonyParams(QDialog):
         super().accept()
 
     @classmethod
-    def select(cls) -> tuple[bool, None | dict[str, str | int]]:
+    def select(cls, time: float) -> tuple[bool, None | dict[str, str | int]]:
+        """`time` is where the harmony goes: a roman numeral is read in the key
+        there, which may not be the key at the media's time
+        (TimeLineAnnotator/project-management#607)."""
         timeline_ui = get(Get.FIRST_TIMELINE_UI_IN_SELECT_ORDER, HarmonyTimeline)
-        time = get(Get.MEDIA_CURRENT_TIME)
         current_key = timeline_ui.get_key_by_time(time)
         can_read_key = timeline_ui.timeline.can_read_key_by_time(time)
         instance = SelectHarmonyParams(current_key, None if can_read_key else time)
@@ -252,5 +254,5 @@ class SelectHarmonyParams(QDialog):
         )
 
 
-def ask_for_harmony_params() -> tuple[bool, None | dict[str, str | int]]:
-    return SelectHarmonyParams.select()
+def ask_for_harmony_params(time: float) -> tuple[bool, None | dict[str, str | int]]:
+    return SelectHarmonyParams.select(time)
