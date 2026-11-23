@@ -14,7 +14,11 @@ from tilia.ui.timelines.base.timeline import (
     with_elements,
 )
 from tilia.ui.timelines.collection.collection import TimelineSelector, TimelineUIs
-from tilia.ui.timelines.copy_paste import get_copy_data_from_element, paste_into_element
+from tilia.ui.timelines.copy_paste import (
+    fitted_time,
+    get_copy_data_from_element,
+    paste_into_element,
+)
 from tilia.ui.timelines.hierarchy import HierarchyTimelineToolbar, HierarchyUI
 from tilia.ui.timelines.hierarchy.copy_paste import (
     _display_copy_error,
@@ -184,35 +188,6 @@ class HierarchyTimelineUI(TimelineUI):
             paste_into_element(element, paste_data[0])
             self.select_element(element)
 
-    @staticmethod
-    def _get_paste_time_map(
-        source_start: float,
-        source_end: float,
-        target_start: float,
-        target_end: float,
-    ) -> Callable[[float], float]:
-        """Return the affine map from the copied subtree's timespan to the target's.
-
-        The whole subtree shares one map, so a time that appears in several
-        copied components — as one's end and the next one's start — maps to the
-        same float in all of them and coincident boundaries stay coincident.
-        Deriving a scale factor separately per nesting level, or anchoring
-        starts and ends to different reference points, lets those boundaries
-        drift apart by a few ulps, which later reads as an overlap.
-        """
-        scale_factor = (target_end - target_start) / (source_end - source_start)
-
-        def map_time(time: float) -> float:
-            # Anchor the endpoints exactly: scaling them arithmetically can
-            # land a ulp off, misaligning the subtree with the target.
-            if time == source_start:
-                return target_start
-            if time == source_end:
-                return target_end
-            return (time - source_start) * scale_factor + target_start
-
-        return map_time
-
     def _create_child_from_paste_data(
         self,
         child_pastedata_: dict,
@@ -235,7 +210,7 @@ class HierarchyTimelineUI(TimelineUI):
         best-effort: a child that fails is skipped along with its own subtree,
         and the remaining siblings are still pasted.
         """
-        map_time = self._get_paste_time_map(
+        map_time = fitted_time(
             paste_data["context"]["start"],
             paste_data["context"]["end"],
             element.tl_component.start,
