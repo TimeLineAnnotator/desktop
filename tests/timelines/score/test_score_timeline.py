@@ -2,6 +2,7 @@ import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
+from tilia.ui.format import format_media_time
 
 
 def test_create(score_tl):
@@ -140,20 +141,28 @@ def test_crop_staff(score_tl, tilia_state):
     assert s in score_tl
 
 
+SCORE_POINTS = [
+    ComponentKind.CLEF,
+    ComponentKind.BAR_LINE,
+    ComponentKind.TIME_SIGNATURE,
+    ComponentKind.KEY_SIGNATURE,
+]
+
+
 class TestTheTextsOfTheirTimes:
     """A score's components keep TiLiA's texts for their times, which name no kind,
-    while the other kinds' name theirs: TiLiA shows no name for a clef, a bar line
-    or a signature (TimeLineAnnotator/project-management#669)."""
+    while the other kinds' texts name theirs: TiLiA shows no name for a clef, a bar
+    line or a signature (TimeLineAnnotator/project-management#669)."""
 
-    @pytest.mark.parametrize(
-        "kind",
-        [
-            ComponentKind.CLEF,
-            ComponentKind.BAR_LINE,
-            ComponentKind.TIME_SIGNATURE,
-            ComponentKind.KEY_SIGNATURE,
-        ],
-    )
+    @pytest.mark.parametrize("kind", SCORE_POINTS)
+    def test_a_time_before_0(self, score_tl, tilia_state, kind):
+        tilia_state.duration = 100.0
+        assert score_tl.create_component(kind, time=-1.0) == (
+            None,
+            f"Time can't be negative. Got '{format_media_time(-1.0)}'",
+        )
+
+    @pytest.mark.parametrize("kind", SCORE_POINTS)
     @pytest.mark.parametrize(
         "time, reason",
         [
