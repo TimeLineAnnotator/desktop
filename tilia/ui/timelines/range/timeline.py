@@ -469,7 +469,6 @@ class RangeTimelineUI(TimelineUI):
             paste_data,
             lambda time: target_time + (time - reference_time),
             target_row.id,
-            keep_lengths=True,
         )
 
     def _create_pasted_ranges(
@@ -480,10 +479,10 @@ class RangeTimelineUI(TimelineUI):
         old_to_new: dict | None = None,
         old_joined_right_pairs: list[tuple] | None = None,
         checked: bool = True,
-        keep_lengths: bool = False,
     ) -> None:
-        """Adds the copied ranges on `row_id`, each time through `map_time`; with
-        `keep_lengths`, each range keeps its length from its mapped start."""
+        """Adds the copied ranges on `row_id`, each time through `map_time`: a
+        range's end as the next one's start, so that a join still holds to the last
+        digit."""
         old_to_new = {} if old_to_new is None else old_to_new
         old_joined_right_pairs = (
             [] if old_joined_right_pairs is None else old_joined_right_pairs
@@ -496,7 +495,7 @@ class RangeTimelineUI(TimelineUI):
             pre_start = d["context"].pop("pre_start", None)
             post_end = d["context"].pop("post_end", None)
             new_start = map_time(start)
-            new_end = new_start + (end - start) if keep_lengths else map_time(end)
+            new_end = map_time(end)
 
             extension_kwargs = {}
             if pre_start is not None:

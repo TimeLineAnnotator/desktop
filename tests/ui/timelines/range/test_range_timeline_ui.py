@@ -970,6 +970,32 @@ class TestCopyPaste:
         assert pasted_left.get_data("joined_right") == pasted_right.id
         assert pasted_right.get_data("joined_right") is None
 
+    def test_paste_joined_run_into_timeline_keeps_every_join_exact(
+        self, range_tlui, tilia_state, tilia_errors
+    ):
+        # Times whose sums round differently: a range's end computed as its start
+        # plus its length, and the next one's start through the offset, can
+        # differ in the last digit, unless both go through the same map.
+        tilia_state.set_duration(300, scale_timelines="no")
+        copied = add_and_join_ranges(range_tlui, [(0.1, 0.7), (0.7, 1.3), (1.3, 5.1)])
+        for element in copied:
+            range_tlui.select_element(element)
+        commands.execute("timeline.component.copy")
+
+        click_timeline_ui(range_tlui, 400)
+        commands.execute("media.seek", 101.1)
+        commands.execute("timeline.component.paste")
+
+        assert not tilia_errors.errors
+        pasted = sorted(
+            (e for e in range_tlui if e.get_data("start") >= 101),
+            key=lambda e: e.get_data("start"),
+        )
+        assert len(pasted) == 3
+        for left, right in zip(pasted, pasted[1:], strict=False):
+            assert left.get_data("joined_right") == right.id
+            assert left.get_data("end") == right.get_data("start")
+
     @pytest.mark.parametrize("target_end", [70, 55], ids=["as long", "shorter"])
     def test_paste_multiple_into_selected_elements_keeps_anchor_join(
         self, range_tlui, tilia_state, target_end
