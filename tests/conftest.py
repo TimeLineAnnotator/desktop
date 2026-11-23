@@ -300,9 +300,11 @@ def use_test_settings(qapplication):
 
 @pytest.fixture(scope="module")
 def use_test_logger(qapplication):
-    logging_module.sentry_sdk.integrations.logging.ignore_logger(
-        logging_module.logger.name
-    )
+    # Keep the tests' log records out of Sentry: out of events and
+    # breadcrumbs, and out of Sentry Logs.
+    sentry_logging = logging_module.sentry_sdk.integrations.logging
+    sentry_logging.ignore_logger_for_events(logging_module.logger.name)
+    sentry_logging.ignore_logger(logging_module.logger.name)
     yield
 
 

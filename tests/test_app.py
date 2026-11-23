@@ -1,10 +1,16 @@
 import json
 import logging
+import socket
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 from unittest.mock import patch
 
 import pytest
+import sentry_sdk
+import sentry_sdk.integrations.logging
+import sentry_sdk.profiler
+from sentry_sdk.transport import Transport
 
 import tests.utils
 import tilia.log
@@ -26,7 +32,8 @@ from tests.utils import (
     save_tilia_to_tmp_path,
     undoable,
 )
-from tilia.constants import DURATION_JITTER_TOLERANCE
+from tilia import dirs
+from tilia.constants import APP_NAME, DURATION_JITTER_TOLERANCE, VERSION
 from tilia.file.migration import find_unknown_timeline_kinds
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
@@ -39,32 +46,262 @@ from tilia.ui import commands
 from tilia.ui.windows import WindowKind
 from tilia.undo_manager import PauseUndoManager
 
+FAKE_DSN = "https://public@sentry.invalid/1"
+
+LEVELS = (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL)
+
+
+class KeepEnvelopes(Transport):
+    """Keeps what a Sentry client sends, instead of sending it."""
+
+    def __init__(self):
+        super().__init__()
+        self.envelopes = []
+
+    def capture_envelope(self, envelope):
+        self.envelopes.append(envelope)
+
+
+@contextmanager
+def tilia_sentry_client(**changes):
+    """A Sentry client with the options TiLiA starts Sentry with in "prod",
+    except for `changes`, active only in this context. It keeps what it sends:
+    see `sent_items`."""
+    with (
+        patch.object(sentry_sdk, "init") as init,
+        patch.object(sentry_sdk.profiler, "start_profiler"),
+    ):
+        tilia.log.TiliaLogger().setup_sentry("prod")
+    options = init.call_args.kwargs | {"dsn": FAKE_DSN, "transport": KeepEnvelopes()}
+    client = sentry_sdk.Client(**(options | changes))
+    # TiliaLogger attaches its log file and dumps to the global scope.
+    sentry_sdk.get_global_scope().clear()
+    try:
+        with sentry_sdk.isolation_scope() as scope:
+            scope.set_client(client)
+            yield client
+    finally:
+        client.close()
+        sentry_sdk.get_global_scope().clear()
+
+
+def sent_items(client):
+    client.flush()
+    return [item for envelope in client.transport.envelopes for item in envelope.items]
+
+
+def sent_events(client):
+    return [item.payload.json for item in sent_items(client) if item.type == "event"]
+
 
 class TestLogger:
-    def test_sentry_not_logging(self, use_test_logger):
-        assert "tilia.log" in tilia.log.sentry_sdk.integrations.logging._IGNORED_LOGGERS
+    def test_tilia_records_reach_no_part_of_sentry_during_tests(self, use_test_logger):
+        every_record = sentry_sdk.integrations.logging.LoggingIntegration(
+            level=logging.DEBUG,
+            breadcrumb_level=logging.DEBUG,
+            event_level=logging.DEBUG,
+        )
+        # No stack trace either: its source lines would carry the message.
+        with tilia_sentry_client(
+            integrations=[every_record], attach_stacktrace=False
+        ) as client:
+            tilia.log.logger.critical(
+                "intentional test failure - must not reach Sentry"
+            )
+            logging.Logger("another.library").critical("another library's crash")
+            items = sent_items(client)
+        sent = b"".join(item.payload.get_bytes() for item in items)
 
-    def test_sentry_ignores_tilia_log_records(self):
-        tilia.log.sentry_sdk.integrations.logging.ignore_logger(tilia.log.logger.name)
-        record = logging.LogRecord(
-            name=tilia.log.logger.name,
-            level=logging.CRITICAL,
-            pathname=__file__,
-            lineno=0,
-            msg="intentional test failure - must not reach Sentry",
-            args=None,
-            exc_info=None,
-        )
-        event_handler = tilia.log.sentry_sdk.integrations.logging.EventHandler()
-        breadcrumb_handler = (
-            tilia.log.sentry_sdk.integrations.logging.BreadcrumbHandler()
-        )
-        assert not event_handler._can_record(record)
-        assert not breadcrumb_handler._can_record(record)
+        # The other library's record is sent as an event and as a Sentry log.
+        # TiLiA's is sent as neither, nor as a breadcrumb of that event.
+        assert {item.type for item in items} == {"event", "log"}
+        assert b"another library's crash" in sent
+        assert b"must not reach Sentry" not in sent
 
     def test_sentry_is_never_initialized_during_tests(self):
         client = tilia.log.sentry_sdk.get_client()
         assert not client.is_active()
+
+
+class TestSentry:
+    """What TiLiA sends to Sentry, with the options it starts Sentry with."""
+
+    @pytest.fixture
+    def client(self):
+        # use_test_logger keeps TiLiA's records out of Sentry during tests.
+        sentry_logging = sentry_sdk.integrations.logging
+        sentry_logging.unignore_logger_for_events(tilia.log.logger.name)
+        sentry_logging.unignore_logger(tilia.log.logger.name)
+        try:
+            with tilia_sentry_client() as client:
+                yield client
+        finally:
+            sentry_logging.ignore_logger_for_events(tilia.log.logger.name)
+            sentry_logging.ignore_logger(tilia.log.logger.name)
+
+    @pytest.fixture
+    def logger(self):
+        logger = tilia.log.TiliaLogger()
+        yield logger
+        for handler in logger.handlers:
+            handler.close()
+
+    def test_a_critical_record_is_sent_as_an_event(self, client, logger):
+        logger.critical("Traceback (most recent call last): ...")
+
+        [event] = sent_events(client)
+        assert event["level"] == "fatal"
+        assert event["logger"] == "tilia.log"
+        assert (
+            event["logentry"]["formatted"] == "Traceback (most recent call last): ..."
+        )
+
+    def test_records_below_critical_are_sent_as_no_event(self, client, logger):
+        for level in LEVELS[:-1]:
+            logger.log(level, "not an event")
+
+        assert sent_events(client) == []
+
+    def test_warning_and_error_records_are_breadcrumbs_of_the_next_event(
+        self, client, logger
+    ):
+        another_library = logging.Logger("another.library")
+        logger.debug("debug")
+        logger.info("info")
+        another_library.info("another library's info")
+        logger.warning("warning")
+        another_library.warning("another library's warning")
+        logger.error("error")
+        logger.critical("crash")
+
+        [event] = sent_events(client)
+        breadcrumbs = [
+            (crumb["category"], crumb["level"], crumb["message"])
+            for crumb in event["breadcrumbs"]["values"]
+        ]
+        assert breadcrumbs == [
+            ("tilia.log", "warning", "warning"),
+            ("another.library", "warning", "another library's warning"),
+            ("tilia.log", "error", "error"),
+        ]
+
+    def test_no_record_is_sent_as_a_sentry_log(self, client, logger):
+        for level in LEVELS:
+            logger.log(level, "not a Sentry log")
+
+        assert {item.type for item in sent_items(client)} == {"event"}
+
+    def test_an_event_of_a_record_without_an_exception_has_no_stack_trace(
+        self, client, logger
+    ):
+        logger.critical("crash")
+
+        [event] = sent_events(client)
+        assert not {"exception", "stacktrace", "threads"} & event.keys()
+
+    def test_an_event_carries_the_user_given_in_the_crash_dialog(self, client, logger):
+        logger.on_user_set("someone@example.com", "Someone")
+        logger.critical("crash")
+
+        [event] = sent_events(client)
+        assert event["user"] == {"email": "someone@example.com", "name": "Someone"}
+
+    def test_an_event_carries_the_log_file_and_the_dumps(
+        self, client, logger, tmp_path
+    ):
+        with patch.object(dirs, "logs_path", tmp_path):
+            logger.setup_file_log()
+        logger.warning("in the log file")
+        logger.file_dump({"timelines": {}})
+        logger.critical("crash")
+
+        attachments = [item for item in sent_items(client) if item.type == "attachment"]
+        assert [
+            (item.headers["filename"], item.headers["content_type"])
+            for item in attachments
+        ] == [(logger.log_file_name.name, "text/plain"), ("dump_0.tla", "text/json")]
+        log_file, dump = attachments
+        assert b"in the log file" in log_file.payload.get_bytes()
+        assert json.loads(dump.payload.get_bytes()) == {"timelines": {}}
+
+    def test_an_event_names_the_release_the_environment_and_the_one_integration(
+        self, client, logger
+    ):
+        logger.critical("crash")
+
+        [event] = sent_events(client)
+        assert event["release"] == f"{APP_NAME}@{VERSION}"
+        assert event["environment"] == "prod"
+        assert event["sdk"]["integrations"] == ["logging"]
+
+    def test_an_event_names_the_computer(self, client, logger):
+        logger.critical("crash")
+
+        [event] = sent_events(client)
+        assert event["server_name"] == socket.gethostname()
+
+    def test_an_event_has_no_part_that_it_did_not_have_with_sentry_sdk_2(
+        self, client, logger
+    ):
+        logger.on_user_set("someone@example.com", "Someone")
+        logger.warning("warning")
+        logger.critical("crash")
+
+        [event] = sent_events(client)
+        assert event.keys() <= {
+            "_meta",
+            "breadcrumbs",
+            "contexts",
+            "environment",
+            "event_id",
+            "extra",
+            "level",
+            "logentry",
+            "logger",
+            "platform",
+            "release",
+            "sdk",
+            "server_name",
+            "timestamp",
+            "transaction_info",
+            "user",
+        }
+        assert event["contexts"].keys() <= {"trace"}
+        assert event["extra"].keys() <= {"asctime"}
+
+    def test_stack_frame_variables_with_sensitive_names_are_filtered(
+        self, client, logger
+    ):
+        def fail(password, set_cookie, symfony, timeline_count):
+            try:
+                raise ValueError("intentional test exception")
+            except ValueError:
+                logger.critical("crash", exc_info=True)
+
+        fail("hunter2", "a-cookie", "a-symfony-value", 3)
+
+        [event] = sent_events(client)
+        [frame] = event["exception"]["values"][0]["stacktrace"]["frames"]
+        assert frame["context_line"].strip() == (
+            'raise ValueError("intentional test exception")'
+        )
+        assert frame["vars"]["timeline_count"] == "3"
+        for value in ("hunter2", "a-cookie", "a-symfony-value"):
+            assert value not in json.dumps(frame["vars"])
+
+    def test_nothing_but_events_and_their_attachments_is_sent(
+        self, client, logger, tmp_path
+    ):
+        sentry_sdk.profiler.start_profiler()  # as TiliaLogger.setup_sentry does
+        with patch.object(dirs, "logs_path", tmp_path):
+            logger.setup_file_log()
+        logger.on_user_set("someone@example.com", "Someone")
+        for level in LEVELS:
+            logger.log(level, "a record")
+        logger.file_dump({"timelines": {}})
+        sentry_sdk.profiler.stop_profiler()
+
+        assert {item.type for item in sent_items(client)} == {"event", "attachment"}
 
 
 class TestSaveFileOnClose:
