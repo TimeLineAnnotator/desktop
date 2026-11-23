@@ -440,6 +440,7 @@ class TestCodes:
             (rules.range_rows([{"id": ROW}]), "bad_row_name"),
             (rules.range_rows([ROWS[0], ROWS[0]]), "same_row_id"),
             (rules.range_rows([{**ROWS[0], "color": "x"}]), "bad_color"),
+            (rules.beat_pattern("0", timeline_name="Beats"), "bad_beat_pattern"),
         ],
     )
     def test_each_rule_of_what_isnt_a_component_has_its_own(self, outcome, code):
@@ -3049,6 +3050,81 @@ class TestMediaLength:
     @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range"])
     def test_an_infinite_length_is_longer_than_any_time(self, kind):
         assert check(kind, media_length=math.inf) == OK
+
+
+class TestBeatPattern:
+    """A beat timeline's pattern, with the reason the writer gives for one it
+    refuses. tests/tla/test_tla_rules.py checks that the two are the same for
+    every way the parser refuses one."""
+
+    @pytest.mark.parametrize("text", ["4", "3 2", "10[4] 3", "2[4 3[3]]"])
+    def test_one_that_parses(self, text):
+        assert rules.beat_pattern(text, timeline_name="Beats") == OK
+
+    def test_none_is_the_default_pattern(self):
+        # What a document holds for the default, which the writer writes.
+        assert rules.beat_pattern(None, timeline_name="Beats") == OK
+
+    def test_one_that_doesnt_parse_names_itself_and_its_timeline(self):
+        assert rules.beat_pattern("0", timeline_name="") == (
+            False,
+            'the beat pattern "0" of the timeline "" isn\'t a valid pattern',
+        )
+
+    @pytest.mark.parametrize("text", ["0", "abc", "[]", "", "10["])
+    def test_one_that_doesnt_parse_has_the_code_of_a_bad_beat_pattern(self, text):
+        outcome = rules.beat_pattern(text, timeline_name="Beats")
+        assert not outcome
+        assert outcome.code == rules.bad_code("beat_pattern")
+        assert outcome.others == ()
+        assert outcome.about == ""
+
+    @pytest.mark.parametrize(
+        "text, name, reason",
+        [
+            (
+                "10[",
+                "Beats",
+                'the beat pattern "10[" of the timeline "Beats" isn\'t a valid pattern',
+            ),
+            (
+                "",
+                "Beats",
+                'the beat pattern "" of the timeline "Beats" isn\'t a valid pattern',
+            ),
+            (
+                '4 "3"',
+                'Bässe "2"',
+                'the beat pattern "4 \\"3\\"" of the timeline "Bässe \\"2\\""'
+                " isn't a valid pattern",
+            ),
+            (
+                "4\n²",
+                "Beats",
+                'the beat pattern "4\\n²" of the timeline "Beats" isn\'t a valid pattern',
+            ),
+        ],
+        ids=["more typing could complete it", "empty", "quotes", "a line break"],
+    )
+    def test_the_pattern_and_the_name_are_shown_as_json_text(self, text, name, reason):
+        assert rules.beat_pattern(text, timeline_name=name) == (False, reason)
+
+    @pytest.mark.parametrize(
+        "value, shown",
+        [
+            ([4, 4, 3], "[4, 4, 3]"),
+            (4, "4"),
+            (4.0, "4.0"),
+            (True, "True"),
+            (b"4", "b'4'"),
+        ],
+    )
+    def test_a_value_that_isnt_text_raises(self, value, shown):
+        # The writer refuses one as a broken structure, before any rule, so there
+        # is no rule's reason to give. TiLiA's own pattern, a list, is one.
+        with pytest.raises(TypeError) as raised:
+            rules.beat_pattern(value, timeline_name="Beats")
+        assert str(raised.value) == f"a beat pattern is text or None, not {shown}"
 
 
 class TestCantCheck:

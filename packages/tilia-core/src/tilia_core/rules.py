@@ -19,6 +19,10 @@ for each component the others that matter rather than comparing it with every
 one: an import checks its components with it once, before it commits, and so
 do reading and writing a file, and a single change, on the timeline it leaves.
 
+What isn't a component has its own function: a range timeline's rows
+(`range_rows`), a color, a media length, and a beat timeline's pattern
+(`beat_pattern`), whose reason is the one the writer refuses a pattern with.
+
 A harmony's quality and inversion and a mode's type are checked against the
 installed music21, as TiLiA checks them, so checking a harmony or a mode needs
 the `harmony` extra. Without it, the other rules are checked, and when none is
@@ -38,6 +42,7 @@ from __future__ import annotations
 import bisect
 import importlib.util
 import itertools
+import json
 import math
 import string
 from collections.abc import (
@@ -659,6 +664,33 @@ def media_length(value: Any) -> Outcome:
     if value is None or (_is_number(value) and value > 0):
         return OK
     return _not_valid("media_length", value)
+
+
+def beat_pattern(pattern: str | None, *, timeline_name: str) -> Outcome:
+    """A beat timeline's pattern, as a document stores it: text that
+    `tilia_core.timemap.pattern.parse` completes, or None for the default.
+
+    One it doesn't, including one more typing could complete, such as "10[" or
+    "", gives the reason the writer refuses it with and the reader warns with,
+    which take it from here: `the beat pattern "0" of the timeline "Beats" isn't
+    a valid pattern`. Raises TypeError for a value that isn't text or None, which
+    the writer refuses as a broken structure, before any rule.
+    """
+    if pattern is None:
+        return OK
+    if not isinstance(pattern, str):
+        raise TypeError(f"a beat pattern is text or None, not {_shown(pattern)}")
+    # Imported here: the time map's package reads `tla`, which reads these rules.
+    from tilia_core.timemap.pattern import parse
+
+    if parse(pattern).is_complete:
+        return OK
+    shown = json.dumps(pattern, ensure_ascii=False)
+    name = json.dumps(timeline_name, ensure_ascii=False)
+    return _broken(
+        bad_code("beat_pattern"),
+        f"the beat pattern {shown} of the timeline {name} isn't a valid pattern",
+    )
 
 
 def cant_check(kind: str) -> CantCheck | None:
