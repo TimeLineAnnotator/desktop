@@ -1,4 +1,3 @@
-import music21
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
@@ -60,10 +59,8 @@ class ModeUI(TimelineUIElement):
 
     @property
     def key(self):
-        tonic = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
-            "music21", self.get_data("accidental")
-        )
-        return music21.key.Key(tonic, mode=self.get_data("type"))
+        # The component's, which is C major where TiLiA can't read the key.
+        return self.tl_component.key
 
     @property
     def seek_time(self):

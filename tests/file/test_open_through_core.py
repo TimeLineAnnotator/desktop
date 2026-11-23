@@ -1156,18 +1156,25 @@ class TestHarmoniesTiLiACantReadWhole:
         assert harmony.label == letter  # an unknown display mode draws letters
         tilia_errors.assert_no_error()
 
-    def test_a_mode_whose_tonic_tilia_can_t_read(
-        self, qtui, tilia, tls, tilia_errors, tmp_path
+    @pytest.mark.parametrize(
+        "mode_attrs, mode_label",
+        [({"step": 9}, "?"), ({"type": "some-future-type"}, "C Some-future-type")],
+        ids=["tonic", "type"],
+    )
+    def test_a_mode_whose_key_tilia_can_t_read(
+        self, qtui, tilia, tls, tilia_errors, tmp_path, mode_attrs, mode_label
     ):
         # The harmonies after it, up to the next mode, show "?" as roman
         # numerals, and their letters as usual (Anne, 2026-11-13,
-        # TimeLineAnnotator/project-management#563, point 3).
+        # TimeLineAnnotator/project-management#563, point 3), for its tonic or
+        # its type (Anne, 2026-11-19, TimeLineAnnotator/project-management#605,
+        # a).
         timeline_ui = self.open_and_draw(
             qtui,
             tls,
             tilia,
             tmp_path,
-            a_mode(step=9),
+            a_mode(**mode_attrs),
             a_harmony(display_mode="roman"),
             a_mode(time=2.0),
             a_harmony(time=3.0, display_mode="roman"),
@@ -1179,7 +1186,7 @@ class TestHarmoniesTiLiACantReadWhole:
         after_it, after_the_next = sorted(
             timeline_ui.harmonies(), key=lambda h: h.get_data("time")
         )
-        assert unreadable.label == "?"
+        assert unreadable.label == mode_label
         assert readable.label == "C"
         assert after_it.label == "?"
         assert after_it.letter_symbol_label == "G"

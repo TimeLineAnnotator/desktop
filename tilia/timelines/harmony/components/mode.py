@@ -69,13 +69,21 @@ class Mode(PointLikeTimelineComponent):
         return validate_step(self.step) and validate_accidental(self.accidental)
 
     @property
+    def can_read_key(self) -> bool:
+        """Whether TiLiA can read its key: its tonic, and its type, as a file can
+        hold a type TiLiA doesn't know too (Anne, 2026-11-19,
+        TimeLineAnnotator/project-management#605, a)."""
+        return self.can_read_tonic and validate_mode_type(self.type)
+
+    @property
     def key(self):
-        if not self.can_read_tonic:
+        if not self.can_read_key:
             # C major, for what needs a key, as with no mode. The harmonies after
             # it show "?" as roman numerals (Anne, 2026-11-13,
             # TimeLineAnnotator/project-management#563, point 3), and a roman
             # numeral typed or imported there is refused
-            # (TimeLineAnnotator/project-management#595, point 3).
+            # (TimeLineAnnotator/project-management#595, point 3). music21 raises
+            # for a type it doesn't know.
             return music21.key.Key("C")
         tonic = (
             INT_TO_NOTE_NAME[self.step]

@@ -41,12 +41,24 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             time, {c.get_data("time") for c in self if c.KIND == kind}, **kwargs
         )
 
+    @staticmethod
+    def _can_carry_applied_to(mode: Mode, prev_mode: Mode | None) -> bool:
+        """Whether the `applied_to` of the harmonies after `mode` can be carried
+        from the previous mode's key to its own, or back: not where either key
+        can't be read, by its tonic or its type, as what they were applied to
+        can't be known, so they keep what they have (Anne, 2026-11-19,
+        TimeLineAnnotator/project-management#606, a). With no previous mode, the
+        key is C major."""
+        return mode.can_read_key and (prev_mode is None or prev_mode.can_read_key)
+
     def _update_harmony_applied_to_on_mode_creation(self, mode: Mode):
         harmonies_in_harmonic_region = self.get_harmonies_in_harmonic_region(mode)
         if not harmonies_in_harmonic_region:
             return
 
         prev_mode = self._get_previous_mode(mode)
+        if not self._can_carry_applied_to(mode, prev_mode):
+            return
         prev_mode_step = prev_mode.get_data("step") if prev_mode else 0
         for harmony in harmonies_in_harmonic_region:
             relative_step = (
@@ -83,6 +95,8 @@ class HarmonyTLComponentManager(TimelineComponentManager):
             return
 
         prev_mode = self._get_previous_mode(mode)
+        if not self._can_carry_applied_to(mode, prev_mode):
+            return
         prev_mode_step = prev_mode.get_data("step") if prev_mode else 0
         for harmony in harmonies_in_harmonic_region:
             relative_step = (
@@ -204,10 +218,11 @@ class HarmonyTimeline(Timeline):
         return mode.key if mode is not None else music21.key.Key("CM")
 
     def can_read_key_by_time(self, time: float) -> bool:
-        """Whether TiLiA can read the key at a time: not after a mode whose tonic it
-        can't read, up to the next mode, where `get_key_by_time` gives C major."""
+        """Whether TiLiA can read the key at a time: not after a mode whose tonic or
+        type it can't read, up to the next mode, where `get_key_by_time` gives C
+        major."""
         mode = self.get_mode_by_time(time)
-        return mode is None or mode.can_read_tonic
+        return mode is None or mode.can_read_key
 
     def deserialize_components(self, components: dict[str, dict[str]]):
         super().deserialize_components(components)
