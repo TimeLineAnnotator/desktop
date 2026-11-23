@@ -1,4 +1,5 @@
 import functools
+import json
 
 from PySide6.QtCore import QRegularExpression
 from PySide6.QtGui import QRegularExpressionValidator
@@ -24,10 +25,24 @@ from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
 
 
-def _is_single_value_not_text(value: object) -> bool:
-    # A number, true or false, or null, as a file written by a script may hold.
-    # Lists and other structured values are left as they are.
-    return value is None or isinstance(value, (int, float))
+def _as_text(value: object) -> str:
+    """A field's value as its box shows it. A value that isn't text, as a file
+    written by a script may hold, as the migration to the next file format
+    writes it: null as "", and a number, true, false or an object as JSON. A
+    list is left as it was."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return str(value)
+    if value is None:
+        return ""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _is_stored_as_text(value: object) -> bool:
+    """Whether a value that isn't text is stored as its box shows it, from the
+    first Apply that sets a field. A list is left as it was."""
+    return not isinstance(value, (str, list))
 
 
 class MediaMetadataWindow(QDialog):
@@ -112,7 +127,7 @@ class MediaMetadataWindow(QDialog):
         for name, value in metadata.items():
             if name in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS:
                 continue
-            line_edit = QLineEdit(str(value))
+            line_edit = QLineEdit(_as_text(value))
             self.form_layout.addRow(QLabel(name.capitalize()), line_edit)
             self.metadata[name] = line_edit
             self.metadata_original[name] = value
@@ -279,25 +294,25 @@ class MediaMetadataWindow(QDialog):
     def apply_fields(self):
         edits = self._get_edits()
         if set(edits) - {"media length"}:
-            # An Apply that sets a field also stores as text each single value
-            # that isn't, as its box shows it. None are left after the first.
-            edits = self._single_values_as_text() | edits
+            # An Apply that sets a field also stores as text each value that
+            # isn't, as its box shows it. None are left after the first.
+            edits = self._values_as_text() | edits
         self._save_edits(edits)
         self.clear_layout()
         self._setup_fields()
 
-    def _single_values_as_text(self) -> dict[str, str]:
+    def _values_as_text(self) -> dict[str, str]:
         return {
-            name: str(value)
+            name: _as_text(value)
             for name, value in self.metadata_original.items()
-            if _is_single_value_not_text(value)
+            if _is_stored_as_text(value)
         }
 
     def _get_edits(self) -> dict:
-        # A single value that isn't text, such as the number 1990, is compared
-        # as the text its box shows, so that it isn't an edit until it is typed
-        # over. Any other value is compared as it is.
-        originals = self.metadata_original | self._single_values_as_text()
+        # A value that isn't text, such as the number 1990, is compared as the
+        # text its box shows, so that it isn't an edit until it is typed over.
+        # A list is compared as it is.
+        originals = self.metadata_original | self._values_as_text()
         edits = {
             name: self.metadata[name].text()
             for name in self.metadata

@@ -888,19 +888,24 @@ def open_window(qtui):
             qtui._windows[WindowKind.MEDIA_METADATA].close()
 
 
-# A value that isn't text, as a file made by a script may hold, and its text.
+# A value that isn't text, as a file made by a script may hold, and its text, as
+# the migration to the next file format writes it.
 VALUES_NOT_TEXT = [
     pytest.param(1990, "1990", id="integer"),
     pytest.param(19.5, "19.5", id="decimal"),
-    pytest.param(True, "True", id="true"),
-    pytest.param(None, "None", id="null"),
+    pytest.param(True, "true", id="true"),
+    pytest.param(False, "false", id="false"),
+    pytest.param(None, "", id="null"),
+    pytest.param(
+        {"piano": "Hélène Grimaud"}, '{"piano": "Hélène Grimaud"}', id="object"
+    ),
 ]
 
 
 class TestAValueThatIsNotText:
-    """A single value that isn't text, such as the number 1990, isn't an edit:
-    its box shows its text, and nothing is asked until it is typed over. The first
-    Apply that sets a field stores it as text, as the box shows it."""
+    """A value that isn't text, such as the number 1990, isn't an edit: its box
+    shows its text, and nothing is asked until it is typed over. The first Apply
+    that sets a field stores it as text, as the box shows it."""
 
     @pytest.mark.parametrize("value, shown", VALUES_NOT_TEXT)
     def test_opening_and_closing_asks_nothing(
