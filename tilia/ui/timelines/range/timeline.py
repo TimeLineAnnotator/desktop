@@ -20,7 +20,7 @@ from tilia.ui.dialogs.basic import ask_for_color
 from tilia.ui.menus import RangeMenu
 from tilia.ui.timelines.base.timeline import TimelineUI, with_elements
 from tilia.ui.timelines.collection.collection import TimelineSelector, TimelineUIs
-from tilia.ui.timelines.copy_paste import paste_into_element
+from tilia.ui.timelines.copy_paste import fitted_time, paste_into_element
 from tilia.ui.timelines.harmony.level_label import LevelLabel
 from tilia.ui.timelines.range.context_menu import RangeTimelineContextMenu
 from tilia.ui.timelines.range.drag import MIN_DRAG_GAP
@@ -401,11 +401,29 @@ class RangeTimelineUI(TimelineUI):
     def paste_multiple_into_selected_elements(
         self, paste_data: list[dict] | dict
     ) -> None:
+        """Fits the copied ranges into the first selected range's span, in
+        proportion, as a hierarchy's paste complete fits a subtree
+        (TimeLineAnnotator/project-management#654). The selected range is the
+        first piece: it takes the first range's values and its fitted end, and
+        the others are added on its row. Joins among the copied ranges are kept,
+        and a join from the selected range to the range after it moves to the
+        last piece, which ends where the selected range ended."""
         paste_data = sorted(paste_data, key=lambda md: md["context"]["start"])
+        anchor_context = paste_data[0]["context"]
 
         first = self.selected_elements[0]
+        target_start, target_end = first.get_data("start"), first.get_data("end")
+        source_start = anchor_context["start"]
+        source_end = max(md["context"]["end"] for md in paste_data)
+        map_time = fitted_time(source_start, source_end, target_start, target_end)
+        joined_after = first.get_data("joined_right")
+
         self.deselect_element(first)
         paste_into_element(first, paste_data[0])
+        self.timeline.set_component_data(
+            first.id, "end", map_time(anchor_context["end"])
+        )
+        self.timeline.set_component_data(first.id, "joined_right", None)
         self.select_element(first)
 
         # paste_into_element only applies paste_data["values"] onto the
@@ -413,38 +431,30 @@ class RangeTimelineUI(TimelineUI):
         # otherwise dropped, silently losing any join where the copied
         # anchor range was either endpoint. Seed the join-resolution maps
         # with the anchor before handing off the rest of the batch.
-        anchor_context = paste_data[0]["context"]
         old_to_new = {}
         if anchor_context.get("id") is not None:
             old_to_new[anchor_context["id"]] = first.id
         old_joined_right_pairs = [(first.id, anchor_context.get("joined_right"))]
 
-        joined = anchor_context.get("joined_right") is not None and any(
-            d["context"].get("id") == anchor_context["joined_right"]
-            for d in paste_data[1:]
-        )
-        if joined:
-            # The selected range keeps its times, and the range the first one
-            # joins starts where it ends, so that the join holds; the others keep
-            # their distances from it (TimeLineAnnotator/project-management#648,
-            # b). They are made as they are: one the rules refuse, such as one
-            # past the media's end, refuses the paste with the core's reason
-            # rather than leaving out the join
-            # (TimeLineAnnotator/project-management#654).
-            reference_time, target_time = anchor_context["end"], first.get_data("end")
-        else:
-            reference_time = anchor_context["start"]
-            target_time = first.get_data("start")
-
+        # Made as they are: one the rules refuse, such as one with a margin the fit
+        # puts outside the media, refuses the paste with the core's reason.
         self._create_pasted_ranges(
             paste_data[1:],
-            reference_time,
-            target_time,
+            map_time,
             first.get_data("row_id"),
             old_to_new=old_to_new,
             old_joined_right_pairs=old_joined_right_pairs,
-            checked=not joined,
+            checked=False,
         )
+
+        if joined_after is not None:
+            last = max(
+                (md for md in paste_data if md["context"]["end"] == source_end),
+                key=lambda md: md["context"]["start"],
+            )
+            last_id = old_to_new.get(last["context"].get("id"))
+            if last_id is not None:
+                self.timeline.set_component_data(last_id, "joined_right", joined_after)
 
     def paste_single_into_timeline(self, paste_data: list[dict] | dict) -> None:
         return self.paste_multiple_into_timeline(paste_data)
@@ -454,23 +464,26 @@ class RangeTimelineUI(TimelineUI):
         if target_row is None:
             return
         reference_time = min(md["context"]["start"] for md in paste_data)
+        target_time = get(Get.SELECTED_TIME)
         self._create_pasted_ranges(
             paste_data,
-            reference_time,
-            get(Get.SELECTED_TIME),
+            lambda time: target_time + (time - reference_time),
             target_row.id,
+            keep_lengths=True,
         )
 
     def _create_pasted_ranges(
         self,
         paste_data: list[dict],
-        reference_time: float,
-        target_time: float,
+        map_time: Callable[[float], float],
         row_id: str,
         old_to_new: dict | None = None,
         old_joined_right_pairs: list[tuple] | None = None,
         checked: bool = True,
+        keep_lengths: bool = False,
     ) -> None:
+        """Adds the copied ranges on `row_id`, each time through `map_time`; with
+        `keep_lengths`, each range keeps its length from its mapped start."""
         old_to_new = {} if old_to_new is None else old_to_new
         old_joined_right_pairs = (
             [] if old_joined_right_pairs is None else old_joined_right_pairs
@@ -482,21 +495,19 @@ class RangeTimelineUI(TimelineUI):
             old_joined_right = d["context"].pop("joined_right", None)
             pre_start = d["context"].pop("pre_start", None)
             post_end = d["context"].pop("post_end", None)
-            duration = end - start
-            new_start = target_time + (start - reference_time)
+            new_start = map_time(start)
+            new_end = new_start + (end - start) if keep_lengths else map_time(end)
 
             extension_kwargs = {}
             if pre_start is not None:
-                extension_kwargs["pre_start"] = target_time + (
-                    pre_start - reference_time
-                )
+                extension_kwargs["pre_start"] = map_time(pre_start)
             if post_end is not None:
-                extension_kwargs["post_end"] = target_time + (post_end - reference_time)
+                extension_kwargs["post_end"] = map_time(post_end)
 
             comp, _ = self.timeline.create_component(
                 kind=ComponentKind.RANGE,
                 start=new_start,
-                end=new_start + duration,
+                end=new_end,
                 row_id=row_id,
                 checked=checked,
                 **d["values"],
