@@ -26,7 +26,7 @@ dependencies = [
     "PySide6==6.11.2",  # 6.9.3 corrupts memory in app-wide Python event filters (see issue #694)
     "PySide6_Addons==6.11.2",
     "PySide6_Essentials==6.11.2",
-    "sentry-sdk>=2.21.0",
+    "sentry-sdk>=3.0.0",
     "soundfile~=0.13.1",
     "TiLiA",
 ]
