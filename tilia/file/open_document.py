@@ -17,6 +17,10 @@ from tilia_core.tla import paths
 
 _MEDIA_LENGTH = "media length"
 
+# The paths a document holds: its media's, and those of its timelines that store
+# one, each by its id in a timeline with nothing else.
+_Paths = tuple[str, dict[str, tla.Timeline]]
+
 
 @dataclass(eq=False)
 class OpenDocument:
@@ -33,8 +37,8 @@ class OpenDocument:
     `synced` is the state the document reflects, and `sync` applies to it what differs
     from that state. `removed` keeps what `sync` took out of it, so that an undo gets
     it back whole. For each state undo records, `remember` keeps what the document
-    then held that the state can't tell (`tla_bridge.history_of`, and the media's path
-    as the file stores it), and an undo or a redo back to that state gives it back.
+    then held that the state can't tell (`tla_bridge.history_of`, and the paths as the
+    file stores them), and an undo or a redo back to that state gives it back.
 
     `media_path` is where the media was found, not the path the file stores
     (`note_media_found`).
@@ -60,9 +64,9 @@ class OpenDocument:
         default_factory=threading.Lock, init=False, repr=False
     )
     # By the id of a state undo recorded: that state, the document's history, and the
-    # media's path as the document then held it, which the state can't tell: the
-    # state holds where the media was found, or "" when it wasn't.
-    _histories: dict[int, tuple[dict[str, Any], tla_bridge.History, str]] = field(
+    # paths as the document then held them, which the state can't tell: the state
+    # holds where a file was found, or "" when the media wasn't.
+    _histories: dict[int, tuple[dict[str, Any], tla_bridge.History, _Paths]] = field(
         default_factory=dict, init=False, repr=False
     )
 
@@ -112,10 +116,7 @@ class OpenDocument:
                 tla_bridge.give_back_history(
                     self.document, remembered[1], state, removed=self.removed
                 )
-                # The media's path the file stored then, which `apply_changes` took
-                # from the state: where the media was found, or "" when it wasn't.
-                if self.document.media_path != remembered[2]:
-                    self.document.media_path = remembered[2]
+                _give_back_paths(self.document, remembered[2], state, remembered[0])
             self.synced = state
         for note in notes:
             logger.warning(note)
@@ -128,7 +129,7 @@ class OpenDocument:
             self._histories[id(state)] = (
                 state,
                 tla_bridge.history_of(self.document, state),
-                self.document.media_path,
+                _paths_in(self.document),
             )
 
     def forget_all_but(self, states: Iterable[dict[str, Any]]) -> None:
@@ -145,7 +146,7 @@ class OpenDocument:
         do, through the core's path handler, so that a PDF timeline an undo gives
         back after a Save As, or a save through a link to a file elsewhere, still
         names its PDF, and one read with an absolute path keeps it; and so do the
-        media paths kept for undo, so that one an undo gives back names the media.
+        paths kept for undo, so that one an undo gives back names its file.
         Raises what `tla.write` raises, having changed nothing."""
         with self._lock:
             held = [
@@ -157,21 +158,22 @@ class OpenDocument:
             with paths.following(self.document, held, path):
                 tla.write(path, self.document)
             # The folder `tla.write` rebases to: that of the file a link names.
-            self._rebase_kept_media_paths(before, paths.paths_folder(path))
+            self._rebase_kept_paths(before, paths.paths_folder(path))
 
-    def _rebase_kept_media_paths(self, before: tla.Document, folder: str) -> None:
-        """Makes the media paths kept for undo those the file just written from
-        `before` stores, relative to `folder`, as the document's own is: the one
-        the document held is what the core wrote, and any other is rebased as the
-        core would have written it."""
-        written = {before.media_path: self.document.media_path}
-        for key, (state, history, media_path) in list(self._histories.items()):
-            if media_path not in written:
-                other = copy.copy(before)
-                other.timelines = {}
-                other.media_path = media_path
-                written[media_path] = paths.rebase_paths(other, folder).media_path
-            self._histories[key] = (state, history, written[media_path])
+    def _rebase_kept_paths(self, before: tla.Document, folder: str) -> None:
+        """Makes the paths kept for undo follow the write of `before` into `folder`
+        that has just been made, as the document's own do: each is what the core
+        would have stored had `before` held it."""
+        # One rebase for the many states that hold the same paths.
+        rebased: dict[tuple[tuple[str, Any], ...], _Paths] = {}
+        other = copy.copy(before)
+        for key, (state, history, kept) in list(self._histories.items()):
+            other.media_path, other.timelines = kept
+            held = tuple(paths.stored_paths(other))
+            if held not in rebased:
+                written = paths.rebase_paths(other, folder)
+                rebased[held] = (written.media_path, written.timelines)
+            self._histories[key] = (state, history, rebased[held])
 
     def note_media_length(self, length: float) -> None:
         """Takes `length`, the player's report for the media the file already has,
@@ -212,3 +214,38 @@ class OpenDocument:
         is given follow the file written, and the one open must stay with its file."""
         with self._lock:
             return copy.deepcopy(self.document)
+
+
+def _paths_in(doc: tla.Document) -> _Paths:
+    """The paths `doc` holds, copied."""
+    return doc.media_path, {
+        timeline_id: tla.Timeline(
+            id=timeline.id,
+            kind=timeline.kind,
+            ordinal=timeline.ordinal,
+            attrs={
+                attr: value
+                for attr, value in timeline.attrs.items()
+                if attr in paths.TIMELINE_PATHS[timeline.kind]
+            },
+        )
+        for timeline_id, timeline in doc.timelines.items()
+        if timeline.kind in paths.TIMELINE_PATHS
+    }
+
+
+def _give_back_paths(
+    doc: tla.Document, kept: _Paths, state: dict[str, Any], back_to: dict[str, Any]
+) -> None:
+    """Gives `doc` back the paths it held in `back_to`, which an undo or a redo has
+    brought TiLiA back to, as `state`. `apply_changes` took them from the state, where
+    each is the file TiLiA found, or "" for media it didn't. A timeline's stays the
+    state's where that isn't the one it was: asked about a PDF that is no longer
+    there, the user has picked another."""
+    doc.media_path, timelines = kept
+    for timeline_id in doc.timelines.keys() & timelines.keys():
+        then = back_to["timelines"].get(timeline_id, {})
+        now = state["timelines"].get(timeline_id, {})
+        for attr, path in timelines[timeline_id].attrs.items():
+            if now.get(attr) == then.get(attr):
+                doc.timelines[timeline_id].attrs[attr] = path

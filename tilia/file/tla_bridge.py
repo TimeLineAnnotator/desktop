@@ -276,17 +276,10 @@ def history_of(doc: tla.Document, state: State) -> History:
     takes it out again (#551, point 1, b). So the file's fields, each timeline's
     attributes, fields and ordinal, and what `state`, the state the document
     follows, holds that the document doesn't, are kept too; a PDF timeline's path
-    isn't. TiLiA's is the file it found, absolute and normalised, and the core's
-    path handler judges it by its text when it is written (`tla.paths`): the text
-    the file was read with, give or take "/" and NFC, stays absolute, and any other
-    is written relative from the folder written into wherever a relative path
-    exists. So an undo gives back the path the file was read with only where TiLiA
-    spells it as the file did: an absolute path, or a relative one, already
-    normalised. One that TiLiA's lookup normalises, with a `.`, a `..` after a name
-    or a doubled "/", comes back normalised, and relative where it can be
-    (TimeLineAnnotator/project-management#625). The caller keeps one of these for
-    each state its undo records, and `give_back_history` gives it back when an undo
-    or a redo returns to that state."""
+    isn't: each write rebases the paths a document holds, so `OpenDocument` keeps
+    them, and the media's, apart. The caller keeps one of these for each state its
+    undo records, and `give_back_history` gives it back when an undo or a redo
+    returns to that state."""
     scores: dict[str, tla.Score | None] = {}
     marks: dict[str, dict[str, Any]] = {}
     attributes: dict[str, dict[str, Any]] = {}

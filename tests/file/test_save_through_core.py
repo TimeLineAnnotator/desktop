@@ -1202,9 +1202,9 @@ class TestAPdfTimelineAnUndoGivesBack:
 
 
 def stored_absolute(path: Path, media: str, pdf: str) -> None:
-    """Stores `media` and `pdf` absolute in the file at `path`, which the core
-    wrote, in its layout: as a hand edit, or the save that converted an old file,
-    leaves them."""
+    """Stores `media` and `pdf`, absolute or spelled as a file may, in the file at
+    `path`, which the core wrote, in its layout: as a hand edit, or the save that
+    converted an old file, leaves them."""
     content = json.loads(path.read_bytes())
     content["media"]["path"] = media
     for timeline in content["timelines"].values():
@@ -1344,6 +1344,242 @@ class TestAPathReadAbsolute:
 
         assert self.paths_in(path) == (media, pdf)
         assert path.read_bytes() == before
+
+
+class TestAPathTiLiASpellsOtherwise:
+    """TiLiA holds a path as its lookup finds the file: absolute and normalised. An
+    undo gives back the one the file stores, however the file spells it (#551, point
+    1, b; #600, option a; TimeLineAnnotator/project-management#625)."""
+
+    # Of a file in far/, which is beside proj/, where the `.tla` file is.
+    SPELLINGS = {
+        "absolute, ..": "{proj}/../far/{name}",
+        "absolute, .": "{far}/./{name}",
+        "absolute, //": "{far}//{name}",
+        "absolute": "{far}/{name}",
+        "relative, ..": "../proj/../far/{name}",
+        "relative, .": ".././far/{name}",
+        "relative, //": "..//far/{name}",
+        "relative": "../far/{name}",
+    }
+    ABSOLUTE_AND_RELATIVE = pytest.mark.parametrize(
+        "path",
+        [SPELLINGS["absolute, .."], SPELLINGS["relative, .."]],
+        ids=["absolute", "relative"],
+        indirect=True,
+    )
+    KINDS = pytest.mark.parametrize("kind", ["media", "pdf"])
+    paths_in = staticmethod(TestAPathReadAbsolute.paths_in)
+
+    @pytest.fixture(params=SPELLINGS.values(), ids=SPELLINGS)
+    def path(self, request, qtui, tilia, tls, tmp_path) -> Path:
+        """WP3's file of every kind in proj/, open, with its media and its PDF, x,
+        stored in each spelling, and others, y, beside them in far/."""
+        far, proj = tmp_path / "far", tmp_path / "proj"
+        far.mkdir()
+        for name in ("x.mp3", "y.mp3"):
+            shutil.copyfile(EXAMPLE_MEDIA_PATH, far / name)
+        for name in ("x.pdf", "y.pdf"):
+            shutil.copyfile(RESOURCES / "example.pdf", far / name)
+        proj.mkdir()
+        path = written_by_the_core(EVERY_KIND, proj)
+        media, pdf = (
+            request.param.format(far=far.as_posix(), proj=proj.as_posix(), name=name)
+            for name in ("x.mp3", "x.pdf")
+        )
+        stored_absolute(path, media, pdf)
+        with (
+            patch.object(QtAudioPlayer, "_engine_load_media", return_value=True),
+            Serve(Get.PLAYER_CLASS, QtAudioPlayer),
+        ):
+            assert open_file(path)
+            assert self.shown(tilia, tls, "media") == (far / "x.mp3").as_posix()
+            assert self.shown(tilia, tls, "pdf") == (far / "x.pdf").as_posix()
+            yield path
+
+    @staticmethod
+    def shown(tilia, tls, kind: str) -> str:
+        """The path TiLiA holds."""
+        if kind == "media":
+            return get(Get.MEDIA_PATH)
+        pdf = first_of_kind(the_document(tilia), "pdf").id
+        return tls.get_timeline(pdf).get_data("path")
+
+    @staticmethod
+    def change(tilia, tls, kind: str, path: Path | str) -> None:
+        """Loads other media, or gives the PDF timeline another path."""
+        if kind == "media":
+            post(Post.APP_MEDIA_LOAD, Path(path).as_posix(), scale_timelines="no")
+        else:
+            pdf = first_of_kind(the_document(tilia), "pdf").id
+            tls.set_timeline_data(pdf, "path", str(path))
+            record()
+
+    def change_to_y(self, tilia, tls, kind: str, tmp_path: Path) -> None:
+        name = "y.mp3" if kind == "media" else "y.pdf"
+        self.change(tilia, tls, kind, tmp_path / "far" / name)
+
+    @KINDS
+    @TestAPathReadAbsolute.SAVED_BETWEEN
+    def test_an_undo_gives_back_the_files_bytes(
+        self, path, tilia, tls, tmp_path, kind, saved_between
+    ):
+        before = path.read_bytes()
+        self.change_to_y(tilia, tls, kind, tmp_path)
+        if saved_between:
+            assert save()
+            assert path.read_bytes() != before
+
+        commands.execute("edit.undo")
+        assert save()
+
+        assert path.read_bytes() == before
+
+    @ABSOLUTE_AND_RELATIVE
+    @KINDS
+    def test_an_undo_after_a_redo_does_too(self, path, tilia, tls, tmp_path, kind):
+        before = path.read_bytes()
+        self.change_to_y(tilia, tls, kind, tmp_path)
+        assert save()
+        changed = path.read_bytes()
+        commands.execute("edit.undo")
+
+        commands.execute("edit.redo")
+        assert save()
+        assert path.read_bytes() == changed
+
+        commands.execute("edit.undo")
+        assert save()
+        assert path.read_bytes() == before
+
+    @ABSOLUTE_AND_RELATIVE
+    @KINDS
+    def test_the_other_path_keeps_its_change(self, path, tilia, tls, tmp_path, kind):
+        this, other = (0, 1) if kind == "media" else (1, 0)
+        read = self.paths_in(path)
+        self.change_to_y(tilia, tls, "pdf" if kind == "media" else "media", tmp_path)
+        self.change_to_y(tilia, tls, kind, tmp_path)
+
+        commands.execute("edit.undo")
+        assert save()
+
+        written = self.paths_in(path)
+        assert written[this] == read[this]
+        assert written[other].startswith("../far/y.")
+
+    @ABSOLUTE_AND_RELATIVE
+    @KINDS
+    def test_after_a_save_as_it_names_the_file_from_the_new_folder(
+        self, path, tilia, tls, tmp_path, kind
+    ):
+        # One read absolute stays the text read; a relative one is relative to the
+        # folder saved into (WP3's FR-033).
+        read = self.paths_in(path)
+        (tmp_path / "other" / "deeper").mkdir(parents=True)
+        copy_path = tmp_path / "other" / "deeper" / "copy.tla"
+        self.change_to_y(tilia, tls, kind, tmp_path)
+        assert save_as(copy_path)
+
+        commands.execute("edit.undo")
+        assert save()
+
+        if not Path(read[0]).is_absolute():
+            read = ("../../far/x.mp3", "../../far/x.pdf")
+        assert self.paths_in(copy_path) == read
+
+    @ABSOLUTE_AND_RELATIVE
+    def test_a_pdf_timeline_deleted_with_another_path_and_given_back(
+        self, path, tilia, tls, tmp_path
+    ):
+        before = path.read_bytes()
+        pdf = first_of_kind(the_document(tilia), "pdf").id
+        self.change_to_y(tilia, tls, "pdf", tmp_path)
+        tls.delete_timeline(tls.get_timeline(pdf))
+        record()
+        assert save()
+
+        commands.execute("edit.undo")
+        commands.execute("edit.undo")
+        assert save()
+
+        assert path.read_bytes() == before
+
+    @ABSOLUTE_AND_RELATIVE
+    def test_a_pdf_picked_when_an_undo_doesnt_find_it_is_kept(
+        self, path, tilia, tls, tmp_path, monkeypatch
+    ):
+        # The PDF is gone when the undo makes its timeline again, so TiLiA asks. It
+        # isn't deleted: on Windows, TiLiA may still hold it open.
+        pdf = first_of_kind(the_document(tilia), "pdf").id
+        tls.delete_timeline(tls.get_timeline(pdf))
+        record()
+        find = tla.stored_file
+        monkeypatch.setattr(
+            tla,
+            "stored_file",
+            lambda path, stored, **kwargs: (
+                None if stored.endswith("x.pdf") else find(path, stored, **kwargs)
+            ),
+        )
+        picked = (tmp_path / "far" / "y.pdf").as_posix()
+
+        with (
+            Serve(Get.FROM_USER_RETRY_PDF_PATH, True),
+            Serve(Get.FROM_USER_PDF_PATH, (True, picked)),
+        ):
+            commands.execute("edit.undo")
+        assert save()
+
+        assert self.shown(tilia, tls, "pdf") == picked
+        assert self.paths_in(path)[1] == "../far/y.pdf"
+
+    @ABSOLUTE_AND_RELATIVE
+    @KINDS
+    def test_set_back_by_hand_it_is_what_the_core_writes_for_the_same_edits(
+        self, path, tilia, tls, tmp_path, kind
+    ):
+        # An edit changes what the same edit through the core's API changes (FR-003):
+        # to the core, the file spelled otherwise is another path (#582).
+        doc = tla.read(path)
+        by_the_core = path.parent / "by the core.tla"
+        shown = self.shown(tilia, tls, kind)
+        for name in ("y", Path(shown).stem):
+            given = Path(shown).with_stem(name)
+            self.change(tilia, tls, kind, given)
+            assert save()
+            if kind == "media":
+                doc.media_path = tla.as_media_path(given)
+            else:
+                first_of_kind(doc, "pdf").attrs["path"] = str(given)
+            tla.write(by_the_core, doc)
+
+        assert self.shown(tilia, tls, kind) == shown
+        assert self.paths_in(path) == self.paths_in(by_the_core)
+
+    @ABSOLUTE_AND_RELATIVE
+    @KINDS
+    def test_an_undo_back_to_one_set_back_by_hand_gives_back_that_one(
+        self, path, tilia, tls, tmp_path, kind
+    ):
+        # TiLiA holds the same path as when the file was read; the file, another.
+        read = self.paths_in(path)
+        shown = self.shown(tilia, tls, kind)
+        self.change_to_y(tilia, tls, kind, tmp_path)
+        self.change(tilia, tls, kind, shown)
+        assert save()
+        by_hand = path.read_bytes()
+        assert self.paths_in(path) != read
+        self.change_to_y(tilia, tls, kind, tmp_path)
+        assert save()
+
+        commands.execute("edit.undo")
+        assert save()
+        assert path.read_bytes() == by_hand
+
+        commands.execute("edit.undo")
+        commands.execute("edit.undo")
+        assert save()
+        assert self.paths_in(path) == read
 
 
 class TestAPdfPathFoundFromTheFolderRead:
