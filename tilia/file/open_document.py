@@ -37,7 +37,8 @@ class OpenDocument:
     as the file stores it), and an undo or a redo back to that state gives it back.
 
     `media_path` is where the media was found, not the path the file stores
-    (`note_media_found`).
+    (`note_media_found`), when the file was last read or saved: other media
+    loaded since is an unsaved change.
     `timelines` and `timelines_hash` are the state's when the file was last read or
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.

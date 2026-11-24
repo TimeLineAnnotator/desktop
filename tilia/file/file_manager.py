@@ -124,7 +124,6 @@ class FileManager:
 
     def _setup_requests(self):
         LISTENS = {
-            (Post.PLAYER_URL_CHANGED, self.on_player_url_changed),
             (Post.FILE_MEDIA_DURATION_CHANGED, self.on_player_duration_changed),
             (Post.REQUEST_SAVE_TO_PATH, self.on_save_to_path_request),
             (
@@ -378,10 +377,10 @@ class FileManager:
         # last save/load instead.
         if dict(current_data["media_metadata"]) != self._saved_metadata:
             return True
+        # The file's media path is that of the media loaded when the file was
+        # opened or last saved. It doesn't follow the player, so that other
+        # media, of whatever length, is a change until it is saved or undone.
         return not are_tilia_data_equal(current_data, self.file.__dict__)
-
-    def on_player_url_changed(self, path: str | Path) -> None:
-        self.file.media_path = str(path)
 
     def on_player_duration_changed(
         self, duration: float, is_confirmation: bool = False
