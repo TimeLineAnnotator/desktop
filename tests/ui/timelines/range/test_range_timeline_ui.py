@@ -1193,6 +1193,71 @@ class TestPasteRangesOntoASelectedRange:
         assert (pasted.get_data("pre_start"), pasted.get_data("post_end")) == (52, 56)
         assert not tilia_errors.errors
 
+    @staticmethod
+    def margins(element):
+        """The range's pre-start and post-end, None for one it doesn't have."""
+        data = element.get_data
+        return (
+            None if data("pre_start") == data("start") else data("pre_start"),
+            None if data("post_end") == data("end") else data("post_end"),
+        )
+
+    @staticmethod
+    def saved_margins(range_tlui, element, tmp_path):
+        """The same, as the saved file holds them."""
+        path = save_tilia_to_tmp_path(tmp_path)
+        attrs = tla.read(path).timelines[range_tlui.id].components[element.id].attrs
+        return attrs.get("pre_start"), attrs.get("post_end")
+
+    def copy_with_margins(self, range_tlui, *, post_end=False):
+        """A 2–10 with a pre-start at 0, and with a post-end at 12 if asked, joined
+        to B 10–20 with neither, copied."""
+        copied = add_and_join_ranges(range_tlui, [(2, 10), (10, 20)])
+        range_tlui.deselect_all_elements()
+        range_tlui.select_element(copied[0])
+        commands.execute("timeline.range.add_pre_start", length=2.0)
+        if post_end:
+            commands.execute("timeline.range.add_post_end", length=2.0)
+        range_tlui.select_element(copied[1])
+        commands.execute("timeline.component.copy")
+        assert self.margins(copied[0]) == (0, 12 if post_end else None)
+        assert self.margins(copied[1]) == (None, None)
+
+    def test_the_first_piece_keeps_the_selected_range_s_margins(
+        self, range_tlui, tilia_errors, tmp_path
+    ):
+        # And the first copied range's are dropped
+        # (TimeLineAnnotator/project-management#673, a).
+        self.copy_with_margins(range_tlui)
+        target = self.target(range_tlui, 50, 55)
+        commands.execute("timeline.range.add_post_end", length=3.0)
+
+        commands.execute("timeline.component.paste")
+
+        second = next(e for e in range_tlui if e.id == target.get_data("joined_right"))
+        middle = pytest.approx(52.22, abs=0.01)
+        assert self.chain_from(range_tlui, target) == [(50, middle), (middle, 55)]
+        assert self.margins(target) == (None, 58)
+        assert self.margins(second) == (None, None)
+        assert self.saved_margins(range_tlui, target, tmp_path) == (None, 58)
+        assert self.saved_margins(range_tlui, second, tmp_path) == (None, None)
+        assert not tilia_errors.errors
+
+    def test_a_selected_range_without_margins_gets_none(
+        self, range_tlui, tilia_errors, tmp_path
+    ):
+        # Neither the first copied range's, nor one left where its end was.
+        self.copy_with_margins(range_tlui, post_end=True)
+        target = self.target(range_tlui, 50, 55)
+
+        commands.execute("timeline.component.paste")
+
+        middle = pytest.approx(52.22, abs=0.01)
+        assert self.chain_from(range_tlui, target) == [(50, middle), (middle, 55)]
+        assert self.margins(target) == (None, None)
+        assert self.saved_margins(range_tlui, target, tmp_path) == (None, None)
+        assert not tilia_errors.errors
+
     def test_a_margin_fitted_outside_the_media_refuses_the_paste(
         self, range_tlui, tilia_state, tilia_errors
     ):
