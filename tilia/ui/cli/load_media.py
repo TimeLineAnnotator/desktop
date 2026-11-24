@@ -1,13 +1,12 @@
 import argparse
-import re
 from functools import partial
 from pathlib import Path
 from typing import Callable
 
-import tilia.constants
 import tilia.errors
 from tilia.requests import Get, Post, get, post
 from tilia.ui.cli import io
+from tilia_core import build
 
 
 def setup_parser(subparsers, parse_and_run: Callable[[str], bool]):
@@ -49,14 +48,15 @@ Examples:
 
 
 def load_media(parse_and_run: Callable[[str], bool], namespace: argparse.Namespace):
-    if re.match(tilia.constants.YOUTUBE_URL_REGEX, namespace.path):
-        path = namespace.path
-    else:
-        path = Path(namespace.path.replace("\\", "/"))
-        if not path.exists():
-            tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, path)
-            return
-        path = str(path.resolve()).replace("\\", "/")
+    # The core decides, for a script's load-media too, what is media and the path
+    # to store for it, so that a file stores the same whichever made it (FR-033).
+    try:
+        path = build.media_path(namespace.path)
+    except ValueError:
+        # The core's words, and as the core quotes it: a link as a path too.
+        given = Path(namespace.path.replace("\\", "/"))
+        tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, given)
+        return
 
     success = post(
         Post.APP_MEDIA_LOAD,
