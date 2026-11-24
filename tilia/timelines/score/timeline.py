@@ -3,7 +3,7 @@ from __future__ import annotations
 import functools
 from typing import Any
 
-from tilia.requests import Get, Post, get, post
+from tilia.requests import Post, post
 from tilia.timelines.base.component.mixed import crop_mixed, scale_mixed
 from tilia.timelines.base.timeline import (
     Timeline,
@@ -12,39 +12,6 @@ from tilia.timelines.base.timeline import (
 )
 from tilia.timelines.base.validators import validate_pre_validated, validate_string
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.ui.format import format_media_time
-
-# A score's components keep TiLiA's texts for their times, which name no kind,
-# while the other kinds' texts name theirs: TiLiA shows no name for a clef, a bar
-# line or a signature. TimeLineAnnotator/project-management#669 settles what they
-# read.
-
-
-def _validate_time(time: float) -> tuple[bool, str]:
-    media_duration = get(Get.MEDIA_DURATION)
-    if time > media_duration:
-        return (
-            False,
-            f"Time '{format_media_time(time)}' is bigger than media time"
-            f" '{format_media_time(media_duration)}'",
-        )
-    elif time < 0:
-        return False, f"Time can't be negative. Got '{format_media_time(time)}'"
-    return True, ""
-
-
-def _validate_times(start: float, end: float) -> tuple[bool, str]:
-    media_duration = get(Get.MEDIA_DURATION)
-    if start > media_duration:
-        return (
-            False,
-            f"Start time '{start}' is bigger than media time '{media_duration}'",
-        )
-    elif end > media_duration:
-        return False, f"End time '{end}' is bigger than media time '{media_duration}'"
-    elif end <= start:
-        return False, f"End time '{end}' should be bigger than start time '{start}'"
-    return True, ""
 
 
 class ScoreTLComponentManager(TimelineComponentManager):
@@ -72,10 +39,12 @@ class ScoreTLComponentManager(TimelineComponentManager):
             case ComponentKind.NOTE:
                 start = kwargs["start"] if "start" in kwargs else args[0]
                 end = kwargs["end"] if "end" in kwargs else args[1]
-                return _validate_times(start, end)
+                component_class = self._get_component_class_by_kind(kind)
+                return component_class.validate_times(start, end)
             case ComponentKind.CLEF | ComponentKind.BAR_LINE | ComponentKind.TIME_SIGNATURE | ComponentKind.KEY_SIGNATURE:
                 time = kwargs["time"] if "time" in kwargs else args[0]
-                return _validate_time(time)
+                component_class = self._get_component_class_by_kind(kind)
+                return component_class.validate_time_is_inbounds(time)
             case ComponentKind.SCORE_ANNOTATION | ComponentKind.STAFF:
                 # Score annotations do not have a time property.
                 return True, ""
