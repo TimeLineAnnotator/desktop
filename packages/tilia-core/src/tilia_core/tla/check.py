@@ -66,12 +66,16 @@ from tilia_core.tla.model import (
 )
 from tilia_core.tla.parse import lines_of, pointer, text_of
 
+# `check`'s `in_source`.
+InSource: TypeAlias = Callable[[str, str], tuple[str, str]]
+
 
 def check(
     content: Mapping[str, Any],
     source: str | bytes | None = None,
     *,
     path: str | os.PathLike[str] | None = None,
+    in_source: InSource | None = None,
 ) -> list[ReadWarning]:
     """Check a file's content in the current format, as JSON gives it.
 
@@ -81,17 +85,23 @@ def check(
     1.0 into 1, in `content` itself. `source` is the text the content was
     read from, or the file's bytes, and is read only to find lines. `path` is
     the file's, for messages.
+
+    `in_source` is for content that isn't as `source` has it: an old file's,
+    migrated (`OldPlaces.in_old_file`). It takes a place in `content`, and the
+    message about what is there, to the place and the message to report; the
+    line is then that place's, in `source`. A warning's ids are the content's.
     """
-    checker = _checked(content, source, path)
+    checker = _checked(content, source, path, in_source)
     if not checker.warnings:
         return []
-    warnings = [(_pointer(place), message) for place, message in checker.warnings]
+    found = [(_pointer(place), message) for place, message in checker.warnings]
+    named = found if in_source is None else [in_source(*each) for each in found]
     lines: dict[str, int] = {}
     if source is not None:
-        lines = lines_of(text_of(source), [place for place, _ in warnings])
+        lines = lines_of(text_of(source), [place for place, _ in named])
     return [
-        ReadWarning(place, lines.get(place), message, *ids_at(place))
-        for place, message in warnings
+        ReadWarning(place, lines.get(place), message, *ids_at(own))
+        for (own, _), (place, message) in zip(found, named, strict=True)
     ]
 
 
@@ -110,19 +120,20 @@ def _checked(
     content: Mapping[str, Any],
     source: str | bytes | None,
     path: str | os.PathLike[str] | None,
+    in_source: InSource | None = None,
 ) -> _Checker:
     """The checker that has been through `content`, or `check`'s `UnreadableFile`."""
     checker = _Checker()
     try:
         checker.document(content)
     except _Broken as broken:
-        place = _pointer(broken.place)
+        place, message = _pointer(broken.place), broken.message
+        if in_source is not None:
+            place, message = in_source(place, message)
         line = None
         if source is not None:
             line = lines_of(text_of(source), [place])[place]
-        raise UnreadableFile(
-            broken.message, path=path, line=line, place=place
-        ) from None
+        raise UnreadableFile(message, path=path, line=line, place=place) from None
     return checker
 
 

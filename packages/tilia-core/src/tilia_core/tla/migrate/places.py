@@ -3,7 +3,7 @@
 The migration keeps each new id's old id, and where each key it moved or
 renamed was, so that what the check after the migration refuses or warns
 about is named in the old file's terms: the place there, with the old ids,
-whose line the reader then finds in the old file's bytes
+whose line the check then finds in the old file's bytes
 (TimeLineAnnotator/project-management#347). It also keeps each reference
 the new ids couldn't follow, which names nothing, with its old value.
 

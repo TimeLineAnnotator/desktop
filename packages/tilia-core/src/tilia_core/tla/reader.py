@@ -199,31 +199,26 @@ def _old(
     What the migration or the check refuses or warns about is named in the
     old file's terms: its place there, with the old ids, and its line in
     the old file's bytes (TimeLineAnnotator/project-management#347). The
-    migration names its places so itself; the check names places in the
-    migrated document, which the migration's `places` takes back to the old
-    file, with what it says about them. A warning's ids are the document's.
+    migration names its places so itself, and their lines are found here. The
+    check finds problems in the migrated document: it is given the migration's
+    `places`, which take them back to the old file, with what it says about
+    them, and the bytes to find their lines in. A warning's ids are the
+    document's.
     """
     try:
         migrated = migrate(content, path=path, paths_as_stored=for_fingerprint)
-        try:
-            warnings = check(migrated.content, path=path)
-        except UnreadableFile as error:
-            if error.place is None:
-                raise
-            place, message = migrated.places.in_old_file(error.place, error.message)
-            raise UnreadableFile(message, path=path, place=place) from None
     except UnreadableFile as error:
         add_line(error, text_of(data))
         raise
-    named = [(w, w.place, w.message) for w in migrated.warnings]
-    named += [(w, *migrated.places.in_old_file(w.place, w.message)) for w in warnings]
-    lines = lines_of(text_of(data), [place for _, place, _ in named]) if named else {}
+    checked = check(
+        migrated.content, data, path=path, in_source=migrated.places.in_old_file
+    )
+    own = migrated.warnings
+    lines = lines_of(text_of(data), [w.place for w in own]) if own else {}
     document = _Reader(path).document(migrated.content)
-    # Each with what else it has, such as the ids of the others it names.
-    document.warnings = [
-        dataclasses.replace(w, place=place, line=lines[place], message=message)
-        for w, place, message in named
-    ]
+    # Each of the migration's with what else it has, such as its ids.
+    document.warnings = [dataclasses.replace(w, line=lines[w.place]) for w in own]
+    document.warnings += checked
     if not for_fingerprint:
         _keep_for_a_write(document, data, path, where=migrated.places.old)
     return document, migrated

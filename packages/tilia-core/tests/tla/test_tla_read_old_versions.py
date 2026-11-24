@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from tilia_core import tla
+from tilia_core.tla.check import check
 from tilia_core.tla.ids import MIGRATED_BASE_MS, derived_document_id, migrated_id
 from tilia_core.tla.migrate import old as old_migrations
 from tilia_core.tla.migrate import places as old_places
@@ -2139,6 +2140,235 @@ def test_old_files_have_no_warnings_but_the_migrations(old_file):
             continue
         timeline = warning.place.split("/")[2]
         assert timeline in content["timelines"]
+
+
+# What the check reports in each old file. The check is given the file's bytes
+# and the mapping from the migrated document's places to the file's, and names
+# what it reports by them itself (TimeLineAnnotator/project-management#367).
+
+# Each old file's own warnings, in their order: the line and the place of each.
+# They are the migration's and the rules': the check has none about these files.
+WARNED = {
+    "0.0.96.tla": [
+        (67, "/timelines/1/components/4/formal_type"),
+        (68, "/timelines/1/components/4/formal_function"),
+    ],
+    "0.0.96-saved-by-0.7.0.tla": [
+        (46, "/timelines/1/components/4/formal_type"),
+        (47, "/timelines/1/components/4/formal_function"),
+    ],
+    "0.5.15.tla": [
+        (47, "/timelines/1/components/3/formal_type"),
+        (48, "/timelines/1/components/3/formal_function"),
+        (294, "/timelines/30/components"),
+        (53, "/timelines/1/components/2"),
+        (39, "/timelines/1/components/3"),
+    ],
+    "0.5.15-saved-by-0.7.0.tla": [
+        (61, "/timelines/1/components/3/formal_type"),
+        (62, "/timelines/1/components/3/formal_function"),
+        (294, "/timelines/30/components"),
+        (39, "/timelines/1/components/2"),
+        (53, "/timelines/1/components/3"),
+    ],
+    "0.5.15.0-many-beats.tla": [],
+    "0.6.0-s4-10.tla": [
+        (65, "/timelines/558/components/1122/formal_function"),
+        (93, "/timelines/558/components/1125/formal_function"),
+        (107, "/timelines/558/components/1128/formal_function"),
+        (135, "/timelines/558/components/1133/formal_function"),
+        (149, "/timelines/558/components/1136/formal_function"),
+    ],
+    "0.7.0.tla": [
+        (61, "/timelines/1/components/3/formal_type"),
+        (62, "/timelines/1/components/3/formal_function"),
+        (294, "/timelines/30/components"),
+        (39, "/timelines/1/components/2"),
+        (53, "/timelines/1/components/3"),
+    ],
+    "0.7.0-osmd.tla": [],
+}
+
+
+def test_each_old_files_warnings_are_at_their_lines_and_places(old_file):
+    warned = [(w.line, w.place) for w in tla.read(old_file).warnings]
+    # Without the `harmony` extra, the note on the file, which has no place.
+    assert [each for each in warned if each[1]] == WARNED[old_file.name]
+
+
+def beats_by_time(timeline):
+    """The ids of an old beat timeline's beats, by their times."""
+    components = timeline["components"]
+    beats = [key for key, value in components.items() if value["kind"] == "BEAT"]
+    return sorted(beats, key=lambda key: components[key]["time"])
+
+
+def with_beat_timeline(path, change):
+    """The old file at `path` with `change` made to its beat timeline, whose id
+    and name are given with the file's bytes, a key or an item on each line as
+    TiLiA writes them, and the file's own line ends."""
+    data = path.read_bytes()
+    content = json.loads(data)
+    key, timeline = old_timeline(content, "beat")
+    change(timeline)
+    line_end = b"\r\n" if b"\r\n" in data else b"\n"
+    return key, timeline["name"], indented(content).replace(b"\n", line_end)
+
+
+def test_what_the_check_warns_about_in_each_old_file_is_named_in_its_terms(old_file):
+    def change(timeline):
+        first, second, *_ = beats_by_time(timeline)
+        timeline["metadata"] = {"vocabulary": "No reference"}
+        timeline["components"]["kept"] = {"kind": "MARKER", "time": 1.0}
+        # Moved onto their beats, which are in one measure.
+        for key, beat, denominator in (("unit-1", first, 4), ("unit-2", second, 8)):
+            timeline["components"][key] = {
+                "kind": "BEAT_UNIT",
+                "beat_id": beat,
+                "denominator": denominator,
+                "units": "1",
+            }
+
+    key, name, data = with_beat_timeline(old_file, change)
+    doc = tla.loads(data)
+    beats = by_kind(doc, "beat")
+    (kept,) = [
+        each
+        for each, c in beats.components.items()
+        if c.kind == tla.UnknownKind("MARKER")
+    ]
+    _, second, *_ = sorted(
+        (each for each in beats.components if each != kept),
+        key=lambda each: beats.components[each].attrs["time"],
+    )
+    which = f'the timeline "{name}"' if name else "a timeline without a name"
+    expected = [
+        tla.ReadWarning(
+            place=f"/timelines/{key}/components/kept",
+            line=line_of(data, b'"kept": {'),
+            message=f'{which} holds a component of kind "MARKER", which a timeline'
+            ' of kind "Beat" doesn\'t have: it is kept as it is',
+            timeline_id=beats.id,
+            component_id=kept,
+        ),
+        tla.ReadWarning(
+            place=f"/timelines/{key}/metadata/vocabulary",
+            line=line_of(data, b'"vocabulary"'),
+            message=f'the vocabulary "No reference" of {which} isn\'t a valid'
+            " reference",
+            timeline_id=beats.id,
+        ),
+        # Where the old file has the unit, with the id of the beat it is on.
+        tla.ReadWarning(
+            place=f"/timelines/{key}/components/unit-2",
+            line=line_of(data, b'"unit-2": {'),
+            message="measure 1 has two beat units (TiLiA shows it red)",
+            timeline_id=beats.id,
+            component_id=second,
+        ),
+    ]
+    places = {warning.place for warning in expected}
+    assert [w for w in doc.warnings if w.place in places] == expected
+
+
+def a_height_as_text(timeline):
+    timeline["height"] = "x"
+    return "/height", '"height" should be an integer, not text', b'"height": "x"'
+
+
+def a_time_as_text(timeline):
+    first, *_ = beats_by_time(timeline)
+    timeline["components"][first]["time"] = "soon"
+    return (
+        f"/components/{first}/time",
+        '"time" should be a number or null, not text',
+        b'"time": "soon"',
+    )
+
+
+@pytest.mark.parametrize("broken", [a_height_as_text, a_time_as_text])
+def test_what_the_check_refuses_in_each_old_file_is_named_in_its_terms(
+    old_file, broken
+):
+    expected = []
+    key, _, data = with_beat_timeline(
+        old_file, lambda timeline: expected.extend(broken(timeline))
+    )
+    place, message, text = expected
+    with pytest.raises(tla.UnreadableFile) as error:
+        tla.loads(data)
+    assert error.value.message == message
+    assert error.value.place == f"/timelines/{key}{place}"
+    assert error.value.line == line_of(data, text)
+
+
+# The check by itself: what it is given to name what it reports by.
+
+TEXT = '{\n  "a": {\n    "b": 1\n  }\n}\n'
+
+
+def in_text(place, message):
+    """A mapping to one place in TEXT, on line 3, which says where it was."""
+    return "/a/b", f"at {place}: {message}"
+
+
+def migrated_content(*changes):
+    """A migrated document's content, and the id of its timeline "Form"."""
+    content = to_1.migrate(edited(*changes)).content
+    (form,) = [key for key, tl in content["timelines"].items() if tl["name"] == "Form"]
+    return content, form
+
+
+SOURCES = pytest.mark.parametrize(
+    "source, line",
+    [
+        pytest.param(TEXT, 3, id="text"),
+        pytest.param(TEXT.encode(), 3, id="bytes"),
+        pytest.param(b"\xef\xbb\xbf" + TEXT.encode(), 3, id="a byte-order mark"),
+        pytest.param(None, None, id="none"),
+    ],
+)
+
+
+@SOURCES
+def test_the_check_names_a_warning_where_it_is_told_it_is(source, line):
+    content, form = migrated_content(
+        set_key(*HIERARCHY, "metadata", {"vocabulary": "No reference"})
+    )
+    assert check(content, source, in_source=in_text) == [
+        tla.ReadWarning(
+            place="/a/b",
+            line=line,
+            message=f'at /timelines/{form}/metadata/vocabulary: the vocabulary "No'
+            ' reference" of the timeline "Form" isn\'t a valid reference',
+            # The content's own, whatever the place is called in the source.
+            timeline_id=form,
+        )
+    ]
+
+
+@SOURCES
+def test_the_check_names_a_refusal_where_it_is_told_it_is(source, line):
+    content, form = migrated_content(set_key(*HIERARCHY, "height", "x"))
+    with pytest.raises(tla.UnreadableFile) as error:
+        check(content, source, path="piece.tla", in_source=in_text)
+    assert error.value.place == "/a/b"
+    assert error.value.line == line
+    assert error.value.message == (
+        f'at /timelines/{form}/height: "height" should be an integer, not text'
+    )
+    assert error.value.path == Path("piece.tla")
+
+
+def test_the_check_looks_nothing_up_when_it_has_nothing_to_report():
+    # It is given an old file's bytes and places at every read: they cost a
+    # read nothing while there is nothing to name.
+    def refuse(place, message):
+        raise AssertionError(place)
+
+    content, _ = migrated_content()
+    not_text = b"\xff"  # reading it as text would raise
+    assert check(content, not_text, in_source=refuse) == []
 
 
 # Where each place of the migrated document was in the old file

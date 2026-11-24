@@ -480,7 +480,7 @@ class _Migration:
 # What a reference the new ids can't follow becomes: a UUID that no migrated
 # component has (theirs are UUIDv7s), so that the check refuses it as a
 # reference that names nothing, in the order it refuses what a file of the
-# current format breaks. The reader names it as the old file has it.
+# current format breaks, and names it as the old file has it (`places`).
 NOTHING = "00000000-0000-0000-0000-000000000000"
 
 
