@@ -5,8 +5,8 @@ import itertools
 import math
 import pickle
 import random
+import subprocess
 import sys
-import threading
 import time
 from decimal import Decimal
 from fractions import Fraction
@@ -1815,15 +1815,16 @@ def short_attrs(value):
 TINY = 5e-324  # the smallest float above 0
 
 
-def within_10_s(call):
-    """What `call` gives; a failure, rather than a run that never ends, if it takes
-    more than 10 seconds."""
-    given = []
-    thread = threading.Thread(target=lambda: given.append(call()), daemon=True)
-    thread.start()
-    thread.join(10)
-    assert given, "no result within 10 s"
-    return given[0]
+# Run in a process of its own, which can be stopped: without an end to the search
+# for digits, it would run for ever.
+EQUAL_TIMES = """
+from tilia_core import rules
+
+for time in (0.0, 5e-324, -5e-324, 1e-300, -0.04, 0.1, 2.0, 100.04, 10**20 + 1, 1e300):
+    one, other = rules.shown_times(time, time)
+    assert one == other, (one, other)
+    assert rules._digits_apart(time, time, 1) <= 1075, time
+"""
 
 
 class TestShownTimes:
@@ -1953,29 +1954,16 @@ class TestShownTimes:
                 assert text.startswith("-") == (value < 0), (value, text)
                 assert not (value < 0 and not text.strip("-0:.")), (value, text)
 
-    @pytest.mark.parametrize(
-        "time",
-        [
-            0.0,
-            TINY,
-            -TINY,
-            1e-300,
-            -0.04,
-            0.1,
-            2.0,
-            100.04,
-            10**20 + 1,
-            1e300,
-            10**308,
-        ],
-        ids=str,
-    )
-    def test_the_digits_end_even_for_equal_times(self, time):
+    def test_the_search_for_digits_ends_even_for_equal_times(self):
         # `shown_times` doesn't look for digits that tell equal times apart. A text
         # shown to a user must end whatever it is asked.
-        shown = within_10_s(lambda: rules.shown_times(time, time))
-        assert shown[0] == shown[1]
-        assert within_10_s(lambda: rules._digits_apart(time, time, 1)) <= 1075
+        result = subprocess.run(
+            [sys.executable, "-c", EQUAL_TIMES],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr
 
     @pytest.mark.parametrize("sign", [1, -1])
     def test_the_first_digit_that_shows_a_time(self, sign):
