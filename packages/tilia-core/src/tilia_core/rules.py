@@ -1546,12 +1546,26 @@ def shown_times(one: float, other: float) -> tuple[str, str]:
     as each other. Two equal times, as an end can be its start, look the same."""
     digits = max(_digits_before_0(one), _digits_before_0(other))
     if _is_number(one) and _is_number(other) and one != other:
-        # Until the larger can be seen, both read as zero. From there, two floats
-        # differ within the some 17 digits a float has.
-        digits = max(digits, _digits_to_see(max(abs(one), abs(other))))
-        while _in_digits(one, digits) == _in_digits(other, digits):
-            digits += 1
+        digits = _digits_apart(one, other, digits)
     return _in_digits(one, digits), _in_digits(other, digits)
+
+
+# Two numbers that differ look different within this many digits after the first in
+# which the larger of them can be seen: they differ by more than a part in 2**54 of
+# it, and 10**17 is more than 2**55. An integer too large for that differs from the
+# other by a whole second.
+_DIGITS_APART = 17
+
+
+def _digits_apart(one: float, other: float, digits: int) -> int:
+    """The fewest digits, from that many on, in which two times that differ look
+    different. It ends for any two numbers, equal ones too."""
+    # Until the larger can be seen, both read as zero.
+    first = max(digits, _digits_to_see(max(abs(one), abs(other))))
+    for digits in range(first, first + _DIGITS_APART):
+        if _in_digits(one, digits) != _in_digits(other, digits):
+            return digits
+    return first + _DIGITS_APART
 
 
 def _digits_before_0(time: float) -> int:
@@ -1560,15 +1574,14 @@ def _digits_before_0(time: float) -> int:
 
 
 def _digits_to_see(size: float) -> int:
-    """The fewest digits, from tenths, in which a time of this size, above 0,
-    doesn't read as zero."""
-    # No more than the fewest, and at most one less: counting up to a tiny time's
-    # from tenths would take some 300 steps, for each of the thousands a file can
-    # hold.
+    """The fewest digits, from tenths, in which a time of this size doesn't read as
+    zero; tenths for zero itself."""
+    if not size:
+        return 1
+    # These are the fewest, or one less. Counting up to a tiny time's from tenths
+    # would take some 300 steps, for each of the thousands a file can hold.
     digits = max(1, math.floor(-math.log10(size)))
-    while not _rounded(size, digits):
-        digits += 1
-    return digits
+    return digits if _rounded(size, digits) else digits + 1
 
 
 def _is_number(value: Any) -> bool:

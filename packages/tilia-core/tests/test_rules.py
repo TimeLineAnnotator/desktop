@@ -6,6 +6,7 @@ import math
 import pickle
 import random
 import sys
+import threading
 import time
 from decimal import Decimal
 from fractions import Fraction
@@ -1814,6 +1815,17 @@ def short_attrs(value):
 TINY = 5e-324  # the smallest float above 0
 
 
+def within_10_s(call):
+    """What `call` gives; a failure, rather than a run that never ends, if it takes
+    more than 10 seconds."""
+    given = []
+    thread = threading.Thread(target=lambda: given.append(call()), daemon=True)
+    thread.start()
+    thread.join(10)
+    assert given, "no result within 10 s"
+    return given[0]
+
+
 class TestShownTimes:
     """How many digits the texts for a component's times show: tenths, or as many
     more as tell two times apart, and keep one before 0 from reading as zero
@@ -1940,6 +1952,63 @@ class TestShownTimes:
             for value, text in zip((one, other), shown, strict=True):
                 assert text.startswith("-") == (value < 0), (value, text)
                 assert not (value < 0 and not text.strip("-0:.")), (value, text)
+
+    @pytest.mark.parametrize(
+        "time",
+        [
+            0.0,
+            TINY,
+            -TINY,
+            1e-300,
+            -0.04,
+            0.1,
+            2.0,
+            100.04,
+            10**20 + 1,
+            1e300,
+            10**308,
+        ],
+        ids=str,
+    )
+    def test_the_digits_end_even_for_equal_times(self, time):
+        # `shown_times` doesn't look for digits that tell equal times apart. A text
+        # shown to a user must end whatever it is asked.
+        shown = within_10_s(lambda: rules.shown_times(time, time))
+        assert shown[0] == shown[1]
+        assert within_10_s(lambda: rules._digits_apart(time, time, 1)) <= 1075
+
+    @pytest.mark.parametrize("sign", [1, -1])
+    def test_the_first_digit_that_shows_a_time(self, sign):
+        sizes = [10.0**-n for n in range(324)] + [
+            5.0 * 10.0**-n for n in range(324)
+        ]
+        sizes += [math.ldexp(1, -n) for n in range(1075)] + [math.ldexp(1, 900), 3]
+        sizes += [math.nextafter(size, to) for size in sizes[:648] for to in (0, 1)]
+        for size in sizes:
+            if not size:
+                continue
+            digits = rules._digits_to_see(size)
+            seen = [rules._rounded(size, n) > 0 for n in (digits - 1, digits)]
+            assert seen[1], size
+            assert digits == 1 or not seen[0], size
+            assert rules.shown_time(sign * size)
+
+    def test_two_different_times_never_need_more_digits_than_are_tried(self):
+        # The nearest two numbers can be, at each of a float's sizes, and an integer
+        # and a float.
+        pairs = []
+        for exponent in range(-1074, 1024):
+            value = math.ldexp(1, exponent)
+            pairs += [(value, math.nextafter(value, to)) for to in (0, math.inf)]
+            most = math.nextafter(value, 0)  # all bits set
+            pairs.append((most, math.nextafter(most, 0)))
+        pairs += [(2**n, float(2**n) + 2.0 ** (n - 52)) for n in range(0, 60)]
+        pairs += [(10**n + 1, float(10**n)) for n in range(15, 300)]
+        for one, other in pairs:
+            if one == other or not (math.isfinite(one) and math.isfinite(other)):
+                continue
+            shown = rules.shown_times(one, other)
+            assert shown[0] != shown[1], (one, other)
 
     def test_tenths_read_as_before(self):
         rng = random.Random("tenths")
