@@ -201,6 +201,7 @@ class TestTheLines:
 
     @pytest.mark.xfail(
         strict=True,
+        raises=AssertionError,
         reason="TiLiA's format_media_time shows a time before 0 without its minus"
         " sign until dev's fix for TimeLineAnnotator/project-management#289 is"
         " merged",

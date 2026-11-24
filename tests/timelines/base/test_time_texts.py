@@ -125,6 +125,17 @@ def the_core_s(kind: ComponentKind, attrs: dict[str, Any], rows) -> str:
     return getattr(rules, core_kind)(LENGTH, [], attrs).reason
 
 
+def both(request, case) -> tuple[str, str]:
+    """TiLiA's text for a case, and the core's."""
+    kind, attrs = case
+    reason = refused(request, kind, attrs)
+    rows = []
+    if kind == ComponentKind.RANGE:
+        timeline = request.getfixturevalue("range_tl")
+        rows = [{"id": row.id, "name": row.name} for row in timeline.rows]
+    return reason, the_core_s(kind, attrs, rows)
+
+
 @pytest.mark.parametrize("case", CASES, ids=case_id)
 def test_the_text_names_the_kind_and_the_time(request, tilia_state, case):
     kind, attrs, text = case
@@ -138,6 +149,7 @@ def test_the_text_names_the_kind_and_the_time(request, tilia_state, case):
 # fix for TimeLineAnnotator/project-management#289 reaches this branch.
 BEFORE_0 = pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="TiLiA's format_media_time shows a time before 0 without its minus sign"
     " until dev's fix for TimeLineAnnotator/project-management#289 is merged",
 )
@@ -153,9 +165,35 @@ BEFORE_0 = pytest.mark.xfail(
 )
 def test_the_text_is_the_core_s(request, tilia_state, case):
     kind, attrs, _ = case
-    reason = refused(request, kind, attrs)
-    rows = []
-    if kind == ComponentKind.RANGE:
-        timeline = request.getfixturevalue("range_tl")
-        rows = [{"id": row.id, "name": row.name} for row in timeline.rows]
-    assert reason == the_core_s(kind, attrs, rows)
+    reason, core = both(request, (kind, attrs))
+    assert reason == core
+
+
+# A time just under a minute is rounded before its minutes are counted in the core.
+JUST_UNDER_A_MINUTE = [
+    *((kind, {"time": 119.97}) for kind in POINTS),
+    *((kind, {"start": 1.0, "end": 119.97}) for kind in SEGMENTS),
+    *((kind, {"start": 60.0, "end": 59.96}) for kind in SEGMENTS),
+]
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="TiLiA's format_media_time shows a time just under a minute as 01:60.0"
+    " until TimeLineAnnotator/project-management#304 is built",
+)
+@pytest.mark.parametrize("case", JUST_UNDER_A_MINUTE, ids=lambda c: case_id((*c, "")))
+def test_a_time_just_under_a_minute_is_the_core_s(request, tilia_state, case):
+    reason, core = both(request, case)
+    assert reason == core
+
+
+@pytest.mark.parametrize("case", JUST_UNDER_A_MINUTE, ids=lambda c: case_id((*c, "")))
+def test_a_time_just_under_a_minute_is_their_only_difference(
+    request, tilia_state, case
+):
+    reason, core = both(request, case)
+    for tilia_s, core_s in {"01:60.0": "02:00.0", "00:60.0": "01:00.0"}.items():
+        reason = reason.replace(tilia_s, core_s)
+    assert reason == core
