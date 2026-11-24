@@ -1794,6 +1794,228 @@ class TestTheTimesTexts:
         )
 
 
+def tenths(time):
+    """How a media time was shown before the texts could show more digits."""
+    if time < 0:
+        return "-" + tenths(-time)
+    time = float(f"{time:.1f}")
+    seconds = f"{time % 60:.1f}".zfill(4)
+    minutes = int(time // 60)
+    hours = f"{minutes // 60}:" if minutes >= 60 else ""
+    return f"{hours}{str(minutes % 60).zfill(2)}:{seconds}"
+
+
+def short_attrs(value):
+    if isinstance(value, dict):
+        return "-".join(f"{k}={v}" for k, v in value.items())
+    return ""
+
+
+TINY = 5e-324  # the smallest float above 0
+
+
+class TestShownTimes:
+    """How many digits the texts for a component's times show: tenths, or as many
+    more as tell two times apart, and keep one before 0 from reading as zero
+    (TimeLineAnnotator/project-management#679, answer b)."""
+
+    @pytest.mark.parametrize(
+        "one, other, shown",
+        [
+            (100.04, 100, ("01:40.04", "01:40.00")),
+            (100.01, 100.0, ("01:40.01", "01:40.00")),
+            (100.0000001, 100.0, ("01:40.0000001", "01:40.0000000")),
+            (
+                math.nextafter(100, 101),
+                100,
+                ("01:40.00000000000001", "01:40.00000000000000"),
+            ),
+            (1.9999999, 2.0, ("00:01.9999999", "00:02.0000000")),
+            (
+                math.nextafter(2, 0),
+                2.0,
+                ("00:01.9999999999999998", "00:02.0000000000000000"),
+            ),
+            (3599.996, 3600.0, ("59:59.996", "1:00:00.000")),
+            (59.996, 59.99, ("01:00.00", "00:59.99")),
+            (0.02, 0.04, ("00:00.02", "00:00.04")),
+            (-0.04, 0.04, ("-00:00.04", "00:00.04")),
+            (-0.04, -5.0, ("-00:00.04", "-00:05.00")),
+            (-5.0, -0.004, ("-00:05.000", "-00:00.004")),
+            (
+                10**20 + 1,
+                1e20,
+                ("27777777777777777:46:41.0", "27777777777777777:46:40.0"),
+            ),
+        ],
+    )
+    def test_as_many_as_tell_them_apart(self, one, other, shown):
+        assert rules.shown_times(one, other) == shown
+        assert rules.shown_times(other, one) == shown[::-1]
+
+    @pytest.mark.parametrize(
+        "one, other, shown",
+        [
+            (150.0, 100.0, ("02:30.0", "01:40.0")),
+            (100.06, 100.0, ("01:40.1", "01:40.0")),  # rounded, they differ
+            (100.0500001, 100.0499999, ("01:40.1", "01:40.0")),
+            (7265.0, 3600, ("2:01:05.0", "1:00:00.0")),
+            (-5.0, -1.0, ("-00:05.0", "-00:01.0")),
+        ],
+    )
+    def test_tenths_where_they_differ(self, one, other, shown):
+        assert rules.shown_times(one, other) == shown
+
+    @pytest.mark.parametrize(
+        "one, other, shown",
+        [
+            (2.0, 2.0, "00:02.0"),
+            (2, 2.0, "00:02.0"),
+            (100.04, 100.04, "01:40.0"),
+            (-0.04, -0.04, "-00:00.04"),
+        ],
+    )
+    def test_two_equal_times_look_the_same(self, one, other, shown):
+        # An end can be its start: no digits tell them apart.
+        assert rules.shown_times(one, other) == (shown, shown)
+
+    @pytest.mark.parametrize(
+        "time, shown",
+        [
+            (-0.04, "-00:00.04"),
+            (-0.0449, "-00:00.04"),
+            (-0.06, "-00:00.1"),
+            (-0.004, "-00:00.004"),
+            (-1e-7, "-00:00.0000001"),
+            (-1.0, "-00:01.0"),
+            (0.04, "00:00.0"),
+            (0.0, "00:00.0"),
+            (-0.0, "00:00.0"),
+            (-TINY, "-00:00." + "0" * 323 + "5"),
+        ],
+    )
+    def test_a_time_before_0_doesnt_read_as_zero(self, time, shown):
+        assert rules.shown_time(time) == shown
+
+    @pytest.mark.parametrize(
+        "time, shown",
+        [
+            (math.inf, "inf"),
+            (-math.inf, "-inf"),
+            (math.nan, "nan"),
+            (10**400, str(10**400)),
+            (-(10**400), str(-(10**400))),
+            (10**5000, "an integer too long to show"),
+        ],
+        ids=["inf", "-inf", "nan", "too large", "too small", "too long"],
+    )
+    def test_what_isnt_a_time_is_shown_as_it_is(self, time, shown):
+        assert rules.shown_time(time) == shown
+        assert rules.shown_times(time, 100.0) == (shown, "01:40.0")
+        assert rules.shown_times(-0.04, time) == ("-00:00.04", shown)
+        assert rules.shown_times(time, time) == (shown, shown)
+
+    def test_any_two_floats_look_different(self):
+        rng = random.Random("shown times")
+        near = [0.0, TINY, 1e-300, 1e-9, 0.05, 0.25, 59.95, 100.0, 3599.95, 1e7, 1e15]
+        pairs = []
+        for value in [*near, 1e300]:
+            above = math.nextafter(value, math.inf)
+            pairs += [(value, above), (-value, -above), (-above, above)]
+            pairs += [
+                (value, value * (1 + rng.random() * 10**-n)) for n in range(1, 17)
+            ]
+        for _ in range(500):
+            pairs.append((rng.uniform(-200, 200), rng.uniform(-200, 200)))
+        for _ in range(2000):
+            value = rng.uniform(0, 8000)
+            by = rng.uniform(-1, 1) * 10 ** -rng.randint(0, 14)
+            pairs.append((value, value + by))
+        for one, other in pairs:
+            shown = rules.shown_times(one, other)
+            digits = {len(text.partition(".")[2]) for text in shown}
+            assert len(digits) == 1, (one, other, shown)
+            if one != other:
+                assert shown[0] != shown[1], (one, other)
+            for value, text in zip((one, other), shown, strict=True):
+                assert text.startswith("-") == (value < 0), (value, text)
+                assert not (value < 0 and not text.strip("-0:.")), (value, text)
+
+    def test_tenths_read_as_before(self):
+        rng = random.Random("tenths")
+        times = [rng.uniform(-10000, 10000) for _ in range(3000)]
+        times += [n / 20 for n in range(-200, 4000)]  # ties, as 59.95 and 0.25
+        for value in times:
+            if not -0.06 < value < 0:  # these get more digits
+                assert rules.shown_time(value) == tenths(value), value
+
+    def test_tiny_times_are_shown_quickly(self):
+        # A file can hold thousands of them. Counting the digits up to theirs, one
+        # at a time, takes some 300 steps for each.
+        start = time.perf_counter()
+        for _ in range(300):
+            rules.shown_time(-TINY)
+            rules.shown_times(TINY, 0.0)
+            rules.shown_times(1e-300, 1.0000000000000002e-300)
+        assert time.perf_counter() - start < WELL_UNDER_A_SECOND
+
+    # In the texts.
+
+    @pytest.mark.parametrize("kind", POINT_KINDS)
+    def test_a_point(self, kind):
+        name = KIND_SHOWN[kind]
+        assert check(kind, media_length=LENGTH, time=100.04) == (
+            False,
+            f"{name} time '01:40.04' is bigger than media time '01:40.00'",
+        )
+        assert check(kind, media_length=LENGTH, time=-0.04) == (
+            False,
+            f"{name} time can't be negative. Got '-00:00.04'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    @pytest.mark.parametrize(
+        "attrs, text",
+        [
+            ({"end": 100.04}, "end '01:40.04' is bigger than media time '01:40.00'"),
+            (
+                {"post_end": 100.01},
+                "post-end '01:40.01' is bigger than media time '01:40.00'",
+            ),
+            (
+                {"start": 2.0, "end": 1.9999999},
+                "end '00:01.9999999' should be bigger than start '00:02.0000000'",
+            ),
+            (
+                {"start": 2.0, "end": 2.0},
+                "end '00:02.0' should be bigger than start '00:02.0'",
+            ),
+            (
+                {"start": 2.0, "end": 4.0, "pre_start": 2.01},
+                "pre-start '00:02.01' can't be after start '00:02.00'",
+            ),
+            (
+                {"start": 1.0, "end": 2.0, "post_end": 1.99},
+                "post-end '00:01.99' can't be before end '00:02.00'",
+            ),
+            ({"start": -0.04, "end": 2.0}, "start can't be negative. Got '-00:00.04'"),
+            ({"pre_start": -0.004}, "pre-start can't be negative. Got '-00:00.004'"),
+        ],
+        ids=short_attrs,
+    )
+    def test_a_segment(self, kind, attrs, text):
+        assert check(kind, media_length=LENGTH, **attrs) == (
+            False,
+            f"{KIND_SHOWN[kind]} {text}",
+        )
+
+    def test_a_hierarchy_s_start_past_the_end(self):
+        assert check("hierarchy", media_length=LENGTH, start=100.04, end=101.0) == (
+            False,
+            "Hierarchy start '01:40.04' is bigger than media time '01:40.00'",
+        )
+
+
 class _CountedId(str):
     """A row's id that counts how many times it is compared."""
 

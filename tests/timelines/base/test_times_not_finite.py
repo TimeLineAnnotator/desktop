@@ -12,10 +12,8 @@ import pytest
 
 from tests.mock import Serve, patch_file_dialog
 from tilia.requests import Get, Post, post
-from tilia.timelines.base.shown_time import shown_time
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
-from tilia.ui.format import format_media_time
 from tilia_core import rules
 
 INF = math.inf
@@ -316,28 +314,4 @@ class TestEdit:
         assert hierarchy_tl.component_manager.split(hierarchy, 1.5) == (
             False,
             "Hierarchy end 'inf' is bigger than media time '01:40.0'",
-        )
-
-
-class TestShownTime:
-    @pytest.mark.parametrize("time", [0, 0.0, 1, 59.94, 150.0, 7265.5, -1.0])
-    def test_a_finite_one_is_a_media_time(self, time):
-        assert shown_time(time) == format_media_time(time)
-
-    @pytest.mark.parametrize(
-        "time, shown",
-        [
-            (INF, "inf"),
-            (-INF, "-inf"),
-            (math.nan, "nan"),
-            (TOO_LARGE, str(TOO_LARGE)),
-            (-TOO_LARGE, str(-TOO_LARGE)),
-        ],
-        ids=short,
-    )
-    def test_another_is_shown_as_the_core_shows_it(self, time, shown):
-        assert shown_time(time) == shown
-        # A media length is what the core's texts can show such a number of.
-        assert rules.media_length(time).reason == (
-            f"{shown} is not a valid media length."
         )

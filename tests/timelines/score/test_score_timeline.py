@@ -4,7 +4,6 @@ import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
-from tilia.ui.format import format_media_time
 from tilia_core import rules
 
 
@@ -163,8 +162,7 @@ class TestTheTextsOfTheirTimes:
         assert tilia_state.duration == 100
         assert score_tl.create_component(kind, time=-1.0) == (
             None,
-            f"{SCORE_POINTS[kind]} time can't be negative."
-            f" Got '{format_media_time(-1.0)}'",
+            f"{SCORE_POINTS[kind]} time can't be negative. Got '-00:01.0'",
         )
 
     @pytest.mark.parametrize("kind", SCORE_POINTS)

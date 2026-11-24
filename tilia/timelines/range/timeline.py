@@ -12,7 +12,6 @@ from tilia.timelines.base.component.segmentlike import (
     crop_segmentlike,
     scale_segmentlike,
 )
-from tilia.timelines.base.shown_time import shown_time
 from tilia.timelines.base.timeline import (
     Timeline,
     TimelineComponentManager,
@@ -21,6 +20,7 @@ from tilia.timelines.base.timeline import (
 from tilia.timelines.base.validators import validate_color
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.range.components import Range
+from tilia_core import rules
 
 
 def generate_row_id() -> str:
@@ -65,35 +65,31 @@ class RangeTLComponentManager(TimelineComponentManager):
         # wrong (WP16's contracts/rules.md, "A component's times").
         kind = Range.kind_shown()
         if start >= end:
+            shown_end, shown_start = rules.shown_times(end, start)
             return (
                 False,
-                f"{kind} end '{shown_time(end)}' should be bigger than start"
-                f" '{shown_time(start)}'",
+                f"{kind} end '{shown_end}' should be bigger than start '{shown_start}'",
             )
 
         media_duration = get(Get.MEDIA_DURATION)
         if start < 0:
-            return False, f"{kind} start can't be negative. Got '{shown_time(start)}'"
+            shown = rules.shown_time(start)
+            return False, f"{kind} start can't be negative. Got '{shown}'"
         if end > media_duration:
-            return (
-                False,
-                f"{kind} end '{shown_time(end)}' is bigger than media time"
-                f" '{shown_time(media_duration)}'",
-            )
+            shown, length = rules.shown_times(end, media_duration)
+            return False, f"{kind} end '{shown}' is bigger than media time '{length}'"
 
         pre_start = kwargs.get("pre_start")
         if pre_start is not None and pre_start < 0:
-            return (
-                False,
-                f"{kind} pre-start can't be negative. Got '{shown_time(pre_start)}'",
-            )
+            shown = rules.shown_time(pre_start)
+            return False, f"{kind} pre-start can't be negative. Got '{shown}'"
 
         post_end = kwargs.get("post_end")
         if post_end is not None and post_end > media_duration:
+            shown, length = rules.shown_times(post_end, media_duration)
             return (
                 False,
-                f"{kind} post-end '{shown_time(post_end)}' is bigger than media time"
-                f" '{shown_time(media_duration)}'",
+                f"{kind} post-end '{shown}' is bigger than media time '{length}'",
             )
 
         return True, ""
