@@ -7,8 +7,8 @@ from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.metric_position import MetricPosition
+from tilia.timelines.base.shown_time import shown_time
 from tilia.timelines.base.timeline import TimelineComponentManager
-from tilia.ui.format import format_media_time
 
 
 class PointLikeTimelineComponent(TimelineComponent):
@@ -61,14 +61,11 @@ class PointLikeTimelineComponent(TimelineComponent):
         if time > media_duration:
             return (
                 False,
-                f"{kind} time '{format_media_time(time)}' is bigger than media time"
-                f" '{format_media_time(media_duration)}'",
+                f"{kind} time '{shown_time(time)}' is bigger than media time"
+                f" '{shown_time(media_duration)}'",
             )
         elif time < 0:
-            return (
-                False,
-                f"{kind} time can't be negative. Got '{format_media_time(time)}'",
-            )
+            return False, f"{kind} time can't be negative. Got '{shown_time(time)}'"
         else:
             return True, ""
 

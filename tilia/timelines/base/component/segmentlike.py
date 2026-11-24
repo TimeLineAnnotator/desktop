@@ -7,8 +7,8 @@ from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_extended
 from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
+from tilia.timelines.base.shown_time import shown_time
 from tilia.timelines.base.timeline import TimelineComponentManager
-from tilia.ui.format import format_media_time
 
 T = TypeVar("T")
 
@@ -97,24 +97,23 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         contracts/rules.md, "A component's times")."""
         media_duration = get(Get.MEDIA_DURATION)
         kind = cls.kind_shown()
-        length = format_media_time(media_duration)
         if start > media_duration:
             return (
                 False,
-                f"{kind} start '{format_media_time(start)}' is bigger than media time"
-                f" '{length}'",
+                f"{kind} start '{shown_time(start)}' is bigger than media time"
+                f" '{shown_time(media_duration)}'",
             )
         elif end > media_duration:
             return (
                 False,
-                f"{kind} end '{format_media_time(end)}' is bigger than media time"
-                f" '{length}'",
+                f"{kind} end '{shown_time(end)}' is bigger than media time"
+                f" '{shown_time(media_duration)}'",
             )
         elif end <= start:
             return (
                 False,
-                f"{kind} end '{format_media_time(end)}' should be bigger than start"
-                f" '{format_media_time(start)}'",
+                f"{kind} end '{shown_time(end)}' should be bigger than start"
+                f" '{shown_time(start)}'",
             )
         else:
             return True, ""

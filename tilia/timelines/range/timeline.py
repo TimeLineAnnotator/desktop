@@ -12,6 +12,7 @@ from tilia.timelines.base.component.segmentlike import (
     crop_segmentlike,
     scale_segmentlike,
 )
+from tilia.timelines.base.shown_time import shown_time
 from tilia.timelines.base.timeline import (
     Timeline,
     TimelineComponentManager,
@@ -20,7 +21,6 @@ from tilia.timelines.base.timeline import (
 from tilia.timelines.base.validators import validate_color
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.range.components import Range
-from tilia.ui.format import format_media_time
 
 
 def generate_row_id() -> str:
@@ -67,38 +67,33 @@ class RangeTLComponentManager(TimelineComponentManager):
         if start >= end:
             return (
                 False,
-                f"{kind} end '{format_media_time(end)}' should be bigger than start"
-                f" '{format_media_time(start)}'",
+                f"{kind} end '{shown_time(end)}' should be bigger than start"
+                f" '{shown_time(start)}'",
             )
 
         media_duration = get(Get.MEDIA_DURATION)
-        length = format_media_time(media_duration)
         if start < 0:
-            return (
-                False,
-                f"{kind} start can't be negative. Got '{format_media_time(start)}'",
-            )
+            return False, f"{kind} start can't be negative. Got '{shown_time(start)}'"
         if end > media_duration:
             return (
                 False,
-                f"{kind} end '{format_media_time(end)}' is bigger than media time"
-                f" '{length}'",
+                f"{kind} end '{shown_time(end)}' is bigger than media time"
+                f" '{shown_time(media_duration)}'",
             )
 
         pre_start = kwargs.get("pre_start")
         if pre_start is not None and pre_start < 0:
             return (
                 False,
-                f"{kind} pre-start can't be negative. Got"
-                f" '{format_media_time(pre_start)}'",
+                f"{kind} pre-start can't be negative. Got '{shown_time(pre_start)}'",
             )
 
         post_end = kwargs.get("post_end")
         if post_end is not None and post_end > media_duration:
             return (
                 False,
-                f"{kind} post-end '{format_media_time(post_end)}' is bigger than media"
-                f" time '{length}'",
+                f"{kind} post-end '{shown_time(post_end)}' is bigger than media time"
+                f" '{shown_time(media_duration)}'",
             )
 
         return True, ""
