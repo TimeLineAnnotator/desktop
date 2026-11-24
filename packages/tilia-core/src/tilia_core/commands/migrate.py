@@ -4,8 +4,8 @@
 writes nothing; `tilia migrate FOLDER --apply` writes (FR-104). A thin layer
 over `tla.migrate_folder` (FR-105): it prints the report, as
 contracts/command.md shows it, and exits with its status: 0 when every file
-it should migrate was migrated, or would be; 1 when one was left alone; 2
-when the command was used wrongly.
+it should write was written, or would be; 1 when one was left alone; 2 when
+the command was used wrongly.
 """
 
 from __future__ import annotations
@@ -70,6 +70,10 @@ _CHANGES: dict[str, tuple[str, str]] = {
     "measure_marks_dropped": (
         "dropped 1 measure mark",
         "dropped {} measure marks",
+    ),
+    "measure_marks_added": (
+        "added 1 measure mark",
+        "added {} measure marks",
     ),
     "beat_timelines_tilia_cant_open": (
         "1 beat timeline TiLiA can't open",
@@ -149,6 +153,8 @@ def _parser() -> argparse.ArgumentParser:
 _SECTIONS: dict[Outcome, str] = {
     Outcome.WOULD_MIGRATE: "migrated",
     Outcome.MIGRATED: "migrated",
+    Outcome.WOULD_FIX: "fixed",
+    Outcome.FIXED: "fixed",
     Outcome.CURRENT: "current",
     Outcome.NEWER: "left alone",
     Outcome.UNREADABLE: "left alone",
@@ -156,6 +162,8 @@ _SECTIONS: dict[Outcome, str] = {
     Outcome.WRITE_FAILED: "left alone",
     Outcome.IN_USE: "in use",
 }
+# The parts of the files written, or that would be.
+_REWRITTEN = frozenset({"migrated", "fixed"})
 
 
 def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[str]:
@@ -166,6 +174,9 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     for f in files:
         sections[_SECTIONS[Outcome(f.outcome)]].append(f)
     migrated, current = sections["migrated"], sections["current"]
+    # Already in the new format too, though their beats without a time are
+    # dropped (FR-106).
+    fixed = sections["fixed"]
     in_use = sections["in use"]
     # A folder that couldn't be listed is left alone too, among the files.
     left = [
@@ -179,7 +190,11 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
             key=lambda row: _path_order(row[0]),
         )
     ]
-    changed = [(_shown(f.path), texts) for f in migrated if (texts := _change_texts(f))]
+    # The files written, or that would be, in path order.
+    rewritten = [f for f in files if _SECTIONS[Outcome(f.outcome)] in _REWRITTEN]
+    changed = [
+        (_shown(f.path), texts) for f in rewritten if (texts := _change_texts(f))
+    ]
     paths = [path for path, _ in left] + [path for path, _ in changed]
     width = max([_PATH_WIDTH, *(len(path) + 2 for path in paths)])
 
@@ -192,7 +207,7 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
     versions = Counter(f.from_version or "" for f in migrated)
     for version in sorted(versions, key=_version_order):
         lines.append(f"  from {_shown(version)}: {_files(versions[version])}")
-    lines.append(f"Already in the new format: {_files(len(current))}")
+    lines.append(f"Already in the new format: {_files(len(current) + len(fixed))}")
     lines.append(f"Left alone: {_files(len(left))}")
     lines += [row(path, reason) for path, reason in left]
     if in_use:
@@ -211,10 +226,12 @@ def report_lines(report: MigrationReport, folder: str, *, apply: bool) -> list[s
             lines.append(row(path, texts[0]))
             lines += [row("", text) for text in texts[1:]]
     lines.append("")
-    written = sum(Outcome(f.outcome) is Outcome.MIGRATED for f in files)
+    written = sum(
+        Outcome(f.outcome) in (Outcome.MIGRATED, Outcome.FIXED) for f in files
+    )
     if apply and written:
         lines.append(f"Wrote {_files(written)}.")
-    elif not apply and migrated:
+    elif not apply and rewritten:
         lines += _ADVICE.split("\n")
         again = _shown(_folder_to_run(folder))
         lines.append(f"Then run: tilia migrate {again} --apply")

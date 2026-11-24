@@ -1074,6 +1074,239 @@ def test_a_beat_timeline_with_nothing_to_report_isnt_listed(tmp_path, capsys):
     assert "Changes the migration makes" not in capsys.readouterr().out
 
 
+# Beats without a time in files of the current format (FR-106;
+# TimeLineAnnotator/project-management#354): such a file counts among those
+# already in the new format, and what dropping its beats changes is among the
+# changes, each beat with where it is.
+
+
+def an_id(n):
+    return f"019b76da-a802-7000-8000-{n:012d}"
+
+
+BEATS = an_id(1)
+B = [an_id(100 + n) for n in range(10)]
+
+
+def current_beats(*beats):
+    """A file in the current format whose one timeline holds these beats, each
+    on lines of its own."""
+    content = {
+        "app_name": "TiLiA",
+        "version": FORMAT,
+        "document_id": an_id(0),
+        "time_unit": "seconds",
+        "media": {"path": "", "length": 100.0},
+        "metadata": {},
+        "timelines": {
+            BEATS: {
+                "kind": "Beat",
+                "name": "Beats",
+                "ordinal": 1,
+                "height": 35,
+                "components": {key: {"kind": "BEAT", **keys} for key, keys in beats},
+            }
+        },
+        "scores": [],
+    }
+    return (json.dumps(content, indent=2) + "\n").encode()
+
+
+# A beat of each second, and two beats without a time, one of them a downbeat
+# with a beat unit.
+TIMELESS = current_beats(
+    (B[0], {"time": 0.0, "measure": {}}),
+    (B[1], {"time": 1.0}),
+    (B[2], {}),
+    (B[3], {"measure": {}, "beat_unit": {"denominator": 8, "units": "3"}}),
+)
+
+
+def line_of(data, component_id):
+    return data[: data.index(f'"{component_id}": {{'.encode())].count(b"\n") + 1
+
+
+@pytest.fixture
+def timeless(tmp_path):
+    """Old files, one of a newer format, and two in the current one: one with
+    beats without a time, between the old files in path order."""
+    root = tmp_path / "timeless"
+    place(root / "a.tla", OLD / "0.0.96.tla")
+    place(root / "beats.tla", TIMELESS)
+    place(root / "current.tla", GOLDEN / "every-kind.tla")
+    place(root / "newer.tla", BROKEN / "newer-format.tla")
+    place(root / "z.tla", OLD / "0.6.0-s4-10.tla")
+    return root
+
+
+TIMELESS_FILES = f"""\
+  from 0.0.96: 1 file
+  from 0.6.0: 1 file
+Already in the new format: 2 files
+Left alone: 1 file
+  newer.tla               written by a newer TiLiA (format 2.0.0)
+Changes the migration makes:
+  a.tla                   dropped 2 formal_type and formal_function values; moved 2 marks to metadata
+  beats.tla               dropped 2 beats; dropped 1 beat unit; dropped 1 measure mark
+                          line {line_of(TIMELESS, B[2])}: a beat of the timeline "Beats" has no time
+                          line {line_of(TIMELESS, B[3])}: a beat of the timeline "Beats" has no time
+  z.tla                   dropped 5 formal_type and formal_function values
+
+"""
+
+
+def test_without_apply_each_beat_without_a_time_is_listed_and_nothing_is_written(
+    timeless,
+):
+    before = snapshot(timeless)
+
+    result = tilia("migrate", "timeless", cwd=timeless.parent)
+
+    assert result.stderr == ""
+    assert result.stdout == (
+        f"Would migrate 2 files to format {FORMAT}:\n"
+        + TIMELESS_FILES
+        + ADVICE
+        + "Then run: tilia migrate timeless --apply\n"
+    )
+    assert result.returncode == 0
+    assert snapshot(timeless) == before
+
+
+def test_with_apply_the_beats_without_a_time_are_dropped_and_then_none_is_left(
+    timeless,
+):
+    before = snapshot(timeless)
+
+    result = tilia("migrate", "timeless", "--apply", cwd=timeless.parent)
+
+    assert result.stderr == ""
+    assert result.stdout == (
+        f"Migrated 2 files to format {FORMAT}:\n" + TIMELESS_FILES + "Wrote 3 files.\n"
+    )
+    assert result.returncode == 0
+    after = snapshot(timeless)
+    unchanged = {name for name in before if after[name] == before[name]}
+    assert unchanged == {"current.tla", "newer.tla"}
+    written = tla.read(timeless / "beats.tla")
+    assert written.warnings == []
+    assert set(written.timelines[BEATS].components) == {B[0], B[1]}
+
+    again = tilia("migrate", "timeless", "--apply", cwd=timeless.parent)
+
+    assert again.stdout == (
+        f"Migrated 0 files to format {FORMAT}.\n"
+        "Already in the new format: 4 files\n"
+        "Left alone: 1 file\n"
+        "  newer.tla               written by a newer TiLiA (format 2.0.0)\n"
+        "\n"
+        "Nothing was written.\n"
+    )
+    assert again.returncode == 0
+    assert snapshot(timeless) == after
+
+
+def test_a_folder_with_only_beats_to_drop_says_how_to_drop_them(
+    tmp_path, monkeypatch, capsys
+):
+    # No file to migrate, but one to write, so the listing ends as any other.
+    monkeypatch.chdir(tmp_path)
+    data = current_beats((B[0], {"time": 0.0}), (B[1], {}))
+    place(tmp_path / "corpus" / "beats.tla", data)
+    files = (
+        "Already in the new format: 1 file\n"
+        "Left alone: 0 files\n"
+        "Changes the migration makes:\n"
+        "  beats.tla               dropped 1 beat\n"
+        f"                          line {line_of(data, B[1])}: a beat of the timeline"
+        ' "Beats" has no time\n'
+        "\n"
+    )
+
+    assert migrate_command.main(["corpus"]) == 0
+    assert capsys.readouterr().out == (
+        f"Would migrate 0 files to format {FORMAT}.\n"
+        + files
+        + ADVICE
+        + "Then run: tilia migrate corpus --apply\n"
+    )
+
+    assert migrate_command.main(["corpus", "--apply"]) == 0
+    assert capsys.readouterr().out == (
+        f"Migrated 0 files to format {FORMAT}.\n" + files + "Wrote 1 file.\n"
+    )
+
+
+@pytest.mark.parametrize("timelines", [1, 2], ids=["one", "two"])
+def test_a_first_beat_that_gets_a_mark_is_counted(tmp_path, capsys, timelines):
+    # Its mark is the empty one TiLiA gives its first beat
+    # (TimeLineAnnotator/project-management#544, point 1).
+    content = json.loads(
+        current_beats(
+            (B[0], {"time": 0.0}),
+            (B[1], {"time": 1.0, "measure": {}}),
+            (B[2], {"measure": {}}),
+        )
+    )
+    if timelines == 2:
+        other = json.dumps(content["timelines"][BEATS])
+        for n in range(3):
+            other = other.replace(B[n], B[n + 5])
+        content["timelines"][an_id(2)] = {**json.loads(other), "ordinal": 2}
+    place(tmp_path / "beats.tla", json.dumps(content).encode())
+
+    assert migrate_command.main([str(tmp_path)]) == 0
+
+    words = {
+        1: "dropped 1 beat; dropped 1 measure mark; added 1 measure mark",
+        2: "dropped 2 beats; dropped 2 measure marks; added 2 measure marks",
+    }
+    out = capsys.readouterr().out
+    assert f"  beats.tla               {words[timelines]}\n" in out
+
+
+def test_a_file_changed_before_its_beats_are_dropped_is_listed_as_left_alone(
+    timeless, monkeypatch, capsys
+):
+    read = folder_module.read_with_migration
+
+    def then_changed(path):
+        read_result = read(path)
+        if Path(path).name == "beats.tla":
+            place(path, current_beats((B[0], {"time": 5.0}), (B[1], {})))
+        return read_result
+
+    monkeypatch.setattr(folder_module, "read_with_migration", then_changed)
+
+    assert migrate_command.main([str(timeless), "--apply"]) == 1
+
+    out = capsys.readouterr().out
+    assert (
+        "Already in the new format: 1 file\n"
+        "Left alone: 2 files\n"
+        "  beats.tla               changed since it was read\n"
+        "  newer.tla               written by a newer TiLiA (format 2.0.0)\n"
+    ) in out
+    assert "has no time" not in out
+    assert out.endswith("\nWrote 2 files.\n")
+
+
+@pytest.mark.parametrize("apply", [False, True], ids=["listing", "apply"])
+def test_a_file_whose_beats_are_dropped_is_among_those_with_other_names(
+    timeless, capsys, apply
+):
+    outside = timeless.parent / "elsewhere.tla"
+    os.link(timeless / "beats.tla", outside)
+
+    assert migrate_command.main([str(timeless), *(["--apply"] if apply else [])]) == 0
+
+    head = SEPARATED if apply else WOULD_SEPARATE
+    assert (
+        f"{head}1 file\n  beats.tla, and 1 name outside the folder\n"
+    ) in capsys.readouterr().out
+    assert outside.read_bytes() == TIMELESS
+
+
 def test_a_subfolder_that_cant_be_listed_is_listed_as_left_alone(
     clean, monkeypatch, capsys
 ):
@@ -1113,7 +1346,8 @@ def test_every_outcome_has_its_place_in_the_report():
 
     text = "\n".join(migrate_command.report_lines(report, "corpus", apply=True))
 
-    assert "Already in the new format: 1 file" in text
+    # The current one, and those whose beats without a time are dropped.
+    assert "Already in the new format: 3 files" in text
     for outcome in Outcome:
         if outcome is not Outcome.CURRENT:
             assert f"  {outcome.value}.tla" in text
@@ -1607,6 +1841,34 @@ def test_without_the_extra_a_file_with_harmonies_is_left_alone_naming_the_comman
 ):
     root = tmp_path / "corpus"
     place(root / "harmonies.tla", OLD / "0.7.0.tla")
+    before = snapshot(root)
+
+    assert migrate_command.main([str(root), *arguments]) == 1
+
+    assert capsys.readouterr().out == (
+        f"{verb} 0 files to format {FORMAT}.\n"
+        "Already in the new format: 0 files\n"
+        "Left alone: 1 file\n"
+        f"  harmonies.tla           {NEEDS_THE_EXTRA}\n"
+        "\n"
+        "Nothing was written.\n"
+    )
+    assert snapshot(root) == before
+
+
+@pytest.mark.parametrize(
+    "arguments, verb",
+    [([], "Would migrate"), (["--apply"], "Migrated")],
+    ids=["listing", "apply"],
+)
+def test_without_the_extra_a_file_with_harmonies_keeps_its_beats_without_a_time(
+    tmp_path, without_music21, capsys, arguments, verb
+):
+    content = json.loads((GOLDEN / "every-kind.tla").read_bytes())
+    beats = next(t for t in content["timelines"].values() if t["kind"] == "Beat")
+    beats["components"][B[0]] = {"kind": "BEAT"}
+    root = tmp_path / "corpus"
+    place(root / "harmonies.tla", json.dumps(content, indent=2).encode())
     before = snapshot(root)
 
     assert migrate_command.main([str(root), *arguments]) == 1

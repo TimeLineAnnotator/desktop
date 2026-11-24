@@ -3,9 +3,10 @@
 `migrate_folder` is what `tilia migrate` does (FR-100–FR-105): it reads each
 file a corpus at the folder takes, in path order, migrates the old ones in
 memory and, with `apply`, writes them, each stating the fingerprint it had
-when it was read, so that a file changed in between is left alone. Files in
-the current format, of a newer format, or that can't be read are never
-written. An error in one file doesn't stop the others (FR-052).
+when it was read, so that a file changed in between is left alone. A file in
+the current format is written only to drop its beats without a time, if it
+holds any (FR-101, FR-106). Files of a newer format, or that can't be read, are
+never written. An error in one file doesn't stop the others (FR-052).
 
 `corpus_files` is the walk, which files a corpus is made of
 (TimeLineAnnotator/project-management#122 (which files make up a corpus)),
@@ -25,6 +26,8 @@ from pathlib import Path
 from traceback import format_exception
 from typing import NamedTuple
 
+from tilia_core.tla.check import NO_TIME
+from tilia_core.tla.edits import delete_beat
 from tilia_core.tla.errors import (
     BrokenRules,
     FileChanged,
@@ -41,6 +44,8 @@ from tilia_core.tla.model import (
     HardLinks,
     MigrationReport,
     Outcome,
+    ReadWarning,
+    Timeline,
 )
 from tilia_core.tla.problems import cant_check
 from tilia_core.tla.reader import read_with_migration
@@ -139,20 +144,24 @@ def migrate_folder(
     on each file it took, in path order (FR-100–FR-105). `folder` is taken
     as it is given: a "~" in it is part of a name.
 
+    A file in the current format that holds beats without a time has them
+    dropped, as `delete_beat` deletes a beat, but with no measure marked
+    "edited" (FR-106); every other one is left alone (FR-101).
+
     Without `apply`, nothing is written: the report says what would be.
-    With it, each old file is written atomically, stating the fingerprint
-    it had when it was read; one changed since, held open by another program
-    or that can't be written is left as it was, and reported. The files that
-    can't be read are read once more, after one pause of `RETRY_AFTER`
-    seconds for them all, then reported. An error in one file, even one in
-    the core, is reported for that file, and the others go on. Running it
-    again writes nothing. An old file with harmonies or modes can't be written
-    without the `harmony` extra, since they can't be checked (FR-054): with or
-    without `apply`, it is reported as left alone, naming the command. The
-    report lists the files with more than one name (hard links) that it
-    writes, or would write (`MigrationReport.hard_links`): the names of each
-    file are noted before anything is written, so that `apply` lists what the
-    listing listed.
+    With it, each old file, and each one whose beats are dropped, is written
+    atomically, stating the fingerprint it had when it was read; one changed
+    since, held open by another program or that can't be written is left as it
+    was, and reported. The files that can't be read are read once more, after
+    one pause of `RETRY_AFTER` seconds for them all, then reported. An error in
+    one file, even one in the core, is reported for that file, and the others
+    go on. Running it again writes nothing. A file to be written that holds
+    harmonies or modes can't be without the `harmony` extra, since they can't
+    be checked (FR-054): with or without `apply`, it is reported as left alone,
+    naming the command. The report lists the files with more than one name
+    (hard links) that it writes, or would write (`MigrationReport.hard_links`):
+    the names of each file are noted before anything is written, so that
+    `apply` lists what the listing listed.
 
     Raises `FileNotFoundError` for a folder that doesn't exist,
     `NotADirectoryError` for a path that isn't a folder, and the system's
@@ -216,8 +225,11 @@ def _migrate_file(
     """One file's result, and its document when it could be read; None for
     a file that couldn't be read, to read again unless this was the `last`
     try. A file of a newer format isn't read again: it won't change."""
+    dropped = None
     try:
         document, migrated = read_with_migration(path)
+        if migrated is None:
+            dropped = _drop_beats_without_a_time(document)
     except NewerFormat as error:
         result = FileResult(path=relative, outcome=Outcome.NEWER, reason=error.message)
         return result, None
@@ -235,7 +247,66 @@ def _migrate_file(
             traceback=None if expected else _traceback(error),
         )
         return result, None
-    return _result(relative, path, document, migrated, apply), document
+    return _result(relative, path, document, migrated, dropped, apply), document
+
+
+class _Dropped(NamedTuple):
+    """What dropping a document's beats without a time changed."""
+
+    changes: dict[str, int]
+    warnings: list[ReadWarning]  # the reader's for each: where it is
+
+
+def _drop_beats_without_a_time(document: Document) -> _Dropped | None:
+    """Drop every beat without a time from a document in the current format,
+    and say what that changed; None when it has none. Each is deleted as
+    `delete_beat` deletes a beat, but no measure is marked "edited", since no
+    person edited it (FR-106; TimeLineAnnotator/project-management#512)."""
+    gone: set[tuple[str | None, str | None]] = set()
+    units = marks_gone = marks_added = 0
+    for timeline_id, timeline in document.timelines.items():
+        if timeline.kind != "beat":
+            continue
+        untimed = [
+            component_id
+            for component_id, component in timeline.components.items()
+            if component.kind == "beat" and component.attrs.get("time") is None
+        ]
+        marked = _marked(timeline)
+        for beat_id in untimed:
+            unit = timeline.components[beat_id].attrs.get("beat_unit")
+            units += isinstance(unit, dict)
+            delete_beat(document, timeline_id, beat_id, by_person=False)
+            gone.add((timeline_id, beat_id))
+        left = _marked(timeline)
+        marks_gone += len(marked - left)
+        marks_added += len(left - marked)
+    if not gone:
+        return None
+    changes = {
+        "beats_dropped": len(gone),
+        "beat_units_dropped": units,
+        "measure_marks_dropped": marks_gone,
+        "measure_marks_added": marks_added,
+    }
+    return _Dropped(
+        changes={key: count for key, count in changes.items() if count},
+        warnings=[
+            warning
+            for warning in document.warnings
+            if (warning.timeline_id, warning.component_id) in gone
+            and warning.message.endswith(NO_TIME)
+        ],
+    )
+
+
+def _marked(timeline: Timeline) -> set[str]:
+    """The beats of a beat timeline that hold a measure mark, by id."""
+    return {
+        component_id
+        for component_id, component in timeline.components.items()
+        if component.kind == "beat" and isinstance(component.attrs.get("measure"), dict)
+    }
 
 
 def _result(
@@ -243,24 +314,36 @@ def _result(
     path: Path,
     document: Document,
     migrated: Migrated | None,
+    dropped: _Dropped | None,
     apply: bool,
 ) -> FileResult:
-    if migrated is None:  # in the current format
+    if migrated is not None:
+        done = Outcome.MIGRATED
+        result = FileResult(
+            path=relative,
+            outcome=Outcome.WOULD_MIGRATE,
+            from_version=document.format_version,
+            changes=dict(migrated.changes),
+            # A document's warnings are the migration's, which `changes` counts,
+            # then the check's and the core's rules'. By their order: the reader
+            # adds each one's line.
+            warnings=document.warnings[len(migrated.warnings) :],
+        )
+    elif dropped is not None:
+        done = Outcome.FIXED
+        result = FileResult(
+            path=relative,
+            outcome=Outcome.WOULD_FIX,
+            from_version=FORMAT_VERSION,
+            changes=dropped.changes,
+            warnings=dropped.warnings,
+        )
+    else:  # in the current format, with nothing to drop
         return FileResult(
             path=relative, outcome=Outcome.CURRENT, from_version=FORMAT_VERSION
         )
-    result = FileResult(
-        path=relative,
-        outcome=Outcome.WOULD_MIGRATE,
-        from_version=document.format_version,
-        changes=dict(migrated.changes),
-        # A document's warnings are the migration's, which `changes` counts,
-        # then the check's and the core's rules'. By their order: the reader adds
-        # each one's line.
-        warnings=document.warnings[len(migrated.warnings) :],
-    )
     if apply:
-        result.outcome, result.reason, result.traceback = _write(path, document)
+        result.outcome, result.reason, result.traceback = _write(path, document, done)
     elif (unable := cant_check(document)) is not None:
         # What `apply` would find: the report says what would be
         # (TimeLineAnnotator/project-management#490).
@@ -278,7 +361,9 @@ _FileKey = tuple[int, int] | str
 _NameKey = tuple[_FileKey, str]
 
 # The outcomes of a file written, or that would be.
-_WRITTEN = frozenset({Outcome.MIGRATED, Outcome.WOULD_MIGRATE})
+_WRITTEN = frozenset(
+    {Outcome.MIGRATED, Outcome.WOULD_MIGRATE, Outcome.FIXED, Outcome.WOULD_FIX}
+)
 
 
 class _Name(NamedTuple):
@@ -436,11 +521,14 @@ def _names_the_walk_skips(
     return found
 
 
-def _write(path: Path, document: Document) -> tuple[Outcome, str | None, str | None]:
-    """Write a migrated document over the file it was read from, stating the
-    fingerprint it was read with: `fingerprint_of(document)` isn't an old file's
+def _write(
+    path: Path, document: Document, done: Outcome
+) -> tuple[Outcome, str | None, str | None]:
+    """Write a document over the file it was read from, stating the fingerprint
+    it was read with: `fingerprint_of(document)` isn't an old file's
     fingerprint, which takes the media and PDF paths as the file stores them
-    (FR-043). The outcome; why, when it wasn't written; and the traceback of an
+    (FR-043), nor that of a file whose beats were dropped since. The outcome,
+    `done` when it was written; why, when it wasn't; and the traceback of an
     error in the core that stopped it."""
     try:
         write(path, document, expect=document.fingerprint)
@@ -455,7 +543,7 @@ def _write(path: Path, document: Document) -> tuple[Outcome, str | None, str | N
         logger.error("can't write %s", path, exc_info=error)
         reason = _cant("write", error, expected=False)
         return Outcome.WRITE_FAILED, reason, _traceback(error)
-    return Outcome.MIGRATED, None, None
+    return done, None, None
 
 
 def _traceback(error: Exception) -> str:

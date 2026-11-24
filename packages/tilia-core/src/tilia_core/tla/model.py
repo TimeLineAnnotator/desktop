@@ -769,6 +769,10 @@ class Outcome(str, enum.Enum):
 
     WOULD_MIGRATE = "would_migrate"  # an old file, without `apply`
     MIGRATED = "migrated"
+    # A file in the current format whose beats without a time are dropped
+    # (FR-106), without `apply` and with it.
+    WOULD_FIX = "would_fix"
+    FIXED = "fixed"
     CURRENT = "current"
     NEWER = "newer"  # of a newer format, which this core can't migrate
     UNREADABLE = "unreadable"
@@ -777,7 +781,7 @@ class Outcome(str, enum.Enum):
     WRITE_FAILED = "write_failed"
 
 
-# The outcomes of a file the migration should have written, and didn't.
+# The outcomes of a file the run should have written, and didn't.
 LEFT_ALONE_ON_FAILURE = frozenset(
     {
         Outcome.UNREADABLE,
@@ -796,7 +800,10 @@ class FileResult:
     system names it. `reason` says why a file was left alone, for users.
     `changes` counts what the migration dropped or changed, and `warnings`
     are the rules the migrated file breaks, which don't stop it being
-    migrated; the migration's own warnings are what `changes` counts.
+    migrated; the migration's own warnings are what `changes` counts. For a
+    file in the current format that holds beats without a time, `changes`
+    counts what dropping them changes, and `warnings` are the reader's for
+    those beats, one each, in the order of the file: where each one is.
     `traceback` is the traceback of an error in the core that left the file
     alone, one that reading or writing doesn't otherwise raise, as Python
     prints it: text, which holds none of the frames the error went through,
@@ -850,7 +857,7 @@ class MigrationReport:
     @property
     def status(self) -> int:
         """`tilia migrate`'s exit status: 1 when it left alone a file it
-        should have migrated, or a folder it couldn't list, else 0. A file
+        should have written, or a folder it couldn't list, else 0. A file
         of a newer format isn't one: this core can't migrate it, and nothing
         failed."""
         failed = any(Outcome(f.outcome) in LEFT_ALONE_ON_FAILURE for f in self.files)
