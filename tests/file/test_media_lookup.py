@@ -23,8 +23,10 @@ from PySide6.QtCore import QSettings
 
 from tests import SETTINGS_DIR
 from tests.constants import EXAMPLE_MEDIA_DURATION, EXAMPLE_MEDIA_PATH, EXAMPLE_YT_URL
-from tests.mock import Serve
-from tests.utils import load_local_media
+from tests.mock import PatchPost, Serve
+from tests.utils import load_local_media, load_youtube_media
+from tilia import dirs
+from tilia.file import autosave
 from tilia.file.open_document import OpenDocument
 from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, Post, get, post
@@ -423,6 +425,173 @@ class TestTheMediaMenu:
 
         assert path.read_bytes() == expected
         assert stored_media_path(path) == "other/other.mp3"
+
+
+class TestOtherMediaIsAnUnsavedChange:
+    """Loading other media from the Media menu is an unsaved change, as any other,
+    whether it is as long as the media the file had or not: closing TiLiA or opening
+    another file asks to save it, and an autosave writes it. An undo back to the media
+    the file was read with is no change (FR-021, FR-032;
+    TimeLineAnnotator/project-management#638)."""
+
+    # take1 is the media the file stores; take2 is as long, take3 is longer.
+    LENGTHS = {"take1.mp3": 180.0, "take2.mp3": 180.0, "take3.mp3": 200.0}
+
+    @pytest.fixture(autouse=True)
+    def a_player_that_reports_their_lengths(self):
+        def load(player, media_path):
+            # As Qt's player does, once the media has loaded.
+            player.on_media_duration_available(self.LENGTHS[Path(media_path).name])
+            return True
+
+        with patch.object(QtAudioPlayer, "_engine_load_media", load):
+            yield
+
+    @pytest.fixture
+    def piece(self, qtui, tilia, tls, tmp_path) -> Path:
+        """piece.tla, open, which stores take1.mp3, beside it, 3:00 long."""
+        for name in self.LENGTHS:
+            media_in(tmp_path, name)
+        doc = media_doc(tmp_path / "take1.mp3")
+        doc.media_length = self.LENGTHS["take1.mp3"]
+        path = tmp_path / "piece.tla"
+        tla.write(path, doc)
+        assert not open_file(path)
+        assert not tilia.is_file_modified()
+        return path
+
+    def test_closing_tilia_asks_to_save_it(self, piece, tmp_path):
+        load_local_media(tmp_path / "take2.mp3")
+
+        with (
+            Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)) as asked,
+            PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
+        ):
+            commands.execute("tilia.close")
+
+        assert asked.called
+        exit_mock.assert_called()
+        assert stored_media_path(piece) == "take2.mp3"
+
+    def test_a_new_file_asks_to_save_it(self, piece, tmp_path):
+        load_local_media(tmp_path / "take2.mp3")
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)) as asked:
+            commands.execute("file.new")
+
+        assert asked.called
+        assert stored_media_path(piece) == "take2.mp3"
+
+    @pytest.mark.parametrize(
+        "take", ["take2.mp3", "take3.mp3"], ids=["as long", "longer"]
+    )
+    def test_reads_as_modified_until_undone(self, piece, tilia, tmp_path, take):
+        load_local_media(tmp_path / take)
+
+        assert tilia.is_file_modified()
+        undo()
+        assert loaded_media() == tmp_path / "take1.mp3"
+        assert not tilia.is_file_modified()
+        redo()
+        assert tilia.is_file_modified()
+
+    def test_a_youtube_link_is_one_before_its_length_is_known(self, piece, tilia):
+        def loads_it(player, url, **_):
+            # What YouTube's player does at once: its length comes later, if at all.
+            player.on_media_load_done(url, 0.0, 0.0)
+            return True, player
+
+        with patch("tilia.app.load_media", side_effect=loads_it):
+            load_youtube_media(EXAMPLE_YT_URL)
+
+        assert get(Get.MEDIA_PATH) == EXAMPLE_YT_URL
+        assert tilia.is_file_modified()
+        undo()
+        assert not tilia.is_file_modified()
+
+    def test_an_undo_once_it_is_saved_is_a_change(self, piece, tilia, tmp_path):
+        load_local_media(tmp_path / "take2.mp3")
+        save()
+        assert not tilia.is_file_modified()
+
+        undo()
+
+        assert tilia.is_file_modified()
+
+    @pytest.mark.parametrize("stored", ["", "m/gone.mp3"], ids=["none", "not found"])
+    def test_an_undo_back_to_no_media_is_no_change(
+        self, qtui, tilia, tls, tmp_path, stored
+    ):
+        # The file stores no media, or the user declined to look for what it stores.
+        path = tmp_path / "file.tla"
+        tla.write(path, media_doc(stored and tmp_path / stored))
+        open_file(path)
+        load_local_media(media_in(tmp_path, "take1.mp3"))
+        assert tilia.is_file_modified()
+
+        undo()
+
+        assert get(Get.MEDIA_PATH) == ""
+        assert not tilia.is_file_modified()
+
+    def test_an_undo_back_to_media_found_elsewhere_is_no_change(
+        self, piece, tilia, tmp_path
+    ):
+        # The file moved alone: its media is where it was last found.
+        assert not open_file(moved_alone(piece, tmp_path / "c"))
+        load_local_media(tmp_path / "take2.mp3")
+        assert tilia.is_file_modified()
+
+        undo()
+
+        assert loaded_media() == tmp_path / "take1.mp3"
+        assert not tilia.is_file_modified()
+
+    def test_the_same_media_again_is_no_change(self, piece, tilia, tmp_path):
+        # Spelt as the Media menu's dialog gives it.
+        load_local_media((tmp_path / "take1.mp3").as_posix())
+
+        assert not tilia.is_file_modified()
+
+    def test_opening_another_file_asks_and_autosaves_it_first(self, piece, tmp_path):
+        load_local_media(tmp_path / "take2.mp3")
+        other = tmp_path / "other.tla"
+        tla.write(other, tla.read(EMPTY))
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as asked:
+            assert commands.execute("file.open", other)
+
+        assert asked.called
+        assert stored_media_path(piece) == "take1.mp3"
+        # Not saved, it is kept in an autosave (FR-012).
+        [autosaved] = Path(dirs.autosaves_path).iterdir()
+        found = tla.media(autosaved, tla.read(autosaved)).path
+        assert found == tmp_path / "take2.mp3"
+
+    def test_is_autosaved(self, piece, tilia, tmp_path):
+        with patch.object(autosave.settings, "get", return_value=0):
+            # No thread: autosaves are made here.
+            saver = autosave.AutoSaver(
+                tilia.get_app_state,
+                lambda: tilia.file_manager.file.copy_for_writing(),
+            )
+        (tmp_path / "autosaves").mkdir()
+        written = iter(tmp_path / "autosaves" / name for name in ("1.tla", "2.tla"))
+        with (
+            patch.object(
+                autosave, "get_autosave_path", side_effect=lambda: next(written)
+            ),
+            patch.object(autosave, "make_room_for_new_autosave"),
+        ):
+            saver.auto_save_once()
+            assert not saver.needs_auto_save()
+            load_local_media(tmp_path / "take2.mp3")
+
+            assert saver.needs_auto_save()
+            saver.auto_save_once()
+
+        saved = tmp_path / "autosaves" / "2.tla"
+        assert tla.media(saved, tla.read(saved)).path == tmp_path / "take2.mp3"
 
 
 class TestAPlacePerStoredPath:

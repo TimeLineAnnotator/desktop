@@ -1,7 +1,13 @@
+import shutil
 from io import StringIO
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from tests.constants import EXAMPLE_MEDIA_PATH
+from tilia.media.player import QtAudioPlayer
+from tilia.requests import Get, get
 from tilia.timelines.slider.timeline import SliderTimeline
 
 
@@ -57,3 +63,20 @@ class TestClear:
         cli.parse_and_run("clear")
 
         self.assert_cleared(tls)
+
+    def test_clear_after_loading_other_media_of_the_same_length_prompts(
+        self, cli, tls, tmp_path, monkeypatch
+    ):
+        other = Path(shutil.copy(EXAMPLE_MEDIA_PATH, tmp_path / "other.mp3"))
+        monkeypatch.setattr("sys.stdin", StringIO("no\n"))
+        # The player reports no length: it stays the file's.
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            cli.parse_and_run(f'load-media "{EXAMPLE_MEDIA_PATH}"')
+            cli.parse_and_run(f'save "{tmp_path / "piece.tla"}"')
+            assert not get(Get.IS_FILE_MODIFIED)
+            cli.parse_and_run(f'load-media "{other}"')
+
+        cli.parse_and_run("clear")
+
+        # Not cleared.
+        assert Path(get(Get.MEDIA_PATH)) == other.resolve()
