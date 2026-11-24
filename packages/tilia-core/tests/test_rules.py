@@ -15,6 +15,7 @@ import pytest
 import webcolors
 
 from tilia_core import rules, tla
+from tilia_core.timemap import pattern
 
 OK = (True, "")
 MEDIA = 60.0
@@ -3053,9 +3054,9 @@ class TestMediaLength:
 
 
 class TestBeatPattern:
-    """A beat timeline's pattern, with the reason the writer gives for one it
-    refuses. tests/tla/test_tla_rules.py checks that the two are the same for
-    every way the parser refuses one."""
+    """A beat timeline's pattern, with the one text for a bad one
+    (TimeLineAnnotator/project-management#674). tests/tla/test_tla_rules.py
+    checks that every path gives it, for every way the parser refuses one."""
 
     @pytest.mark.parametrize("text", ["4", "3 2", "10[4] 3", "2[4 3[3]]"])
     def test_one_that_parses(self, text):
@@ -3065,10 +3066,19 @@ class TestBeatPattern:
         # What a document holds for the default, which the writer writes.
         assert rules.beat_pattern(None, timeline_name="Beats") == OK
 
-    def test_one_that_doesnt_parse_names_itself_and_its_timeline(self):
-        assert rules.beat_pattern("0", timeline_name="") == (
+    def test_one_that_doesnt_parse_is_named_with_its_timeline_and_the_reason(self):
+        assert rules.beat_pattern("0", timeline_name="Beats") == (
             False,
-            'the beat pattern "0" of the timeline "" isn\'t a valid pattern',
+            'the beat pattern "0" of the timeline "Beats" isn\'t a valid pattern:'
+            " Bar lengths must be at least 1.",
+        )
+
+    def test_the_parsers_reason_is_told_as_the_parser_gives_it(self, monkeypatch):
+        refused = pattern.ParseResult(pattern.ParseStatus.INVALID, error="No more.")
+        monkeypatch.setattr(pattern, "parse", lambda text: refused)
+        assert rules.beat_pattern("4", timeline_name="Beats").reason == (
+            'the beat pattern "4" of the timeline "Beats" isn\'t a valid pattern:'
+            " No more."
         )
 
     @pytest.mark.parametrize("text", ["0", "abc", "[]", "", "10["])
@@ -3085,23 +3095,26 @@ class TestBeatPattern:
             (
                 "10[",
                 "Beats",
-                'the beat pattern "10[" of the timeline "Beats" isn\'t a valid pattern',
+                'the beat pattern "10[" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unclosed '['.",
             ),
             (
                 "",
                 "Beats",
-                'the beat pattern "" of the timeline "Beats" isn\'t a valid pattern',
+                'the beat pattern "" of the timeline "Beats" isn\'t a valid'
+                " pattern: Enter at least one bar length.",
             ),
             (
                 '4 "3"',
                 'Bässe "2"',
                 'the beat pattern "4 \\"3\\"" of the timeline "Bässe \\"2\\""'
-                " isn't a valid pattern",
+                " isn't a valid pattern: Unexpected '\"'.",
             ),
             (
                 "4\n²",
                 "Beats",
-                'the beat pattern "4\\n²" of the timeline "Beats" isn\'t a valid pattern',
+                'the beat pattern "4\\n²" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unexpected '²'.",
             ),
         ],
         ids=["more typing could complete it", "empty", "quotes", "a line break"],

@@ -502,6 +502,30 @@ def test_a_beat_pattern_that_doesnt_parse_counts_as_4_and_is_kept():
 
 
 @pytest.mark.parametrize(
+    "pattern, text, reason",
+    [
+        ([0], "0", "Bar lengths must be at least 1."),
+        ([3, "x"], "3 x", "Unexpected 'x'."),
+        ([], "", "Enter at least one bar length."),
+    ],
+)
+def test_a_beat_pattern_that_doesnt_parse_is_warned_about_as_text(
+    pattern, text, reason
+):
+    # The one text for a bad pattern (TimeLineAnnotator/project-management#674),
+    # about what the migration made of the old list.
+    doc = read(old_file(beat_timeline([0.0, 1.0], beat_pattern=pattern)))
+    message = (
+        f'the beat pattern "{text}" of the timeline "Beats"'
+        f" isn't a valid pattern: {reason}"
+    )
+    assert [(w.place, w.message) for w in doc.warnings] == [
+        (f"/timelines/{BEAT_TIMELINE}/beat_pattern", message)
+    ]
+    assert rules.beat_pattern(text, timeline_name="Beats").reason == message
+
+
+@pytest.mark.parametrize(
     "keys, written_value",
     [
         ({}, False),  # before time signatures: written, since the default is true

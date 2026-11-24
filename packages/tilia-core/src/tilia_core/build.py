@@ -12,7 +12,6 @@ from typing import BinaryIO
 
 from tilia_core import rules, tla
 from tilia_core.labels import nfc
-from tilia_core.timemap import pattern
 from tilia_core.tla.errors import printable
 from tilia_core.tla.layout import TIMELINE_SHAPES
 from tilia_core.tla.media_files import YOUTUBE_URL, is_url
@@ -36,7 +35,6 @@ _NO_DURATION = (
     " or set a duration with 'metadata set-media-length'."
 )
 _NOT_APPLICABLE = "'{}' is not valid for timeline kind '{}'."
-_INVALID_BEAT_PATTERN = "Invalid beat pattern '{}': {}"
 _SHARED_NAME = "There is more than one timeline with name '{}'"
 # The spec's, where TiLiA has none (FR-052, FR-056).
 _HAS_COMPONENTS = (
@@ -296,9 +294,9 @@ def add_timeline(
             raise TypeError(
                 f"a beat pattern is text, such as '10[4] 3', not {beat_pattern!r}"
             )
-        parsed = pattern.parse(beat_pattern)
-        if not parsed.is_complete:
-            raise ValueError(_INVALID_BEAT_PATTERN.format(beat_pattern, parsed.error))
+        kept = rules.beat_pattern(beat_pattern, timeline_name=name)
+        if not kept:
+            raise ValueError(kept.reason)
 
     # The format's defaults, as the reader fills them in. A beat timeline's
     # show_time_signatures is true there, as desktop#621 makes new ones.

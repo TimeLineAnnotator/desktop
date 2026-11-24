@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from tilia_core import rules, tla
+from tilia_core import build, rules, tla
 from tilia_core.tla import problems, reader, writer
 
 BROKEN = Path(__file__).parent / "broken"
@@ -547,7 +547,10 @@ class TestBeatPattern:
     def test_one_that_doesnt_parse_is_kept_with_a_warning_naming_the_timeline(self):
         data = a_file(self.with_pattern("abc"))
         doc = tla.loads(data)
-        reason = 'the beat pattern "abc" of the timeline "Beats" isn\'t a valid pattern'
+        reason = (
+            'the beat pattern "abc" of the timeline "Beats" isn\'t a valid pattern:'
+            " Unexpected 'a'."
+        )
         assert doc.warnings == [
             tla.ReadWarning(
                 place=f"/timelines/{BEATS}/beat_pattern",
@@ -588,7 +591,8 @@ class TestBeatPattern:
         with pytest.raises(tla.BrokenRules) as refused:
             tla.write(tmp_path / "piece.tla", doc)
         assert refused.value.problems[0].message == (
-            'the beat pattern "def" of the timeline "Beats" isn\'t a valid pattern'
+            'the beat pattern "def" of the timeline "Beats" isn\'t a valid pattern:'
+            " Unexpected 'd'."
         )
 
     def test_one_that_is_fixed_is_written(self, tmp_path):
@@ -598,10 +602,9 @@ class TestBeatPattern:
         assert tla.read(tmp_path / "piece.tla").warnings == []
 
 
-# What `rules.beat_pattern` gives is what the writer and the reader give, for
-# every pattern the parser, `tilia_core.timemap.pattern.parse`, completes or
-# refuses: those this module's tests and the migration's give the writer, and
-# one for each way the parser refuses one; with names to show as JSON text.
+# One text for a bad beat pattern on every path that gives one
+# (TimeLineAnnotator/project-management#674): the check, the reader, the writer
+# and a script's `add_timeline`.
 KEPT_PATTERNS = [
     "4",
     "3 2",
@@ -615,91 +618,186 @@ KEPT_PATTERNS = [
     "000000004",
     "100000[1]",
 ]
-REFUSED_PATTERNS = [
+# Each refused pattern, with the parser's reason, which ends the text.
+REFUSED_PATTERNS = {
     # From the writer's tests and the migration's.
-    "abc",
-    "def",
-    "x y",
-    "3 x",
-    "4 x",
-    "4  true",
-    # One for each way the parser refuses a pattern.
-    "0",  # a bar length below 1
-    "4 0",
-    "0[4]",  # a repeat count below 1
-    "4.5",  # something that isn't a number or a group
-    "-4",
-    "²",  # a digit int() reads, but not an ASCII one
-    "]",  # a "]" that closes nothing
-    "4]",
-    "[]",  # an empty group
-    "1234567890",  # more than 9 digits
-    "100001[1]",  # more than 100,000 bars
-    "[" * 33 + "4" + "]" * 33,  # groups more than 32 deep
-    "",  # what more typing could complete: nothing yet
-    "   ",
-    "10[",  # a group not closed
-    "2[4 3",
-]
+    "abc": "Unexpected 'a'.",
+    "def": "Unexpected 'd'.",
+    "x y": "Unexpected 'x'.",
+    "3 x": "Unexpected 'x'.",
+    "4 x": "Unexpected 'x'.",
+    "4  true": "Unexpected 't'.",
+    # At least one for each way the parser refuses a pattern.
+    "0": "Bar lengths must be at least 1.",
+    "4 0": "Bar lengths must be at least 1.",
+    "0[4]": "Repeat count must be at least 1.",
+    "4.5": "Unexpected '.'.",
+    "-4": "Unexpected '-'.",
+    "²": "Unexpected '²'.",  # a digit int() reads, but not an ASCII one
+    "]": "Unmatched ']'.",
+    "4]": "Unmatched ']'.",
+    "[]": "Empty group '[]'.",
+    "1234567890": "Numbers can have at most 9 digits.",
+    "100001[1]": "Pattern expands to more than 100000 bars.",
+    "60000[1] 60000[1]": "Pattern expands to more than 100000 bars.",
+    "[" * 33 + "4" + "]" * 33: "Groups can be nested at most 32 deep.",
+    # What more typing could complete.
+    "": "Enter at least one bar length.",
+    "   ": "Enter at least one bar length.",
+    "10[": "Unclosed '['.",
+    "2[4 3": "Unclosed '['.",
+}
 NAMES = ["Beats", "", 'Bässe "2"']
 
 
-def with_timeline_name(name):
-    def change(content):
-        content["timelines"][BEATS]["name"] = name
+def bad_pattern_text(pattern, name, reason):
+    shown, named_so = (json.dumps(text, ensure_ascii=False) for text in (pattern, name))
+    return (
+        f"the beat pattern {shown} of the timeline {named_so}"
+        f" isn't a valid pattern: {reason}"
+    )
 
-    return change
+
+def a_file_with_pattern(pattern, name):
+    content = copy.deepcopy(make_broken.base())
+    content["timelines"][BEATS].update(beat_pattern=pattern, name=name)
+    return json.dumps(content).encode("ascii")  # "\ud83d", as JSON can hold it
 
 
-class TestBeatPatternAsTheRulesCheckIt:
+def a_document_with_pattern(pattern, name):
+    doc = tla.loads(a_file())
+    doc.timelines[BEATS].name = name
+    doc.timelines[BEATS].attrs["beat_pattern"] = pattern
+    return doc
+
+
+def refused_by_the_writer(pattern, name, tmp_path):
+    with pytest.raises(tla.BrokenRules) as refused:
+        tla.write(tmp_path / "piece.tla", a_document_with_pattern(pattern, name))
+    assert not (tmp_path / "piece.tla").exists()
+    return refused.value
+
+
+def refused_by_a_script(pattern, name):
+    doc = build.new_script_document()
+    build.set_media_length(doc, 60.0)
+    with pytest.raises(ValueError) as refused:
+        build.add_timeline(doc, "beat", name, beat_pattern=pattern)
+    assert doc.timelines == {}
+    return str(refused.value)
+
+
+class TestOneTextForABadBeatPattern:
     @pytest.mark.parametrize("name", NAMES)
-    @pytest.mark.parametrize("pattern", REFUSED_PATTERNS)
-    def test_the_writer_refuses_one_with_the_checks_reason(
-        self, pattern, name, tmp_path
-    ):
-        checked = rules.beat_pattern(pattern, timeline_name=name)
-        doc = tla.loads(a_file())
-        doc.timelines[BEATS].name = name
-        doc.timelines[BEATS].attrs["beat_pattern"] = pattern
-        with pytest.raises(tla.BrokenRules) as refused:
-            tla.write(tmp_path / "piece.tla", doc)
-        assert not checked
-        assert [(p.place, p.message, p.reason) for p in refused.value.problems] == [
-            (f"/timelines/{BEATS}/beat_pattern", checked.reason, checked.reason)
-        ]
-
-    @pytest.mark.parametrize("name", NAMES)
-    @pytest.mark.parametrize("pattern", REFUSED_PATTERNS)
-    def test_the_reader_keeps_one_with_the_checks_reason_and_code(self, pattern, name):
-        checked = rules.beat_pattern(pattern, timeline_name=name)
-        doc = tla.loads(
-            a_file(
-                together(
-                    TestBeatPattern.with_pattern(pattern), with_timeline_name(name)
-                )
-            )
+    @pytest.mark.parametrize("pattern, reason", REFUSED_PATTERNS.items())
+    def test_the_check_gives_it(self, pattern, reason, name):
+        assert rules.beat_pattern(pattern, timeline_name=name) == (
+            False,
+            bad_pattern_text(pattern, name, reason),
         )
-        assert [w.message for w in doc.warnings] == [checked.reason]
-        assert [(p.code, p.reason) for p in doc.read_problems] == [
-            (checked.code, checked.reason)
+
+    @pytest.mark.parametrize("name", NAMES)
+    @pytest.mark.parametrize("pattern, reason", REFUSED_PATTERNS.items())
+    def test_the_writer_refuses_one_with_it(self, pattern, reason, name, tmp_path):
+        text = bad_pattern_text(pattern, name, reason)
+        refused = refused_by_the_writer(pattern, name, tmp_path)
+        assert [(p.place, p.message, p.reason) for p in refused.problems] == [
+            (f"/timelines/{BEATS}/beat_pattern", text, text)
         ]
+        line = refused.problems[0].line
+        assert str(refused) == f"piece.tla: nothing was written: line {line}: {text}"
+
+    @pytest.mark.parametrize("name", NAMES)
+    @pytest.mark.parametrize("pattern, reason", REFUSED_PATTERNS.items())
+    def test_the_reader_warns_with_it(self, pattern, reason, name):
+        text = bad_pattern_text(pattern, name, reason)
+        doc = tla.loads(a_file_with_pattern(pattern, name))
+        assert [(w.message, w.reason) for w in doc.warnings] == [(text, text)]
+        assert [(p.code, p.reason) for p in doc.read_problems] == [
+            ("bad_beat_pattern", text)
+        ]
+
+    @pytest.mark.parametrize("name", NAMES)
+    @pytest.mark.parametrize("pattern, reason", REFUSED_PATTERNS.items())
+    def test_a_script_is_refused_with_it(self, pattern, reason, name):
+        text = bad_pattern_text(pattern, name, reason)
+        assert refused_by_a_script(pattern, name) == text
+
+    # The writer writes text in NFC, and a message shows a lone surrogate as its
+    # escape, so that it can be printed. A control character is JSON's escape in
+    # the pattern, and itself in the parser's reason.
+    @pytest.mark.parametrize(
+        "pattern, name, text",
+        [
+            (
+                "é",
+                "Beats",
+                'the beat pattern "é" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unexpected 'é'.",
+            ),
+            (
+                "0",
+                "Bässe",
+                'the beat pattern "0" of the timeline "Bässe" isn\'t a valid'
+                " pattern: Bar lengths must be at least 1.",
+            ),
+            (
+                "\ud83d",
+                "Beats",
+                'the beat pattern "\\ud83d" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unexpected '\\ud83d'.",
+            ),
+            (
+                "0",
+                "Tune \ud83d",
+                'the beat pattern "0" of the timeline "Tune \\ud83d" isn\'t a valid'
+                " pattern: Bar lengths must be at least 1.",
+            ),
+            (
+                "\x00",
+                "Beats",
+                'the beat pattern "\\u0000" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unexpected '\x00'.",
+            ),
+        ],
+        ids=[
+            "a pattern not in NFC",
+            "a name not in NFC",
+            "a lone surrogate in the pattern",
+            "a lone surrogate in the name",
+            "a control character",
+        ],
+    )
+    def test_however_the_pattern_and_the_name_are_spelled(
+        self, pattern, name, text, tmp_path
+    ):
+        refused = refused_by_the_writer(pattern, name, tmp_path)
+        assert [p.message for p in refused.problems] == [text]
+        doc = tla.loads(a_file_with_pattern(pattern, name))
+        assert [w.message for w in doc.warnings] == [text]
+        assert [p.reason for p in doc.read_problems] == [text]
+        assert rules.beat_pattern(pattern, timeline_name=name) == (False, text)
+        assert refused_by_a_script(pattern, name) == text
 
     @pytest.mark.parametrize("pattern", KEPT_PATTERNS)
-    def test_the_writer_writes_one_the_check_keeps(self, pattern, tmp_path):
-        assert rules.beat_pattern(pattern, timeline_name="Beats")
-        doc = tla.loads(a_file())
-        doc.timelines[BEATS].attrs["beat_pattern"] = pattern
-        tla.write(tmp_path / "piece.tla", doc)
-        read = tla.read(tmp_path / "piece.tla")
+    def test_no_path_refuses_one_the_check_keeps(self, pattern, tmp_path):
+        assert rules.beat_pattern(pattern, timeline_name="Beats") == rules.OK
+        assert tla.loads(a_file_with_pattern(pattern, "Beats")).warnings == []
+        path = tmp_path / "piece.tla"
+        tla.write(path, a_document_with_pattern(pattern, "Beats"))
+        read = tla.read(path)
         assert read.timelines[BEATS].attrs["beat_pattern"] == pattern
         assert read.warnings == []
+        doc = build.new_script_document()
+        build.set_media_length(doc, 60.0)
+        added = build.add_timeline(doc, "beat", "Beats", beat_pattern=pattern)
+        assert doc.timelines[added].attrs["beat_pattern"] == pattern
 
-    def test_the_writer_writes_none_which_the_check_keeps(self, tmp_path):
-        assert rules.beat_pattern(None, timeline_name="Beats")
-        doc = tla.loads(a_file())
-        doc.timelines[BEATS].attrs["beat_pattern"] = None
-        tla.write(tmp_path / "piece.tla", doc)
-        assert tla.read(tmp_path / "piece.tla").warnings == []
+    def test_none_is_kept_by_the_check_and_written(self, tmp_path):
+        assert rules.beat_pattern(None, timeline_name="Beats") == rules.OK
+        path = tmp_path / "piece.tla"
+        tla.write(path, a_document_with_pattern(None, "Beats"))
+        assert tla.read(path).warnings == []
 
 
 # Writing
@@ -1080,7 +1178,8 @@ class TestAnEditElsewhereIsNoNewProblem:
         assert read.timelines[BEATS].name == "Renamed"
         assert read.timelines[BEATS].attrs["beat_pattern"] == "x y"
         assert [w.message for w in read.warnings] == [
-            'the beat pattern "x y" of the timeline "Renamed" isn\'t a valid pattern'
+            'the beat pattern "x y" of the timeline "Renamed" isn\'t a valid pattern:'
+            " Unexpected 'x'."
         ]
 
     @pytest.mark.parametrize(
