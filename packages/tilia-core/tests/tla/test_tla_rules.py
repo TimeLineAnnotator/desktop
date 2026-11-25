@@ -776,7 +776,7 @@ class TestOneTextForABadBeatPattern:
             (
                 "4\ufe0f\u20e3",
                 "Beats",
-                'the beat pattern "4\\ufe0f\u20e3" of the timeline "Beats" isn\'t a'
+                'the beat pattern "4\\ufe0f\\u20e3" of the timeline "Beats" isn\'t a'
                 ' valid pattern: Unexpected "\\ufe0f".',
             ),
             (

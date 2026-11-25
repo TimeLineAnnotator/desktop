@@ -3131,6 +3131,22 @@ class TestBeatPattern:
             f" isn't a valid pattern: Unexpected {escape}."
         )
 
+    @pytest.mark.parametrize(
+        "text, shown",
+        [
+            ("4\ufe0f\u20e3", "4\\ufe0f\\u20e3"),
+            ("\u200b\u0301\u0301x\u0301", "\\u200b\\u0301\\u0301x\u0301"),
+            ("x\u0301\u200b", "x\u0301\\u200b"),
+            ("\u2764\ufe0f", "\u2764\\ufe0f"),
+            ("]\u200b^-\\", "]\\u200b^-\\\\"),
+        ],
+        ids=ascii,
+    )
+    def test_a_combining_mark_after_an_escape_is_one_too(self, text, shown):
+        # It would sit on the escape; on a character that is seen, it stays.
+        reason = rules.beat_pattern(text, timeline_name="Beats").reason
+        assert reason.startswith(f'the beat pattern "{shown}" of the timeline')
+
     @pytest.mark.parametrize("character", list("a.,-+/\\é²٣日💡`´′") + ["\u0301"])
     def test_any_other_character_stays_as_it_is(self, character):
         reason = rules.beat_pattern(f"4{character}", timeline_name="Beats").reason

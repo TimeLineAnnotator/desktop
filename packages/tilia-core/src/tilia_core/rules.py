@@ -45,7 +45,9 @@ import importlib.util
 import itertools
 import json
 import math
+import re
 import string
+import unicodedata
 from collections.abc import (
     Callable,
     Collection,
@@ -740,11 +742,15 @@ def _why_refused(pattern: str, parsed: ParseResult) -> str:
 
 
 def _as_json(text: str) -> str:
-    """`text` as JSON writes it, each character that can't be seen as its escape."""
-    return "".join(
-        json.dumps(character)[1:-1] if _cant_be_seen(character) else character
-        for character in json.dumps(text, ensure_ascii=False)
-    )
+    """`text` as JSON writes it, each character that can't be seen as its escape,
+    and so each combining mark after one, which would sit on that escape."""
+    shown = json.dumps(text, ensure_ascii=False)
+    unseen = "".join(filter(_cant_be_seen, set(shown)))
+    if not unseen:
+        return shown
+    marks = "".join(c for c in set(shown) if unicodedata.category(c)[0] == "M")
+    found = f"[{re.escape(unseen)}][{re.escape(unseen + marks)}]*"
+    return re.sub(found, lambda match: json.dumps(match[0])[1:-1], shown)
 
 
 def _cant_be_seen(character: str) -> bool:
