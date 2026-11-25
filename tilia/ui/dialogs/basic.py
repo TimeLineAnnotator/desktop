@@ -1,7 +1,15 @@
+from collections.abc import Sequence
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QColorDialog, QInputDialog, QMessageBox
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QColorDialog,
+    QInputDialog,
+    QMessageBox,
+)
 
+import tilia.errors
 from tilia.requests import Get, get
 
 
@@ -101,6 +109,61 @@ class YesOrNoMessageBox(QMessageBox):
 
 def ask_yes_or_no(title: str, prompt: str) -> bool:
     return YesOrNoMessageBox(title, prompt).exec() == QMessageBox.StandardButton.Yes
+
+
+class ChoiceMessageBox(QMessageBox):
+    """A question whose buttons have words of their own. Enter chooses `default`,
+    or the first button if it is None. Escape and closing the question choose the
+    button "Cancel", if there is one."""
+
+    def __init__(
+        self,
+        title: str,
+        message: str,
+        buttons: Sequence[str],
+        default: str | None = None,
+    ) -> None:
+        super().__init__(
+            QMessageBox.Icon.Question,
+            title,
+            message,
+            QMessageBox.StandardButton.NoButton,
+            get(Get.MAIN_WINDOW),
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setTextFormat(Qt.TextFormat.PlainText)  # a file's name isn't markup
+        for words in buttons:
+            role = (
+                QMessageBox.ButtonRole.RejectRole
+                if words == tilia.errors.CANCEL
+                else QMessageBox.ButtonRole.AcceptRole
+            )
+            button = self.addButton(words, role)
+            # Kept apart from its text, to which the system may add a shortcut.
+            button.setProperty(_WORDS, words)
+            if role == QMessageBox.ButtonRole.RejectRole:
+                self.setEscapeButton(button)
+            if words == (default if default is not None else buttons[0]):
+                self.setDefaultButton(button)
+
+
+_WORDS = "words"
+
+
+def ask_for_choice(
+    title: str, message: str, buttons: Sequence[str], default: str | None = None
+) -> str | None:
+    """The words of the button chosen, or None when the question was closed
+    without one. Enter chooses `default`, or the first button if it is None."""
+    box = ChoiceMessageBox(title, message, buttons, default)
+    chosen: list[str] = []
+
+    def on_clicked(button: QAbstractButton) -> None:
+        chosen.append(button.property(_WORDS))
+
+    box.buttonClicked.connect(on_clicked)
+    box.exec()
+    return chosen[0] if chosen else None
 
 
 def _truncate_error_message(message: str):

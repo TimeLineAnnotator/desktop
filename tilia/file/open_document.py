@@ -7,13 +7,16 @@ import threading
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tilia.file import tla_bridge
 from tilia.file.media_metadata import MediaMetadata
 from tilia.log import logger
 from tilia_core import tla
 from tilia_core.tla import paths
+
+if TYPE_CHECKING:
+    from tilia_core.tla.writer import _Absent
 
 _MEDIA_LENGTH = "media length"
 
@@ -41,6 +44,8 @@ class OpenDocument:
     `timelines` and `timelines_hash` are the state's when the file was last read or
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.
+    `is_old` says the file was read from an older format, and hasn't been written
+    since: its first save asks first (FR-006).
 
     Two are the same file only if they are the same object.
     """
@@ -52,8 +57,13 @@ class OpenDocument:
     timelines: dict[str, Any] = field(default_factory=dict)
     timelines_hash: str = ""
     unknown_discarded: bool = False
+    is_old: bool = False
     synced: dict[str, Any] | None = None
     removed: tla_bridge.Removed = field(default_factory=dict)
+    # The media length the file on disk stores, as read or as last written: None for
+    # a file without one and for a new file. A report within the tolerance of it
+    # leaves it as it is (FR-034).
+    stored_media_length: float | None = field(default=None, init=False)
     # Taken by whatever changes the document or copies it: the autosaver copies
     # from its thread.
     _lock: threading.Lock = field(
@@ -81,6 +91,7 @@ class OpenDocument:
                 "media_path": self.media_path,
                 "timelines": {},
             }
+        self.stored_media_length = self.document.media_length
 
     def sync(
         self,
@@ -138,8 +149,9 @@ class OpenDocument:
             for key in self._histories.keys() - kept:
                 del self._histories[key]
 
-    def write(self, path: str | Path) -> None:
-        """Writes the document to `path` through the core. Under the lock, so that a
+    def write(self, path: str | Path, *, expect: str | _Absent | None) -> None:
+        """Writes the document to `path` through the core, expecting there what
+        `expect` says, as `tla.write` takes it. Under the lock, so that a
         copy for writing never sees the document part-way through following the
         file. The timelines `removed` holds follow the file too, as the document's
         do, through the core's path handler, so that a PDF timeline an undo gives
@@ -155,7 +167,8 @@ class OpenDocument:
             # read from or last written to.
             before = copy.copy(self.document)
             with paths.following(self.document, held, path):
-                tla.write(path, self.document)
+                tla.write(path, self.document, expect=expect)
+            self.stored_media_length = self.document.media_length
             # The folder `tla.write` rebases to: that of the file a link names.
             self._rebase_kept_media_paths(before, paths.paths_folder(path))
 

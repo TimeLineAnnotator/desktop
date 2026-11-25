@@ -1,5 +1,6 @@
 import os
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -10,9 +11,11 @@ from tests.constants import (
     EXAMPLE_MEDIA_PATH,
     EXAMPLE_MEDIA_SCALE_FACTOR,
 )
+from tests.mock import Serve, ServeSequence
 from tilia.requests import Get, get
 from tilia.ui import commands
 from tilia.ui.cli.player import CLIYoutubePlayer
+from tilia_core import tla
 
 
 def test_load_media(cli, tilia_state):
@@ -227,3 +230,57 @@ class TestLoadYoutube:
 
         tilia_errors.assert_error()
         assert tilia_state.duration == 99
+
+
+EVERY_KIND = (
+    Path(__file__).parents[3]
+    / "packages"
+    / "tilia-core"
+    / "tests"
+    / "tla"
+    / "golden"
+    / "every-kind.tla"
+)
+
+
+@pytest.fixture
+def player_kept(tilia):
+    """Gives the app back a player of the kind it had, for the module's other tests,
+    as TiLiA changes players: the new one first, then the old one goes."""
+    kind = type(tilia.player)
+    yield
+    if type(tilia.player) is not kind:
+        player = kind()
+        tilia.player.destroy()
+        tilia.player = player
+
+
+def test_open_takes_the_length_its_youtube_player_reports_as_it_loads(
+    cli, tilia, player_kept, tmp_path, monkeypatch
+):
+    # The command line's YouTube player reports the video's length as it loads it,
+    # as a local file's player does. Once the file is open, a length beyond the
+    # tolerance of the stored one asks, and is taken (FR-034).
+    monkeypatch.setattr(
+        CLIYoutubePlayer, "get_youtube_duration", lambda player, video_id: (True, 20.0)
+    )
+    document = tla.read(EVERY_KIND)
+    document.media_path = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    document.media_length = 17.5
+    path = tmp_path / "file.tla"
+    tla.write(path, document)
+    questions = ServeSequence(Get.FROM_USER_YES_OR_NO, [True, True])
+
+    with (
+        Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)),
+        Serve(Get.FROM_USER_RETRY_PDF_PATH, False),
+        Serve(Get.FROM_USER_SHOW_PROBLEMS, None),
+        questions,
+    ):
+        cli.parse_and_run(f'open "{path}"')
+
+    assert type(tilia.player) is CLIYoutubePlayer
+    assert questions.return_count == 1
+    assert get(Get.MEDIA_DURATION) == 20.0
+    assert commands.execute("file.save")
+    assert tla.read(path).media_length == 20.0

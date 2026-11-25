@@ -9,6 +9,32 @@ class Error(NamedTuple):
 
 
 FILE_SAVE_FAILED = Error("Save file", "Error when saving file.\n{}")
+# The questions before a save over a file (FR-006, FR-026): not errors, so `display`
+# doesn't show them. Asked with Get.FROM_USER_CHOICE and the buttons below. The
+# file's name; for an old file, then the TiLiA version it was made with.
+SAVE_FILE_CHANGED = Error(
+    "File changed on disk",
+    "'{}' has changed on disk since you opened it. Saving will overwrite those"
+    " changes.",
+)
+SAVE_FILE_MOVED_OR_DELETED = Error(
+    "File moved or deleted", "'{}' has been moved or deleted since you opened it."
+)
+SAVE_FILE_IN_USE = Error(
+    "Save file",
+    "'{}' is in use by another program, such as a sync client or a virus scanner."
+    " Nothing was written.",
+)
+SAVE_OLD_FILE = Error(
+    "Save in the new format",
+    "'{}' was made with TiLiA {}. Saving writes TiLiA's new file format, which"
+    " TiLiA 0.7 and earlier can't open.",
+)
+OVERWRITE = "Overwrite"
+SAVE = "Save"
+SAVE_AS = "Save As…"
+RETRY = "Retry"
+CANCEL = "Cancel"
 MEDIA_METADATA_IMPORT_JSON_FAILED = Error(
     "Import media metadata", "Error when parsing file {}:\n{}"
 )
