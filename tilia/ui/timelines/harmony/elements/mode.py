@@ -1,6 +1,6 @@
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PySide6.QtWidgets import QGraphicsItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME
@@ -11,6 +11,7 @@ from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import Accidental
 from tilia.ui.timelines.harmony.context_menu import ModeContextMenu
 from tilia.ui.timelines.harmony.elements import mode_attrs
+from tilia.ui.timelines.harmony.elements.label_body import LabelBody
 from tilia.ui.timelines.harmony.utils import UNREADABLE
 
 
@@ -144,7 +145,7 @@ class ModeUI(TimelineUIElement):
         return mode_attrs.get_inspector_dict(self)
 
 
-class ModeBody(QGraphicsTextItem):
+class ModeBody(LabelBody):
     def __init__(
         self,
         x: float,
@@ -162,13 +163,14 @@ class ModeBody(QGraphicsTextItem):
         self.setDefaultTextColor(QColor("black"))
 
     def get_point(self, x: float, y: float):
-        return QPointF(x - self.boundingRect().width() / 2, y)
+        return QPointF(x - self.boundingRect().width() / 2, y + self.marks_y_offset())
 
     def set_position(self, x, y):
         self.setPos(self.get_point(x, y))
 
     def set_text(self, value: str):
         if " " in value:
+            self.has_marks = False
             idx = value.index(" ")
             tonic = value[:idx]
             mode_name = value[idx + 1 :]
@@ -177,7 +179,7 @@ class ModeBody(QGraphicsTextItem):
                 f'<span style="font-family: Arial; font-size: 10pt;">{mode_name}</span>'
             )
         else:
-            self.setPlainText(value)
+            self.set_plain_text(value, has_marks=True)
 
     def on_select(self):
         font = self.font()
