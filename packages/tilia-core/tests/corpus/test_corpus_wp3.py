@@ -5,6 +5,7 @@ Files of the current format are written with ``tla.write``; old ones are the
 files of ``tests/tla/old``, saved by the TiLiA versions they come from."""
 
 import hashlib
+import json
 import pickle
 import shutil
 from pathlib import Path
@@ -182,6 +183,58 @@ def test_the_reader_skips_wp3s_temporary_files():
 
 
 # --------------------------------------------------------------------------- #
+# Units of kinds the core doesn't know (TimeLineAnnotator/project-management#591)
+# --------------------------------------------------------------------------- #
+def test_unknown_tla_is_indexed_with_its_known_units_only(tmp_path):
+    # Its marker timeline holds a unit whose kind is spelled "marker": TiLiA
+    # reads component kinds exactly and knows "MARKER", so it isn't a marker.
+    shutil.copyfile(GOLDEN / "unknown.tla", tmp_path / "unknown.tla")
+    with opened(tmp_path) as corpus:
+        row = corpus.file("unknown.tla")
+        assert (row.state, row.reason) == ("readable", None)
+        units = unit_keys(corpus, "unknown.tla")
+    assert set(units) == {
+        "019b76da-a806-7e00-ac14-06fe451fb363",  # BEAT
+        "019b76da-a807-727e-a498-f18f1509941f",  # BEAT
+        "019b76da-a808-75c1-8240-223b48ef1d65",  # MARKER
+    }
+
+
+# The kinds of the units the index holds, by the names the API gives them,
+# which a unit of a kind the core doesn't know can be spelled as, each with the
+# kind of timeline that holds it.
+INDEXED_UNITS = {
+    "hierarchy": "Hierarchy",
+    "marker": "Marker",
+    "range": "Range",
+    "harmony": "Harmony",
+    "mode": "Harmony",
+    "beat": "Beat",
+}
+
+
+@pytest.mark.parametrize("kind", sorted(INDEXED_UNITS))
+def test_a_unit_spelled_as_a_known_kind_s_name_is_left_out(tmp_path, kind):
+    data = json.loads((GOLDEN / "every-kind.tla").read_text(encoding="utf-8"))
+    timeline = next(
+        tl for tl in data["timelines"].values() if tl["kind"] == INDEXED_UNITS[kind]
+    )
+    spelled = next(
+        uid for uid, c in timeline["components"].items() if c["kind"] == kind.upper()
+    )
+    timeline["components"][spelled]["kind"] = kind
+    shutil.copyfile(GOLDEN / "every-kind.tla", tmp_path / "known.tla")
+    write(tmp_path / "spelled.tla", data)
+    with opened(tmp_path) as corpus:
+        row = corpus.file("spelled.tla")
+        assert (row.state, row.reason) == ("readable", None)
+        known = unit_keys(corpus, "known.tla")
+        units = unit_keys(corpus, "spelled.tla")
+    assert spelled in known
+    assert set(units) == set(known) - {spelled}
+
+
+# --------------------------------------------------------------------------- #
 # The fingerprint the document was read with
 # (TimeLineAnnotator/project-management#545)
 # --------------------------------------------------------------------------- #
@@ -226,21 +279,7 @@ def test_the_fingerprint_a_scan_reads_is_unchanged(tmp_path, source):
     assert read == as_computed_before(path) == tla.fingerprint(path)
 
 
-# The index can't build unknown.tla's rows yet: a unit of an unknown kind spelled
-# "marker" is taken for a marker (TimeLineAnnotator/project-management#591).
-NOT_INDEXED_YET = pytest.mark.xfail(
-    strict=True, reason="TimeLineAnnotator/project-management#591"
-)
-
-
-@pytest.mark.parametrize(
-    "source",
-    [
-        pytest.param(p, marks=NOT_INDEXED_YET) if p.name == "unknown.tla" else p
-        for p in EVERY_FILE
-    ],
-    ids=file_id,
-)
+@pytest.mark.parametrize("source", EVERY_FILE, ids=file_id)
 def test_the_index_s_fingerprints_are_unchanged(tmp_path, source):
     path = tmp_path / source.name
     shutil.copyfile(source, path)
