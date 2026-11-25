@@ -2746,6 +2746,33 @@ class TestCheckTimelineSpeed:
         assert others[1:] == [(hierarchies[0].id,)] * 2999
         assert seconds < WELL_UNDER_A_SECOND
 
+    @pytest.mark.parametrize(
+        "what, components",
+        [
+            ("beats at one time", [component("beat", time=0.0) for _ in range(10_000)]),
+            # Each starts before the one before it ends, and ends after it, so that
+            # all of them cross, as those at one level do that overlap.
+            (
+                "hierarchies that all cross",
+                [hierarchy(float(n), float(n + 10_000), 1) for n in range(10_000)],
+            ),
+        ],
+        ids=["beats at one time", "hierarchies that all cross"],
+    )
+    def test_10000_components_at_odds(self, what, components):
+        # As a reader does: every rule, and for each component those it is at odds
+        # with, but those that already named it.
+        def read():
+            checked = rules.check_timeline(20_000.0, components, every_rule=True)
+            return [c.outcome.naming(10) for c in checked.values()], checked
+
+        (named, checked), seconds = fastest(read)
+
+        print(f"10,000 {what}, read: {seconds:.3f} s")
+        assert all(more == 9_999 - 10 for _, more, _ in named)
+        assert not any(c.outcome for c in checked.values())
+        assert seconds < 1.0
+
 
 def every_rule(components, rows=ROWS, media_length=MEDIA):
     return rules.check_timeline(

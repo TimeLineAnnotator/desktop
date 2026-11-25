@@ -50,7 +50,7 @@ from collections.abc import (
 )
 from dataclasses import dataclass
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import webcolors
 
@@ -187,13 +187,36 @@ SAME_ROW_ID = "same_row_id"
 NEGATIVE_MEASURE_NUMBER = "negative_measure_number"
 
 
+class _AtOdds:
+    """The ids of the others a component is at odds with, in the order given, each
+    found as it is asked for. There is at least one."""
+
+    def __iter__(self) -> Iterator[str]:
+        raise NotImplementedError
+
+    def __len__(self) -> int:
+        raise NotImplementedError
+
+    def __contains__(self, other: object) -> bool:
+        raise NotImplementedError
+
+    def naming(self, limit: int, named: Collection[str]) -> tuple[list[str], int]:
+        """The first `limit` of them that aren't in `named`, and how many more
+        aren't."""
+        left = (other for other in self if other not in named)
+        kept = list(itertools.islice(left, limit))
+        return kept, len(self) - sum(other in self for other in named) - len(kept)
+
+
 class Outcome(tuple[bool, str]):
     """What checking the rules gives: `(True, "")`, or `(False, reason)`.
 
     It is true when no rule is broken, so `if rules.marker(...):` reads as "the
     marker keeps to the rules"; it also unpacks as `ok, reason`. `others` are
     the ids of the other components a broken rule is about: those at the same
-    time or place, the hierarchies it crosses, the ranges it should join. `code`
+    time or place, the hierarchies it crosses, the ranges it should join, found
+    when they are first asked for where they are many. `naming` gives the first
+    of them and how many more there are, without finding the rest. `code`
     says which rule it is, in words that don't change with the values its reason
     quotes. `about` says what of the component the rule checks, where one code
     is given by rules about different attributes of one component: "start" and
@@ -206,7 +229,7 @@ class Outcome(tuple[bool, str]):
     # Read through `others`, `code` and `about`, which can't be set: every outcome
     # that keeps to the rules is the one `OK`. A tuple's subclass can't give it a
     # slot.
-    _others: tuple[str, ...]
+    _others: tuple[str, ...] | _AtOdds
     _code: str
     _about: str
 
@@ -219,7 +242,7 @@ class Outcome(tuple[bool, str]):
         about: str = "",
     ) -> Outcome:
         outcome = super().__new__(cls, (bool(ok), reason))
-        outcome._others = tuple(others)
+        outcome._others = others if isinstance(others, _AtOdds) else tuple(others)
         outcome._code = code
         outcome._about = about
         return outcome
@@ -229,11 +252,26 @@ class Outcome(tuple[bool, str]):
 
     def __getnewargs__(self) -> tuple[bool, str, tuple[str, ...], str, str]:  # type: ignore[override]
         # What copy and pickle give __new__: a tuple's would be the pair alone.
-        return self[0], self[1], self._others, self._code, self._about
+        return self[0], self[1], self.others, self._code, self._about
 
     @property
     def others(self) -> tuple[str, ...]:
+        if isinstance(self._others, _AtOdds):
+            self._others = tuple(self._others)
         return self._others
+
+    def naming(
+        self, limit: int, named: Collection[str] = ()
+    ) -> tuple[list[str], int, bool]:
+        """The first `limit` of `others`, in order, that aren't in `named`, how many
+        more of them aren't either, and whether there are any others at all. As
+        listing them gives it, but in far less time where they are thousands."""
+        others = self._others
+        if isinstance(others, _AtOdds):
+            kept, more = others.naming(limit, named)
+            return kept, more, True
+        left = [other for other in others if other not in named]
+        return left[:limit], max(0, len(left) - limit), len(others) > 0
 
     @property
     def about(self) -> str:
@@ -304,18 +342,21 @@ def _first(checks: Iterable[Check]) -> Outcome | None:
     return None
 
 
-def _every(checks: Sequence[Check]) -> list[Outcome]:
-    """Every rule `checks` find broken. The first check is that the times are
-    numbers and the texts text: when it finds one that isn't, the others, which
-    compare them, aren't made."""
-    found = []
-    for check in checks:
+def _first_and_rest(
+    checks: Sequence[Check], every: bool
+) -> tuple[Outcome | None, tuple[Outcome, ...]]:
+    """`_first`'s outcome, and, when `every`, the others `checks` find broken after
+    it, each check made once. The first check is that the times are numbers and the
+    texts text: when it finds one that isn't, the others, which compare them, aren't
+    made."""
+    for at, check in enumerate(checks):
         broken = check()
         if broken is not None and not broken:
-            found.append(broken)
-            if check is checks[0]:
-                break
-    return found
+            if not every or at == 0:
+                return broken, ()
+            later = (later_check() for later_check in checks[at + 1 :])
+            return broken, tuple(o for o in later if o is not None and not o)
+    return None, ()
 
 
 def _kept(
@@ -770,15 +811,16 @@ def check_timeline(
     whose rules a component could break: the points at its time, the
     hierarchies that overlap it (by the order of their starts), the ranges that
     come next in its row. So n components take about n log n, plus the others
-    found: those the outcomes name, and for a hierarchy, those it lies inside
-    or around.
+    found. Where they are many, as when thousands are at one time, an outcome finds
+    them only as they are asked for (`Outcome.others`), but an import's finds them
+    all: its components are checked with those kept so far, not with every one.
     """
     if skip_broken and every_rule:
         raise ValueError("every_rule is for a timeline checked with every component")
     components = list(components)
     _needed(components, rows, page_count)
     kinds = _Kinds(media_length, rows or (), page_count or 0)
-    others = _Others(components)
+    others = _Others(components, every=not skip_broken)
     covered = [
         place for place, component in enumerate(components) if component.kind in KINDS
     ]
@@ -790,10 +832,10 @@ def check_timeline(
         component = components[place]
         kind, attrs = component.kind, component.attrs
         with_others = others.of(place)
-        broken, unable = kinds.broken(kind, attrs, with_others)
-        also: tuple[Outcome, ...] = ()
-        if every_rule and broken is not None:
-            also = tuple(kinds.every(kind, attrs, with_others)[1:])
+        broken, also, unable = kinds.broken(kind, attrs, with_others, every_rule)
+        if broken is not None:
+            broken = with_others.complete(broken)
+            also = tuple(with_others.complete(outcome) for outcome in also)
         found[component.id] = _found(attrs, broken, unable, also)
         if skip_broken and broken is None:
             others.add(place)
@@ -1236,11 +1278,15 @@ class _Kinds:
         self._music21: tuple[ModuleType | None, Exception | None] | None = None
 
     def broken(
-        self, kind: str, attrs: Mapping[str, Any], others: Iterable[tla.Component]
-    ) -> tuple[Outcome | None, CantCheck | None]:
+        self,
+        kind: str,
+        attrs: Mapping[str, Any],
+        others: Iterable[tla.Component],
+        every: bool,
+    ) -> tuple[Outcome | None, tuple[Outcome, ...], CantCheck | None]:
         """The first rule but the color that a component of `kind` with `attrs`
-        breaks, or None; and when it breaks none, whether the rules that need
-        music21 couldn't be checked."""
+        breaks, or None; when `every`, the other rules it breaks after that; and when
+        it breaks none, whether the rules that need music21 couldn't be checked."""
         error = None
         if kind in _NEED_MUSIC21:
             if self._music21 is None:
@@ -1248,30 +1294,236 @@ class _Kinds:
                 self._context.music21 = self._music21[0]
             error = self._music21[1]
         rules = _RULES[kind]
-        broken = _first(rules(self._media_length, others, attrs, self._context))
+        checks = rules(self._media_length, others, attrs, self._context)
+        broken, also = _first_and_rest(checks, every)
         if broken is None and kind in _NEED_MUSIC21 and self._context.music21 is None:
             # The cause the kind's function raises it from.
             unable = CantCheck(kind, error)
             unable.__cause__ = error
-            return None, unable
-        return broken, None
+            return None, (), unable
+        return broken, also, None
 
-    def every(
-        self, kind: str, attrs: Mapping[str, Any], others: Iterable[tla.Component]
-    ) -> list[Outcome]:
-        """Every rule but the color that a component of `kind` with `attrs` breaks,
-        the first being what `broken` gives."""
-        return _every(_RULES[kind](self._media_length, others, attrs, self._context))
+
+# How many others a component is compared with one by one when a timeline is read.
+# Thousands at odds with each other are too many to list for each of them, so past
+# this many, they are found together: as a group they are in, or as a set of bits.
+_FEW_OTHERS = 32
+
+
+class _Ids:
+    """Components' ids, and the place of each, looked up as they are asked for."""
+
+    def __init__(self, components: Sequence[tla.Component]) -> None:
+        self._components = components
+        self._places: dict[str, int] | None = None
+
+    def of(self, place: int) -> str:
+        return self._components[place].id
+
+    def place(self, id_: object) -> int | None:
+        if self._places is None:
+            self._places = {c.id: place for place, c in enumerate(self._components)}
+        return self._places.get(cast(str, id_))
+
+
+class _InGroup(_AtOdds):
+    """Those of `group`, the places, in order, of components that are at one time or
+    one place, or that start first in a row, but the one at `place`."""
+
+    def __init__(self, group: Sequence[int], place: int, ids: _Ids) -> None:
+        self._group, self._place, self._ids = group, place, ids
+
+    def _holds(self, place: int) -> bool:
+        at = bisect.bisect_left(self._group, place)
+        return at < len(self._group) and self._group[at] == place
+
+    def __iter__(self) -> Iterator[str]:
+        return (self._ids.of(other) for other in self._group if other != self._place)
+
+    def __len__(self) -> int:
+        return len(self._group) - self._holds(self._place)
+
+    def __contains__(self, other: object) -> bool:
+        place = self._ids.place(other)
+        return place is not None and place != self._place and self._holds(place)
+
+
+class _Crossing(_AtOdds):
+    """The hierarchies the one at `place` crosses, at least one. They are found again
+    each time, since to keep them would take a bit for each pair of hierarchies."""
+
+    def __init__(self, place: int, crossings: _Crossings, ids: _Ids) -> None:
+        self._place, self._crossings, self._ids = place, crossings, ids
+
+    @property
+    def _mask(self) -> int:
+        return self._crossings.crossed_by(self._place)
+
+    def __iter__(self) -> Iterator[str]:
+        # The digits of an integer, in one go, are far quicker to read than its
+        # bits one at a time, when all are read.
+        digits = bin(self._mask)[:1:-1]
+        return (
+            self._ids.of(self._crossings.places[bit])
+            for bit, digit in enumerate(digits)
+            if digit == "1"
+        )
+
+    def __len__(self) -> int:
+        return self._mask.bit_count()
+
+    def _bit(self, other: object) -> int | None:
+        place = self._ids.place(other)
+        return None if place is None else self._crossings.bits.get(place)
+
+    def __contains__(self, other: object) -> bool:
+        bit = self._bit(other)
+        return bit is not None and bool(self._mask >> bit & 1)
+
+    def naming(self, limit: int, named: Collection[str]) -> tuple[list[str], int]:
+        left = self._mask
+        for other in named:
+            bit = self._bit(other)
+            if bit is not None:
+                left &= ~(1 << bit)
+        more = left.bit_count()
+        kept = []
+        while left and len(kept) < limit:
+            lowest = left & -left
+            kept.append(self._ids.of(self._crossings.places[lowest.bit_length() - 1]))
+            left ^= lowest
+        return kept, more - len(kept)
+
+
+class _Crossings:
+    """For each hierarchy of a timeline, those it crosses, as an integer with a bit
+    for each hierarchy that can be crossed, the first's the lowest: what `_cross`
+    says of two, said of one and all the others at once.
+
+    `_cross` asks only how two hierarchies' starts, ends and levels compare. Put the
+    times in order, and those that are `_lt` one of them, or that it is `_lt`, are
+    all those before a point of the order, or from one on. The point is found by
+    halving, with `_lt` itself, so a time that is close to another is found as
+    `_cross` finds it (`_lt(a, b)` is false and then true as b goes up). So each
+    thing `_cross` asks of a pair is, of one hierarchy and all the others, the set
+    of those whose start, end or level comes before a point, which `_Below` gives,
+    and its "and" and "not" are those of the sets.
+
+    A hierarchy whose start, end or level can't be compared crosses none."""
+
+    def __init__(self, components: Sequence[tla.Component]) -> None:
+        hierarchies = [
+            (place, component.attrs)
+            for place, component in enumerate(components)
+            if component.kind == "hierarchy"
+            and all(
+                _is_comparable(component.attrs.get(name))
+                for name in ("start", "end", "level")
+            )
+        ]
+        self.places = [place for place, _ in hierarchies]  # of each bit's hierarchy
+        self.bits = {place: bit for bit, place in enumerate(self.places)}
+        starts = [attrs["start"] for _, attrs in hierarchies]
+        ends = [attrs["end"] for _, attrs in hierarchies]
+        levels = [attrs["level"] for _, attrs in hierarchies]
+        times = sorted({*starts, *ends})
+        order = {time: rank for rank, time in enumerate(times)}
+        # The first rank not before a time (its tolerance counts), and the first
+        # that comes after it, for each time.
+        self._before = [self._first_not_before(times, at) for at in range(len(times))]
+        self._after = [self._first_after(times, at) for at in range(len(times))]
+        self._start_ranks = [order[start] for start in starts]
+        self._end_ranks = [order[end] for end in ends]
+        ranked = {level: rank for rank, level in enumerate(sorted(set(levels)))}
+        self._top_level = len(ranked) - 1
+        self._level_ranks = [ranked[level] for level in levels]
+        self._starts = _Below(self._start_ranks)
+        self._ends = _Below(self._end_ranks)
+        self._levels = _Below(self._level_ranks)
+
+    @staticmethod
+    def _first_not_before(times: Sequence[float], at: int) -> int:
+        """The first rank whose time isn't `_lt` the one at `at`."""
+        if not at or _lt(times[at - 1], times[at]):
+            return at
+        return bisect.bisect_left(
+            times, True, 0, at, key=lambda time: not _lt(time, times[at])
+        )
+
+    @staticmethod
+    def _first_after(times: Sequence[float], at: int) -> int:
+        """The first rank whose time the one at `at` is `_lt`."""
+        if at + 1 == len(times) or _lt(times[at], times[at + 1]):
+            return at + 1
+        return bisect.bisect_left(
+            times, True, at + 1, len(times), key=lambda time: _lt(times[at], time)
+        )
+
+    def crossed_by(self, place: int) -> int:
+        """The hierarchies that the one at `place`, which can be compared, crosses."""
+        bit = self.bits[place]
+        start, end = self._start_ranks[bit], self._end_ranks[bit]
+        level = self._level_ranks[bit]
+        crossed = self._starts.below(self._before[end]) & ~self._ends.below(
+            self._after[start]
+        )
+        if level < self._top_level:  # those it lies inside, at a higher level
+            crossed &= ~(
+                self._starts.below(self._after[start])
+                & ~self._ends.below(self._before[end])
+                & ~self._levels.below(level + 1)
+            )
+        if level > 0:  # those that lie inside it, at a lower level
+            crossed &= ~(
+                ~self._starts.below(self._before[start])
+                & self._ends.below(self._after[end])
+                & self._levels.below(level)
+            )
+        return crossed & ~(1 << bit)
+
+
+class _Below:
+    """Which of some items have a rank below a number, as an integer with a bit for
+    each item: the first of them, in the order of their ranks, a mark every few of
+    them made in advance."""
+
+    def __init__(self, ranks: Sequence[int]) -> None:
+        self._items = sorted(range(len(ranks)), key=ranks.__getitem__)
+        self._ranks = [ranks[item] for item in self._items]
+        # More between marks for more of them, so that the marks don't take more
+        # memory than a file of so many would.
+        self._step = max(8, len(ranks) // 2048)
+        self._marks = [0]
+        mask = 0
+        for done, item in enumerate(self._items, 1):
+            mask |= 1 << item
+            if done % self._step == 0:
+                self._marks.append(mask)
+
+    def below(self, rank: int) -> int:
+        """The items whose rank is below `rank`."""
+        count = bisect.bisect_left(self._ranks, rank)
+        mark = count // self._step
+        mask = self._marks[mark]
+        for item in self._items[mark * self._step : count]:
+            mask |= 1 << item
+        return mask
 
 
 class _Others:
     """The other components each component is checked with, found without
     comparing it with every one: those its rules could find it at odds with,
     among those added. Every component is added when reading, and each one kept
-    so far when importing."""
+    so far when importing.
 
-    def __init__(self, components: Sequence[tla.Component]) -> None:
+    When `every`, as in reading, all are added before any is checked, so nothing
+    changes from one check to the next. Then only a few others of a group at odds
+    are given to the rules, enough to say whether one is broken, and what
+    `_Found.complete` gives their outcomes tells the rest."""
+
+    def __init__(self, components: Sequence[tla.Component], every: bool) -> None:
         self._components = components
+        self._every = every
         self._at_time = _ByValue()  # points' places, by kind and time
         # Hierarchies' places, by start, end and level, for those at the same
         # place as one with a start or an end that `==` finds equal to a number
@@ -1279,6 +1531,9 @@ class _Others:
         self._at_place = _ByValue()
         self._spans = _Spans(components)  # hierarchies, by the order of their starts
         self._rows = _ByValue()  # each row's ranges, as (start, place), by start
+        self._ids = _Ids(components)
+        self._following: dict[int, list[int]] = {}  # by the first that follows
+        self._crossings: _Crossings | None = None
 
     def add(self, place: int) -> None:
         component = self._components[place]
@@ -1307,41 +1562,107 @@ class _Others:
         """
         return _Found(lambda: self._found(place))
 
-    def _found(self, place: int) -> list[tla.Component]:
+    def _found(self, place: int) -> tuple[list[tla.Component], dict[str, _AtOdds]]:
+        """Those given to the rules, and, by the code of the rule they break, the
+        others of the groups they were chosen from."""
         component = self._components[place]
         kind, attrs = component.kind, component.attrs
         places: Iterable[int] = ()
+        at_odds: dict[str, _AtOdds] = {}
         if kind == "hierarchy":
-            start, end = attrs.get("start"), attrs.get("end")
-            if _is_number(start) and _is_number(end):
-                spot = (start, end, attrs.get("level"))
-                places = {
-                    *self._at_place.get(spot),
-                    *self._spans.overlapping(start, end),
-                }
+            places = self._hierarchies(place, attrs, at_odds)
         elif kind == "range":
             start = attrs.get("start")
             if attrs.get("joined_right") is not None and _is_number(start):
-                places = _next_starts(self._rows.get(attrs.get("row_id")), start)
+                places = self._next_ranges(attrs, start, at_odds)
         elif kind in _POINT_KINDS:
             time = attrs.get("time")
             if _is_number(time):
-                places = self._at_time.get((kind, time))
-        return [self._components[other] for other in sorted(places) if other != place]
+                group = self._at_time.get((kind, time))
+                places = self._in_group(SAME_TIME, group, place, at_odds)
+        others = [self._components[other] for other in sorted(places) if other != place]
+        return others, at_odds
+
+    def _in_group(
+        self, code: str, group: Sequence[int], place: int, at_odds: dict[str, _AtOdds]
+    ) -> Sequence[int]:
+        """The places of `group`, to which the one at `place` belongs, that are
+        given to the rule with the code `code`: all, or, when they are many, the
+        first other, with the rest among `at_odds`."""
+        if not self._every or len(group) - 1 <= _FEW_OTHERS:
+            return group
+        at_odds[code] = _InGroup(group, place, self._ids)
+        return [next(other for other in group if other != place)]
+
+    def _hierarchies(
+        self, place: int, attrs: Mapping[str, Any], at_odds: dict[str, _AtOdds]
+    ) -> Iterable[int]:
+        start, end, level = attrs.get("start"), attrs.get("end"), attrs.get("level")
+        if not (_is_number(start) and _is_number(end)):
+            return ()
+        group = self._at_place.get((start, end, level))
+        places = set(self._in_group(SAME_PLACE, group, place, at_odds))
+        if self._crossings is None:
+            overlapping = self._spans.overlapping(
+                start, end, _FEW_OTHERS if self._every else None
+            )
+            if overlapping is not None:
+                places.update(overlapping)
+                return places
+            self._crossings = _Crossings(self._components)
+        if _is_comparable(level):
+            crossed = self._crossings.crossed_by(place)
+            if crossed:
+                first = (crossed & -crossed).bit_length() - 1
+                places.add(self._crossings.places[first])
+                at_odds[CROSSING] = _Crossing(place, self._crossings, self._ids)
+        return places
+
+    def _next_ranges(
+        self, attrs: Mapping[str, Any], start: float, at_odds: dict[str, _AtOdds]
+    ) -> Iterable[int]:
+        """The ranges of the row that start first after `start`, which `_joined`
+        could name: all, or, when they are many, the first and the one it joins, if
+        it is one of them, with all of them among `at_odds`."""
+        starts = self._rows.get(attrs.get("row_id"))
+        first, stop = _next_starts(starts, start)
+        if not self._every or stop - first <= _FEW_OTHERS:
+            return [other for _, other in starts[first:stop]]
+        head = starts[first][1]
+        group = self._following.get(head)
+        if group is None:
+            group = self._following[head] = [other for _, other in starts[first:stop]]
+        at_odds[BAD_JOIN] = in_group = _InGroup(group, -1, self._ids)
+        joined = attrs["joined_right"]
+        target = self._ids.place(joined) if isinstance(joined, str) else None
+        if target is not None and joined in in_group:
+            return {head, target}
+        return {head}
 
 
 class _Found:
     """The others a component is checked with, found the first time a rule
     between components reads them."""
 
-    def __init__(self, find: Callable[[], list[tla.Component]]) -> None:
+    def __init__(
+        self,
+        find: Callable[[], tuple[list[tla.Component], dict[str, _AtOdds]]],
+    ) -> None:
         self._find = find
         self._others: list[tla.Component] | None = None
+        self._at_odds: dict[str, _AtOdds] = {}
 
     def __iter__(self) -> Iterator[tla.Component]:
         if self._others is None:
-            self._others = self._find()
+            self._others, self._at_odds = self._find()
         return iter(self._others)
+
+    def complete(self, outcome: Outcome) -> Outcome:
+        """`outcome` with all its others, where its rule was given only some."""
+        at_odds = self._at_odds.get(outcome.code)
+        if at_odds is None:
+            return outcome
+        return Outcome(outcome.ok, outcome.reason, at_odds, outcome.code, outcome.about)
 
 
 class _ByValue:
@@ -1423,11 +1744,14 @@ class _Spans:
             self._latest[node] = end
             node //= 2
 
-    def overlapping(self, start: float, end: float) -> list[int]:
+    def overlapping(
+        self, start: float, end: float, most: int | None = None
+    ) -> list[int] | None:
         """The places of the hierarchies added that start before `end` and end
-        after `start`: every one that a hierarchy from `start` to `end` crosses."""
+        after `start`: every one that a hierarchy from `start` to `end` crosses.
+        None when there are more than `most`, as soon as that is known."""
         before = bisect.bisect_left(self._starts, end)
-        found = []
+        found: list[int] = []
         nodes = [(1, 0, self._leaves)]
         while nodes:
             node, low, high = nodes.pop()
@@ -1435,6 +1759,8 @@ class _Spans:
                 continue
             if node >= self._leaves:
                 found.append(self._places[low])
+                if most is not None and len(found) > most:
+                    return None
                 continue
             middle = (low + high) // 2
             nodes.append((2 * node + 1, middle, high))
@@ -1442,16 +1768,14 @@ class _Spans:
         return found
 
 
-def _next_starts(starts: Sequence[tuple[float, int]], start: float) -> list[int]:
-    """The places of the ranges that start first after `start`, of a row's
-    (start, place)s in order: every one `_joined` could name."""
+def _next_starts(starts: Sequence[tuple[float, int]], start: float) -> tuple[int, int]:
+    """Where, among a row's (start, place)s in order, are those of the ranges that
+    start first after `start`: the index of the first and that after the last. They
+    are every one `_joined` could name."""
     first = bisect.bisect_right(starts, (start, math.inf))
-    places = []
-    for following in range(first, len(starts)):
-        if starts[following][0] != starts[first][0]:
-            break
-        places.append(starts[following][1])
-    return places
+    if first == len(starts):
+        return first, first
+    return first, bisect.bisect_right(starts, (starts[first][0], math.inf), first)
 
 
 def _qt_reads(text: str) -> bool:
