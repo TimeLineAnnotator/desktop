@@ -6,7 +6,7 @@ from typing import Any, Iterable
 from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_point_like
-from tilia.timelines.base.metric_position import MetricPosition
+from tilia.timelines.base.metric_position import EXPORTED_BEAT_PLACES, MetricPosition
 from tilia.timelines.base.timeline import TimelineComponentManager
 from tilia.ui.format import format_media_time
 
@@ -17,12 +17,20 @@ class PointLikeTimelineComponent(TimelineComponent):
         return get(Get.METRIC_POSITION, self.get_data("time"))
 
     @property
-    def measure(self) -> int | None:
-        return self.metric_position.measure if self.metric_position else None
+    def exported_position(self) -> MetricPosition | None:
+        """The position the export writes."""
+        return self.metric_position
 
     @property
-    def beat(self) -> int | None:
-        return self.metric_position.beat if self.metric_position else None
+    def measure(self) -> int | None:
+        position = self.exported_position
+        return position.measure if position else None
+
+    @property
+    def beat(self) -> float | None:
+        # As the export writes it.
+        position = self.exported_position
+        return round(position.beat, EXPORTED_BEAT_PLACES) if position else None
 
     @classmethod
     def get_export_attributes(cls) -> list[str]:

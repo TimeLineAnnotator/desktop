@@ -384,6 +384,34 @@ class TestMeasureZeroNotInTimeline:
         assert len(clefs) == 1
         assert clefs[0].measure == 0
 
+    @pytest.mark.parametrize(
+        "times, number_of_the_second, starts",
+        [(range(10, 14), None, [9, 10]), (range(5, 17), 3, [4, 5])],
+        ids=["one measure", "measures 1, 3 and 4"],
+    )
+    def test_measure_zero_without_a_measure_2(
+        self,
+        qtui,
+        beat_tl,
+        score_tl,
+        tmp_path,
+        times,
+        number_of_the_second,
+        starts,
+    ):
+        # The pickup lasts a quarter of the score's measure 1.
+        for time in times:
+            beat_tl.create_beat(time)
+        if number_of_the_second is not None:
+            beat_tl.set_measure_number(1, number_of_the_second)
+
+        with patch_yes_or_no_dialog(True):
+            _import_with_patch(score_tl, beat_tl, self.xml, tmp_path)
+
+        # Measure 1 is still found where it was.
+        notes = _get_components_by_kind(score_tl, ComponentKind.NOTE)
+        assert sorted(note.start for note in notes) == starts
+
     def test_user_refuses_measure_zero_import(self, qtui, beat_tl, score_tl, tmp_path):
         beat_tl.set_data("beat_pattern", [1])
         beat_tl.create_beat(1)

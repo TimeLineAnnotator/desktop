@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tilia.requests import Get, get
 from tilia.timelines.base.component import SegmentLikeTimelineComponent
 from tilia.timelines.base.validators import (
     validate_color,
@@ -113,30 +112,6 @@ class Hierarchy(SegmentLikeTimelineComponent):
     @property
     def loop_end(self) -> float:
         return self.post_end
-
-    @property
-    def pre_start_metric_position(self):
-        return get(Get.METRIC_POSITION, self.pre_start)
-
-    @property
-    def post_end_metric_position(self):
-        return get(Get.METRIC_POSITION, self.post_end)
-
-    @property
-    def pre_start_measure(self):
-        return self.pre_start_metric_position.measure
-
-    @property
-    def pre_start_beat(self):
-        return self.pre_start_metric_position.beat
-
-    @property
-    def post_end_measure(self):
-        return self.post_end_metric_position.measure
-
-    @property
-    def post_end_beat(self):
-        return self.post_end_metric_position.beat
 
     def __repr__(self):
         repr_ = f"Hierarchy({self.start}, {self.end}, {self.level}"

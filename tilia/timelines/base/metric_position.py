@@ -1,17 +1,38 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+# The decimal places of a beat in the export: a millionth of a beat, as the core
+# rounds a length and quarter notes (TimeLineAnnotator/project-management#651).
+EXPORTED_BEAT_PLACES = 6
 
 
 @dataclass
 class MetricPosition:
     measure: int
-    beat: int
+    beat: float
     measure_beat_count: int
+    # The measure's label: its number as text, unless the file names it otherwise
+    # ("16a"). None where nothing gives one, and the number shows.
+    label: str | None = None
     # Note that beats and measures are 1-based. E.g. MetricPosition(2, 1, 4) is
     # the first beat in the second measure, which has 4 beats in it.
     # Knowing the number of beats in the measure is necessary for arithmetic with metric positions.
+    # A time's position (`Get.METRIC_POSITION`) is the core's, with its beat as the
+    # core gives it: 2.37 lies 37% of the way from the measure's second beat to its
+    # third.
 
     def __eq__(self, other):
         return self.measure == other.measure and self.beat == other.beat
+
+    def __str__(self) -> str:
+        """As TiLiA shows it: the measure's label, then the beat to two decimals, a
+        whole beat without them, as `12.2.37` and `12.2` (FR-044)."""
+        beat = f"{self.beat:.2f}"
+        if beat.endswith(".00"):
+            beat = beat[: -len(".00")]
+        label = self.label if self.label is not None else str(self.measure)
+        return f"{label}.{beat}"
 
     def __sub__(self, other):
         """
@@ -36,10 +57,20 @@ class MetricPosition:
         return MetricInterval(measures=measures, beats=beats)
 
 
+def format_metric_span(
+    start: MetricPosition | None, end: MetricPosition | None
+) -> str | None:
+    """A span's start and end as TiLiA shows them, `12.2.37 / 14.1`, with `-` for
+    either when it lies off the time map. None when both do."""
+    if start is None and end is None:
+        return None
+    return " / ".join("-" if place is None else str(place) for place in (start, end))
+
+
 @dataclass
 class MetricInterval:
     measures: int
-    beats: int
+    beats: float
     # MetricInterval is 0-based, unlike MetricPosition.
     # Arithmetic with MetricIntervals is not implemented at the moment
     # but it is possible.

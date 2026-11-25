@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import dataclasses
 import functools
 from typing import Iterable, TypeVar
 
 from tilia.requests import Get, get
 from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_extended
-from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
+from tilia.timelines.base.metric_position import (
+    EXPORTED_BEAT_PLACES,
+    MetricInterval,
+    MetricPosition,
+)
 from tilia.timelines.base.timeline import TimelineComponentManager
 
 T = TypeVar("T")
@@ -24,19 +29,24 @@ class SegmentLikeTimelineComponent(TimelineComponent):
     def length_metric(self) -> MetricInterval | None:
         start_metric_position = self.start_metric_position
         end_metric_position = self.end_metric_position
-        if not start_metric_position:
+        # Either may lie off the time map.
+        if start_metric_position is None or end_metric_position is None:
             return None
-        return end_metric_position - start_metric_position
+        # From the beats as the export writes them, so that the length agrees with
+        # them: an end whose beat the arithmetic puts a hair below the start's
+        # borrows no measure.
+        return _as_exported(end_metric_position) - _as_exported(start_metric_position)
 
     @property
-    def length_in_measures(self) -> tuple[int, int] | None:
+    def length_in_measures(self) -> tuple[int, float] | None:
         # A workaround to facilitate exporting.
         # This is only needed because the property name
         # is currently coupled to the name of the
         # attribute in the exported file.
-        if not self.length_metric:
+        length = self.length_metric
+        if length is None:
             return None
-        return self.length_metric.measures, self.length_metric.beats
+        return length.measures, round(length.beats, EXPORTED_BEAT_PLACES)
 
     @property
     def start_metric_position(self) -> MetricPosition | None:
@@ -44,7 +54,8 @@ class SegmentLikeTimelineComponent(TimelineComponent):
 
     @property
     def end_metric_position(self) -> MetricPosition | None:
-        return get(Get.METRIC_POSITION, self.get_data("end"))
+        # On a closing barline, the end of the measure it closes.
+        return get(Get.METRIC_POSITION, self.get_data("end"), end=True)
 
     @property
     def start_measure(self) -> int | None:
@@ -53,16 +64,20 @@ class SegmentLikeTimelineComponent(TimelineComponent):
         )
 
     @property
-    def start_beat(self) -> int | None:
-        return self.start_metric_position.beat if self.start_metric_position else None
+    def start_beat(self) -> float | None:
+        # As the export writes it.
+        position = self.start_metric_position
+        return round(position.beat, EXPORTED_BEAT_PLACES) if position else None
 
     @property
     def end_measure(self) -> int | None:
         return self.end_metric_position.measure if self.end_metric_position else None
 
     @property
-    def end_beat(self) -> int | None:
-        return self.end_metric_position.beat if self.end_metric_position else None
+    def end_beat(self) -> float | None:
+        # As the export writes it.
+        position = self.end_metric_position
+        return round(position.beat, EXPORTED_BEAT_PLACES) if position else None
 
     @property
     def loop_start(self) -> float:
@@ -122,6 +137,13 @@ class SegmentLikeTimelineComponent(TimelineComponent):
                 f"There is already a {cls.frontend_name()} component at the selected position.",
             )
         return True, ""
+
+
+def _as_exported(position: MetricPosition) -> MetricPosition:
+    """`position` with its beat as the export writes it, to a millionth of a beat."""
+    return dataclasses.replace(
+        position, beat=round(position.beat, EXPORTED_BEAT_PLACES)
+    )
 
 
 def scale_segmentlike(cm: TimelineComponentManager, factor: float) -> None:
