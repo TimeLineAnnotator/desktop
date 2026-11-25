@@ -262,8 +262,7 @@ def _drop_beats_without_a_time(document: Document) -> _Dropped | None:
     and say what that changed; None when it has none. Each is deleted as
     `delete_beat` deletes a beat, but no measure is marked "edited", since no
     person edited it (FR-106; TimeLineAnnotator/project-management#512)."""
-    gone: set[tuple[str | None, str | None]] = set()
-    units = marks_gone = marks_added = 0
+    beats = units = marks_gone = marks_added = 0
     for timeline_id, timeline in document.timelines.items():
         if timeline.kind != "beat":
             continue
@@ -277,26 +276,21 @@ def _drop_beats_without_a_time(document: Document) -> _Dropped | None:
             unit = timeline.components[beat_id].attrs.get("beat_unit")
             units += isinstance(unit, dict)
             delete_beat(document, timeline_id, beat_id, by_person=False)
-            gone.add((timeline_id, beat_id))
+        beats += len(untimed)
         left = _marked(timeline)
         marks_gone += len(marked - left)
         marks_added += len(left - marked)
-    if not gone:
+    if not beats:
         return None
     changes = {
-        "beats_dropped": len(gone),
+        "beats_dropped": beats,
         "beat_units_dropped": units,
         "measure_marks_dropped": marks_gone,
         "measure_marks_added": marks_added,
     }
     return _Dropped(
         changes={key: count for key, count in changes.items() if count},
-        warnings=[
-            warning
-            for warning in document.warnings
-            if (warning.timeline_id, warning.component_id) in gone
-            and warning.message.endswith(NO_TIME)
-        ],
+        warnings=[w for w in document.warnings if w.message.endswith(NO_TIME)],
     )
 
 
