@@ -2,6 +2,7 @@ import collections
 import copy
 import importlib.util
 import itertools
+import json
 import math
 import pickle
 import random
@@ -3053,9 +3054,22 @@ class TestMediaLength:
         assert check(kind, media_length=math.inf) == OK
 
 
+# Unicode's quotation marks.
+QUOTATION_MARKS = "'\"«»‘’‚‛“”„‟‹›⹂「」『』〝〞〟﹁﹂﹃﹄＂＇｢｣"
+# Characters that can't be seen: controls, formats, a lone surrogate, private and
+# unassigned ones; then those Python counts as printable, but that are blank, or
+# nothing, such as the variation selector of a keycap.
+UNSEEN = [
+    *("\x00", "\x1b", "\x7f", "\x9b", "\u00ad", "\u200b", "\u200d", "\u202e"),
+    *("\u2066", "\ufeff", "\ud83d", "\ue000", "\uffff", "\U000e0041"),
+    *("\u034f", "\u115f", "\u1160", "\u17b4", "\u17b5", "\u180b", "\u180d", "\u180f"),
+    *("\u2800", "\u3164", "\uffa0", "\ufe00", "\ufe0f", "\U000e0100", "\U000e01ef"),
+]
+
+
 class TestBeatPattern:
     """A beat timeline's pattern, with the one text for a bad one
-    (TimeLineAnnotator/project-management#674). tests/tla/test_tla_rules.py
+    (TimeLineAnnotator/project-management#674, #680). tests/tla/test_tla_rules.py
     checks that every path gives it, for every way the parser refuses one."""
 
     @pytest.mark.parametrize("text", ["4", "3 2", "10[4] 3", "2[4 3[3]]"])
@@ -3081,6 +3095,52 @@ class TestBeatPattern:
             " No more."
         )
 
+    def test_a_reason_about_the_end_of_the_pattern(self, monkeypatch):
+        refused = pattern.ParseResult(
+            pattern.ParseStatus.INCOMPLETE, error="Go on.", position=2
+        )
+        monkeypatch.setattr(pattern, "parse", lambda text: refused)
+        outcome = rules.beat_pattern("4'", timeline_name="Beats")
+        assert outcome.reason.endswith(" isn't a valid pattern: Go on.")
+
+    @pytest.mark.parametrize("text", ["", " ", "\t\r\n", "\u00a0\u3000\u2028"])
+    def test_one_with_no_bar_length(self, text):
+        # Stated, where the parser's reason tells a person what to type
+        # (TimeLineAnnotator/project-management#680, 1b).
+        reason = rules.beat_pattern(text, timeline_name="Beats").reason
+        assert reason.endswith(" isn't a valid pattern: It has no bar length.")
+
+    @pytest.mark.parametrize("mark", QUOTATION_MARKS)
+    def test_a_quotation_mark_is_shown_as_the_pattern_is(self, mark):
+        # TimeLineAnnotator/project-management#680, 2b.
+        shown = json.dumps(mark, ensure_ascii=False)
+        assert rules.beat_pattern(f"4{mark}", timeline_name="Beats").reason == (
+            f'the beat pattern "4{shown[1:-1]}" of the timeline "Beats"'
+            f" isn't a valid pattern: Unexpected {shown}."
+        )
+
+    @pytest.mark.parametrize("character", UNSEEN, ids=ascii)
+    def test_a_character_that_cant_be_seen_is_its_escape_there_and_in_the_pattern(
+        self, character
+    ):
+        # TimeLineAnnotator/project-management#680, 2b.
+        escape = json.dumps(character)
+        assert escape.startswith('"\\u')
+        assert rules.beat_pattern(f"4{character}", timeline_name="Beats").reason == (
+            f'the beat pattern "4{escape[1:-1]}" of the timeline "Beats"'
+            f" isn't a valid pattern: Unexpected {escape}."
+        )
+
+    @pytest.mark.parametrize("character", list("a.,-+/\\é²٣日💡`´′") + ["\u0301"])
+    def test_any_other_character_stays_as_it_is(self, character):
+        reason = rules.beat_pattern(f"4{character}", timeline_name="Beats").reason
+        assert reason.endswith(f" isn't a valid pattern: Unexpected '{character}'.")
+
+    def test_every_character_of_a_reason_can_be_printed(self):
+        for code in range(0x10000):
+            outcome = rules.beat_pattern(f"4 {chr(code)}", timeline_name="Beats")
+            assert outcome or outcome.reason.isprintable(), hex(code)
+
     @pytest.mark.parametrize("text", ["0", "abc", "[]", "", "10["])
     def test_one_that_doesnt_parse_has_the_code_of_a_bad_beat_pattern(self, text):
         outcome = rules.beat_pattern(text, timeline_name="Beats")
@@ -3102,13 +3162,13 @@ class TestBeatPattern:
                 "",
                 "Beats",
                 'the beat pattern "" of the timeline "Beats" isn\'t a valid'
-                " pattern: Enter at least one bar length.",
+                " pattern: It has no bar length.",
             ),
             (
                 '4 "3"',
                 'Bässe "2"',
                 'the beat pattern "4 \\"3\\"" of the timeline "Bässe \\"2\\""'
-                " isn't a valid pattern: Unexpected '\"'.",
+                ' isn\'t a valid pattern: Unexpected "\\"".',
             ),
             (
                 "4\n²",

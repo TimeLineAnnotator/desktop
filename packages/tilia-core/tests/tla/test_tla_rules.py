@@ -618,7 +618,9 @@ KEPT_PATTERNS = [
     "000000004",
     "100000[1]",
 ]
-# Each refused pattern, with the parser's reason, which ends the text.
+# Each refused pattern, with the reason that ends the text: the parser's, but for
+# an empty pattern and a character shown as JSON does
+# (TimeLineAnnotator/project-management#680).
 REFUSED_PATTERNS = {
     # From the writer's tests and the migration's.
     "abc": "Unexpected 'a'.",
@@ -641,9 +643,14 @@ REFUSED_PATTERNS = {
     "100001[1]": "Pattern expands to more than 100000 bars.",
     "60000[1] 60000[1]": "Pattern expands to more than 100000 bars.",
     "[" * 33 + "4" + "]" * 33: "Groups can be nested at most 32 deep.",
+    "'": 'Unexpected "\'".',
+    "4 '3'": 'Unexpected "\'".',
+    '"': 'Unexpected "\\"".',
+    "’": 'Unexpected "’".',
     # What more typing could complete.
-    "": "Enter at least one bar length.",
-    "   ": "Enter at least one bar length.",
+    "": "It has no bar length.",
+    "   ": "It has no bar length.",
+    "\t\n": "It has no bar length.",
     "10[": "Unclosed '['.",
     "2[4 3": "Unclosed '['.",
 }
@@ -724,8 +731,9 @@ class TestOneTextForABadBeatPattern:
         assert refused_by_a_script(pattern, name) == text
 
     # The writer writes text in NFC, and a message shows a lone surrogate as its
-    # escape, so that it can be printed. A control character is JSON's escape in
-    # the pattern, and itself in the parser's reason.
+    # escape, so that it can be printed. A character of the pattern that can't be
+    # seen is JSON's escape, in the pattern and in the reason
+    # (TimeLineAnnotator/project-management#680, 2b).
     @pytest.mark.parametrize(
         "pattern, name, text",
         [
@@ -745,7 +753,7 @@ class TestOneTextForABadBeatPattern:
                 "\ud83d",
                 "Beats",
                 'the beat pattern "\\ud83d" of the timeline "Beats" isn\'t a valid'
-                " pattern: Unexpected '\\ud83d'.",
+                ' pattern: Unexpected "\\ud83d".',
             ),
             (
                 "0",
@@ -757,7 +765,37 @@ class TestOneTextForABadBeatPattern:
                 "\x00",
                 "Beats",
                 'the beat pattern "\\u0000" of the timeline "Beats" isn\'t a valid'
-                " pattern: Unexpected '\x00'.",
+                ' pattern: Unexpected "\\u0000".',
+            ),
+            (
+                "4 \u200b",
+                "Beats",
+                'the beat pattern "4 \\u200b" of the timeline "Beats" isn\'t a valid'
+                ' pattern: Unexpected "\\u200b".',
+            ),
+            (
+                "4\ufe0f\u20e3",
+                "Beats",
+                'the beat pattern "4\\ufe0f\u20e3" of the timeline "Beats" isn\'t a'
+                ' valid pattern: Unexpected "\\ufe0f".',
+            ),
+            (
+                "\U000e0100",
+                "Beats",
+                'the beat pattern "\\udb40\\udd00" of the timeline "Beats" isn\'t a'
+                ' valid pattern: Unexpected "\\udb40\\udd00".',
+            ),
+            (
+                "4\u00a0x",
+                "Beats",
+                'the beat pattern "4\u00a0x" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unexpected 'x'.",
+            ),
+            (
+                "0",
+                "Tune\u200b",
+                'the beat pattern "0" of the timeline "Tune\u200b" isn\'t a valid'
+                " pattern: Bar lengths must be at least 1.",
             ),
         ],
         ids=[
@@ -766,6 +804,11 @@ class TestOneTextForABadBeatPattern:
             "a lone surrogate in the pattern",
             "a lone surrogate in the name",
             "a control character",
+            "a zero-width space",
+            "a keycap, with a variation selector",
+            "a character past U+FFFF that can't be seen",
+            "a no-break space, which separates bars",
+            "a character that can't be seen in the name",
         ],
     )
     def test_however_the_pattern_and_the_name_are_spelled(

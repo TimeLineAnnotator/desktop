@@ -1585,7 +1585,8 @@ def test_only_a_beat_timeline_takes_a_beat_pattern(kind):
         ("10[", "Unclosed '['."),
         ("0", "Bar lengths must be at least 1."),
         ("4 x", "Unexpected 'x'."),
-        ("", "Enter at least one bar length."),
+        ("", "It has no bar length."),
+        ("'", 'Unexpected "\'".'),
     ],
 )
 def test_a_beat_pattern_that_doesnt_parse_is_refused(pattern, reason, name):

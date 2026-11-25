@@ -506,7 +506,8 @@ def test_a_beat_pattern_that_doesnt_parse_counts_as_4_and_is_kept():
     [
         ([0], "0", "Bar lengths must be at least 1."),
         ([3, "x"], "3 x", "Unexpected 'x'."),
-        ([], "", "Enter at least one bar length."),
+        ([], "", "It has no bar length."),
+        (["'"], "'", 'Unexpected "\'".'),
     ],
 )
 def test_a_beat_pattern_that_doesnt_parse_is_warned_about_as_text(
