@@ -824,33 +824,31 @@ def _component_problems(
     )
     held = pointer_to(place, "components")
     holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
-    states: dict[str, str] = {}
+    read: dict[str, tuple[str, str]] = {}
 
     def as_read(component_id: str) -> tuple[str, str]:
-        # Its place and state, each state made once: a group at odds names them
-        # often.
-        at = pointer_to(held, component_id)
-        state = states.get(component_id)
-        if state is None:
+        # Its place and state, made once: a group at odds names them often.
+        known = read.get(component_id)
+        if known is None:
+            at = pointer_to(held, component_id)
             state = _component_state(components[component_id], at, holds)
-            states[component_id] = state
-        return at, state
+            known = read[component_id] = (at, state)
+        return known
 
-    named: set[tuple[str, str, str]] = set()  # each rule's pairs named so far
+    # Those that named each component so far, by the rule's reason and its id.
+    named: dict[tuple[str, str], set[str]] = {}
     for component_id, checked in found.items():
         for outcome in (checked.outcome, *checked.also, checked.color):
             if outcome.ok:
                 continue
             reason = outcome.reason
-            others = [
-                other
-                for other in outcome.others
-                if (reason, other, component_id) not in named
-            ]
-            if outcome.others and not others:
+            kept, more, has_others = outcome.naming(
+                _NAMED_OTHERS, named.get((reason, component_id), ())
+            )
+            if has_others and not kept:
                 continue  # all of them named this one
-            kept = others[:_NAMED_OTHERS]
-            named.update((reason, component_id, other) for other in kept)
+            for other in kept:
+                named.setdefault((reason, other), set()).add(component_id)
             attrs = components[component_id].attrs
             at, state = as_read(component_id)
             yield ReadProblem(
@@ -864,7 +862,7 @@ def _component_problems(
                     if outcome.code == rules.BAD_JOIN
                     else None
                 ),
-                more=len(others) - len(kept),
+                more=more,
                 warned=components[component_id].kind == "beat" and reason == _NO_TIME,
                 about=outcome.about,
             )

@@ -2,6 +2,7 @@ import collections
 import copy
 import importlib.util
 import itertools
+import json
 import math
 import pickle
 import random
@@ -2662,6 +2663,47 @@ class TestWhatAnOutcomeIsAbout:
 WELL_UNDER_A_SECOND = 0.5
 
 
+def beats_at_one_time(count):
+    return [component("beat", time=0.0) for _ in range(count)]
+
+
+def hierarchies_that_all_cross(count):
+    # Each starts before the one before it ends, and ends after it, at one level.
+    return [hierarchy(float(n), float(n + count), 1) for n in range(count)]
+
+
+AT_ODDS = pytest.mark.parametrize(
+    "at_odds",
+    [beats_at_one_time, hierarchies_that_all_cross],
+    ids=["beats at one time", "hierarchies that all cross"],
+)
+
+
+def file_of(components, length):
+    """The bytes of a file whose one timeline holds `components`, of one kind."""
+    kind = components[0].kind
+    content = {
+        "app_name": "TiLiA",
+        "version": tla.FORMAT_VERSION,
+        "document_id": tla.new_id(),
+        "time_unit": "seconds",
+        "media": {"path": "", "length": length},
+        "metadata": {},
+        "timelines": {
+            tla.new_id(): {
+                "kind": kind.title(),
+                "ordinal": 1,
+                "height": 60,
+                "components": {
+                    c.id: {"kind": kind.upper(), **c.attrs} for c in components
+                },
+            }
+        },
+        "scores": [],
+    }
+    return json.dumps(content, indent=2).encode("utf-8")
+
+
 @pytest.mark.benchmark
 class TestCheckTimelineSpeed:
     @USES
@@ -2746,31 +2788,34 @@ class TestCheckTimelineSpeed:
         assert others[1:] == [(hierarchies[0].id,)] * 2999
         assert seconds < WELL_UNDER_A_SECOND
 
-    @pytest.mark.parametrize(
-        "what, components",
-        [
-            ("beats at one time", [component("beat", time=0.0) for _ in range(10_000)]),
-            # Each starts before the one before it ends, and ends after it, so that
-            # all of them cross, as those at one level do that overlap.
-            (
-                "hierarchies that all cross",
-                [hierarchy(float(n), float(n + 10_000), 1) for n in range(10_000)],
-            ),
-        ],
-        ids=["beats at one time", "hierarchies that all cross"],
-    )
-    def test_10000_components_at_odds(self, what, components):
-        # As a reader does: every rule, and for each component those it is at odds
-        # with, but those that already named it.
+    @AT_ODDS
+    def test_10000_components_at_odds(self, at_odds):
+        # As a reader does: every rule, and for each component the first ten of those
+        # it is at odds with, and how many more.
+        components = at_odds(10_000)
+
         def read():
             checked = rules.check_timeline(20_000.0, components, every_rule=True)
             return [c.outcome.naming(10) for c in checked.values()], checked
 
         (named, checked), seconds = fastest(read)
 
-        print(f"10,000 {what}, read: {seconds:.3f} s")
+        print(f"10,000 {at_odds.__name__.replace('_', ' ')}, read: {seconds:.3f} s")
         assert all(more == 9_999 - 10 for _, more, _ in named)
         assert not any(c.outcome for c in checked.values())
+        assert seconds < 1.0
+
+    @AT_ODDS
+    def test_a_file_of_10000_components_at_odds(self, at_odds):
+        data = file_of(at_odds(10_000), 20_000.0)
+
+        doc, seconds = fastest(lambda: tla.loads(data))
+
+        print(
+            f"a file of 10,000 {at_odds.__name__.replace('_', ' ')}, read:"
+            f" {seconds:.3f} s"
+        )
+        assert len(doc.warnings) == 10_000
         assert seconds < 1.0
 
 
