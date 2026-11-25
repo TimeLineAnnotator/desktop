@@ -119,7 +119,7 @@ The [dcml-to-tilia](https://github.com/TimeLineAnnotator/dcml-to-tilia) reposito
 
 ## The desktop application
 
-The main part of TiLiA is a cross-platform *What-You-See-Is-What-You-Get* GUI (\autoref{fig:example}), designed to feel intuitive to anyone who has worked with audiovisual editing software.
+The main part of TiLiA is a cross-platform WYSIWYG GUI (\autoref{fig:example}), designed to feel intuitive to anyone who has worked with audiovisual editing software.
 A TiLiA analysis consists of timelines, each containing annotations that can be aligned to an audio, video, YouTube stream or musical score.
 Each *timeline type* is designed to support conventional formal annotations, with the affordance to work with a variety of other analytical styles.
 These timelines each contain one or more *component types*
