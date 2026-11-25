@@ -4,7 +4,6 @@ from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME
-from tilia.timelines.harmony.validators import validate_accidental, validate_step
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -40,15 +39,16 @@ class ModeUI(TimelineUIElement):
 
     @property
     def label(self):
-        if not (
-            validate_step(self.get_data("step"))
-            and validate_accidental(self.get_data("accidental"))
-        ):
+        if not self.tl_component.can_read_tonic:
             return UNREADABLE  # a tonic TiLiA can't read, which a file can hold
         tonic = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
             "musanalysis",
             self.get_data("accidental"),
         )
+        if not self.tl_component.can_read_key:
+            # A type TiLiA can't read, as a harmony of a quality it can't read (Anne,
+            # 2026-11-25, TimeLineAnnotator/project-management#677, 2b).
+            return tonic + UNREADABLE
         mode_type = self.get_data("type")
         if mode_type == "major":
             return ("@" if tonic[0] == "b" else "") + tonic

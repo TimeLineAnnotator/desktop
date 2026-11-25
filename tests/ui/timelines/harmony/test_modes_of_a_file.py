@@ -104,6 +104,65 @@ class TestATypeTiLiACantRead:
         assert (element.key.tonic.name, element.key.mode) == ("C", "major")
 
 
+class TestTheLabelOfAMode:
+    """One whose tonic TiLiA can read and whose type it can't is the tonic and the
+    mark, as a harmony of a quality it can't read (Anne, 2026-11-25,
+    TimeLineAnnotator/project-management#677, 2b). The others are as they were."""
+
+    @pytest.mark.parametrize(
+        "mode, label",
+        [
+            ({"type": "some-future-type"}, "C?"),
+            ({"type": "some-future-type", "step": 3, "accidental": 1}, "F`#?"),
+            ({"type": "some-future-type", "step": 6, "accidental": -2}, "B`b`b?"),
+            ({"type": "hypodorian"}, "C?"),
+            ({"type": "harmonic minor"}, "C?"),
+            ({"type": ""}, "C?"),
+            # As long as a file makes it, and as HTML, which the label of a type TiLiA
+            # can read is drawn as.
+            ({"type": "a very long name of a mode " * 20}, "C?"),
+            ({"type": "<h1>major</h1> scale"}, "C?"),
+            ({"type": "some-future-type", "step": 9}, "?"),
+            ({"type": "ionian", "step": 9}, "?"),
+            ({"type": "major"}, "C"),
+            ({"type": "minor"}, "c"),
+            ({"type": "dorian"}, "C Dorian"),
+            ({"type": "DORIAN"}, "C Dorian"),
+            ({"type": "ionian"}, "C Ionian"),
+            ({"type": "Aeolian"}, "C Aeolian"),
+            ({"type": "Major"}, "C Major"),
+            ({"type": "MINOR"}, "C Minor"),
+        ],
+        ids=lambda value: value[:20] if isinstance(value, str) else None,
+    )
+    def test_its_label(
+        self,
+        open_a_file_with,
+        open_inspector_for,
+        tilia,
+        tilia_errors,
+        mode,
+        label,
+    ):
+        (element,) = open_a_file_with(a_mode(**mode)).modes()
+
+        assert element.label == label
+        assert element.body.toPlainText().replace("\xa0", "") == label
+        assert element.get_inspector_dict()["Label"] == label
+        assert element.get_data("type") == mode["type"]
+        assert not tilia.is_file_modified()
+        tilia_errors.assert_no_error()
+
+    def test_the_inspector_keeps_the_file_s_spelling(
+        self, open_a_file_with, open_inspector_for
+    ):
+        (element,) = open_a_file_with(a_mode(type="some-future-type")).modes()
+        fields = open_inspector_for(element).field_name_to_widgets
+
+        assert fields["Label"][1].text() == "C?"
+        assert fields["Type"][1].currentText() == "some-future-type (unknown)"
+
+
 class TestATypeTiLiACanReadAndDoesntOffer:
     """Ionian is read as major, aeolian as minor, and any of the nine types whatever
     its capitals (Anne, 2026-11-25, TimeLineAnnotator/project-management#677, 1c)."""

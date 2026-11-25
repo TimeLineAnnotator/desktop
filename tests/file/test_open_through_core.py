@@ -1158,7 +1158,7 @@ class TestHarmoniesTiLiACantReadWhole:
 
     @pytest.mark.parametrize(
         "mode_attrs, mode_label",
-        [({"step": 9}, "?"), ({"type": "some-future-type"}, "C Some-future-type")],
+        [({"step": 9}, "?"), ({"type": "some-future-type"}, "C?")],
         ids=["tonic", "type"],
     )
     def test_a_mode_whose_key_tilia_can_t_read(
