@@ -50,6 +50,7 @@ from tilia.ui.timelines.toolbar import TimelineToolbar
 from tilia.ui.timelines.view import TimelineView
 
 from ...dialogs.add_timeline_without_media import AddTimelineWithoutMedia
+from ...windows.timeline_fields import TimelineFieldsWindow
 from ..base.element import TimelineUIElement
 from ..selection_box import SelectionBoxQt
 from ..slider.timeline import SliderTimelineUI
@@ -209,6 +210,10 @@ class TimelineUIs:
             "timeline.set_is_visible",
             self.on_timeline_set_is_visible,
         )
+
+        commands.register("timeline.fields", self.on_timeline_fields, "Fields…")
+
+        commands.register("timeline.set_fields", self.on_timeline_set_fields)
 
         commands.register(
             "timeline.component.copy",
@@ -1356,6 +1361,16 @@ class TimelineUIs:
                 return False
 
         return self.on_timeline_data_set(timeline_ui.id, "height", height)
+
+    @staticmethod
+    def on_timeline_fields(timeline_ui: TimelineUI) -> None:
+        TimelineFieldsWindow.show_for(timeline_ui.id)
+
+    @command_callback
+    def on_timeline_set_fields(
+        self, timeline_ui: TimelineUI, fields: dict[str, str | list[str]]
+    ) -> bool:
+        return self.on_timeline_data_set(timeline_ui.id, "fields", fields)
 
     def on_timeline_set_component_color(self, color: QColor | None = None) -> None:
         if color is None:
