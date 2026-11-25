@@ -1,5 +1,6 @@
 from tilia.requests import Get, serve
 from tilia.ui.dialogs.basic import (
+    ask_for_choice,
     ask_for_color,
     ask_for_float,
     ask_for_int,
@@ -43,6 +44,7 @@ class DialogManager:
             (Get.FROM_USER_FLOAT, ask_for_float),
             (Get.FROM_USER_INT, ask_for_int),
             (Get.FROM_USER_YES_OR_NO, ask_yes_or_no),
+            (Get.FROM_USER_CHOICE, ask_for_choice),
             (Get.FROM_USER_COLOR, ask_for_color),
             (Get.FROM_USER_BEAT_PATTERN, ask_for_beat_pattern),
             (Get.FROM_USER_MEDIA_PATH, ask_for_media_file),

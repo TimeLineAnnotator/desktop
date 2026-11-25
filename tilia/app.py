@@ -163,13 +163,9 @@ class App:
         if isinstance(path, str):
             path = Path(path)
 
-        if self.is_file_modified():
-            success, should_save = get(Get.FROM_USER_SHOULD_SAVE_CHANGES)
-            if not success:
-                return False
-
-            if should_save:
-                commands.execute("file.save")
+        # A save cancelled, or one that failed, keeps the file open and its changes.
+        if not self.file_manager.on_close_modified_file():
+            return False
 
         if not path:
             success, path = get(Get.FROM_USER_TILIA_FILE_PATH)
