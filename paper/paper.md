@@ -61,7 +61,7 @@ open-source data sharing that are now *de rigueur* in other fields.
 While one _can_ appropriate score and audio editors for visual analysis [@peebles:2013], they are limited in their annotating capabilities.
 Dedicated tools fall into a few groups, according to their focus.
 Audio-analysis tools such as Sonic Visualiser [@cannam:2010] and Partiels [@guillot:2025] centre on audio and plug-in features, and lack score integration.
-Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] anchor annotations to notated elements rather than to time and lack dedicated types for analytical structures such as form.
+Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen Here!_ [@weigl:2023] and _mei-friend_ [@goebl:2024] anchor annotations to the logical time of notated elements (measures, notes) rather than to the physical time of a recording [@hentschel:2026] and lack dedicated types for analytical structures such as form.
 "Timeline-based" annotators such as _Audio Timeliner_ [@yorgason:2018; @notess:2004], _iAnalyse_ [@couprie:2019], _BriFormer_ [@jarvis:2020] and _Dezrann_ [@giraud:2018] tend to focus more on providing tools for rich hand-made analysis.[^commercial] While each group excels at particular tasks, there remains space for a solution that caters to more cross-cutting needs.
 
 [^commercial]: Commercial alternatives include: _Hookpad_ and _Soundslice_ (closed-source and subscription-based). SyncPlayer [@kurth:2005; @fremerey:2007] was another timeline-based annotator that is no longer available.
