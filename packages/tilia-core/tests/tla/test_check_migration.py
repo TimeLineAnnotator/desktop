@@ -15,6 +15,7 @@ import pytest
 
 from tilia_core import tla
 from tilia_core.importers import harmony_available
+from tilia_core.tla import folder as folder_module
 from tilia_core.tla import reader
 from tilia_core.tla.migrate import beats as migrated_beats
 
@@ -1568,6 +1569,357 @@ class TestAFileInTheCurrentFormat:
 
         assert "RuntimeError: a write that fails" in capsys.readouterr().out
         assert contents(copied).keys() == before
+
+
+def an_id(n):
+    return f"019b76da-a802-7000-8000-{n:012d}"
+
+
+TIMELESS = "timeless.tla"  # in the current format, with beats without a time
+TIMED = an_id(1)  # its beat timeline
+B = [an_id(100 + n) for n in range(6)]
+AT = f"/timelines/{TIMED}/components"
+FIRST_MARK = f"added, for the beats dropped: {AT}/{B[0]}/measure, the empty mark"
+MARKS_ADDED = "Empty marks added to a timeline's first beat for those"
+
+
+def beats_file(*beats, **keys):
+    """A file in the current format whose one timeline holds these beats."""
+    content = {
+        "app_name": "TiLiA",
+        "version": tla.FORMAT_VERSION,
+        "document_id": an_id(0),
+        "time_unit": "seconds",
+        "media": {"path": "", "length": 100.0},
+        "metadata": {},
+        "timelines": {
+            TIMED: {
+                "kind": "Beat",
+                "name": "Beats",
+                "ordinal": 1,
+                "height": 35,
+                **keys,
+                "components": {key: {"kind": "BEAT", **beat} for key, beat in beats},
+            }
+        },
+        "scores": [],
+    }
+    return (json.dumps(content, indent=2) + "\n").encode()
+
+
+# Two measures, the first of whose `next`s names a downbeat without a time, and
+# a beat without one.
+WITH_A_DOWNBEAT = beats_file(
+    (B[0], {"time": 0.0, "measure": {"next": [B[4], B[2]]}}),
+    (B[1], {"time": 1.0}),
+    (B[2], {"time": 2.0, "measure": {"next": [B[4]]}}),
+    (B[3], {"time": 3.0}),
+    (B[4], {"measure": {"number": 7, "restart": True}}),
+    (B[5], {}),
+)
+# The first beat would be left without a mark, while a later one has one. A tapped
+# measure is never marked edited, so these are imported.
+WITH_THE_FIRST_MARK = beats_file(
+    (B[0], {"time": 0.0}),
+    (B[1], {"time": 1.0, "measure": {}}),
+    (B[2], {"measure": {}}),
+    measure_source="import",
+)
+
+
+@pytest.fixture
+def timeless(source, copied):
+    """Puts a file in SOURCE and in COPY, and gives them as the script takes them."""
+
+    def put(data):
+        for folder in (source, copied):
+            (folder / TIMELESS).write_bytes(data)
+        return [str(source), str(copied)]
+
+    return put
+
+
+class TestBeatsWithoutATime:
+    """In a file of the current format, the run drops them (FR-106)."""
+
+    def test_are_dropped_on_purpose(self, timeless, source, copied, capsys):
+        folders = timeless(WITH_A_DOWNBEAT)
+        original = contents(source)
+
+        assert check_migration.main(folders) == 0
+
+        out = capsys.readouterr().out
+        assert f"{TIMELESS} (from {tla.FORMAT_VERSION}): no difference" in out
+        for dropped in (B[4], B[5]):
+            assert (
+                f"  dropped, with its warning: {AT}/{dropped}, a beat without a time\n"
+            ) in out
+        assert "which isn't a difference: 2." in out
+        assert MARKS_ADDED not in out
+        assert "5 files, 0 with a difference." in out
+        assert contents(source) == original
+        held = tla.read(copied / TIMELESS).timelines[TIMED].components
+        assert set(held) == {B[0], B[1], B[2], B[3]}
+
+    def test_with_the_empty_mark_of_a_first_beat(self, timeless, copied, capsys):
+        # TimeLineAnnotator/project-management#544, point 1.
+        assert check_migration.main(timeless(WITH_THE_FIRST_MARK)) == 0
+
+        out = capsys.readouterr().out
+        assert f"  {FIRST_MARK} of the timeline's first beat\n" in out
+        assert "which isn't a difference: 1." in out
+        assert f"{MARKS_ADDED}: 1.\n" in out
+        held = json.loads((copied / TIMELESS).read_bytes())["timelines"][TIMED]
+        assert held["components"][B[0]]["measure"] == {}
+
+    @pytest.mark.parametrize(
+        "data, marks",
+        [
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0}),
+                    (B[1], {"time": 1.0}),
+                    (B[2], {"measure": {}}),
+                ),
+                {},
+                id="no mark left, so none for the first beat",
+            ),
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0, "closing": True}),
+                    (B[1], {"time": 1.0}),
+                    (B[2], {"time": 2.0, "measure": {}}),
+                    (B[3], {}),
+                ),
+                {B[1]: {}, B[2]: {}},
+                id="a closing tap isn't the first beat",
+            ),
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0, "measure": {}}),
+                    (
+                        B[1],
+                        {"time": 1.0, "closing": True, "measure": {"next": [B[2]]}},
+                    ),
+                    (B[2], {"measure": {}}),
+                ),
+                {B[0]: {}, B[1]: {}},
+                id="a closing tap's next drops a downbeat",
+            ),
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0, "measure": {}}),
+                    (
+                        B[1],
+                        {"time": 1.0, "closing": True, "measure": {"next": [B[2]]}},
+                    ),
+                    (B[2], {"closing": True, "measure": {}}),
+                ),
+                {B[0]: {}, B[1]: {"next": [B[2]]}},
+                id="and keeps a closing tap, which starts no measure",
+            ),
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0, "measure": {}}),
+                    (
+                        B[1],
+                        {"time": 1.0, "closing": True, "measure": {"next": [B[2]]}},
+                    ),
+                    (B[2], {}),
+                ),
+                {B[0]: {}, B[1]: {"next": [B[2]]}},
+                id="and an ordinary beat, which starts none either",
+            ),
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0, "measure": {"next": []}}),
+                    (B[1], {"measure": {}}),
+                ),
+                {B[0]: {"next": []}},
+                id="a next that named none stays",
+            ),
+            pytest.param(
+                beats_file(
+                    (B[0], {"time": 0.0, "measure": {}}),
+                    (B[1], {}),
+                    (B[2], {"kind": "SPARKLE"}),
+                ),
+                {B[0]: {}},
+                id="a component of an unknown kind is no beat",
+            ),
+        ],
+    )
+    def test_leave_the_marks_delete_beat_leaves(
+        self, timeless, copied, capsys, data, marks
+    ):
+        assert check_migration.main(timeless(data)) == 0, capsys.readouterr().out
+
+        held = json.loads((copied / TIMELESS).read_bytes())["timelines"][TIMED]
+        assert {
+            key: beat["measure"]
+            for key, beat in held["components"].items()
+            if "measure" in beat
+        } == marks
+
+    def test_in_a_copy_migrated_before_arent_a_difference(
+        self, timeless, copied, capsys
+    ):
+        folders = timeless(WITH_A_DOWNBEAT)
+        tla.migrate_folder(copied, apply=True)
+        migrated = contents(copied)
+
+        assert check_migration.main(folders) == 0
+
+        assert "which isn't a difference: 2." in capsys.readouterr().out
+        assert contents(copied) == migrated
+
+    def test_dropped_without_their_warning_are_a_difference(
+        self, timeless, monkeypatch, capsys
+    ):
+        folders = timeless(WITH_A_DOWNBEAT)
+        check = reader.check
+
+        def without_their_warnings(*args, **kwargs):
+            found = check(*args, **kwargs)
+            return [w for w in found if not w.message.endswith(" has no time")]
+
+        monkeypatch.setattr(reader, "check", without_their_warnings)
+
+        assert check_migration.main(folders) == 1
+
+        out = capsys.readouterr().out
+        for dropped in (B[4], B[5]):
+            assert (
+                f"{AT}/{dropped}: missing from the copy, a beat without a time,"
+                " without its warning"
+            ) in out
+        assert "which isn't a difference: 0." in out
+
+    def test_kept_are_a_difference(self, timeless, monkeypatch, capsys):
+        folders = timeless(WITH_A_DOWNBEAT)
+        monkeypatch.setattr(
+            folder_module, "_drop_beats_without_a_time", lambda document: None
+        )
+
+        assert check_migration.main(folders) == 1
+
+        out = capsys.readouterr().out
+        assert f"{TIMELESS} (from {tla.FORMAT_VERSION}): differences: 2" in out
+        for kept in (B[4], B[5]):
+            assert f"{AT}/{kept}: kept, though it has no time" in out
+        assert "which isn't a difference: 0." in out
+
+    def test_one_kept_takes_no_mark_for_a_first_beat(
+        self, timeless, monkeypatch, capsys
+    ):
+        # Which beat is first isn't known while one has no time, as for the reader.
+        data = json.loads(WITH_THE_FIRST_MARK)
+        data["timelines"][TIMED]["components"][B[3]] = {"kind": "BEAT"}
+        folders = timeless(json.dumps(data, indent=2).encode())
+
+        def all_but_one(document, timeline_id, beat_id, **kwargs):
+            if beat_id != B[3]:
+                tla.delete_beat(document, timeline_id, beat_id, **kwargs)
+
+        monkeypatch.setattr(folder_module, "delete_beat", all_but_one)
+
+        assert check_migration.main(folders) == 1
+
+        out = capsys.readouterr().out
+        assert f"{TIMELESS} (from {tla.FORMAT_VERSION}): differences: 1" in out
+        assert f"{AT}/{B[3]}: kept, though it has no time" in out
+        assert MARKS_ADDED not in out
+
+    def test_another_beat_dropped_with_them_is_a_difference(
+        self, timeless, monkeypatch, capsys
+    ):
+        folders = timeless(WITH_A_DOWNBEAT)
+
+        def one_more(document, timeline_id, beat_id, **kwargs):
+            tla.delete_beat(document, timeline_id, beat_id, **kwargs)
+            document.timelines[timeline_id].components.pop(B[3], None)
+
+        monkeypatch.setattr(folder_module, "delete_beat", one_more)
+
+        assert check_migration.main(folders) == 1
+
+        assert f"{AT}/{B[3]}: missing from the copy, was {{" in capsys.readouterr().out
+
+    def test_a_measure_marked_edited_for_them_is_a_difference(
+        self, timeless, monkeypatch, capsys
+    ):
+        # TimeLineAnnotator/project-management#512: no person edited it.
+        folders = timeless(WITH_THE_FIRST_MARK)
+
+        def by_a_person(document, timeline_id, beat_id, **kwargs):
+            tla.delete_beat(document, timeline_id, beat_id)
+
+        monkeypatch.setattr(folder_module, "delete_beat", by_a_person)
+
+        assert check_migration.main(folders) == 1
+
+        assert f"{AT}/{B[0]}/attrs/measure/source: " in capsys.readouterr().out
+
+    def test_a_next_that_loses_more_than_them_is_a_difference(
+        self, timeless, monkeypatch, capsys
+    ):
+        folders = timeless(WITH_A_DOWNBEAT)
+
+        def lose_a_next(document, timeline_id, beat_id, **kwargs):
+            tla.delete_beat(document, timeline_id, beat_id, **kwargs)
+            mark = document.timelines[timeline_id].components[B[0]].attrs["measure"]
+            mark.pop("next", None)
+
+        monkeypatch.setattr(folder_module, "delete_beat", lose_a_next)
+
+        assert check_migration.main(folders) == 1
+
+        assert f"{AT}/{B[0]}/attrs/measure/next: " in capsys.readouterr().out
+
+    def test_in_a_copy_with_a_layout_of_its_own_is_a_difference(
+        self, timeless, copied, capsys
+    ):
+        # The run wrote it, so its bytes are the writer's, as an old file's are.
+        folders = timeless(WITH_A_DOWNBEAT)
+        tla.migrate_folder(copied, apply=True)
+        reindent(copied / TIMELESS)
+
+        assert check_migration.main(folders) == 1
+
+        out = capsys.readouterr().out
+        assert "the copy isn't the original without its beats without a time" in out
+        assert "a second read and write changed its bytes" in out
+        assert "not in the writer's layout" not in out
+
+    def test_a_source_without_them_and_a_copy_with_them_are_refused(
+        self, timeless, source, copied, capsys
+    ):
+        # The arguments the wrong way round, once the copy has been migrated with
+        # `tilia migrate`: the original's beats would be dropped next.
+        timeless(WITH_A_DOWNBEAT)
+        for old in (S4, COMMENTS, SCORE):  # so that only this file tells
+            (source / old).unlink()
+            (copied / old).unlink()
+        tla.migrate_folder(copied, apply=True)
+        original = contents(source)
+
+        assert check_migration.main([str(copied), str(source)]) == 2
+
+        err = capsys.readouterr().err
+        assert f"{TIMELESS} is migrated, or its beats without a time dropped, in" in err
+        assert "the wrong way round" in err
+        assert contents(source) == original
+
+    def test_in_a_source_whose_copy_is_old_are_refused(self, timeless, copied, capsys):
+        # It is migrated, though not all the way: the old one may be the original.
+        folders = timeless(WITH_A_DOWNBEAT)
+        shutil.copy(OLD / "0.0.96.tla", copied / TIMELESS)
+        before = contents(copied)
+
+        assert check_migration.main(folders) == 2
+
+        assert f"{TIMELESS} is migrated, or its" in capsys.readouterr().err
+        assert contents(copied) == before
 
 
 class TestChordsAndKeys:

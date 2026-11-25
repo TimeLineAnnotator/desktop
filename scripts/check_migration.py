@@ -7,17 +7,21 @@ corpus as COPY. SOURCE is only read. tilia-core has to be installed, for example
 with `uv run --package tilia-core python scripts/check_migration.py SOURCE COPY`.
 
 The script migrates COPY with `migrate_folder(apply=True)`, which does nothing to
-a file already migrated, then checks each file:
+a file already migrated but drop its beats without a time (FR-106), then checks
+each file:
 
 - it reads back, without an error;
-- it holds what SOURCE's file holds when read through the migration;
+- it holds what SOURCE's file holds when read through the migration, without its
+  beats without a time when that file is in the current format;
 - an old file's copy is byte for byte what the migration gives, and a second read
   and write leaves it byte-identical, a media or PDF path the migration kept
   absolute included, which every write keeps (FR-033;
   TimeLineAnnotator/project-management#555, option a). It writes the copy in
-  place. A file already in the current format is left alone by the migration,
-  whatever its layout, so its bytes aren't checked, and the second read and
-  write goes to a file beside it, so that it stays as it was;
+  place. So it is for a file in the current format that holds a beat without a
+  time, which is byte for byte what SOURCE's file without those beats is written
+  as. Any other file already in the current format is left alone by the
+  migration, whatever its layout, so its bytes aren't checked, and the second
+  read and write goes to a file beside it, so that it stays as it was;
 - an old file's copy is compared with the original's own JSON, per timeline and
   per component. Reading both through the migration couldn't show what the
   migration itself gets wrong: both sides would have it. The new ids hold what
@@ -32,7 +36,8 @@ which files were left out, and exits with 0 when there is no difference, 1 when
 there is any, and 2 when it was given something it won't check, having written
 nothing. What opens with a warning isn't a difference: the report prints it. Nor
 is what the migration drops on purpose, with its warning (`Dropped`): the report
-lists it, and without its warning it is one.
+lists it, and without its warning it is one. Nor is the empty mark that dropping
+beats without a time gives a first beat left without one: the report lists it too.
 """
 
 from __future__ import annotations
@@ -50,6 +55,7 @@ import sys
 import uuid
 from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +89,10 @@ LEGACY_SCORE = "svg-osmd-legacy"
 SHOWN_PER_FILE = 20
 SHORT = 100
 SECOND_WRITE_CHANGED = "a second read and write changed its bytes"
+# How the reader's warning of a beat without a time ends (FR-053).
+NO_TIME = " has no time"
+# How the report's notes of what isn't a difference start, which it counts.
+WARNING, DROPPED, ADDED = "warning: ", "dropped, with its warning: ", "added, "
 
 # What the migration changes on purpose, and so what the comparison with an old
 # file's own JSON leaves out or expects changed; everything else carries over
@@ -240,9 +250,10 @@ class Dropped:
     beat without a time, outside the media or at the time of a beat before it, and a
     beat unit on no beat kept, on a beat that has one already, or that desktop#621
     can't read (contract, *Beat timelines*, steps 1 and 4). Two beat units in one
-    measure, on two of its beats, stay. The places warned about; the old media length,
-    as the migration reads it; the old file's version; and what was found dropped
-    so, for the report."""
+    measure, on two of its beats, stay. From a file in the current format, only a
+    beat without a time (FR-106). The places warned about; the old media length,
+    as the migration reads it; the file's version; and what was found dropped so,
+    for the report."""
 
     def __init__(self, warned: set[str], media_length: Any, version: str) -> None:
         self.warned = warned
@@ -254,7 +265,7 @@ class Dropped:
         """Whether a drop at `place`, `at` in the old file, has its warning: listed
         if so, else a difference."""
         if at in self.warned:
-            self.found.append(f"dropped, with its warning: {place}, {why}")
+            self.found.append(f"{DROPPED}{place}, {why}")
         else:
             yield f"{place}: missing from the copy, {why}, without its warning"
 
@@ -869,6 +880,78 @@ def second_write_changes(copy: Path) -> bool:
         beside.unlink(missing_ok=True)
 
 
+def without_a_time(document: tla.Document) -> dict[str, list[str]]:
+    """The beats without a time of a file in the current format, by timeline:
+    `tilia migrate` drops them (FR-106)."""
+    untimed = {
+        timeline_id: [
+            beat_id
+            for beat_id, component in timeline.components.items()
+            if component.kind == "beat" and component.attrs.get("time") is None
+        ]
+        for timeline_id, timeline in document.timelines.items()
+        if timeline.kind == "beat"
+    }
+    return {key: beat_ids for key, beat_ids in untimed.items() if beat_ids}
+
+
+def mark_of(beat: tla.Component) -> dict[str, Any] | None:
+    """A beat's measure mark, as it stands, if it has one."""
+    mark = beat.attrs.get("measure")
+    return mark if isinstance(mark, dict) else None
+
+
+def dropping(
+    before: tla.Document, after: tla.Document, dropped: Dropped
+) -> tuple[tla.Document, list[str]]:
+    """What `before`, a file in the current format, is without its beats without a
+    time, as deleting each would leave it, but with no measure marked edited
+    (FR-106; contract, *When a downbeat is deleted*): a downbeat's mark goes with it,
+    since no beat is next to it in time, and every `next` that names it drops it, one
+    left empty going; a first beat left without a mark, while a later one has one,
+    gets an empty one. And the differences in those beats: one that `after` keeps,
+    which then stays here too, and one dropped without its warning."""
+    expected = deepcopy(before)
+    found: list[str] = []
+    for timeline_id, beat_ids in without_a_time(before).items():
+        timeline = expected.timelines[timeline_id]
+        place = f"/timelines/{timeline_id}/components"
+        kept = getattr(after.timelines.get(timeline_id), "components", {})
+        downbeats: set[str] = set()
+        for beat_id in beat_ids:
+            if beat_id in kept:
+                found.append(f"{place}/{beat_id}: kept, though it has no time")
+                continue
+            at = pointer("timelines", timeline_id, "components", beat_id)
+            found.extend(
+                dropped.check(f"{place}/{beat_id}", at, "a beat without a time")
+            )
+            beat = timeline.components.pop(beat_id)
+            if mark_of(beat) is not None and not beat.attrs.get("closing"):
+                downbeats.add(beat_id)
+        beats = {k: c for k, c in timeline.components.items() if c.kind == "beat"}
+        for beat in beats.values():
+            mark = mark_of(beat)
+            following = mark.get("next") if mark is not None else None
+            if isinstance(following, list) and downbeats.intersection(following):
+                mark["next"] = [one for one in following if one not in downbeats]
+                if not mark["next"]:
+                    del mark["next"]
+        # A tap on a closing barline is no beat of a measure (contract, *Beat
+        # timelines and their measures*), so neither is it the first.
+        left = {k: c for k, c in beats.items() if not c.attrs.get("closing")}
+        timed = all(is_number(c.attrs.get("time")) for c in left.values())
+        if timed and any(mark_of(c) is not None for c in left.values()):
+            first = min(left, key=lambda key: (left[key].attrs["time"], key))
+            if mark_of(left[first]) is None:
+                left[first].attrs["measure"] = {}
+                dropped.found.append(
+                    f"{ADDED}for the beats dropped: {place}/{first}/measure, the empty"
+                    " mark of the timeline's first beat"
+                )
+    return expected, found
+
+
 def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[str]]:
     """The differences between a file of SOURCE and its migrated copy; what is worth
     saying about it and isn't one; and what the copy holds."""
@@ -878,15 +961,31 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
     # As if it were at the copy's place, where the copy was migrated: the media's
     # path is relative to the file's folder (FR-021).
     before = tla.loads(original, path=copy)
-    found = list(differences(plain(before), plain(after)))
-    notes = [f"warning: {warning}" for warning in before.warnings]
-    if before.format_version == tla.FORMAT_VERSION:
+    notes = [f"{WARNING}{warning}" for warning in before.warnings]
+    current = before.format_version == tla.FORMAT_VERSION
+    if current and not without_a_time(before):
+        found = list(differences(plain(before), plain(after)))
         # The migration left it alone: its bytes aren't the migration's.
         if tla.canonical_bytes(after) != written:
             notes.append("not in the writer's layout: a save would change its bytes")
         if second_write_changes(copy):
             found.append(SECOND_WRITE_CHANGED)
+        return found, notes, held_in(after)
+    if current:
+        dropped = Dropped(
+            warned={w.place for w in before.warnings if w.message.endswith(NO_TIME)},
+            media_length=before.media_length,
+            version=before.format_version,
+        )
+        expected, found = dropping(before, after, dropped)
+        # As the reader reads it: its measure table, and each mark's defaults.
+        given = tla.canonical_bytes(expected)
+        expected = tla.loads(given, path=copy)
+        found.extend(differences(plain(expected), plain(after)))
+        if not found and given != written:
+            found.append("the copy isn't the original without its beats without a time")
     else:
+        found = list(differences(plain(before), plain(after)))
         if not found and tla.canonical_bytes(before) != written:
             found.append("the copy isn't what the original migrates to")
         content = json.loads(original)
@@ -898,10 +997,10 @@ def check_file(source: Path, copy: Path) -> tuple[list[str], list[str], Counter[
             version=content.get("version", "0.0.0"),
         )
         found.extend(against_old_file(content, after, dropped))
-        notes.extend(dropped.found)
-        tla.write(copy, after, expect=tla.fingerprint(copy))
-        if copy.read_bytes() != written:
-            found.append(SECOND_WRITE_CHANGED)
+    notes.extend(dropped.found)
+    tla.write(copy, after, expect=tla.fingerprint(copy))
+    if copy.read_bytes() != written:
+        found.append(SECOND_WRITE_CHANGED)
     return found, notes, held_in(after)
 
 
@@ -915,19 +1014,26 @@ def is_within(inner: Path, outer: Path) -> bool:
         return False
 
 
-def is_current(data: bytes) -> bool:
+def how_migrated(data: bytes) -> int:
+    """How far a file that holds `data` is migrated: 0 for an old one, or one that
+    can't be read; 1 for one in the current format that holds a beat without a time,
+    which the run drops; 2 for any other in the current format."""
     try:
-        return tla.loads(data).format_version == tla.FORMAT_VERSION
+        document = tla.loads(data)
     except ValueError:  # UnreadableFile is a ValueError
-        return False
+        return 0
+    if document.format_version != tla.FORMAT_VERSION:
+        return 0
+    return 1 if without_a_time(document) else 2
 
 
 def looks_swapped(files: dict[str, tuple[Path, Path]]) -> str | None:
-    """A file already migrated in SOURCE and not in COPY, which may be the original:
-    a copy migrated with `tilia migrate` is the other way round."""
+    """A file migrated in SOURCE, or whose beats without a time are dropped there,
+    and not in COPY, which may be the original: a copy migrated with `tilia migrate`
+    is the other way round."""
     for relative, (source, copy) in files.items():
         original, copied = source.read_bytes(), copy.read_bytes()
-        if original != copied and is_current(original) and not is_current(copied):
+        if original != copied and how_migrated(original) > how_migrated(copied):
             return relative
     return None
 
@@ -1036,12 +1142,16 @@ def check(source: Path, copy: Path) -> int:
         return 2
     if swapped is not None:
         print(
-            f"{swapped} is migrated in SOURCE and not in COPY: are they the wrong way"
-            " round? Nothing was written.",
+            f"{swapped} is migrated, or its beats without a time dropped, in SOURCE"
+            " and not in COPY: are they the wrong way round? Nothing was written.",
             file=sys.stderr,
         )
         return 2
     return migrate_and_compare(copy, files)
+
+
+# What `migrate_folder` did to a file that is compared with its original.
+COMPARED = (tla.Outcome.MIGRATED, tla.Outcome.FIXED, tla.Outcome.CURRENT)
 
 
 def print_lines(lines: list[str]) -> None:
@@ -1057,14 +1167,14 @@ def migrate_and_compare(copy: Path, files: dict[str, tuple[Path, Path]]) -> int:
     migrated = tla.migrate_folder(copy, apply=True)
     different = len(migrated.folders_not_listed)
     total: Counter[str] = Counter()
-    warnings = drops = 0
+    warnings = drops = marks = 0
     for unlisted in migrated.folders_not_listed:
         print(f"{unlisted.path}: {unlisted.reason}")
     for result in migrated.files:
         found: list[str] = []
         notes: list[str] = []
         held: Counter[str] = Counter()
-        if result.outcome not in (tla.Outcome.MIGRATED, tla.Outcome.CURRENT):
+        if result.outcome not in COMPARED:
             found.append(f"{result.outcome.value}: {result.reason}")
         else:
             try:
@@ -1072,8 +1182,9 @@ def migrate_and_compare(copy: Path, files: dict[str, tuple[Path, Path]]) -> int:
             except Exception as error:  # an error in the core too: go on (FR-052)
                 found.append(f"{type(error).__name__}: {error}")
         total.update(held)
-        warnings += sum(note.startswith("warning: ") for note in notes)
-        drops += sum(note.startswith("dropped, ") for note in notes)
+        warnings += sum(note.startswith(WARNING) for note in notes)
+        drops += sum(note.startswith(DROPPED) for note in notes)
+        marks += sum(note.startswith(ADDED) for note in notes)
         origin = f" (from {result.from_version})" if result.from_version else ""
         if not found:
             print(f"{result.path}{origin}: no difference: {tally(held)}")
@@ -1090,6 +1201,8 @@ def migrate_and_compare(copy: Path, files: dict[str, tuple[Path, Path]]) -> int:
     print(
         f"Dropped on purpose, each with its warning, which isn't a difference: {drops}."
     )
+    if marks:
+        print(f"Empty marks added to a timeline's first beat for those: {marks}.")
     return 1 if different else 0
 
 
