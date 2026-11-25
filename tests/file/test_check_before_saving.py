@@ -10,6 +10,7 @@ rows 5–8, word for word.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import stat
@@ -30,6 +31,20 @@ from tilia.ui.format import format_media_time
 from tilia_core import tla
 
 FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
+
+
+def _load_hold_file():
+    """The core's tests' helper: another program that has a file open."""
+    spec = importlib.util.spec_from_file_location("hold_file", FILES / "hold_file.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+hold_file = _load_hold_file()
+windows_only = pytest.mark.skipif(
+    sys.platform != "win32", reason="only Windows has files that can't be opened"
+)
 EMPTY = FILES / "golden" / "empty.tla"
 EVERY_KIND = FILES / "golden" / "every-kind.tla"
 
@@ -69,9 +84,10 @@ def question(row, *args) -> tuple[str, str, list[str]]:
 class Answers(Serve):
     """Answers the questions before saving with `answers`, in order, keeping each
     question asked and what was on disk at `watched` when it was (None for no file).
-    A question beyond the answers fails the test."""
+    A question beyond the answers fails the test. An answer that is a function is
+    called when its question is asked, and gives the answer."""
 
-    def __init__(self, *answers: str | None, watched: Path | None = None):
+    def __init__(self, *answers: object, watched: Path | None = None):
         super().__init__(Get.FROM_USER_CHOICE, None)
         self.answers = list(answers)
         self.watched = watched
@@ -87,7 +103,8 @@ class Answers(Serve):
                 self.watched.read_bytes() if self.watched.exists() else None
             )
         assert self.answers, f"asked one question more than expected: {title}"
-        return self.answers.pop(0)
+        answer = self.answers.pop(0)
+        return answer() if callable(answer) else answer
 
 
 def open_file(path: Path) -> bool:
@@ -465,6 +482,102 @@ class TestAFileHeldOpen:
 
         assert [asked[0] for asked in answers.asked] == [CHANGED[0], IN_USE[0]]
         assert notes_in(opened) == "mine"
+
+
+@windows_only
+class TestAFileReallyHeldOpen:
+    """The same, with another program that really has the file open, in each of
+    Windows' sharing modes and with its bytes locked
+    (TimeLineAnnotator/project-management#683, b). The core tells a file that can't be
+    read because another program has it from one the person may not read; TiLiA asks
+    the same question of both a file that can be read and one that can't, and Retry
+    checks it again."""
+
+    MODES = hold_file.UNREADABLE + hold_file.READABLE
+
+    @staticmethod
+    def another_version(folder: Path) -> Path:
+        """What the other program changes the file into."""
+        doc = tla.read(EMPTY)
+        doc.metadata["composer"] = "Another program"
+        path = folder / "theirs.tla"
+        path.write_bytes(tla.canonical_bytes(doc))
+        return path
+
+    @pytest.mark.parametrize("mode", MODES)
+    def test_is_in_use_and_nothing_is_written(self, opened, tilia, mode):
+        before = opened.read_bytes()
+
+        with hold_file.Held(opened, mode), Answers(CANCEL) as answers:
+            assert not save()
+
+        assert answers.asked == [question(IN_USE, "file.tla")]
+        assert answers.defaults == [None]  # the first button, Retry
+        assert opened.read_bytes() == before
+        assert [p.name for p in opened.parent.iterdir()] == [opened.name]
+        assert tilia.is_file_modified()
+
+    @pytest.mark.parametrize("mode", MODES)
+    def test_retry_saves_once_it_is_let_go(self, opened, tilia, mode):
+        with hold_file.Held(opened, mode) as holder:
+
+            def let_go() -> str:
+                holder.release()
+                return "Retry"
+
+            with Answers(let_go) as answers:
+                assert save()
+
+        assert answers.asked == [question(IN_USE, "file.tla")]
+        assert notes_in(opened) == "mine"
+        assert not tilia.is_file_modified()
+
+    @pytest.mark.parametrize("mode", MODES)
+    def test_retry_asks_again_if_it_was_changed_while_it_was_held(
+        self, opened, tilia, tmp_path, mode
+    ):
+        theirs = self.another_version(tmp_path)
+        with hold_file.Held(opened, mode, then_write=theirs) as holder:
+
+            def let_go() -> str:
+                holder.release()
+                return "Retry"
+
+            with Answers(let_go, CANCEL) as answers:
+                assert not save()
+
+        assert answers.asked == [
+            question(IN_USE, "file.tla"),
+            question(CHANGED, "file.tla"),
+        ]
+        assert opened.read_bytes() == theirs.read_bytes()
+        assert tilia.is_file_modified()
+
+    def test_and_overwriting_is_then_a_choice(self, opened, tmp_path):
+        theirs = self.another_version(tmp_path)
+        with hold_file.Held(opened, "none", then_write=theirs) as holder:
+
+            def let_go() -> str:
+                holder.release()
+                return "Retry"
+
+            with Answers(let_go, "Overwrite"):
+                assert save()
+
+        assert notes_in(opened) == "mine"
+        assert tla.read(opened).metadata.get("composer") is None
+
+    def test_without_permission_to_read_it_is_changed_as_before(self, opened, tilia):
+        # A file the person may not read isn't in use: as any file that can't be
+        # compared (TimeLineAnnotator/project-management#630, b).
+        before = opened.read_bytes()
+
+        with hold_file.no_permission_to_read(opened), Answers(CANCEL) as answers:
+            assert not save()
+
+        assert answers.asked == [question(CHANGED, "file.tla")]
+        assert opened.read_bytes() == before
+        assert tilia.is_file_modified()
 
 
 class TestWhatEachWriteExpects:
