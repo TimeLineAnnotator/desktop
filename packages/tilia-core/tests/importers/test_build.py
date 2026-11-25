@@ -1578,22 +1578,30 @@ def test_only_a_beat_timeline_takes_a_beat_pattern(kind):
     assert doc == before
 
 
+@pytest.mark.parametrize("name", ["Measures", ""])
 @pytest.mark.parametrize(
     "pattern, reason",
     [
         ("10[", "Unclosed '['."),
         ("0", "Bar lengths must be at least 1."),
         ("4 x", "Unexpected 'x'."),
-        ("", "Enter at least one bar length."),
+        ("", "It has no bar length."),
+        ("'", 'Unexpected "\'".'),
     ],
 )
-def test_a_beat_pattern_that_doesnt_parse_is_refused(pattern, reason):
+def test_a_beat_pattern_that_doesnt_parse_is_refused(pattern, reason, name):
+    # With the one text for a bad pattern
+    # (TimeLineAnnotator/project-management#674): tests/tla/test_tla_rules.py
+    # checks it against the other paths'.
     doc = script_document()
     before = copy.deepcopy(doc)
 
-    message = refused(build.add_timeline, doc, "beat", beat_pattern=pattern)
+    message = refused(build.add_timeline, doc, "beat", name, beat_pattern=pattern)
 
-    assert message == f"Invalid beat pattern '{pattern}': {reason}"
+    assert message == (
+        f'the beat pattern "{pattern}" of the timeline "{name}"'
+        f" isn't a valid pattern: {reason}"
+    )
     assert doc == before
 
 

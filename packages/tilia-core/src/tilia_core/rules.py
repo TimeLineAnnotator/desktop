@@ -19,6 +19,11 @@ for each component the others that matter rather than comparing it with every
 one: an import checks its components with it once, before it commits, and so
 do reading and writing a file, and a single change, on the timeline it leaves.
 
+What isn't a component has its own function: a range timeline's rows
+(`range_rows`), a color, a media length, and a beat timeline's pattern
+(`beat_pattern`), whose reason is the one text for a bad pattern: the reader's,
+the writer's and a script's.
+
 A harmony's quality and inversion and a mode's type are checked against the
 installed music21, as TiLiA checks them, so checking a harmony or a mode needs
 the `harmony` extra. Without it, the other rules are checked, and when none is
@@ -38,8 +43,10 @@ from __future__ import annotations
 import bisect
 import importlib.util
 import itertools
+import json
 import math
 import string
+import unicodedata
 from collections.abc import (
     Callable,
     Collection,
@@ -54,8 +61,11 @@ from typing import TYPE_CHECKING, Any
 
 import webcolors
 
+from tilia_core.labels import nfc
+
 if TYPE_CHECKING:
     from tilia_core import tla
+    from tilia_core.timemap.pattern import ParseResult
 
 INSTALL_HARMONY = 'pip install "tilia-core[harmony]"'
 
@@ -169,6 +179,22 @@ ROW_ID_CHARACTERS = string.ascii_letters + string.digits
 _HEX_LENGTHS = (3, 6, 8, 9, 12)
 _HEX_DIGITS = frozenset(string.hexdigits)
 _COLOR_NAMES = frozenset(webcolors.names("css3")) | {"transparent"}
+
+# Why a beat pattern with nothing in it is refused. The parser's reason tells a person
+# typing one what to enter (TimeLineAnnotator/project-management#680, 1b).
+_NO_BAR_LENGTH = "It has no bar length."
+# Unicode's quotation marks (its Quotation_Mark property).
+_QUOTATION_MARKS = frozenset("'\"«»‘’‚‛“”„‟‹›⹂「」『』〝〞〟﹁﹂﹃﹄＂＇｢｣")
+# Characters that can't be seen although `str.isprintable` takes them: Unicode's
+# default ignorable ones, such as a keycap's variation selector or a Hangul filler,
+# and the blank Braille pattern.
+_BLANK = frozenset(
+    [
+        *"\u034f\u115f\u1160\u17b4\u17b5\u180b\u180c\u180d\u180f\u2800\u3164\uffa0",
+        *map(chr, range(0xFE00, 0xFE10)),
+        *map(chr, range(0xE0100, 0xE01F0)),
+    ]
+)
 
 # The rules' codes. A value that isn't one has `bad_code(attribute)`, whatever the
 # kind and whatever its reason says.
@@ -659,6 +685,89 @@ def media_length(value: Any) -> Outcome:
     if value is None or (_is_number(value) and value > 0):
         return OK
     return _not_valid("media_length", value)
+
+
+def beat_pattern(pattern: str | None, *, timeline_name: str) -> Outcome:
+    """A beat timeline's pattern, as a document stores it: text that
+    `tilia_core.timemap.pattern.parse` completes, or None for the default.
+
+    One it doesn't, including one more typing could complete, such as "10[" or
+    "", gives the one text for a bad pattern, which ends with why, as the parser
+    says it but for what `_why_refused` words: `the beat pattern "0" of the
+    timeline "Beats" isn't a valid pattern: Bar lengths must be at least 1.` The
+    reader warns with it, and the writer and `build.add_timeline` refuse with it:
+    they take it from here (TimeLineAnnotator/project-management#674 (one text
+    for a bad beat pattern)). It is about the text the writer writes, in NFC,
+    and shows a lone surrogate as its escape, as a warning does. Raises TypeError
+    for a value that isn't text or None, which the writer refuses as a broken
+    structure, before any rule.
+    """
+    if pattern is None:
+        return OK
+    if not isinstance(pattern, str):
+        raise TypeError(f"a beat pattern is text or None, not {_shown(pattern)}")
+    # Imported here: these packages read these rules.
+    from tilia_core.timemap.pattern import parse
+    from tilia_core.tla.errors import printable
+
+    pattern = nfc(pattern)
+    parsed = parse(pattern)
+    if parsed.is_complete:
+        return OK
+    name = json.dumps(nfc(timeline_name), ensure_ascii=False)
+    return _broken(
+        bad_code("beat_pattern"),
+        printable(
+            f"the beat pattern {_pattern_as_json(pattern)} of the timeline {name}"
+            f" isn't a valid pattern: {_why_refused(pattern, parsed)}"
+        ),
+    )
+
+
+def _why_refused(pattern: str, parsed: ParseResult) -> str:
+    """Why the parser refuses `pattern`, for a text about a pattern nobody is
+    typing: the parser's reason, but for a pattern with nothing in it, and with a
+    quotation mark as JSON writes it, and a character that can't be seen as its
+    escape there (TimeLineAnnotator/project-management#680 (three beat pattern
+    reasons that read badly in a warning)). A reason that quotes a character quotes
+    the one at `parsed.position`."""
+    if not pattern.strip():
+        return _NO_BAR_LENGTH
+    start = parsed.position
+    character = "" if start is None else pattern[start : start + 1]
+    unseen = _cant_be_seen(character)
+    if unseen or character in _QUOTATION_MARKS:
+        shown = json.dumps(character, ensure_ascii=unseen)
+        return parsed.error.replace(f"'{character}'", shown)
+    return parsed.error
+
+
+def _pattern_as_json(pattern: str) -> str:
+    """`pattern` as JSON writes it, each character that can't be seen as its escape,
+    and so each combining mark after an escape, which would sit on it. In one pass,
+    since a file can hold a long one."""
+    escaped = False
+
+    def is_escaped(character: str) -> bool:
+        nonlocal escaped
+        sits_on_one = escaped and unicodedata.category(character)[0] == "M"
+        escaped = sits_on_one or character < " " or _cant_be_seen(character)
+        return escaped
+
+    shown = (
+        json.dumps("".join(run), ensure_ascii=as_escapes)[1:-1]
+        for as_escapes, run in itertools.groupby(pattern, is_escaped)
+    )
+    return f'"{"".join(shown)}"'
+
+
+def _cant_be_seen(character: str) -> bool:
+    """Whether `character` can't be seen: a control or format character, a lone
+    surrogate, one that is private or unassigned, or one of `_BLANK`. White space
+    isn't one: it separates the bars of a pattern."""
+    if character in _BLANK:
+        return True
+    return not (character.isprintable() or character.isspace())
 
 
 def cant_check(kind: str) -> CantCheck | None:

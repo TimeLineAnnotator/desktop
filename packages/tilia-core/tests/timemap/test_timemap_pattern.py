@@ -61,8 +61,22 @@ class TestIncomplete:
         assert result.error
         assert result.position == position
 
+    @pytest.mark.parametrize("text", ["", "   "])
+    def test_what_to_type_first(self, text):
+        # For a person typing; a file's empty pattern has other words
+        # (TimeLineAnnotator/project-management#680, 1b), `rules.beat_pattern`'s.
+        assert parse(text).error == "Enter at least one bar length."
+
 
 class TestInvalid:
+    @pytest.mark.parametrize("character", ["'", '"', "\u200b", "\x00"])
+    def test_a_character_is_quoted_as_it_is(self, character):
+        # As for any other; a text about a file's pattern shows these as JSON
+        # does (TimeLineAnnotator/project-management#680, 2b).
+        result = parse(f"4 {character}")
+        assert result.error == f"Unexpected '{character}'."
+        assert result.position == 2
+
     @pytest.mark.parametrize(
         "text, position, message",
         [

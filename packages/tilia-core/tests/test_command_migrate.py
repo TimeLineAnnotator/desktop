@@ -938,6 +938,31 @@ def test_the_measure_marks_left_out_after_a_closing_first_beat_are_counted(
     assert f"  piece.tla               {words}\n" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize(
+    "pattern, shown, reason",
+    [
+        ([0], "0", "Bar lengths must be at least 1."),
+        ([], "", "It has no bar length."),
+        (["\u200b"], "\\u200b", 'Unexpected "\\u200b".'),
+    ],
+)
+def test_a_beat_pattern_that_doesnt_parse_is_listed_with_why(
+    tmp_path, capsys, pattern, shown, reason
+):
+    # The one text for a bad pattern (TimeLineAnnotator/project-management#674,
+    # #680).
+    data = json.dumps(old_beats(beat_pattern=pattern), indent=2).encode()
+    place(tmp_path / "piece.tla", data)
+    line = data[: data.index(b'"beat_pattern"')].count(b"\n") + 1
+
+    assert migrate_command.main([str(tmp_path)]) == 0
+
+    assert (
+        f'line {line}: the beat pattern "{shown}" of the timeline "Beats"'
+        f" isn't a valid pattern: {reason}\n"
+    ) in capsys.readouterr().out
+
+
 TWO_BEAT_UNITS = (
     ("20", {"kind": "BEAT_UNIT", "beat_id": 10, "units": "1"}),
     ("21", {"kind": "BEAT_UNIT", "beat_id": 12, "units": "3"}),

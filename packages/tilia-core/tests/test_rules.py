@@ -2,6 +2,7 @@ import collections
 import copy
 import importlib.util
 import itertools
+import json
 import math
 import pickle
 import random
@@ -15,6 +16,7 @@ import pytest
 import webcolors
 
 from tilia_core import rules, tla
+from tilia_core.timemap import pattern
 
 OK = (True, "")
 MEDIA = 60.0
@@ -440,6 +442,7 @@ class TestCodes:
             (rules.range_rows([{"id": ROW}]), "bad_row_name"),
             (rules.range_rows([ROWS[0], ROWS[0]]), "same_row_id"),
             (rules.range_rows([{**ROWS[0], "color": "x"}]), "bad_color"),
+            (rules.beat_pattern("0", timeline_name="Beats"), "bad_beat_pattern"),
         ],
     )
     def test_each_rule_of_what_isnt_a_component_has_its_own(self, outcome, code):
@@ -3049,6 +3052,215 @@ class TestMediaLength:
     @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range"])
     def test_an_infinite_length_is_longer_than_any_time(self, kind):
         assert check(kind, media_length=math.inf) == OK
+
+
+# Unicode's quotation marks.
+QUOTATION_MARKS = "'\"«»‘’‚‛“”„‟‹›⹂「」『』〝〞〟﹁﹂﹃﹄＂＇｢｣"
+# Characters that can't be seen: controls, formats, a lone surrogate, private and
+# unassigned ones; then those Python counts as printable, but that are blank, or
+# nothing, such as the variation selector of a keycap.
+UNSEEN = [
+    *("\x00", "\x1b", "\x7f", "\x9b", "\u00ad", "\u200b", "\u200d", "\u202e"),
+    *("\u2066", "\ufeff", "\ud83d", "\ue000", "\uffff", "\U000e0041"),
+    *("\u034f", "\u115f", "\u1160", "\u17b4", "\u17b5", "\u180b", "\u180d", "\u180f"),
+    *("\u2800", "\u3164", "\uffa0", "\ufe00", "\ufe0f", "\U000e0100", "\U000e01ef"),
+]
+
+
+class TestBeatPattern:
+    """A beat timeline's pattern, with the one text for a bad one
+    (TimeLineAnnotator/project-management#674, #680). tests/tla/test_tla_rules.py
+    checks that every path gives it, for every way the parser refuses one."""
+
+    @pytest.mark.parametrize("text", ["4", "3 2", "10[4] 3", "2[4 3[3]]"])
+    def test_one_that_parses(self, text):
+        assert rules.beat_pattern(text, timeline_name="Beats") == OK
+
+    def test_none_is_the_default_pattern(self):
+        # What a document holds for the default, which the writer writes.
+        assert rules.beat_pattern(None, timeline_name="Beats") == OK
+
+    def test_one_that_doesnt_parse_is_named_with_its_timeline_and_the_reason(self):
+        assert rules.beat_pattern("0", timeline_name="Beats") == (
+            False,
+            'the beat pattern "0" of the timeline "Beats" isn\'t a valid pattern:'
+            " Bar lengths must be at least 1.",
+        )
+
+    def test_the_parsers_reason_is_told_as_the_parser_gives_it(self, monkeypatch):
+        refused = pattern.ParseResult(pattern.ParseStatus.INVALID, error="No more.")
+        monkeypatch.setattr(pattern, "parse", lambda text: refused)
+        assert rules.beat_pattern("4", timeline_name="Beats").reason == (
+            'the beat pattern "4" of the timeline "Beats" isn\'t a valid pattern:'
+            " No more."
+        )
+
+    def test_a_reason_about_the_end_of_the_pattern(self, monkeypatch):
+        refused = pattern.ParseResult(
+            pattern.ParseStatus.INCOMPLETE, error="Go on.", position=2
+        )
+        monkeypatch.setattr(pattern, "parse", lambda text: refused)
+        outcome = rules.beat_pattern("4'", timeline_name="Beats")
+        assert outcome.reason.endswith(" isn't a valid pattern: Go on.")
+
+    @pytest.mark.parametrize("text", ["", " ", "\t\r\n", "\u00a0\u3000\u2028"])
+    def test_one_with_no_bar_length(self, text):
+        # Stated, where the parser's reason tells a person what to type
+        # (TimeLineAnnotator/project-management#680, 1b).
+        reason = rules.beat_pattern(text, timeline_name="Beats").reason
+        assert reason.endswith(" isn't a valid pattern: It has no bar length.")
+
+    @pytest.mark.parametrize("mark", QUOTATION_MARKS)
+    def test_a_quotation_mark_is_shown_as_the_pattern_is(self, mark):
+        # TimeLineAnnotator/project-management#680, 2b.
+        shown = json.dumps(mark, ensure_ascii=False)
+        assert rules.beat_pattern(f"4{mark}", timeline_name="Beats").reason == (
+            f'the beat pattern "4{shown[1:-1]}" of the timeline "Beats"'
+            f" isn't a valid pattern: Unexpected {shown}."
+        )
+
+    @pytest.mark.parametrize("character", UNSEEN, ids=ascii)
+    def test_a_character_that_cant_be_seen_is_its_escape_in_the_reason(self, character):
+        # TimeLineAnnotator/project-management#680, 2b.
+        escape = json.dumps(character)
+        assert escape.startswith('"\\u')
+        reason = rules.beat_pattern(f"4{character}", timeline_name="Beats").reason
+        assert reason.endswith(f" isn't a valid pattern: Unexpected {escape}.")
+
+    # What the pattern before the colon shows, apart from the reason after it.
+
+    @pytest.mark.parametrize("character", UNSEEN, ids=ascii)
+    def test_a_character_that_cant_be_seen_is_its_escape_in_the_pattern(
+        self, character
+    ):
+        # TimeLineAnnotator/project-management#680, 2b.
+        shown = json.dumps(f"4{character}x")
+        reason = rules.beat_pattern(f"4{character}x", timeline_name="Beats").reason
+        assert reason.startswith(f"the beat pattern {shown} of the timeline")
+
+    @pytest.mark.parametrize(
+        "text, shown",
+        [
+            ("4\ufe0f\u20e3", "4\\ufe0f\\u20e3"),
+            ("\u200b\u0301\u0301x\u0301", "\\u200b\\u0301\\u0301x\u0301"),
+            ("4\x00\u0301", "4\\u0000\\u0301"),
+            ("4\t\u0301\u0302", "4\\t\\u0301\\u0302"),
+            ("4\n\u0301", "4\\n\\u0301"),
+            ("4\x1f\u0301", "4\\u001f\\u0301"),
+        ],
+        ids=ascii,
+    )
+    def test_a_combining_mark_after_an_escape_is_one_too(self, text, shown):
+        # It would sit on the escape.
+        reason = rules.beat_pattern(text, timeline_name="Beats").reason
+        assert reason.startswith(f'the beat pattern "{shown}" of the timeline')
+
+    @pytest.mark.parametrize(
+        "text, shown",
+        [
+            ("x\u0301\u200b", "x\u0301\\u200b"),
+            ("\u200bx\u0301", "\\u200bx\u0301"),
+            ("\u2764\ufe0f", "\u2764\\ufe0f"),
+            ("]\u200b^-\\", "]\\u200b^-\\\\"),
+            ('4"\u0301\\\u0301', '4\\"\u0301\\\\\u0301'),
+            ("4\u00a0\u0301", "4\u00a0\u0301"),
+            ("\u0301", "\u0301"),
+        ],
+        ids=ascii,
+    )
+    def test_any_other_character_of_the_pattern_stays_as_json_writes_it(
+        self, text, shown
+    ):
+        reason = rules.beat_pattern(text, timeline_name="Beats").reason
+        assert reason.startswith(f'the beat pattern "{shown}" of the timeline')
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            "".join(map(chr, range(0xF0000, 0xF0000 + 100_000))),
+            "x\U000f0000" * 100_000,
+            "\U000f0000" + "\u0301" * 200_000,
+        ],
+        ids=["distinct", "every other one", "marks after one"],
+    )
+    def test_a_long_pattern_of_characters_that_cant_be_seen_takes_little_time(
+        self, pattern
+    ):
+        # In time linear in its length: a class of these characters, which a regular
+        # expression checks one after another past U+FFFF, took 3 s for the first,
+        # and grew with the square. Of this process's time, whatever else runs.
+        start = time.process_time()
+        outcome = rules.beat_pattern(pattern, timeline_name="Beats")
+        assert time.process_time() - start < 1
+        assert not outcome
+
+    @pytest.mark.parametrize("character", list("a.,-+/\\é²٣日💡`´′") + ["\u0301"])
+    def test_any_other_character_stays_as_it_is(self, character):
+        reason = rules.beat_pattern(f"4{character}", timeline_name="Beats").reason
+        assert reason.endswith(f" isn't a valid pattern: Unexpected '{character}'.")
+
+    def test_every_character_of_a_reason_can_be_printed(self):
+        for code in range(0x10000):
+            outcome = rules.beat_pattern(f"4 {chr(code)}", timeline_name="Beats")
+            assert outcome or outcome.reason.isprintable(), hex(code)
+
+    @pytest.mark.parametrize("text", ["0", "abc", "[]", "", "10["])
+    def test_one_that_doesnt_parse_has_the_code_of_a_bad_beat_pattern(self, text):
+        outcome = rules.beat_pattern(text, timeline_name="Beats")
+        assert not outcome
+        assert outcome.code == rules.bad_code("beat_pattern")
+        assert outcome.others == ()
+        assert outcome.about == ""
+
+    @pytest.mark.parametrize(
+        "text, name, reason",
+        [
+            (
+                "10[",
+                "Beats",
+                'the beat pattern "10[" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unclosed '['.",
+            ),
+            (
+                "",
+                "Beats",
+                'the beat pattern "" of the timeline "Beats" isn\'t a valid'
+                " pattern: It has no bar length.",
+            ),
+            (
+                '4 "3"',
+                'Bässe "2"',
+                'the beat pattern "4 \\"3\\"" of the timeline "Bässe \\"2\\""'
+                ' isn\'t a valid pattern: Unexpected "\\"".',
+            ),
+            (
+                "4\n²",
+                "Beats",
+                'the beat pattern "4\\n²" of the timeline "Beats" isn\'t a valid'
+                " pattern: Unexpected '²'.",
+            ),
+        ],
+        ids=["more typing could complete it", "empty", "quotes", "a line break"],
+    )
+    def test_the_pattern_and_the_name_are_shown_as_json_text(self, text, name, reason):
+        assert rules.beat_pattern(text, timeline_name=name) == (False, reason)
+
+    @pytest.mark.parametrize(
+        "value, shown",
+        [
+            ([4, 4, 3], "[4, 4, 3]"),
+            (4, "4"),
+            (4.0, "4.0"),
+            (True, "True"),
+            (b"4", "b'4'"),
+        ],
+    )
+    def test_a_value_that_isnt_text_raises(self, value, shown):
+        # The writer refuses one as a broken structure, before any rule, so there
+        # is no rule's reason to give. TiLiA's own pattern, a list, is one.
+        with pytest.raises(TypeError) as raised:
+            rules.beat_pattern(value, timeline_name="Beats")
+        assert str(raised.value) == f"a beat pattern is text or None, not {shown}"
 
 
 class TestCantCheck:

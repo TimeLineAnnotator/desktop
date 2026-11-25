@@ -3,8 +3,9 @@
 The reader keeps what breaks a rule, with a warning per broken rule, and the
 problems it found as they were read (FR-053). The writer refuses any other
 problem, and writes back those it finds there, on what hasn't changed since
-(FR-054). The rules are `tilia_core.rules`', and a beat pattern's is
-`tilia_core.timemap.pattern.parse` (FR-084): this module has none of its own.
+(FR-054). The rules are `tilia_core.rules`', a beat pattern's included
+(`rules.beat_pattern`, by `tilia_core.timemap.pattern.parse`, FR-084): this
+module has none of its own.
 
 A problem between two components is found on each, so it is reported once, on
 the first.
@@ -78,8 +79,6 @@ from tilia_core.tla.parse import lines_of, text_of
 # problem of its own, so this is for reading and takes nothing from what a write
 # compares.
 _NAMED_OTHERS = 10
-# A beat pattern's rule is `tilia_core.timemap.pattern.parse`'s, which has no code.
-_BAD_BEAT_PATTERN = rules.bad_code("beat_pattern")
 # The reason the rules give for a beat without a time.
 _NO_TIME = rules.not_valid("time", None)
 
@@ -775,16 +774,15 @@ def _between(problem: ReadProblem) -> tuple[tuple[str, str], ...]:
 
 
 def _beat_pattern_problems(timeline: Timeline, place: str) -> Iterator[ReadProblem]:
-    # Imported here: the time map's package reads `tla`.
-    from tilia_core.timemap.pattern import parse
-
     pattern = timeline.attrs.get("beat_pattern")
-    if isinstance(pattern, str) and not parse(pattern).is_complete:
-        name = f"the timeline {json.dumps(timeline.name, ensure_ascii=False)}"
-        shown = json.dumps(pattern, ensure_ascii=False)
+    # One that isn't text is refused as a broken structure.
+    if not isinstance(pattern, str):
+        return
+    outcome = rules.beat_pattern(pattern, timeline_name=timeline.name)
+    if not outcome:
         yield ReadProblem(
-            code=_BAD_BEAT_PATTERN,
-            reason=f"the beat pattern {shown} of {name} isn't a valid pattern",
+            code=outcome.code,
+            reason=outcome.reason,
             place=pointer_to(place, "beat_pattern"),
             state=_state(pattern),
         )
