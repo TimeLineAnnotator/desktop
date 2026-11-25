@@ -220,6 +220,7 @@ class TimelineFieldsWindow(QDialog):
         self._setup_widgets()
         self._setup_window_buttons()
         self._setup_fields()
+        self._give_the_keyboard()
         listen(self, Post.TIMELINE_DELETE_DONE, self.on_timeline_delete_done)
         # Like the Metadata window: while it is open, the main window takes no
         # input, so nothing else changes the fields, and undo can't run.
@@ -274,6 +275,18 @@ class TimelineFieldsWindow(QDialog):
         self.edit_names_button.clicked.connect(self.on_edit_names)
         self.form_layout.addRow(self.edit_names_button)
         self.adjustSize()
+
+    def _give_the_keyboard(self) -> None:
+        """The window opens with the keyboard on its first field, the text selected,
+        or on "Edit fields…" when it has none. From there, Tab goes down the fields,
+        then "Edit fields…", Cancel and Apply: Qt's own order
+        (TimeLineAnnotator/project-management#692, point 1, b)."""
+        first = next(iter(self.line_edits.values()), None)
+        if first is None:
+            self.edit_names_button.setFocus()
+        else:
+            first.setFocus()
+            first.selectAll()
 
     def refresh(self) -> None:
         while self.form_layout.rowCount():

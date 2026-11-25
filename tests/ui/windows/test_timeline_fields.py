@@ -390,6 +390,159 @@ class TestTheWindow:
         assert shown(window)["keys"] == "D minor, F major"
 
 
+def press(window, key, modifiers=Qt.KeyboardModifier.NoModifier) -> None:
+    """Presses a key in the window: whatever has its keyboard gets it."""
+    QTest.keyClick(window.windowHandle(), key, modifiers)
+
+
+def has_the_keyboard(window: TimelineFieldsWindow) -> str | None:
+    """The field, or the button, that a key pressed in the window goes to."""
+    standard = QDialogButtonBox.StandardButton
+    stops = {
+        **window.line_edits,
+        "Edit fields…": window.edit_names_button,
+        "Cancel": window.button_box.button(standard.Cancel),
+        "Apply": window.button_box.button(standard.Apply),
+    }
+    keyboard = window.focusWidget()
+    return next((name for name, widget in stops.items() if widget is keyboard), None)
+
+
+def stops_of(window: TimelineFieldsWindow, key, modifiers) -> list[str | None]:
+    """Where the keyboard goes, from where it is, until it is there again."""
+    found = [has_the_keyboard(window)]
+    while len(found) == 1 or found[-1] != found[0]:
+        press(window, key, modifiers)
+        found.append(has_the_keyboard(window))
+        assert len(found) < 20
+    return found
+
+
+def tab_stops(window: TimelineFieldsWindow) -> list[str | None]:
+    return stops_of(window, Qt.Key.Key_Tab, Qt.KeyboardModifier.NoModifier)
+
+
+def put_the_keyboard_on(window: TimelineFieldsWindow, name: str) -> None:
+    """Puts it on a field, as a click does. A row made after the window opened shows
+    from Qt's event queue, before anyone can click it."""
+    QCoreApplication.sendPostedEvents()
+    window.line_edits[name].setFocus()
+
+
+BUTTONS = ["Edit fields…", "Cancel", "Apply"]
+
+
+class TestTheKeyboard:
+    """The window opens on its first field, and Tab goes down the fields, then the
+    buttons (TimeLineAnnotator/project-management#692, point 1, b)."""
+
+    def test_the_first_field_has_it_with_its_text_selected(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+
+        assert has_the_keyboard(window) == "role"
+        assert window.line_edits["role"].selectedText() == "form"
+
+    def test_typing_at_once_types_over_the_first_field(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+
+        for character in "sections":
+            press(window, character)
+
+        assert shown(window) == {**FORM_FIELDS, "role": "sections"}
+        assert fields_of(FORM) == FORM_FIELDS
+
+    def test_the_space_bar_at_once_types_a_space(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+
+        press(window, Qt.Key.Key_Space)
+
+        assert TimelineFieldsWindow.of(FORM) is window
+        assert shown(window) == {**FORM_FIELDS, "role": " "}
+
+    def test_without_fields_edit_fields_has_it(self, every_kind, tluis):
+        window = open_fields(tluis, BARS)
+
+        assert has_the_keyboard(window) == "Edit fields…"
+        assert tab_stops(window) == [*BUTTONS, "Edit fields…"]
+
+    def test_tab_goes_down_the_fields_then_the_buttons(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+
+        assert tab_stops(window) == [*FORM_FIELDS, *BUTTONS, "role"]
+
+    def test_shift_tab_goes_back_up(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+
+        back = stops_of(window, Qt.Key.Key_Backtab, Qt.KeyboardModifier.ShiftModifier)
+
+        assert back == ["role", *reversed(BUTTONS), *reversed(FORM_FIELDS)]
+
+    @pytest.mark.parametrize(
+        "layout, first",
+        [(0, "Cancel"), (1, "Apply"), (2, "Apply"), (3, "Apply")],
+        ids=["Windows", "macOS", "KDE", "GNOME"],
+    )
+    def test_the_same_in_whichever_order_the_system_shows_the_buttons(
+        self, every_kind, tluis, layout, first
+    ):
+        made = TimelineFieldsWindow._setup_window_buttons
+
+        def laid_out_as_there(window):
+            made(window)
+            window.button_box.setStyleSheet(
+                f"QDialogButtonBox {{ button-layout: {layout} }}"
+            )
+
+        with patch.object(
+            TimelineFieldsWindow, "_setup_window_buttons", new=laid_out_as_there
+        ):
+            window = open_fields(tluis, FORM)
+
+        standard = QDialogButtonBox.StandardButton
+        left, _ = sorted(
+            ["Cancel", "Apply"],
+            key=lambda name: window.button_box.button(standard[name]).x(),
+        )
+        assert left == first
+        assert tab_stops(window) == [*FORM_FIELDS, *BUTTONS, "role"]
+        apply(window)
+        put_the_keyboard_on(window, "role")
+        assert tab_stops(window) == [*FORM_FIELDS, *BUTTONS, "role"]
+
+    def test_the_same_after_apply(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+        window.line_edits["author"].setText("Anne-Marie")
+        apply(window)
+        put_the_keyboard_on(window, "role")
+
+        assert tab_stops(window) == [*FORM_FIELDS, *BUTTONS, "role"]
+
+    def test_the_same_with_a_field_more(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+        edit_names(window, "role\nauthor\nsource\nvocabulary\nkey")
+        put_the_keyboard_on(window, "role")
+
+        assert tab_stops(window) == [*FORM_FIELDS, "key", *BUTTONS, "role"]
+
+    def test_enter_does_nothing_wherever_it_is(self, every_kind, tluis):
+        window = open_fields(tluis, FORM)
+        window.line_edits["author"].setText("Anne-Marie")
+
+        with (
+            patch_question(True) as question,
+            patch.object(FieldNamesDialog, "exec", return_value=False) as names,
+        ):
+            for _ in [*FORM_FIELDS, *BUTTONS]:
+                press(window, Qt.Key.Key_Return)
+                press(window, Qt.Key.Key_Tab)
+
+        assert has_the_keyboard(window) == "role"
+        assert question.asked == []
+        names.assert_not_called()
+        assert TimelineFieldsWindow.of(FORM) is window
+        assert fields_of(FORM) == FORM_FIELDS
+
+
 class TestEditing:
     """Adding, changing and removing a field changes those lines, as the same edit
     through the core's API does."""
