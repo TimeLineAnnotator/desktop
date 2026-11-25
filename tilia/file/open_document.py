@@ -120,6 +120,21 @@ class OpenDocument:
         for note in notes:
             logger.warning(note)
 
+    def keep_read_problems(self, component_ids: Iterable[str]) -> None:
+        """Has the core keep the problems each of these components still has, which
+        the document was read with, as ones it came with: TiLiA allowed an edit that
+        fixed one of its problems and added none, and a save mustn't refuse it
+        (FR-062). Under the lock, as the core asks of a write. Logs what the core
+        can't keep: the save then names it."""
+        with self._lock:
+            for component_id in component_ids:
+                try:
+                    tla.keep_read_problems(self.document, component_id)
+                except (KeyError, ValueError, tla.UnreadableFile):
+                    logger.exception(
+                        "Keeping the problems component %s came with.", component_id
+                    )
+
     def remember(self, state: dict[str, Any]) -> None:
         """Keeps, for `state`, which undo has just recorded and the document follows,
         what the document holds that the state can't tell, for an undo or a redo
