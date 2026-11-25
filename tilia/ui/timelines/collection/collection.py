@@ -497,7 +497,8 @@ class TimelineUIs:
             (Post.SELECTION_BOX_SELECT_ITEM, self.on_selection_box_select_item),
             (Post.SELECTION_BOX_DESELECT_ITEM, self.on_selection_box_deselect_item),
             (Post.TIMELINE_WIDTH_SET_DONE, self.on_timeline_width_set_done),
-            (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_done),
+            (Post.TIMELINES_CROP_DONE, self.on_timelines_crop_or_scale_done),
+            (Post.TIMELINES_SCALE_DONE, self.on_timelines_crop_or_scale_done),
             (
                 Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE,
                 self.on_beat_timeline_measure_number_change_done,
@@ -1585,7 +1586,7 @@ class TimelineUIs:
 
         timeline_ui.scene.set_playback_line_pos(time_x_converter.get_x_by_time(time))
 
-    def on_timelines_crop_done(self):
+    def on_timelines_crop_or_scale_done(self):
         for tlui in self:
             self.update_timeline_times(tlui)
 
