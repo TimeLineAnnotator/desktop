@@ -5,7 +5,7 @@ import tilia.errors
 from tilia.file.common import validate_save_path
 from tilia.requests import Post, post
 from tilia.ui.cli import io
-from tilia.ui.path import ensure_tla_extension
+from tilia.ui.path import as_given, ensure_tla_extension
 
 
 def setup_parser(subparsers):
@@ -49,4 +49,4 @@ def save(namespace):
         tilia.errors.display(tilia.errors.FILE_SAVE_FAILED, message)
         return
 
-    post(Post.REQUEST_SAVE_TO_PATH, str(path.resolve()))
+    post(Post.REQUEST_SAVE_TO_PATH, as_given(path))

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from tilia.ui import commands
-from tilia.ui.path import ensure_tla_extension
+from tilia.ui.path import as_given, ensure_tla_extension
 
 
 def setup_parser(subparsers):
@@ -18,4 +18,4 @@ def open(namespace):
     path = Path(namespace.path)
     path = ensure_tla_extension(path)
 
-    commands.execute("file.open", str(path.resolve()))
+    commands.execute("file.open", as_given(path))

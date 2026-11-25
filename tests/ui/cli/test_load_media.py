@@ -1,5 +1,9 @@
+import json
 import os
 import shutil
+import sys
+from io import BytesIO, TextIOWrapper
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
@@ -10,9 +14,12 @@ from tests.constants import (
     EXAMPLE_MEDIA_PATH,
     EXAMPLE_MEDIA_SCALE_FACTOR,
 )
+from tilia.errors import MEDIA_NOT_FOUND
+from tilia.media.player.qtplayer import QtPlayer
 from tilia.requests import Get, get
 from tilia.ui import commands
 from tilia.ui.cli.player import CLIYoutubePlayer
+from tilia_core import build, tla
 
 
 def test_load_media(cli, tilia_state):
@@ -104,6 +111,162 @@ def test_with_timelines_scale_not_provided_answer_crop(cli, tilia_state, marker_
     assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
     assert len(marker_tl) == 1
     assert marker_tl[0].get_data("time") == 5
+
+
+VIDEO = "watch?v=dQw4w9WgXcQ"
+
+
+def link_folder(link: Path, target: Path) -> None:
+    """A link to a folder: a symbolic link where the system lets us make one, else,
+    on Windows, a junction."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError:
+        if sys.platform != "win32":
+            raise
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+
+
+@pytest.fixture
+def working_folder(tmp_path, monkeypatch):
+    """The working folder, with media in it that is never played, only looked for;
+    and no YouTube to ask for a video's length."""
+    for folder in ("Audio", "elsewhere", "youtube.com"):
+        (tmp_path / folder).mkdir()
+        shutil.copy(EXAMPLE_MEDIA_PATH, tmp_path / folder / "Clip.mp3")
+    link_folder(tmp_path / "linked", tmp_path / "elsewhere")
+    monkeypatch.chdir(tmp_path)
+    with (
+        patch.object(QtPlayer, "_engine_load_media", return_value=True),
+        patch.object(
+            CLIYoutubePlayer, "get_youtube_duration", return_value=(True, 100.0)
+        ),
+    ):
+        yield tmp_path
+
+
+class TestStoresWhatAScriptStores:
+    """The core decides what is media, and the path to store for it, for a script's
+    `load-media` too (FR-033; US8)."""
+
+    @staticmethod
+    def stored(path: Path) -> str:
+        return json.loads(path.read_bytes())["media"]["path"]
+
+    def stored_by_a_script(self, text: str, folder: Path) -> str:
+        doc = build.new_script_document()
+        build.load_media(doc, text, duration_if_error=100.0)
+        tla.write(folder / "by a script.tla", doc)
+        return self.stored(folder / "by a script.tla")
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            pytest.param("Audio/Clip.mp3", "Audio/Clip.mp3", id="relative"),
+            pytest.param("Audio/../Audio/Clip.mp3", "Audio/Clip.mp3", id="parent"),
+            pytest.param(r"Audio\Clip.mp3", "Audio/Clip.mp3", id="backslash"),
+            pytest.param(
+                "AUDIO/CLIP.MP3",
+                "Audio/Clip.mp3",
+                id="letter-case",
+                marks=pytest.mark.skipif(
+                    sys.platform != "win32", reason="Windows only"
+                ),
+            ),
+            pytest.param("linked/Clip.mp3", "linked/Clip.mp3", id="linked-folder"),
+            pytest.param(
+                "youtube.com/Clip.mp3", "youtube.com/Clip.mp3", id="file-like-a-link"
+            ),
+            pytest.param(
+                r"youtube.com\Clip.mp3", "youtube.com/Clip.mp3", id="so-with-backslash"
+            ),
+            pytest.param(
+                f"youtube.com/{VIDEO}", f"https://youtube.com/{VIDEO}", id="no-scheme"
+            ),
+            pytest.param(
+                f"http://youtube.com/{VIDEO}",
+                f"http://youtube.com/{VIDEO}",
+                id="scheme",
+            ),
+        ],
+    )
+    def test_the_media_path(
+        self, cli, tilia_state, tilia_errors, working_folder, text, expected
+    ):
+        cli.parse_and_run(f'load-media "{text}"')
+        cli.parse_and_run(f'save "{working_folder / "by TiLiA.tla"}"')
+
+        tilia_errors.assert_no_error()
+        assert self.stored(working_folder / "by TiLiA.tla") == expected
+        assert self.stored_by_a_script(text, working_folder) == expected
+
+    def test_the_player_gets_a_link_with_its_scheme(
+        self, cli, tilia_state, working_folder
+    ):
+        cli.parse_and_run(f"load-media youtube.com/{VIDEO}")
+
+        assert tilia_state.media_path == f"https://youtube.com/{VIDEO}"
+
+    @pytest.mark.parametrize("folder", ["linked", "youtube.com"])
+    def test_the_player_gets_the_file_s_path_absolute(
+        self, cli, tilia_state, working_folder, folder
+    ):
+        cli.parse_and_run(f"load-media {folder}/Clip.mp3")
+
+        assert (
+            tilia_state.media_path == (working_folder / folder / "Clip.mp3").as_posix()
+        )
+
+
+class TestNotMedia:
+    """What the core refuses is refused with TiLiA's message, whose words are the
+    core's, and nothing is loaded."""
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            pytest.param("missing.mp3", id="missing"),
+            pytest.param(r"missing folder\missing.mp3", id="missing-with-backslash"),
+            pytest.param("Audio", id="folder"),
+            pytest.param("https://example.com/a.mp3", id="web-link"),
+            pytest.param(r"https://example.com/a\b.mp3", id="web-link-with-backslash"),
+            pytest.param(r"youtube.com/sub\clip.mp4", id="like-a-link-with-backslash"),
+            pytest.param("bad\udcff.mp3", id="not-utf-8"),
+        ],
+    )
+    def test_is_refused(self, cli, tilia_state, tilia_errors, working_folder, text):
+        with pytest.raises(ValueError) as by_the_core:
+            build.media_path(text)
+
+        cli.parse_and_run(f'load-media "{text}" --duration-if-error 9')
+
+        assert tilia_errors.errors == [
+            {"title": MEDIA_NOT_FOUND.title, "message": str(by_the_core.value)}
+        ]
+        assert tilia_state.media_path == ""
+        assert tilia_state.duration == 100
+
+    @pytest.mark.parametrize("name", ["missing.mp3", "né.mp3", "{0}.mp3"])
+    def test_the_words_are_media_not_found_s(
+        self, cli, tilia_errors, working_folder, name
+    ):
+        cli.parse_and_run(f"load-media {name}")
+
+        assert tilia_errors.errors[0]["message"] == MEDIA_NOT_FOUND.message.format(name)
+
+    def test_a_name_that_isnt_utf_8_is_printed(self, cli, working_folder, monkeypatch):
+        # As its escape: an output in UTF-8 refuses the name itself.
+        output = TextIOWrapper(BytesIO(), encoding="utf-8")
+        monkeypatch.setattr(sys, "stdout", output)
+
+        cli.parse_and_run("load-media bad\udcff.mp3")
+
+        output.flush()
+        printed = output.buffer.getvalue().decode()
+        assert MEDIA_NOT_FOUND.message.format("bad\\udcff.mp3") in printed
+        assert cli.exception is None
 
 
 @pytest.mark.skipif(

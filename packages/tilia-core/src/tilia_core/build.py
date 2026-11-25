@@ -115,41 +115,23 @@ def load_media(
     """Record the media, a local file or a YouTube link, and set its length
     (FR-052, FR-056). Returns the length set.
 
-    A local path must be a file, and is stored absolute, links not followed,
-    and on Windows in the letter case on disk: the writer stores it relative to
-    the saved file. The length is a WAV's, read from its header; else
-    `duration_if_error`; else, while no media is attached, the known length.
-    Without one, or for a change `set_media_length` refuses, raises ValueError,
-    and the document is left as it was. Where `set_media_length` keeps the
-    known length, so does this.
+    The media is what `media_path` gives for `path`, which refuses anything
+    else: the writer stores a local path relative to the saved file. The length
+    is a WAV's, read from its header; else `duration_if_error`; else, while no
+    media is attached, the known length. Without one, or for a change
+    `set_media_length` refuses, raises ValueError, and the document is left as
+    it was. Where `set_media_length` keeps the known length, so does this.
     """
-    text = os.fspath(path)
+    stored = name = media_path(path)
     length: float | None = None
-    # A text with no scheme that holds a backslash is a path, whatever it looks
-    # like (FR-052; a URL stays a URL, FR-033): it is looked for as a file, with
-    # "/" for each backslash, and refused when none is there. Otherwise the core
-    # decides what a path without a scheme that looks like a YouTube link is: a
-    # file when one is there, else a link. A path object is a path, never a
-    # link, and the core knows it. TiLiA quotes a refused path, a URL too, as a
-    # path: its slashes turn as the system's do.
-    local = Path(text.replace("\\", "/"))
-    is_path = "\\" in text and not is_url(text)
-    decided = "" if is_path else tla.as_media_path(path)
-    if is_url(decided) and YOUTUBE_URL.match(decided):
-        stored = name = decided
-    else:
-        # Not Path.exists: a folder isn't media, and os.path.isfile gives False,
-        # rather than raising, for a path the system can't look at.
-        # A URL is never looked up as a file, and only YouTube's is media.
-        if is_url(decided) or not os.path.isfile(local):
-            raise ValueError(_MEDIA_NOT_FOUND.format(printable(str(local))))
-        verbatim = os.name == "nt" and text.startswith(_VERBATIM)
-        stored = _absolute_media_path(local, verbatim=verbatim)
-        name = local.name
+    if not is_url(stored):
+        text = os.fspath(path)
+        name = _as_path(text).name
         # The file stored: Windows reads `REC.WAV.` and `REC.WAV ` as `REC.WAV`,
         # where `\\?\` reads such a name as it is, so the name is the file's and
         # keeps its dot or space (FR-052). As a Path, since Windows doesn't take
         # the `//?/` stored for `\\?\`.
+        verbatim = _is_verbatim(text)
         extension = Path(stored.rstrip(". ") if verbatim else stored).suffix
         if extension.lower() == ".wav":
             length = wav_length(Path(stored))
@@ -164,6 +146,50 @@ def load_media(
     document.media_path = stored
     document.media_length = length
     return length
+
+
+def media_path(path: str | os.PathLike[str]) -> str:
+    """The media path `load_media` stores for `path`, a text or a path object
+    (FR-052): a YouTube link, with its scheme, or a local file, absolute, links
+    not followed, and on Windows in the letter case on disk. TiLiA's own
+    `load-media` calls it too, so that the two store the same path
+    (TimeLineAnnotator/project-management#624 (the media path load-media
+    stores)).
+
+    Raises ValueError for anything else: a path with no file there, a folder,
+    or a web link that isn't YouTube's.
+    """
+    text = os.fspath(path)
+    # A text with no scheme that holds a backslash is a path, whatever it looks
+    # like (FR-052; a URL stays a URL, FR-033): it is looked for as a file, with
+    # "/" for each backslash, and refused when none is there. Otherwise the core
+    # decides what a path without a scheme that looks like a YouTube link is: a
+    # file when one is there, else a link. A path object is a path, never a
+    # link, and the core knows it. TiLiA quotes a refused path, a URL too, as a
+    # path: its slashes turn as the system's do.
+    local = _as_path(text)
+    is_path = "\\" in text and not is_url(text)
+    decided = "" if is_path else tla.as_media_path(path)
+    if is_url(decided) and YOUTUBE_URL.match(decided):
+        return decided
+    # Not Path.exists: a folder isn't media, and os.path.isfile gives False,
+    # rather than raising, for a path the system can't look at.
+    # A URL is never looked up as a file, and only YouTube's is media.
+    if is_url(decided) or not os.path.isfile(local):
+        raise ValueError(_MEDIA_NOT_FOUND.format(printable(str(local))))
+    return _absolute_media_path(local, verbatim=_is_verbatim(text))
+
+
+def _as_path(text: str) -> Path:
+    """`text` as a path, with "/" for each backslash, which separates folders on
+    every system, as in TiLiA's own `load-media` (FR-052)."""
+    return Path(text.replace("\\", "/"))
+
+
+def _is_verbatim(text: str) -> bool:
+    """Whether `text` is a path Windows takes as it is, a name's dot or space
+    included."""
+    return os.name == "nt" and text.startswith(_VERBATIM)
 
 
 def _absolute_media_path(local: Path, *, verbatim: bool = False) -> str:

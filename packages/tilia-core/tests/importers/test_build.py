@@ -1302,6 +1302,222 @@ def test_the_messages_that_name_a_timeline_can_be_printed():
     assert "bad\\udcff" in problems[0]
 
 
+# The media path `load_media` stores, as one function, which TiLiA's own
+# `load-media` calls too (TimeLineAnnotator/project-management#624). Each case
+# makes its files in the working folder, and gives what `load-media` is given
+# and what is stored, or what the refusal quotes.
+
+
+def a_youtube_link(folder):
+    return YOUTUBE, YOUTUBE
+
+
+def a_youtube_link_without_a_scheme(folder):
+    return "youtu.be/dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ"
+
+
+def a_youtube_look_alike_with_a_file_of_that_name(folder):
+    (folder / "youtube.com").mkdir()
+    path = pcm16_wav(
+        folder / "youtube.com" / "clip.wav", rate=8000, channels=1, frames=8000
+    )
+    return "youtube.com/clip.wav", stored(path)
+
+
+def a_youtube_look_alike_without_a_file(folder):
+    return "youtube.com/clip.mp4", "https://youtube.com/clip.mp4"
+
+
+def a_backslash_with_a_file_there(folder):
+    (folder / "youtube.com" / "sub").mkdir(parents=True)
+    path = folder / "youtube.com" / "sub" / "clip.mp4"
+    path.write_bytes(b"not read")
+    return "youtube.com/sub\\clip.mp4", stored(path)
+
+
+def a_url_with_a_backslash(folder):
+    return "https://youtu.be/abc\\def", "https://youtu.be/abc\\def"
+
+
+def a_relative_path(folder):
+    path = pcm16_wav(folder / "rec.wav", rate=8000, channels=1, frames=8000)
+    return "rec.wav", stored(path)
+
+
+def a_path_object(folder):
+    path = pcm16_wav(folder / "rec.wav", rate=8000, channels=1, frames=8000)
+    return path, stored(path)
+
+
+def a_link_in_the_path(folder):
+    (folder / "corpus").mkdir()
+    (folder / "ext" / "audio").mkdir(parents=True)
+    pcm16_wav(folder / "ext" / "audio" / "rec.wav", rate=8000, channels=1, frames=8000)
+    link_folder(folder / "corpus" / "audio", folder / "ext" / "audio")
+    path = folder / "corpus" / "audio" / "rec.wav"
+    return str(path), stored(path)
+
+
+def a_verbatim_path(folder):
+    verbatim = f"\\\\?\\{folder}\\rec.wav."
+    pcm16_wav(Path(verbatim), rate=8000, channels=1, frames=8000)
+    return verbatim, "//?/" + stored(folder) + "/rec.wav."
+
+
+def another_letter_case(folder):
+    (folder / "Audio").mkdir()
+    path = pcm16_wav(folder / "Audio" / "Rec.wav", rate=8000, channels=1, frames=8000)
+    return "AUDIO/REC.WAV", stored(path)
+
+
+STORED_CASES = [
+    a_youtube_link,
+    a_youtube_link_without_a_scheme,
+    a_youtube_look_alike_with_a_file_of_that_name,
+    a_youtube_look_alike_without_a_file,
+    a_backslash_with_a_file_there,
+    a_url_with_a_backslash,
+    a_relative_path,
+    a_path_object,
+    a_link_in_the_path,
+    pytest.param(a_verbatim_path, marks=windows_only),
+    pytest.param(another_letter_case, marks=windows_only),
+]
+
+
+def on_windows_else(windows, elsewhere):
+    return windows if sys.platform == "win32" else elsewhere
+
+
+def a_web_link_that_isnt_youtubes(folder):
+    # TiLiA builds the text from a Path, which turns the link's slashes.
+    return "https://example.com/a.mp3", on_windows_else(
+        "https:\\example.com\\a.mp3", "https:/example.com/a.mp3"
+    )
+
+
+def a_web_link_with_a_backslash(folder):
+    return "https://example.com/a\\b.mp3", on_windows_else(
+        "https:\\example.com\\a\\b.mp3", "https:/example.com/a/b.mp3"
+    )
+
+
+def a_backslash_with_no_file_there(folder):
+    return "youtube.com/sub\\clip.mp4", on_windows_else(
+        "youtube.com\\sub\\clip.mp4", "youtube.com/sub/clip.mp4"
+    )
+
+
+def a_path_object_that_looks_like_a_link(folder):
+    return PurePosixPath("youtu.be/abc"), on_windows_else(
+        "youtu.be\\abc", "youtu.be/abc"
+    )
+
+
+def a_missing_file(folder):
+    return "missing.wav", "missing.wav"
+
+
+def a_folder(folder):
+    (folder / "clip.wav").mkdir()
+    return folder / "clip.wav", str(folder / "clip.wav")
+
+
+def a_name_that_isnt_utf_8(folder):
+    return BAD_NAME, "bad\\udcff.mp3"
+
+
+REFUSED_CASES = [
+    a_web_link_that_isnt_youtubes,
+    a_web_link_with_a_backslash,
+    a_backslash_with_no_file_there,
+    a_path_object_that_looks_like_a_link,
+    a_missing_file,
+    a_folder,
+    a_name_that_isnt_utf_8,
+]
+
+
+def stored_by_load_media(given) -> str:
+    """What `load_media` stores for `given`, with a length given, so that only
+    the path can be refused."""
+    doc = build.new_script_document()
+    build.load_media(doc, given, duration_if_error=9.0)
+    return doc.media_path
+
+
+@pytest.mark.parametrize("case", STORED_CASES)
+def test_media_path_is_the_path_load_media_stores(case, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    given, expected = case(tmp_path)
+
+    assert build.media_path(given) == expected
+    assert stored_by_load_media(given) == expected
+
+
+def test_media_path_takes_two_slashes_before_a_youtube_link_for_https(monkeypatch):
+    # Never looked for on a server, which Windows would reach by the network: no
+    # lookup here leaves the test.
+    looked_up = []
+    monkeypatch.setattr(os.path, "isfile", looked_up.append)
+    given = "//www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+    assert build.media_path(given) == YOUTUBE
+    assert stored_by_load_media(given) == YOUTUBE
+    assert looked_up == []
+
+
+@pytest.mark.parametrize("case", REFUSED_CASES)
+def test_media_path_refuses_what_load_media_refuses_with_its_message(
+    case, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    given, shown = case(tmp_path)
+    doc = build.new_script_document()
+    before = copy.deepcopy(doc)
+
+    message = refused(build.media_path, given)
+
+    assert message == MEDIA_NOT_FOUND.format(shown)
+    assert refused(build.load_media, doc, given, duration_if_error=9.0) == message
+    assert doc == before
+
+
+def test_media_path_needs_no_length(tmp_path):
+    # TiLiA's player gives it.
+    path = tmp_path / "recording.mp3"
+    path.write_bytes(b"ID3")
+
+    assert build.media_path(path) == stored(path)
+
+
+def test_load_media_stores_the_path_media_path_gives(tmp_path, monkeypatch):
+    # One function decides, for a script and for TiLiA.
+    path = pcm16_wav(tmp_path / "rec.wav", rate=8000, channels=1, frames=8000)
+    given = []
+    monkeypatch.setattr(
+        build, "media_path", lambda media: given.append(media) or stored(path)
+    )
+    doc = build.new_script_document()
+
+    build.load_media(doc, "anything.wav")
+
+    assert given == ["anything.wav"]
+    assert doc.media_path == stored(path)
+    assert doc.media_length == 1.0
+
+
+@windows_only
+def test_media_with_no_length_is_named_as_given(tmp_path):
+    # Not as it is stored, in the letter case on disk.
+    (tmp_path / "recording.mp3").write_bytes(b"ID3")
+    doc = build.new_script_document()
+
+    message = refused(build.load_media, doc, tmp_path / "RECORDING.MP3")
+
+    assert message == NO_LENGTH.format("RECORDING.MP3")
+
+
 def test_media_of_another_length_is_refused_once_timelines_have_components(tmp_path):
     # FR-056.
     doc = with_a_marker(60.0)
