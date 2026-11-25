@@ -783,8 +783,8 @@ class TestAFileWithoutALength:
         take1.write_bytes(b"")
         times = marker_times(path)
         assert open_file(path)
-        post(Post.APP_MEDIA_LOAD, str(take1))
         with Serve(Get.FROM_USER_YES_OR_NO, True):
+            post(Post.APP_MEDIA_LOAD, str(take1))
             commands.execute("edit.undo")
 
         with Serve(Get.FROM_USER_YES_OR_NO, True) as question:
