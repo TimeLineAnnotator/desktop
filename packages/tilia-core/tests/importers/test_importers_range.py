@@ -219,7 +219,9 @@ class TestRows:
         result = do_import("start,end,row\n0,1,A\n5,1,B\n1,2,C")
 
         assert row_names(target) == ["A", "B", "C"]
-        assert messages(result) == ["Start time must be before end time."]
+        assert messages(result) == [
+            "Range end '00:01.0' should be bigger than start '00:05.0'"
+        ]
 
     def test_a_row_that_cant_be_read_makes_no_row(self, do_import, target):
         do_import("start,end,row\nabc,1,A\n0,1,B")
@@ -292,7 +294,9 @@ class TestJoinedWithNextByTime:
         # It wasn't imported, so nothing was read as false.
         result = do_import("start,end,row,joined_with_next\n2,1,A,maybe\n")
 
-        assert messages(result) == ["Start time must be before end time."]
+        assert messages(result) == [
+            "Range end '00:01.0' should be bigger than start '00:02.0'"
+        ]
         assert result.problems[0].column is None
         assert result.problems[0].skipped
         assert ranges_of(target) == []
@@ -399,7 +403,9 @@ class TestJoinsAmongTheRangesKept:
         assert first.attrs["joined_right"] == kept.id
         assert kept.attrs["start"] == 2
         assert kept.attrs["end"] == 3
-        assert messages(result) == ["Range is outside media bounds."]
+        assert messages(result) == [
+            "Range end '01:01.0' is bigger than media time '01:00.0'"
+        ]
 
     def test_the_next_range_kept_doesnt_start_where_it_ends(self, do_import, target):
         result = do_import(
@@ -409,7 +415,7 @@ class TestJoinsAmongTheRangesKept:
         assert messages(result) == [
             "joined_with_next=true but next range on row 'A' starts at 5.0"
             " (must equal 2.0 for ranges to join)",
-            "Range is outside media bounds.",
+            "Range end '01:01.0' is bigger than media time '01:00.0'",
         ]
         assert ranges_of(target)[0].attrs["joined_right"] is None
 
@@ -418,7 +424,7 @@ class TestJoinsAmongTheRangesKept:
 
         assert messages(result) == [
             "joined_with_next=true on last range of row 'A'; no next neighbor to join with",
-            "Range is outside media bounds.",
+            "Range end '01:01.0' is bigger than media time '01:00.0'",
         ]
         assert ranges_of(target)[0].attrs["joined_right"] is None
 
@@ -426,8 +432,8 @@ class TestJoinsAmongTheRangesKept:
         result = do_import("start,end,row,joined_with_next\n1,61,A,true\n61,62,A,false")
 
         assert messages(result) == [
-            "Range is outside media bounds.",
-            "Range is outside media bounds.",
+            "Range end '01:01.0' is bigger than media time '01:00.0'",
+            "Range end '01:02.0' is bigger than media time '01:00.0'",
         ]
         assert ranges_of(target) == []
 
@@ -474,10 +480,18 @@ class TestTheRules:
     @pytest.mark.parametrize(
         "row, message, column",
         [
-            ("1,1,A", "Start time must be before end time.", None),
-            ("2,1,A", "Start time must be before end time.", None),
-            ("-1,1,A", "Range is outside media bounds.", None),
-            ("0,61,A", "Range is outside media bounds.", None),
+            (
+                "1,1,A",
+                "Range end '00:01.0' should be bigger than start '00:01.0'",
+                None,
+            ),
+            (
+                "2,1,A",
+                "Range end '00:01.0' should be bigger than start '00:02.0'",
+                None,
+            ),
+            ("-1,1,A", "Range start can't be negative. Got '-00:01.0'", None),
+            ("0,61,A", "Range end '01:01.0' is bigger than media time '01:00.0'", None),
             ("nan,1,A", "nan is not a valid start.", "start"),
             ("0,nan,A", "nan is not a valid end.", "end"),
             ("inf,1,A", "inf is not a valid start.", "start"),
@@ -579,7 +593,9 @@ class TestColor:
     def test_a_bad_color_doesnt_hide_a_broken_rule(self, do_import, target):
         result = do_import("start,end,row,color\n5,1,A,notacolor")
 
-        assert messages(result) == ["Start time must be before end time."]
+        assert messages(result) == [
+            "Range end '00:01.0' should be bigger than start '00:05.0'"
+        ]
         assert result.problems[0].skipped
         assert ranges_of(target) == []
 

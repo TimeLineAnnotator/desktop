@@ -1,7 +1,10 @@
+import math
+
 import pytest
 
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
+from tilia_core import rules
 
 
 def test_create(score_tl):
@@ -138,3 +141,72 @@ def test_crop_staff(score_tl, tilia_state):
     score_tl.crop(50)
 
     assert s in score_tl
+
+
+# What each kind with a time is called in the texts for it
+# (TimeLineAnnotator/project-management#669).
+SCORE_POINTS = {
+    ComponentKind.CLEF: "Clef",
+    ComponentKind.BAR_LINE: "Bar line",
+    ComponentKind.TIME_SIGNATURE: "Time signature",
+    ComponentKind.KEY_SIGNATURE: "Key signature",
+}
+
+
+class TestTheTextsOfTheirTimes:
+    """A score's components have the texts of the other kinds for their times, each
+    naming its own kind (TimeLineAnnotator/project-management#669)."""
+
+    @pytest.mark.parametrize("kind", SCORE_POINTS)
+    def test_a_time_before_0(self, score_tl, tilia_state, kind):
+        assert tilia_state.duration == 100
+        assert score_tl.create_component(kind, time=-1.0) == (
+            None,
+            f"{SCORE_POINTS[kind]} time can't be negative. Got '-00:01.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SCORE_POINTS)
+    @pytest.mark.parametrize(
+        "time, shown",
+        [(150.0, "02:30.0"), (5000.0, "1:23:20.0"), (math.inf, "inf")],
+    )
+    def test_a_time_past_the_end(self, score_tl, tilia_state, kind, time, shown):
+        assert tilia_state.duration == 100
+        assert score_tl.create_component(kind, time=time) == (
+            None,
+            f"{SCORE_POINTS[kind]} time '{shown}' is bigger than media time '01:40.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SCORE_POINTS)
+    def test_minus_infinity(self, score_tl, tilia_state, kind):
+        assert score_tl.create_component(kind, time=-math.inf) == (
+            None,
+            f"{SCORE_POINTS[kind]} time can't be negative. Got '-inf'",
+        )
+
+    @pytest.mark.parametrize(
+        "start, end, reason",
+        [
+            (150.0, 160.0, "Note start '02:30.0' is bigger than media time '01:40.0'"),
+            (95.0, 150.0, "Note end '02:30.0' is bigger than media time '01:40.0'"),
+            (95.0, math.inf, "Note end 'inf' is bigger than media time '01:40.0'"),
+            (2.0, 1.0, "Note end '00:01.0' should be bigger than start '00:02.0'"),
+            (2.0, 2.0, "Note end '00:02.0' should be bigger than start '00:02.0'"),
+        ],
+    )
+    def test_a_note(self, score_tl, tilia_state, start, end, reason):
+        assert tilia_state.duration == 100
+        note = score_tl.create_component(ComponentKind.NOTE, start=start, end=end)
+        assert note == (None, reason)
+
+    def test_they_are_the_core_s_texts(self, score_tl, tilia_state):
+        # The core has no rules for these kinds: its texts for another, by name.
+        marker = rules.marker(100.0, [], {"time": 150.0}).reason
+        for kind, name in SCORE_POINTS.items():
+            _, reason = score_tl.create_component(kind, time=150.0)
+            assert reason == marker.replace("Marker", name)
+        for start, end in [(150.0, 160.0), (95.0, 150.0), (2.0, 1.0)]:
+            segment = {"start": start, "end": end}
+            hierarchy = rules.hierarchy(100.0, [], {"level": 1, **segment}).reason
+            _, reason = score_tl.create_component(ComponentKind.NOTE, **segment)
+            assert reason == hierarchy.replace("Hierarchy", "Note")

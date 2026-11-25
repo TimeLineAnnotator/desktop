@@ -9,6 +9,10 @@ class BarLine(PointLikeTimelineComponent):
 
     KIND = ComponentKind.BAR_LINE
 
+    @classmethod
+    def frontend_name(cls):
+        return "bar line"
+
     def __init__(self, timeline, id, time, **_):
         self.validators |= {"time": validate_time}
 

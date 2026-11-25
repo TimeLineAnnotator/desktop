@@ -140,12 +140,12 @@ Changes the migration makes:
   sqx_03 copy.tla         dropped 5 formal_type and formal_function values
   sqx_03.tla              dropped 5 formal_type and formal_function values
   sqx_08.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars; moved 3 marks to metadata
-                          line 39: Component would overlap with existing component. (other components: line 53, /timelines/1/components/3; line 67, /timelines/1/components/4; line 81, /timelines/1/components/5)
-                          line 53: Component would overlap with existing component. (other component: line 81, /timelines/1/components/5)
+                          line 39: Hierarchy would overlap with an existing hierarchy. (other components: line 53, /timelines/1/components/3; line 67, /timelines/1/components/4; line 81, /timelines/1/components/5)
+                          line 53: Hierarchy would overlap with an existing hierarchy. (other component: line 81, /timelines/1/components/5)
   sqx_21.tla              dropped 2 formal_type and formal_function values; dropped 3 amplitude bars; moved 3 marks to metadata
                           line 1: the timeline "Formal analysis" holds a component of kind "MARKER", which a timeline of kind "Hierarchy" doesn't have: it is kept as it is
-                          line 1: Component would overlap with existing component. (other components: line 1, /timelines/1/components/3; line 1, /timelines/1/components/4; line 1, /timelines/1/components/5)
-                          line 1: Component would overlap with existing component. (other component: line 1, /timelines/1/components/5)
+                          line 1: Hierarchy would overlap with an existing hierarchy. (other components: line 1, /timelines/1/components/3; line 1, /timelines/1/components/4; line 1, /timelines/1/components/5)
+                          line 1: Hierarchy would overlap with an existing hierarchy. (other component: line 1, /timelines/1/components/5)
   sqx_30.tla              dropped 2 formal_type and formal_function values; moved 2 marks to metadata
 """
 SQX_VERSIONS = """\
@@ -445,11 +445,11 @@ def test_apply_lists_files_changed_since_read_and_files_in_use(
         "Changes the migration makes:\n"
         "  sub/b.tla               dropped 2 formal_type and formal_function values;"
         " dropped 3 amplitude bars; moved 2 marks to metadata\n"
-        "                          line 53: Component would overlap with existing"
-        " component. (other components: line 39, /timelines/1/components/3;"
+        "                          line 53: Hierarchy would overlap with an existing"
+        " hierarchy. (other components: line 39, /timelines/1/components/3;"
         " line 67, /timelines/1/components/4; line 81, /timelines/1/components/5)\n"
-        "                          line 39: Component would overlap with existing"
-        " component. (other component: line 81, /timelines/1/components/5)\n"
+        "                          line 39: Hierarchy would overlap with an existing"
+        " hierarchy. (other component: line 81, /timelines/1/components/5)\n"
         "\n"
         "Wrote 1 file.\n"
     )

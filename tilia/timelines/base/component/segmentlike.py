@@ -8,6 +8,7 @@ from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_extended
 from tilia.timelines.base.metric_position import MetricInterval, MetricPosition
 from tilia.timelines.base.timeline import TimelineComponentManager
+from tilia_core import rules
 
 T = TypeVar("T")
 
@@ -89,21 +90,25 @@ class SegmentLikeTimelineComponent(TimelineComponent):
             ]
         )
 
-    @staticmethod
-    def validate_times(start: float, end: float) -> tuple[bool, str]:
+    @classmethod
+    def validate_times(cls, start: float, end: float) -> tuple[bool, str]:
+        """The start, then the end, is no later than the media's end, and the end
+        is after the start. The texts are the core's, naming the kind (WP16's
+        contracts/rules.md, "A component's times")."""
         media_duration = get(Get.MEDIA_DURATION)
+        kind = cls.kind_shown()
         if start > media_duration:
-            return (
-                False,
-                f"Start time '{start}' is bigger than media time '{media_duration}'",
-            )
+            shown, length = rules.shown_times(start, media_duration)
+            return False, f"{kind} start '{shown}' is bigger than media time '{length}'"
         elif end > media_duration:
+            shown, length = rules.shown_times(end, media_duration)
+            return False, f"{kind} end '{shown}' is bigger than media time '{length}'"
+        elif end <= start:
+            shown_end, shown_start = rules.shown_times(end, start)
             return (
                 False,
-                f"End time '{end}' is bigger than media time '{media_duration}'",
+                f"{kind} end '{shown_end}' should be bigger than start '{shown_start}'",
             )
-        elif end <= start:
-            return False, f"End time '{end}' should be bigger than start time '{start}'"
         else:
             return True, ""
 

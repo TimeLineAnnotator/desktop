@@ -591,8 +591,11 @@ class TestTheRules:
     @pytest.mark.parametrize(
         "time, message",
         [
-            (-1, "Time can't be negative. Got '-00:01.0'"),
-            (61, "Time '01:01.0' is bigger than media time '01:00.0'"),
+            (-1, "PDF page marker time can't be negative. Got '-00:01.0'"),
+            (
+                61,
+                "PDF page marker time '01:01.0' is bigger than media time '01:00.0'",
+            ),
             ("nan", "nan is not a valid time."),
             ("inf", "inf is not a valid time."),
         ],
@@ -669,8 +672,16 @@ class TestABadTimeAndABadPage:
         [
             (["abc", "xyz"], "abc is not a valid time.", "time"),
             (["abc", 9], "abc is not a valid time.", "time"),
-            ([61, 9], "Time '01:01.0' is bigger than media time '01:00.0'", "time"),
-            ([-1, 9], "Time can't be negative. Got '-00:01.0'", "time"),
+            (
+                [61, 9],
+                "PDF page marker time '01:01.0' is bigger than media time '01:00.0'",
+                "time",
+            ),
+            (
+                [-1, 9],
+                "PDF page marker time can't be negative. Got '-00:01.0'",
+                "time",
+            ),
             # A cell that can't be read comes before any rule.
             ([61, "xyz"], "xyz is not a valid page number.", "page_number"),
         ],

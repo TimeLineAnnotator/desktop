@@ -42,11 +42,11 @@ _FOLLOWS = {"pre_start": "start", "post_end": "end"}
 # Those about the place in the timeline (another at the same place, one it crosses)
 # aren't about one column.
 _REASON_STARTS = (
-    ("Start time", "start"),
-    ("End time", "end"),
+    ("Hierarchy start ", "start"),
+    ("Hierarchy end ", "end"),
     ("Level", "level"),
-    ("pre_start", "pre_start"),
-    ("post_end", "post_end"),
+    ("Hierarchy pre-start ", "pre_start"),
+    ("Hierarchy post-end ", "post_end"),
 )
 
 

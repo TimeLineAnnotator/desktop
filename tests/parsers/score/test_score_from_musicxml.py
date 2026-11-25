@@ -1,7 +1,8 @@
 import pytest
 
-from tests.mock import patch_yes_or_no_dialog
+from tests.mock import Serve, patch_yes_or_no_dialog
 from tilia.parsers.score.musicxml import notes_from_musicXML
+from tilia.requests import Get
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.timelines.score.components import Clef
 from tilia.timelines.score.timeline import ScoreTimeline
@@ -727,3 +728,45 @@ def test_time_signature_tilia_cannot_draw_is_reported(score_tl, beat_tl, tmp_pat
     assert success
     assert errors == ["<time> - 2.5/4 not implemented"]
     assert not _get_components_by_kind(score_tl, ComponentKind.TIME_SIGNATURE)
+
+
+ATTRIBUTES = """<attributes><divisions>1</divisions>
+    <key><fifths>{fifths}</fifths></key>
+    <time><beats>{beats}</beats><beat-type>4</beat-type></time>
+    <clef><sign>{sign}</sign><line>{line}</line></clef></attributes>"""
+NOTE = """<note><pitch><step>C</step><octave>4</octave></pitch>
+    <duration>{duration}</duration><voice>1</voice></note>"""
+
+
+def test_what_lies_past_the_media_s_end_is_reported_by_its_name(
+    score_tl, beat_tl, tmp_path
+):
+    # Each kind with a time, and both of a note's times
+    # (TimeLineAnnotator/project-management#669).
+    measure_1 = ATTRIBUTES.format(fifths=0, beats=1, sign="G", line=2)
+    measure_2 = ATTRIBUTES.format(fifths=2, beats=2, sign="F", line=4)
+    xml = f"""<score-partwise version="4.0">
+        <part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+        <part id="P1">
+        <measure number="1">{measure_1}{NOTE.format(duration=1)}</measure>
+        <measure number="2">{measure_2}{NOTE.format(duration=2)}</measure>
+        </part></score-partwise>"""
+    beat_tl.beat_pattern = [1, 2]
+    for time in range(5):
+        beat_tl.create_beat(time=time)
+    beat_tl.recalculate_measures()
+
+    with Serve(Get.MEDIA_DURATION, 0.5):
+        success, errors = _import_with_patch(score_tl, beat_tl, xml, tmp_path)
+
+    assert success
+    past = "is bigger than media time '00:00.5'"
+    assert set(errors) >= {
+        f"Clef time '00:01.0' {past}",
+        f"Key signature time '00:01.0' {past}",
+        f"Time signature time '00:01.0' {past}",
+        f"Bar line time '00:01.0' {past}",
+        f"Note end '00:01.0' {past}",
+        f"Note start '00:01.0' {past}",
+    }
+    assert all(error.endswith(past) for error in errors)

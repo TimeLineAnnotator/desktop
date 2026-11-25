@@ -19,6 +19,10 @@ class KeySignature(PointLikeTimelineComponent):
     KIND = ComponentKind.KEY_SIGNATURE
     SERIALIZABLE = ["staff_index", "time", "fifths"]
 
+    @classmethod
+    def frontend_name(cls):
+        return "key signature"
+
     def __init__(
         self,
         timeline: ScoreTimeline,

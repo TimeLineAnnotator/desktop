@@ -100,7 +100,7 @@ class TestRangeTimelineComponentManager:
             pre_start=-1,
         )
         assert c is None
-        assert "pre_start" in reason
+        assert reason == "Range pre-start can't be negative. Got '-00:01.0'"
 
     def test_post_end_past_duration_rejected(self, range_tl, tilia_state):
         row_id = range_tl.rows[0].id
@@ -113,7 +113,8 @@ class TestRangeTimelineComponentManager:
             post_end=tilia_state.duration + 1,
         )
         assert c is None
-        assert "post_end" in reason
+        assert tilia_state.duration == 100
+        assert reason == "Range post-end '01:41.0' is bigger than media time '01:40.0'"
 
     def test_join_ranges(self, range_tl):
         row_id = range_tl.rows[0].id

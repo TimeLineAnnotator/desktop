@@ -8,7 +8,7 @@ from tilia.timelines.base.component import TimelineComponent
 from tilia.timelines.base.export import get_export_attributes_point_like
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.timeline import TimelineComponentManager
-from tilia.ui.format import format_media_time
+from tilia_core import rules
 
 
 class PointLikeTimelineComponent(TimelineComponent):
@@ -52,16 +52,18 @@ class PointLikeTimelineComponent(TimelineComponent):
         else:
             return True, ""
 
-    @staticmethod
-    def validate_time_is_inbounds(time: float) -> tuple[bool, str]:
+    @classmethod
+    def validate_time_is_inbounds(cls, time: float) -> tuple[bool, str]:
+        """The time is from 0 to the media's end. The texts are the core's, naming
+        the kind (WP16's contracts/rules.md, "A component's times")."""
         media_duration = get(Get.MEDIA_DURATION)
+        kind = cls.kind_shown()
         if time > media_duration:
-            return (
-                False,
-                f"Time '{format_media_time(time)}' is bigger than media time '{format_media_time(media_duration)}'",
-            )
+            shown, length = rules.shown_times(time, media_duration)
+            return False, f"{kind} time '{shown}' is bigger than media time '{length}'"
         elif time < 0:
-            return False, f"Time can't be negative. Got '{format_media_time(time)}'"
+            shown = rules.shown_time(time)
+            return False, f"{kind} time can't be negative. Got '{shown}'"
         else:
             return True, ""
 

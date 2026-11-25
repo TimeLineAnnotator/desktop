@@ -28,6 +28,7 @@ from tilia.app import problem_line
 from tilia.requests import Get, serve, server, stop_serving
 from tilia.ui import commands
 from tilia.ui.dialogs.problems import ProblemsDialog
+from tilia.ui.format import format_media_time
 from tilia_core import tla
 
 FILES = Path(__file__).parents[3] / "packages" / "tilia-core" / "tests" / "tla"
@@ -84,6 +85,21 @@ def markers(*components):
         }
 
     return change
+
+
+def a_range_before_0_and_past_the_end(content):
+    """WP16's example: a range from -1 s to 150 s in 'Texture', with a media
+    length of 100 s."""
+    content["media"]["length"] = 100.0
+    texture = content["timelines"][IDS["texture"]]
+    texture["components"] = {
+        FIRST: {
+            "kind": "RANGE",
+            "start": -1.0,
+            "end": 150.0,
+            "row_id": texture["rows"][0]["id"],
+        }
+    }
 
 
 def an_old_file(tmp_path: Path, formal_type: str = "sonata") -> Path:
@@ -169,7 +185,32 @@ class TestTheLines:
             }
 
         assert lines_shown(a_file(tmp_path, past_the_end)) == [
-            "Cadences, 00:12.0: Time '00:12.0' is bigger than media time '00:10.0'"
+            "Cadences, 00:12.0: Marker time '00:12.0' is bigger than media time"
+            " '00:10.0'"
+        ]
+
+    def test_a_range_before_0_and_past_the_end_is_two_lines(self, opening, tmp_path):
+        # WP16's example (`contracts/rules.md`, *A component's times*;
+        # TimeLineAnnotator/project-management#610): two rules, two texts, each
+        # naming the kind and which of its times is wrong. The span is TiLiA's.
+        span = f"{format_media_time(-1.0)}–02:30.0"
+        assert lines_shown(a_file(tmp_path, a_range_before_0_and_past_the_end)) == [
+            f"Texture, {span}: Range start can't be negative. Got '-00:01.0'",
+            f"Texture, {span}: Range end '02:30.0' is bigger than media time '01:40.0'",
+        ]
+
+    @pytest.mark.xfail(
+        strict=True,
+        raises=AssertionError,
+        reason="TiLiA's format_media_time shows a time before 0 without its minus"
+        " sign until dev's fix for TimeLineAnnotator/project-management#289 is"
+        " merged",
+    )
+    def test_the_example_word_for_word(self, opening, tmp_path):
+        assert lines_shown(a_file(tmp_path, a_range_before_0_and_past_the_end)) == [
+            "Texture, -00:01.0–02:30.0: Range start can't be negative. Got '-00:01.0'",
+            "Texture, -00:01.0–02:30.0: Range end '02:30.0' is bigger than media time"
+            " '01:40.0'",
         ]
 
     def test_a_warning_without_ids_is_its_message_alone(self, opening, tmp_path):
@@ -312,7 +353,7 @@ class TestAnOldFile:
         assert '"kept"' in text
 
 
-OVERLAP = "Component would overlap with existing component."
+OVERLAP = "Hierarchy would overlap with an existing hierarchy."
 A_MARKER_THERE = "There is already a marker component at the selected position."
 A_BEAT_THERE = "There is already a beat component at the selected position."
 CROSSING = hierarchies(
@@ -339,7 +380,7 @@ class TestTheOtherComponents:
     def test_two_hierarchies_that_cross(self, opening, tmp_path):
         # The decision's example, word for word.
         assert lines_shown(a_file(tmp_path, CROSSING)) == [
-            "Form, 00:00.0–00:02.0: Component would overlap with existing component."
+            "Form, 00:00.0–00:02.0: Hierarchy would overlap with an existing hierarchy."
             " (other component: Form, 00:01.0–00:03.0)"
         ]
 

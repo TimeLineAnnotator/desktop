@@ -31,6 +31,10 @@ class TimeSignature(PointLikeTimelineComponent):
 
     KIND = ComponentKind.TIME_SIGNATURE
 
+    @classmethod
+    def frontend_name(cls):
+        return "time signature"
+
     def __init__(
         self,
         timeline,

@@ -65,7 +65,7 @@ def test_component_creation_fail_reason_gets_into_errors(imported):
             path=path,
             line=2,
             column="start",
-            message="Start time '101.0' is bigger than media time '100.0'",
+            message="Hierarchy start '01:41.0' is bigger than media time '01:40.0'",
             skipped=True,
         )
     ]
@@ -299,26 +299,50 @@ class TestTheRules:
             (
                 "61,62,1,,",
                 "start",
-                "Start time '61.0' is bigger than media time '60.0'",
+                "Hierarchy start '01:01.0' is bigger than media time '01:00.0'",
             ),
-            ("1,61,1,,", "end", "End time '61.0' is bigger than media time '60.0'"),
-            ("-1,2,1,,", "start", "Start time can't be negative. Got '-1.0'"),
+            (
+                "1,61,1,,",
+                "end",
+                "Hierarchy end '01:01.0' is bigger than media time '01:00.0'",
+            ),
+            (
+                "-1,2,1,,",
+                "start",
+                "Hierarchy start can't be negative. Got '-00:01.0'",
+            ),
             (
                 "2,1,1,,",
                 "end",
-                "End time '1.0' should be bigger than start time '2.0'",
+                "Hierarchy end '00:01.0' should be bigger than start '00:02.0'",
             ),
             (
                 "2,2,1,,",
                 "end",
-                "End time '2.0' should be bigger than start time '2.0'",
+                "Hierarchy end '00:02.0' should be bigger than start '00:02.0'",
             ),
             ("1,2,0,,", "level", "Level can't be below 1. Got '0'"),
             ("1,2,-1,,", "level", "Level can't be below 1. Got '-1'"),
-            ("1,2,1,-0.5,", "pre_start", "pre_start is outside media bounds."),
-            ("1,2,1,1.5,", "pre_start", "pre_start can't be after start time."),
-            ("1,2,1,,61", "post_end", "post_end is outside media bounds."),
-            ("1,2,1,,1.5", "post_end", "post_end can't be before end time."),
+            (
+                "1,2,1,-0.5,",
+                "pre_start",
+                "Hierarchy pre-start can't be negative. Got '-00:00.5'",
+            ),
+            (
+                "1,2,1,1.5,",
+                "pre_start",
+                "Hierarchy pre-start '00:01.5' can't be after start '00:01.0'",
+            ),
+            (
+                "1,2,1,,61",
+                "post_end",
+                "Hierarchy post-end '01:01.0' is bigger than media time '01:00.0'",
+            ),
+            (
+                "1,2,1,,1.5",
+                "post_end",
+                "Hierarchy post-end '00:01.5' can't be before end '00:02.0'",
+            ),
         ],
     )
     def test_a_row_the_rules_refuse_is_skipped(self, imported, row, column, message):
@@ -363,7 +387,7 @@ class TestTheRules:
                 path=path,
                 line=3,
                 column=None,
-                message="Component would overlap with existing component.",
+                message="Hierarchy would overlap with an existing hierarchy.",
                 skipped=True,
             )
         ]

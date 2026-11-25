@@ -142,7 +142,10 @@ class HierarchyTLComponentManager(TimelineComponentManager):
             if h.children:
                 for child in h.children:
                     if child.level == h.level - 1:
-                        return False, "Component would overlap with existing component."
+                        return (
+                            False,
+                            "Hierarchy would overlap with an existing hierarchy.",
+                        )
             return True, ""
 
         success, reason = _validate_create_unit_below(hierarchy)

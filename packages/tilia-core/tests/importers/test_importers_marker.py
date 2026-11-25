@@ -87,7 +87,7 @@ def test_markers_by_time_from_csv_outputs_error_if_time_out_of_bound(imported):
             path=path,
             line=2,
             column="time",
-            message="Time '16:39.0' is bigger than media time '01:40.0'",
+            message="Marker time '16:39.0' is bigger than media time '01:40.0'",
             skipped=True,
         )
     ]
@@ -100,7 +100,7 @@ def test_component_creation_fail_reason_gets_into_errors(imported):
     result, _, _ = imported(data, media_length=100)
 
     assert [problem.message for problem in result.problems] == [
-        "Time '01:41.0' is bigger than media time '01:40.0'"
+        "Marker time '01:41.0' is bigger than media time '01:40.0'"
     ]
 
 
@@ -178,8 +178,8 @@ class TestTheRules:
         [
             ("nan", "nan is not a valid time."),
             ("inf", "inf is not a valid time."),
-            ("-1", "Time can't be negative. Got '-00:01.0'"),
-            ("60.5", "Time '01:00.5' is bigger than media time '01:00.0'"),
+            ("-1", "Marker time can't be negative. Got '-00:01.0'"),
+            ("60.5", "Marker time '01:00.5' is bigger than media time '01:00.0'"),
         ],
     )
     def test_a_time_the_rules_refuse_is_skipped(self, imported, value, message):

@@ -4,10 +4,6 @@ import functools
 from typing import Any
 
 from tilia.requests import Post, post
-from tilia.timelines.base.component import (
-    PointLikeTimelineComponent,
-    SegmentLikeTimelineComponent,
-)
 from tilia.timelines.base.component.mixed import crop_mixed, scale_mixed
 from tilia.timelines.base.timeline import (
     Timeline,
@@ -43,10 +39,12 @@ class ScoreTLComponentManager(TimelineComponentManager):
             case ComponentKind.NOTE:
                 start = kwargs["start"] if "start" in kwargs else args[0]
                 end = kwargs["end"] if "end" in kwargs else args[1]
-                return SegmentLikeTimelineComponent.validate_times(start, end)
+                component_class = self._get_component_class_by_kind(kind)
+                return component_class.validate_times(start, end)
             case ComponentKind.CLEF | ComponentKind.BAR_LINE | ComponentKind.TIME_SIGNATURE | ComponentKind.KEY_SIGNATURE:
                 time = kwargs["time"] if "time" in kwargs else args[0]
-                return PointLikeTimelineComponent.validate_time_is_inbounds(time)
+                component_class = self._get_component_class_by_kind(kind)
+                return component_class.validate_time_is_inbounds(time)
             case ComponentKind.SCORE_ANNOTATION | ComponentKind.STAFF:
                 # Score annotations do not have a time property.
                 return True, ""

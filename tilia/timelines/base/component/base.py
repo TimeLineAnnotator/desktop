@@ -33,6 +33,13 @@ class TimelineComponent:
     def frontend_name(cls):
         return cls.__name__.lower()
 
+    @classmethod
+    def kind_shown(cls) -> str:
+        """The kind's name at the start of a text, as in "Marker time can't be
+        negative.": its `frontend_name`, with a capital."""
+        name = cls.frontend_name()
+        return name[:1].upper() + name[1:]
+
     @property
     def ordinal(self):
         return tuple(getattr(self, attr) for attr in self.ORDERING_ATTRS)

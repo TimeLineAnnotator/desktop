@@ -7,6 +7,7 @@ from tilia.timelines.hierarchy.components import Hierarchy
 from tilia.timelines.hierarchy.timeline import (
     HierarchyTLComponentManager,
 )
+from tilia_core import rules, tla
 
 # Gaps between boundaries that are real rather than float drift. The smallest
 # is far above the few ulps the boundary tolerance absorbs, so a tolerance
@@ -59,6 +60,25 @@ class TestHierarchyTimelineComponentManager:
         hierarchy_tl.component_manager.create_child(parent)
 
         assert child.parent in parent.children
+
+    def test_a_unit_below_where_one_is_gives_the_core_s_text(self, hierarchy_tl):
+        # The unit below would cross the one there: the core's text for two
+        # hierarchies that cross (TimeLineAnnotator/project-management#671).
+        parent, _ = hierarchy_tl.create_hierarchy(start=0, end=1, level=2)
+        child, _ = hierarchy_tl.create_hierarchy(start=0, end=0.5, level=1)
+        assert child in parent.children
+
+        refused = hierarchy_tl.component_manager.create_child(parent)
+
+        there = {"start": child.start, "end": child.end, "level": child.level}
+        crossing = rules.hierarchy(
+            100.0,
+            [tla.Component(id="child", kind="hierarchy", attrs=there)],
+            {"start": 0.0, "end": 1.0, "level": 1},
+        )
+        assert crossing.code == rules.CROSSING
+        assert refused == (False, crossing.reason)
+        assert refused == (False, "Hierarchy would overlap with an existing hierarchy.")
 
     # TEST CLEAR
     def test_clear(self, hierarchy_tl):

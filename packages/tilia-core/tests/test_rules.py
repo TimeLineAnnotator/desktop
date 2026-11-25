@@ -5,6 +5,7 @@ import itertools
 import math
 import pickle
 import random
+import subprocess
 import sys
 import time
 from decimal import Decimal
@@ -31,6 +32,19 @@ POINT_NAMES = {
     "pdf_marker": "PDF page marker",
     "beat": "beat",
 }
+# Each kind as TiLiA names it to the user (its `frontend_name`), at the start of
+# a text.
+KIND_SHOWN = {
+    "marker": "Marker",
+    "harmony": "Harmony",
+    "mode": "Mode",
+    "pdf_marker": "PDF page marker",
+    "beat": "Beat",
+    "hierarchy": "Hierarchy",
+    "range": "Range",
+}
+SEGMENT_KINDS = ["hierarchy", "range"]
+LENGTH = 100.0  # 01:40.0, as in WP16's example
 # Valid attributes for each kind, which a test changes one at a time.
 VALID = {
     "marker": {"time": 1.0},
@@ -292,7 +306,10 @@ class TestOutcome:
     )
     def test_what_it_is_about_copies_and_pickles(self, duplicate):
         outcome = rules.Outcome(
-            False, "pre_start is outside media bounds.", code="x", about="pre_start"
+            False,
+            "Range pre-start can't be negative. Got '-00:01.0'",
+            code="x",
+            about="pre_start",
         )
 
         assert duplicate(outcome).about == "pre_start"
@@ -467,7 +484,7 @@ class TestCodes:
     def test_past_the_media_end_is_one_code_with_any_length(self):
         attrs = {"start": 90.0, "end": 110.0, "level": 1}
         outcomes = [
-            rules.hierarchy(length, [], attrs) for length in (100.0, 100.01, 85.0)
+            rules.hierarchy(length, [], attrs) for length in (100.0, 100.5, 85.0)
         ]
         assert {outcome.code for outcome in outcomes} == {rules.PAST_MEDIA_END}
         assert len({outcome.reason for outcome in outcomes}) == 3
@@ -684,7 +701,7 @@ class TestColor:
             (
                 "marker",
                 {"time": 61.0},
-                "Time '01:01.0' is bigger than media time '01:00.0'",
+                "Marker time '01:01.0' is bigger than media time '01:00.0'",
             ),
             ("hierarchy", {"level": 0}, "Level can't be below 1. Got '0'"),
             ("range", {"row_id": "Zz99Zz"}, "Invalid row ID."),
@@ -717,7 +734,7 @@ class TestPointKinds:
     def test_a_negative_time(self, kind):
         assert check(kind, time=-1.0) == (
             False,
-            "Time can't be negative. Got '-00:01.0'",
+            f"{KIND_SHOWN[kind]} time can't be negative. Got '-00:01.0'",
         )
 
     @pytest.mark.parametrize(
@@ -727,26 +744,26 @@ class TestPointKinds:
     def test_a_negative_time_is_shown_with_a_minus_sign(self, time, shown):
         assert check("marker", time=time, media_length=7200.0) == (
             False,
-            f"Time can't be negative. Got '{shown}'",
+            f"Marker time can't be negative. Got '{shown}'",
         )
 
     @pytest.mark.parametrize("kind", POINT_KINDS)
     def test_a_time_beyond_the_media_length(self, kind):
         assert check(kind, time=60.5) == (
             False,
-            "Time '01:00.5' is bigger than media time '01:00.0'",
+            f"{KIND_SHOWN[kind]} time '01:00.5' is bigger than media time '01:00.0'",
         )
 
     def test_times_of_an_hour_or_more_show_hours(self):
         assert check("marker", time=3725.0, media_length=3600.0) == (
             False,
-            "Time '1:02:05.0' is bigger than media time '1:00:00.0'",
+            "Marker time '1:02:05.0' is bigger than media time '1:00:00.0'",
         )
 
     def test_media_length_given_as_an_integer(self):
         assert check("marker", time=61.0, media_length=60) == (
             False,
-            "Time '01:01.0' is bigger than media time '01:00.0'",
+            "Marker time '01:01.0' is bigger than media time '01:00.0'",
         )
 
     @pytest.mark.parametrize(
@@ -758,7 +775,7 @@ class TestPointKinds:
     ):
         assert check("marker", time=7200.0, media_length=media_length) == (
             False,
-            f"Time '2:00:00.0' is bigger than media time '{shown}'",
+            f"Marker time '2:00:00.0' is bigger than media time '{shown}'",
         )
 
     @pytest.mark.parametrize("kind", POINT_KINDS)
@@ -787,7 +804,7 @@ class TestPointKinds:
 
         assert check("marker", others, time=61.0) == (
             False,
-            "Time '01:01.0' is bigger than media time '01:00.0'",
+            "Marker time '01:01.0' is bigger than media time '01:00.0'",
         )
 
 
@@ -840,7 +857,7 @@ class TestMeasureNumber:
     def test_other_rules_of_the_beat_come_first(self):
         assert check("beat", time=-1.0, measure={"number": -1}) == (
             False,
-            "Time can't be negative. Got '-00:01.0'",
+            "Beat time can't be negative. Got '-00:01.0'",
         )
 
     @pytest.mark.parametrize("skip_broken", [True, False])
@@ -1311,40 +1328,42 @@ class TestHierarchy:
     def test_a_start_beyond_the_media_length(self):
         assert check("hierarchy", start=61.0, end=62.0) == (
             False,
-            "Start time '61.0' is bigger than media time '60.0'",
+            "Hierarchy start '01:01.0' is bigger than media time '01:00.0'",
         )
 
     def test_an_end_beyond_the_media_length(self):
         assert check("hierarchy", start=1.0, end=61.0) == (
             False,
-            "End time '61.0' is bigger than media time '60.0'",
+            "Hierarchy end '01:01.0' is bigger than media time '01:00.0'",
         )
 
-    @pytest.mark.parametrize("start", [-1.0, -0.5])
-    def test_a_negative_start(self, start):
+    @pytest.mark.parametrize("start, shown", [(-1.0, "-00:01.0"), (-0.5, "-00:00.5")])
+    def test_a_negative_start(self, start, shown):
         assert check("hierarchy", start=start) == (
             False,
-            f"Start time can't be negative. Got '{start}'",
+            f"Hierarchy start can't be negative. Got '{shown}'",
         )
         assert tilia_creates_hierarchy(start, 2.0, 1)
 
-    @pytest.mark.parametrize("end", [2.0, 1.0])
-    def test_an_end_not_after_its_start(self, end):
+    @pytest.mark.parametrize("end, shown", [(2.0, "00:02.0"), (1.0, "00:01.0")])
+    def test_an_end_not_after_its_start(self, end, shown):
         assert check("hierarchy", start=2.0, end=end) == (
             False,
-            f"End time '{end}' should be bigger than start time '2.0'",
+            f"Hierarchy end '{shown}' should be bigger than start '00:02.0'",
         )
 
     @pytest.mark.parametrize(
         "start, end, reason",
         [
-            (61, 62, "Start time '61.0' is bigger than media time '60.0'"),
-            (1, 61, "End time '61.0' is bigger than media time '60.0'"),
-            (-1, 2, "Start time can't be negative. Got '-1.0'"),
-            (2, 1, "End time '1.0' should be bigger than start time '2.0'"),
+            (61, 62, "Hierarchy start '01:01.0' is bigger than media time '01:00.0'"),
+            (1, 61, "Hierarchy end '01:01.0' is bigger than media time '01:00.0'"),
+            (-1, 2, "Hierarchy start can't be negative. Got '-00:01.0'"),
+            (2, 1, "Hierarchy end '00:01.0' should be bigger than start '00:02.0'"),
         ],
     )
-    def test_numbers_given_as_integers_read_as_tilias_floats(self, start, end, reason):
+    def test_numbers_given_as_integers_are_shown_as_media_times(
+        self, start, end, reason
+    ):
         assert check("hierarchy", start=start, end=end, media_length=60) == (
             False,
             reason,
@@ -1372,14 +1391,14 @@ class TestHierarchy:
     def test_a_pre_start_below_0(self):
         assert check("hierarchy", pre_start=-0.5) == (
             False,
-            "pre_start is outside media bounds.",
+            "Hierarchy pre-start can't be negative. Got '-00:00.5'",
         )
         assert tilia_creates_hierarchy(1.0, 2.0, 1, pre_start=-0.5)
 
     def test_a_pre_start_after_the_start(self):
         assert check("hierarchy", pre_start=1.5) == (
             False,
-            "pre_start can't be after start time.",
+            "Hierarchy pre-start '00:01.5' can't be after start '00:01.0'",
         )
         assert tilia_creates_hierarchy(1.0, 2.0, 1, pre_start=1.5)
 
@@ -1390,14 +1409,14 @@ class TestHierarchy:
     def test_a_post_end_before_the_end(self):
         assert check("hierarchy", post_end=1.5) == (
             False,
-            "post_end can't be before end time.",
+            "Hierarchy post-end '00:01.5' can't be before end '00:02.0'",
         )
         assert tilia_creates_hierarchy(1.0, 2.0, 1, post_end=1.5)
 
     def test_a_post_end_beyond_the_media_length(self):
         assert check("hierarchy", post_end=60.5) == (
             False,
-            "post_end is outside media bounds.",
+            "Hierarchy post-end '01:00.5' is bigger than media time '01:00.0'",
         )
         assert tilia_creates_hierarchy(1.0, 2.0, 1, post_end=60.5)
 
@@ -1423,7 +1442,7 @@ class TestHierarchy:
 
         assert check("hierarchy", others, start=2.0, end=1.0) == (
             False,
-            "End time '1.0' should be bigger than start time '2.0'",
+            "Hierarchy end '00:01.0' should be bigger than start '00:02.0'",
         )
 
     @pytest.mark.parametrize(
@@ -1446,7 +1465,7 @@ class TestHierarchy:
 
         outcome = check("hierarchy", [other], start=start, end=end, level=level)
 
-        assert outcome == (False, "Component would overlap with existing component.")
+        assert outcome == (False, "Hierarchy would overlap with an existing hierarchy.")
         assert outcome.others == (other.id,)
         assert tilia_creates_hierarchy(*candidate, existing=[existing])
 
@@ -1479,21 +1498,21 @@ class TestHierarchy:
 
         outcome = check("hierarchy", [other], start=5, end=15, level=1)
 
-        assert outcome == (False, "Component would overlap with existing component.")
+        assert outcome == (False, "Hierarchy would overlap with an existing hierarchy.")
 
     def test_crossing_one_whose_level_is_a_huge_integer(self):
         other = hierarchy(0, 10, 10**400)
 
         outcome = check("hierarchy", [other], start=5, end=15, level=1)
 
-        assert outcome == (False, "Component would overlap with existing component.")
+        assert outcome == (False, "Hierarchy would overlap with an existing hierarchy.")
 
     def test_crossing_one_whose_level_is_written_as_a_float(self):
         other = hierarchy(0, 10, 1.0)
 
         outcome = check("hierarchy", [other], start=5, end=15, level=1)
 
-        assert outcome == (False, "Component would overlap with existing component.")
+        assert outcome == (False, "Hierarchy would overlap with an existing hierarchy.")
 
     def test_nesting_is_tilias_boundary_conflicts(self):
         # Every pair of hierarchies with times from 0 to 4 and levels from 1 to 8.
@@ -1548,7 +1567,7 @@ class TestHierarchy:
             "hierarchy", others, media_length=7200.0, start=start, end=end, level=level
         )
 
-        assert outcome == (False, "Component would overlap with existing component.")
+        assert outcome == (False, "Hierarchy would overlap with an existing hierarchy.")
 
     def test_nesting_with_float_noise_is_tilias_boundary_conflicts(self):
         # Every pair of spans with boundaries from 0 to 4 s at levels 1 to 3, with
@@ -1613,43 +1632,46 @@ class TestRange:
     def test_a_row_the_timeline_doesnt_have(self, row_id):
         assert check("range", row_id=row_id) == (False, "Invalid row ID.")
 
-    @pytest.mark.parametrize("end", [1.0, 0.5])
-    def test_an_end_not_after_its_start(self, end):
+    @pytest.mark.parametrize("end, shown", [(1.0, "00:01.0"), (0.5, "00:00.5")])
+    def test_an_end_not_after_its_start(self, end, shown):
         assert check("range", start=1.0, end=end) == (
             False,
-            "Start time must be before end time.",
+            f"Range end '{shown}' should be bigger than start '00:01.0'",
         )
 
-    @pytest.mark.parametrize("start, end", [(-0.5, 2.0), (1.0, 60.5)])
-    def test_outside_the_media(self, start, end):
-        assert check("range", start=start, end=end) == (
-            False,
-            "Range is outside media bounds.",
-        )
+    @pytest.mark.parametrize(
+        "start, end, reason",
+        [
+            (-0.5, 2.0, "Range start can't be negative. Got '-00:00.5'"),
+            (1.0, 60.5, "Range end '01:00.5' is bigger than media time '01:00.0'"),
+        ],
+    )
+    def test_outside_the_media(self, start, end, reason):
+        assert check("range", start=start, end=end) == (False, reason)
 
     def test_a_pre_start_below_0(self):
         assert check("range", pre_start=-0.5) == (
             False,
-            "pre_start is outside media bounds.",
+            "Range pre-start can't be negative. Got '-00:00.5'",
         )
 
     def test_a_pre_start_after_the_start(self):
         assert check("range", pre_start=1.5) == (
             False,
-            "pre_start can't be after start time.",
+            "Range pre-start '00:01.5' can't be after start '00:01.0'",
         )
         assert tilia_creates_range(1.0, 2.0, ROW, pre_start=1.5)
 
     def test_a_post_end_beyond_the_media_length(self):
         assert check("range", post_end=60.5) == (
             False,
-            "post_end is outside media bounds.",
+            "Range post-end '01:00.5' is bigger than media time '01:00.0'",
         )
 
     def test_a_post_end_before_the_end(self):
         assert check("range", post_end=1.5) == (
             False,
-            "post_end can't be before end time.",
+            "Range post-end '00:01.5' can't be before end '00:02.0'",
         )
         assert tilia_creates_range(1.0, 2.0, ROW, post_end=1.5)
 
@@ -1663,6 +1685,392 @@ class TestRange:
         others = [range_in(ROW, 0.0, 5.0), range_in(ROW, 1.0, 2.0)]
 
         assert check("range", others, start=1.0, end=2.0) == OK
+
+
+class TestTheTimesTexts:
+    """One set of texts for a component's times, the same for every kind: each
+    names the kind, as TiLiA names it, and which of its times is wrong, and gives
+    the times as media times (WP16's `contracts/rules.md`, *A component's times*;
+    TimeLineAnnotator/project-management#610). One row of its table per test, for
+    each kind that has the rule."""
+
+    @pytest.mark.parametrize("kind", POINT_KINDS)
+    def test_a_point_s_time_before_0(self, kind):
+        assert check(kind, media_length=LENGTH, time=-1.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} time can't be negative. Got '-00:01.0'",
+        )
+
+    @pytest.mark.parametrize("kind", POINT_KINDS)
+    def test_a_point_s_time_past_the_end(self, kind):
+        assert check(kind, media_length=LENGTH, time=150.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} time '02:30.0' is bigger than media time '01:40.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_start_before_0(self, kind):
+        assert check(kind, media_length=LENGTH, start=-1.0, end=2.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} start can't be negative. Got '-00:01.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_pre_start_before_0(self, kind):
+        assert check(kind, media_length=LENGTH, pre_start=-1.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} pre-start can't be negative. Got '-00:01.0'",
+        )
+
+    def test_a_start_past_the_end(self):
+        # A range's end is after its start, so only a hierarchy's start is past
+        # the end on its own; a range's is with its end.
+        assert check("hierarchy", media_length=LENGTH, start=150.0, end=160.0) == (
+            False,
+            "Hierarchy start '02:30.0' is bigger than media time '01:40.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_an_end_past_the_end(self, kind):
+        assert check(kind, media_length=LENGTH, end=150.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} end '02:30.0' is bigger than media time '01:40.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_post_end_past_the_end(self, kind):
+        assert check(kind, media_length=LENGTH, post_end=150.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} post-end '02:30.0' is bigger than media time"
+            " '01:40.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    @pytest.mark.parametrize("end, shown", [(1.0, "00:01.0"), (2.0, "00:02.0")])
+    def test_an_end_not_after_the_start(self, kind, end, shown):
+        assert check(kind, media_length=LENGTH, start=2.0, end=end) == (
+            False,
+            f"{KIND_SHOWN[kind]} end '{shown}' should be bigger than start '00:02.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_pre_start_after_the_start(self, kind):
+        attrs = {"start": 2.0, "end": 4.0, "pre_start": 3.0}
+        assert check(kind, media_length=LENGTH, **attrs) == (
+            False,
+            f"{KIND_SHOWN[kind]} pre-start '00:03.0' can't be after start '00:02.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_post_end_before_the_end(self, kind):
+        attrs = {"start": 0.0, "end": 2.0, "post_end": 1.0}
+        assert check(kind, media_length=LENGTH, **attrs) == (
+            False,
+            f"{KIND_SHOWN[kind]} post-end '00:01.0' can't be before end '00:02.0'",
+        )
+
+    def test_the_example(self):
+        # A range from -1 to 150, with a media length of 100: two rules, each
+        # with its own text.
+        first = range_in(ROW, -1.0, 150.0)
+        assert reasons(every_rule([first], media_length=LENGTH)[first.id]) == [
+            "Range start can't be negative. Got '-00:01.0'",
+            "Range end '02:30.0' is bigger than media time '01:40.0'",
+        ]
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_segment_s_times_are_media_times(self, kind):
+        # Given as integers, and an hour or more, as a point's are shown.
+        assert check(kind, media_length=3600, start=60, end=3725) == (
+            False,
+            f"{KIND_SHOWN[kind]} end '1:02:05.0' is bigger than media time"
+            " '1:00:00.0'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    def test_a_segment_s_time_is_rounded_before_its_minutes_are_counted(self, kind):
+        assert check(kind, media_length=LENGTH, start=59.96, end=1.0) == (
+            False,
+            f"{KIND_SHOWN[kind]} end '00:01.0' should be bigger than start '01:00.0'",
+        )
+
+
+def tenths(time):
+    """How a media time was shown before the texts could show more digits."""
+    if time < 0:
+        return "-" + tenths(-time)
+    time = float(f"{time:.1f}")
+    seconds = f"{time % 60:.1f}".zfill(4)
+    minutes = int(time // 60)
+    hours = f"{minutes // 60}:" if minutes >= 60 else ""
+    return f"{hours}{str(minutes % 60).zfill(2)}:{seconds}"
+
+
+def short_attrs(value):
+    if isinstance(value, dict):
+        return "-".join(f"{k}={v}" for k, v in value.items())
+    return ""
+
+
+TINY = 5e-324  # the smallest float above 0
+
+
+# Run in a process of its own, which can be stopped: without an end to the search
+# for digits, it would run for ever.
+EQUAL_TIMES = """
+from tilia_core import rules
+
+for time in (0.0, 5e-324, -5e-324, 1e-300, -0.04, 0.1, 2.0, 100.04, 10**20 + 1, 1e300):
+    one, other = rules.shown_times(time, time)
+    assert one == other, (one, other)
+    assert rules._digits_apart(time, time, 1) <= 1075, time
+"""
+
+
+class TestShownTimes:
+    """How many digits the texts for a component's times show: tenths, or as many
+    more as tell two times apart, and keep one before 0 from reading as zero
+    (TimeLineAnnotator/project-management#679, answer b)."""
+
+    @pytest.mark.parametrize(
+        "one, other, shown",
+        [
+            (100.04, 100, ("01:40.04", "01:40.00")),
+            (100.01, 100.0, ("01:40.01", "01:40.00")),
+            (100.0000001, 100.0, ("01:40.0000001", "01:40.0000000")),
+            (
+                math.nextafter(100, 101),
+                100,
+                ("01:40.00000000000001", "01:40.00000000000000"),
+            ),
+            (1.9999999, 2.0, ("00:01.9999999", "00:02.0000000")),
+            (
+                math.nextafter(2, 0),
+                2.0,
+                ("00:01.9999999999999998", "00:02.0000000000000000"),
+            ),
+            (3599.996, 3600.0, ("59:59.996", "1:00:00.000")),
+            (59.996, 59.99, ("01:00.00", "00:59.99")),
+            (0.02, 0.04, ("00:00.02", "00:00.04")),
+            (-0.04, 0.04, ("-00:00.04", "00:00.04")),
+            (-0.04, -5.0, ("-00:00.04", "-00:05.00")),
+            (-5.0, -0.004, ("-00:05.000", "-00:00.004")),
+            (
+                10**20 + 1,
+                1e20,
+                ("27777777777777777:46:41.0", "27777777777777777:46:40.0"),
+            ),
+        ],
+    )
+    def test_as_many_as_tell_them_apart(self, one, other, shown):
+        assert rules.shown_times(one, other) == shown
+        assert rules.shown_times(other, one) == shown[::-1]
+
+    @pytest.mark.parametrize(
+        "one, other, shown",
+        [
+            (150.0, 100.0, ("02:30.0", "01:40.0")),
+            (100.06, 100.0, ("01:40.1", "01:40.0")),  # rounded, they differ
+            (100.0500001, 100.0499999, ("01:40.1", "01:40.0")),
+            (7265.0, 3600, ("2:01:05.0", "1:00:00.0")),
+            (-5.0, -1.0, ("-00:05.0", "-00:01.0")),
+        ],
+    )
+    def test_tenths_where_they_differ(self, one, other, shown):
+        assert rules.shown_times(one, other) == shown
+
+    @pytest.mark.parametrize(
+        "one, other, shown",
+        [
+            (2.0, 2.0, "00:02.0"),
+            (2, 2.0, "00:02.0"),
+            (100.04, 100.04, "01:40.0"),
+            (-0.04, -0.04, "-00:00.04"),
+        ],
+    )
+    def test_two_equal_times_look_the_same(self, one, other, shown):
+        # An end can be its start: no digits tell them apart.
+        assert rules.shown_times(one, other) == (shown, shown)
+
+    @pytest.mark.parametrize(
+        "time, shown",
+        [
+            (-0.04, "-00:00.04"),
+            (-0.0449, "-00:00.04"),
+            (-0.06, "-00:00.1"),
+            (-0.004, "-00:00.004"),
+            (-1e-7, "-00:00.0000001"),
+            (-1.0, "-00:01.0"),
+            (0.04, "00:00.0"),
+            (0.0, "00:00.0"),
+            (-0.0, "00:00.0"),
+            (-TINY, "-00:00." + "0" * 323 + "5"),
+        ],
+    )
+    def test_a_time_before_0_doesnt_read_as_zero(self, time, shown):
+        assert rules.shown_time(time) == shown
+
+    @pytest.mark.parametrize(
+        "time, shown",
+        [
+            (math.inf, "inf"),
+            (-math.inf, "-inf"),
+            (math.nan, "nan"),
+            (10**400, str(10**400)),
+            (-(10**400), str(-(10**400))),
+            (10**5000, "an integer too long to show"),
+        ],
+        ids=["inf", "-inf", "nan", "too large", "too small", "too long"],
+    )
+    def test_what_isnt_a_time_is_shown_as_it_is(self, time, shown):
+        assert rules.shown_time(time) == shown
+        assert rules.shown_times(time, 100.0) == (shown, "01:40.0")
+        assert rules.shown_times(-0.04, time) == ("-00:00.04", shown)
+        assert rules.shown_times(time, time) == (shown, shown)
+
+    def test_any_two_floats_look_different(self):
+        rng = random.Random("shown times")
+        near = [0.0, TINY, 1e-300, 1e-9, 0.05, 0.25, 59.95, 100.0, 3599.95, 1e7, 1e15]
+        pairs = []
+        for value in [*near, 1e300]:
+            above = math.nextafter(value, math.inf)
+            pairs += [(value, above), (-value, -above), (-above, above)]
+            pairs += [
+                (value, value * (1 + rng.random() * 10**-n)) for n in range(1, 17)
+            ]
+        for _ in range(500):
+            pairs.append((rng.uniform(-200, 200), rng.uniform(-200, 200)))
+        for _ in range(2000):
+            value = rng.uniform(0, 8000)
+            by = rng.uniform(-1, 1) * 10 ** -rng.randint(0, 14)
+            pairs.append((value, value + by))
+        for one, other in pairs:
+            shown = rules.shown_times(one, other)
+            digits = {len(text.partition(".")[2]) for text in shown}
+            assert len(digits) == 1, (one, other, shown)
+            if one != other:
+                assert shown[0] != shown[1], (one, other)
+            for value, text in zip((one, other), shown, strict=True):
+                assert text.startswith("-") == (value < 0), (value, text)
+                assert not (value < 0 and not text.strip("-0:.")), (value, text)
+
+    def test_the_search_for_digits_ends_even_for_equal_times(self):
+        # `shown_times` doesn't look for digits that tell equal times apart. A text
+        # shown to a user must end whatever it is asked.
+        result = subprocess.run(
+            [sys.executable, "-c", EQUAL_TIMES],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stderr
+
+    @pytest.mark.parametrize("sign", [1, -1])
+    def test_the_first_digit_that_shows_a_time(self, sign):
+        sizes = [10.0**-n for n in range(324)] + [
+            5.0 * 10.0**-n for n in range(324)
+        ]
+        sizes += [math.ldexp(1, -n) for n in range(1075)] + [math.ldexp(1, 900), 3]
+        sizes += [math.nextafter(size, to) for size in sizes[:648] for to in (0, 1)]
+        for size in sizes:
+            if not size:
+                continue
+            digits = rules._digits_to_see(size)
+            seen = [rules._rounded(size, n) > 0 for n in (digits - 1, digits)]
+            assert seen[1], size
+            assert digits == 1 or not seen[0], size
+            assert rules.shown_time(sign * size)
+
+    def test_two_different_times_never_need_more_digits_than_are_tried(self):
+        # The nearest two numbers can be, at each of a float's sizes, and an integer
+        # and a float.
+        pairs = []
+        for exponent in range(-1074, 1024):
+            value = math.ldexp(1, exponent)
+            pairs += [(value, math.nextafter(value, to)) for to in (0, math.inf)]
+            most = math.nextafter(value, 0)  # all bits set
+            pairs.append((most, math.nextafter(most, 0)))
+        pairs += [(2**n, float(2**n) + 2.0 ** (n - 52)) for n in range(0, 60)]
+        pairs += [(10**n + 1, float(10**n)) for n in range(15, 300)]
+        for one, other in pairs:
+            if one == other or not (math.isfinite(one) and math.isfinite(other)):
+                continue
+            shown = rules.shown_times(one, other)
+            assert shown[0] != shown[1], (one, other)
+
+    def test_tenths_read_as_before(self):
+        rng = random.Random("tenths")
+        times = [rng.uniform(-10000, 10000) for _ in range(3000)]
+        times += [n / 20 for n in range(-200, 4000)]  # ties, as 59.95 and 0.25
+        for value in times:
+            if not -0.06 < value < 0:  # these get more digits
+                assert rules.shown_time(value) == tenths(value), value
+
+    def test_tiny_times_are_shown_quickly(self):
+        # A file can hold thousands of them. Counting the digits up to theirs, one
+        # at a time, takes some 300 steps for each.
+        start = time.perf_counter()
+        for _ in range(300):
+            rules.shown_time(-TINY)
+            rules.shown_times(TINY, 0.0)
+            rules.shown_times(1e-300, 1.0000000000000002e-300)
+        assert time.perf_counter() - start < WELL_UNDER_A_SECOND
+
+    # In the texts.
+
+    @pytest.mark.parametrize("kind", POINT_KINDS)
+    def test_a_point(self, kind):
+        name = KIND_SHOWN[kind]
+        assert check(kind, media_length=LENGTH, time=100.04) == (
+            False,
+            f"{name} time '01:40.04' is bigger than media time '01:40.00'",
+        )
+        assert check(kind, media_length=LENGTH, time=-0.04) == (
+            False,
+            f"{name} time can't be negative. Got '-00:00.04'",
+        )
+
+    @pytest.mark.parametrize("kind", SEGMENT_KINDS)
+    @pytest.mark.parametrize(
+        "attrs, text",
+        [
+            ({"end": 100.04}, "end '01:40.04' is bigger than media time '01:40.00'"),
+            (
+                {"post_end": 100.01},
+                "post-end '01:40.01' is bigger than media time '01:40.00'",
+            ),
+            (
+                {"start": 2.0, "end": 1.9999999},
+                "end '00:01.9999999' should be bigger than start '00:02.0000000'",
+            ),
+            (
+                {"start": 2.0, "end": 2.0},
+                "end '00:02.0' should be bigger than start '00:02.0'",
+            ),
+            (
+                {"start": 2.0, "end": 4.0, "pre_start": 2.01},
+                "pre-start '00:02.01' can't be after start '00:02.00'",
+            ),
+            (
+                {"start": 1.0, "end": 2.0, "post_end": 1.99},
+                "post-end '00:01.99' can't be before end '00:02.00'",
+            ),
+            ({"start": -0.04, "end": 2.0}, "start can't be negative. Got '-00:00.04'"),
+            ({"pre_start": -0.004}, "pre-start can't be negative. Got '-00:00.004'"),
+        ],
+        ids=short_attrs,
+    )
+    def test_a_segment(self, kind, attrs, text):
+        assert check(kind, media_length=LENGTH, **attrs) == (
+            False,
+            f"{KIND_SHOWN[kind]} {text}",
+        )
+
+    def test_a_hierarchy_s_start_past_the_end(self):
+        assert check("hierarchy", media_length=LENGTH, start=100.04, end=101.0) == (
+            False,
+            "Hierarchy start '01:40.04' is bigger than media time '01:40.00'",
+        )
 
 
 class _CountedId(str):
@@ -2148,7 +2556,7 @@ class TestCheckTimeline:
             "There is already a harmony component at the selected position.",
             "There is already a mode component at the selected position.",
             "There is already a hierarchy component at the selected position.",
-            "Component would overlap with existing component.",
+            "Hierarchy would overlap with an existing hierarchy.",
             "joined_with_next=true but next range",
             "joined_with_next=true but the range it joins isn't the next range",
         }
@@ -2178,7 +2586,7 @@ class TestCheckTimeline:
             (
                 hierarchy(0, 10, 1),
                 hierarchy(5, 15, 1),
-                "Component would overlap with existing component.",
+                "Hierarchy would overlap with an existing hierarchy.",
             ),
             (
                 hierarchy(0, 10, 1),
@@ -2247,7 +2655,7 @@ class TestCheckTimeline:
         assert imported[kept.id].outcome == OK
         assert read[kept.id].outcome == (
             False,
-            "Component would overlap with existing component.",
+            "Hierarchy would overlap with an existing hierarchy.",
         )
 
     def test_a_single_change_is_checked_on_the_timeline_it_leaves(self):
@@ -2795,10 +3203,11 @@ class TestEveryRule:
                 if checked.outcome:
                     assert checked.also == (), seed
                 assert not any(also.ok for also in checked.also), seed
-                # Two rules may give one reason: a range's start before 0 and
-                # its end past the media's end.
                 found = [(o.code, o.about) for o in (checked.outcome, *checked.also)]
                 assert len(set(found)) == len(found), seed
+                # Two rules don't share one text
+                # (TimeLineAnnotator/project-management#610).
+                assert len(set(reasons(checked))) == len(found), seed
 
     def test_the_random_timelines_break_more_than_one_rule_of_a_component(self):
         # So that the tests above have something to compare.
@@ -2818,7 +3227,7 @@ class TestEveryRule:
         second = component("marker", time=MEDIA + 1)
         checked = every_rule([first, second])[first.id]
         assert reasons(checked) == [
-            "Time '01:01.0' is bigger than media time '01:00.0'",
+            "Marker time '01:01.0' is bigger than media time '01:00.0'",
             "There is already a marker component at the selected position.",
         ]
         assert checked.also[0].others == (second.id,)
@@ -2827,26 +3236,26 @@ class TestEveryRule:
         first = component("beat", time=-1.0)
         second = component("beat", time=-1.0)
         assert reasons(every_rule([first, second])[first.id]) == [
-            "Time can't be negative. Got '-00:01.0'",
+            "Beat time can't be negative. Got '-00:01.0'",
             "There is already a beat component at the selected position.",
         ]
 
     def test_a_pdf_marker(self):
         first = component("pdf_marker", time=-1.0, page_number=0)
         assert reasons(every_rule([first])[first.id]) == [
-            "Time can't be negative. Got '-00:01.0'",
+            "PDF page marker time can't be negative. Got '-00:01.0'",
             "The PDF has no page with that number.",
         ]
 
     def test_a_hierarchy(self):
         first = hierarchy(70.0, 65.0, 0, pre_start=71.0, post_end=64.0)
         assert reasons(every_rule([first])[first.id]) == [
-            "Start time '70.0' is bigger than media time '60.0'",
-            "End time '65.0' should be bigger than start time '70.0'",
+            "Hierarchy start '01:10.0' is bigger than media time '01:00.0'",
+            "Hierarchy end '01:05.0' should be bigger than start '01:10.0'",
             "Level can't be below 1. Got '0'",
-            "pre_start can't be after start time.",
-            "post_end is outside media bounds.",
-            "post_end can't be before end time.",
+            "Hierarchy pre-start '01:11.0' can't be after start '01:10.0'",
+            "Hierarchy post-end '01:04.0' is bigger than media time '01:00.0'",
+            "Hierarchy post-end '01:04.0' can't be before end '01:05.0'",
         ]
 
     @pytest.mark.parametrize("kind", ["hierarchy", "range"])
@@ -2860,8 +3269,8 @@ class TestEveryRule:
             (rules.PRE_START_AFTER_START, ""),
         ]
         assert reasons(checked)[1:] == [
-            "pre_start is outside media bounds.",
-            "pre_start can't be after start time.",
+            f"{KIND_SHOWN[kind]} pre-start can't be negative. Got '-00:01.0'",
+            f"{KIND_SHOWN[kind]} pre-start '-00:01.0' can't be after start '-00:05.0'",
         ]
 
     @pytest.mark.parametrize("kind", ["hierarchy", "range"])
@@ -2874,14 +3283,15 @@ class TestEveryRule:
             (rules.POST_END_BEFORE_END, ""),
         ]
         assert reasons(checked)[1:] == [
-            "post_end is outside media bounds.",
-            "post_end can't be before end time.",
+            f"{KIND_SHOWN[kind]} post-end '01:10.0' is bigger than media time"
+            " '01:00.0'",
+            f"{KIND_SHOWN[kind]} post-end '01:10.0' can't be before end '01:20.0'",
         ]
 
     def test_a_hierarchy_beyond_the_media_on_both_sides_is_one_rule(self):
         first = hierarchy(70.0, 75.0, 1)
         assert reasons(every_rule([first])[first.id]) == [
-            "Start time '70.0' is bigger than media time '60.0'",
+            "Hierarchy start '01:10.0' is bigger than media time '01:00.0'",
         ]
 
     def test_hierarchies_at_one_place_and_crossing(self):
@@ -2892,7 +3302,7 @@ class TestEveryRule:
         assert reasons(checked) == [
             "Level can't be below 1. Got '0'",
             "There is already a hierarchy component at the selected position.",
-            "Component would overlap with existing component.",
+            "Hierarchy would overlap with an existing hierarchy.",
         ]
         assert checked.also[0].others == (same.id,)
         assert crossing.id in checked.also[1].others
@@ -2908,11 +3318,11 @@ class TestEveryRule:
         first = range_in("nope", 70.0, 65.0, pre_start=-1.0, post_end=64.0)
         assert reasons(every_rule([first])[first.id]) == [
             "Invalid row ID.",
-            "Start time must be before end time.",
-            "Range is outside media bounds.",
-            "pre_start is outside media bounds.",
-            "post_end is outside media bounds.",
-            "post_end can't be before end time.",
+            "Range end '01:05.0' should be bigger than start '01:10.0'",
+            "Range end '01:05.0' is bigger than media time '01:00.0'",
+            "Range pre-start can't be negative. Got '-00:01.0'",
+            "Range post-end '01:04.0' is bigger than media time '01:00.0'",
+            "Range post-end '01:04.0' can't be before end '01:05.0'",
         ]
 
     def test_a_range_before_0_and_past_the_end_is_two_rules(self):
@@ -2922,7 +3332,10 @@ class TestEveryRule:
             (rules.NEGATIVE_TIME, "start"),
             (rules.PAST_MEDIA_END, "end"),
         ]
-        assert reasons(checked) == ["Range is outside media bounds."] * 2
+        assert reasons(checked) == [
+            "Range start can't be negative. Got '-00:01.0'",
+            "Range end '01:10.0' is bigger than media time '01:00.0'",
+        ]
 
     def test_one_rule_at_a_time_a_range_is_before_0_first(self):
         # As an import checks it, and the range's function: the first rule.
@@ -2936,7 +3349,7 @@ class TestEveryRule:
         checked = every_rule([first, following])[first.id]
         row = next(row["name"] for row in ROWS if row["id"] == ROW)
         assert reasons(checked) == [
-            "Range is outside media bounds.",
+            "Range start can't be negative. Got '-00:01.0'",
             f"joined_with_next=true but next range on row {row!r} starts at 2.0"
             " (must equal 1.0 for ranges to join)",
         ]
@@ -2949,7 +3362,7 @@ class TestEveryRule:
     def test_a_harmony(self, music21):
         first = component("harmony", time=-1.0, step=9, quality="made-up", level=3)
         assert reasons(every_rule([first])[first.id]) == [
-            "Time can't be negative. Got '-00:01.0'",
+            "Harmony time can't be negative. Got '-00:01.0'",
             "9 is not a valid step.",
             "made-up is not a valid quality.",
             "3 is not a valid level.",
@@ -2958,7 +3371,7 @@ class TestEveryRule:
     def test_a_mode(self, music21):
         first = component("mode", time=-1.0, step=9, type="made-up", level=3)
         assert reasons(every_rule([first])[first.id]) == [
-            "Time can't be negative. Got '-00:01.0'",
+            "Mode time can't be negative. Got '-00:01.0'",
             "9 is not a valid step.",
             "made-up is not a valid type.",
             "3 is not a valid level.",
@@ -2979,7 +3392,7 @@ class TestEveryRule:
         first = component("harmony", time=-1.0, step=9)
         checked = every_rule([first])[first.id]
         assert reasons(checked) == [
-            "Time can't be negative. Got '-00:01.0'",
+            "Harmony time can't be negative. Got '-00:01.0'",
             "9 is not a valid step.",
         ]
 
@@ -3025,25 +3438,27 @@ class TestMediaLength:
     def test_a_point_after_a_length_too_large_for_a_float(self, kind):
         assert check(kind, media_length=-(10**400)) == (
             False,
-            f"Time '00:01.0' is bigger than media time '{-(10**400)}'",
+            f"{KIND_SHOWN[kind]} time '00:01.0' is bigger than media time"
+            f" '{-(10**400)}'",
         )
 
     def test_a_hierarchy_after_a_length_too_large_for_a_float(self):
         assert check("hierarchy", media_length=-(10**400)) == (
             False,
-            f"Start time '1.0' is bigger than media time '{-(10**400)}'",
+            f"Hierarchy start '00:01.0' is bigger than media time '{-(10**400)}'",
         )
 
     def test_a_length_too_long_to_show_is_named(self):
         assert check("marker", media_length=-(10**5000)) == (
             False,
-            "Time '00:01.0' is bigger than media time 'an integer too long to show'",
+            "Marker time '00:01.0' is bigger than media time"
+            " 'an integer too long to show'",
         )
 
     def test_a_range_after_a_length_too_large_for_a_float(self):
         assert check("range", media_length=-(10**400)) == (
             False,
-            "Range is outside media bounds.",
+            f"Range end '00:02.0' is bigger than media time '{-(10**400)}'",
         )
 
     @pytest.mark.parametrize("kind", ["marker", "hierarchy", "range"])
