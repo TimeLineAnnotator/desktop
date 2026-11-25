@@ -1,4 +1,5 @@
 import functools
+import json
 
 from PySide6.QtCore import QRegularExpression
 from PySide6.QtGui import QRegularExpressionValidator
@@ -22,6 +23,26 @@ from tilia.ui.format import MEDIA_TIME_PATTERN, format_media_time, parse_media_t
 from tilia.ui.windows import WindowKind
 from tilia.ui.windows.metadata_edit_fields import EditMetadataFieldsDialog
 from tilia.ui.windows.metadata_edit_notes import EditNotesDialog
+
+
+def _as_text(value: object) -> str:
+    """A field's value as its box shows it. A value that isn't text, as a file
+    written by a script may hold, as the migration to the next file format
+    writes it: null as "", and a number, true, false or an object as JSON. A
+    list is left as it was."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return str(value)
+    if value is None:
+        return ""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _is_stored_as_text(value: object) -> bool:
+    """Whether a value that isn't text is stored as its box shows it, from the
+    first Apply that sets a field. A list is left as it was."""
+    return not isinstance(value, (str, list))
 
 
 class MediaMetadataWindow(QDialog):
@@ -106,7 +127,7 @@ class MediaMetadataWindow(QDialog):
         for name, value in metadata.items():
             if name in list(self.READ_ONLY_FIELDS) + self.SEPARATE_WINDOW_FIELDS:
                 continue
-            line_edit = QLineEdit(str(value))
+            line_edit = QLineEdit(_as_text(value))
             self.form_layout.addRow(QLabel(name.capitalize()), line_edit)
             self.metadata[name] = line_edit
             self.metadata_original[name] = value
@@ -185,11 +206,12 @@ class MediaMetadataWindow(QDialog):
     def on_edit_metadata_fields_button(self):
         # Yes leaves the edits not applied, as the question says. If the names
         # box is then cancelled, they are still shown, still not applied; OK
-        # shows the fields again, without them.
+        # shows the fields again, without them. Enter answers No.
         if self._get_edits() and not get(
             Get.FROM_USER_YES_OR_NO,
             "Save metadata edits",
             "Leave window without saving changes?",
+            default=False,
         ):
             return
         dialog = EditMetadataFieldsDialog(self)
@@ -222,10 +244,12 @@ class MediaMetadataWindow(QDialog):
 
     def closeEvent(self, event):
         edited_fields = self._get_edits()
+        # Enter answers No, and keeps the edits.
         if edited_fields and not get(
             Get.FROM_USER_YES_OR_NO,
             "Save metadata edits",
             "Close window without saving changes?",
+            default=False,
         ):
             event.ignore()
             return
@@ -268,16 +292,31 @@ class MediaMetadataWindow(QDialog):
             )
 
     def apply_fields(self):
-        self._save_edits(self._get_edits())
+        edits = self._get_edits()
+        if set(edits) - {"media length"}:
+            # An Apply that sets a field also stores as text each value that
+            # isn't, as its box shows it. None are left after the first.
+            edits = self._values_as_text() | edits
+        self._save_edits(edits)
         self.clear_layout()
         self._setup_fields()
 
+    def _values_as_text(self) -> dict[str, str]:
+        return {
+            name: _as_text(value)
+            for name, value in self.metadata_original.items()
+            if _is_stored_as_text(value)
+        }
+
     def _get_edits(self) -> dict:
+        # A value that isn't text, such as the number 1990, is compared as the
+        # text its box shows, so that it isn't an edit until it is typed over.
+        # A list is compared as it is.
+        originals = self.metadata_original | self._values_as_text()
         edits = {
             name: self.metadata[name].text()
             for name in self.metadata
-            if name in self.metadata_original
-            and self.metadata[name].text() != self.metadata_original[name]
+            if name in originals and self.metadata[name].text() != originals[name]
         }
         # Compared as times: the length shown is rounded to a tenth of a
         # second, and typing it back changes nothing.
