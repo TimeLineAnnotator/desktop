@@ -92,8 +92,7 @@ class Mode(PointLikeTimelineComponent):
             # it show "?" as roman numerals (Anne, 2026-11-13,
             # TimeLineAnnotator/project-management#563, point 3), and a roman
             # numeral typed or imported there is refused
-            # (TimeLineAnnotator/project-management#595, point 3). music21 raises
-            # for a type it doesn't know.
+            # (TimeLineAnnotator/project-management#595, point 3).
             return music21.key.Key("C")
         tonic = (
             INT_TO_NOTE_NAME[self.step]
