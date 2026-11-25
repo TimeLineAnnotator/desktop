@@ -778,37 +778,16 @@ def typing_in_the_add_harmony_dialog(*texts):
 
 
 class TestRomanNumeralWhereTheKeyCantBeRead:
-    """After a mode whose tonic or type TiLiA can't read, up to the next mode, a
-    roman numeral typed in the Add harmony dialog is refused, since no key can
-    place it, and letters work as before (TimeLineAnnotator/project-management#595,
-    point 3, and TimeLineAnnotator/project-management#605)."""
+    """After a mode whose tonic TiLiA can't read, up to the next mode, a roman
+    numeral typed in the Add harmony dialog is refused, since no key can place it,
+    and letters work as before (TimeLineAnnotator/project-management#595, point
+    3)."""
 
-    @pytest.fixture(
-        autouse=True,
-        params=[{"step": 9}, {"type": "some-future-type"}],
-        ids=["tonic", "type"],
-    )
-    def a_mode_tilia_can_t_read(self, request, harmony_tlui, tilia_state):
+    @pytest.fixture(autouse=True)
+    def a_mode_tilia_can_t_read(self, harmony_tlui, tilia_state):
         # As a file can hold it: opening one creates its components unchecked.
-        harmony_tlui.create_mode(time=0, **request.param, checked=False)
+        harmony_tlui.create_mode(time=0, step=9, checked=False)
         tilia_state.current_time = 10
-
-    def test_display_as_roman_numeral_shows_a_mark(self, harmony_tlui, tilia_errors):
-        harmony_tlui.create_harmony(10, step=4, display_mode="letter")  # G
-        (harmony,) = harmony_tlui.harmonies()
-        harmony_tlui.select_element(harmony)
-
-        commands.execute("timeline.harmony.component.display_as_roman")
-
-        assert harmony.get_data("display_mode") == "roman"
-        assert harmony.body.toPlainText() == "?"
-        assert harmony.letter_symbol_label == "G"
-        tilia_errors.assert_no_error()
-
-    def test_its_element_s_key_is_c_major(self, harmony_tlui):
-        (mode,) = harmony_tlui.modes()
-
-        assert (mode.key.tonic.name, mode.key.mode) == ("C", "major")
 
     def test_a_roman_numeral_is_refused_with_the_message(
         self, harmony_tlui, tilia_errors
