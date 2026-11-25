@@ -1,9 +1,11 @@
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import QDir
 from PySide6.QtWidgets import QFileDialog
 
+from tests.file.test_path_as_given import link_folder
 from tilia.ui.dialogs import file as file_dialogs
 
 OPEN_DIALOG_BUILDERS = {
@@ -66,3 +68,31 @@ class TestOpenDialogsRequireExistingFile:
         dialog = build_dialog(OPEN_DIALOG_BUILDERS[name])
 
         assert dialog.fileMode() == QFileDialog.FileMode.ExistingFile
+
+
+class TestSaveDialogFolder:
+    def test_is_the_one_given_with_no_link_followed(self, qtui, tmp_path):
+        # As the path kept for the file that is open
+        # (TimeLineAnnotator/project-management#686, point 2, a).
+        (tmp_path / "folder").mkdir()
+        link_folder(tmp_path / "link", tmp_path / "folder")
+
+        with patch.object(
+            QFileDialog, "directory", return_value=QDir(str(tmp_path / "link"))
+        ):
+            dialog = build_dialog(DIALOG_BUILDERS["save"])
+
+        assert Path(dialog.directory().path()) == tmp_path / "link"
+
+    def test_is_the_working_folder_as_the_system_gives_it(
+        self, qtui, tmp_path, monkeypatch
+    ):
+        # Windows gives a linked one as it was given.
+        (tmp_path / "folder").mkdir()
+        link_folder(tmp_path / "link", tmp_path / "folder")
+        monkeypatch.chdir(tmp_path / "link")
+
+        with patch.object(QFileDialog, "directory", return_value=QDir(".")):
+            dialog = build_dialog(DIALOG_BUILDERS["save"])
+
+        assert Path(dialog.directory().path()) == Path.cwd()

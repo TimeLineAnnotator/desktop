@@ -7,6 +7,7 @@ import tilia.ui.dialogs.basic
 from tilia.constants import APP_NAME, FILE_EXTENSION
 from tilia.media import constants as media_constants
 from tilia.ui.dialogs.add_timeline_without_media import AddTimelineWithoutMedia
+from tilia.ui.path import as_given
 
 APP_FILE_FILTER = f"{APP_NAME} files (*.{FILE_EXTENSION})"
 
@@ -54,9 +55,9 @@ def ask_for_path_to_save(
     if not isinstance(filter, list):
         filter = [filter]
     dialog.setNameFilters(filter)
-    dialog.setDirectory(
-        Path(dialog.directory().path()).resolve().__str__().replace("\\", "/")
-    )
+    # As the path TiLiA keeps for a file: no link to the folder is followed.
+    folder = as_given(Path(dialog.directory().absolutePath()))
+    dialog.setDirectory(folder.replace("\\", "/"))
     dialog.selectFile(initial_filename)
 
     return _get_return_from_file_dialog(dialog)

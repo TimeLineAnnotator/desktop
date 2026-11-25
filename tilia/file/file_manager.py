@@ -19,6 +19,7 @@ from tilia.file.tla_bridge import TIMELINE_KINDS
 from tilia.requests import Get, Post, get, listen, post, serve
 from tilia.settings import settings
 from tilia.ui import commands
+from tilia.ui.path import as_given
 from tilia_core import tla
 
 if TYPE_CHECKING:
@@ -30,10 +31,16 @@ _MEDIA_LENGTH = "media length"
 def read_file(path: Path) -> OpenDocument | None:
     """The file at `path`, read through the core. None when it isn't opened: the
     core or the system refused it, and TiLiA has said why, or the user cancelled.
-    Nothing is changed then."""
+    Nothing is changed then.
+
+    The path kept for it is `path` as given, made absolute, and the document is read
+    from that one, so that its media and PDFs are looked up, and it is saved, where
+    its stored paths are relative to (TimeLineAnnotator/project-management#686,
+    point 2, a)."""
     name = path.name
     try:
-        document = tla.read(path)
+        given = as_given(path)
+        document = tla.read(given)
     except FileNotFoundError:
         tilia.errors.display(tilia.errors.OPEN_FILE_NOT_FOUND, path)
         return None
@@ -79,7 +86,7 @@ def read_file(path: Path) -> OpenDocument | None:
     }
     return OpenDocument(
         document=document,
-        file_path=str(path.resolve()),
+        file_path=given,
         media_metadata=MediaMetadata.from_dict(fields),
         unknown_discarded=discarded,
         # The reader refuses any version but its own and the old ones.
@@ -450,16 +457,16 @@ class FileManager:
         TiLiA's state, expecting there what `expect` says, as `tla.write` takes it.
         Raises what the core raises, having written nothing: the document then
         still follows TiLiA's state, and the file reads as modified. `save_checked`
-        asks what to do then."""
+        asks what to do then. The path kept for the file is `path` as given, as a
+        file opened keeps its own (`read_file`)."""
+        path = as_given(Path(path))
         state = get(Get.APP_STATE)
         self.file.sync(state)
         # The document read, or the new one: never one built again from the state,
         # which would have no fingerprint for the check before saving.
         self.file.write(path, expect=expect)
         # The file open is now the one written, and the document follows it.
-        self.file.file_path = Path(
-            path.resolve() if isinstance(path, Path) else path
-        ).as_posix()
+        self.file.file_path = Path(path).as_posix()
         self.file.media_path = state["media_path"]
         self.file.timelines = state["timelines"]
         self.file.timelines_hash = state["timelines_hash"]

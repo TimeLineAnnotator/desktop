@@ -742,8 +742,8 @@ class TestOpened:
 
         open_file(path)
 
-        assert tilia.file_manager.file.file_path == str(path.resolve())
-        assert Path(settings.get_recent_files()[0]) == path.resolve()
+        assert tilia.file_manager.file.file_path == str(path)
+        assert Path(settings.get_recent_files()[0]) == path
 
     def test_media_is_found_through_the_core(self, qtui, tilia, tls, tmp_path):
         (tmp_path / "media").mkdir()
