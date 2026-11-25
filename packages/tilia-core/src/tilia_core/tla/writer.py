@@ -36,6 +36,7 @@ from tilia_core.tla.errors import (
     printable,
 )
 from tilia_core.tla.ids import new_id
+from tilia_core.tla.in_use import read_bytes
 from tilia_core.tla.layout import (
     BEAT_UNIT_SHAPE,
     COMPONENT_SHAPES,
@@ -590,17 +591,29 @@ def _found(
     SHA-256 of the bytes whose fingerprint is `expect`: it still has them, which
     for an old file saves migrating it again. Any other file is read, so that a
     file in another form, such as with CRLF line endings, is still the one
-    expected."""
+    expected. One another program has locked, on Windows, can't be compared: it
+    is tried again as a rename is, and then `FileInUse` is raised
+    (TimeLineAnnotator/project-management#683, b)."""
     try:
-        with open(path, "rb") as file:
-            data = file.read()
+        data = read_bytes(path)
         if expect is not None and hashlib.sha256(data).hexdigest() in (
             expect,
             unchanged,
         ):
             return expect
         return _fingerprint_of_bytes(data, path)
+    except FileInUse:
+        raise
     except (OSError, ValueError):  # UnreadableFile is a ValueError
+        return None
+
+
+def _found_at_once(path: str) -> str | None:
+    """What `_found` gives, without waiting for another program that has the file:
+    where none was expected, any file is too many, so it is only looked at."""
+    try:
+        return fingerprint(path)
+    except (OSError, ValueError):
         return None
 
 
@@ -617,8 +630,11 @@ def write(
     `doc.fingerprint` gives it, `ABSENT` when no file may be at `path`, or None
     for no check, which is also the `fingerprint` of a document built in memory.
     When the file on disk is something else, or is missing, or can't be read,
-    `FileChanged` is raised and nothing is written (FR-042). The check and the
-    rename are two steps: a change between them isn't caught.
+    `FileChanged` is raised and nothing is written (FR-042). On Windows, one that
+    another program has locked, so that it can't be compared, is retried for about a
+    second, as the rename is, then refused with `FileInUse`, before anything is
+    compared or written. The check and the rename are two steps: a change between
+    them isn't caught.
 
     The paths it stores, the media's and PDF timelines', go through the path
     handler (`tla.paths`, FR-033). A path `doc` was read with absolute stays
@@ -646,7 +662,8 @@ def write(
     read-only file with `PermissionError`, as the system refuses to open
     either for writing. On Windows, a file another program holds open, or
     whose new temporary file it holds open, is retried for about a second,
-    then refused with `FileInUse`. A document the reader would refuse raises
+    then refused with `FileInUse`, whether it is the check or the rename that
+    meets it. A document the reader would refuse raises
     `UnreadableFile`, with its place and line, and one `canonical_bytes`
     refuses raises its `ValueError`, both before anything is read or written
     (FR-034). A document that breaks a rule for a valid component raises
@@ -665,9 +682,12 @@ def write(
     problems, unmeasured_states = _checked_with_the_rules(doc, data, path)
     if expect is ABSENT:
         if os.path.lexists(target):
-            raise FileChanged(path, None, _found(target))
+            raise FileChanged(path, None, _found_at_once(target))
     elif expect is not None:
-        found = _found(target, expect, _read_digest(doc, expect))
+        try:
+            found = _found(target, expect, _read_digest(doc, expect))
+        except FileInUse as error:
+            raise FileInUse(path) from error
         if found != expect:
             raise FileChanged(path, expect, found)
     if os.path.isdir(target):

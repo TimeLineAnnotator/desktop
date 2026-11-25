@@ -32,6 +32,7 @@ from tilia_core.tla.errors import (
     NewerFormat,
     UnreadableFile,
 )
+from tilia_core.tla.in_use import held_by_another
 from tilia_core.tla.layout import FORMAT_VERSION
 from tilia_core.tla.migrate.to_1 import Migrated
 from tilia_core.tla.model import (
@@ -52,6 +53,8 @@ EXTENSION = ".tla"
 # The files that can't be read are read once more, after one pause of this
 # many seconds (T1): another program may have been writing them.
 RETRY_AFTER = 0.2
+
+_IN_USE = "in use by another program"
 
 
 def corpus_files(
@@ -225,6 +228,12 @@ def _migrate_file(
         expected = isinstance(error, (UnreadableFile, OSError))
         if not last:
             return None
+        if isinstance(error, PermissionError) and held_by_another(path):
+            # As a file held while it is written is: what another program has
+            # locked isn't one that can't be read
+            # (TimeLineAnnotator/project-management#694).
+            result = FileResult(path=relative, outcome=Outcome.IN_USE, reason=_IN_USE)
+            return result, None
         if not expected:
             logger.error("can't read %s", path, exc_info=error)
         reason = _cant("read", error, expected=expected)
@@ -447,7 +456,7 @@ def _write(path: Path, document: Document) -> tuple[Outcome, str | None, str | N
     except FileChanged:
         return Outcome.CHANGED_SINCE_READ, "changed since it was read", None
     except FileInUse:
-        return Outcome.IN_USE, "in use by another program", None
+        return Outcome.IN_USE, _IN_USE, None
     except (OSError, ValueError) as error:  # UnreadableFile is a ValueError
         logger.warning("can't write %s: %s", path, error)
         return Outcome.WRITE_FAILED, _cant("write", error, expected=True), None
