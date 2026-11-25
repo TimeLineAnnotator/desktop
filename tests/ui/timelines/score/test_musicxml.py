@@ -43,7 +43,7 @@ class TestInsertMeasureZero:
 
         assert len(score_tlui) == 0
 
-    def test_user_accepts_but_less_than_two_measure_in_beat_timeline(
+    def test_user_accepts_with_one_measure_in_beat_timeline(
         self, qtui, score_tlui, beat_tl, tmp_path, tilia_state
     ):
         beat_tl.beat_pattern = [2]
@@ -54,7 +54,24 @@ class TestInsertMeasureZero:
         with patch_yes_or_no_dialog(True):
             notes_from_musicXML(score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH)
 
+        assert len(score_tlui) > 0
+        assert beat_tl.measure_numbers == [0, 1]
+        assert beat_tl.beats_in_measure == [1, 2]
+
+    def test_user_accepts_but_one_beat_in_beat_timeline(
+        self, qtui, score_tlui, beat_tl, tmp_path, tilia_state
+    ):
+        beat_tl.create_beat(5)
+
+        with patch_yes_or_no_dialog(True):
+            success, errors = notes_from_musicXML(
+                score_tlui.timeline, beat_tl, EXAMPLE_MUSICXML_PATH
+            )
+
+        assert not success
+        assert "The length of the first measure can't be found" in errors[0]
         assert len(score_tlui) == 0
+        assert len(beat_tl) == 1
 
     def test_no_beat_1(self, qtui, score_tlui, beat_tl, tmp_path, tilia_state):
         self.setup_valid_beats(beat_tl)

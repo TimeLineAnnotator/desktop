@@ -557,8 +557,9 @@ class TestBeatTimeline:
 
 
 class TestAddMeasureZero:
-    """Measures 1 and 2 are found with the core's `times_of`, on the timeline's
-    own time map (FR-042)."""
+    """Its length is a share of the first measure's, whatever that measure's number,
+    on the core's time map of the timeline itself (FR-042;
+    TimeLineAnnotator/project-management#676)."""
 
     @staticmethod
     def add_beats(timeline, times):
@@ -572,8 +573,8 @@ class TestAddMeasureZero:
         assert beat_tl.add_measure_zero(0.5) == (True, "")
 
         assert beat_tl[0].get_data("time") == 3
-        assert beat_tl.measure_numbers[:2] == [0, 1]
-        assert beat_tl.beats_in_measure[:2] == [1, 4]
+        assert beat_tl.measure_numbers == [0, 1, 2]
+        assert beat_tl.beats_in_measure == [1, 4, 4]
         assert get(Get.METRIC_POSITION, 3.0).measure == 0
         assert get(Get.METRIC_POSITION, 5.0).measure == 1
 
@@ -600,34 +601,72 @@ class TestAddMeasureZero:
 
         assert beat_tl[0].get_data("time") == 3
 
+    def test_one_measure_which_the_closing_barline_ends(self, beat_tl):
+        # A 4/4 bar at 10, 11, 12 and 13 s ends at 14: a one-beat pickup lasts 1 s.
+        self.add_beats(beat_tl, range(10, 14))
+
+        assert beat_tl.add_measure_zero(0.25) == (True, "")
+
+        assert [beat.get_data("time") for beat in beat_tl] == [9, 10, 11, 12, 13]
+        assert beat_tl.measure_numbers == [0, 1]
+        assert beat_tl.beats_in_measure == [1, 4]
+
+    def test_one_measure_which_the_media_ends(self, beat_tl, set_media_length):
+        # The closing barline is where the media ends, at 13.5: the bar lasts 3.5 s.
+        self.add_beats(beat_tl, range(10, 14))
+        set_media_length(13.5)
+
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
+
+        assert beat_tl[0].get_data("time") == 8.25
+
+    @pytest.mark.parametrize(
+        "measure_index, number, numbers", [(1, 3, [1, 3, 4]), (0, 5, [5, 6, 7])]
+    )
+    def test_whatever_the_measures_numbers(
+        self, beat_tl, measure_index, number, numbers
+    ):
+        self.add_beats(beat_tl, range(5, 17))
+        beat_tl.set_measure_number(measure_index, number)
+        assert beat_tl.measure_numbers == numbers
+
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
+
+        assert beat_tl[0].get_data("time") == 3
+        # The other measures keep their beats, their numbers and which of them are
+        # always shown.
+        assert beat_tl.measure_numbers == [0, *numbers]
+        assert beat_tl.beats_in_measure == [1, 4, 4, 4]
+        assert beat_tl.measures_to_force_display == [measure_index + 1]
+        assert beat_tl.get_time_by_measure(numbers[0]) == [5]
+        assert get(Get.METRIC_POSITION, 9.0).measure == numbers[1]
+
+    def test_the_other_measures_keep_their_beats(self, beat_tl):
+        # A 3/4 bar between two of 4/4.
+        self.add_beats(beat_tl, range(5, 16))
+        beat_tl.set_beat_amount_in_measure(1, 3)
+        assert beat_tl.beats_in_measure == [4, 3, 4]
+
+        assert beat_tl.add_measure_zero(0.5) == (True, "")
+
+        assert beat_tl.beats_in_measure == [1, 4, 3, 4]
+        assert beat_tl.measure_numbers == [0, 1, 2, 3]
+        assert [beat.get_data("is_first_in_measure") for beat in beat_tl] == [
+            index in (0, 1, 5, 8) for index in range(12)
+        ]
+
     REFUSED = (
         False,
-        "Measures 1 and 2 can't both be found on this timeline. Cannot estimate"
-        " measure zero duration.",
+        "The length of the first measure can't be found on this timeline. Cannot"
+        " estimate measure zero duration.",
     )
 
-    @pytest.mark.parametrize("times", [range(4), [0], []], ids=["4", "1", "0"])
-    def test_refused_with_fewer_than_two_measures(self, beat_tl, times):
+    @pytest.mark.parametrize("times", [[5], []], ids=["1", "0"])
+    def test_refused_with_fewer_than_two_beats(self, beat_tl, times):
         self.add_beats(beat_tl, times)
 
         assert beat_tl.add_measure_zero(0.5) == self.REFUSED
         assert len(beat_tl) == len(times)
-
-    def test_refused_without_a_measure_2(self, beat_tl):
-        self.add_beats(beat_tl, range(5, 17))
-        beat_tl.set_measure_number(1, 3)
-        assert beat_tl.measure_numbers == [1, 3, 4]
-
-        assert beat_tl.add_measure_zero(0.5) == self.REFUSED
-        assert len(beat_tl) == 12
-
-    def test_refused_without_a_measure_1(self, beat_tl):
-        self.add_beats(beat_tl, range(5, 17))
-        beat_tl.set_measure_number(0, 5)
-        assert beat_tl.measure_numbers == [5, 6, 7]
-
-        assert beat_tl.add_measure_zero(0.5) == self.REFUSED
-        assert len(beat_tl) == 12
 
     @staticmethod
     def open_beats(tmp_path, change):
@@ -638,6 +677,19 @@ class TestAddMeasureZero:
         assert open_file(a_file(tmp_path, {an_id(1): content}))
         return get(Get.TIMELINE, an_id(1))
 
+    def test_when_measure_2_is_a_cadenza(self, qtui, tls, tmp_path):
+        # The core finds no measure by the number of a cadenza.
+        def a_cadenza(content):
+            content["components"][an_id(104)]["measure"] = {"cadenza": True}
+
+        timeline = self.open_beats(tmp_path, a_cadenza)
+        assert timeline.measure_numbers == [1, 2, 3]
+
+        assert timeline.add_measure_zero(0.5) == (True, "")
+
+        assert timeline[0].get_data("time") == 3
+        assert timeline.measure_numbers == [0, 1, 2, 3]
+
     def test_refused_with_a_folded_table(self, qtui, tls, tmp_path):
         # The measures played next: the core maps no times to such a table.
         def fold(content):
@@ -646,18 +698,6 @@ class TestAddMeasureZero:
             components[an_id(104)]["measure"] = {"next": [an_id(108)]}
 
         timeline = self.open_beats(tmp_path, fold)
-        assert timeline.measure_numbers == [1, 2, 3]
-
-        assert timeline.add_measure_zero(0.5) == self.REFUSED
-        assert len(timeline) == 12
-
-    def test_refused_when_measure_2_is_a_cadenza(self, qtui, tls, tmp_path):
-        # A cadenza takes the number after measure 1, as TiLiA shows it, but the
-        # core finds no cadenza by its number.
-        def a_cadenza(content):
-            content["components"][an_id(104)]["measure"] = {"cadenza": True}
-
-        timeline = self.open_beats(tmp_path, a_cadenza)
         assert timeline.measure_numbers == [1, 2, 3]
 
         assert timeline.add_measure_zero(0.5) == self.REFUSED
@@ -673,7 +713,7 @@ class TestAddMeasureZero:
         assert timeline.add_measure_zero(0.5) == self.REFUSED
         assert len(timeline) == 12
 
-    def test_refused_without_room_before_measure_one(self, beat_tl):
+    def test_refused_without_room_before_the_first_measure(self, beat_tl):
         self.add_beats(beat_tl, range(1, 9))
 
         assert beat_tl.add_measure_zero(0.5) == (

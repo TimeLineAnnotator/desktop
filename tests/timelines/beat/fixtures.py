@@ -38,3 +38,15 @@ def beat(beat_tl):
 @pytest.fixture()
 def beat_ui(beat_tlui, beat):
     return beat_tlui.get_element(beat.id)
+
+
+@pytest.fixture
+def set_media_length(tilia):
+    """Sets the media's length as a report of it does, cropping nothing here."""
+
+    def set_length(length):
+        tilia.set_file_media_duration(length, scale_timelines="no")
+
+    yield set_length
+    tilia.set_file_media_duration(100, scale_timelines="no")
+    post(Post.APP_STATE_RECORD, "media length")

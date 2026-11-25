@@ -721,35 +721,38 @@ class BeatTimeline(Timeline):
         self.component_manager.update_is_first_in_measure_of_subsequent_beats(0)
 
     def add_measure_zero(self, fraction_of_measure_one: float) -> tuple[bool, str]:
-        # Measures 1 and 2 where the core finds them on this timeline (FR-042).
+        # The first measure, whatever its number, as the core bounds it on this
+        # timeline: from its downbeat to the next, or to the closing barline
+        # (FR-042; TimeLineAnnotator/project-management#676).
         time_map = get(Get.TIMELINE_COLLECTION).time_map_for(self.id)
-        measure_one_starts = time_map.times_of(1) if time_map is not None else []
-        measure_two_starts = time_map.times_of(2) if time_map is not None else []
-        if not measure_one_starts or not measure_two_starts:
-            # Fewer than two measures, measures numbered otherwise, or a table the
-            # core can't map to times (TimeLineAnnotator/project-management#650).
+        if time_map is None:
+            # Fewer than two beats, or a table the core can't map to times.
             return (
                 False,
-                "Measures 1 and 2 can't both be found on this timeline. Cannot"
-                " estimate measure zero duration.",
+                "The length of the first measure can't be found on this timeline."
+                " Cannot estimate measure zero duration.",
             )
 
-        measure_one_start = measure_one_starts[0]
-        measure_two_start = measure_two_starts[0]
-
-        measure_zero_duration = (
-            measure_two_start - measure_one_start
-        ) * fraction_of_measure_one
-        measure_zero_start = measure_one_start - measure_zero_duration
+        first = time_map.measure_rows()[0]
+        measure_zero_duration = (first.end - first.start) * fraction_of_measure_one
+        measure_zero_start = first.start - measure_zero_duration
         if measure_zero_start < 0:
             return (
                 False,
                 "There is not enough available space before the first measure.",
             )
 
+        # TiLiA keeps its measures by position: those there are stay as they are, one
+        # place later, with their beats, their numbers and which are always shown.
+        beats_in_measure = self.beats_in_measure.copy()
+        measure_numbers = self.measure_numbers.copy()
+        always_shown = self.measures_to_force_display.copy()
+
         self.create_component(ComponentKind.BEAT, measure_zero_start)
 
-        self.set_measure_number(0, 0)
-        self.set_beat_amount_in_measure(0, 1)
+        self.measure_numbers = [0, *measure_numbers]
+        self.measures_to_force_display = [index + 1 for index in always_shown]
+        self.set_data("beats_in_measure", [1, *beats_in_measure])
+        post(Post.BEAT_TIMELINE_MEASURE_NUMBER_CHANGE_DONE, self.id, 0)
 
         return True, ""

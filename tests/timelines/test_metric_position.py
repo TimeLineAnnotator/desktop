@@ -298,16 +298,6 @@ class TestTheTimeMapFollowsTheBeats:
         assert position(8.5).measure == 3
 
 
-@pytest.fixture
-def set_media_length(tilia):
-    def set_length(length):
-        tilia.set_file_media_duration(length, scale_timelines="no")
-
-    yield set_length
-    tilia.set_file_media_duration(100, scale_timelines="no")
-    post(Post.APP_STATE_RECORD, "media length")
-
-
 class TestTheTimeMapFollowsTheMediaLength:
     """The last beat lasts as long as the one before it, or until the media ends if
     that comes first."""
