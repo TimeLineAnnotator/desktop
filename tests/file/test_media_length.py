@@ -24,6 +24,8 @@ from tilia.media.player.base import Player
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.marker.timeline import MarkerTimeline
 from tilia.ui import commands
+from tilia.ui.coords import time_x_converter
+from tilia.ui.timelines.marker.timeline import MarkerTimelineUI
 from tilia_core import tla
 
 FILES = Path(__file__).parents[2] / "packages" / "tilia-core" / "tests" / "tla"
@@ -307,6 +309,32 @@ def open_noting(path: Path, log: list[str], while_warnings_shown=None) -> bool:
         return commands.execute("file.open", path)
 
 
+def drawn(tluis) -> list[tuple]:
+    """Each item that can be seen of each element of the timelines, as it is drawn:
+    what it is, and where."""
+    return [
+        (
+            type(element).__name__,
+            type(item).__name__,
+            item.sceneBoundingRect().getRect(),
+        )
+        for tlui in tluis
+        for element in tlui
+        for item in element.child_items()
+        if item.isVisible()
+    ]
+
+
+def drawn_markers(tluis) -> list[tuple[float, float]]:
+    """Where each marker is drawn, and the time it has."""
+    return [
+        (element.body.sceneBoundingRect().center().x(), element.get_data("time"))
+        for tlui in tluis
+        if isinstance(tlui, MarkerTimelineUI)
+        for element in tlui
+    ]
+
+
 def marker_labels(path: Path) -> list[str]:
     """The labels of the markers the file at `path` stores."""
     return [
@@ -411,6 +439,33 @@ class TestALocalFilesLengthAsItOpens:
         assert tla.read(path).media_length == reported
         assert "edited" in marker_labels(path)
 
+    @pytest.mark.parametrize(
+        "reported, answers",
+        [(20.0, [True]), (15.0, [False, True])],
+        ids=["scale", "crop"],
+    )
+    def test_undo_right_after_the_answer_does_nothing(
+        self, audio, tilia, tluis, tmp_path, monkeypatch, reported, answers
+    ):
+        # As in a file just opened, the history holds the one state it starts from
+        # (TimeLineAnnotator/project-management#642, a).
+        monkeypatch.setattr(_Audio, "LENGTH", reported)
+        with ServeSequence(Get.FROM_USER_YES_OR_NO, answers):
+            assert open_file(a_local_file(tmp_path, length=STORED))
+        assert tilia.undo_manager.is_cleared
+        answered = tilia.get_timelines_state()[0]
+        as_drawn = drawn(tluis)
+
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as question:
+            commands.execute("edit.undo")
+            commands.execute("edit.redo")
+
+        assert not question.called
+        assert tilia.get_timelines_state()[0] == answered
+        assert drawn(tluis) == as_drawn
+        assert get(Get.MEDIA_DURATION) == reported
+        assert tilia.is_file_modified()
+
     def test_the_document_follows_the_answer_at_once(
         self, audio, tilia, tmp_path, monkeypatch
     ):
@@ -433,6 +488,39 @@ class TestALocalFilesLengthAsItOpens:
         assert marker_times(autosaved) == pytest.approx(
             [time * 20.0 / STORED for time in times]
         )
+
+    @pytest.mark.parametrize(
+        "reported, answers",
+        [
+            (20.0, [True]),
+            (20.0, [False]),
+            (15.0, [True]),
+            (15.0, [False, True]),
+            (15.0, [False, False]),
+        ],
+        ids=[
+            "longer, scale",
+            "longer, don't scale",
+            "shorter, scale",
+            "shorter, crop",
+            "shorter, neither: scale",
+        ],
+    )
+    def test_everything_is_drawn_where_the_answer_puts_it(
+        self, audio, tluis, tmp_path, monkeypatch, reported, answers
+    ):
+        monkeypatch.setattr(_Audio, "LENGTH", reported)
+        with ServeSequence(Get.FROM_USER_YES_OR_NO, answers):
+            assert open_file(a_local_file(tmp_path, length=STORED))
+
+        as_opened = drawn(tluis)
+
+        # Where a zoom, which draws everything again, puts it.
+        for tlui in tluis:
+            tluis.update_timeline_times(tlui)
+        assert as_opened == drawn(tluis)
+        for x, time in drawn_markers(tluis):
+            assert x == pytest.approx(time_x_converter.get_x_by_time(time), abs=1)
 
     def test_within_the_tolerance_asks_nothing(self, audio, tilia, tmp_path):
         path = a_local_file(tmp_path, length=_Audio.LENGTH + 1.9)
@@ -678,6 +766,54 @@ class TestAFileWithoutALength:
         commands.execute("edit.undo")
 
         assert tilia.is_file_modified()
+        assert save()
+        assert tla.read(path).media_length == _Audio.LENGTH
+
+    @pytest.mark.parametrize(
+        "media_path", ["", "missing.mp3"], ids=["none", "declined"]
+    )
+    def test_loading_the_same_media_again_after_an_undo(
+        self, audio, tilia, tmp_path, media_path
+    ):
+        # A file without media, or whose media isn't looked for, and without a length.
+        # TiLiA holds no length after the undo, and takes the media's with no question,
+        # where scaling from no length divided by zero.
+        path = a_file(tmp_path, str(tmp_path / media_path) if media_path else "", None)
+        take1 = tmp_path / "take1.mp3"
+        take1.write_bytes(b"")
+        times = marker_times(path)
+        assert open_file(path)
+        post(Post.APP_MEDIA_LOAD, str(take1))
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            commands.execute("edit.undo")
+
+        with Serve(Get.FROM_USER_YES_OR_NO, True) as question:
+            post(Post.APP_MEDIA_LOAD, str(take1))
+
+        assert not question.called
+        assert get(Get.MEDIA_DURATION) == _Audio.LENGTH
+        assert save()
+        assert tla.read(path).media_length == _Audio.LENGTH
+        assert marker_times(path) == times
+
+    @pytest.mark.parametrize(
+        "media_path", ["", "missing.mp3"], ids=["none", "declined"]
+    )
+    def test_loading_the_same_media_again_after_an_undo_with_a_length_stored(
+        self, audio, tilia, tmp_path, media_path
+    ):
+        # The same in a file that stores a length: nothing divides by zero, whatever
+        # is answered.
+        path = a_file(tmp_path, str(tmp_path / media_path) if media_path else "")
+        take1 = tmp_path / "take1.mp3"
+        take1.write_bytes(b"")
+        assert open_file(path)
+        with Serve(Get.FROM_USER_YES_OR_NO, True):
+            post(Post.APP_MEDIA_LOAD, str(take1))
+            commands.execute("edit.undo")
+            post(Post.APP_MEDIA_LOAD, str(take1))
+
+        assert get(Get.MEDIA_DURATION) == _Audio.LENGTH
         assert save()
         assert tla.read(path).media_length == _Audio.LENGTH
 
