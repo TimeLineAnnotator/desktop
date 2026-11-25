@@ -5,6 +5,14 @@ from tilia_core import rules
 
 MODE_TYPES = [m for m in _m21k.modeSharpsAlter.keys() if m not in ("ionian", "aeolian")]
 
+# The type of key a mode is read in, by its type in lower case: TiLiA's own, and two
+# that only a file can hold (Anne, 2026-11-25,
+# TimeLineAnnotator/project-management#677, 1c). TiLiA can't read any other.
+MODE_TYPE_TO_KEY_TYPE = {m: m for m in MODE_TYPES} | {
+    "ionian": "major",
+    "aeolian": "minor",
+}
+
 # The dominant with a sixth and a fourth over its root, which resolve to its
 # fifth and third. Its sixth and fourth are not added tones, but it is written
 # and typed as if they were, on the major triad: "V(64)".

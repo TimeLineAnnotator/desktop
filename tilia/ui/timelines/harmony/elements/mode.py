@@ -1,11 +1,9 @@
-import music21
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PySide6.QtWidgets import QGraphicsItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME
-from tilia.timelines.harmony.validators import validate_accidental, validate_step
 from tilia.ui import commands
 from tilia.ui.coords import time_x_converter
 from tilia.ui.timelines.base.element import TimelineUIElement
@@ -13,6 +11,7 @@ from tilia.ui.timelines.drag import DragManager
 from tilia.ui.timelines.harmony.constants import Accidental
 from tilia.ui.timelines.harmony.context_menu import ModeContextMenu
 from tilia.ui.timelines.harmony.elements import mode_attrs
+from tilia.ui.timelines.harmony.elements.label_body import LabelBody
 from tilia.ui.timelines.harmony.utils import UNREADABLE
 
 
@@ -41,15 +40,16 @@ class ModeUI(TimelineUIElement):
 
     @property
     def label(self):
-        if not (
-            validate_step(self.get_data("step"))
-            and validate_accidental(self.get_data("accidental"))
-        ):
+        if not self.tl_component.can_read_tonic:
             return UNREADABLE  # a tonic TiLiA can't read, which a file can hold
         tonic = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
             "musanalysis",
             self.get_data("accidental"),
         )
+        if not self.tl_component.can_read_key:
+            # A type TiLiA can't read, as a harmony of a quality it can't read (Anne,
+            # 2026-11-25, TimeLineAnnotator/project-management#677, 2b).
+            return tonic + UNREADABLE
         mode_type = self.get_data("type")
         if mode_type == "major":
             return ("@" if tonic[0] == "b" else "") + tonic
@@ -60,10 +60,8 @@ class ModeUI(TimelineUIElement):
 
     @property
     def key(self):
-        tonic = INT_TO_NOTE_NAME[self.get_data("step")] + Accidental.get_from_int(
-            "music21", self.get_data("accidental")
-        )
-        return music21.key.Key(tonic, mode=self.get_data("type"))
+        # The component's, which is C major where TiLiA can't read the key.
+        return self.tl_component.key
 
     @property
     def seek_time(self):
@@ -147,7 +145,7 @@ class ModeUI(TimelineUIElement):
         return mode_attrs.get_inspector_dict(self)
 
 
-class ModeBody(QGraphicsTextItem):
+class ModeBody(LabelBody):
     def __init__(
         self,
         x: float,
@@ -165,13 +163,14 @@ class ModeBody(QGraphicsTextItem):
         self.setDefaultTextColor(QColor("black"))
 
     def get_point(self, x: float, y: float):
-        return QPointF(x - self.boundingRect().width() / 2, y)
+        return QPointF(x - self.boundingRect().width() / 2, y + self.marks_y_offset())
 
     def set_position(self, x, y):
         self.setPos(self.get_point(x, y))
 
     def set_text(self, value: str):
         if " " in value:
+            self.has_marks = False
             idx = value.index(" ")
             tonic = value[:idx]
             mode_name = value[idx + 1 :]
@@ -180,7 +179,7 @@ class ModeBody(QGraphicsTextItem):
                 f'<span style="font-family: Arial; font-size: 10pt;">{mode_name}</span>'
             )
         else:
-            self.setPlainText(value)
+            self.set_plain_text(value, has_marks=True)
 
     def on_select(self):
         font = self.font()

@@ -7,7 +7,11 @@ import music21
 from tilia.timelines.base.component import PointLikeTimelineComponent
 from tilia.timelines.base.validators import validate_string, validate_time
 from tilia.timelines.component_kinds import ComponentKind
-from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME, NOTE_NAME_TO_INT
+from tilia.timelines.harmony.constants import (
+    INT_TO_NOTE_NAME,
+    MODE_TYPE_TO_KEY_TYPE,
+    NOTE_NAME_TO_INT,
+)
 from tilia.timelines.harmony.validators import (
     validate_accidental,
     validate_level,
@@ -69,8 +73,21 @@ class Mode(PointLikeTimelineComponent):
         return validate_step(self.step) and validate_accidental(self.accidental)
 
     @property
+    def key_type(self) -> str | None:
+        """The type of its key, None where TiLiA can't read its own: a file can hold a
+        type TiLiA doesn't know. One TiLiA knows is read whatever its capitals (Anne,
+        2026-11-25, TimeLineAnnotator/project-management#677, 1c)."""
+        return MODE_TYPE_TO_KEY_TYPE.get(self.type.lower())
+
+    @property
+    def can_read_key(self) -> bool:
+        """Whether TiLiA can read its key: its tonic, and its type (Anne, 2026-11-19,
+        TimeLineAnnotator/project-management#605, a)."""
+        return self.can_read_tonic and self.key_type is not None
+
+    @property
     def key(self):
-        if not self.can_read_tonic:
+        if not self.can_read_key:
             # C major, for what needs a key, as with no mode. The harmonies after
             # it show "?" as roman numerals (Anne, 2026-11-13,
             # TimeLineAnnotator/project-management#563, point 3), and a roman
@@ -81,7 +98,7 @@ class Mode(PointLikeTimelineComponent):
             INT_TO_NOTE_NAME[self.step]
             + music21.pitch.Accidental(self.get_data("accidental")).modifier
         )
-        return music21.key.Key(tonic, mode=self.get_data("type"))
+        return music21.key.Key(tonic, mode=self.key_type)
 
 
 def _format_postfix_accidental(text):

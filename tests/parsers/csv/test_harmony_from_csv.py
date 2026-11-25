@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import mock_open, patch
 
+import music21
 import pytest
 
 import tilia.parsers.csv.harmony
@@ -414,24 +415,27 @@ class TestOptionalColumns:
         assert harmony_tl[0].get_data("comments") == "hello"
 
 
+@pytest.mark.parametrize(
+    "unreadable",
+    [{"step": 9}, {"accidental": 5}, {"type": "some-future-type"}],
+    ids=["tonic's step", "tonic's accidental", "type"],
+)
 class TestRomanNumeralWhereTheKeyCantBeRead:
-    """After a mode whose tonic TiLiA can't read, up to the next mode, a roman
-    numeral is refused, since no key can place it, and letters are imported as
-    before (TimeLineAnnotator/project-management#595, point 3)."""
+    """After a mode whose tonic or type TiLiA can't read, up to the next mode, a
+    roman numeral is refused, since no key can place it, and letters are imported
+    as before (TimeLineAnnotator/project-management#595, point 3, and
+    TimeLineAnnotator/project-management#605)."""
 
     @staticmethod
-    def a_mode_tilia_can_t_read(harmony_tl, tonic):
+    def a_mode_tilia_can_t_read(harmony_tl, unreadable):
         # As a file can hold it: opening one creates its components unchecked.
-        harmony_tl.create_mode(time=0, **tonic, checked=False)
+        harmony_tl.create_mode(time=0, **unreadable, checked=False)
 
-    @pytest.mark.parametrize(
-        "tonic", [{"step": 9}, {"accidental": 5}], ids=["step", "accidental"]
-    )
     @pytest.mark.parametrize("symbol", ["V", "V7/V", "bVI", "Cad64"])
     def test_the_row_is_refused_and_the_others_imported(
-        self, harmony_tl, tonic, symbol
+        self, harmony_tl, unreadable, symbol
     ):
-        self.a_mode_tilia_can_t_read(harmony_tl, tonic)
+        self.a_mode_tilia_can_t_read(harmony_tl, unreadable)
         data = "\n".join(
             ["time,harmony_or_key,symbol", f"10,harmony,{symbol}", "12,harmony,G"]
         )
@@ -446,8 +450,8 @@ class TestRomanNumeralWhereTheKeyCantBeRead:
         assert harmony.get_data("time") == 12
         assert harmony.get_data("step") == 4
 
-    def test_letters_are_imported_as_before(self, harmony_tl):
-        self.a_mode_tilia_can_t_read(harmony_tl, {"step": 9})
+    def test_letters_are_imported_as_before(self, harmony_tl, unreadable):
+        self.a_mode_tilia_can_t_read(harmony_tl, unreadable)
         data = "\n".join(["time,harmony_or_key,symbol", "10,harmony,Bb7"])
 
         success, errors = call_patched_import_by_time_func(harmony_tl, data)
@@ -458,8 +462,10 @@ class TestRomanNumeralWhereTheKeyCantBeRead:
         assert harmony.get_data("accidental") == -1
         assert harmony.get_data("quality") == "dominant-seventh"
 
-    def test_a_mode_tilia_can_read_gives_roman_numerals_its_key(self, harmony_tl):
-        self.a_mode_tilia_can_t_read(harmony_tl, {"step": 9})
+    def test_a_mode_tilia_can_read_gives_roman_numerals_its_key(
+        self, harmony_tl, unreadable
+    ):
+        self.a_mode_tilia_can_t_read(harmony_tl, unreadable)
         data = "\n".join(
             [
                 "time,harmony_or_key,symbol",
@@ -479,7 +485,50 @@ class TestRomanNumeralWhereTheKeyCantBeRead:
         assert harmony.get_data("accidental") == 0
 
 
+class TestRomanNumeralAfterATypeOnlyAFileCanHold:
+    @pytest.mark.parametrize(
+        "mode_type, step, accidental",
+        [("ionian", 6, 0), ("Aeolian", 6, -1), ("MAJOR", 6, 0)],
+    )
+    def test_it_is_imported_in_its_key(self, harmony_tl, mode_type, step, accidental):
+        # One TiLiA can read (TimeLineAnnotator/project-management#677, 1c): B in C
+        # major, B flat in C minor.
+        harmony_tl.create_mode(time=0, type=mode_type, checked=False)
+        data = "\n".join(["time,harmony_or_key,symbol", "10,harmony,VII"])
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert success
+        assert not errors
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("step") == step
+        assert harmony.get_data("accidental") == accidental
+
+
 class TestSymbolsThatRaise:
+    def test_a_key_lookup_that_raises_is_the_row_s_error(self, harmony_tl):
+        # The import goes on: the lookup is inside the `try` that reports a row's
+        # error (TimeLineAnnotator/project-management#615).
+        get_key_by_time = HarmonyTimeline.get_key_by_time
+
+        def raising_at_10(timeline, time):
+            if time == 10:
+                raise music21.Music21Exception("the key raised")
+            return get_key_by_time(timeline, time)
+
+        data = "\n".join(["time,harmony_or_key,symbol", "10,harmony,G", "12,harmony,D"])
+
+        with patch.object(HarmonyTimeline, "get_key_by_time", raising_at_10):
+            success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert success
+        assert errors == [
+            tilia.parsers.csv.harmony.HARMONY_INVALID_SYMBOL_ERROR.format("G")
+        ]
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("time") == 12
+        assert harmony.get_data("step") == 1
+
     def test_key_symbol_without_note_name_is_reported(self, harmony_tl):
         data = "\n".join(
             [

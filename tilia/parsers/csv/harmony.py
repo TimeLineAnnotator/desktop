@@ -101,7 +101,6 @@ def _create_component(
     optional_params: dict[str, Any] | None = None,
 ) -> list[str]:
     errors = []
-    key = harmony_tl.get_key_by_time(time)
     try:
         if (
             component_kind == "harmony"
@@ -115,6 +114,8 @@ def _create_component(
                     format_media_time(time), symbol
                 )
             ]
+        # In the `try`, so that a lookup that raises is this row's error.
+        key = harmony_tl.get_key_by_time(time)
         success, params = _get_component_params_from_text(component_kind, symbol, key)
     except (music21.Music21Exception, KeyError):
         # The harmony parser raises on some symbols instead of failing, e.g. an

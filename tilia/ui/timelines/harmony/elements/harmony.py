@@ -5,7 +5,7 @@ import music21.chord
 from music21.roman import RomanNumeral
 from PySide6.QtCore import QPointF
 from PySide6.QtGui import QColor, QFont
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsTextItem
+from PySide6.QtWidgets import QGraphicsItem
 
 from tilia.requests import Get, Post, get, post
 from tilia.timelines.harmony.constants import INT_TO_NOTE_NAME, INT_TO_ROMAN
@@ -29,6 +29,7 @@ from tilia.ui.timelines.harmony.utils import (
 from tilia_core.rules import split_added_tone
 
 from . import harmony_attrs
+from .label_body import LabelBody
 
 
 class HarmonyUI(TimelineUIElement):
@@ -59,7 +60,9 @@ class HarmonyUI(TimelineUIElement):
         self.drag_manager = None
 
     def _setup_body(self):
-        self.body = HarmonyBody(self.x, self.y, self.label, self.font_type)
+        self.body = HarmonyBody(
+            self.x, self.y, self.label, self.font_type, self.is_custom_text
+        )
         self.scene.addItem(self.body)
 
     @property
@@ -67,8 +70,13 @@ class HarmonyUI(TimelineUIElement):
         return (self.timeline_ui.get_y(self.get_data("level"))) + 5
 
     @property
+    def is_custom_text(self) -> bool:
+        """Whether its label is a text of a person's own, with no mark of TiLiA's."""
+        return self.get_data("display_mode") == "custom"
+
+    @property
     def font_type(self):
-        if self.get_data("display_mode") == "custom":
+        if self.is_custom_text:
             return self.get_data("custom_text_font_type")
         else:
             return "analytic"
@@ -131,8 +139,9 @@ class HarmonyUI(TimelineUIElement):
     @property
     def can_read_key(self) -> bool:
         """Whether TiLiA can read the key it is in: not after a mode whose tonic
-        it can't read, up to the next mode (Anne, 2026-11-13,
-        TimeLineAnnotator/project-management#563, point 3)."""
+        or type it can't read, up to the next mode (Anne, 2026-11-13,
+        TimeLineAnnotator/project-management#563, point 3; Anne, 2026-11-19,
+        TimeLineAnnotator/project-management#605, a)."""
         return self.timeline_ui.timeline.can_read_key_by_time(self.get_data("time"))
 
     @property
@@ -242,8 +251,9 @@ class HarmonyUI(TimelineUIElement):
         self.update_label()
 
     def update_display_mode(self):
-        self.update_label()
+        # The font first: where the label goes depends on it.
         self.update_custom_text_font_type()
+        self.update_label()
 
     def update_custom_text(self):
         self.update_label()
@@ -258,7 +268,7 @@ class HarmonyUI(TimelineUIElement):
             self.body.set_font_type("analytic")
 
     def update_label(self):
-        self.body.set_text(self.label)
+        self.body.set_text(self.label, self.is_custom_text)
         self.body.set_position(self.x, self.y)
 
     def update_position(self):
@@ -321,7 +331,7 @@ class HarmonyUI(TimelineUIElement):
         return harmony_attrs.get_inspector_dict(self)
 
 
-class HarmonyBody(QGraphicsTextItem):
+class HarmonyBody(LabelBody):
     REGULAR_FONT_Y_OFFSET = 5
 
     def __init__(
@@ -331,10 +341,11 @@ class HarmonyBody(QGraphicsTextItem):
         text: str,
         # alternate_text: str,
         font_type: str,
+        is_custom_text: bool,
     ):
         super().__init__()
         self._setup_font(font_type)
-        self.set_text(text)
+        self.set_text(text, is_custom_text)
         self.set_position(x, y)
         # self.setToolTip(alternate_text)
 
@@ -349,14 +360,16 @@ class HarmonyBody(QGraphicsTextItem):
     def get_point(self, x: float, y: float):
         return QPointF(
             x - self.boundingRect().width() / 2,
-            y + (self.REGULAR_FONT_Y_OFFSET if self.font().family() == "Arial" else 0),
+            y
+            + (self.REGULAR_FONT_Y_OFFSET if self.font().family() == "Arial" else 0)
+            + self.marks_y_offset(),
         )
 
     def set_position(self, x, y):
         self.setPos(self.get_point(x, y))
 
-    def set_text(self, value: str):
-        self.setPlainText(value)
+    def set_text(self, value: str, is_custom_text: bool):
+        self.set_plain_text(value, has_marks=not is_custom_text)
 
     def set_font_type(self, font_type):
         font = self.get_font(font_type)
