@@ -11,6 +11,8 @@ from unittest.mock import patch
 import pytest
 
 from tests.mock import Serve, patch_file_dialog
+from tilia.errors import ROMAN_NUMERAL_KEY_UNREADABLE
+from tilia.parsers.csv.harmony import import_by_time as import_harmonies_by_time
 from tilia.requests import Get, Post, post
 from tilia.timelines.component_kinds import ComponentKind
 from tilia.ui import commands
@@ -280,6 +282,45 @@ class TestImport:
             timeline, reported = import_by_time(request, tmp_path, "range", value)
         assert reported == [text]
         assert len(timeline) == 2
+
+
+class TestAKeyTiliaCantRead:
+    """A roman numeral is refused where the key can't be read, with its time
+    (TimeLineAnnotator/project-management#595, point 3). `format_media_time` can't
+    take a time that isn't finite, so the import stopped at that row."""
+
+    def import_into_it(self, harmony_tl, tmp_path, *rows):
+        # As a file can hold it: opening one creates its components unchecked. The
+        # app's own imports clear the timeline first, so this is the function's.
+        harmony_tl.create_mode(time=0, step=9, checked=False)
+        path = tmp_path / "harmonies.csv"
+        path.write_text("\n".join([HARMONY_HEADER, *rows]))
+        return import_harmonies_by_time(harmony_tl, path)
+
+    @pytest.mark.parametrize(
+        "time, shown", [("inf", "inf"), ("1e999", "inf"), ("nan", "nan")]
+    )
+    def test_a_numeral_at_a_time_that_cant_be_shown_is_refused(
+        self, harmony_tl, tmp_path, time, shown
+    ):
+        success, errors = self.import_into_it(
+            harmony_tl, tmp_path, f"{time},harmony,V", "3,harmony,G"
+        )
+
+        assert success
+        assert errors == [ROMAN_NUMERAL_KEY_UNREADABLE.message.format(shown, "V")]
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("time") == 3
+
+    def test_minus_infinity_is_refused_by_its_time(self, harmony_tl, tmp_path):
+        # It is before the mode, so its key can be read.
+        success, errors = self.import_into_it(
+            harmony_tl, tmp_path, "-inf,harmony,V", "3,harmony,G"
+        )
+
+        assert success
+        assert errors == ["Harmony time can't be negative. Got '-inf'"]
+        assert len(harmony_tl.harmonies()) == 1
 
 
 class TestEdit:

@@ -25,7 +25,6 @@ from tilia.timelines.harmony.components.mode import (
     get_params_from_text as get_mode_params_from_text,
 )
 from tilia.timelines.harmony.timeline import HarmonyTimeline
-from tilia.ui.format import format_media_time
 from tilia_core import rules
 
 
@@ -112,7 +111,7 @@ def _create_component(
             # point 3).
             return [
                 ROMAN_NUMERAL_KEY_UNREADABLE.message.format(
-                    format_media_time(time), symbol
+                    rules.shown_time(time), symbol
                 )
             ]
         success, params = _get_component_params_from_text(component_kind, symbol, key)
