@@ -236,6 +236,8 @@ class TestAnotherLabelIsDrawnAsBefore:
         mode.update_label()
 
         assert runs(mode.body) == [("C\xa0", MUSANALYSIS), ("Dorian", ARIAL)]
+        # Where a font for Arial higher than MusAnalysis would move it.
+        assert not mode.body.has_marks
         assert mode.body.y() == mode.y
 
 
@@ -302,23 +304,44 @@ class TestItsPlace:
     @pytest.mark.parametrize("attrs", [{"step": 9}, {"quality": "some-quality"}])
     def test_a_custom_text_shown_as_letters(self, open_a_file_with, attrs, font_type):
         # The font changes with it, from the one the person chose.
-        plain, changed = in_order(
-            open_a_file_with(
-                a_mode(),
-                a_harmony(),
-                a_harmony(
-                    time=5.0,
-                    display_mode="custom",
-                    custom_text="a text much longer than the mark",
-                    custom_text_font_type=font_type,
-                    **attrs,
-                ),
-            ).harmonies()
+        timeline_ui = open_a_file_with(
+            a_mode(),
+            a_harmony(),
+            a_harmony(
+                time=5.0,
+                display_mode="custom",
+                custom_text="a text much longer than the mark",
+                custom_text_font_type=font_type,
+                **attrs,
+            ),
         )
-        changed.timeline_ui.select_element(changed)
-        commands.execute("timeline.harmony.component.display_as_letter")
+        plain, changed = in_order(timeline_ui.harmonies())
+
+        timeline_ui.set_elements_attr([changed], "display_mode", "letter")
 
         assert runs(changed.body)[-1] == MARK
+        assert baseline(changed.body) == pytest.approx(baseline(plain.body))
+        centre = changed.body.sceneBoundingRect().center().x()
+        assert centre == pytest.approx(changed.x)
+
+    @pytest.mark.parametrize("font_type", ["analytic", "normal"])
+    def test_a_custom_text_shown_as_a_roman_numeral(self, open_a_file_with, font_type):
+        timeline_ui = open_a_file_with(
+            a_mode(type="some-future-type"),
+            a_harmony(),
+            a_harmony(
+                time=5.0,
+                display_mode="custom",
+                custom_text="a text much longer than the mark",
+                custom_text_font_type=font_type,
+            ),
+        )
+        plain, changed = in_order(timeline_ui.harmonies())
+        timeline_ui.select_element(changed)
+
+        commands.execute("timeline.harmony.component.display_as_roman")
+
+        assert runs(changed.body) == [MARK]
         assert baseline(changed.body) == pytest.approx(baseline(plain.body))
         centre = changed.body.sceneBoundingRect().center().x()
         assert centre == pytest.approx(changed.x)
