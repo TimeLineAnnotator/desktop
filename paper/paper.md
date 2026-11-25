@@ -75,6 +75,10 @@ Datasets need all of them: SALAMI [@smith:2011] and the Wagner Ring Dataset [@we
 Input formats and multimodality have varied support. Symbolic-based platforms, for instance, rarely support video.
 The Walküre [@balke:2017], Freischütz Digital [@muller:2013], Erkomaishvili [@rosenzweig:2020] and Lohengrin TimeMachine [@lewis:2021] interfaces show what multimodal, synchronised and richly interactive access can offer, but are tied to specific corpora.
 
+```{=context}
+\startlandscape
+```
+
 +-------------------+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----------------------+----------------+-----+-----+-----+-----+
 |                   | Annotation type                         | Media                       |                       |                | Platform              |
 + Tool              +-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+-----+ Licence               + Script/        +-----+-----+-----+-----+
@@ -102,7 +106,11 @@ The Walküre [@balke:2017], Freischütz Digital [@muller:2013], Erkomaishvili [@
 *Platforms:* **L** Linux · **M** macOS · **W** Windows · **w** web\
 Hollow circles mark partial support.
 
-In response to this challenge, we present 'TiLiA': a timeline annotator.
+```{=context}
+\stoplandscape
+```
+
+In response to this challenge, we present 'TiLiA': **Ti**me**Li**ne **A**nnotator.
 It provides an open-source, cross-platform desktop tool that aligns annotations with audio, video, YouTube, PDFs and scores on shared timelines, offers dedicated types for musical structure, harmony and metre, and can be scripted and exchanged through CSV and JSON.
 
 # Specifications
