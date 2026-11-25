@@ -510,8 +510,10 @@ class TestALocalFilesLengthAsItOpens:
         self, audio, tluis, tmp_path, monkeypatch, reported, answers
     ):
         monkeypatch.setattr(_Audio, "LENGTH", reported)
-        with ServeSequence(Get.FROM_USER_YES_OR_NO, answers):
+        questions = ServeSequence(Get.FROM_USER_YES_OR_NO, answers)
+        with questions:
             assert open_file(a_local_file(tmp_path, length=STORED))
+        assert questions.return_count == len(answers)
 
         as_opened = drawn(tluis)
 
