@@ -37,6 +37,7 @@ from tilia.log import logger
 from tilia.requests import Get, Post, get, listen, stop_listening_to_all
 from tilia.settings import settings
 from tilia.ui import commands
+from tilia.ui.windows.metadata_edit_fields import ONE_NAME_PER_LINE
 
 if TYPE_CHECKING:
     from tilia.timelines.base.timeline import Timeline
@@ -45,6 +46,8 @@ Fields = dict[str, Any]
 
 TITLE = "Fields of {}"
 QUESTION_TITLE = "Save field edits"
+# TimeLineAnnotator/project-management#692, point 3, b.
+NO_FIELDS = "This timeline has no fields."
 
 
 def field_text(value: Any) -> str:
@@ -150,6 +153,7 @@ class FieldNamesDialog(QDialog):
             block.setUserState(index)
             self._shown.append(block.text())
             block = block.next()
+        layout.addWidget(QLabel(ONE_NAME_PER_LINE))
         layout.addWidget(self.text_edit)
         button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -272,6 +276,8 @@ class TimelineFieldsWindow(QDialog):
             self.form_layout.addRow(label, line_edit)
             self.line_edits[name] = line_edit
             self._shown[name] = (copy.deepcopy(value), line_edit.text())
+        if not self.line_edits:
+            self.form_layout.addRow(QLabel(NO_FIELDS))
         self.edit_names_button = QPushButton("Edit fields…")
         # Enter in a field neither applies nor cancels: no button is the default.
         self.edit_names_button.setAutoDefault(False)

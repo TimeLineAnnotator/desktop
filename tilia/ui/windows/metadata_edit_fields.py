@@ -1,8 +1,12 @@
 import functools
 
-from PySide6.QtWidgets import QDialog, QDialogButtonBox, QTextEdit, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QTextEdit, QVBoxLayout
 
 from tilia.requests import Get, get
+
+# Above a box of names: this one, and a timeline's fields window's
+# (TimeLineAnnotator/project-management#692, point 3, b).
+ONE_NAME_PER_LINE = "One name per line."
 
 
 class EditMetadataFieldsDialog(QDialog):
@@ -15,6 +19,7 @@ class EditMetadataFieldsDialog(QDialog):
         layout = QVBoxLayout()
         self.setLayout(layout)
 
+        layout.addWidget(QLabel(ONE_NAME_PER_LINE))
         self.text_edit = QTextEdit()
         layout.addWidget(self.text_edit)
         self.populate()

@@ -609,6 +609,59 @@ class TestALongValue:
         assert shown(window) == {"source": "x", "role": "form"}
 
 
+def words_shown(window) -> list[str]:
+    """The labels a person sees, but the fields' names."""
+    QCoreApplication.sendPostedEvents()  # a row made since shows from Qt's queue
+    names = labels(window)
+    return [
+        label.text()
+        for label in window.findChildren(QLabel)
+        if label.isVisible() and label.text() not in names
+    ]
+
+
+class TestWords:
+    """What says what is what when there is little to see
+    (TimeLineAnnotator/project-management#692, point 3, b)."""
+
+    NO_FIELDS = "This timeline has no fields."
+
+    def test_a_timeline_without_fields_says_so_above_its_button(
+        self, every_kind, tluis
+    ):
+        window = open_fields(tluis, BARS)
+
+        assert words_shown(window) == [self.NO_FIELDS]
+        layout = window.form_layout
+        (words,) = window.findChildren(QLabel)
+        assert layout.indexOf(words) < layout.indexOf(window.edit_names_button)
+
+    def test_one_with_fields_doesn_t(self, every_kind, tluis):
+        assert words_shown(open_fields(tluis, FORM)) == []
+
+    def test_they_go_with_the_first_field_and_come_back_without_one(
+        self, every_kind, tluis
+    ):
+        window = open_fields(tluis, BARS)
+
+        edit_names(window, "author")
+        assert words_shown(window) == []
+
+        edit_names(window, "")
+        assert words_shown(window) == [self.NO_FIELDS]
+
+    @pytest.mark.parametrize("timeline_id", [FORM, BARS], ids=["fields", "none"])
+    def test_the_names_box_says_one_name_per_line_above_the_names(
+        self, every_kind, tluis, timeline_id
+    ):
+        dialog = edit_names(open_fields(tluis, timeline_id), UNCHANGED)
+
+        (words,) = dialog.findChildren(QLabel)
+        assert words.text() == "One name per line."
+        layout = dialog.layout()
+        assert layout.indexOf(words) < layout.indexOf(dialog.text_edit)
+
+
 class TestEditing:
     """Adding, changing and removing a field changes those lines, as the same edit
     through the core's API does."""
