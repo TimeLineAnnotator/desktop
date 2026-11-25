@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -14,6 +14,7 @@ from tests.utils import (
 from tilia.requests import Get, Post, post
 from tilia.settings import settings
 from tilia.timelines.beat.timeline import BeatTimeline
+from tilia.timelines.collection.collection import Timelines
 from tilia.ui import commands
 from tilia.ui.commands import get_qaction
 from tilia.ui.coords import time_x_converter
@@ -378,6 +379,37 @@ class TestOther:
 
 
 DUMMY_MEASURE_NUMBER = 11
+
+
+class TestItsOwnMeasures:
+    """A beat timeline draws its own measures, where the export writes the core's
+    position: it has them with one beat too, which gives no time map."""
+
+    def test_one_beat(self, beat_tlui):
+        beat_tlui.create_beat(5)
+
+        assert get_displayed_measure_number(beat_tlui[0]) == "1"
+        assert beat_tlui[0].get_inspector_dict()["Measure"] == "1"
+
+    def test_drawing_them_asks_for_no_time_map(self, beat_tlui):
+        with patch.object(Timelines, "time_map_found", side_effect=AssertionError):
+            for time in range(8):
+                beat_tlui.create_beat(time)
+            beat_tlui.timeline.set_measure_number(1, 7)
+
+        assert get_displayed_measure_number(beat_tlui[4]) == "7"
+
+    def test_once_measure_zero_is_added(self, beat_tlui):
+        for time in range(5, 17):
+            beat_tlui.create_beat(time)
+        beat_tlui.timeline.set_measure_number(1, 3)
+
+        with patch.object(BeatTimeline, "display_measure_number_period", 1):
+            assert beat_tlui.timeline.add_measure_zero(0.5) == (True, "")
+
+        assert [get_displayed_measure_number(beat) for beat in beat_tlui] == [
+            *("0", "1", "", "", "", "3", "", "", "", "4", "", "", "")
+        ]
 
 
 class TestSetMeasureNumber:

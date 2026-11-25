@@ -17,13 +17,19 @@ class PointLikeTimelineComponent(TimelineComponent):
         return get(Get.METRIC_POSITION, self.get_data("time"))
 
     @property
+    def exported_position(self) -> MetricPosition | None:
+        """The position the export writes."""
+        return self.metric_position
+
+    @property
     def measure(self) -> int | None:
-        return self.metric_position.measure if self.metric_position else None
+        position = self.exported_position
+        return position.measure if position else None
 
     @property
     def beat(self) -> float | None:
         # As the export writes it.
-        position = self.metric_position
+        position = self.exported_position
         return round(position.beat, EXPORTED_BEAT_PLACES) if position else None
 
     @classmethod

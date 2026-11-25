@@ -261,6 +261,50 @@ class TestExportedPositions:
 
         assert (marker["measure"], marker["beat"]) == (7, 1.5)
 
+    def test_the_beats_themselves(self, tilia, beat_tl, tmp_path):
+        # The last measure's too, whose beats TiLiA's own lists put on beat 2.
+        self.add_beats(beat_tl, range(20))
+
+        rows = self.export(tmp_path)["Beat"]
+
+        assert [(b["measure"], b["beat"]) for b in rows] == [
+            (measure, beat) for measure in range(1, 6) for beat in (1, 2, 3, 4)
+        ]
+
+    def test_one_beat_has_no_position(self, tilia, beat_tl, tmp_path):
+        # As a marker on it has none: one beat gives no time map.
+        self.add_beats(beat_tl, [5])
+
+        (row,) = self.export(tmp_path)["Beat"]
+
+        assert (row["measure"], row["beat"]) == (None, None)
+
+    def test_the_beats_of_the_beat_timeline_the_map_is_chosen_from(
+        self, tilia, tls, tmp_path
+    ):
+        # Only those: another's beats keep the numbers of their own timeline.
+        own = tls.create_timeline(BeatTimeline, [], beat_pattern=[4], name="own")
+        chosen = tls.create_timeline(
+            BeatTimeline, [], beat_pattern=[2], fields={"role": "time_map"}
+        )
+        self.add_beats(own, range(8))
+        self.add_beats(chosen, range(8))
+        path = tmp_path / "test.json"
+        commands.execute("file.export.json", path)
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        rows = {
+            timeline["name"]: [
+                (beat["measure"], beat["beat"]) for beat in timeline["components"]
+            ]
+            for timeline in data["timelines"]
+        }
+
+        assert rows["own"][:5] == [(1, 1), (1, 2), (1, 3), (1, 4), (2, 1)]
+        assert rows[""] == [
+            (measure, beat) for measure in range(1, 5) for beat in (1, 2)
+        ]
+
     def test_a_beat_to_a_millionth(self, tilia, beat_tl, marker_tl, tmp_path):
         # A beat every 0.6 s: 7.5 s lies half-way between the beats at 7.2 and 7.8,
         # which the arithmetic gives as 1.5000000000000009.

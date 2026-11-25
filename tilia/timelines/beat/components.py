@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from tilia.requests import Get, get
 from tilia.timelines.base.metric_position import MetricPosition
 from tilia.timelines.base.validators import validate_bool, validate_time
 from tilia.timelines.component_kinds import ComponentKind
@@ -59,6 +60,14 @@ class Beat(PointLikeTimelineComponent):
             )
 
         return self._cached_metric_position
+
+    @property
+    def exported_position(self) -> MetricPosition | None:
+        """The core's, on the beat timeline the time map is chosen from (FR-009,
+        FR-044); the beats of another keep their own timeline's measures."""
+        if get(Get.TIMELINE_COLLECTION).get_time_map_timeline() is self.timeline:
+            return get(Get.METRIC_POSITION, self.time)
+        return self.metric_position
 
     @property
     def measure_number(self):
