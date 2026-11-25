@@ -259,6 +259,9 @@ class TimelineFieldsWindow(QDialog):
         self._shown.clear()
         for name, value in self._fields().items():
             line_edit = QLineEdit(field_text(value))
+            # A box shows the part of its text where the cursor is: the beginning of
+            # a longer one (TimeLineAnnotator/project-management#692, point 2, b).
+            line_edit.home(False)
             # The name as the inspector shows it, a line break as a space
             # (TimeLineAnnotator/project-management#643, a), then the Metadata
             # window's label: its first letter a capital, the rest as it is (`BWV`
@@ -286,7 +289,10 @@ class TimelineFieldsWindow(QDialog):
             self.edit_names_button.setFocus()
         else:
             first.setFocus()
-            first.selectAll()
+            # From its end to its beginning, where the cursor stays: `selectAll`
+            # leaves it at the end, and the box would show the end of a long text.
+            first.end(False)
+            first.home(True)
 
     def refresh(self) -> None:
         while self.form_layout.rowCount():

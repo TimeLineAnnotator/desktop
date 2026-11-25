@@ -543,6 +543,72 @@ class TestTheKeyboard:
         assert fields_of(FORM) == FORM_FIELDS
 
 
+LONG = (
+    "W. E. Caplin, Classical Form: A Theory of Formal Functions for the Instrumental "
+    "Music of Haydn, Mozart, and Beethoven, New York 1998, pp. 97-123"
+)
+
+
+def first_shown(line_edit) -> int:
+    """The place, in the text of a box it doesn't fit in, of the first character the
+    box shows."""
+    assert line_edit.fontMetrics().horizontalAdvance(line_edit.text()) > (
+        line_edit.width()
+    )
+    line_edit.grab()  # a box scrolls as it draws
+    return line_edit.cursorPositionAt(QPoint(0, line_edit.height() // 2))
+
+
+class TestALongValue:
+    """A value longer than its box shows its beginning
+    (TimeLineAnnotator/project-management#692, point 2, b)."""
+
+    @pytest.fixture(params=["first", "last"])
+    def window(self, request, opened, tluis):
+        fields = {"role": "form", "source": LONG}
+        if request.param == "first":
+            fields = dict(reversed(fields.items()))
+
+        def long(doc):
+            doc.timelines[FORM].metadata = fields
+
+        opened(long)
+        return open_fields(tluis, FORM)
+
+    def test_when_the_window_opens(self, window):
+        assert first_shown(window.line_edits["source"]) == 0
+
+    def test_after_apply(self, window):
+        window.line_edits["role"].setText("sections")
+
+        apply(window)
+        QCoreApplication.sendPostedEvents()
+
+        assert first_shown(window.line_edits["source"]) == 0
+
+    def test_after_apply_when_it_was_just_typed(self, window):
+        put_the_keyboard_on(window, "role")
+        window.line_edits["role"].selectAll()
+        QTest.keyClicks(window.line_edits["role"], LONG)
+        assert first_shown(window.line_edits["role"]) > 0
+
+        apply(window)
+        QCoreApplication.sendPostedEvents()
+
+        assert first_shown(window.line_edits["role"]) == 0
+
+    def test_the_first_one_s_whole_text_is_selected(self, opened, tluis):
+        def long(doc):
+            doc.timelines[FORM].metadata = {"source": LONG, "role": "form"}
+
+        opened(long)
+        window = open_fields(tluis, FORM)
+
+        assert window.line_edits["source"].selectedText() == LONG
+        press(window, "x")
+        assert shown(window) == {"source": "x", "role": "form"}
+
+
 class TestEditing:
     """Adding, changing and removing a field changes those lines, as the same edit
     through the core's API does."""
