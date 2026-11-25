@@ -649,6 +649,14 @@ class TestMediaLoad:
         commands.execute("edit.redo")
         assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
 
+    def test_load_the_media_already_loaded(self, tilia_state, tilia_errors):
+        # Qt's player ignores the source it has, and sends no signal for it.
+        self._load_media(EXAMPLE_MEDIA_PATH)
+        self._load_media(EXAMPLE_MEDIA_PATH)
+        tilia_errors.assert_no_error()
+        assert tilia_state.media_path == EXAMPLE_MEDIA_PATH
+        assert tilia_state.duration == EXAMPLE_MEDIA_DURATION
+
     def test_load_invalid_extension(self, tilia_state, tilia_errors):
         self._load_media("invalid.xyz")
         tilia_errors.assert_error()

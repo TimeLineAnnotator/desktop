@@ -83,7 +83,11 @@ class QtPlayer(Player):
         )
         def load_media(media_path):
             self._engine_stop()  # Must be _engine_stop() instead of player.stop() to avoid freeze.
-            self.player.setSource(QUrl.fromLocalFile(media_path))
+            source = QUrl.fromLocalFile(media_path)
+            if self.player.source() == source:
+                # Qt ignores the source it has: no signal would come for it.
+                self.player.setSource(QUrl())
+            self.player.setSource(source)
             return True
 
         success = load_media(media_path)
