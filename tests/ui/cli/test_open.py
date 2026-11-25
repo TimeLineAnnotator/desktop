@@ -1,11 +1,13 @@
 import json
 import shutil
+from pathlib import Path
 from unittest.mock import patch
 
 from colorama import Fore
 
 from tests.constants import EXAMPLE_MEDIA_PATH
 from tests.utils import get_blank_file_data
+from tilia.media.player import QtAudioPlayer
 from tilia.requests import Get, get
 
 
@@ -66,6 +68,26 @@ class TestWithMissingMedia:
             cli.parse_and_run(f'open "{file_path}"')
 
         assert get(Get.MEDIA_PATH) == EXAMPLE_MEDIA_PATH
+
+    def test_new_media_becomes_the_files_once_loaded(
+        self, tilia, cli, tls, tmp_path, tilia_errors
+    ):
+        # Found elsewhere, it leaves the file's path as it is until load-media is
+        # given it (TimeLineAnnotator/project-management#688, a).
+        with patch.object(QtAudioPlayer, "_engine_load_media", return_value=True):
+            file_path = self.get_file_with_missing_media(cli, tmp_path)
+            found = Path(shutil.copy(EXAMPLE_MEDIA_PATH, tmp_path / "found.mp3"))
+            with patch("builtins.input", side_effect=["yes", str(found)]):
+                cli.parse_and_run(f'open "{file_path}"')
+            assert not get(Get.IS_FILE_MODIFIED)
+
+            cli.parse_and_run(f'load-media "{found}"')
+
+        assert get(Get.IS_FILE_MODIFIED)
+        cli.parse_and_run(f'save "{file_path}" --overwrite')
+        saved = json.loads(Path(file_path).read_bytes())
+        assert saved["media"]["path"] == "found.mp3"
+        assert not get(Get.IS_FILE_MODIFIED)
 
 
 def _write_old_file_with_a_formal_type(tmp_path):

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+import os
 import threading
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,8 +39,9 @@ class OpenDocument:
     as the file stores it), and an undo or a redo back to that state gives it back.
 
     `media_path` is where the media was found, not the path the file stores
-    (`note_media_found`), when the file was last read or saved: other media
-    loaded since is an unsaved change.
+    (`note_media_found`), when the file was last read or saved.
+    `stored_media_path` is the path the file then had: media a person picks
+    since (`take_media`) is an unsaved change when a save would store another.
     `timelines` and `timelines_hash` are the state's when the file was last read or
     saved. `unknown_discarded` says timelines of kinds TiLiA doesn't know were taken
     out of the document, so that the file reads as modified until it is saved.
@@ -49,6 +52,7 @@ class OpenDocument:
     document: tla.Document | None = None
     file_path: str = ""
     media_path: str = ""
+    stored_media_path: str = field(default="", init=False)
     media_metadata: MediaMetadata = field(default_factory=MediaMetadata)
     timelines: dict[str, Any] = field(default_factory=dict)
     timelines_hash: str = ""
@@ -68,7 +72,9 @@ class OpenDocument:
     )
 
     def __post_init__(self) -> None:
-        if self.document is None:
+        if self.document is not None:
+            self.stored_media_path = self.document.media_path
+        else:
             # A new file (FR-008): the fields TiLiA starts a file with, and no
             # timelines, which TiLiA's state then adds.
             self.document = tla.new_document()
@@ -184,6 +190,78 @@ class OpenDocument:
             media_metadata = {**self.synced["media_metadata"], _MEDIA_LENGTH: length}
             # A new dict: undo may keep the old one in a state it records.
             self.synced = {**self.synced, "media_metadata": media_metadata}
+
+    def take_media(self, media_path: str) -> None:
+        """Makes `media_path`, media a person picked and TiLiA has loaded, the file's,
+        also when it is the media TiLiA had found elsewhere
+        (TimeLineAnnotator/project-management#688, a). The document stores its place
+        or, for media that is where the file says, however either spells it, the path
+        the file has."""
+        with self._lock:
+            given = tla.as_media_path(media_path)
+            self.document.media_path = (
+                self.stored_media_path if self._is_where_the_file_says(given) else given
+            )
+            if self.synced is not None:
+                # A new dict: undo may keep the old one in a state it records.
+                self.synced = {**self.synced, "media_path": media_path}
+
+    def stores_other_media(self, media_path: str) -> bool:
+        """Whether a save would store another media path than the file has, with
+        `media_path` in TiLiA's state: what makes media an unsaved change."""
+        with self._lock:
+            to_store = self.document.media_path
+            if self.synced is not None and media_path != self.synced["media_path"]:
+                to_store = tla.as_media_path(media_path)  # as a sync takes it
+            if to_store == self.stored_media_path:
+                return False
+            if not self.file_path:
+                return True
+            # As the core would write it into the file's folder.
+            other = copy.copy(self.document)
+            other.timelines = {}
+            other.media_path = to_store
+            written = paths.rebase_paths(other, paths.paths_folder(self.file_path))
+            return written.media_path != self.stored_media_path
+
+    def media_place(self) -> str:
+        """Where the document says its media is, whether it is there or not: the same
+        for any spelling, so that a save doesn't change it. A link is as it is, and ""
+        is none."""
+        with self._lock:
+            path = self.document.media_path
+            return self._place_of(path) or path
+
+    def _is_where_the_file_says(self, given: str) -> bool:
+        """Whether `given`, a path of media that is there, as `as_media_path` gives it,
+        is where the file says its media is. A link to it is another place."""
+        said, picked = self._place_of(self.stored_media_path), self._place_of(given)
+        if said == picked:
+            return bool(said)
+        texts = {
+            unicodedata.normalize("NFC", path).casefold() for path in (said, picked)
+        }
+        if not said or len(texts) > 1:
+            return False
+        # One file, where the file system ignores letter case or Unicode's form.
+        found = paths.stored_file_of(self.document, self.stored_media_path)
+        try:
+            return found is not None and os.path.samefile(found, given)
+        except OSError:  # gone since
+            return False
+
+    def _place_of(self, media_path: str) -> str:
+        """Where `media_path`, as the document stores it, says the media is: absolute,
+        by its text alone. "" for a link, for none, and for another system's path."""
+        if not media_path or tla.media_files.is_url(media_path):
+            return ""
+        if tla.media_files.absolute_form(media_path) not in (
+            None,
+            tla.media_files.SYSTEM,
+        ):
+            return ""
+        folder = paths.paths_folder_of(self.document) or ""
+        return os.path.normcase(os.path.abspath(os.path.join(folder, media_path)))
 
     def note_media_found(self, path: str) -> None:
         """Takes `path`, where TiLiA found the media the file stores, or "" when the

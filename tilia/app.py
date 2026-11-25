@@ -316,6 +316,9 @@ class App:
         self.player = player
 
         if success and record:
+            # Media a person picked, also when it was loaded already: not media
+            # an undo puts back.
+            self.file_manager.file.take_media(get(Get.MEDIA_PATH))
             post(Post.PLAYER_CANCEL_LOOP)
             post(Post.APP_STATE_RECORD, "media load")
 

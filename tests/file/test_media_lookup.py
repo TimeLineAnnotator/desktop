@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -592,6 +593,444 @@ class TestOtherMediaIsAnUnsavedChange:
 
         saved = tmp_path / "autosaves" / "2.tla"
         assert tla.media(saved, tla.read(saved)).path == tmp_path / "take2.mp3"
+
+
+def link_folder(link: Path, folder: Path) -> None:
+    """Makes `link` a link to `folder`, or a junction where Windows makes no link
+    for this user."""
+    try:
+        link.symlink_to(folder, target_is_directory=True)
+    except OSError:
+        if os.name != "nt":
+            raise
+        import _winapi
+
+        _winapi.CreateJunction(str(folder), str(link))
+
+
+def load_a_link(url: str) -> None:
+    """Loads a YouTube link from the menu, without starting YouTube's player."""
+
+    def loads_it(player, url, **_):
+        player.on_media_load_done(url, 0.0, 0.0)
+        return True, player
+
+    with patch("tilia.app.load_media", side_effect=loads_it):
+        load_youtube_media(url)
+
+
+def close_saving() -> bool:
+    """Closes TiLiA, saving if it asks. Whether it asked."""
+    with (
+        Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, True)) as asked,
+        PatchPost("tilia.app", Post.UI_EXIT) as exit_mock,
+    ):
+        commands.execute("tilia.close")
+    exit_mock.assert_called()
+    return asked.called
+
+
+class TestMediaFoundElsewhereThenPicked:
+    """Media picked from File > Load media becomes the file's, also when it is the
+    media TiLiA had found elsewhere: the place it remembers, or the one the user
+    picked when asked (TimeLineAnnotator/project-management#688, a). An unsaved
+    change, as any other (FR-021, FR-032)."""
+
+    # The place, as the file then stores it.
+    ITS_PLACE = "../a/m/example.mp3"
+
+    @pytest.fixture(params=["remembered", "picked when asked"])
+    def path(self, request, qtui, tilia, tls, tmp_path) -> Path:
+        """c/file.tla, open, which stores m/example.mp3: its media isn't there, and
+        TiLiA found it in a/m/."""
+        if request.param == "remembered":
+            path = a_file_with_media(
+                tmp_path / "a" / "file.tla", media_in(tmp_path / "a" / "m")
+            )
+            assert not open_file(path)
+            path = moved_alone(path, tmp_path / "c")
+            assert not open_file(path)
+        else:
+            path = a_file_with_media(
+                tmp_path / "c" / "file.tla", tmp_path / "c" / "m" / "example.mp3"
+            )
+            # Spelt as the dialog gives it.
+            assert open_file(path, media_in(tmp_path / "a" / "m").as_posix())
+        assert loaded_media() == tmp_path / "a" / "m" / "example.mp3"
+        assert stored_media_path(path) == STORED
+        assert not tilia.is_file_modified()
+        return path
+
+    @pytest.fixture
+    def place(self, path, tmp_path) -> str:
+        """Where TiLiA found the media, as the menu's dialog spells it."""
+        return (tmp_path / "a" / "m" / "example.mp3").as_posix()
+
+    @pytest.fixture
+    def other(self, tmp_path) -> str:
+        return media_in(tmp_path / "o", "other.mp3").as_posix()
+
+    def test_it_becomes_the_files(self, path, place, tilia):
+        load_local_media(place)
+
+        assert tilia.is_file_modified()
+        save()
+        assert stored_media_path(path) == self.ITS_PLACE
+        assert not tilia.is_file_modified()
+        # The core finds it there.
+        assert tla.media(path, tla.read(path)).path == Path(place)
+
+    def test_by_way_of_other_media_too(self, path, place, other, tilia):
+        load_local_media(other)
+        load_local_media(place)
+
+        assert tilia.is_file_modified()
+        save()
+        assert stored_media_path(path) == self.ITS_PLACE
+        assert not tilia.is_file_modified()
+
+    def test_spelt_otherwise_too(self, path, place, tilia):
+        load_local_media(place.replace("/a/m/", "/a/x/../m/"))
+
+        assert tilia.is_file_modified()
+        save()
+        assert stored_media_path(path) == self.ITS_PLACE
+
+    def test_by_way_of_a_youtube_link_too(self, path, place, tilia):
+        load_a_link(EXAMPLE_YT_URL)
+        load_local_media(place)
+
+        assert tilia.is_file_modified()
+        save()
+        assert stored_media_path(path) == self.ITS_PLACE
+
+    def test_closing_tilia_asks_to_save_it(self, path, place):
+        load_local_media(place)
+
+        assert close_saving()
+
+        assert stored_media_path(path) == self.ITS_PLACE
+
+    def test_until_then_nothing_is_asked(self, path):
+        assert not close_saving()
+
+        assert stored_media_path(path) == STORED
+
+    def test_an_undo_gives_the_files_path_back(self, path, place, tilia):
+        before = path.read_bytes()
+        load_local_media(place)
+
+        undo()
+
+        assert not tilia.is_file_modified()
+        redo()
+        assert tilia.is_file_modified()
+        undo()
+        save()
+        assert path.read_bytes() == before
+
+    def test_an_undo_once_it_is_saved_is_a_change(self, path, place, tilia):
+        before = path.read_bytes()
+        load_local_media(place)
+        save()
+        saved = path.read_bytes()
+
+        undo()
+
+        assert tilia.is_file_modified()
+        redo()
+        assert not tilia.is_file_modified()
+        save()
+        assert path.read_bytes() == saved
+        undo()
+        save()
+        assert path.read_bytes() == before
+        assert not tilia.is_file_modified()
+
+    def test_an_undo_of_other_media_goes_back_to_it(self, path, place, other, tilia):
+        load_local_media(place)
+        save()
+        saved = path.read_bytes()
+        load_local_media(other)
+        assert tilia.is_file_modified()
+
+        undo()
+
+        assert not tilia.is_file_modified()
+        save()
+        assert path.read_bytes() == saved
+
+    def test_a_save_as_stores_it_from_the_new_folder(
+        self, path, place, tilia, tmp_path
+    ):
+        load_local_media(place)
+        saved = tmp_path / "c" / "sub" / "saved.tla"
+        saved.parent.mkdir()
+
+        save_as(saved)
+
+        assert stored_media_path(saved) == "../../a/m/example.mp3"
+        assert not tilia.is_file_modified()
+        assert stored_media_path(path) == STORED
+
+    def test_opening_another_file_autosaves_it_first(self, path, place, tmp_path):
+        load_local_media(place)
+        another = tmp_path / "another.tla"
+        tla.write(another, tla.read(EMPTY))
+
+        with Serve(Get.FROM_USER_SHOULD_SAVE_CHANGES, (True, False)) as asked:
+            assert commands.execute("file.open", another)
+
+        assert asked.called
+        assert stored_media_path(path) == STORED
+        [autosaved] = Path(dirs.autosaves_path).iterdir()
+        assert tla.media(autosaved, tla.read(autosaved)).path == Path(place)
+
+    def test_is_autosaved(self, path, place, tilia, tmp_path):
+        with patch.object(autosave.settings, "get", return_value=0):
+            # No thread: autosaves are made here.
+            saver = autosave.AutoSaver(
+                tilia.get_app_state,
+                lambda: tilia.file_manager.file.copy_for_writing(),
+            )
+        (tmp_path / "autosaves").mkdir()
+        written = iter(tmp_path / "autosaves" / f"{n}.tla" for n in (1, 2, 3))
+        with (
+            patch.object(
+                autosave, "get_autosave_path", side_effect=lambda: next(written)
+            ),
+            patch.object(autosave, "make_room_for_new_autosave"),
+        ):
+            saver.auto_save_once()
+            assert not saver.needs_auto_save()
+            load_local_media(place)
+            assert saver.needs_auto_save()
+            saver.auto_save_once()
+            assert not saver.needs_auto_save()
+            # A save stores the place otherwise, and changes nothing.
+            save()
+            assert not saver.needs_auto_save()
+            undo()
+            assert saver.needs_auto_save()
+            saver.auto_save_once()
+
+        picked, undone = (tmp_path / "autosaves" / f"{n}.tla" for n in (2, 3))
+        assert tla.media(picked, tla.read(picked)).path == Path(place)
+        # Its path as the file stores it, which names nothing.
+        assert tla.media(undone, tla.read(undone)).path is None
+
+
+class TestMediaWhereTheFileSaysPicked:
+    """Picking the media that is where the file says changes nothing, however the
+    file and the menu spell it, and by way of other media too
+    (TimeLineAnnotator/project-management#688, a)."""
+
+    STORED_AS = {
+        "relative": "m/example.mp3",
+        "with a dot": "./m/example.mp3",
+        "with ..": "m/../m/example.mp3",
+        "with two slashes": "m//example.mp3",
+        "absolute": "{folder}/m/example.mp3",
+        "absolute with ..": "{folder}/m/../m/example.mp3",
+    }
+
+    @staticmethod
+    def spellings(media: Path) -> dict[str, str]:
+        spelt, folder = media.as_posix(), media.parent.as_posix()
+        spellings = {
+            "as the dialog gives it": spelt,
+            "the system's": str(media),
+            "with ..": f"{folder}/x/../{media.name}",
+            "with a dot": f"{folder}/./{media.name}",
+            "with two slashes": f"{folder}//{media.name}",
+            "relative": os.path.relpath(media),
+        }
+        if os.name == "nt":
+            spellings["another drive letter case"] = spelt[0].swapcase() + spelt[1:]
+        capitals = media.with_name(media.name.upper())
+        if capitals.is_file():  # on Windows, and as a rule on macOS
+            spellings["capitals"] = capitals.as_posix()
+        return spellings
+
+    @pytest.fixture(params=STORED_AS)
+    def path(self, request, qtui, tilia, tls, tmp_path, monkeypatch) -> Path:
+        """file.tla, open, with its media, in m/, stored as the spelling says."""
+        monkeypatch.chdir(tmp_path)  # so that a relative path can name the media
+        media_in(tmp_path / "m")
+        stored = self.STORED_AS[request.param].format(folder=tmp_path.as_posix())
+        path = tmp_path / "file.tla"
+        path.write_bytes(tla.canonical_bytes(media_doc(stored)))
+        assert stored_media_path(path) == stored
+        assert not open_file(path)
+        return path
+
+    def test_is_no_change(self, path, tilia, tmp_path):
+        before = path.read_bytes()
+        media = tmp_path / "m" / "example.mp3"
+
+        for name, spelt in self.spellings(media).items():
+            load_local_media(spelt)
+
+            assert not tilia.is_file_modified(), name
+            save()
+            assert path.read_bytes() == before, name
+
+    def test_by_way_of_other_media_is_none_either(self, path, tilia, tmp_path):
+        before = path.read_bytes()
+        media = tmp_path / "m" / "example.mp3"
+        other = media_in(tmp_path / "o", "other.mp3").as_posix()
+
+        for name, spelt in self.spellings(media).items():
+            load_local_media(other)
+            assert tilia.is_file_modified(), name
+            load_local_media(spelt)
+
+            assert not tilia.is_file_modified(), name
+            save()
+            assert path.read_bytes() == before, name
+
+    def test_once_other_media_was_saved_is_a_change(self, path, tilia, tmp_path):
+        load_local_media(media_in(tmp_path / "o", "other.mp3").as_posix())
+        save()
+        assert stored_media_path(path) == "o/other.mp3"
+
+        load_local_media((tmp_path / "m" / "example.mp3").as_posix())
+
+        assert tilia.is_file_modified()
+        save()
+        assert tla.media(path, tla.read(path)).path == tmp_path / "m" / "example.mp3"
+        assert not tilia.is_file_modified()
+
+    def test_through_a_linked_folder_is_none_either(self, qtui, tilia, tls, tmp_path):
+        # Opened through the link, its paths are from the linked folder, where the
+        # media picked isn't: but a save stores the path the file has.
+        real, link = tmp_path / "real", tmp_path / "link"
+        media = media_in(real / "m")
+        path = a_file_with_media(real / "file.tla", media)
+        link_folder(link, real)
+        before = path.read_bytes()
+        assert not open_file(link / "file.tla")
+
+        for picked in (media, link / "m" / media.name):
+            load_local_media(media_in(tmp_path / "o", "other.mp3").as_posix())
+            assert tilia.is_file_modified()
+            load_local_media(picked.as_posix())
+
+            assert not tilia.is_file_modified()
+        load_local_media(media.as_posix())
+        save()
+        assert path.read_bytes() == before
+
+    def test_in_capitals_is_none_either_where_they_are_ignored(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        # By the file system alone, as on macOS, whose normcase keeps them.
+        media = media_in(tmp_path / "m")
+        capitals = media.with_name(media.name.upper())
+        if not capitals.is_file():
+            pytest.skip("the file system tells capitals apart")
+        path = a_file_with_media(tmp_path / "file.tla", media)
+        before = path.read_bytes()
+        assert not open_file(path)
+
+        with patch.object(os.path, "normcase", lambda path: path):
+            load_local_media(capitals.as_posix())
+
+            assert not tilia.is_file_modified()
+        save()
+        assert path.read_bytes() == before
+
+    def test_found_elsewhere_in_the_meantime_is_none_either(
+        self, qtui, tilia, tls, tmp_path
+    ):
+        # The media came back to where the file says, while TiLiA plays the copy it
+        # found elsewhere.
+        path = a_file_with_media(tmp_path / "file.tla", tmp_path / "m" / "example.mp3")
+        before = path.read_bytes()
+        assert open_file(path, media_in(tmp_path / "a").as_posix())
+
+        load_local_media(media_in(tmp_path / "m").as_posix())
+
+        assert not tilia.is_file_modified()
+        save()
+        assert path.read_bytes() == before
+
+
+class TestAYouTubeLinkPicked:
+    LINK = "https://www.youtube.com/watch?v=aaaaaaaaaaa"
+    OTHER_LINK = "https://www.youtube.com/watch?v=bbbbbbbbbbb"
+
+    @pytest.fixture
+    def path(self, qtui, tilia, tls, tmp_path) -> Path:
+        """A file, open, whose media is a link."""
+        path = tmp_path / "file.tla"
+        tla.write(path, media_doc(self.LINK))
+
+        def loads_it(player, url, **_):
+            player.on_media_load_done(url, 0.0, 0.0)
+            return True, player
+
+        with patch("tilia.app.load_media", side_effect=loads_it):
+            assert not open_file(path)
+        assert not tilia.is_file_modified()
+        return path
+
+    @pytest.mark.parametrize("start", ["https://", ""])
+    def test_the_files_own_is_no_change(self, path, tilia, start):
+        # Without its scheme, as it can be typed, it is stored with it.
+        before = path.read_bytes()
+
+        load_a_link(self.LINK.replace("https://", start))
+
+        assert not tilia.is_file_modified()
+        save()
+        assert path.read_bytes() == before
+
+    def test_another_is_one_until_undone(self, path, tilia):
+        load_a_link(self.OTHER_LINK)
+
+        assert tilia.is_file_modified()
+        load_a_link(self.LINK)
+        assert not tilia.is_file_modified()
+        load_a_link(self.OTHER_LINK)
+        save()
+        assert stored_media_path(path) == self.OTHER_LINK
+        assert not tilia.is_file_modified()
+
+
+class TestMediaTheDocumentDoesntFollowYet:
+    def test_reads_as_what_a_save_would_store(self, qtui, tilia, tls, tmp_path):
+        # A video that won't load takes the audio's player away, so TiLiA has no
+        # media, and nothing was recorded: a save would store none.
+        path = a_file_with_media(tmp_path / "file.tla", media_in(tmp_path / "m"))
+        assert not open_file(path)
+
+        # Another player of the same class stands for the video's.
+        with (
+            Serve(Get.PLAYER_CLASS, QtAudioPlayer),
+            patch.object(QtAudioPlayer, "_engine_load_media", return_value=False),
+        ):
+            load_local_media((tmp_path / "broken.mp4").as_posix())
+
+        assert get(Get.MEDIA_PATH) == ""
+        assert tilia.is_file_modified()
+
+
+class TestMediaPickedInANewFile:
+    def test_is_an_unsaved_change_until_undone(self, qtui, tilia, tls, tmp_path):
+        commands.execute("file.new")
+        assert not tilia.is_file_modified()
+
+        load_local_media(media_in(tmp_path).as_posix())
+
+        assert tilia.is_file_modified()
+        undo()
+        assert not tilia.is_file_modified()
+        redo()
+        assert tilia.is_file_modified()
+        save_as(tmp_path / "new.tla")
+        assert stored_media_path(tmp_path / "new.tla") == "example.mp3"
+        assert not tilia.is_file_modified()
 
 
 class TestAPlacePerStoredPath:

@@ -136,6 +136,7 @@ class FileManager:
         }
 
         SERVES = {
+            (Get.FILE_MEDIA_PLACE, lambda: self.file.media_place()),
             (Get.MEDIA_METADATA, lambda: self.file.media_metadata),
             (
                 Get.MEDIA_METADATA_REQUIRED_FIELDS,
@@ -318,6 +319,7 @@ class FileManager:
             path.resolve() if isinstance(path, Path) else path
         ).as_posix()
         self.file.media_path = state["media_path"]
+        self.file.stored_media_path = self.file.document.media_path
         self.file.timelines = state["timelines"]
         self.file.timelines_hash = state["timelines_hash"]
         self.file.unknown_discarded = False
@@ -377,10 +379,15 @@ class FileManager:
         # last save/load instead.
         if dict(current_data["media_metadata"]) != self._saved_metadata:
             return True
-        # The file's media path is that of the media loaded when the file was
-        # opened or last saved. It doesn't follow the player, so that other
-        # media, of whatever length, is a change until it is saved or undone.
-        return not are_tilia_data_equal(current_data, self.file.__dict__)
+        # The media by what a save would store, not by where it was found, so
+        # that media picked is a change, whatever its length, unless it is where
+        # the file says, until it is saved or undone.
+        media_path = current_data["media_path"]
+        if self.file.stores_other_media(media_path):
+            return True
+        return not are_tilia_data_equal(
+            current_data, {**self.file.__dict__, "media_path": media_path}
+        )
 
     def on_player_duration_changed(
         self, duration: float, is_confirmation: bool = False

@@ -10,6 +10,8 @@ class Get(Enum):
     TIMELINE_ELEMENTS_SELECTED = auto()
     CLIPBOARD_CONTENTS = auto()
     FIRST_TIMELINE_UI_IN_SELECT_ORDER = auto()
+    # Where the file open says its media is (MEDIA_PATH is the media loaded).
+    FILE_MEDIA_PLACE = auto()
     FILE_PATH = auto()
     FROM_USER_ADD_TIMELINE_WITHOUT_MEDIA = auto()
     FROM_USER_BEAT_PATTERN = auto()

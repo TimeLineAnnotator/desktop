@@ -24,6 +24,7 @@ class AutoSaver:
         self.get_app_state = get_app_state
         self.copy_document = copy_document
         self._last_autosave_data = None
+        self._last_autosave_media_place = ""
         self._autosave_thread = Thread(target=self._auto_save_loop, daemon=True)
 
         if settings.get("auto-save", "interval_(seconds)"):
@@ -45,6 +46,7 @@ class AutoSaver:
             # Tried once for this state: a failure isn't tried again until the
             # state changes, so that it is logged once.
             self._last_autosave_data = data
+            self._last_autosave_media_place = get(Get.FILE_MEDIA_PLACE)
             autosave(self.copy_document())
         except Exception:
             logger.exception("Autosave failed; the next change tries again.")
@@ -53,6 +55,10 @@ class AutoSaver:
         if not self._last_autosave_data:
             return True
 
+        # The state holds the media loaded, and can't tell that the file took its
+        # place, or an undo gave the file its own back.
+        if self._last_autosave_media_place != get(Get.FILE_MEDIA_PLACE):
+            return True
         return not are_tilia_data_equal(self._last_autosave_data, self.get_app_state())
 
 
