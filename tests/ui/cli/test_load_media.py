@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import sys
+from io import BytesIO, TextIOWrapper
 from pathlib import Path
 from unittest.mock import patch
 
@@ -185,11 +186,6 @@ class TestStoresWhatAScriptStores:
                 f"youtube.com/{VIDEO}", f"https://youtube.com/{VIDEO}", id="no-scheme"
             ),
             pytest.param(
-                f"//www.youtube.com/{VIDEO}",
-                f"https://www.youtube.com/{VIDEO}",
-                id="two-slashes",
-            ),
-            pytest.param(
                 f"http://youtube.com/{VIDEO}",
                 f"http://youtube.com/{VIDEO}",
                 id="scheme",
@@ -206,19 +202,12 @@ class TestStoresWhatAScriptStores:
         assert self.stored(working_folder / "by TiLiA.tla") == expected
         assert self.stored_by_a_script(text, working_folder) == expected
 
-    @pytest.mark.parametrize(
-        "text, given_to_the_player",
-        [
-            (f"youtube.com/{VIDEO}", f"https://youtube.com/{VIDEO}"),
-            (f"//youtube.com/{VIDEO}", f"https://youtube.com/{VIDEO}"),
-        ],
-    )
     def test_the_player_gets_a_link_with_its_scheme(
-        self, cli, tilia_state, working_folder, text, given_to_the_player
+        self, cli, tilia_state, working_folder
     ):
-        cli.parse_and_run(f"load-media {text}")
+        cli.parse_and_run(f"load-media youtube.com/{VIDEO}")
 
-        assert tilia_state.media_path == given_to_the_player
+        assert tilia_state.media_path == f"https://youtube.com/{VIDEO}"
 
     @pytest.mark.parametrize("folder", ["linked", "youtube.com"])
     def test_the_player_gets_the_file_s_path_absolute(
@@ -244,6 +233,7 @@ class TestNotMedia:
             pytest.param("https://example.com/a.mp3", id="web-link"),
             pytest.param(r"https://example.com/a\b.mp3", id="web-link-with-backslash"),
             pytest.param(r"youtube.com/sub\clip.mp4", id="like-a-link-with-backslash"),
+            pytest.param("bad\udcff.mp3", id="not-utf-8"),
         ],
     )
     def test_is_refused(self, cli, tilia_state, tilia_errors, working_folder, text):
@@ -257,6 +247,26 @@ class TestNotMedia:
         ]
         assert tilia_state.media_path == ""
         assert tilia_state.duration == 100
+
+    @pytest.mark.parametrize("name", ["missing.mp3", "né.mp3", "{0}.mp3"])
+    def test_the_words_are_media_not_found_s(
+        self, cli, tilia_errors, working_folder, name
+    ):
+        cli.parse_and_run(f"load-media {name}")
+
+        assert tilia_errors.errors[0]["message"] == MEDIA_NOT_FOUND.message.format(name)
+
+    def test_a_name_that_isnt_utf_8_is_printed(self, cli, working_folder, monkeypatch):
+        # As its escape: an output in UTF-8 refuses the name itself.
+        output = TextIOWrapper(BytesIO(), encoding="utf-8")
+        monkeypatch.setattr(sys, "stdout", output)
+
+        cli.parse_and_run("load-media bad\udcff.mp3")
+
+        output.flush()
+        printed = output.buffer.getvalue().decode()
+        assert MEDIA_NOT_FOUND.message.format("bad\\udcff.mp3") in printed
+        assert cli.exception is None
 
 
 @pytest.mark.skipif(

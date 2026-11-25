@@ -1,6 +1,5 @@
 import argparse
 from functools import partial
-from pathlib import Path
 from typing import Callable
 
 import tilia.errors
@@ -52,10 +51,10 @@ def load_media(parse_and_run: Callable[[str], bool], namespace: argparse.Namespa
     # to store for it, so that a file stores the same whichever made it (FR-033).
     try:
         path = build.media_path(namespace.path)
-    except ValueError:
-        # The core's words, and as the core quotes it: a link as a path too.
-        given = Path(namespace.path.replace("\\", "/"))
-        tilia.errors.display(tilia.errors.MEDIA_NOT_FOUND, given)
+    except ValueError as error:
+        # MEDIA_NOT_FOUND's words, as the core says them: it quotes a link as a path
+        # too, and writes a name that isn't UTF-8 so that it can be printed.
+        post(Post.DISPLAY_ERROR, tilia.errors.MEDIA_NOT_FOUND.title, str(error))
         return
 
     success = post(

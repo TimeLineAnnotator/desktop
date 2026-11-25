@@ -1316,10 +1316,6 @@ def a_youtube_link_without_a_scheme(folder):
     return "youtu.be/dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ"
 
 
-def two_slashes_before_a_youtube_link(folder):
-    return "//www.youtube.com/watch?v=dQw4w9WgXcQ", YOUTUBE
-
-
 def a_youtube_look_alike_with_a_file_of_that_name(folder):
     (folder / "youtube.com").mkdir()
     path = pcm16_wav(
@@ -1377,7 +1373,6 @@ def another_letter_case(folder):
 STORED_CASES = [
     a_youtube_link,
     a_youtube_link_without_a_scheme,
-    two_slashes_before_a_youtube_link,
     a_youtube_look_alike_with_a_file_of_that_name,
     a_youtube_look_alike_without_a_file,
     a_backslash_with_a_file_there,
@@ -1458,6 +1453,18 @@ def test_media_path_is_the_path_load_media_stores(case, tmp_path, monkeypatch):
 
     assert build.media_path(given) == expected
     assert stored_by_load_media(given) == expected
+
+
+def test_media_path_takes_two_slashes_before_a_youtube_link_for_https(monkeypatch):
+    # Never looked for on a server, which Windows would reach by the network: no
+    # lookup here leaves the test.
+    looked_up = []
+    monkeypatch.setattr(os.path, "isfile", looked_up.append)
+    given = "//www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+    assert build.media_path(given) == YOUTUBE
+    assert stored_by_load_media(given) == YOUTUBE
+    assert looked_up == []
 
 
 @pytest.mark.parametrize("case", REFUSED_CASES)
