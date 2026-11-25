@@ -444,16 +444,26 @@ def warnings_of(
     places = {problem.pointer or problem.place for problem in problems}
     places.update(other for problem in problems for other, _ in problem.others)
     lines = lines_of(text_of(source), [named(place) for place in places])
+    shown: dict[str, tuple[str, tuple[str, str]]] = {}
+
+    def as_named(other: str) -> tuple[str, tuple[str, str]]:
+        # How a message names it, and its ids, made once: a group at odds names
+        # them often.
+        known = shown.get(other)
+        if known is None:
+            place = named(other)
+            # It is a component, which `ids_at` gives both ids of.
+            ids = cast(tuple[str, str], ids_at(other))
+            known = shown[other] = (f"line {lines[place]}, {place}", ids)
+        return known
+
     warnings = []
     for problem in problems:
         place = named(problem.pointer or problem.place)
         reason = printable(problem.reason)
         message = reason
         if problem.others:
-            others = [
-                f"line {lines[named(other)]}, {named(other)}"
-                for other, _ in problem.others
-            ]
+            others = [as_named(other)[0] for other, _ in problem.others]
             if problem.more:
                 others.append(f"and {problem.more} more")
             what = "other component" if len(others) == 1 else "other components"
@@ -464,10 +474,7 @@ def warnings_of(
                 lines[place],
                 message,
                 *ids_at(problem.place),
-                # Each other is a component, which `ids_at` gives both ids of.
-                other_ids=tuple(
-                    cast(tuple[str, str], ids_at(other)) for other, _ in problem.others
-                ),
+                other_ids=tuple(as_named(other)[1] for other, _ in problem.others),
                 more=problem.more,
                 reason=reason,
             )
@@ -824,33 +831,31 @@ def _component_problems(
     )
     held = pointer_to(place, "components")
     holds = TIMELINE_COMPONENTS.get(timeline.kind, frozenset())
-    states: dict[str, str] = {}
+    read: dict[str, tuple[str, str]] = {}
 
     def as_read(component_id: str) -> tuple[str, str]:
-        # Its place and state, each state made once: a group at odds names them
-        # often.
-        at = pointer_to(held, component_id)
-        state = states.get(component_id)
-        if state is None:
+        # Its place and state, made once: a group at odds names them often.
+        known = read.get(component_id)
+        if known is None:
+            at = pointer_to(held, component_id)
             state = _component_state(components[component_id], at, holds)
-            states[component_id] = state
-        return at, state
+            known = read[component_id] = (at, state)
+        return known
 
-    named: set[tuple[str, str, str]] = set()  # each rule's pairs named so far
+    # Those that named each component so far, by the rule's reason and its id.
+    named: dict[tuple[str, str], set[str]] = {}
     for component_id, checked in found.items():
         for outcome in (checked.outcome, *checked.also, checked.color):
             if outcome.ok:
                 continue
             reason = outcome.reason
-            others = [
-                other
-                for other in outcome.others
-                if (reason, other, component_id) not in named
-            ]
-            if outcome.others and not others:
+            kept, more, has_others = outcome.naming(
+                _NAMED_OTHERS, named.get((reason, component_id), ())
+            )
+            if has_others and not kept:
                 continue  # all of them named this one
-            kept = others[:_NAMED_OTHERS]
-            named.update((reason, component_id, other) for other in kept)
+            for other in kept:
+                named.setdefault((reason, other), set()).add(component_id)
             attrs = components[component_id].attrs
             at, state = as_read(component_id)
             yield ReadProblem(
@@ -864,7 +869,7 @@ def _component_problems(
                     if outcome.code == rules.BAD_JOIN
                     else None
                 ),
-                more=len(others) - len(kept),
+                more=more,
                 warned=components[component_id].kind == "beat" and reason == _NO_TIME,
                 about=outcome.about,
             )
