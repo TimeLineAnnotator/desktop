@@ -1,5 +1,6 @@
 """Migrating a folder: which files it takes, what it reports, and that it
-writes only old files, and only with `apply` (FR-100–FR-105)."""
+writes only old files and those with beats without a time, and only with `apply`
+(FR-100–FR-106)."""
 
 import dataclasses
 import gc
@@ -1045,6 +1046,8 @@ def test_the_writes_state_the_fingerprint_read(clean_corpus, monkeypatch):
     [
         ("would_migrate", 0),
         ("migrated", 0),
+        ("would_fix", 0),
+        ("fixed", 0),
         ("current", 0),
         ("newer", 0),
         ("unreadable", 1),
@@ -1607,3 +1610,467 @@ def test_on_posix_the_second_look_reads_only_entries_whose_inode_matches(
 
     assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
     assert not [path for path in recording.stats if ".venv" in path.parts]
+
+
+# Beats without a time in files of the current format: listed, and dropped with
+# `apply` (FR-101, FR-106; TimeLineAnnotator/project-management#354)
+
+
+def an_id(n):
+    return f"019b76da-a802-7000-8000-{n:012d}"
+
+
+DOCUMENT, BEATS, OTHER_BEATS = (an_id(n) for n in range(3))
+B = [an_id(100 + n) for n in range(10)]
+
+
+def beat(time=None, **keys):
+    """A beat, as a file holds it; without a time, when none is given."""
+    timed = {} if time is None else {"time": time}
+    return {"kind": "BEAT", **timed, **keys}
+
+
+def beat_timeline(*beats, ordinal=1, name="Beats", **keys):
+    return {
+        "kind": "Beat",
+        "name": name,
+        "ordinal": ordinal,
+        "height": 35,
+        **keys,
+        "components": dict(beats),
+    }
+
+
+def current_file(timelines, **keys):
+    """The bytes of a file in the current format that holds these timelines,
+    each beat on lines of its own."""
+    content = {
+        "app_name": "TiLiA",
+        "version": tla.FORMAT_VERSION,
+        "document_id": DOCUMENT,
+        "time_unit": "seconds",
+        "media": {"path": "", "length": 100.0},
+        "metadata": {},
+        "timelines": timelines,
+        "scores": [],
+        **keys,
+    }
+    return (json.dumps(content, indent=2) + "\n").encode()
+
+
+def beats_file(*beats):
+    return current_file({BEATS: beat_timeline(*beats)})
+
+
+def line_of(data, component_id):
+    return data[: data.index(f'"{component_id}": {{'.encode())].count(b"\n") + 1
+
+
+def written_beats(path, key=None, timeline_id=BEATS):
+    """The beats as the file at `path` writes them, by id; or what each that
+    has `key` holds for it."""
+    beats = json.loads(path.read_bytes())["timelines"][timeline_id]["components"]
+    return beats if key is None else {i: b[key] for i, b in beats.items() if key in b}
+
+
+# Two measures of two beats, and a beat without a time.
+TWO_MEASURES = (
+    (B[0], beat(0.0, measure={})),
+    (B[1], beat(1.0)),
+    (B[2], beat(2.0, measure={})),
+    (B[3], beat(3.0)),
+)
+TIMELESS = beats_file(*TWO_MEASURES, (B[4], beat()))
+
+
+def test_a_beat_without_a_time_is_listed_with_where_it_is_and_nothing_is_written(
+    tmp_path,
+):
+    place(tmp_path / "piece.tla", TIMELESS)
+    before = snapshot(tmp_path)
+
+    report = migrate_folder(tmp_path)
+
+    [result] = report.files
+    assert result.outcome == "would_fix"
+    assert result.from_version == tla.FORMAT_VERSION
+    assert result.reason is None
+    assert result.changes == {"beats_dropped": 1}
+    [warning] = result.warnings
+    assert str(warning) == (
+        f'line {line_of(TIMELESS, B[4])}: a beat of the timeline "Beats" has no time'
+    )
+    assert warning.place == f"/timelines/{BEATS}/components/{B[4]}"
+    assert (warning.timeline_id, warning.component_id) == (BEATS, B[4])
+    assert report.status == 0
+    assert snapshot(tmp_path) == before
+
+
+def test_with_apply_the_beat_is_dropped_and_the_file_reads_without_the_warning(
+    tmp_path,
+):
+    path = tmp_path / "piece.tla"
+    place(path, TIMELESS)
+
+    report = migrate_folder(tmp_path, apply=True)
+
+    [result] = report.files
+    assert result.outcome == "fixed"
+    assert result.from_version == tla.FORMAT_VERSION
+    assert result.changes == {"beats_dropped": 1}
+    assert [w.component_id for w in result.warnings] == [B[4]]
+    assert report.status == 0
+    assert path.read_bytes() == tla.canonical_bytes(
+        tla.loads(beats_file(*TWO_MEASURES))
+    )
+    assert tla.read(path).warnings == []
+
+
+def test_only_the_beats_without_a_time_go(tmp_path):
+    # A file of every kind, but harmonies, which need the extra to be written.
+    content = json.loads((GOLDEN / "every-kind.tla").read_bytes())
+    content["timelines"] = {
+        key: timeline
+        for key, timeline in content["timelines"].items()
+        if timeline["kind"] != "Harmony"
+    }
+    whole = tla.canonical_bytes(tla.loads(json.dumps(content).encode()))
+    beats = next(t for t in content["timelines"].values() if t["kind"] == "Beat")
+    beats["components"][B[0]] = beat(label="stray")
+    path = tmp_path / "piece.tla"
+    place(path, json.dumps(content, indent=2).encode())
+    assert tla.canonical_bytes(tla.read(path)) != whole
+
+    migrate_folder(tmp_path, apply=True)
+
+    assert path.read_bytes() == whole
+
+
+def test_every_beat_without_a_time_is_listed_in_the_order_of_the_file(tmp_path):
+    # The ids' order isn't the file's.
+    data = current_file(
+        {
+            OTHER_BEATS: beat_timeline(
+                (B[8], beat()), (B[0], beat(0.0)), (B[3], beat()), name="", ordinal=2
+            ),
+            BEATS: beat_timeline((B[1], beat(1.0)), (B[2], beat())),
+        }
+    )
+    path = tmp_path / "piece.tla"
+    place(path, data)
+
+    [result] = migrate_folder(tmp_path).files
+
+    assert result.changes == {"beats_dropped": 3}
+    unnamed, named = "a timeline without a name", 'the timeline "Beats"'
+    assert [str(warning) for warning in result.warnings] == [
+        f"line {line_of(data, B[8])}: a beat of {unnamed} has no time",
+        f"line {line_of(data, B[3])}: a beat of {unnamed} has no time",
+        f"line {line_of(data, B[2])}: a beat of {named} has no time",
+    ]
+
+    migrate_folder(tmp_path, apply=True)
+
+    assert set(written_beats(path)) == {B[1]}
+    assert set(written_beats(path, timeline_id=OTHER_BEATS)) == {B[0]}
+
+
+def test_the_other_warnings_of_the_file_arent_listed(tmp_path):
+    # As for any file already in the current format: the run changes nothing
+    # they are about. A closing tap's mark has a warning of its own.
+    data = beats_file(
+        (B[0], beat(0.0, measure={}, beat_unit={"denominator": 0, "units": "1"})),
+        (B[1], beat(-1.0, measure={})),
+        (B[2], beat(closing=True, measure={})),
+    )
+    path = tmp_path / "piece.tla"
+    place(path, data)
+    assert len(tla.read(path).warnings) > 1
+
+    [result] = migrate_folder(tmp_path).files
+
+    assert [w.message for w in result.warnings] == [
+        'a beat of the timeline "Beats" has no time'
+    ]
+    assert result.changes == {"beats_dropped": 1, "measure_marks_dropped": 1}
+
+
+def test_a_downbeat_without_a_time_goes_as_delete_beat_deletes_one(tmp_path):
+    # It starts no measure, and no beat is next to it in time: its mark goes,
+    # with every `next` that names it, and the measures read as they did.
+    data = beats_file(
+        (B[0], beat(0.0, measure={"next": [B[4], B[2]]})),
+        (B[1], beat(1.0)),
+        (B[2], beat(2.0, measure={"next": [B[4]]})),
+        (B[3], beat(3.0)),
+        (B[4], beat(measure={"number": 7, "restart": True})),
+    )
+    path = tmp_path / "piece.tla"
+    place(path, data)
+    before = tla.read(path).timelines[BEATS].measures.rows
+    expected = tla.read(path)
+    tla.delete_beat(expected, BEATS, B[4], by_person=False)
+
+    [listed] = migrate_folder(tmp_path).files
+    [result] = migrate_folder(tmp_path, apply=True).files
+
+    assert listed.changes == {"beats_dropped": 1, "measure_marks_dropped": 1}
+    assert result.changes == listed.changes
+    assert path.read_bytes() == tla.canonical_bytes(expected)
+    assert written_beats(path, "measure") == {B[0]: {"next": [B[2]]}, B[2]: {}}
+    after = tla.read(path).timelines[BEATS].measures.rows
+    assert [(r.id, r.number, r.beats) for r in after] == [
+        (r.id, r.number, r.beats) for r in before
+    ]
+
+
+def test_no_measure_is_marked_edited(tmp_path):
+    # TimeLineAnnotator/project-management#512: no person edited it. The first
+    # beat gets an empty mark (#544, point 1), or the file couldn't be written. A
+    # measure that is tapped is never marked edited, so this one is imported.
+    data = current_file(
+        {
+            BEATS: beat_timeline(
+                (B[0], beat(0.0)),
+                (B[1], beat(1.0, measure={})),
+                (B[2], beat(measure={})),
+                measure_source="import",
+            )
+        }
+    )
+    path = tmp_path / "piece.tla"
+    place(path, data)
+
+    [listed] = migrate_folder(tmp_path).files
+    [result] = migrate_folder(tmp_path, apply=True).files
+
+    assert result.outcome == "fixed"
+    assert result.changes == {
+        "beats_dropped": 1,
+        "measure_marks_dropped": 1,
+        "measure_marks_added": 1,
+    }
+    assert listed.changes == result.changes
+    assert written_beats(path, "measure") == {B[0]: {}, B[1]: {}}
+    assert tla.read(path).warnings == []
+
+
+def test_a_timeline_left_with_no_mark_is_written_without_measures(tmp_path):
+    # TimeLineAnnotator/project-management#528, point 1.
+    data = beats_file((B[0], beat(0.0)), (B[1], beat(1.0)), (B[2], beat(measure={})))
+    path = tmp_path / "piece.tla"
+    place(path, data)
+
+    [result] = migrate_folder(tmp_path, apply=True).files
+
+    assert result.outcome == "fixed"
+    assert result.changes == {"beats_dropped": 1, "measure_marks_dropped": 1}
+    assert written_beats(path, "measure") == {}
+    assert tla.read(path).timelines[BEATS].measures.rows == []
+
+
+def test_the_mark_of_the_first_beat_leaves_the_problem_it_came_with_old(tmp_path):
+    # TimeLineAnnotator/project-management#528, point 4: the beat was read past
+    # the media's end, and the deletion is what marks it.
+    data = beats_file(
+        (B[0], beat(101.0)), (B[1], beat(102.0, measure={})), (B[2], beat())
+    )
+    path = tmp_path / "piece.tla"
+    place(path, data)
+    problems = len(tla.read(path).read_problems)
+
+    [result] = migrate_folder(tmp_path, apply=True).files
+
+    assert result.outcome == "fixed"
+    assert written_beats(path, "measure") == {B[0]: {}, B[1]: {}}
+    assert len(tla.read(path).read_problems) == problems - 1  # the beat's own
+
+
+def test_a_beat_unit_goes_with_its_beat(tmp_path):
+    halves, thirds = (
+        {"denominator": 2, "units": "1"},
+        {"denominator": 8, "units": "3"},
+    )
+    data = beats_file(
+        (B[0], beat(0.0, measure={}, beat_unit=halves)),
+        (B[1], beat(1.0)),
+        (B[2], beat(beat_unit=thirds)),
+        (B[3], beat(measure={}, beat_unit=thirds)),
+    )
+    path = tmp_path / "piece.tla"
+    place(path, data)
+
+    [result] = migrate_folder(tmp_path, apply=True).files
+
+    assert result.changes == {
+        "beats_dropped": 2,
+        "beat_units_dropped": 2,
+        "measure_marks_dropped": 1,
+    }
+    assert written_beats(path, "beat_unit") == {B[0]: halves}
+
+
+def test_a_beat_in_a_timeline_of_another_kind_is_left_as_it_is(tmp_path):
+    # It is kept as one of a kind the core doesn't know, so it is no beat.
+    timeline = {**beat_timeline((B[0], beat())), "kind": "Marker"}
+    place(tmp_path / "piece.tla", current_file({BEATS: timeline}))
+
+    assert outcomes(migrate_folder(tmp_path)) == [("piece.tla", "current")]
+
+
+def test_a_component_of_a_kind_the_core_doesnt_know_is_left_as_it_is(tmp_path):
+    # It has no time either, but it is no beat.
+    data = beats_file((B[0], beat(0.0)), (B[1], beat()), (B[2], {"kind": "SPARKLE"}))
+    path = tmp_path / "piece.tla"
+    place(path, data)
+
+    [result] = migrate_folder(tmp_path, apply=True).files
+
+    assert result.changes == {"beats_dropped": 1}
+    assert written_beats(path) == {B[0]: beat(0.0), B[2]: {"kind": "SPARKLE"}}
+
+
+def test_a_second_run_writes_nothing_once_the_beats_are_dropped(tmp_path):
+    place(tmp_path / "fixed.tla", TIMELESS)
+    place(tmp_path / "current.tla", GOLDEN / "every-kind.tla")
+    current = snapshot(tmp_path)["current.tla"]
+    assert outcomes(migrate_folder(tmp_path, apply=True)) == [
+        ("current.tla", "current"),
+        ("fixed.tla", "fixed"),
+    ]
+    before = snapshot(tmp_path)
+    assert before["current.tla"] == current
+
+    report = migrate_folder(tmp_path, apply=True)
+
+    assert outcomes(report) == [("current.tla", "current"), ("fixed.tla", "current")]
+    assert report.status == 0
+    assert snapshot(tmp_path) == before
+
+
+def test_the_write_that_drops_beats_states_the_fingerprint_read(tmp_path, monkeypatch):
+    path = tmp_path / "piece.tla"
+    place(path, TIMELESS)
+    read = tla.fingerprint(path)
+    stated = []
+    write = folder_module.write
+
+    def recorded(target, doc, **kwargs):
+        stated.append(kwargs.get("expect"))
+        return write(target, doc, **kwargs)
+
+    monkeypatch.setattr(folder_module, "write", recorded)
+
+    migrate_folder(tmp_path, apply=True)
+
+    assert stated == [read]
+    assert tla.fingerprint(path) != read
+
+
+def test_a_file_changed_before_its_beats_are_dropped_is_left_alone(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "piece.tla"
+    place(path, TIMELESS)
+    place(tmp_path / "other.tla", TIMELESS)
+    edited = beats_file(*TWO_MEASURES, (B[4], beat()), (B[5], beat(9.0)))
+    change_after_reading(monkeypatch, "piece.tla", lambda path: place(path, edited))
+
+    report = migrate_folder(tmp_path, apply=True)
+
+    result = by_path(report)["piece.tla"]
+    assert result.outcome == "changed_since_read"
+    assert result.reason == "changed since it was read"
+    assert path.read_bytes() == edited
+    assert by_path(report)["other.tla"].outcome == "fixed"
+    assert report.status == 1
+
+
+def test_a_file_held_open_keeps_its_beats_without_a_time(tmp_path, monkeypatch):
+    path = tmp_path / "piece.tla"
+    place(path, TIMELESS)
+
+    def held_open(target, doc, **kwargs):
+        raise tla.FileInUse(target)
+
+    monkeypatch.setattr(folder_module, "write", held_open)
+
+    report = migrate_folder(tmp_path, apply=True)
+
+    assert outcomes(report) == [("piece.tla", "in_use")]
+    assert path.read_bytes() == TIMELESS
+    assert report.status == 1
+
+
+@pytest.mark.parametrize("apply", [False, True], ids=["listing", "apply"])
+def test_an_error_dropping_beats_doesnt_stop_the_others(
+    clean_corpus, monkeypatch, apply
+):
+    place(clean_corpus / "piece.tla", TIMELESS)
+    monkeypatch.setattr(time, "sleep", lambda seconds: None)
+
+    def failing(*args, **kwargs):
+        raise TypeError("an unexpected value")
+
+    monkeypatch.setattr(folder_module, "delete_beat", failing)
+
+    report = migrate_folder(clean_corpus, apply=apply)
+
+    result = by_path(report)["piece.tla"]
+    assert result.outcome == "unreadable"
+    assert result.reason == (
+        "can't read: an error in tilia-core (TypeError: an unexpected value);"
+        " please report it"
+    )
+    assert result.traceback.endswith("TypeError: an unexpected value\n")
+    assert (clean_corpus / "piece.tla").read_bytes() == TIMELESS
+    assert by_path(report)["a.tla"].outcome == (
+        "migrated" if apply else "would_migrate"
+    )
+    assert report.status == 1
+
+
+@pytest.mark.parametrize("apply", [False, True], ids=["listing", "apply"])
+def test_a_file_whose_beats_are_dropped_is_listed_with_its_other_names(tmp_path, apply):
+    # A write gives the name written a file of its own (FR-044). A file in the
+    # current format that isn't written keeps its names.
+    root = tmp_path / "corpus"
+    place(root / "current.tla", GOLDEN / "every-kind.tla")
+    place(root / "piece.tla", TIMELESS)
+    (tmp_path / "elsewhere").mkdir()
+    for name in ("current.tla", "piece.tla"):
+        os.link(root / name, tmp_path / "elsewhere" / name)
+
+    report = migrate_folder(root, apply=apply)
+
+    assert report.hard_links == [HardLinks(paths=("piece.tla",), outside=1)]
+    kept = (tmp_path / "elsewhere" / "piece.tla").read_bytes()
+    assert kept == TIMELESS
+    assert ((root / "piece.tla").read_bytes() == TIMELESS) is not apply
+
+
+@pytest.mark.parametrize("apply", [False, True], ids=["listing", "apply"])
+def test_without_the_harmony_extra_a_file_with_harmonies_keeps_its_beats(
+    tmp_path, monkeypatch, apply
+):
+    find_spec = importlib.util.find_spec
+
+    def find_spec_without_music21(name, *args, **kwargs):
+        if name.partition(".")[0] == "music21":
+            return None
+        return find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec_without_music21)
+    content = json.loads((GOLDEN / "every-kind.tla").read_bytes())
+    beats = next(t for t in content["timelines"].values() if t["kind"] == "Beat")
+    beats["components"][B[0]] = beat()
+    data = json.dumps(content, indent=2).encode()
+    place(tmp_path / "piece.tla", data)
+
+    report = migrate_folder(tmp_path, apply=apply)
+
+    [result] = report.files
+    assert result.outcome == "write_failed"
+    assert result.reason.endswith('needs: pip install "tilia-core[harmony]"')
+    assert report.status == 1
+    assert (tmp_path / "piece.tla").read_bytes() == data

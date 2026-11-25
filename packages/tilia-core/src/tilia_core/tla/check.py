@@ -66,6 +66,10 @@ from tilia_core.tla.model import (
 )
 from tilia_core.tla.parse import lines_of, pointer, text_of
 
+# How the warning of a beat without a time ends, by which `tilia migrate` finds
+# it (TimeLineAnnotator/project-management#285, #354).
+NO_TIME = " has no time"
+
 
 def check(
     content: Mapping[str, Any],
@@ -724,7 +728,7 @@ class _Checker:
         for key, beat in beats.items():
             if beat.get("time") is None:
                 self.warnings.append(
-                    ((at, key), f"a beat of {_which(timeline)} has no time")
+                    ((at, key), f"a beat of {_which(timeline)}{NO_TIME}")
                 )
             if beat.get("closing") and isinstance(beat.get("measure"), dict):
                 self.warnings.append(
