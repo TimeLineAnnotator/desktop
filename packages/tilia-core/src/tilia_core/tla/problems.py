@@ -444,16 +444,26 @@ def warnings_of(
     places = {problem.pointer or problem.place for problem in problems}
     places.update(other for problem in problems for other, _ in problem.others)
     lines = lines_of(text_of(source), [named(place) for place in places])
+    shown: dict[str, tuple[str, tuple[str, str]]] = {}
+
+    def as_named(other: str) -> tuple[str, tuple[str, str]]:
+        # How a message names it, and its ids, made once: a group at odds names
+        # them often.
+        known = shown.get(other)
+        if known is None:
+            place = named(other)
+            # It is a component, which `ids_at` gives both ids of.
+            ids = cast(tuple[str, str], ids_at(other))
+            known = shown[other] = (f"line {lines[place]}, {place}", ids)
+        return known
+
     warnings = []
     for problem in problems:
         place = named(problem.pointer or problem.place)
         reason = printable(problem.reason)
         message = reason
         if problem.others:
-            others = [
-                f"line {lines[named(other)]}, {named(other)}"
-                for other, _ in problem.others
-            ]
+            others = [as_named(other)[0] for other, _ in problem.others]
             if problem.more:
                 others.append(f"and {problem.more} more")
             what = "other component" if len(others) == 1 else "other components"
@@ -464,10 +474,7 @@ def warnings_of(
                 lines[place],
                 message,
                 *ids_at(problem.place),
-                # Each other is a component, which `ids_at` gives both ids of.
-                other_ids=tuple(
-                    cast(tuple[str, str], ids_at(other)) for other, _ in problem.others
-                ),
+                other_ids=tuple(as_named(other)[1] for other, _ in problem.others),
                 more=problem.more,
                 reason=reason,
             )

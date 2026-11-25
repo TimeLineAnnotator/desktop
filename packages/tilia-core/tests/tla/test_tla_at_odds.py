@@ -176,20 +176,23 @@ def expected(doc):
     return found
 
 
-def warning_of(problem, lines):
-    """The warning for a problem: what its message says, by hand."""
-    place = problem.place
+def warning_of(problem, lines, where=None):
+    """The warning for a problem, put together by hand: what it names is where
+    `where` says, and its ids are the document's."""
+    named = where or {place: place for place in lines}
     message = problem.reason
     if problem.others:
-        parts = [f"line {lines[other]}, {other}" for other, _ in problem.others]
+        parts = [
+            f"line {lines[named[other]]}, {named[other]}" for other, _ in problem.others
+        ]
         if problem.more:
             parts.append(f"and {problem.more} more")
         what = "other component" if len(parts) == 1 else "other components"
         message += f" ({what}: {'; '.join(parts)})"
-    _, _, timeline_id, _, component_id = place.split("/")
+    _, _, timeline_id, _, component_id = problem.place.split("/")
     return tla.ReadWarning(
-        place=place,
-        line=lines[place],
+        place=named[problem.place],
+        line=lines[named[problem.place]],
         message=message,
         timeline_id=timeline_id,
         component_id=component_id,
@@ -335,3 +338,40 @@ def test_a_components_place_and_state_are_made_once(make, monkeypatch):
         count == 1 for (_, key), count in places.items() if key in timeline.components
     )
     assert len(states) <= len(timeline.components)
+
+
+@EACH_AT_ODDS
+def test_each_other_is_put_in_words_once_however_many_name_it(make, monkeypatch):
+    asked = collections.Counter()
+    ids_at = problems.ids_at
+
+    def counted(place):
+        asked[place] += 1
+        return ids_at(place)
+
+    monkeypatch.setattr(problems, "ids_at", counted)
+
+    doc = tla.loads(make(60))
+
+    # For each of its own warnings, and once for all those that name it.
+    own = collections.Counter(p.place for p in doc.read_problems)
+    assert asked and all(count <= own[place] + 1 for place, count in asked.items())
+
+
+@EACH_AT_ODDS
+def test_an_old_files_others_are_named_in_its_own_terms(make):
+    # `where` gives the place to name of each, the old file's: here, as if it were
+    # that of the next component.
+    data = make(40)
+    doc = tla.loads(data)
+    ((timeline_id, timeline),) = doc.timelines.items()
+    places = [
+        f"/timelines/{timeline_id}/components/{id_}" for id_ in timeline.components
+    ]
+    where = dict(zip(places, places[1:] + places[:1], strict=True))
+
+    warnings = problems.warnings_of(doc.read_problems, data, where.__getitem__)
+
+    lines = lines_by_place(data, doc)
+    assert warnings == [warning_of(p, lines, where) for p in doc.read_problems]
+    assert warnings != doc.warnings
