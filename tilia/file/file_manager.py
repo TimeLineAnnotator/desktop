@@ -391,7 +391,15 @@ class FileManager:
         # last save/load instead.
         if dict(current_data["media_metadata"]) != self._saved_metadata:
             return True
-        return not are_tilia_data_equal(current_data, self.file.__dict__)
+        # Nor media changes, as self.file.media_path follows the player.
+        # Compare the media loaded with that of the last save/load, so that
+        # other media, of whatever length, is a change until it is saved or
+        # undone.
+        loaded_media = normalize_media_path(current_data["media_path"])
+        return not are_tilia_data_equal(
+            {**current_data, "media_path": loaded_media},
+            {**self.file.__dict__, "media_path": self._saved_media_path},
+        )
 
     def on_player_url_changed(self, path: str | Path) -> None:
         self.file.media_path = str(path)
