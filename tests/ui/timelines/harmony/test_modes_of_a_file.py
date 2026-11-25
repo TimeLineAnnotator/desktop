@@ -1,6 +1,8 @@
 """The modes only a file can hold: of a type TiLiA doesn't offer, read or not. Each
 test opens a file through the core, as no action makes such a mode."""
 
+import json
+
 import pytest
 
 from tests.file.test_open_through_core import (
@@ -100,3 +102,69 @@ class TestATypeTiLiACantRead:
         (element,) = open_a_file_with(a_mode(**mode)).modes()
 
         assert (element.key.tonic.name, element.key.mode) == ("C", "major")
+
+
+class TestATypeTiLiACanReadAndDoesntOffer:
+    """Ionian is read as major, aeolian as minor, and any of the nine types whatever
+    its capitals (Anne, 2026-11-25, TimeLineAnnotator/project-management#677, 1c)."""
+
+    # B diminished: the raised seventh of C minor is "vii", without an accidental.
+    @pytest.mark.parametrize(
+        "mode_type, g, b_diminished",
+        [
+            ("ionian", "V", "viio"),
+            ("IONIAN", "V", "viio"),
+            ("Major", "V", "viio"),
+            ("aeolian", "V", "viio"),
+            ("Minor", "V", "viio"),
+            ("Dorian", "V", "`#viio"),
+        ],
+    )
+    def test_harmonies_are_shown_in_its_key(
+        self, open_a_file_with, tilia_errors, mode_type, g, b_diminished
+    ):
+        timeline_ui = open_a_file_with(
+            a_mode(type=mode_type),
+            a_harmony(display_mode="roman"),
+            a_harmony(time=2.0, step=6, quality="diminished", display_mode="roman"),
+        )
+
+        labels = [
+            harmony.body.toPlainText()
+            for harmony in sorted(
+                timeline_ui.harmonies(), key=lambda h: h.get_data("time")
+            )
+        ]
+        assert labels == [g, b_diminished]
+        tilia_errors.assert_no_error()
+
+    @pytest.mark.parametrize(
+        "mode_type, key", [("ionian", "C major"), ("Aeolian", "c minor")]
+    )
+    def test_a_roman_numeral_typed_is_read_in_its_key(
+        self, open_a_file_with, tilia_errors, mode_type, key
+    ):
+        timeline_ui = open_a_file_with(a_mode(type=mode_type))
+        labels = type_in_the_add_harmony_dialog("V")
+
+        tilia_errors.assert_no_error()
+        assert f"Current key: {key}" in labels
+        (harmony,) = timeline_ui.timeline.harmonies()
+        assert harmony.get_data("step") == 4
+
+    @pytest.mark.parametrize("mode_type", ["Ionian", "aeolian", "MINOR"])
+    def test_the_file_keeps_its_spelling(
+        self, open_a_file_with, tilia, tilia_errors, tmp_path, mode_type
+    ):
+        open_a_file_with(a_mode(type=mode_type))
+        assert not tilia.is_file_modified()
+        type_in_the_add_harmony_dialog("G")
+        assert tilia.is_file_modified()
+
+        assert commands.execute("file.save")
+
+        saved = json.loads((tmp_path / "file.tla").read_text(encoding="utf-8"))
+        components = saved["timelines"][HARMONIES]["components"].values()
+        (mode,) = [c for c in components if c["kind"] == "MODE"]
+        assert mode["type"] == mode_type
+        tilia_errors.assert_no_error()

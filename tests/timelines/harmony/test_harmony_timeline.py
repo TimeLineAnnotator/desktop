@@ -101,6 +101,36 @@ MODES_TILIA_CANT_READ = {
     "type": {"step": 4, "type": "some-future-type"},
 }
 
+# What a type names, whatever its capitals: the type of the key TiLiA reads.
+TYPES_TILIA_CAN_READ = {
+    "major": "major",
+    "minor": "minor",
+    "dorian": "dorian",
+    "phrygian": "phrygian",
+    "lydian": "lydian",
+    "mixolydian": "mixolydian",
+    "locrian": "locrian",
+    "ionian": "major",
+    "aeolian": "minor",
+}
+
+# music21 makes a key of the first six, with a key signature that doesn't match its
+# scale.
+TYPES_TILIA_CANT_READ = [
+    "hypodorian",
+    "Hypophrygian",
+    "hypolydian",
+    "hypomixolydian",
+    "hypolocrian",
+    "hypoaeolian",
+    "some-future-type",
+    "harmonic minor",
+    "chromatic",
+    "major ",
+    "maj",
+    "",
+]
+
 with_a_mode_tilia_cant_read = pytest.mark.parametrize(
     "unreadable",
     MODES_TILIA_CANT_READ.values(),
@@ -135,12 +165,39 @@ class TestAKeyTiLiACantRead:
         assert harmony_tl.can_read_key_by_time(20)
         assert key_name(harmony_tl.get_key_by_time(25)) == ("D", "major")
 
-    @pytest.mark.parametrize("mode_type", MODE_TYPES)
-    def test_every_type_tilia_offers_can_be_read(self, harmony_tl, mode_type):
-        mode, _ = harmony_tl.create_mode(0, step=4, type=mode_type)
+    @pytest.mark.parametrize("mode_type", TYPES_TILIA_CANT_READ, ids=repr)
+    def test_every_other_type_can_t_be_read(self, harmony_tl, mode_type):
+        mode, _ = harmony_tl.create_mode(0, step=4, type=mode_type, checked=False)
+
+        assert not harmony_tl.can_read_key_by_time(1)
+        assert key_name(mode.key) == ("C", "major")
+
+
+class TestTheTypesTiLiACanRead:
+    """Nine, whatever their capitals: those TiLiA offers, ionian as major and
+    aeolian as minor (Anne, 2026-11-25, TimeLineAnnotator/project-management#677,
+    1c)."""
+
+    @pytest.mark.parametrize("spell", [str.lower, str.capitalize, str.upper])
+    @pytest.mark.parametrize("mode_type, key_type", TYPES_TILIA_CAN_READ.items())
+    def test_its_key(self, harmony_tl, mode_type, key_type, spell):
+        spelling = spell(mode_type)
+        mode, _ = harmony_tl.create_mode(0, step=4, type=spelling, checked=False)
 
         assert harmony_tl.can_read_key_by_time(1)
-        assert key_name(mode.key) == ("G", mode_type)
+        assert key_name(mode.key) == ("G", key_type)
+        assert mode.get_data("type") == spelling
+
+    def test_they_are_the_ones_tilia_offers_and_two_more(self):
+        assert set(TYPES_TILIA_CAN_READ) == {*MODE_TYPES, "ionian", "aeolian"}
+
+    @pytest.mark.parametrize("mode_type", ["ionian", "Aeolian", "Major"])
+    def test_only_the_ones_tilia_offers_can_be_given(self, harmony_tl, mode_type):
+        # As spelled: one a file holds is read, and stays until another is picked.
+        mode, _ = harmony_tl.create_mode(0)
+
+        assert mode.set_data("type", mode_type) == (None, False)
+        assert mode.get_data("type") == "major"
 
 
 class TestAppliedToNextToAModeTiLiACantRead:
@@ -197,16 +254,23 @@ class TestAppliedToNextToAModeTiLiACantRead:
         assert mode not in harmony_tl.modes()
         assert self.applied_to(harmony_tl) == 3
 
-    def test_adding_a_mode_tilia_can_read_recomputes_it(self, harmony_tl):
-        harmony_tl.create_mode(0, step=4)  # G major
+    # As TiLiA spells it, and as only a file can.
+    @pytest.mark.parametrize("mode_type", ["major", "Ionian"])
+    def test_adding_a_mode_after_one_tilia_can_read_recomputes_it(
+        self, harmony_tl, mode_type
+    ):
+        harmony_tl.create_mode(0, step=4, type=mode_type, checked=False)  # G
         harmony_tl.create_harmony(5, step=4, applied_to=0)
 
         harmony_tl.create_mode(3, step=3)  # F major
 
         assert self.applied_to(harmony_tl) == 1  # 0 + 4 - 3
 
-    def test_deleting_a_mode_tilia_can_read_recomputes_it(self, harmony_tl):
-        harmony_tl.create_mode(0, step=4)  # G major
+    @pytest.mark.parametrize("mode_type", ["major", "Ionian"])
+    def test_deleting_a_mode_after_one_tilia_can_read_recomputes_it(
+        self, harmony_tl, mode_type
+    ):
+        harmony_tl.create_mode(0, step=4, type=mode_type, checked=False)  # G
         mode, _ = harmony_tl.create_mode(3, step=3)  # F major
         harmony_tl.create_harmony(5, step=4, applied_to=6)
 

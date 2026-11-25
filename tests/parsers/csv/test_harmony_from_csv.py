@@ -485,6 +485,26 @@ class TestRomanNumeralWhereTheKeyCantBeRead:
         assert harmony.get_data("accidental") == 0
 
 
+class TestRomanNumeralAfterATypeOnlyAFileCanHold:
+    @pytest.mark.parametrize(
+        "mode_type, step, accidental",
+        [("ionian", 6, 0), ("Aeolian", 6, -1), ("MAJOR", 6, 0)],
+    )
+    def test_it_is_imported_in_its_key(self, harmony_tl, mode_type, step, accidental):
+        # One TiLiA can read (TimeLineAnnotator/project-management#677, 1c): B in C
+        # major, B flat in C minor.
+        harmony_tl.create_mode(time=0, type=mode_type, checked=False)
+        data = "\n".join(["time,harmony_or_key,symbol", "10,harmony,VII"])
+
+        success, errors = call_patched_import_by_time_func(harmony_tl, data)
+
+        assert success
+        assert not errors
+        (harmony,) = harmony_tl.harmonies()
+        assert harmony.get_data("step") == step
+        assert harmony.get_data("accidental") == accidental
+
+
 class TestSymbolsThatRaise:
     def test_a_key_lookup_that_raises_is_the_row_s_error(self, harmony_tl):
         # The import goes on: the lookup is inside the `try` that reports a row's
