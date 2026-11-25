@@ -3120,32 +3120,79 @@ class TestBeatPattern:
         )
 
     @pytest.mark.parametrize("character", UNSEEN, ids=ascii)
-    def test_a_character_that_cant_be_seen_is_its_escape_there_and_in_the_pattern(
-        self, character
-    ):
+    def test_a_character_that_cant_be_seen_is_its_escape_in_the_reason(self, character):
         # TimeLineAnnotator/project-management#680, 2b.
         escape = json.dumps(character)
         assert escape.startswith('"\\u')
-        assert rules.beat_pattern(f"4{character}", timeline_name="Beats").reason == (
-            f'the beat pattern "4{escape[1:-1]}" of the timeline "Beats"'
-            f" isn't a valid pattern: Unexpected {escape}."
-        )
+        reason = rules.beat_pattern(f"4{character}", timeline_name="Beats").reason
+        assert reason.endswith(f" isn't a valid pattern: Unexpected {escape}.")
+
+    # What the pattern before the colon shows, apart from the reason after it.
+
+    @pytest.mark.parametrize("character", UNSEEN, ids=ascii)
+    def test_a_character_that_cant_be_seen_is_its_escape_in_the_pattern(
+        self, character
+    ):
+        # TimeLineAnnotator/project-management#680, 2b.
+        shown = json.dumps(f"4{character}x")
+        reason = rules.beat_pattern(f"4{character}x", timeline_name="Beats").reason
+        assert reason.startswith(f"the beat pattern {shown} of the timeline")
 
     @pytest.mark.parametrize(
         "text, shown",
         [
             ("4\ufe0f\u20e3", "4\\ufe0f\\u20e3"),
             ("\u200b\u0301\u0301x\u0301", "\\u200b\\u0301\\u0301x\u0301"),
-            ("x\u0301\u200b", "x\u0301\\u200b"),
-            ("\u2764\ufe0f", "\u2764\\ufe0f"),
-            ("]\u200b^-\\", "]\\u200b^-\\\\"),
+            ("4\x00\u0301", "4\\u0000\\u0301"),
+            ("4\t\u0301\u0302", "4\\t\\u0301\\u0302"),
+            ("4\n\u0301", "4\\n\\u0301"),
+            ("4\x1f\u0301", "4\\u001f\\u0301"),
         ],
         ids=ascii,
     )
     def test_a_combining_mark_after_an_escape_is_one_too(self, text, shown):
-        # It would sit on the escape; on a character that is seen, it stays.
+        # It would sit on the escape.
         reason = rules.beat_pattern(text, timeline_name="Beats").reason
         assert reason.startswith(f'the beat pattern "{shown}" of the timeline')
+
+    @pytest.mark.parametrize(
+        "text, shown",
+        [
+            ("x\u0301\u200b", "x\u0301\\u200b"),
+            ("\u200bx\u0301", "\\u200bx\u0301"),
+            ("\u2764\ufe0f", "\u2764\\ufe0f"),
+            ("]\u200b^-\\", "]\\u200b^-\\\\"),
+            ('4"\u0301\\\u0301', '4\\"\u0301\\\\\u0301'),
+            ("4\u00a0\u0301", "4\u00a0\u0301"),
+            ("\u0301", "\u0301"),
+        ],
+        ids=ascii,
+    )
+    def test_any_other_character_of_the_pattern_stays_as_json_writes_it(
+        self, text, shown
+    ):
+        reason = rules.beat_pattern(text, timeline_name="Beats").reason
+        assert reason.startswith(f'the beat pattern "{shown}" of the timeline')
+
+    @pytest.mark.parametrize(
+        "pattern",
+        [
+            "".join(map(chr, range(0xF0000, 0xF0000 + 100_000))),
+            "x\U000f0000" * 100_000,
+            "\U000f0000" + "\u0301" * 200_000,
+        ],
+        ids=["distinct", "every other one", "marks after one"],
+    )
+    def test_a_long_pattern_of_characters_that_cant_be_seen_takes_little_time(
+        self, pattern
+    ):
+        # In time linear in its length: a class of these characters, which a regular
+        # expression checks one after another past U+FFFF, took 3 s for the first,
+        # and grew with the square. Of this process's time, whatever else runs.
+        start = time.process_time()
+        outcome = rules.beat_pattern(pattern, timeline_name="Beats")
+        assert time.process_time() - start < 1
+        assert not outcome
 
     @pytest.mark.parametrize("character", list("a.,-+/\\é²٣日💡`´′") + ["\u0301"])
     def test_any_other_character_stays_as_it_is(self, character):

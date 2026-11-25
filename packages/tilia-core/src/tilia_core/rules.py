@@ -45,7 +45,6 @@ import importlib.util
 import itertools
 import json
 import math
-import re
 import string
 import unicodedata
 from collections.abc import (
@@ -719,7 +718,7 @@ def beat_pattern(pattern: str | None, *, timeline_name: str) -> Outcome:
     return _broken(
         bad_code("beat_pattern"),
         printable(
-            f"the beat pattern {_as_json(pattern)} of the timeline {name}"
+            f"the beat pattern {_pattern_as_json(pattern)} of the timeline {name}"
             f" isn't a valid pattern: {_why_refused(pattern, parsed)}"
         ),
     )
@@ -728,29 +727,38 @@ def beat_pattern(pattern: str | None, *, timeline_name: str) -> Outcome:
 def _why_refused(pattern: str, parsed: ParseResult) -> str:
     """Why the parser refuses `pattern`, for a text about a pattern nobody is
     typing: the parser's reason, but for a pattern with nothing in it, and with a
-    quotation mark or a character that can't be seen as the pattern shows it
-    (TimeLineAnnotator/project-management#680 (three beat pattern reasons that
-    read badly in a warning)). A reason that quotes a character quotes the one at
-    `parsed.position`."""
+    quotation mark as JSON writes it, and a character that can't be seen as its
+    escape there (TimeLineAnnotator/project-management#680 (three beat pattern
+    reasons that read badly in a warning)). A reason that quotes a character quotes
+    the one at `parsed.position`."""
     if not pattern.strip():
         return _NO_BAR_LENGTH
     start = parsed.position
     character = "" if start is None else pattern[start : start + 1]
-    if character in _QUOTATION_MARKS or _cant_be_seen(character):
-        return parsed.error.replace(f"'{character}'", _as_json(character))
+    unseen = _cant_be_seen(character)
+    if unseen or character in _QUOTATION_MARKS:
+        shown = json.dumps(character, ensure_ascii=unseen)
+        return parsed.error.replace(f"'{character}'", shown)
     return parsed.error
 
 
-def _as_json(text: str) -> str:
-    """`text` as JSON writes it, each character that can't be seen as its escape,
-    and so each combining mark after one, which would sit on that escape."""
-    shown = json.dumps(text, ensure_ascii=False)
-    unseen = "".join(filter(_cant_be_seen, set(shown)))
-    if not unseen:
-        return shown
-    marks = "".join(c for c in set(shown) if unicodedata.category(c)[0] == "M")
-    found = f"[{re.escape(unseen)}][{re.escape(unseen + marks)}]*"
-    return re.sub(found, lambda match: json.dumps(match[0])[1:-1], shown)
+def _pattern_as_json(pattern: str) -> str:
+    """`pattern` as JSON writes it, each character that can't be seen as its escape,
+    and so each combining mark after an escape, which would sit on it. In one pass,
+    since a file can hold a long one."""
+    escaped = False
+
+    def is_escaped(character: str) -> bool:
+        nonlocal escaped
+        sits_on_one = escaped and unicodedata.category(character)[0] == "M"
+        escaped = sits_on_one or character < " " or _cant_be_seen(character)
+        return escaped
+
+    shown = (
+        json.dumps("".join(run), ensure_ascii=as_escapes)[1:-1]
+        for as_escapes, run in itertools.groupby(pattern, is_escaped)
+    )
+    return f'"{"".join(shown)}"'
 
 
 def _cant_be_seen(character: str) -> bool:
