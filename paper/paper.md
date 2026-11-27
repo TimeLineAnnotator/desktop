@@ -66,7 +66,7 @@ Score-annotation platforms such as _Edirom Online_ [@rowenstrunk:2014], _Listen 
 
 [^commercial]: Commercial alternatives include: _Hookpad_ and _Soundslice_ (closed-source and subscription-based). SyncPlayer [@kurth:2005; @fremerey:2007] was another timeline-based annotator that is no longer available.
 
-Availability, for instance, is often constrained (\autoref{tab:comparison}): iAnalyse runs only on macOS, while Dezrann and BriFormer are hosted web applications. BriFormer has no open licence and depends on its author's website. Dezrann places uploaded pieces in a public sandbox; working with a private recording means requesting an account by e-mail or deploying the platform oneself. Few of the tools are scriptable, and moving analyses between tools can be cumbersome, constraining interoperability and work at scale.
+Availability, for instance, is often constrained (\autoref{tab:comparison}): iAnalyse runs only on macOS, while Dezrann and BriFormer are available only as hosted web applications. BriFormer has no open licence and depends on its author's website. Dezrann places uploaded pieces in a public sandbox; working with a private recording means requesting an account by e-mail or deploying the platform oneself. Few of the tools are scriptable, and moving analyses between tools can be cumbersome, constraining interoperability and work at scale.
 
 Most software focuses on a subset of the many forms analytical annotations can take (e.g. hierarchical groupings, metre, overlapping time spans, score elements, harmony, text).
 Audio Timeliner and BriFormer allow only nested spans, whereas Sonic Visualiser and iAnalyse allow overlaps, but only on a flat surface.
