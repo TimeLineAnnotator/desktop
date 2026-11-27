@@ -1927,9 +1927,7 @@ class TestState:
         opened.sync()
         assert timeline.attrs[attr] == value
 
-    def test_a_time_signature_with_pairs_keeps_them_as_a_key_the_core_doesnt_know(self):
-        # In TiLiA's SERIALIZABLE, not in the format's layout: the reader keeps it
-        # in `extra`, and the writer refuses a key in both.
+    def time_signature_with_pairs(self):
         staff, signature, tl = make_id(1), make_id(2), make_id(3)
         timeline = {
             "kind": "Score",
@@ -1947,16 +1945,56 @@ class TestState:
                 },
             },
         }
-        opened = Opened.from_content(file_with({tl: timeline}))
+        return Opened.from_content(file_with({tl: timeline})), tl, signature
+
+    def test_a_time_signature_with_pairs_holds_them_as_a_key_of_the_format(self):
+        # A key of the layout (TimeLineAnnotator/project-management#515): edited,
+        # it goes to `attrs`, where the reader put it. In `extra` as well, the
+        # writer would refuse a key set in both.
+        opened, tl, signature = self.time_signature_with_pairs()
         component = opened.doc.timelines[tl].components[signature]
         assert opened.component(tl, signature)["pairs"] == [["2", 4], ["3", 8]]
         opened.sync()
         assert opened.bytes() == opened.bytes_read
         opened.edit_component(tl, signature, pairs=[["3", 4]])
         opened.sync()
-        assert component.extra["pairs"] == [["3", 4]]
-        assert "pairs" not in component.attrs
-        assert tla.loads(opened.bytes())
+        assert component.attrs["pairs"] == [["3", 4]]
+        assert "pairs" not in component.extra
+        written = json.loads(opened.bytes())["timelines"][tl]["components"][signature]
+        assert list(written)[-2:] == ["denominator", "pairs"]
+        assert written["pairs"] == [["3", 4]]
+
+    def test_a_time_signature_whose_pairs_are_taken_out_has_no_key_for_them(self):
+        opened, tl, signature = self.time_signature_with_pairs()
+        opened.edit_component(tl, signature, numerator="5", denominator=8, pairs=None)
+        opened.sync()
+        written = json.loads(opened.bytes())["timelines"][tl]["components"][signature]
+        assert "pairs" not in written
+        assert (written["numerator"], written["denominator"]) == ("5", 8)
+
+    def test_a_new_time_signature_with_pairs_holds_them_as_a_key_of_the_format(self):
+        # In `extra`, an edit after this one would set the key in both.
+        tl = make_id(3)
+        timeline = {"kind": "Score", "ordinal": 1, "height": 160, "components": {}}
+        opened = Opened.from_content(file_with({tl: timeline}))
+        opened.add_component(
+            tl,
+            NEW,
+            "TIME_SIGNATURE",
+            staff_index=0,
+            time=0.0,
+            numerator=None,
+            denominator=None,
+            pairs=[["2", 4], ["3", 8]],
+        )
+        opened.sync()
+        component = opened.doc.timelines[tl].components[NEW]
+        assert component.attrs["pairs"] == [["2", 4], ["3", 8]]
+        assert "pairs" not in component.extra
+        opened.edit_component(tl, NEW, pairs=[["3", 4]])
+        opened.sync()
+        written = json.loads(opened.bytes())["timelines"][tl]["components"][NEW]
+        assert written["pairs"] == [["3", 4]]
 
     def test_a_new_time_signature_without_pairs_has_no_key_for_them(self):
         tl = make_id(3)
@@ -3522,7 +3560,7 @@ class TestNoSharing:
         state = tla_bridge.state_of(doc)
         state[self.TL]["components"][self.SIGNATURE]["pairs"].append(["5", 8])
         stored = doc.timelines[self.TL].components[self.SIGNATURE]
-        assert stored.extra["pairs"] == [["2", 4], ["3", 8]]
+        assert stored.attrs["pairs"] == [["2", 4], ["3", 8]]
 
     def test_a_list_written_to_a_component(self):
         opened = self.opened()
@@ -3530,7 +3568,7 @@ class TestNoSharing:
         opened.sync()
         opened.component(self.TL, self.SIGNATURE)["pairs"].append(["5", 8])
         stored = opened.doc.timelines[self.TL].components[self.SIGNATURE]
-        assert stored.extra["pairs"] == [["3", 4]]
+        assert stored.attrs["pairs"] == [["3", 4]]
 
 
 class TestOnlyWhatDiffersOnTimelines:
