@@ -14,7 +14,11 @@ def deps_debug(exc: ImportError):
     def _raise_deps_error(exc: ImportError, message: list[str]):
         raise RuntimeError("\n".join(message)) from exc
 
-    distro = platform.freedesktop_os_release().get("ID_LIKE", "").split()[0]
+    try:
+        id_like = platform.freedesktop_os_release().get("ID_LIKE", "")
+    except OSError:
+        id_like = platform.freedesktop_os_release().get("ID", "unknown")
+    distro = id_like.split()[0] if id_like else "unknown"
     link = f"{WEBSITE_URL}/help/installation?distro={distro}#troubleshooting-linux"
     root_path = Path(
         [*traceback.walk_tb(exc.__traceback__)][0][0].f_code.co_filename
